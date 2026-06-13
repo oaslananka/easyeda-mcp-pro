@@ -82,6 +82,13 @@
           "default": ""
         },
         {
+          "name": "ALLOWED_ORIGINS",
+          "description": "Comma-separated list of allowed origins for HTTP transport (use * for wildcard)",
+          "isRequired": false,
+          "format": "string",
+          "default": ""
+        },
+        {
           "name": "MCP_TASKS_ENABLED",
           "description": "Enable experimental MCP tasks",
           "isRequired": false,
@@ -114,14 +121,14 @@
           "description": "Bridge primary port",
           "isRequired": false,
           "format": "number",
-          "default": "18601"
+          "default": "49620"
         },
         {
           "name": "BRIDGE_PORT_SCAN",
           "description": "Port scan specification (comma-separated ports or ranges)",
           "isRequired": false,
           "format": "string",
-          "default": "18601,50100-50110"
+          "default": "49620-49629"
         },
         {
           "name": "BRIDGE_TIMEOUT_MS",
@@ -138,18 +145,18 @@
           "default": "10000"
         },
         {
-          "name": "BRIDGE_RECONNECT_INTERVAL_MS",
-          "description": "Bridge reconnect interval in ms",
-          "isRequired": false,
-          "format": "number",
-          "default": "3000"
-        },
-        {
           "name": "BRIDGE_RECONNECT_MAX_ATTEMPTS",
           "description": "Max reconnect attempts (0 = infinite)",
           "isRequired": false,
           "format": "number",
           "default": "0"
+        },
+        {
+          "name": "BRIDGE_WAIT_FOR_EDA_MS",
+          "description": "How long to wait for EasyEDA Pro to become available on startup (ms)",
+          "isRequired": false,
+          "format": "number",
+          "default": "30000"
         },
         {
           "name": "BRIDGE_MAX_PAYLOAD_SIZE",
