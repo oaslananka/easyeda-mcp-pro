@@ -11,7 +11,7 @@ const searchDeviceInputSchema = z.object({
   page: z.number().int().default(1),
 });
 
-const deviceItemSchema = z
+const _deviceItemSchema = z
   .object({
     libraryUuid: z.string(),
     uuid: z.string(),

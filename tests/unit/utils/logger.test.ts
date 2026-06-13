@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createLogger, getLogger } from '../../../src/utils/logger.js';
-import type pino from 'pino';
 
 describe('Logger Utility', () => {
   it('createLogger creates a pino logger instance', () => {

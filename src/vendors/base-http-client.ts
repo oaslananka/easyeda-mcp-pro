@@ -1,7 +1,6 @@
 import { request } from 'undici';
 import type { Readable } from 'node:stream';
 import { EasyEdaMcpError } from '../schemas/common.js';
-import { getLogger } from '../utils/logger.js';
 import type pino from 'pino';
 
 /** Default max retries for HTTP requests (2 retries = 3 total attempts). */
