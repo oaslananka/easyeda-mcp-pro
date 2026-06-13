@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.4.0...easyeda-mcp-pro-v0.5.0) (2026-06-13)
+
+
+### Features
+
+* initial commit - easyeda-mcp-pro MCP server ([c82ef0c](https://github.com/oaslananka/easyeda-mcp-pro/commit/c82ef0cefd1788229153497217b6341b2fce700d))
+
+
+### Bug Fixes
+
+* remove unused 'allRefs' variable in bridge extension ([34c511d](https://github.com/oaslananka/easyeda-mcp-pro/commit/34c511de46a2fe2a5c1030644225d9271d20e9ff))
+* resolve CI failures - syntax error in _e2e_http.mjs and Prettier formatting ([cd43b48](https://github.com/oaslananka/easyeda-mcp-pro/commit/cd43b48548ae34023e2213d0e9f7ce1145258646))
+* resolve ESLint errors - remove unused imports and variables ([a5cd678](https://github.com/oaslananka/easyeda-mcp-pro/commit/a5cd6784752dcaf0b0006c88036b6ca3ef6edbf7))
+
 ## [0.4.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.3.2...easyeda-mcp-pro-v0.4.0) (2026-06-10)
 
 ### Features
