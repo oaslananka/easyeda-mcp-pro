@@ -3,14 +3,18 @@
   "uuid": "e7b9fb543e9a4c2898e30d33e5c9b68a",
   "displayName": "MCP Pro Bridge",
   "description": "WebSocket bridge for external MCP server connectivity",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "oaslananka",
   "engines": {
     "eda": "^2.0.0"
   },
   "license": "MIT",
   "categories": "Other",
-  "keywords": ["mcp", "bridge", "websocket"],
+  "keywords": [
+    "mcp",
+    "bridge",
+    "websocket"
+  ],
   "images": {
     "logo": "./images/logo.png"
   },
