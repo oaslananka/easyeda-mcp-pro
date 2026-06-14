@@ -2,10 +2,9 @@
 
 ## [0.5.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.5.1...easyeda-mcp-pro-v0.5.2) (2026-06-14)
 
-
 ### Bug Fixes
 
-* **ci:** format release-please files and fix SBOM pnpm compatibility ([e366fec](https://github.com/oaslananka/easyeda-mcp-pro/commit/e366fec56ff79c576c1b6b4299a011bab95a85a2))
+- **ci:** format release-please files and fix SBOM pnpm compatibility ([e366fec](https://github.com/oaslananka/easyeda-mcp-pro/commit/e366fec56ff79c576c1b6b4299a011bab95a85a2))
 
 ## [0.5.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.5.0...easyeda-mcp-pro-v0.5.1) (2026-06-14)
 

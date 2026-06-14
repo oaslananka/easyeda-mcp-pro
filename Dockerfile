@@ -24,7 +24,8 @@ RUN pnpm build
 RUN pnpm build:extension
 
 # Prune development dependencies to keep production image light
-RUN pnpm install --prod --ignore-scripts
+# CI=true suppresses pnpm v11+ interactive confirmModulesPurge prompt
+RUN CI=true pnpm install --prod --ignore-scripts
 
 # ── Production Runner Stage ────────────────────────────────────
 FROM node:24-alpine AS runner

@@ -10,11 +10,7 @@
   },
   "license": "MIT",
   "categories": "Other",
-  "keywords": [
-    "mcp",
-    "bridge",
-    "websocket"
-  ],
+  "keywords": ["mcp", "bridge", "websocket"],
   "images": {
     "logo": "./images/logo.png"
   },
