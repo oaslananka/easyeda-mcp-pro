@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.5.2...easyeda-mcp-pro-v0.5.3) (2026-06-14)
+
+
+### Bug Fixes
+
+* **ci:** permanently resolve recurring format and docker failures ([37a6463](https://github.com/oaslananka/easyeda-mcp-pro/commit/37a6463efcf111d444bc8e1c4d3f34b79d7565c6))
+* **ci:** use standard approach for format and pnpm prod-install ([ac21e93](https://github.com/oaslananka/easyeda-mcp-pro/commit/ac21e93dc79c9d5e5399338b0da0cfea6172a2f1))
+
 ## [0.5.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.5.1...easyeda-mcp-pro-v0.5.2) (2026-06-14)
 
 ### Bug Fixes
