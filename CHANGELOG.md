@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.5.3...easyeda-mcp-pro-v0.5.4) (2026-06-14)
+
+
+### Bug Fixes
+
+* **docker:** copy .npmrc into builder so confirmModulesPurge=false applies ([48d2890](https://github.com/oaslananka/easyeda-mcp-pro/commit/48d2890d0ce00deadf252614b7de3f01439d35e7))
+
 ## [0.5.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.5.2...easyeda-mcp-pro-v0.5.3) (2026-06-14)
 
 
