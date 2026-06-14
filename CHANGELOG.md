@@ -2,10 +2,9 @@
 
 ## [0.5.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.5.0...easyeda-mcp-pro-v0.5.1) (2026-06-14)
 
-
 ### Bug Fixes
 
-* **server.json:** sync env var definitions with env.ts ([902fbe5](https://github.com/oaslananka/easyeda-mcp-pro/commit/902fbe5f4f110ac2db0d1d3908f884a0c9e81e54))
+- **server.json:** sync env var definitions with env.ts ([902fbe5](https://github.com/oaslananka/easyeda-mcp-pro/commit/902fbe5f4f110ac2db0d1d3908f884a0c9e81e54))
 
 ## [0.5.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.4.0...easyeda-mcp-pro-v0.5.0) (2026-06-13)
 
