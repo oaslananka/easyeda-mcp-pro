@@ -10,6 +10,8 @@ The active tool set is gated by the `TOOL_PROFILE` environment variable.
 
 `TOOL_SCOPES` can optionally add a second capability allowlist. Leave it empty for the default local all-capabilities mode, or set comma/space separated scopes such as `schematic:read,bom:read,export:write`.
 
+Mutation tools accept an optional `writeMode` control. Use `plan` or `preview` to validate and inspect a pending change without touching EasyEDA, then use the default `apply` mode with `confirmWrite=true` only after user approval. Use `verify` as a non-mutating checkpoint before running read-only diagnostics after an apply.
+
 | Profile          | Level   | Purpose                                                                                                                            |
 | ---------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `core` (default) | L0 + L1 | Standard read-only and inspection tools (schematic components, nets, stackup, layers, export Gerbers).                             |

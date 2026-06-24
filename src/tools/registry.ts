@@ -1,5 +1,12 @@
 import { type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { type ToolDefinition, type ToolContext } from './types.js';
+import {
+  registeredOutputSchema,
+  getRawInput,
+  parseWriteMode,
+  omitWriteControls,
+  writePlanResponse,
+} from './transaction.js';
 import { type ToolProfile, getEnabledProfiles } from '../config/profiles.js';
 import { ZodError, type z } from 'zod';
 import { SERVER_VERSION } from '../config/version.js';
@@ -186,21 +193,19 @@ export class ToolRegistry {
           title: tool.title,
           description: tool.description,
           inputSchema: tool.inputSchema,
-          outputSchema: tool.outputSchema,
+          outputSchema: registeredOutputSchema(tool),
           annotations: tool.annotations,
         },
         async (input: unknown) => {
           try {
-            // ── confirmWrite gate ──────────────────────────────────────
-            if (tool.confirmWrite) {
-              const raw = (input ?? {}) as Record<string, unknown>;
-              if (raw.confirmWrite !== true) {
-                return structuredErrorResponse({
-                  errorCode: ErrorCodes.CONFIRM_WRITE_REQUIRED,
-                  message: `Tool "${tool.name}" can mutate design state and requires confirmWrite=true.`,
-                  details: { toolName: tool.name, toolGroup: tool.group, risk: tool.risk },
-                });
-              }
+            const raw = getRawInput(input);
+            const writeMode = parseWriteMode(raw);
+            if (writeMode instanceof ZodError) {
+              return structuredErrorResponse({
+                errorCode: ErrorCodes.INVALID_INPUT,
+                message: `Invalid writeMode for "${tool.name}": ${writeMode.message}`,
+                details: { toolName: tool.name, issues: writeMode.issues },
+              });
             }
 
             // ── Capability scope gate ────────────────────────────
@@ -215,6 +220,33 @@ export class ToolRegistry {
                   requiredScopes,
                   configuredScopes: allowedScopes ? Array.from(allowedScopes) : ['*'],
                 },
+              });
+            }
+
+            // ── Write transaction planning / preview / verification ─────
+            if (tool.confirmWrite && writeMode !== 'apply') {
+              const parsedPlan = tool.inputSchema.safeParse({ ...raw, confirmWrite: true });
+              if (!parsedPlan.success) {
+                return structuredErrorResponse({
+                  errorCode: ErrorCodes.INVALID_INPUT,
+                  message: `Invalid input for "${tool.name}": ${parsedPlan.error.message}`,
+                  details: { toolName: tool.name, issues: parsedPlan.error.issues },
+                });
+              }
+              return writePlanResponse(
+                tool,
+                writeMode,
+                omitWriteControls(parsedPlan.data),
+                requiredScopes,
+              );
+            }
+
+            // ── confirmWrite gate for apply ─────────────────────────────
+            if (tool.confirmWrite && raw.confirmWrite !== true) {
+              return structuredErrorResponse({
+                errorCode: ErrorCodes.CONFIRM_WRITE_REQUIRED,
+                message: `Tool "${tool.name}" can mutate design state and requires confirmWrite=true.`,
+                details: { toolName: tool.name, toolGroup: tool.group, risk: tool.risk },
               });
             }
 

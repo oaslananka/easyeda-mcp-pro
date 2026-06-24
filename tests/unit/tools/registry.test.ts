@@ -213,6 +213,65 @@ describe('ToolRegistry', () => {
       expect(response.structuredContent).toMatchObject({ ok: true, written: true });
     });
 
+    it('should return a write transaction plan without executing the handler', async () => {
+      const handler = vi.fn(async () => ({ ok: true, written: true }));
+      const mutableTool = createMockTool('planned_tool', 'core', {
+        confirmWrite: true,
+        risk: 'high',
+        inputSchema: z.object({
+          name: z.string(),
+          confirmWrite: z.literal(true),
+        }),
+        outputSchema: z.object({ ok: z.boolean(), written: z.boolean() }),
+        handler,
+      });
+      registry.register(mutableTool);
+
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+
+      const response = await handlers.get('planned_tool')!({ name: 'R1', writeMode: 'plan' });
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(response.isError).toBeFalsy();
+      expect(response.structuredContent).toMatchObject({
+        success: true,
+        transaction: {
+          toolName: 'planned_tool',
+          phase: 'plan',
+          willApply: false,
+          bridgeCallRequired: false,
+          confirmWriteRequired: true,
+          inputPreview: { name: 'R1' },
+          nextStep: { writeMode: 'apply', confirmWrite: true },
+        },
+      });
+    });
+
+    it('should reject invalid writeMode before execution', async () => {
+      const handler = vi.fn(async () => ({ ok: true, written: true }));
+      const mutableTool = createMockTool('bad_write_mode', 'core', {
+        confirmWrite: true,
+        risk: 'high',
+        outputSchema: z.object({ ok: z.boolean(), written: z.boolean() }),
+        handler,
+      });
+      registry.register(mutableTool);
+
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+
+      const response = await handlers.get('bad_write_mode')!({
+        confirmWrite: true,
+        writeMode: 'simulate',
+      });
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(response.isError).toBe(true);
+      expect(response.content[0].text).toContain(ErrorCodes.INVALID_INPUT);
+      expect(response.content[0].text).toContain('writeMode');
+    });
+
     it('should not block confirmWrite=false tools', async () => {
       const readOnlyTool = createMockTool('readonly_tool', 'core', {
         confirmWrite: false,

@@ -130,6 +130,15 @@ At runtime, the `ToolRegistry.registerAllOnServer()` wrapper:
 
 This prevents LLMs from accidentally mutating design state without explicit user acknowledgment.
 
+Mutation tools also support a registry-level write transaction flow through `writeMode`:
+
+- `writeMode=plan` validates the tool input and returns a structured transaction plan without calling the bridge.
+- `writeMode=preview` returns a structured preview checkpoint without calling the bridge.
+- `writeMode=apply` is the default execution mode and still requires `confirmWrite=true`.
+- `writeMode=verify` returns a non-mutating verification checkpoint; callers should follow it with read-only diagnostics after applying a change.
+
+The safe sequence for agents is: plan → preview → user confirmation → apply with `confirmWrite=true` → verify with read-only checks.
+
 **Risk tiers:**
 
 | Risk Level | Tool Type                      | Examples                                                              | confirmWrite Required |
