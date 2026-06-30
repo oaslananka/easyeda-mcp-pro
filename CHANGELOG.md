@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.1...easyeda-mcp-pro-v0.6.2) (2026-06-30)
+
+
+### Bug Fixes
+
+* make Docker pnpm prune non-interactive ([cb68b3d](https://github.com/oaslananka/easyeda-mcp-pro/commit/cb68b3d9ef7121b871c41bdbd8c28c86a15deb40))
+* make Docker pnpm prune non-interactive ([6c13148](https://github.com/oaslananka/easyeda-mcp-pro/commit/6c13148b23d15d12e7b4cdadad596441715bf64e))
+
 ## [0.6.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.0...easyeda-mcp-pro-v0.6.1) (2026-06-30)
 
 
