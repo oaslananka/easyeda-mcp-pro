@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.6](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.5...easyeda-mcp-pro-v0.6.6) (2026-06-30)
+
+
+### Bug Fixes
+
+* flatten wire probe runtime output ([ed411eb](https://github.com/oaslananka/easyeda-mcp-pro/commit/ed411eb03b65f7b8ba5d2bbd540247f59e2a43ba))
+* flatten wire probe runtime output ([cc73d04](https://github.com/oaslananka/easyeda-mcp-pro/commit/cc73d046c7686a02c3efd79e19772c682e02c2fc))
+
 ## [0.6.5](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.4...easyeda-mcp-pro-v0.6.5) (2026-06-30)
 
 
