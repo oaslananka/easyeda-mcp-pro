@@ -119,7 +119,12 @@ const STORAGE_KEY = 'easyeda-mcp-pro:autoConnect';
 const HEARTBEAT_MS = 15000;
 const SOCKET_ID = 'easyeda-mcp-pro-bridge';
 const PORT_SCAN_LABEL = `${BRIDGE_PORT}-${BRIDGE_PORT + PORT_SCAN_COUNT - 1}`;
-const API_CLASS_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'] as const;
+// Allow-list of EasyEDA Pro API class prefixes reachable via api.call.
+// SYS_ (sys_Log/sys_Message/sys_Storage/…) and PNL_ (panel) added so api.call
+// can reach the full documented API surface — e.g. SYS_Log.sort/find to read the
+// Log panel back for two-way "what happened" visibility. Anything outside these
+// prefixes is still reachable via api.execute (arbitrary JS) when enabled.
+const API_CLASS_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_', 'SYS_', 'PNL_'] as const;
 const DENIED_API_METHODS = new Set([
   'constructor',
   'prototype',
@@ -181,6 +186,43 @@ function showToast(message: string): void {
   }
 
   log(safeMessage);
+}
+
+interface EasyedaLogApi {
+  add?: (message: string, type?: unknown) => void;
+  clear?: () => void;
+}
+
+function getSysLog(): EasyedaLogApi | undefined {
+  return readPath<EasyedaLogApi>(getGlobal(), 'sys_Log');
+}
+
+// Persistent, user-visible debug log: writes to EasyEDA Pro's bottom "Log" panel
+// via SYS_Log.add(). Unlike toasts these entries stay put and can be read/copied
+// without opening DevTools — the channel for debugging the bridge live.
+// Best-effort: silently no-ops if the API is unavailable.
+function logPanel(message: string): void {
+  const sysLog = getSysLog();
+  if (sysLog?.add) {
+    try {
+      sysLog.add(`[mcp] ${message}`);
+    } catch (error) {
+      log('sys_Log.add failed', { message, error: String(error) });
+    }
+  }
+}
+
+// Console + Log panel — high-frequency internal tracing (every bridge call, etc.).
+function dbg(message: string): void {
+  log(message);
+  logPanel(message);
+}
+
+// Toast + Log panel — connection-lifecycle events the user should both see pop up
+// and have a persistent record of.
+function diagToast(message: string): void {
+  showToast(`[diag] ${message}`);
+  logPanel(`[diag] ${message}`);
 }
 
 function readPath<T>(source: unknown, path: string): T | undefined {
@@ -478,7 +520,6 @@ async function listComponentsApi(): Promise<unknown> {
     'SCH_PrimitiveComponent3',
     'sch_PrimitiveComponent',
   ]);
-  const libFpClass = readFirstPath<any>(['LIB_Footprint', 'lib_Footprint']);
 
   if (!schCompClass) {
     throw new Error('SCH_PrimitiveComponent class not found in EasyEDA Pro API');
@@ -490,19 +531,11 @@ async function listComponentsApi(): Promise<unknown> {
   for (const c of comps || []) {
     const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
     const val = typeof c.getState_Name === 'function' ? c.getState_Name() : '';
+    // Footprint name is taken from OtherProperty below only. The library lookup
+    // (LIB_Footprint.get) is a cloud round-trip in Full-Online mode and, run
+    // serially per component, hangs the whole read on large sheets — never block
+    // on it. (This is the v3.2.149 listComponents-timeout root cause.)
     let fp = '';
-
-    if (typeof c.getState_Footprint === 'function') {
-      const fpInfo = c.getState_Footprint();
-      if (fpInfo && fpInfo.uuid && libFpClass) {
-        try {
-          const fpObj = await libFpClass.get(fpInfo.uuid, fpInfo.libraryUuid);
-          if (fpObj) fp = fpObj.name || '';
-        } catch (e) {
-          logRecoverableError('failed to resolve component footprint', e);
-        }
-      }
-    }
 
     const lcsc = typeof c.getState_SupplierId === 'function' ? c.getState_SupplierId() : '';
     const mfr = typeof c.getState_Manufacturer === 'function' ? c.getState_Manufacturer() : '';
@@ -989,7 +1022,57 @@ async function connectPinToNetImpl(
   }
 }
 
+// Resolve a user-supplied schematic component reference — which may be either a
+// real primitiveId OR a human designator like "R1"/"D3"/"LED1_RED" — to the
+// component's real primitiveId. The MCP server's component list strips
+// primitiveIds (its output schema only keeps reference/value/footprint/…), so
+// callers address components by designator; we map that to the id the
+// modify/delete APIs require. Falls back to the input unchanged when no
+// designator matches, so a real primitiveId still passes straight through.
+async function resolveSchComponentId(idOrDesignator: string): Promise<string> {
+  const schCompClass = readFirstPath<any>([
+    'SCH_PrimitiveComponent',
+    'SCH_PrimitiveComponent3',
+    'sch_PrimitiveComponent',
+  ]);
+  if (!schCompClass || typeof schCompClass.getAll !== 'function') return idOrDesignator;
+  let comps: any[] = [];
+  try {
+    comps = (await schCompClass.getAll(undefined, true)) || [];
+  } catch (e) {
+    logRecoverableError('resolveSchComponentId getAll failed', e);
+    return idOrDesignator;
+  }
+  for (const c of comps) {
+    try {
+      if (
+        typeof c.getState_PrimitiveId === 'function' &&
+        String(c.getState_PrimitiveId()) === idOrDesignator
+      ) {
+        return idOrDesignator; // already a real primitiveId
+      }
+    } catch {
+      /* keep scanning */
+    }
+    try {
+      if (typeof c.getState_Designator === 'function' && c.getState_Designator() === idOrDesignator) {
+        const real =
+          typeof c.getState_PrimitiveId === 'function'
+            ? String(c.getState_PrimitiveId())
+            : idOrDesignator;
+        dbg(`resolve "${idOrDesignator}" → designator match, primitiveId=${real}`);
+        return real;
+      }
+    } catch {
+      /* keep scanning */
+    }
+  }
+  dbg(`resolve "${idOrDesignator}" → no designator match (passing through unchanged)`);
+  return idOrDesignator;
+}
+
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  dbg(`→ ${method} ${safeStringify(params).slice(0, 300)}`);
   switch (method) {
     case 'project.open':
       return callFirst(['dmt_Project.openProject', 'project.open'], params.projectId);
@@ -1049,7 +1132,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.lineType,
       );
     }
-    case 'schematic.deletePrimitive':
+    case 'schematic.deletePrimitive': {
+      const rawIds = Array.isArray(params.primitiveIds) ? (params.primitiveIds as string[]) : [];
+      const resolvedIds = await Promise.all(rawIds.map((pid) => resolveSchComponentId(String(pid))));
       return callFirst(
         [
           'SCH_PrimitiveComponent.delete',
@@ -1057,9 +1142,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           'sch_PrimitiveComponent.delete',
           'sch_PrimitiveWire.delete',
         ],
-        params.primitiveIds,
+        resolvedIds,
       );
-    case 'schematic.modifyPrimitive':
+    }
+    case 'schematic.modifyPrimitive': {
+      const resolvedId = await resolveSchComponentId(String(params.primitiveId ?? ''));
       return callFirst(
         [
           'SCH_PrimitiveComponent.modify',
@@ -1067,9 +1154,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           'sch_PrimitiveComponent.modify',
           'sch_PrimitiveWire.modify',
         ],
-        params.primitiveId,
+        resolvedId,
         params.property,
       );
+    }
     case 'schematic.createNetFlag': {
       const nfX = params.x as number;
       const nfY = params.y as number;
@@ -1586,14 +1674,26 @@ function createSocket(
   // Try easyeda-register first (may throw if external interaction is denied)
   if (sysWs?.register && sysWs.send) {
     try {
+      let openFired = false;
+      const fireOpen = (src: string): void => {
+        if (openFired) return;
+        openFired = true;
+        diagToast(`open via ${src}`);
+        onOpen();
+      };
       sysWs.register(
         id,
         url,
         (event) => onMessage(String(isRecord(event) && 'data' in event ? event.data : event)),
-        onOpen,
+        () => fireOpen('connectedCallFn'),
       );
+      // FIX: in EasyEDA Pro v3 the connectedCallFn may never fire, so the handshake never
+      // gets sent. Trigger it via a fallback timer too (the official EasyEDA reference
+      // extension also does not rely on connectedCallFn as the send trigger).
+      setTimeout(() => fireOpen('fallback-timer'), 600);
       return { type: 'easyeda-register', id };
     } catch (err) {
+      diagToast(`register threw: ${String(err)}`);
       log('register() threw, falling through', err);
     }
   }
@@ -1638,7 +1738,12 @@ function send(data: JsonValue): void {
       sysWs.send(socketHandle.id ?? SOCKET_ID, payload);
       return;
     } catch (err) {
-      log('sysWs.send threw exception', err);
+      // A throw here means a POST-connect send failed (the socket died) — the
+      // handshake no longer uses this path, so this is a genuine link drop.
+      log('sysWs.send threw after connect — link dropped', err);
+      if (!manualDisconnectRequested) {
+        showToast('MCP Bridge: link dropped — auto-reconnecting…');
+      }
       closeSocket();
     }
     return;
@@ -1677,9 +1782,18 @@ function closeSocket(): void {
   socketHandle = null;
   connectedPort = null;
   connectionState = 'disconnected';
+  stopHeartbeat();
+  // EasyEDA's register() path gives us no onClose callback, so a mid-session
+  // drop is only discovered when a send throws. Schedule a reconnect here so the
+  // bridge self-heals instead of going silently dead. (No-op when the user asked
+  // to disconnect — manualDisconnectRequested is set before closeSocket() there,
+  // and scheduleReconnect() guards on it.)
+  if (!manualDisconnectRequested) {
+    scheduleReconnect();
+  }
 }
 
-function sendHandshake(): void {
+function buildHandshake(): Record<string, unknown> {
   const sessionToken =
     typeof BRIDGE_SESSION_TOKEN !== 'undefined' ? BRIDGE_SESSION_TOKEN : undefined;
   const handshake: Record<string, unknown> = {
@@ -1688,14 +1802,67 @@ function sendHandshake(): void {
     protocolVersion: BRIDGE_VERSION,
     contractVersion: BRIDGE_CONTRACT_VERSION,
     clientName: 'easyeda-mcp-pro',
-    extensionVersion: '0.5.3',
+    extensionVersion: '0.5.7',
     easyedaVersion: getEasyedaVersion(),
     devMode: false,
   };
   if (sessionToken) {
     handshake.sessionToken = sessionToken;
   }
-  send(handshake as JsonValue);
+  return handshake;
+}
+
+// Attempt a single handshake send WITHOUT tearing down the socket on failure.
+// EasyEDA's sys_WebSocket.send throws "WebSocket 数据发送失败" when the underlying
+// socket is not yet OPEN — that is expected during the connect race and must NOT
+// trigger closeSocket(). (Calling closeSocket() here is exactly what made the
+// bridge flap: the fallback open-timer fired before the socket was writable, the
+// send threw, the socket was torn down, and the real open-event then no-opped.)
+function trySendHandshakeOnce(): boolean {
+  const payload = JSON.stringify(buildHandshake());
+  const sysWs = getWsApi();
+  if (socketHandle?.type === 'easyeda-register' && sysWs?.send) {
+    try {
+      sysWs.send(socketHandle.id ?? SOCKET_ID, payload);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  try {
+    socketHandle?.raw?.send?.(payload);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Robust handshake: keep retrying the send until the socket accepts the bytes
+// (i.e. it is genuinely OPEN) or we pass the connect deadline. As soon as a send
+// succeeds we stop and wait for the server's `hello`, which flips us to
+// 'connected'. This is independent of connectedCallFn, whose timing is
+// unreliable on EasyEDA Pro v3 — we no longer depend on knowing exactly when the
+// socket opened.
+function sendHandshake(runId: number): void {
+  const deadline = Date.now() + CONNECT_TIMEOUT_MS;
+  let attempt = 0;
+  diagToast('sending handshake');
+  const attemptSend = (): void => {
+    if (runId !== connectRunId) return; // superseded by a newer connect attempt
+    if (connectionState === 'connected') return; // hello already received
+    if (!socketHandle) return; // socket torn down elsewhere (e.g. connect timeout)
+    attempt += 1;
+    if (trySendHandshakeOnce()) {
+      diagToast(`handshake delivered (attempt ${attempt})`);
+      return; // delivered — await hello
+    }
+    if (Date.now() < deadline) {
+      setTimeout(attemptSend, 250);
+    } else {
+      diagToast('handshake gave up — socket never became writable');
+    }
+  };
+  attemptSend();
 }
 
 function getEasyedaVersion(): string | undefined {
@@ -1739,6 +1906,7 @@ async function handleRequest(message: BridgeRequest): Promise<void> {
       durationMs: Date.now() - startedAt,
     });
   } catch (error) {
+    dbg(`✖ ${message.method} failed: ${error instanceof Error ? error.message : String(error)}`);
     const record = isRecord(error) ? error : {};
     const response: BridgeResponse = {
       id: message.id,
@@ -1782,6 +1950,7 @@ function handleMessage(raw: string): InboundMessageType {
       });
     }
     log('Bridge handshake accepted');
+    diagToast('HELLO received — connected!');
     return 'hello';
   }
 
@@ -1834,7 +2003,7 @@ async function connectToPort(
             return;
           }
           socketHandle = handle ?? { type: 'easyeda-register', id: socketId };
-          sendHandshake();
+          sendHandshake(runId);
         },
         (data) => {
           try {
@@ -2091,6 +2260,7 @@ async function toggleAutoConnect(): Promise<void> {
 }
 
 async function handleActivate(): Promise<void> {
+  logPanel('extension active — build 0.5.7 (designator writes + de-hang reads + Log diagnostics + SYS_/PNL_ api.call access)');
   autoConnectEnabled = loadAutoConnectSetting();
   if (autoConnectEnabled) {
     showToast(`MCP Bridge: Auto-Connect ON — scanning 127.0.0.1:${PORT_SCAN_LABEL}`);

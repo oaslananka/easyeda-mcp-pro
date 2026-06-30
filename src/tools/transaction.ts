@@ -97,5 +97,15 @@ export function writePlanResponse(
 
 export function registeredOutputSchema(tool: ToolDefinition): z.ZodType {
   if (!tool.confirmWrite) return tool.outputSchema;
-  return z.union([tool.outputSchema, writePlanOutputSchema]);
+  // A confirmWrite tool can return either its normal output (apply mode) or a
+  // write-plan envelope (plan/preview/verify mode). Representing that as
+  // z.union([...]) breaks the MCP SDK's output-schema handling — the SDK expects
+  // an object schema and throws "Cannot read properties of undefined (reading
+  // '_zod')" at call time, which is why every write tool errored on its response
+  // even though the bridge call succeeded. Both possible shapes are objects, and
+  // the handler already validates the precise shape itself (registry uses
+  // tool.outputSchema.safeParse for apply, writePlanResponse pre-validates for
+  // plan/preview), so publish a permissive object schema here to keep the SDK
+  // happy while preserving the real validation upstream.
+  return z.object({}).passthrough();
 }
