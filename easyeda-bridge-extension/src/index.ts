@@ -624,6 +624,26 @@ async function inspectComponentsApi(limit = 5): Promise<unknown> {
   };
 }
 
+async function inspectWiresApi(limit = 10): Promise<unknown> {
+  const schWireClass = readFirstPath<any>([
+    'SCH_PrimitiveWire',
+    'SCH_PrimitiveWire3',
+    'sch_PrimitiveWire',
+  ]);
+  if (!schWireClass || typeof schWireClass.getAll !== 'function') {
+    throw new Error('SCH_PrimitiveWire.getAll is not available in this EasyEDA runtime');
+  }
+
+  const wires = await schWireClass.getAll();
+  const items = Array.isArray(wires) ? wires : [];
+  return {
+    total: items.length,
+    samples: items
+      .slice(0, Math.max(1, Math.min(limit, 50)))
+      .map((item) => normalizeValue(item, 6)),
+  };
+}
+
 async function listLayersApi(): Promise<unknown> {
   const globalObj = getGlobal();
   const pcbLayerClass = readPath<any>(globalObj, 'pcb_Layer');
@@ -1240,6 +1260,8 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       return inspectApiInventory(typeof params.filter === 'string' ? params.filter : undefined);
     case 'system.inspectComponents':
       return inspectComponentsApi(typeof params.limit === 'number' ? params.limit : 5);
+    case 'system.inspectWires':
+      return inspectWiresApi(typeof params.limit === 'number' ? params.limit : 10);
     case 'api.call':
       return callAllowedApi(
         typeof params.path === 'string' ? params.path : '',
@@ -1467,6 +1489,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           'schematic.validateNetlist',
           'system.apiInventory',
           'system.inspectComponents',
+          'system.inspectWires',
           'api.call',
           'api.execute',
           'board.listLayers',

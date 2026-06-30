@@ -95,7 +95,14 @@ export function writePlanResponse(
   };
 }
 
+const openConfirmWriteOutputSchema = z.object({}).passthrough();
+
 export function registeredOutputSchema(tool: ToolDefinition): z.ZodType {
   if (!tool.confirmWrite) return tool.outputSchema;
-  return z.union([tool.outputSchema, writePlanOutputSchema]);
+
+  // The MCP SDK's JSON schema conversion currently fails for Zod unions in
+  // tool output schemas. Confirm-write tools can return either their declared
+  // output or a transaction-plan envelope, so expose an open object to the SDK
+  // and keep strict validation in ToolRegistry before returning content.
+  return openConfirmWriteOutputSchema;
 }
