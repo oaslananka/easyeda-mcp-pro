@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.7](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.6...easyeda-mcp-pro-v0.6.7) (2026-06-30)
+
+
+### Bug Fixes
+
+* infer EasyEDA v3 schematic nets from wire coordinates ([93cb0af](https://github.com/oaslananka/easyeda-mcp-pro/commit/93cb0afc8150f92be4a8983d8863e0721a443614))
+* infer EasyEDA v3 schematic nets from wire coordinates ([061913f](https://github.com/oaslananka/easyeda-mcp-pro/commit/061913f6e364b7942cc5179d66461314c75f7534))
+
 ## [0.6.6](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.5...easyeda-mcp-pro-v0.6.6) (2026-06-30)
 
 
