@@ -400,6 +400,57 @@ function normalizeValue(value: unknown, depth = 3, seen = new WeakSet<object>())
   return output;
 }
 
+function normalizeStandalone(value: unknown, depth = 4): JsonValue {
+  return normalizeValue(value, depth, new WeakSet<object>());
+}
+
+function readStateValue(source: unknown, stateName: string, depth = 4): JsonValue | undefined {
+  const getter = readMember(source, `getState_${stateName}`);
+  if (typeof getter !== 'function') return undefined;
+  try {
+    return normalizeStandalone(getter.call(source), depth);
+  } catch (error) {
+    return `ERROR: ${String(error)}`;
+  }
+}
+
+function compactPrimitiveSummary(
+  value: unknown,
+  stateNames: string[],
+): Record<string, JsonValue | undefined> {
+  const state: Record<string, JsonValue | undefined> = {};
+  for (const stateName of stateNames) {
+    state[stateName] = readStateValue(value, stateName, 5);
+  }
+  return state;
+}
+
+function summarizeWirePrimitive(wire: unknown): Record<string, JsonValue | undefined> {
+  const normalized = normalizeStandalone(wire, 4);
+  const output: Record<string, JsonValue | undefined> = isRecord(normalized)
+    ? { ...(normalized as Record<string, JsonValue | undefined>) }
+    : { value: normalized };
+  const state = compactPrimitiveSummary(wire, [
+    'PrimitiveType',
+    'PrimitiveId',
+    'Line',
+    'Net',
+    'Color',
+    'LineWidth',
+    'LineType',
+  ]);
+
+  output.primitiveType = state.PrimitiveType ?? output.primitiveType ?? '';
+  output.primitiveId = state.PrimitiveId ?? output.primitiveId ?? '';
+  output.line = state.Line ?? output.line ?? null;
+  output.net = state.Net ?? output.net ?? '';
+  output.color = state.Color ?? output.color ?? null;
+  output.lineWidth = state.LineWidth ?? output.lineWidth ?? null;
+  output.lineType = state.LineType ?? output.lineType ?? null;
+  output.state = state;
+  return output;
+}
+
 function inspectApiInventory(filter?: string): JsonValue {
   const normalizedFilter = filter?.toLowerCase().trim();
   const classMap = new Map<
@@ -640,7 +691,7 @@ async function inspectWiresApi(limit = 10): Promise<unknown> {
     total: items.length,
     samples: items
       .slice(0, Math.max(1, Math.min(limit, 50)))
-      .map((item) => normalizeValue(item, 6)),
+      .map((item) => summarizeWirePrimitive(item)),
   };
 }
 
