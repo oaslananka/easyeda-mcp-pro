@@ -100,6 +100,7 @@ jobs:
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: |
           pnpm build
+          pnpm check:metadata
           pnpm build:extension
           pnpm verify:extension
 
