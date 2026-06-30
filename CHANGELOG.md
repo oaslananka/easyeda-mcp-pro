@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.3...easyeda-mcp-pro-v0.6.4) (2026-06-30)
+
+
+### Bug Fixes
+
+* add CLI shebang for Windows npx ([4d37921](https://github.com/oaslananka/easyeda-mcp-pro/commit/4d37921c1789f50188661495f6733c6ae46bfbbe))
+* add CLI shebang for Windows npx ([b9cb058](https://github.com/oaslananka/easyeda-mcp-pro/commit/b9cb0589a079c490865d0bb01272ff060dc90b93))
+
 ## [0.6.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.2...easyeda-mcp-pro-v0.6.3) (2026-06-30)
 
 
