@@ -17,3 +17,26 @@ easyeda-bridge-extension.eext
 
 # Extension release artifacts
 easyeda-bridge-extension.checksums.json
+
+# --- Hardening for public fork: prevent accidental secret/local-data commits ---
+# Env files (keep the placeholder example tracked)
+.env.*
+!.env.example
+# Local databases / caches that can hold real data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+*.db
+# Editor / IDE local settings (can embed local paths)
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+# Key material
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
