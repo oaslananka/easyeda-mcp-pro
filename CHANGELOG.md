@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.5](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.4...easyeda-mcp-pro-v0.6.5) (2026-06-30)
+
+
+### Bug Fixes
+
+* add wire probe and stabilize API call schema ([ba6706b](https://github.com/oaslananka/easyeda-mcp-pro/commit/ba6706bea0c16716d5f55215cff15308970a00a9))
+* add wire probe and stabilize API call schema ([8ccd45e](https://github.com/oaslananka/easyeda-mcp-pro/commit/8ccd45e147d7928335e2285a081b84ab631b3ec5))
+
 ## [0.6.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.3...easyeda-mcp-pro-v0.6.4) (2026-06-30)
 
 
