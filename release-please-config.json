@@ -8,7 +8,27 @@
       "changelog-path": "CHANGELOG.md",
       "draft": false,
       "prerelease": false,
-      "extra-files": ["easyeda-bridge-extension/extension.json", "server.json"]
+      "extra-files": [
+        "easyeda-bridge-extension/extension.json",
+        {
+          "type": "generic",
+          "path": "easyeda-bridge-extension/src/index.ts"
+        },
+        {
+          "type": "generic",
+          "path": "src/config/version.ts"
+        },
+        {
+          "type": "json",
+          "path": "server.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "server.json",
+          "jsonpath": "$.packages[0].version"
+        }
+      ]
     }
   }
 }
