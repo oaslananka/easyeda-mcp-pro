@@ -125,6 +125,47 @@ function registerDiagnosticsApi(
   }
 
   registry.register({
+    name: 'easyeda_wire_probe',
+    title: 'Probe schematic wires',
+    description:
+      'Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.',
+    profile: 'dev',
+    evidence: ['runtime-probe', 'pro-api-types'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'diagnostics',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      limit: z.number().int().min(1).max(50).default(10),
+    }),
+    outputSchema: z.object({
+      total: z.number().int().nonnegative(),
+      samples: z.array(z.unknown()),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { limit } = z
+        .object({ limit: z.number().int().min(1).max(50).default(10) })
+        .parse(params);
+      try {
+        return await ctx.bridge.call('system.inspectWires', { limit });
+      } catch (err) {
+        return {
+          total: 0,
+          samples: [],
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
     name: 'easyeda_component_probe',
     title: 'Probe schematic components',
     description:

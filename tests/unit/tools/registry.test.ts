@@ -4,6 +4,7 @@ import { ToolRegistry, ErrorCodes } from '../../../src/tools/registry.js';
 import { type ToolDefinition, type ToolContext } from '../../../src/tools/types.js';
 import { registerBuiltinTools } from '../../../src/tools/register.js';
 import { EnvSchema } from '../../../src/config/env.js';
+import { registeredOutputSchema, writePlanOutputSchema } from '../../../src/tools/transaction.js';
 
 // ── Default test config ───────────────────────────────────────────────────
 
@@ -586,5 +587,19 @@ describe('ToolRegistry', () => {
     expect(response.isError).toBe(true);
     expect(response.content[0].text).toContain('Bridge connection failed');
     expect(response.content[0].text).toContain('EasyEDA Pro is not running');
+  });
+});
+
+describe('registered output schema compatibility', () => {
+  it('uses an open object schema for confirmWrite tools to avoid SDK union conversion crashes', () => {
+    const tool = createMockTool('confirm_output_schema', 'core', { confirmWrite: true });
+    const schema = registeredOutputSchema(tool);
+
+    expect(schema.safeParse({ arbitrary: 'tool output' }).success).toBe(true);
+    expect(schema.safeParse({ success: true, transaction: {} }).success).toBe(true);
+  });
+
+  it('keeps transaction plan schema strict for internal validation', () => {
+    expect(writePlanOutputSchema.safeParse({ success: true, transaction: {} }).success).toBe(false);
   });
 });

@@ -57,6 +57,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet.                                                                                                                                                                                                                                               |
 | `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords.                                                                                                                                                                                                                                      |
 | `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the EasyEDA Pro schematic netlist for connectivity issues. Reports net names, connected component references and pins, floating pins, graphical wires without netlist connectivity, and mismatches between visual wires and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool. |
+| `easyeda_wire_probe`                    | `dev`   | `low`    | Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                           |
 
 ---
 
@@ -1513,6 +1514,33 @@ Returns a JSON object matching the schema:
   wires_without_netlist: any;
   valid: any;
   warnings: any;
+  not_available: any;
+  error: any;
+}
+```
+
+---
+
+## `easyeda_wire_probe`
+
+**Profile:** `dev` | **Risk Level:** `low`
+
+> Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.
+
+### Input Parameters
+
+| Parameter | Type  | Required | Description |
+| --------- | ----- | -------- | ----------- |
+| `limit`   | `any` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  total: any;
+  samples: any;
   not_available: any;
   error: any;
 }
