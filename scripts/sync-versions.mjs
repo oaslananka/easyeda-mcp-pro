@@ -14,7 +14,10 @@ console.log(`Syncing version to: ${version}`);
 
 // 1. Update src/config/version.ts
 const versionTsPath = path.join(root, 'src', 'config', 'version.ts');
-fs.writeFileSync(versionTsPath, `export const SERVER_VERSION = '${version}';\n`);
+fs.writeFileSync(
+  versionTsPath,
+  `export const SERVER_VERSION = '${version}'; // x-release-please-version\n`,
+);
 console.log(`- Synced: ${versionTsPath}`);
 
 // 2. Update easyeda-bridge-extension/src/index.ts

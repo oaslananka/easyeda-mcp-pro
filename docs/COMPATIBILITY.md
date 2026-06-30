@@ -17,12 +17,13 @@ This document lists the tested and supported versions, environments, and clients
 
 ## 2. EasyEDA Pro Versions
 
-| EasyEDA Pro Version         | Tested Status        | Notes                                                         |
-| :-------------------------- | :------------------- | :------------------------------------------------------------ |
-| **v2.2.x** (Desktop / Web)  | **Verified**         | Primary development target. Full compatibility.               |
-| **v2.1.x**                  | **Needs Validation** | Mostly compatible, but some schematic APIs may be missing.    |
-| **v2.0.x**                  | **Needs Validation** | Underlying extension APIs might not expose required methods.  |
-| **v1.x** (Standard Edition) | **Unsupported**      | Standard edition does not support the Pro extension platform. |
+| EasyEDA Pro Version         | Tested Status        | Notes                                                                                                               |
+| :-------------------------- | :------------------- | :------------------------------------------------------------------------------------------------------------------ |
+| **v3.2.x** (Desktop / Web)  | **Supported**        | Requires **Allow External Interaction**. v3.2.148 needs the bridge open-callback fallback introduced for issue #47. |
+| **v2.2.x** (Desktop / Web)  | **Verified**         | Primary development target. Full compatibility.                                                                     |
+| **v2.1.x**                  | **Needs Validation** | Mostly compatible, but some schematic APIs may be missing.                                                          |
+| **v2.0.x**                  | **Needs Validation** | Underlying extension APIs might not expose required methods.                                                        |
+| **v1.x** (Standard Edition) | **Unsupported**      | Standard edition does not support the Pro extension platform.                                                       |
 
 ---
 

@@ -108,6 +108,7 @@ const BRIDGE_CONTRACT_VERSION = 1;
 const BRIDGE_PORT = 49620;
 const PORT_SCAN_COUNT = 10;
 const CONNECT_TIMEOUT_MS = 8000;
+const EASYEDA_REGISTER_OPEN_FALLBACK_MS = 600;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
 const STORAGE_KEY = 'easyeda-mcp-pro:autoConnect';
@@ -131,6 +132,7 @@ let connectRunId = 0;
 let manualDisconnectRequested = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let externalInteractionWarningShown = false;
 
 function getGlobal(): EasyedaGlobal | null {
   if (typeof eda !== 'undefined' && eda) return eda;
@@ -176,6 +178,15 @@ function showToast(message: string): void {
   }
 
   log(safeMessage);
+}
+
+function showExternalInteractionHintOnce(error?: unknown): void {
+  const message =
+    'MCP Bridge needs EasyEDA External Interactions permission. Enable it in Extension Manager for MCP Pro Bridge.';
+  log(message, error);
+  if (externalInteractionWarningShown) return;
+  externalInteractionWarningShown = true;
+  showToast(message);
 }
 
 function readPath<T>(source: unknown, path: string): T | undefined {
@@ -1578,17 +1589,28 @@ function createSocket(
 ): SocketHandle | null {
   const sysWs = getWsApi();
 
-  // Try easyeda-register first (may throw if external interaction is denied)
+  // Try easyeda-register first (may throw if external interaction is denied).
+  // EasyEDA Pro v3.2.x can also create the socket but never call connectedCallFn,
+  // so fire the open hook through a guarded fallback timer as well.
   if (sysWs?.register && sysWs.send) {
+    let openFired = false;
+    const fireOpen = (): void => {
+      if (openFired) return;
+      openFired = true;
+      onOpen();
+    };
+
     try {
       sysWs.register(
         id,
         url,
         (event) => onMessage(String(isRecord(event) && 'data' in event ? event.data : event)),
-        onOpen,
+        fireOpen,
       );
+      setTimeout(fireOpen, EASYEDA_REGISTER_OPEN_FALLBACK_MS);
       return { type: 'easyeda-register', id };
     } catch (err) {
+      showExternalInteractionHintOnce(err);
       log('register() threw, falling through', err);
     }
   }

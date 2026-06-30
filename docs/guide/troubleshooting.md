@@ -29,7 +29,7 @@ If you receive errors like `Bridge not connected` during tool execution:
 
 1. **EasyEDA Pro is closed**: Open EasyEDA Pro and open a project.
 2. **Bridge Extension is not installed**: Follow the [Getting Started Guide](./getting-started) to import the `.eext` file.
-3. **Eklenti Devre Dışı / External Interaction is Off**: Open the Extension Manager in EasyEDA Pro, select "MCP Pro Bridge", and make sure **Allow External Interaction** is checked.
+3. **Eklenti Devre Dışı / External Interaction is Off**: Open the Extension Manager in EasyEDA Pro, select "MCP Pro Bridge", and make sure **Allow External Interaction** is checked. EasyEDA Pro v3 can block the bridge silently when this permission is off.
 4. **Bridge is not Connected**: In the menu bar of EasyEDA Pro, click **MCP Bridge** → **Connect**. You should see a toast message saying _Bridge server connected_.
 5. **Port conflict or Firewall**: The bridge binds to local port `49620` by default. Ensure no other application is using this port and your firewall allows localhost WebSocket connections.
 
