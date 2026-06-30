@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.2...easyeda-mcp-pro-v0.6.3) (2026-06-30)
+
+
+### Bug Fixes
+
+* support EasyEDA v3 bridge handshake fallback ([deb86d9](https://github.com/oaslananka/easyeda-mcp-pro/commit/deb86d9055a967225bf16fa0896870d021f1587f))
+
 ## [0.6.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.1...easyeda-mcp-pro-v0.6.2) (2026-06-30)
 
 
