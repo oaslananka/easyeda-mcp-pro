@@ -48,6 +48,23 @@ jobs:
       - run: pnpm check:metadata
       - run: pnpm build:extension
       - run: pnpm verify:extension
+      - name: Pack PR test package
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p artifacts
+          npm pack --pack-destination artifacts
+      - name: Upload PR test artifact
+        if: github.event_name == 'pull_request'
+        # actions/upload-artifact v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: easyeda-mcp-pro-pr-${{ github.event.pull_request.number }}
+          path: |
+            artifacts/*.tgz
+            easyeda-bridge-extension.eext
+            easyeda-bridge-extension/easyeda-bridge-extension.checksums.json
+            easyeda-bridge-extension/dist/index.js
+          if-no-files-found: error
       - run: pnpm generate:tools-doc
       - run: git diff --exit-code docs/reference/tools.md
       - run: pnpm docs:build

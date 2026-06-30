@@ -32,6 +32,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_get_server_config`             | `core`  | `low`    | Return safe (redacted) server configuration. Secrets are never exposed.                                                                                                                                                                                                                                       |
 | `easyeda_get_tool_profiles`             | `core`  | `low`    | List available tool profiles and their descriptions.                                                                                                                                                                                                                                                          |
 | `easyeda_health_check`                  | `core`  | `low`    | Return server health status, including runtime version, active profile, bridge state, and config validity.                                                                                                                                                                                                    |
+| `easyeda_live_smoke_report`             | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                               |
 | `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                           |
 | `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board.                                                                                                                                                                                                                                              |
 | `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a specific layer with clearance settings.                                                                                                                                                                                                                                        |
@@ -782,6 +783,38 @@ Returns a JSON object matching the schema:
   transport: any;
   bridge_connected: any;
   ups: any;
+}
+```
+
+---
+
+## `easyeda_live_smoke_report`
+
+**Profile:** `dev` | **Risk Level:** `low`
+
+> Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.
+
+### Input Parameters
+
+| Parameter    | Type  | Required | Description |
+| ------------ | ----- | -------- | ----------- |
+| `projectId`  | `any` | Yes      |             |
+| `limit`      | `any` | Yes      |             |
+| `includeRaw` | `any` | Yes      |             |
+| `timeoutMs`  | `any` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  ok: any;
+  project_id: any;
+  generated_at: any;
+  checks: any;
+  summary: any;
+  raw: any;
 }
 ```
 

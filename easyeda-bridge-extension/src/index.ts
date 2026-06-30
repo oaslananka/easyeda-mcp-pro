@@ -451,6 +451,216 @@ function summarizeWirePrimitive(wire: unknown): Record<string, JsonValue | undef
   return output;
 }
 
+type SchematicPoint = { x: number; y: number };
+type SchematicNetNode = { component: string; pin: string; x?: number; y?: number; source?: string };
+type SchematicNetEntry = { netName: string; nodes: SchematicNetNode[] };
+
+type DisjointSet = {
+  parent: Map<string, string>;
+  find: (key: string) => string;
+  union: (a: string, b: string) => void;
+};
+
+function createDisjointSet(): DisjointSet {
+  const parent = new Map<string, string>();
+  const find = (key: string): string => {
+    if (!parent.has(key)) parent.set(key, key);
+    const currentParent = parent.get(key);
+    if (!currentParent || currentParent === key) return key;
+    const root = find(currentParent);
+    parent.set(key, root);
+    return root;
+  };
+
+  return {
+    parent,
+    find,
+    union: (a: string, b: string): void => {
+      const rootA = find(a);
+      const rootB = find(b);
+      if (rootA !== rootB) parent.set(rootB, rootA);
+    },
+  };
+}
+
+function pointKey(point: SchematicPoint): string {
+  return `${Math.round(point.x * 1000) / 1000},${Math.round(point.y * 1000) / 1000}`;
+}
+
+function parseLinePoints(line: unknown): SchematicPoint[] {
+  if (!Array.isArray(line)) return [];
+
+  if (line.every((item) => typeof item === 'number')) {
+    const points: SchematicPoint[] = [];
+    for (let i = 0; i + 1 < line.length; i += 2) {
+      const x = Number(line[i]);
+      const y = Number(line[i + 1]);
+      if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
+    }
+    return points;
+  }
+
+  const points: SchematicPoint[] = [];
+  for (const item of line) {
+    if (!Array.isArray(item) || item.length < 2) continue;
+    const x = Number(item[0]);
+    const y = Number(item[1]);
+    if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
+  }
+  return points;
+}
+
+function readStringMemberOrState(source: unknown, key: string, stateName: string): string {
+  const stateValue = readStateValue(source, stateName, 2);
+  if (typeof stateValue === 'string' && stateValue) return stateValue;
+  const directValue = readMember(source, key);
+  if (typeof directValue === 'string') return directValue;
+  if (typeof directValue === 'number') return String(directValue);
+  return '';
+}
+
+function readNumberMemberOrState(
+  source: unknown,
+  key: string,
+  stateName: string,
+): number | undefined {
+  const stateValue = readStateValue(source, stateName, 2);
+  if (typeof stateValue === 'number' && Number.isFinite(stateValue)) return stateValue;
+  const directValue = readMember(source, key);
+  if (typeof directValue === 'number' && Number.isFinite(directValue)) return directValue;
+  return undefined;
+}
+
+function ensureNetEntry(
+  netMap: Map<string, SchematicNetNode[]>,
+  netName: string,
+): SchematicNetNode[] {
+  const existing = netMap.get(netName);
+  if (existing) return existing;
+  const nodes: SchematicNetNode[] = [];
+  netMap.set(netName, nodes);
+  return nodes;
+}
+
+function pushUniqueNetNode(
+  netMap: Map<string, SchematicNetNode[]>,
+  netName: string,
+  node: SchematicNetNode,
+): void {
+  if (!netName || !node.component || !node.pin) return;
+  const nodes = ensureNetEntry(netMap, netName);
+  if (nodes.some((item) => item.component === node.component && item.pin === node.pin)) return;
+  nodes.push(node);
+}
+
+function readComponentType(component: unknown): string {
+  return readStringMemberOrState(component, 'componentType', 'ComponentType').toLowerCase();
+}
+
+function readComponentNet(component: unknown): string {
+  const directNet = readStringMemberOrState(component, 'net', 'Net');
+  if (directNet) return directNet;
+  const otherProperty = readMember(component, 'otherProperty');
+  if (isRecord(otherProperty)) {
+    return String(otherProperty.net ?? otherProperty.Net ?? '');
+  }
+  return '';
+}
+
+function readPrimitivePoint(source: unknown): SchematicPoint | undefined {
+  const x = readNumberMemberOrState(source, 'x', 'X');
+  const y = readNumberMemberOrState(source, 'y', 'Y');
+  if (x === undefined || y === undefined) return undefined;
+  return { x, y };
+}
+
+async function addCoordinateFallbackNets(
+  netMap: Map<string, SchematicNetNode[]>,
+  comps: unknown[],
+): Promise<void> {
+  const schWireClass = readFirstPath<any>([
+    'SCH_PrimitiveWire',
+    'SCH_PrimitiveWire3',
+    'sch_PrimitiveWire',
+  ]);
+  if (!schWireClass || typeof schWireClass.getAll !== 'function') return;
+
+  const wires = await schWireClass.getAll();
+  const wireItems = Array.isArray(wires) ? wires : [];
+  if (wireItems.length === 0) return;
+
+  const dsu = createDisjointSet();
+  const rootNetNames = new Map<string, Set<string>>();
+  const addNetLabel = (point: SchematicPoint, netName: string): void => {
+    if (!netName) return;
+    const root = dsu.find(pointKey(point));
+    const names = rootNetNames.get(root) ?? new Set<string>();
+    names.add(netName);
+    rootNetNames.set(root, names);
+    ensureNetEntry(netMap, netName);
+  };
+
+  for (const wire of wireItems) {
+    const wireSummary = summarizeWirePrimitive(wire);
+    const points = parseLinePoints(wireSummary.line);
+    if (points.length === 0) continue;
+
+    for (const point of points) dsu.find(pointKey(point));
+    for (let i = 1; i < points.length; i += 1) {
+      dsu.union(pointKey(points[i - 1]), pointKey(points[i]));
+    }
+
+    const netName = typeof wireSummary.net === 'string' ? wireSummary.net : '';
+    if (netName) addNetLabel(points[0], netName);
+  }
+
+  // Re-normalize root labels after all wire unions are known.
+  for (const [root, names] of Array.from(rootNetNames.entries())) {
+    const normalizedRoot = dsu.find(root);
+    if (normalizedRoot === root) continue;
+    const target = rootNetNames.get(normalizedRoot) ?? new Set<string>();
+    for (const name of names) target.add(name);
+    rootNetNames.set(normalizedRoot, target);
+    rootNetNames.delete(root);
+  }
+
+  for (const component of comps) {
+    if (readComponentType(component) !== 'netflag') continue;
+    const netName = readComponentNet(component);
+    const point = readPrimitivePoint(component);
+    if (!netName || !point) continue;
+    addNetLabel(point, netName);
+  }
+
+  for (const component of comps) {
+    const ref = readStringMemberOrState(component, 'designator', 'Designator');
+    if (!ref || typeof (component as { getAllPins?: unknown }).getAllPins !== 'function') continue;
+
+    try {
+      const pins = await (component as { getAllPins: () => Promise<unknown[]> }).getAllPins();
+      for (const pin of pins || []) {
+        const pinNumber = readStringMemberOrState(pin, 'pinNumber', 'PinNumber');
+        const point = readPrimitivePoint(pin);
+        if (!pinNumber || !point) continue;
+
+        const netNames = rootNetNames.get(dsu.find(pointKey(point)));
+        if (!netNames) continue;
+        for (const netName of netNames) {
+          pushUniqueNetNode(netMap, netName, {
+            component: ref,
+            pin: pinNumber,
+            x: point.x,
+            y: point.y,
+            source: 'coordinate-fallback',
+          });
+        }
+      }
+    } catch (error) {
+      logRecoverableError('failed to inspect schematic component pins for coordinate nets', error);
+    }
+  }
+}
+
 function inspectApiInventory(filter?: string): JsonValue {
   const normalizedFilter = filter?.toLowerCase().trim();
   const classMap = new Map<
@@ -599,7 +809,7 @@ async function listNetsApi(): Promise<unknown> {
   }
 
   const comps = await schCompClass.getAll(undefined, true);
-  const netMap = new Map<string, Array<{ component: string; pin: string }>>();
+  const netMap = new Map<string, SchematicNetNode[]>();
 
   for (const c of comps || []) {
     const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
@@ -620,10 +830,7 @@ async function listNetsApi(): Promise<unknown> {
         }
 
         if (netName) {
-          if (!netMap.has(netName)) {
-            netMap.set(netName, []);
-          }
-          netMap.get(netName)!.push({ component: ref, pin: pinNum });
+          pushUniqueNetNode(netMap, netName, { component: ref, pin: pinNum });
         }
       }
     } catch (e) {
@@ -636,16 +843,20 @@ async function listNetsApi(): Promise<unknown> {
       const allNets = await schNetClass.getAllNets();
       for (const n of allNets || []) {
         const netName = n.netName || n.net;
-        if (netName && !netMap.has(netName)) {
-          netMap.set(netName, []);
-        }
+        if (netName) ensureNetEntry(netMap, String(netName));
       }
     } catch (e) {
       logRecoverableError('failed to inspect schematic nets', e);
     }
   }
 
-  const result: any[] = [];
+  try {
+    await addCoordinateFallbackNets(netMap, comps || []);
+  } catch (error) {
+    logRecoverableError('failed to infer schematic nets from wire coordinates', error);
+  }
+
+  const result: SchematicNetEntry[] = [];
   for (const [netName, nodes] of netMap.entries()) {
     result.push({
       netName,
