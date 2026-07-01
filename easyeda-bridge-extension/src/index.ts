@@ -1991,7 +1991,7 @@ function sendHandshake(): void {
     protocolVersion: BRIDGE_VERSION,
     contractVersion: BRIDGE_CONTRACT_VERSION,
     clientName: 'easyeda-mcp-pro',
-    extensionVersion: '0.8.0', // x-release-please-version
+    extensionVersion: '0.9.0', // x-release-please-version
     easyedaVersion: getEasyedaVersion(),
     devMode: false,
   };

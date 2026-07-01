@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.8.0...easyeda-mcp-pro-v0.9.0) (2026-07-01)
+
+
+### Features
+
+* **erc:** add semantic pin validation rules ([f043faa](https://github.com/oaslananka/easyeda-mcp-pro/commit/f043faa4b20becb8e6bd5a8877f69679a425bb7d))
+* **erc:** add semantic pin validation rules ([0fe04d4](https://github.com/oaslananka/easyeda-mcp-pro/commit/0fe04d43fdffe4e0e94078b10c746aaa86c01e91))
+
 ## [0.8.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.7.0...easyeda-mcp-pro-v0.8.0) (2026-07-01)
 
 
