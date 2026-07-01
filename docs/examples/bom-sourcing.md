@@ -78,3 +78,32 @@ Fetch current pricing tiers for assembly budgeting:
 ```
 
 If a part is out of stock, the assistant can query `lib_recommend_part` or search LCSC using keywords to propose pin-compatible alternates.
+
+---
+
+## Vendor provenance and failure states
+
+`easyeda_bom_quality_report` now reports vendor status and provenance for each supplier query. A degraded vendor must not crash the report. Instead, the affected supplier returns structured low-confidence data.
+
+Example supplier datum:
+
+```json
+{
+  "supplier": "mouser",
+  "status": "rate_limited",
+  "found": false,
+  "source": "mouser:search-api",
+  "queried_at": "2026-06-11T21:00:01.000Z",
+  "cache_age_seconds": 0,
+  "from_cache": false,
+  "confidence": "low",
+  "reason": "rate limit exceeded",
+  "status_code": 429
+}
+```
+
+Use the `status` field to decide whether the report is procurement-ready:
+
+- `found` and `no_match` are normal query outcomes.
+- `unauthorized`, `rate_limited`, `timeout`, `invalid_response`, and `unavailable` mean the supplier data is incomplete and should be rechecked before ordering.
+- `source`, `queried_at`, `from_cache`, and `cache_age_seconds` provide freshness/provenance for audit trails.

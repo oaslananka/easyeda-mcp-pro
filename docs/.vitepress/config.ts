@@ -17,6 +17,8 @@ export default defineConfig({
       { text: 'Bridge Telemetry', link: '/reference/bridge-telemetry' },
       { text: 'Save/Export Safety', link: '/reference/save-export-rollback-safety' },
       { text: 'Supply Chain Verification', link: '/supply-chain-verification' },
+      { text: 'Vendor API Hardening', link: '/vendor-api-hardening' },
+      { text: 'Vendor API Hardening', link: '/vendor-api-hardening' },
       { text: 'Issue Triage', link: '/ISSUE_TRIAGE' },
     ],
     sidebar: [

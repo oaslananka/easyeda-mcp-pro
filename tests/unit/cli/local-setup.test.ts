@@ -53,10 +53,27 @@ describe('local setup CLI helpers', () => {
       pnpmVersion: '9.0.0',
       toolCounts: { profile: 'core', enabled: 10, total: 20 },
       vendorsConfigured: { JLCPCB: false, LCSC: true },
+      vendorDiagnostics: {
+        JLCPCB: {
+          enabled: false,
+          configured: false,
+          mode: 'disabled',
+          credentialStatus: 'not-required',
+        },
+        LCSC: {
+          enabled: true,
+          configured: true,
+          mode: 'public-jlcsearch',
+          credentialStatus: 'optional-missing',
+        },
+      },
     };
 
     expect(formatDoctorReport(report)).toContain('Bridge server: OK reachable on 127.0.0.1:18601');
     expect(formatDoctorReport(report)).toContain('EasyEDA extension package: MISSING');
+    expect(formatDoctorReport(report)).toContain(
+      'LCSC: enabled / configured / optional-missing / public-jlcsearch',
+    );
   });
 
   it('prints concise help', () => {

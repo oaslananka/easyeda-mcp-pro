@@ -41,6 +41,14 @@ interface DoctorPortResult {
   reachable: boolean;
 }
 
+export interface VendorDoctorStatus {
+  enabled: boolean;
+  configured: boolean;
+  mode: string;
+  credentialStatus:
+    'not-required' | 'optional-present' | 'optional-missing' | 'present' | 'missing';
+}
+
 export interface DoctorReport {
   setup: LocalSetupInfo;
   nodeVersion: string;
@@ -52,6 +60,62 @@ export interface DoctorReport {
   bridgePorts: DoctorPortResult[];
   toolCounts?: { profile: string; enabled: number; total: number };
   vendorsConfigured: Record<string, boolean>;
+  vendorDiagnostics?: Record<string, VendorDoctorStatus>;
+}
+
+function vendorStatusFromConfig(config: EnvConfig | undefined): Record<string, VendorDoctorStatus> {
+  const jlcpcbConfigured = Boolean(config?.JLCPCB_CLIENT_ID && config?.JLCPCB_CLIENT_SECRET);
+  const lcscOfficialConfigured = Boolean(config?.LCSC_API_KEY);
+  const mouserConfigured = Boolean(config?.MOUSER_API_KEY);
+  const digikeyConfigured = Boolean(config?.DIGIKEY_CLIENT_ID && config?.DIGIKEY_CLIENT_SECRET);
+
+  return {
+    JLCPCB: {
+      enabled: config?.JLCPCB_MODE === 'approved_api',
+      configured: jlcpcbConfigured,
+      mode: config?.JLCPCB_MODE ?? 'disabled',
+      credentialStatus:
+        config?.JLCPCB_MODE === 'approved_api'
+          ? jlcpcbConfigured
+            ? 'present'
+            : 'missing'
+          : 'not-required',
+    },
+    LCSC: {
+      enabled: Boolean(config?.JLCSEARCH_ENABLED),
+      configured: Boolean(config?.JLCSEARCH_ENABLED || lcscOfficialConfigured),
+      mode: config?.JLCSEARCH_ENABLED
+        ? 'public-jlcsearch'
+        : lcscOfficialConfigured
+          ? 'official-api'
+          : 'disabled',
+      credentialStatus: lcscOfficialConfigured ? 'optional-present' : 'optional-missing',
+    },
+    MOUSER: {
+      enabled: Boolean(config?.MOUSER_ENABLED),
+      configured: mouserConfigured,
+      mode: config?.MOUSER_ENABLED ? 'api' : 'disabled',
+      credentialStatus: config?.MOUSER_ENABLED
+        ? mouserConfigured
+          ? 'present'
+          : 'missing'
+        : 'not-required',
+    },
+    DIGIKEY: {
+      enabled: Boolean(config?.DIGIKEY_ENABLED),
+      configured: digikeyConfigured,
+      mode: config?.DIGIKEY_ENABLED
+        ? config?.DIGIKEY_SANDBOX
+          ? 'sandbox'
+          : 'production'
+        : 'disabled',
+      credentialStatus: config?.DIGIKEY_ENABLED
+        ? digikeyConfigured
+          ? 'present'
+          : 'missing'
+        : 'not-required',
+    },
+  };
 }
 
 export function parseCliArgs(args: string[]): ParsedCliArgs {
@@ -189,12 +253,10 @@ export async function createDoctorReport(
     };
   }
 
-  const vendorsConfigured: Record<string, boolean> = {
-    JLCPCB: Boolean(env.config?.JLCPCB_CLIENT_ID && env.config?.JLCPCB_CLIENT_SECRET),
-    LCSC: Boolean(env.config?.LCSC_API_KEY && env.config?.LCSC_API_SECRET),
-    MOUSER: Boolean(env.config?.MOUSER_API_KEY),
-    DIGIKEY: Boolean(env.config?.DIGIKEY_CLIENT_ID && env.config?.DIGIKEY_CLIENT_SECRET),
-  };
+  const vendorDiagnostics = vendorStatusFromConfig(env.config);
+  const vendorsConfigured: Record<string, boolean> = Object.fromEntries(
+    Object.entries(vendorDiagnostics).map(([name, status]) => [name, status.configured]),
+  );
 
   return {
     setup,
@@ -207,6 +269,7 @@ export async function createDoctorReport(
     bridgePorts,
     toolCounts,
     vendorsConfigured,
+    vendorDiagnostics,
   };
 }
 
@@ -216,9 +279,16 @@ export function formatDoctorReport(report: DoctorReport): string {
     ? `reachable on ${report.bridgeHost}:${reachable.port}`
     : `offline on ${report.bridgeHost}:${report.bridgePorts.map((port) => port.port).join(',')}`;
 
-  const vendors = Object.entries(report.vendorsConfigured)
-    .map(([name, isConfigured]) => `${name}: ${isConfigured ? 'configured' : 'missing'}`)
-    .join(', ');
+  const vendors = report.vendorDiagnostics
+    ? Object.entries(report.vendorDiagnostics)
+        .map(
+          ([name, vendor]) =>
+            `${name}: ${vendor.enabled ? 'enabled' : 'disabled'} / ${vendor.configured ? 'configured' : 'missing'} / ${vendor.credentialStatus} / ${vendor.mode}`,
+        )
+        .join(', ')
+    : Object.entries(report.vendorsConfigured)
+        .map(([name, isConfigured]) => `${name}: ${isConfigured ? 'configured' : 'missing'}`)
+        .join(', ');
 
   const toolsStr = report.toolCounts
     ? `Profile '${report.toolCounts.profile}' with ${report.toolCounts.enabled} / ${report.toolCounts.total} tools enabled`
