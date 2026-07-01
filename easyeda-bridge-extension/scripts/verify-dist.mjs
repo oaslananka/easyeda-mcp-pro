@@ -10,7 +10,7 @@ const __dirname = dirname(__filename);
 const root = join(__dirname, '..');
 
 const required = ['dist/index.js', 'extension.json', 'images/logo.png'];
-const marketplaceSourceFiles = ['../README.md', '../CHANGELOG.md'];
+const marketplaceSourceFiles = ['README.md', 'CHANGELOG.md'];
 
 function readPngDimensions(path) {
   const buffer = readFileSync(path);
@@ -22,6 +22,17 @@ function readPngDimensions(path) {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20),
   };
+}
+
+function findPhoneLikeContent(text) {
+  const matches = [];
+  const phoneLikePattern = /(?:\+?\d[\s().:-]*){7,}\d/g;
+  for (const match of text.matchAll(phoneLikePattern)) {
+    const raw = match[0];
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length >= 7) matches.push(raw.trim());
+  }
+  return matches;
 }
 
 let ok = true;
@@ -53,6 +64,12 @@ for (const f of marketplaceSourceFiles) {
       ok = false;
     } else {
       console.log(`OK: marketplace source file ${f} (${size} bytes)`);
+      const phoneLikeMatches = findPhoneLikeContent(readFileSync(p, 'utf8'));
+      if (phoneLikeMatches.length > 0) {
+        console.error(`MARKETPLACE SOURCE FILE HAS PHONE-LIKE CONTENT: ${f}`);
+        for (const match of phoneLikeMatches.slice(0, 5)) console.error(`  ${match}`);
+        ok = false;
+      }
     }
   }
 }
@@ -169,6 +186,24 @@ if (existsSync(packagePath)) {
       } else {
         console.log(`OK: packaged marketplace file ${packagedFile}`);
       }
+    }
+
+    const packageContent = execFileSync(
+      'python3',
+      [
+        '-c',
+        "import sys, zipfile; z=zipfile.ZipFile(sys.argv[1]); files=['README.md','CHANGELOG.md','extension.json','dist/index.js']; print('\\n'.join(z.read(f).decode('utf-8', 'ignore') for f in files))",
+        packagePath,
+      ],
+      { encoding: 'utf8', maxBuffer: 5 * 1024 * 1024 },
+    );
+    const packagePhoneLikeMatches = findPhoneLikeContent(packageContent);
+    if (packagePhoneLikeMatches.length > 0) {
+      console.error('PACKAGE HAS PHONE-LIKE CONTENT');
+      for (const match of packagePhoneLikeMatches.slice(0, 10)) console.error(`  ${match}`);
+      ok = false;
+    } else {
+      console.log('OK: package has no phone-like content');
     }
   } catch (error) {
     console.error(`FAILED TO INSPECT EXTENSION PACKAGE: ${error}`);
