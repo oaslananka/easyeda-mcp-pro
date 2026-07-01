@@ -4,10 +4,13 @@
  * @module
  */
 
-export { ArtifactType } from './types.js';
+export { ArtifactType, ExportArtifactRole } from './types.js';
 export type {
   ExportManifestEntry,
   ExpectedArtifact,
+  ExportProjectMetadata,
+  AssemblyConsistencyMetadata,
+  ManufacturingExportPolicy,
   ExportManifestInput,
   ExportManifestIssue,
   ExportManifestSummary,

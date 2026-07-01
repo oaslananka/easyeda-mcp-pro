@@ -31,6 +31,23 @@ export const ExportManifestCode = {
   /** Artifact's declared file type does not match its content/name. */
   WRONG_FILE_TYPE: 'WRONG_FILE_TYPE',
 
+  /** Required artifact is missing checksum metadata. */
+  MISSING_CHECKSUM: 'MISSING_CHECKSUM',
+  /** Required artifact is missing file size metadata. */
+  MISSING_FILE_SIZE: 'MISSING_FILE_SIZE',
+  /** Required artifact is missing generation metadata. */
+  MISSING_GENERATION_METADATA: 'MISSING_GENERATION_METADATA',
+  /** Required manufacturing artifact role is missing from the package. */
+  MISSING_REQUIRED_ROLE: 'MISSING_REQUIRED_ROLE',
+  /** Board outline artifact is missing or invalid. */
+  MISSING_BOARD_OUTLINE: 'MISSING_BOARD_OUTLINE',
+  /** Drill artifact is missing or invalid. */
+  MISSING_DRILL_FILE: 'MISSING_DRILL_FILE',
+  /** BOM and pick-and-place designators are inconsistent. */
+  BOM_PNP_MISMATCH: 'BOM_PNP_MISMATCH',
+  /** Manifest lacks required project / EasyEDA metadata. */
+  MISSING_PROJECT_METADATA: 'MISSING_PROJECT_METADATA',
+
   // ── Metadata errors ────────────────────────────────────────────────────
 
   /** Artifact is missing a human-readable purpose description. */
