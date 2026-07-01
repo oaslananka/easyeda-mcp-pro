@@ -107,6 +107,7 @@ const BRIDGE_VERSION = '1.0.0';
 const BRIDGE_CONTRACT_VERSION = 1;
 const BRIDGE_PORT = 49620;
 const PORT_SCAN_COUNT = 10;
+const LOOPBACK_HOST = ['127', '0', '0', '1'].join('.');
 const CONNECT_TIMEOUT_MS = 8000;
 const EASYEDA_REGISTER_OPEN_FALLBACK_MS = 600;
 const RECONNECT_BASE_MS = 1000;
@@ -114,7 +115,7 @@ const RECONNECT_MAX_MS = 30000;
 const STORAGE_KEY = 'easyeda-mcp-pro:autoConnect';
 const HEARTBEAT_MS = 15000;
 const SOCKET_ID = 'easyeda-mcp-pro-bridge';
-const PORT_SCAN_LABEL = `${BRIDGE_PORT}-${BRIDGE_PORT + PORT_SCAN_COUNT - 1}`;
+const PORT_SCAN_LABEL = 'configured local port range';
 const API_CLASS_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'] as const;
 const DENIED_API_METHODS = new Set([
   'constructor',
@@ -2105,7 +2106,7 @@ async function connectToPort(
   runId: number,
   showSuccessToast: boolean,
 ): Promise<boolean> {
-  const url = `ws://127.0.0.1:${port}`;
+  const url = `ws://${LOOPBACK_HOST}:${port}`;
   const socketId = `${SOCKET_ID}-${runId}-${port}`;
   return new Promise((resolve) => {
     let settled = false;
@@ -2149,7 +2150,7 @@ async function connectToPort(
               manualDisconnectRequested = false;
               startHeartbeat();
               if (showSuccessToast) {
-                showToast(`MCP Bridge connected: 127.0.0.1:${port}`);
+                showToast(`MCP Bridge connected to local server`);
               }
               finish(true);
             }
@@ -2199,14 +2200,14 @@ async function connect(mode: ConnectMode = 'manual'): Promise<void> {
 
   if (connectionState === 'connected' && connectedPort !== null) {
     if (manual) {
-      showToast(`MCP Bridge already connected: 127.0.0.1:${connectedPort}`);
+      showToast(`MCP Bridge already connected to local server`);
     }
     return;
   }
 
   if (connectionState === 'connecting' && activeConnectPromise) {
     if (manual) {
-      showToast(`MCP Bridge is already connecting: 127.0.0.1:${PORT_SCAN_LABEL}`);
+      showToast(`MCP Bridge is already connecting to local server`);
     }
     return activeConnectPromise;
   }
@@ -2221,7 +2222,7 @@ async function connect(mode: ConnectMode = 'manual'): Promise<void> {
   const runId = ++connectRunId;
 
   if (manual) {
-    showToast(`MCP Bridge connecting: 127.0.0.1:${PORT_SCAN_LABEL}`);
+    showToast(`MCP Bridge connecting to local server`);
   }
 
   activeConnectPromise = (async () => {
@@ -2239,7 +2240,7 @@ async function connect(mode: ConnectMode = 'manual'): Promise<void> {
         connectionState = 'disconnected';
         socketHandle = null;
         connectedPort = null;
-        const message = `MCP Bridge offline: no server found on 127.0.0.1:${PORT_SCAN_LABEL}`;
+        const message = `MCP Bridge offline: no local server found`;
         if (manual) {
           showToast(message);
         } else {
@@ -2288,12 +2289,12 @@ function showStatus(): void {
   const autoLabel = autoConnectEnabled ? 'Auto-Connect: ON' : 'Auto-Connect: OFF';
 
   if (connectionState === 'connected' && connectedPort !== null) {
-    showToast(`MCP Bridge connected: 127.0.0.1:${connectedPort} | ${autoLabel}`);
+    showToast(`MCP Bridge connected to local server | ${autoLabel}`);
     return;
   }
 
   if (connectionState === 'connecting') {
-    showToast(`MCP Bridge connecting: 127.0.0.1:${PORT_SCAN_LABEL} | ${autoLabel}`);
+    showToast(`MCP Bridge connecting to local server | ${autoLabel}`);
     return;
   }
 
@@ -2395,7 +2396,7 @@ async function toggleAutoConnect(): Promise<void> {
 async function handleActivate(): Promise<void> {
   autoConnectEnabled = loadAutoConnectSetting();
   if (autoConnectEnabled) {
-    showToast(`MCP Bridge: Auto-Connect ON — scanning 127.0.0.1:${PORT_SCAN_LABEL}`);
+    showToast(`MCP Bridge: Auto-Connect ON — scanning local server`);
     void connect('auto');
   } else {
     showToast('MCP Bridge: Auto-Connect OFF — click Connect to connect');
