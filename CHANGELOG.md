@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.10](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.9...easyeda-mcp-pro-v0.6.10) (2026-07-01)
+
+
+### Bug Fixes
+
+* **extension:** sanitize marketplace package content ([9f33e37](https://github.com/oaslananka/easyeda-mcp-pro/commit/9f33e378c6019f239c1b90bebebf0f284d25980e))
+* **extension:** sanitize marketplace package content ([6062fa7](https://github.com/oaslananka/easyeda-mcp-pro/commit/6062fa716f0ea6a7fb61482e74b33c17a221cfcf))
+
 ## [0.6.9](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.8...easyeda-mcp-pro-v0.6.9) (2026-07-01)
 
 
