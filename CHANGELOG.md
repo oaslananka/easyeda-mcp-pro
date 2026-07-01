@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.12.0...easyeda-mcp-pro-v0.13.0) (2026-07-01)
+
+
+### Features
+
+* add production qa artifacts ([c7be755](https://github.com/oaslananka/easyeda-mcp-pro/commit/c7be755612a754b7c5cc55d4cb6ad6024a941023))
+* add production qa artifacts ([5fe3654](https://github.com/oaslananka/easyeda-mcp-pro/commit/5fe3654e2461d1492fbab2c1896d53ef5023fe77))
+
 ## [0.12.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.11.0...easyeda-mcp-pro-v0.12.0) (2026-07-01)
 
 
