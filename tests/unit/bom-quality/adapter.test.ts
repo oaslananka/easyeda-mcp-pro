@@ -5,7 +5,9 @@ import {
   DigiKeyAdapter,
   createAdapters,
   availableAdapters,
+  classifySupplierFailure,
 } from '../../../src/bom-quality/adapter.js';
+import { EasyEdaMcpError } from '../../../src/schemas/common.js';
 
 // ── LCSC adapter ───────────────────────────────────────────────────────────
 
@@ -35,6 +37,7 @@ describe('LcscAdapter', () => {
     expect(result).not.toBeNull();
     expect(result!.found).toBe(false);
     expect(result!.supplier).toBe('lcsc');
+    expect(result!.status).toBe('no_match');
     expect(result!.confidence).toBe('medium');
   });
 
@@ -56,6 +59,8 @@ describe('LcscAdapter', () => {
     const result = await adapter.queryPart({ lcsc: 'C12345' });
     expect(result).not.toBeNull();
     expect(result!.found).toBe(true);
+    expect(result!.status).toBe('found');
+    expect(result!.source).toBe('lcsc:jlcsearch-or-official-api');
     expect(result!.lcsc).toBe('C12345');
     expect(result!.manufacturer).toBe('Texas Instruments');
     expect(result!.stock).toBe(5000);
@@ -87,6 +92,10 @@ describe('LcscAdapter', () => {
     const result = await adapter.queryPart({ lcsc: 'C12345' });
     expect(result).not.toBeNull();
     expect(result!.found).toBe(false);
+    expect(result!.status).toBe('unavailable');
+    expect(result!.source).toBe('lcsc:jlcsearch-or-official-api');
+    expect(result!.fromCache).toBe(false);
+    expect(result!.cacheAgeSeconds).toBe(0);
     expect(result!.confidence).toBe('low');
   });
 });
@@ -124,6 +133,8 @@ describe('MouserAdapter', () => {
     const result = await adapter.queryPart({ mpn: 'OPA-123' });
     expect(result).not.toBeNull();
     expect(result!.found).toBe(true);
+    expect(result!.status).toBe('found');
+    expect(result!.source).toBe('mouser:search-api');
     expect(result!.manufacturer).toBe('Texas Instruments');
     expect(result!.stock).toBe(2500);
     expect(result!.unitPrice).toBe(2.5);
@@ -138,6 +149,7 @@ describe('MouserAdapter', () => {
     const adapter = new MouserAdapter(client as any);
     const result = await adapter.queryPart({ mpn: 'UNKNOWN' });
     expect(result!.found).toBe(false);
+    expect(result!.status).toBe('no_match');
     expect(result!.confidence).toBe('medium');
   });
 
@@ -149,6 +161,8 @@ describe('MouserAdapter', () => {
     const result = await adapter.queryPart({ mpn: 'XYZ' });
     expect(result).not.toBeNull();
     expect(result!.found).toBe(false);
+    expect(result!.status).toBe('unavailable');
+    expect(result!.source).toBe('mouser:search-api');
     expect(result!.confidence).toBe('low');
   });
 });
@@ -186,6 +200,8 @@ describe('DigiKeyAdapter', () => {
     const result = await adapter.queryPart({ mpn: 'MFR-456' });
     expect(result).not.toBeNull();
     expect(result!.found).toBe(true);
+    expect(result!.status).toBe('found');
+    expect(result!.source).toBe('digikey:product-search-api');
     // Since mpn matches, confidence should be high
     expect(result!.confidence).toBe('high');
     expect(result!.stock).toBe(1000);
@@ -220,7 +236,48 @@ describe('DigiKeyAdapter', () => {
     const result = await adapter.queryPart({ mpn: 'XYZ' });
     expect(result).not.toBeNull();
     expect(result!.found).toBe(false);
+    expect(result!.status).toBe('timeout');
+    expect(result!.source).toBe('digikey:product-search-api');
     expect(result!.confidence).toBe('low');
+  });
+});
+
+// ── Failure classification ─────────────────────────────────────────────────
+
+describe('classifySupplierFailure', () => {
+  it('classifies rate limits', () => {
+    const result = classifySupplierFailure(
+      new EasyEdaMcpError({
+        code: 'RATE_LIMITED',
+        message: 'rate limit exceeded',
+        suggestion: 'try later',
+        retryable: true,
+      }),
+    );
+    expect(result.status).toBe('rate_limited');
+  });
+
+  it('classifies missing credentials as unauthorized without leaking secrets', () => {
+    const result = classifySupplierFailure(
+      new EasyEdaMcpError({
+        code: 'CREDENTIALS_MISSING',
+        message: 'apiKey=super-secret-token is missing',
+        suggestion: 'configure credentials',
+        retryable: false,
+      }),
+    );
+    expect(result.status).toBe('unauthorized');
+    expect(result.reason).not.toContain('super-secret-token');
+  });
+
+  it('classifies syntax errors as invalid responses', () => {
+    const result = classifySupplierFailure(new SyntaxError('Unexpected token in JSON'));
+    expect(result.status).toBe('invalid_response');
+  });
+
+  it('classifies timeout-like errors', () => {
+    const result = classifySupplierFailure(new Error('request timeout after 30000ms'));
+    expect(result.status).toBe('timeout');
   });
 });
 

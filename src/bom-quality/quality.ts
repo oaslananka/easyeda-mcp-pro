@@ -45,6 +45,38 @@ function unavailableIssue(ref: string, supplier: string, reason: string): BomQua
   });
 }
 
+function supplierStatusIssue(ref: string, result: SupplierQueryResult): BomQualityIssue | null {
+  const status = result.status ?? (result.found ? 'found' : 'no_match');
+  if (status === 'found' || status === 'no_match') return null;
+
+  const type =
+    status === 'unauthorized' ||
+    status === 'rate_limited' ||
+    status === 'timeout' ||
+    status === 'invalid_response'
+      ? status
+      : 'unavailable';
+
+  const severity = status === 'rate_limited' || status === 'timeout' ? 'warning' : 'error';
+
+  return issue(
+    type,
+    severity,
+    ref,
+    `Supplier ${result.supplier} query ${status}: ${result.reason ?? 'no reason provided'}`,
+    {
+      supplier: result.supplier,
+      status,
+      reason: result.reason,
+      statusCode: result.statusCode,
+      source: result.source,
+      queriedAt: result.queriedAt,
+      cacheAgeSeconds: result.cacheAgeSeconds,
+      fromCache: result.fromCache,
+    },
+  );
+}
+
 function singleSourceIssue(ref: string, suppliers: SupplierKind[]): BomQualityIssue {
   return issue(
     'single_source',
@@ -193,6 +225,11 @@ export async function generateBomQualityReport(
         issues.push(unavailableIssue(entry.reference, ds.supplier, 'discontinued / obsolete'));
       }
 
+      for (const supplierResult of supplierData) {
+        const statusIssue = supplierStatusIssue(entry.reference, supplierResult);
+        if (statusIssue) issues.push(statusIssue);
+      }
+
       // Check: single-source
       const uniqueFoundSuppliers = [...new Set(foundSuppliers.map((s) => s.supplier))];
       if (uniqueFoundSuppliers.length === 1 && queriedCount > 1) {
@@ -247,6 +284,10 @@ export async function generateBomQualityReport(
     missingMpnCount: allIssues.filter((i) => i.type === 'missing_mpn').length,
     missingFootprintCount: allIssues.filter((i) => i.type === 'missing_footprint').length,
     lowStockCount: allIssues.filter((i) => i.type === 'low_stock').length,
+    unauthorizedCount: allIssues.filter((i) => i.type === 'unauthorized').length,
+    rateLimitedCount: allIssues.filter((i) => i.type === 'rate_limited').length,
+    timeoutCount: allIssues.filter((i) => i.type === 'timeout').length,
+    invalidResponseCount: allIssues.filter((i) => i.type === 'invalid_response').length,
   };
 
   return {

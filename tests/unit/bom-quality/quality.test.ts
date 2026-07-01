@@ -182,6 +182,71 @@ describe('generateBomQualityReport', () => {
     expect(report.summary.lowStockCount).toBe(0);
   });
 
+  it('surfaces rate-limited supplier status without crashing the report', async () => {
+    const adapters = mockAdapters({
+      mouser: {
+        queryPart: vi.fn().mockResolvedValue({
+          supplier: 'mouser',
+          status: 'rate_limited',
+          found: false,
+          lifecycle: 'unknown',
+          stock: 0,
+          queriedAt: '2026-06-11T21:00:01.000Z',
+          source: 'mouser:search-api',
+          cacheAgeSeconds: 0,
+          fromCache: false,
+          confidence: 'low',
+          reason: 'rate limit exceeded',
+          statusCode: 429,
+        }),
+      } as any,
+    });
+
+    const report = await generateBomQualityReport(
+      'bom-1',
+      [entry({ reference: 'U2', mpn: 'OPA123' })],
+      adapters,
+    );
+
+    expect(report.hasSupplierErrors).toBe(true);
+    expect(report.summary.rateLimitedCount).toBe(1);
+    const issue = report.entries[0]!.issues.find((i) => i.type === 'rate_limited');
+    expect(issue).toBeDefined();
+    expect(issue!.details?.statusCode).toBe(429);
+    expect(report.entries[0]!.supplierData[0]!.source).toBe('mouser:search-api');
+  });
+
+  it('surfaces unauthorized supplier status with source provenance', async () => {
+    const adapters = mockAdapters({
+      digikey: {
+        queryPart: vi.fn().mockResolvedValue({
+          supplier: 'digikey',
+          status: 'unauthorized',
+          found: false,
+          lifecycle: 'unknown',
+          stock: 0,
+          queriedAt: '2026-06-11T21:00:01.000Z',
+          source: 'digikey:product-search-api',
+          cacheAgeSeconds: 0,
+          fromCache: false,
+          confidence: 'low',
+          reason: 'credentials rejected',
+          statusCode: 401,
+        }),
+      } as any,
+    });
+
+    const report = await generateBomQualityReport(
+      'bom-1',
+      [entry({ reference: 'U3', mpn: 'ATMEGA328P' })],
+      adapters,
+    );
+
+    expect(report.hasSupplierErrors).toBe(true);
+    expect(report.summary.unauthorizedCount).toBe(1);
+    expect(report.entries[0]!.issues.some((i) => i.type === 'unauthorized')).toBe(true);
+  });
+
   it('sets hasSupplierErrors when an adapter returns low confidence', async () => {
     const adapters = mockAdapters({
       lcsc: {

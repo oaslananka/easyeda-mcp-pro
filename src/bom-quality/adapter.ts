@@ -18,7 +18,12 @@ import { type DigiKeyClient } from '../vendors/digikey/client.js';
 import { EasyEdaMcpError } from '../schemas/common.js';
 import { getLogger } from '../utils/logger.js';
 import type pino from 'pino';
-import type { SupplierKind, SupplierQueryResult, PartLifecycle } from './types.js';
+import type {
+  SupplierKind,
+  SupplierQueryResult,
+  PartLifecycle,
+  SupplierQueryStatus,
+} from './types.js';
 
 // ── Retry helper ───────────────────────────────────────────────────────────
 
@@ -70,6 +75,125 @@ function toLifecycle(raw: unknown): PartLifecycle {
   return 'unknown';
 }
 
+function supplierSource(kind: SupplierKind): string {
+  switch (kind) {
+    case 'lcsc':
+      return 'lcsc:jlcsearch-or-official-api';
+    case 'mouser':
+      return 'mouser:search-api';
+    case 'digikey':
+      return 'digikey:product-search-api';
+    case 'jlcpcb':
+      return 'jlcpcb:approved-api';
+  }
+}
+
+function readStatusCode(details: unknown): number | undefined {
+  if (!details || typeof details !== 'object') return undefined;
+  const value = (details as Record<string, unknown>).statusCode;
+  return typeof value === 'number' ? value : undefined;
+}
+
+function sanitizeReason(value: string): string {
+  return value
+    .replace(
+      /(authorization|bearer|basic|api[-_ ]?key|client[-_ ]?secret|token)\s*[:=]\s*[^\s,;]+/gi,
+      '$1=[redacted]',
+    )
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[redacted-email]')
+    .slice(0, 240);
+}
+
+export function classifySupplierFailure(error: unknown): {
+  status: SupplierQueryStatus;
+  reason: string;
+  statusCode?: number;
+} {
+  const statusCode = error instanceof EasyEdaMcpError ? readStatusCode(error.details) : undefined;
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+
+  if (error instanceof EasyEdaMcpError) {
+    if (error.code === 'RATE_LIMITED' || statusCode === 429) {
+      return { status: 'rate_limited', reason: sanitizeReason(message), statusCode };
+    }
+    if (error.code === 'CREDENTIALS_MISSING' || statusCode === 401 || statusCode === 403) {
+      return { status: 'unauthorized', reason: sanitizeReason(message), statusCode };
+    }
+    if (error.code === 'VENDOR_API_UNAVAILABLE') {
+      return { status: 'unavailable', reason: sanitizeReason(message), statusCode };
+    }
+  }
+
+  if (
+    error instanceof SyntaxError ||
+    lower.includes('json') ||
+    lower.includes('parse') ||
+    lower.includes('invalid response')
+  ) {
+    return { status: 'invalid_response', reason: sanitizeReason(message), statusCode };
+  }
+
+  if (
+    lower.includes('timeout') ||
+    lower.includes('timed out') ||
+    lower.includes('aborterror') ||
+    lower.includes('aborted')
+  ) {
+    return { status: 'timeout', reason: sanitizeReason(message), statusCode };
+  }
+
+  return { status: 'unavailable', reason: sanitizeReason(message), statusCode };
+}
+
+function noMatchResult(supplier: SupplierKind, now: string): SupplierQueryResult {
+  return {
+    supplier,
+    status: 'no_match',
+    found: false,
+    lifecycle: 'unknown',
+    stock: 0,
+    queriedAt: now,
+    source: supplierSource(supplier),
+    cacheAgeSeconds: 0,
+    fromCache: false,
+    confidence: 'medium',
+    reason: 'no matching part returned by supplier API',
+  };
+}
+
+function unavailableResult(
+  supplier: SupplierKind,
+  now: string,
+  error: unknown,
+): SupplierQueryResult {
+  const failure = classifySupplierFailure(error);
+  return {
+    supplier,
+    status: failure.status,
+    found: false,
+    lifecycle: 'unknown',
+    stock: 0,
+    queriedAt: now,
+    source: supplierSource(supplier),
+    cacheAgeSeconds: 0,
+    fromCache: false,
+    confidence: 'low',
+    reason: failure.reason,
+    statusCode: failure.statusCode,
+  };
+}
+
+function freshProvenance(
+  kind: SupplierKind,
+): Pick<SupplierQueryResult, 'source' | 'cacheAgeSeconds' | 'fromCache'> {
+  return {
+    source: supplierSource(kind),
+    cacheAgeSeconds: 0,
+    fromCache: false,
+  };
+}
+
 // ── SupplierAdapter interface ──────────────────────────────────────────────
 
 export interface SupplierAdapter {
@@ -117,6 +241,7 @@ export class LcscAdapter implements SupplierAdapter {
 
     return {
       supplier: 'lcsc',
+      status: 'found',
       found: true,
       lcsc: detail.lcsc,
       mpn: detail.manufacturer || undefined,
@@ -128,6 +253,7 @@ export class LcscAdapter implements SupplierAdapter {
       currency: 'USD',
       leadTimeDays: detail.leadTime,
       queriedAt: now,
+      ...freshProvenance('lcsc'),
       confidence: 'high',
     };
   }
@@ -153,28 +279,14 @@ export class LcscAdapter implements SupplierAdapter {
       );
 
       if (!detail) {
-        return {
-          supplier: 'lcsc',
-          found: false,
-          lifecycle: 'unknown',
-          stock: 0,
-          queriedAt: now,
-          confidence: 'medium',
-        };
+        return noMatchResult('lcsc', now);
       }
 
       return this.buildFoundResult(detail, now);
     } catch (err) {
       this.logger.warn({ err, lcscCode }, 'lcsc adapter query failed');
       // Return an "unavailable" result rather than throwing
-      return {
-        supplier: 'lcsc',
-        found: false,
-        lifecycle: 'unknown',
-        stock: 0,
-        queriedAt: now,
-        confidence: 'low',
-      };
+      return unavailableResult('lcsc', now, err);
     }
   }
 }
@@ -202,6 +314,7 @@ export class MouserAdapter implements SupplierAdapter {
   ): SupplierQueryResult {
     return {
       supplier: 'mouser',
+      status: 'found',
       found: true,
       mpn: part.manufacturer || undefined,
       manufacturer: part.manufacturer || undefined,
@@ -212,6 +325,7 @@ export class MouserAdapter implements SupplierAdapter {
       currency: 'USD',
       leadTimeDays: part.leadTime ? parseInt(part.leadTime, 10) || undefined : undefined,
       queriedAt: now,
+      ...freshProvenance('mouser'),
       confidence: 'high',
     };
   }
@@ -235,39 +349,18 @@ export class MouserAdapter implements SupplierAdapter {
       );
 
       if (!results || results.length === 0) {
-        return {
-          supplier: 'mouser',
-          found: false,
-          lifecycle: 'unknown',
-          stock: 0,
-          queriedAt: now,
-          confidence: 'medium',
-        };
+        return noMatchResult('mouser', now);
       }
 
       const part = results[0];
       if (!part) {
-        return {
-          supplier: 'mouser',
-          found: false,
-          lifecycle: 'unknown',
-          stock: 0,
-          queriedAt: now,
-          confidence: 'medium',
-        };
+        return noMatchResult('mouser', now);
       }
 
       return this.buildFoundResult(part, now);
     } catch (err) {
       this.logger.warn({ err, mpn }, 'mouser adapter query failed');
-      return {
-        supplier: 'mouser',
-        found: false,
-        lifecycle: 'unknown',
-        stock: 0,
-        queriedAt: now,
-        confidence: 'low',
-      };
+      return unavailableResult('mouser', now, err);
     }
   }
 }
@@ -296,6 +389,7 @@ export class DigiKeyAdapter implements SupplierAdapter {
   ): SupplierQueryResult {
     return {
       supplier: 'digikey',
+      status: 'found',
       found: true,
       mpn: part.manufacturerPartNumber || undefined,
       manufacturer: part.manufacturer || undefined,
@@ -305,6 +399,7 @@ export class DigiKeyAdapter implements SupplierAdapter {
       unitPrice: part.unitPrice || undefined,
       currency: 'USD',
       queriedAt: now,
+      ...freshProvenance('digikey'),
       confidence:
         part.manufacturerPartNumber?.toLowerCase() === mpn.toLowerCase() ? 'high' : 'medium',
     };
@@ -331,40 +426,19 @@ export class DigiKeyAdapter implements SupplierAdapter {
       );
 
       if (!results || results.length === 0) {
-        return {
-          supplier: 'digikey',
-          found: false,
-          lifecycle: 'unknown',
-          stock: 0,
-          queriedAt: now,
-          confidence: 'medium',
-        };
+        return noMatchResult('digikey', now);
       }
 
       // Take the first result — keyword search returns best match first
       const part = results[0];
       if (!part) {
-        return {
-          supplier: 'digikey',
-          found: false,
-          lifecycle: 'unknown',
-          stock: 0,
-          queriedAt: now,
-          confidence: 'medium',
-        };
+        return noMatchResult('digikey', now);
       }
 
       return this.buildFoundResult(part, mpn, now);
     } catch (err) {
       this.logger.warn({ err, mpn }, 'digikey adapter query failed');
-      return {
-        supplier: 'digikey',
-        found: false,
-        lifecycle: 'unknown',
-        stock: 0,
-        queriedAt: now,
-        confidence: 'low',
-      };
+      return unavailableResult('digikey', now, err);
     }
   }
 }
