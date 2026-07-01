@@ -42,6 +42,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_modify_component`          | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                |
 | `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout.                                                                                                                                                                                                                                                         |
 | `easyeda_pcb_production_review`         | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                |
+| `easyeda_power_tree_analyze`            | `core`  | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                   |
 | `easyeda_project_save`                  | `core`  | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                  |
 | `easyeda_rule_check_summary`            | `core`  | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                |
 | `easyeda_run_self_test`                 | `core`  | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                           |
@@ -1089,6 +1090,42 @@ Returns a JSON object matching the schema:
   warnings: any;
   summary: any;
   not_available: any;
+}
+```
+
+---
+
+## `easyeda_power_tree_analyze`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.
+
+### Input Parameters
+
+| Parameter     | Type  | Required | Description |
+| ------------- | ----- | -------- | ----------- |
+| `projectId`   | `any` | No       |             |
+| `rails`       | `any` | Yes      |             |
+| `sources`     | `any` | No       |             |
+| `regulators`  | `any` | No       |             |
+| `loads`       | `any` | No       |             |
+| `protections` | `any` | No       |             |
+| `capacitors`  | `any` | No       |             |
+| `limits`      | `any` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: any;
+  passed: any;
+  rails: any;
+  regulators: any;
+  issues: any;
+  summary: any;
 }
 ```
 

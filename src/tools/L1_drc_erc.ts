@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { validateNets } from '../net-validation/validation.js';
+import { analyzePowerTree } from '../power-tree/index.js';
 
 function registerDrcErcTools(
   registry: { register: (def: ToolDefinition) => void },
@@ -391,6 +392,199 @@ function registerDrcErcTools(
         total_issues: errors.length + warnings.length,
         errors,
         warnings,
+      };
+    },
+  });
+
+  const powerRailSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    voltage: z.number(),
+    maxCurrentA: z.number().nonnegative().optional(),
+    sourceRefs: z.array(z.string()).optional(),
+    regulatorRefs: z.array(z.string()).optional(),
+    external: z.boolean().optional(),
+    requiresProtection: z.boolean().optional(),
+    requiresBulkCapacitance: z.boolean().optional(),
+    sequenceAfterRailRefs: z.array(z.string()).optional(),
+  });
+
+  const powerSourceSchema = z.object({
+    id: z.string(),
+    name: z.string().optional(),
+    kind: z.enum(['usb', 'battery', 'barrel-jack', 'bench', 'ac-dc', 'external', 'custom']),
+    railId: z.string(),
+    voltage: z.number(),
+    maxCurrentA: z.number().nonnegative().optional(),
+    currentLimitA: z.number().nonnegative().optional(),
+    requiresProtection: z.boolean().optional(),
+  });
+
+  const powerRegulatorSchema = z.object({
+    id: z.string(),
+    ref: z.string().optional(),
+    kind: z.enum(['ldo', 'linear', 'buck', 'boost', 'buck-boost', 'load-switch', 'custom']),
+    inputRailId: z.string(),
+    outputRailId: z.string(),
+    inputVoltage: z.number().optional(),
+    outputVoltage: z.number().optional(),
+    maxOutputCurrentA: z.number().nonnegative().optional(),
+    currentLimitA: z.number().nonnegative().optional(),
+    dropoutVoltage: z.number().nonnegative().optional(),
+    efficiency: z.number().positive().max(1).optional(),
+    quiescentCurrentA: z.number().nonnegative().optional(),
+    thermalResistanceCPerW: z.number().positive().optional(),
+    maxJunctionTempC: z.number().optional(),
+    package: z.string().optional(),
+  });
+
+  const powerLoadSchema = z.object({
+    id: z.string(),
+    ref: z.string().optional(),
+    railId: z.string(),
+    currentA: z.number().nonnegative(),
+    peakCurrentA: z.number().nonnegative().optional(),
+    category: z.string().optional(),
+    required: z.boolean().optional(),
+  });
+
+  const powerProtectionSchema = z.object({
+    id: z.string(),
+    railId: z.string(),
+    kind: z.enum([
+      'fuse',
+      'polyfuse',
+      'tvs',
+      'reverse-polarity',
+      'ideal-diode',
+      'current-limit',
+      'esd',
+      'custom',
+    ]),
+    ref: z.string().optional(),
+    currentRatingA: z.number().nonnegative().optional(),
+    location: z.enum(['input', 'output', 'rail', 'connector']).optional(),
+  });
+
+  const powerCapacitorSchema = z.object({
+    id: z.string(),
+    railId: z.string(),
+    ref: z.string().optional(),
+    capacitanceUf: z.number().nonnegative(),
+    role: z.enum(['bulk', 'input', 'output', 'decoupling', 'hold-up', 'custom']),
+    voltageRating: z.number().positive().optional(),
+  });
+
+  const powerIssueSchema = z.object({
+    code: z.string(),
+    severity: z.enum(['error', 'warning', 'info']),
+    message: z.string(),
+    railId: z.string().optional(),
+    railName: z.string().optional(),
+    componentRef: z.string().optional(),
+    remediationHint: z.string(),
+    details: z.record(z.string(), z.unknown()).optional(),
+  });
+
+  registry.register({
+    name: 'easyeda_power_tree_analyze',
+    title: 'Analyze power-tree current and thermal budget',
+    description:
+      'Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.',
+    profile: 'core',
+    evidence: ['inferred'],
+    risk: 'medium',
+    confirmWrite: false,
+    group: 'drc-erc',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().optional(),
+      rails: z.array(powerRailSchema),
+      sources: z.array(powerSourceSchema).optional(),
+      regulators: z.array(powerRegulatorSchema).optional(),
+      loads: z.array(powerLoadSchema).optional(),
+      protections: z.array(powerProtectionSchema).optional(),
+      capacitors: z.array(powerCapacitorSchema).optional(),
+      limits: z
+        .object({
+          minCurrentMarginPercent: z.number().nonnegative().optional(),
+          minThermalMarginC: z.number().nonnegative().optional(),
+          ambientTempC: z.number().optional(),
+          minBulkCapacitanceUfPerA: z.number().nonnegative().optional(),
+          minBulkCapacitanceUf: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      passed: z.boolean(),
+      rails: z.array(
+        z.object({
+          railId: z.string(),
+          railName: z.string(),
+          voltage: z.number(),
+          loadCurrentA: z.number(),
+          peakCurrentA: z.number(),
+          availableCurrentA: z.number().optional(),
+          marginA: z.number().optional(),
+          marginPercent: z.number().optional(),
+          loadCount: z.number().int().nonnegative(),
+          sourceRefs: z.array(z.string()),
+          regulatorRefs: z.array(z.string()),
+          protectionRefs: z.array(z.string()),
+          bulkCapacitanceUf: z.number(),
+          requiredBulkCapacitanceUf: z.number().optional(),
+          passed: z.boolean(),
+        }),
+      ),
+      regulators: z.array(
+        z.object({
+          regulatorId: z.string(),
+          ref: z.string().optional(),
+          kind: z.string(),
+          inputRailId: z.string(),
+          outputRailId: z.string(),
+          inputVoltage: z.number(),
+          outputVoltage: z.number(),
+          outputCurrentA: z.number(),
+          maxOutputCurrentA: z.number().optional(),
+          currentMarginA: z.number().optional(),
+          currentMarginPercent: z.number().optional(),
+          dropoutMarginV: z.number().optional(),
+          estimatedDissipationW: z.number().optional(),
+          estimatedJunctionTempC: z.number().optional(),
+          thermalMarginC: z.number().optional(),
+          passed: z.boolean(),
+        }),
+      ),
+      issues: z.array(powerIssueSchema),
+      summary: z.object({
+        railCount: z.number().int().nonnegative(),
+        sourceCount: z.number().int().nonnegative(),
+        regulatorCount: z.number().int().nonnegative(),
+        loadCount: z.number().int().nonnegative(),
+        totalLoadCurrentA: z.number(),
+        totalPeakCurrentA: z.number(),
+        errorCount: z.number().int().nonnegative(),
+        warningCount: z.number().int().nonnegative(),
+        passed: z.boolean(),
+        humanSummary: z.string(),
+      }),
+    }),
+    handler: async (_ctx: ToolContext, params: unknown) => {
+      const report = analyzePowerTree(params as Parameters<typeof analyzePowerTree>[0]);
+      return {
+        project_id: report.projectId,
+        passed: report.passed,
+        rails: report.rails,
+        regulators: report.regulators,
+        issues: report.issues,
+        summary: report.summary,
       };
     },
   });
