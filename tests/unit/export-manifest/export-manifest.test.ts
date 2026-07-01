@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateExportManifest } from '../../../src/export-manifest/validation.js';
 import { ExportManifestCode } from '../../../src/export-manifest/errors.js';
-import { ArtifactType } from '../../../src/export-manifest/types.js';
+import { ArtifactType, ExportArtifactRole } from '../../../src/export-manifest/types.js';
 import type {
   ExportManifestInput,
   ExportManifestEntry,
@@ -20,9 +20,12 @@ function makeArtifact(overrides?: Partial<ExportManifestEntry>): ExportManifestE
     filename: 'ESP32-S3-Board-F.Cu.gbr',
     fileType: ArtifactType.Gerber,
     purpose: 'Top copper layer',
+    role: ExportArtifactRole.TopCopper,
     sourceProject: 'proj-esp32-s3-001',
     generatedByTool: 'easyeda-export-gerbers',
     timestamp: '2026-06-11T21:00:01.000Z',
+    checksum: 'a'.repeat(64),
+    checksumAlgorithm: 'sha256',
     fileSize: 4096,
     required: true,
     stale: false,
@@ -42,6 +45,7 @@ function makeInput(overrides?: Partial<ExportManifestInput>): ExportManifestInpu
       {
         filename: 'ESP32-S3-Board-F.Cu.gbr',
         fileType: ArtifactType.Gerber,
+        role: ExportArtifactRole.TopCopper,
         required: true,
       },
     ],
@@ -408,6 +412,181 @@ describe('validateExportManifest', () => {
     expect(result.summary.missingPurposes).toBe(1);
     expect(result.summary.missingTimestamps).toBe(1);
     expect(result.summary.missingSourceProjects).toBeGreaterThanOrEqual(1);
+  });
+
+  // ── Manufacturing package checks ─────────────────────────────────────────
+
+  function makeManufacturingInput(overrides?: Partial<ExportManifestInput>): ExportManifestInput {
+    const artifacts: ExportManifestEntry[] = [
+      makeArtifact({
+        filename: 'board-F.Cu.gbr',
+        role: ExportArtifactRole.TopCopper,
+        purpose: 'Top copper layer',
+      }),
+      makeArtifact({
+        filename: 'board-B.Cu.gbr',
+        role: ExportArtifactRole.BottomCopper,
+        purpose: 'Bottom copper layer',
+      }),
+      makeArtifact({
+        filename: 'board-Edge.Cuts.gbr',
+        role: ExportArtifactRole.BoardOutline,
+        purpose: 'Board outline',
+      }),
+      makeArtifact({
+        filename: 'board.drl',
+        fileType: ArtifactType.Drill,
+        role: ExportArtifactRole.DrillPlated,
+        purpose: 'Plated NC drill file',
+      }),
+      makeArtifact({
+        filename: 'bom.csv',
+        fileType: ArtifactType.Bom,
+        role: ExportArtifactRole.Bom,
+        purpose: 'Bill of materials',
+      }),
+      makeArtifact({
+        filename: 'pnp.csv',
+        fileType: ArtifactType.Pnp,
+        role: ExportArtifactRole.PickPlace,
+        purpose: 'Pick-and-place centroid file',
+      }),
+    ];
+
+    return makeInput({
+      serverVersion: '0.6.10',
+      projectMetadata: {
+        projectId: 'proj-esp32-s3-001',
+        projectName: 'ESP32-S3 Sensor Board',
+        easyedaVersion: '3.2.149',
+        bridgeVersion: '1.0.0',
+        revision: 'A',
+      },
+      manufacturingPolicy: {
+        requiredRoles: [
+          ExportArtifactRole.TopCopper,
+          ExportArtifactRole.BottomCopper,
+          ExportArtifactRole.BoardOutline,
+          ExportArtifactRole.DrillPlated,
+          ExportArtifactRole.Bom,
+          ExportArtifactRole.PickPlace,
+        ],
+        requireChecksums: true,
+        requireFileSizes: true,
+        requireGenerationMetadata: true,
+        requireProjectMetadata: true,
+        requireBomPnpConsistency: true,
+      },
+      assemblyConsistency: {
+        bomDesignators: ['R1', 'C1', 'U1'],
+        pnpDesignators: ['R1', 'C1', 'U1'],
+        expectedBomDesignatorCount: 3,
+        expectedPnpDesignatorCount: 3,
+      },
+      artifacts,
+      expectedArtifacts: artifacts.map((artifact) => ({
+        filename: artifact.filename,
+        fileType: artifact.fileType,
+        role: artifact.role,
+        required: artifact.required,
+      })),
+      ...overrides,
+    });
+  }
+
+  it('should pass a complete manufacturing handoff package', () => {
+    const result = validateExportManifest(makeManufacturingInput());
+
+    expect(result.valid).toBe(true);
+    expect(result.summary.missingRequiredRoles).toBe(0);
+    expect(result.summary.missingBoardOutlines).toBe(0);
+    expect(result.summary.missingDrillFiles).toBe(0);
+    expect(result.summary.bomPnpMismatches).toBe(0);
+    expect(result.summary.missingProjectMetadata).toBe(0);
+  });
+
+  it('should fail when manufacturing package misses board outline and drill artifacts', () => {
+    const input = makeManufacturingInput();
+    const result = validateExportManifest({
+      ...input,
+      artifacts: input.artifacts.filter(
+        (artifact) =>
+          artifact.role !== ExportArtifactRole.BoardOutline &&
+          artifact.role !== ExportArtifactRole.DrillPlated,
+      ),
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.summary.missingBoardOutlines).toBe(1);
+    expect(result.summary.missingDrillFiles).toBe(1);
+    expect(result.summary.missingRequiredRoles).toBeGreaterThanOrEqual(2);
+  });
+
+  it('should fail required manufacturing artifacts without checksums or file sizes', () => {
+    const input = makeManufacturingInput();
+    const result = validateExportManifest({
+      ...input,
+      artifacts: [
+        {
+          ...input.artifacts[0]!,
+          checksum: undefined,
+          checksumAlgorithm: undefined,
+          fileSize: undefined,
+        },
+        ...input.artifacts.slice(1),
+      ],
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.summary.missingChecksums).toBe(1);
+    expect(result.summary.missingFileSizes).toBe(1);
+  });
+
+  it('should fail when project and EasyEDA metadata are missing from a strict package', () => {
+    const result = validateExportManifest(
+      makeManufacturingInput({ projectMetadata: undefined, serverVersion: undefined }),
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.summary.missingProjectMetadata).toBe(1);
+    expect(result.issues.some((i) => i.code === ExportManifestCode.MISSING_PROJECT_METADATA)).toBe(
+      true,
+    );
+  });
+
+  it('should fail when pick-and-place contains designators not represented in BOM', () => {
+    const result = validateExportManifest(
+      makeManufacturingInput({
+        assemblyConsistency: {
+          bomDesignators: ['R1', 'C1'],
+          pnpDesignators: ['R1', 'C1', 'U1'],
+          expectedBomDesignatorCount: 2,
+          expectedPnpDesignatorCount: 3,
+        },
+      }),
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.summary.bomPnpMismatches).toBe(1);
+    expect(result.issues.some((i) => i.code === ExportManifestCode.BOM_PNP_MISMATCH)).toBe(true);
+  });
+
+  it('should fail when expected artifact role does not match actual artifact role', () => {
+    const input = makeManufacturingInput();
+    const result = validateExportManifest({
+      ...input,
+      expectedArtifacts: [
+        {
+          filename: 'board-F.Cu.gbr',
+          fileType: ArtifactType.Gerber,
+          role: ExportArtifactRole.BottomCopper,
+          required: true,
+        },
+      ],
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.summary.missingRequiredRoles).toBe(1);
   });
 
   // ── Edge cases ──────────────────────────────────────────────────────────

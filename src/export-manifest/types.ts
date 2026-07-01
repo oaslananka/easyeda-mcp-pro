@@ -35,6 +35,33 @@ export enum ArtifactType {
   DrcReport = 'drc-report',
 }
 
+/**
+ * Manufacturing handoff role for an export artifact.
+ *
+ * File extensions alone are often ambiguous. Roles let the validator check
+ * that a fabrication package has the required copper, mask, drill, outline,
+ * assembly, and documentation artifacts.
+ */
+export enum ExportArtifactRole {
+  TopCopper = 'top-copper',
+  BottomCopper = 'bottom-copper',
+  InnerCopper = 'inner-copper',
+  TopSolderMask = 'top-solder-mask',
+  BottomSolderMask = 'bottom-solder-mask',
+  TopSilkscreen = 'top-silkscreen',
+  BottomSilkscreen = 'bottom-silkscreen',
+  BoardOutline = 'board-outline',
+  DrillPlated = 'drill-plated',
+  DrillNonPlated = 'drill-nonplated',
+  Bom = 'bom',
+  PickPlace = 'pick-place',
+  SchematicPdf = 'schematic-pdf',
+  BoardPdf = 'board-pdf',
+  Netlist = 'netlist',
+  DrcReport = 'drc-report',
+  ErcReport = 'erc-report',
+}
+
 // ── Manifest entry ─────────────────────────────────────────────────────────
 
 /**
@@ -52,14 +79,18 @@ export interface ExportManifestEntry {
   fileType: ArtifactType;
   /** Human-readable purpose (e.g. "Top copper layer"). */
   purpose: string;
+  /** Manufacturing role used for package completeness checks. */
+  role?: ExportArtifactRole;
   /** Source project identifier. */
   sourceProject?: string;
   /** Tool that generated this artifact (e.g. "easyeda-export-gerbers"). */
   generatedByTool?: string;
   /** ISO-8601 timestamp when this artifact was generated. */
   timestamp?: string;
-  /** Hex-encoded SHA-256 or MD5 checksum. */
+  /** Hex-encoded checksum, preferably SHA-256. */
   checksum?: string;
+  /** Algorithm used to compute checksum. */
+  checksumAlgorithm?: 'sha256' | 'sha512' | 'md5';
   /** File size in bytes. */
   fileSize?: number;
   /** Whether this artifact is required for the export to be valid. */
@@ -80,10 +111,58 @@ export interface ExpectedArtifact {
   filename: string;
   /** Expected file type. */
   fileType: ArtifactType;
+  /** Expected manufacturing role. */
+  role?: ExportArtifactRole;
   /** Minimum acceptable file size in bytes. */
   minSizeBytes?: number;
   /** Whether this artifact is required (missing = validation error). */
   required?: boolean;
+}
+
+// ── Manufacturing policy ───────────────────────────────────────────────────
+
+/** Project metadata captured at export time. */
+export interface ExportProjectMetadata {
+  /** EasyEDA project id or repository-specific project id. */
+  projectId: string;
+  /** Human-readable project name. */
+  projectName?: string;
+  /** EasyEDA editor/runtime version when available. */
+  easyedaVersion?: string;
+  /** EasyEDA bridge extension version when available. */
+  bridgeVersion?: string;
+  /** Source document or board id when available. */
+  documentId?: string;
+  /** Board revision or release identifier. */
+  revision?: string;
+}
+
+/** Assembly cross-check metadata for BOM and pick-and-place consistency. */
+export interface AssemblyConsistencyMetadata {
+  /** BOM designators extracted from the exported BOM. */
+  bomDesignators?: string[];
+  /** Pick-and-place designators extracted from the centroid file. */
+  pnpDesignators?: string[];
+  /** Expected BOM row/designator count. */
+  expectedBomDesignatorCount?: number;
+  /** Expected pick-and-place row/designator count. */
+  expectedPnpDesignatorCount?: number;
+}
+
+/** Manufacturing package validation policy. */
+export interface ManufacturingExportPolicy {
+  /** Required artifact roles for this export profile. */
+  requiredRoles?: ExportArtifactRole[];
+  /** Require each required artifact to include checksum metadata. */
+  requireChecksums?: boolean;
+  /** Require each required artifact to include non-zero fileSize. */
+  requireFileSizes?: boolean;
+  /** Require each required artifact to include generatedByTool and timestamp. */
+  requireGenerationMetadata?: boolean;
+  /** Require manifest-level EasyEDA and project metadata. */
+  requireProjectMetadata?: boolean;
+  /** Require BOM and pick-and-place designator consistency checks. */
+  requireBomPnpConsistency?: boolean;
 }
 
 // ── Validation input ───────────────────────────────────────────────────────
@@ -107,6 +186,12 @@ export interface ExportManifestInput {
   serverVersion?: string;
   /** EasyEDA / bridge metadata if available. */
   bridgeMetadata?: Record<string, unknown>;
+  /** Structured project metadata captured at export time. */
+  projectMetadata?: ExportProjectMetadata;
+  /** Manufacturing package policy for strict handoff checks. */
+  manufacturingPolicy?: ManufacturingExportPolicy;
+  /** Optional assembly data used to compare BOM and pick-and-place outputs. */
+  assemblyConsistency?: AssemblyConsistencyMetadata;
   /** Artifacts produced by the export. */
   artifacts: ExportManifestEntry[];
   /** Expected artifacts for comparison-based validation. */
@@ -172,6 +257,20 @@ export interface ExportManifestSummary {
   missingTimestamps: number;
   /** Count of artifacts missing a source project reference. */
   missingSourceProjects: number;
+  /** Count of artifacts missing checksum metadata. */
+  missingChecksums: number;
+  /** Count of artifacts missing file size metadata. */
+  missingFileSizes: number;
+  /** Count of missing manufacturing roles. */
+  missingRequiredRoles: number;
+  /** Count of board outline package errors. */
+  missingBoardOutlines: number;
+  /** Count of drill package errors. */
+  missingDrillFiles: number;
+  /** Count of BOM / pick-and-place consistency errors. */
+  bomPnpMismatches: number;
+  /** Count of manifest/project metadata errors. */
+  missingProjectMetadata: number;
 }
 
 /**

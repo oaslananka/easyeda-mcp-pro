@@ -27,6 +27,9 @@ interface ExportManifestInput {
   generatedAt: string; // ISO-8601 generation timestamp
   serverVersion?: string; // Server/tool version
   bridgeMetadata?: Record<string, unknown>; // EasyEDA bridge metadata
+  projectMetadata?: ExportProjectMetadata; // project / EasyEDA version metadata
+  manufacturingPolicy?: ManufacturingExportPolicy; // strict handoff checks
+  assemblyConsistency?: AssemblyConsistencyMetadata; // BOM / PNP cross-check data
   artifacts: ExportManifestEntry[]; // Exported files
   expectedArtifacts?: ExpectedArtifact[]; // Expected file descriptors
 }
@@ -40,10 +43,12 @@ interface ExportManifestEntry {
   relativePath?: string; // Path relative to export root
   fileType: ArtifactType; // Type (gerber, drill, bom, etc.)
   purpose: string; // Human-readable description
+  role?: ExportArtifactRole; // Manufacturing role, e.g. board-outline
   sourceProject?: string; // Project UUID this artifact came from
   generatedByTool?: string; // Tool name (e.g. "easyeda-export-gerbers")
   timestamp?: string; // ISO-8601 generation time
-  checksum?: string; // SHA-256 or MD5 checksum
+  checksum?: string; // SHA-256, SHA-512, or MD5 checksum
+  checksumAlgorithm?: 'sha256' | 'sha512' | 'md5';
   fileSize?: number; // Size in bytes
   required: boolean; // Whether this file is required
   stale: boolean; // Whether this artifact is outdated
@@ -56,6 +61,7 @@ interface ExportManifestEntry {
 interface ExpectedArtifact {
   filename: string; // Expected file name
   fileType: ArtifactType; // Expected file type
+  role?: ExportArtifactRole; // Expected manufacturing role
   minSizeBytes?: number; // Minimum acceptable size
   required?: boolean; // Whether missing = error (default: true)
 }
@@ -76,22 +82,30 @@ interface ExpectedArtifact {
 
 ## Validation Rules
 
-The module runs 10 validation rules against an `ExportManifestInput`:
+The module runs structural and manufacturing handoff validation rules against an `ExportManifestInput`:
 
-| #   | Rule                   | Severity | Description                                                       |
-| --- | ---------------------- | -------- | ----------------------------------------------------------------- |
-| 1   | Invalid version        | error    | Manifest version must be valid semver (e.g. `1.0.0`)              |
-| 2   | Missing source project | error    | `sourceProjectId` must be non-empty                               |
-|     |                        | warning  | Each artifact should have `sourceProject`                         |
-| 3   | Missing timestamp      | error    | `generatedAt` must be non-empty                                   |
-|     |                        | warning  | Each artifact should have `timestamp`                             |
-| 4   | Missing purpose        | warning  | Each artifact should have a human-readable `purpose`              |
-| 5   | Empty file             | error    | Artifacts with `fileSize: 0` are rejected                         |
-| 6   | Stale file             | warning  | Artifacts flagged `stale: true` need re-export                    |
-| 7   | Checksum mismatch      | error    | When `checksum` uses `"expected:actual"` format and values differ |
-| 8   | Missing required file  | error    | Required `expectedArtifacts` not found in `artifacts`             |
-| 9   | Unexpected file        | warning  | Artifact in output but not in `expectedArtifacts`                 |
-| 10  | Wrong file type        | error    | Artifact `fileType` doesn't match `expectedArtifacts` entry       |
+| #   | Rule                        | Severity | Description                                                       |
+| --- | --------------------------- | -------- | ----------------------------------------------------------------- |
+| 1   | Invalid version             | error    | Manifest version must be valid semver (e.g. `1.0.0`)              |
+| 2   | Missing source project      | error    | `sourceProjectId` must be non-empty                               |
+|     |                             | warning  | Each artifact should have `sourceProject`                         |
+| 3   | Missing timestamp           | error    | `generatedAt` must be non-empty                                   |
+|     |                             | warning  | Each artifact should have `timestamp`                             |
+| 4   | Missing purpose             | warning  | Each artifact should have a human-readable `purpose`              |
+| 5   | Empty file                  | error    | Artifacts with `fileSize: 0` are rejected                         |
+| 6   | Stale file                  | warning  | Artifacts flagged `stale: true` need re-export                    |
+| 7   | Checksum mismatch           | error    | When `checksum` uses `"expected:actual"` format and values differ |
+| 8   | Missing required file       | error    | Required `expectedArtifacts` not found in `artifacts`             |
+| 9   | Unexpected file             | warning  | Artifact in output but not in `expectedArtifacts`                 |
+| 10  | Wrong file type             | error    | Artifact `fileType` doesn't match `expectedArtifacts` entry       |
+| 11  | Missing checksum            | error    | Required artifact lacks checksum when strict policy requires it   |
+| 12  | Missing file size           | error    | Required artifact lacks file size metadata                        |
+| 13  | Missing generation metadata | error    | Required artifact lacks source/tool/timestamp metadata            |
+| 14  | Missing required role       | error    | Required manufacturing role is absent                             |
+| 15  | Missing board outline       | error    | Board outline/mechanical artifact is absent                       |
+| 16  | Missing drill file          | error    | Required NC drill artifact is absent                              |
+| 17  | BOM/PNP mismatch            | error    | Pick-and-place designators are not represented in BOM             |
+| 18  | Missing project metadata    | error    | EasyEDA/project/server metadata is absent in strict policy        |
 
 ### Validation Report
 
@@ -116,6 +130,13 @@ interface ExportManifestSummary {
   missingPurposes: number;
   missingTimestamps: number;
   missingSourceProjects: number;
+  missingChecksums: number;
+  missingFileSizes: number;
+  missingRequiredRoles: number;
+  missingBoardOutlines: number;
+  missingDrillFiles: number;
+  bomPnpMismatches: number;
+  missingProjectMetadata: number;
 }
 ```
 
@@ -159,6 +180,75 @@ const entry = {
   stale: false,
 };
 ```
+
+## Manufacturing Handoff Policy
+
+For fabrication/assembly packages, pass a strict `manufacturingPolicy` so the manifest validator can block incomplete packages before handoff:
+
+```typescript
+import {
+  ArtifactType,
+  ExportArtifactRole,
+  validateExportManifest,
+} from 'easyeda-mcp-pro/export-manifest';
+
+const result = validateExportManifest({
+  version: '1.0.0',
+  sourceProjectId: 'proj-abc-123',
+  sourceProjectName: 'Regulator Board',
+  generatedAt: new Date().toISOString(),
+  serverVersion: '0.6.10',
+  projectMetadata: {
+    projectId: 'proj-abc-123',
+    projectName: 'Regulator Board',
+    easyedaVersion: '3.2.149',
+    bridgeVersion: '1.0.0',
+    revision: 'A',
+  },
+  manufacturingPolicy: {
+    requiredRoles: [
+      ExportArtifactRole.TopCopper,
+      ExportArtifactRole.BottomCopper,
+      ExportArtifactRole.BoardOutline,
+      ExportArtifactRole.DrillPlated,
+      ExportArtifactRole.Bom,
+      ExportArtifactRole.PickPlace,
+    ],
+    requireChecksums: true,
+    requireFileSizes: true,
+    requireGenerationMetadata: true,
+    requireProjectMetadata: true,
+    requireBomPnpConsistency: true,
+  },
+  assemblyConsistency: {
+    bomDesignators: ['R1', 'C1', 'U1'],
+    pnpDesignators: ['R1', 'C1', 'U1'],
+  },
+  artifacts: [
+    {
+      filename: 'board-Edge.Cuts.gbr',
+      fileType: ArtifactType.Gerber,
+      role: ExportArtifactRole.BoardOutline,
+      purpose: 'Board outline',
+      sourceProject: 'proj-abc-123',
+      generatedByTool: 'easyeda-export-gerbers',
+      timestamp: new Date().toISOString(),
+      checksum: '<sha256>',
+      checksumAlgorithm: 'sha256',
+      fileSize: 4096,
+      required: true,
+      stale: false,
+    },
+  ],
+});
+```
+
+Strict policy blocks handoff when:
+
+- required copper, outline, drill, BOM, or pick-and-place roles are missing;
+- required artifacts lack checksum, file size, source, tool, or timestamp metadata;
+- EasyEDA/project/server metadata is missing;
+- pick-and-place contains assembly designators that are not represented in the BOM.
 
 ## CI-Safe Fixture Workflow
 
@@ -219,9 +309,9 @@ expectations. The `golden-smoke.test.ts` suite verifies:
 - **Checksum format**: The `"expected:actual"` convention is ad-hoc. A structured
   `{ expectedChecksum: string, actualChecksum: string }` field would be cleaner but
   is deferred for schema compatibility.
-- **No real file I/O**: The module validates the manifest structure only — it does
+- **No real file I/O**: The module validates the manifest structure and metadata only — it does
   not read actual files from disk to verify sizes, existence, or checksums.
-  External callers should pass the actual values obtained from the file system.
+  Export callers must pass the actual values obtained from the file system or export response.
 - **Semver strictness**: The version regex allows pre-release tags but does not
   support build metadata (`+` suffix). Extend `SEMVER_RE` in `validation.ts` if needed.
 - **No cross-artifact deduplication**: If the same filename appears in multiple

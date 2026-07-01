@@ -15,11 +15,16 @@
  *  8. Missing required file     — error when expected artifact not found in output
  *  9. Unexpected file           — warning when output file not in expected set
  * 10. Wrong file type           — error when artifact type doesn't match expected
+ * 11. Missing artifact metadata — error/warning for missing checksum, size, or generator data
+ * 12. Manufacturing roles       — error when required board outline, drill, or layer roles are missing
+ * 13. Project metadata          — error when EasyEDA/project metadata is required but absent
+ * 14. BOM/PNP consistency       — error when pick-and-place designators are not represented in BOM
  *
  * @module
  */
 
 import { ExportManifestCode, manifestError, manifestWarning } from './errors.js';
+import { ExportArtifactRole } from './types.js';
 import type { ExportManifestIssue } from './types.js';
 import type { ExportManifestInput, ExportManifestReport, ExportManifestSummary } from './types.js';
 
@@ -355,6 +360,323 @@ function checkWrongFileTypes(input: ExportManifestInput): ExportManifestIssue[] 
   return issues;
 }
 
+// ── Rule: required artifact metadata ────────────────────────────────────────
+
+function checkRequiredArtifactMetadata(input: ExportManifestInput): ExportManifestIssue[] {
+  const issues: ExportManifestIssue[] = [];
+  const policy = input.manufacturingPolicy;
+
+  if (!policy) return issues;
+
+  for (const [i, artifact] of input.artifacts.entries()) {
+    if (!artifact.required) continue;
+
+    if (policy.requireChecksums && (!artifact.checksum || artifact.checksum.trim().length === 0)) {
+      issues.push(
+        manifestError(
+          ExportManifestCode.MISSING_CHECKSUM,
+          `Required artifact "${artifact.filename}" is missing checksum metadata`,
+          {
+            path: `artifacts[${i}].checksum`,
+            artifactPath: artifact.filename,
+            artifactType: artifact.fileType,
+            remediationHint:
+              'Compute and store a SHA-256 checksum for every required export artifact before manufacturing handoff',
+          },
+        ),
+      );
+    }
+
+    if (policy.requireChecksums && artifact.checksum && !artifact.checksumAlgorithm) {
+      issues.push(
+        manifestWarning(
+          ExportManifestCode.MISSING_CHECKSUM,
+          `Artifact "${artifact.filename}" has a checksum but no checksumAlgorithm`,
+          {
+            path: `artifacts[${i}].checksumAlgorithm`,
+            artifactPath: artifact.filename,
+            artifactType: artifact.fileType,
+            remediationHint: 'Set checksumAlgorithm to sha256, sha512, or md5; sha256 is preferred',
+          },
+        ),
+      );
+    }
+
+    if (policy.requireFileSizes && artifact.fileSize === undefined) {
+      issues.push(
+        manifestError(
+          ExportManifestCode.MISSING_FILE_SIZE,
+          `Required artifact "${artifact.filename}" is missing fileSize metadata`,
+          {
+            path: `artifacts[${i}].fileSize`,
+            artifactPath: artifact.filename,
+            artifactType: artifact.fileType,
+            remediationHint:
+              'Record the actual file size from disk so empty/truncated package artifacts can be detected',
+          },
+        ),
+      );
+    }
+
+    if (policy.requireGenerationMetadata) {
+      const missingFields = [
+        !artifact.generatedByTool ? 'generatedByTool' : undefined,
+        !artifact.timestamp ? 'timestamp' : undefined,
+        !artifact.sourceProject ? 'sourceProject' : undefined,
+      ].filter((field): field is string => Boolean(field));
+
+      if (missingFields.length > 0) {
+        issues.push(
+          manifestError(
+            ExportManifestCode.MISSING_GENERATION_METADATA,
+            `Required artifact "${artifact.filename}" is missing generation metadata: ${missingFields.join(', ')}`,
+            {
+              path: `artifacts[${i}]`,
+              artifactPath: artifact.filename,
+              artifactType: artifact.fileType,
+              remediationHint:
+                'Record sourceProject, generatedByTool, and timestamp for every required artifact so the package is reproducible and auditable',
+              details: { missingFields },
+            },
+          ),
+        );
+      }
+    }
+  }
+
+  return issues;
+}
+
+// ── Rule: expected role mismatch ────────────────────────────────────────────
+
+function checkExpectedRoles(input: ExportManifestInput): ExportManifestIssue[] {
+  const issues: ExportManifestIssue[] = [];
+  if (!input.expectedArtifacts || input.expectedArtifacts.length === 0) return issues;
+
+  const artifactByFilename = new Map(
+    input.artifacts.map((artifact) => [artifact.filename, artifact]),
+  );
+
+  for (const [i, expected] of input.expectedArtifacts.entries()) {
+    if (!expected.role) continue;
+    const artifact = artifactByFilename.get(expected.filename);
+    if (!artifact) continue;
+    if (artifact.role !== expected.role) {
+      issues.push(
+        manifestError(
+          ExportManifestCode.MISSING_REQUIRED_ROLE,
+          `Artifact "${expected.filename}" has role "${artifact.role ?? '<missing>'}" but expected "${expected.role}"`,
+          {
+            path: `expectedArtifacts[${i}].role`,
+            artifactPath: expected.filename,
+            artifactType: expected.fileType,
+            remediationHint:
+              'Assign the correct manufacturing role to the artifact so package completeness checks can reason about layers and assembly outputs',
+            details: { actualRole: artifact.role, expectedRole: expected.role },
+          },
+        ),
+      );
+    }
+  }
+
+  return issues;
+}
+
+// ── Rule: manufacturing required roles ──────────────────────────────────────
+
+function checkManufacturingRoles(input: ExportManifestInput): ExportManifestIssue[] {
+  const issues: ExportManifestIssue[] = [];
+  const requiredRoles = input.manufacturingPolicy?.requiredRoles ?? [];
+  if (requiredRoles.length === 0) return issues;
+
+  const presentRoles = new Set(input.artifacts.map((artifact) => artifact.role).filter(Boolean));
+
+  for (const requiredRole of requiredRoles) {
+    if (presentRoles.has(requiredRole)) continue;
+
+    let code: ExportManifestCode = ExportManifestCode.MISSING_REQUIRED_ROLE;
+    let message = `Required manufacturing artifact role "${requiredRole}" is missing from the export package`;
+    let hint =
+      'Re-run the export or add the missing artifact to the package manifest before manufacturing handoff';
+
+    if (requiredRole === ExportArtifactRole.BoardOutline) {
+      code = ExportManifestCode.MISSING_BOARD_OUTLINE;
+      message = 'Board outline artifact is missing from the manufacturing export package';
+      hint =
+        'Export the board outline/mechanical layer; fabrication packages without a board outline should not be handed off';
+    } else if (
+      requiredRole === ExportArtifactRole.DrillPlated ||
+      requiredRole === ExportArtifactRole.DrillNonPlated
+    ) {
+      code = ExportManifestCode.MISSING_DRILL_FILE;
+      message = `Required drill artifact role "${requiredRole}" is missing from the manufacturing export package`;
+      hint =
+        'Export the required NC drill file and verify it is non-empty before fabrication handoff';
+    }
+
+    issues.push(
+      manifestError(code, message, {
+        path: 'manufacturingPolicy.requiredRoles',
+        artifactType: requiredRole,
+        remediationHint: hint,
+        details: { requiredRole },
+      }),
+    );
+
+    if (code !== ExportManifestCode.MISSING_REQUIRED_ROLE) {
+      issues.push(
+        manifestError(
+          ExportManifestCode.MISSING_REQUIRED_ROLE,
+          `Required manufacturing artifact role "${requiredRole}" is missing from the export package`,
+          {
+            path: 'manufacturingPolicy.requiredRoles',
+            artifactType: requiredRole,
+            remediationHint: hint,
+            details: { requiredRole },
+          },
+        ),
+      );
+    }
+  }
+
+  return issues;
+}
+
+// ── Rule: project / EasyEDA metadata ────────────────────────────────────────
+
+function checkProjectMetadata(input: ExportManifestInput): ExportManifestIssue[] {
+  const issues: ExportManifestIssue[] = [];
+  if (!input.manufacturingPolicy?.requireProjectMetadata) return issues;
+
+  const metadata = input.projectMetadata;
+  const missingFields = [
+    !metadata?.projectId ? 'projectMetadata.projectId' : undefined,
+    !metadata?.projectName && !input.sourceProjectName ? 'projectMetadata.projectName' : undefined,
+    !metadata?.easyedaVersion ? 'projectMetadata.easyedaVersion' : undefined,
+    !metadata?.bridgeVersion ? 'projectMetadata.bridgeVersion' : undefined,
+    !input.serverVersion ? 'serverVersion' : undefined,
+  ].filter((field): field is string => Boolean(field));
+
+  if (missingFields.length > 0) {
+    issues.push(
+      manifestError(
+        ExportManifestCode.MISSING_PROJECT_METADATA,
+        `Manufacturing manifest is missing required project/EasyEDA metadata: ${missingFields.join(', ')}`,
+        {
+          path: 'projectMetadata',
+          remediationHint:
+            'Attach EasyEDA version, bridge version, server version, project id, and project name to the manifest before releasing manufacturing files',
+          details: { missingFields },
+        },
+      ),
+    );
+  }
+
+  return issues;
+}
+
+// ── Rule: BOM / pick-and-place consistency ──────────────────────────────────
+
+function normalizeDesignator(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function checkBomPnpConsistency(input: ExportManifestInput): ExportManifestIssue[] {
+  const issues: ExportManifestIssue[] = [];
+  const consistency = input.assemblyConsistency;
+  if (!input.manufacturingPolicy?.requireBomPnpConsistency && !consistency) return issues;
+
+  const artifactsByRole = new Set(input.artifacts.map((artifact) => artifact.role).filter(Boolean));
+  const hasBom = artifactsByRole.has(ExportArtifactRole.Bom);
+  const hasPnp = artifactsByRole.has(ExportArtifactRole.PickPlace);
+
+  if (input.manufacturingPolicy?.requireBomPnpConsistency && (!hasBom || !hasPnp)) {
+    const missing = [
+      !hasBom ? ExportArtifactRole.Bom : undefined,
+      !hasPnp ? ExportArtifactRole.PickPlace : undefined,
+    ].filter((role): role is ExportArtifactRole => Boolean(role));
+    issues.push(
+      manifestError(
+        ExportManifestCode.BOM_PNP_MISMATCH,
+        `BOM / pick-and-place consistency was requested but package is missing: ${missing.join(', ')}`,
+        {
+          path: 'artifacts',
+          remediationHint:
+            'Export both BOM and pick-and-place files before running assembly consistency checks',
+          details: { missingRoles: missing },
+        },
+      ),
+    );
+  }
+
+  if (!consistency) return issues;
+
+  const bomDesignators = new Set((consistency.bomDesignators ?? []).map(normalizeDesignator));
+  const pnpDesignators = new Set((consistency.pnpDesignators ?? []).map(normalizeDesignator));
+
+  if (
+    consistency.expectedBomDesignatorCount !== undefined &&
+    bomDesignators.size !== consistency.expectedBomDesignatorCount
+  ) {
+    issues.push(
+      manifestError(
+        ExportManifestCode.BOM_PNP_MISMATCH,
+        `BOM designator count mismatch: expected ${consistency.expectedBomDesignatorCount}, got ${bomDesignators.size}`,
+        {
+          path: 'assemblyConsistency.expectedBomDesignatorCount',
+          remediationHint:
+            'Regenerate the BOM or update the expected designator count from the exported file parser',
+          details: {
+            expected: consistency.expectedBomDesignatorCount,
+            actual: bomDesignators.size,
+          },
+        },
+      ),
+    );
+  }
+
+  if (
+    consistency.expectedPnpDesignatorCount !== undefined &&
+    pnpDesignators.size !== consistency.expectedPnpDesignatorCount
+  ) {
+    issues.push(
+      manifestError(
+        ExportManifestCode.BOM_PNP_MISMATCH,
+        `Pick-and-place designator count mismatch: expected ${consistency.expectedPnpDesignatorCount}, got ${pnpDesignators.size}`,
+        {
+          path: 'assemblyConsistency.expectedPnpDesignatorCount',
+          remediationHint:
+            'Regenerate the pick-and-place file or update the expected designator count from the exported file parser',
+          details: {
+            expected: consistency.expectedPnpDesignatorCount,
+            actual: pnpDesignators.size,
+          },
+        },
+      ),
+    );
+  }
+
+  const missingFromBom = [...pnpDesignators].filter(
+    (designator) => !bomDesignators.has(designator),
+  );
+  if (missingFromBom.length > 0) {
+    issues.push(
+      manifestError(
+        ExportManifestCode.BOM_PNP_MISMATCH,
+        `Pick-and-place contains designators not present in BOM: ${missingFromBom.join(', ')}`,
+        {
+          path: 'assemblyConsistency.pnpDesignators',
+          remediationHint:
+            'Ensure every placed assembly designator is represented in the BOM, or explicitly mark non-BOM mechanical/fiducial rows as excluded before handoff',
+          details: { missingFromBom },
+        },
+      ),
+    );
+  }
+
+  return issues;
+}
+
 // ── Combine helper ──────────────────────────────────────────────────────────
 
 type RuleFn = (input: ExportManifestInput) => ExportManifestIssue[];
@@ -370,6 +692,11 @@ const RULES: RuleFn[] = [
   checkMissingRequiredFiles,
   checkUnexpectedFiles,
   checkWrongFileTypes,
+  checkRequiredArtifactMetadata,
+  checkExpectedRoles,
+  checkManufacturingRoles,
+  checkProjectMetadata,
+  checkBomPnpConsistency,
 ];
 
 // ── Summary builder ─────────────────────────────────────────────────────────
@@ -400,6 +727,18 @@ function buildSummary(
     missingSourceProjects: issues.filter(
       (i) => i.code === ExportManifestCode.MISSING_SOURCE_PROJECT,
     ).length,
+    missingChecksums: issues.filter((i) => i.code === ExportManifestCode.MISSING_CHECKSUM).length,
+    missingFileSizes: issues.filter((i) => i.code === ExportManifestCode.MISSING_FILE_SIZE).length,
+    missingRequiredRoles: issues.filter((i) => i.code === ExportManifestCode.MISSING_REQUIRED_ROLE)
+      .length,
+    missingBoardOutlines: issues.filter((i) => i.code === ExportManifestCode.MISSING_BOARD_OUTLINE)
+      .length,
+    missingDrillFiles: issues.filter((i) => i.code === ExportManifestCode.MISSING_DRILL_FILE)
+      .length,
+    bomPnpMismatches: issues.filter((i) => i.code === ExportManifestCode.BOM_PNP_MISMATCH).length,
+    missingProjectMetadata: issues.filter(
+      (i) => i.code === ExportManifestCode.MISSING_PROJECT_METADATA,
+    ).length,
   };
 }
 
@@ -421,6 +760,10 @@ function buildSummary(
  *  8. Missing required file      — error when expected artifact not in output
  *  9. Unexpected file            — warning when output file not in expected set
  * 10. Wrong file type            — error when artifact type !== expected type
+ * 11. Required metadata        — error when manufacturing policy requires missing checksums, sizes, or generation metadata
+ * 12. Manufacturing roles      — error when required board outline, drill, layer, BOM, or pick-place roles are missing
+ * 13. Project metadata         — error when EasyEDA/project metadata required by policy is absent
+ * 14. BOM/PNP consistency      — error when assembly designator data is inconsistent
  */
 export function validateExportManifest(input: ExportManifestInput): ExportManifestReport {
   const issues: ExportManifestIssue[] = [];
