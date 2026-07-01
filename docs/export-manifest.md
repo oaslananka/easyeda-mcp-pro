@@ -318,3 +318,17 @@ expectations. The `golden-smoke.test.ts` suite verifies:
   artifact entries, each is validated independently. Deduplication is caller responsibility.
 - **Bridge-dependent fields**: `bridgeMetadata` is recorded if available but not
   validated — the module assumes the bridge provides accurate metadata.
+
+## Production QA roles
+
+Production QA handoff artifacts can be modeled as documentation artifacts in the manifest:
+
+| Role                      | Artifact type   | Purpose                                         |
+| ------------------------- | --------------- | ----------------------------------------------- |
+| `testpoint-checklist`     | `documentation` | Critical-net test access checklist              |
+| `assembly-notes`          | `documentation` | Polarity, DNP, side, and special handling notes |
+| `bringup-plan`            | `documentation` | Bench bring-up and rail verification plan       |
+| `production-qa-checklist` | `documentation` | Operator-facing production QA checklist         |
+| `qa-manifest`             | `documentation` | Machine-readable QA package                     |
+
+Add these roles to `manufacturingPolicy.requiredRoles` when production test and assembly notes must be part of the export package.

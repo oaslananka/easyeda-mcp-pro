@@ -3,6 +3,7 @@ import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { validatePcbConstraints } from '../pcb-constraints/index.js';
 import type { PcbConstraintInput } from '../pcb-constraints/types.js';
+import { generateProductionQaArtifacts } from '../production-qa/index.js';
 
 const productionReviewBoardDataSchema = z.object({}).passthrough();
 
@@ -42,10 +43,126 @@ function runProductionReview(
   };
 }
 
+const qaCriticalNetSchema = z.object({
+  name: z.string(),
+  category: z
+    .enum(['power', 'ground', 'reset', 'programming', 'clock', 'interface', 'analog', 'custom'])
+    .optional(),
+  required: z.boolean().optional(),
+  hasTestPoint: z.boolean().optional(),
+  testPointRef: z.string().optional(),
+});
+
+const qaComponentSchema = z.object({
+  ref: z.string(),
+  value: z.string().optional(),
+  footprint: z.string().optional(),
+  polarized: z.boolean().optional(),
+  orientationMark: z.boolean().optional(),
+  specialHandling: z.string().optional(),
+  doNotPopulate: z.boolean().optional(),
+  side: z.enum(['top', 'bottom']).optional(),
+});
+
+const qaIssueSchema = z.object({
+  code: z.string(),
+  severity: z.enum(['error', 'warning', 'info']),
+  message: z.string(),
+  remediationHint: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+});
+
+const qaChecklistItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  category: z.enum(['testpoint', 'assembly', 'bringup', 'qa', 'programming']),
+  required: z.boolean(),
+  status: z.enum(['pass', 'fail', 'review']),
+  details: z.string().optional(),
+  refs: z.array(z.string()).optional(),
+});
+
+const qaArtifactSchema = z.object({
+  filename: z.string(),
+  fileType: z.enum(['markdown', 'json']),
+  role: z.enum([
+    'testpoint-checklist',
+    'assembly-notes',
+    'bringup-plan',
+    'production-qa-checklist',
+    'qa-manifest',
+  ]),
+  content: z.string(),
+  required: z.boolean(),
+});
+
 function registerExportTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
 ) {
+  registry.register({
+    name: 'easyeda_production_qa_artifacts',
+    title: 'Generate production QA artifacts',
+    description:
+      'Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.',
+    profile: 'pro',
+    evidence: ['inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'export',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().optional(),
+      projectName: z.string().optional(),
+      revision: z.string().optional(),
+      criticalNets: z.array(qaCriticalNetSchema).optional(),
+      components: z.array(qaComponentSchema).optional(),
+      requiresProgramming: z.boolean().optional(),
+      programmingInterfaces: z.array(z.string()).optional(),
+      hasProgrammingAccess: z.boolean().optional(),
+      hasBattery: z.boolean().optional(),
+      requiresFunctionalTest: z.boolean().optional(),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      project_name: z.string().optional(),
+      revision: z.string().optional(),
+      passed: z.boolean(),
+      issues: z.array(qaIssueSchema),
+      checklist: z.array(qaChecklistItemSchema),
+      artifacts: z.array(qaArtifactSchema),
+      summary: z.object({
+        criticalNetCount: z.number().int().nonnegative(),
+        missingTestpointCount: z.number().int().nonnegative(),
+        assemblyNoteCount: z.number().int().nonnegative(),
+        checklistItemCount: z.number().int().nonnegative(),
+        errorCount: z.number().int().nonnegative(),
+        warningCount: z.number().int().nonnegative(),
+        humanSummary: z.string(),
+      }),
+    }),
+    handler: async (_ctx: ToolContext, params: unknown) => {
+      const report = generateProductionQaArtifacts(
+        params as Parameters<typeof generateProductionQaArtifacts>[0],
+      );
+      return {
+        project_id: report.projectId,
+        project_name: report.projectName,
+        revision: report.revision,
+        passed: report.passed,
+        issues: report.issues,
+        checklist: report.checklist,
+        artifacts: report.artifacts,
+        summary: report.summary,
+      };
+    },
+  });
+
   registry.register({
     name: 'easyeda_export_gerbers',
     title: 'Export Gerber files',

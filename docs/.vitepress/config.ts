@@ -31,6 +31,8 @@ export default defineConfig({
           { text: 'Manufacturing Review', link: '/examples/manufacturing-review' },
           { text: 'Power Tree Analyzer', link: '/power-tree' },
           { text: 'High-Level PCB Layout', link: '/high-level-pcb-layout' },
+          { text: 'Production QA Artifacts', link: '/production-qa' },
+          { text: 'Production QA Artifacts', link: '/production-qa' },
           { text: 'High-Level PCB Layout', link: '/high-level-pcb-layout' },
           { text: 'Claude Prompts', link: '/examples/claude-prompts' },
         ],

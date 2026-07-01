@@ -21,7 +21,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     name: 'pro',
     label: 'Pro',
     description: 'Adds pick-and-place, PDF, netlist export for manufacturing workflows',
-    approxToolCount: '44',
+    approxToolCount: '45',
     isDefault: false,
   },
   full: {
@@ -29,7 +29,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Full',
     description:
       'Adds controlled documented EasyEDA API method calls for full runtime control without raw JavaScript execution',
-    approxToolCount: '53',
+    approxToolCount: '54',
     isDefault: false,
   },
   dev: {
@@ -37,14 +37,14 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Dev',
     description:
       'Adds diagnostics probes for bridge methods and live component runtime shape inspection',
-    approxToolCount: '57',
+    approxToolCount: '58',
     isDefault: false,
   },
   experimental: {
     name: 'experimental',
     label: 'Experimental',
     description: 'MCP Apps, Tasks, simulation, autorouter, AI action plans',
-    approxToolCount: '55',
+    approxToolCount: '56',
     isDefault: false,
   },
 };

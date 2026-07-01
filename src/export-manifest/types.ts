@@ -33,6 +33,8 @@ export enum ArtifactType {
   ErcReport = 'erc-report',
   /** Design rules check report. */
   DrcReport = 'drc-report',
+  /** Markdown or JSON documentation artifact. */
+  Documentation = 'documentation',
 }
 
 /**
@@ -60,6 +62,11 @@ export enum ExportArtifactRole {
   Netlist = 'netlist',
   DrcReport = 'drc-report',
   ErcReport = 'erc-report',
+  TestpointChecklist = 'testpoint-checklist',
+  AssemblyNotes = 'assembly-notes',
+  BringupPlan = 'bringup-plan',
+  ProductionQaChecklist = 'production-qa-checklist',
+  QaManifest = 'qa-manifest',
 }
 
 // ── Manifest entry ─────────────────────────────────────────────────────────

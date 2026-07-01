@@ -45,6 +45,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_production_review`         | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                |
 | `easyeda_pcb_route_path_plan`           | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                      |
 | `easyeda_power_tree_analyze`            | `core`  | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                   |
+| `easyeda_production_qa_artifacts`       | `pro`   | `low`    | Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.                                                                                                                                                                     |
 | `easyeda_project_save`                  | `core`  | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                  |
 | `easyeda_rule_check_summary`            | `core`  | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                |
 | `easyeda_run_self_test`                 | `core`  | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                           |
@@ -1220,6 +1221,46 @@ Returns a JSON object matching the schema:
   rails: any;
   regulators: any;
   issues: any;
+  summary: any;
+}
+```
+
+---
+
+## `easyeda_production_qa_artifacts`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.
+
+### Input Parameters
+
+| Parameter                | Type  | Required | Description |
+| ------------------------ | ----- | -------- | ----------- |
+| `projectId`              | `any` | No       |             |
+| `projectName`            | `any` | No       |             |
+| `revision`               | `any` | No       |             |
+| `criticalNets`           | `any` | No       |             |
+| `components`             | `any` | No       |             |
+| `requiresProgramming`    | `any` | No       |             |
+| `programmingInterfaces`  | `any` | No       |             |
+| `hasProgrammingAccess`   | `any` | No       |             |
+| `hasBattery`             | `any` | No       |             |
+| `requiresFunctionalTest` | `any` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: any;
+  project_name: any;
+  revision: any;
+  passed: any;
+  issues: any;
+  checklist: any;
+  artifacts: any;
   summary: any;
 }
 ```
