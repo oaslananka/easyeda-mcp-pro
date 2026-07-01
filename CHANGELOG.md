@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.10...easyeda-mcp-pro-v0.7.0) (2026-07-01)
+
+
+### Features
+
+* **export:** enforce manufacturing package manifest checks ([d15b34a](https://github.com/oaslananka/easyeda-mcp-pro/commit/d15b34a11c2cb113e768c0adee3d1575e8329f8f))
+* **export:** enforce manufacturing package manifest checks ([ea3adff](https://github.com/oaslananka/easyeda-mcp-pro/commit/ea3adff1e4229a9957c5fff6808bfa3ff2094d3f))
+
 ## [0.6.10](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.6.9...easyeda-mcp-pro-v0.6.10) (2026-07-01)
 
 
