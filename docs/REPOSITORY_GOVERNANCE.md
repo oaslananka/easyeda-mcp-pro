@@ -8,20 +8,19 @@ This document outlines the governance model, security standards, branch protecti
 
 To enforce code quality, security, and a clean history, the `main` branch must have the following protection rules configured in GitHub (**Settings > Branches > Add rule**):
 
-| Rule Setting                                     | Status       | Rationale                                                                |
-| :----------------------------------------------- | :----------- | :----------------------------------------------------------------------- |
-| **Require a pull request before merging**        | **Enabled**  | Prevents direct pushes to the production branch.                         |
-| **Require approvals**                            | **Enabled**  | Enforces code review. Minimum of **1 approval** required.                |
-| **Dismiss stale pull request approvals...**      | **Enabled**  | Invalidates reviews if new commits are pushed to the PR.                 |
-| **Require status checks to pass before merging** | **Enabled**  | Enforces automated quality checks.                                       |
-| _Status Check:_ `quality / Node 24`              | **Required** | Ensures the codebase builds, lints, and tests pass on Node 24.           |
-| _Status Check:_ `quality / Node 25`              | **Required** | Ensures the codebase builds, lints, and tests pass on Node 25.           |
-| _Status Check:_ `codeql`                         | **Required** | Ensures static application security analysis (SAST) passes.              |
-| **Require branches to be up to date...**         | **Enabled**  | Enforces strict branch testing against the latest `main` commit.         |
-| **Require conversation resolution...**           | **Enabled**  | Ensures all review comments are addressed.                               |
-| **Require linear history**                       | **Enabled**  | Enforces merge commits to be squashed or rebased, keeping history clean. |
-| **Do not allow force pushes**                    | **Enforced** | Prevents history rewriting on `main`.                                    |
-| **Do not allow deletions**                       | **Enforced** | Prevents accidental deletion of the `main` branch.                       |
+| Rule Setting                                     | Status       | Rationale                                                                                                         |
+| :----------------------------------------------- | :----------- | :---------------------------------------------------------------------------------------------------------------- |
+| **Require a pull request before merging**        | **Enabled**  | Prevents direct pushes to the production branch.                                                                  |
+| **Require approvals**                            | **Enabled**  | Enforces code review. Minimum of **1 approval** required.                                                         |
+| **Dismiss stale pull request approvals...**      | **Enabled**  | Invalidates reviews if new commits are pushed to the PR.                                                          |
+| **Require status checks to pass before merging** | **Enabled**  | Enforces automated quality checks.                                                                                |
+| _Status Check:_ `quality (24)`                   | **Required** | Ensures the codebase builds, lints, tests, audits, and verifies docs on Node 24.                                  |
+| _Status Check:_ `codeql`                         | **Required** | Ensures static application security analysis (SAST) passes.                                                       |
+| **Require branches to be up to date...**         | **Enabled**  | Enforces strict branch testing against the latest `main` commit.                                                  |
+| **Require conversation resolution...**           | **Enabled**  | Ensures all review comments are addressed.                                                                        |
+| **Require linear history**                       | **Optional** | Use only if maintainers prefer squash/rebase merges. Current repo history uses merge commits for PR traceability. |
+| **Do not allow force pushes**                    | **Enforced** | Prevents history rewriting on `main`.                                                                             |
+| **Do not allow deletions**                       | **Enforced** | Prevents accidental deletion of the `main` branch.                                                                |
 
 ---
 
@@ -75,7 +74,7 @@ Repository administrators should go through the following settings checklist to 
 - [ ] **Configure Branch Protection**: Go to **Settings > Branches** and add a protection rule for `main` enforcing:
   - Require a pull request before merging (with at least 1 approval).
   - Dismiss stale pull request approvals when new commits are pushed.
-  - Require status checks to pass before merging (`quality / Node 24`, `quality / Node 25`, `codeql`).
+  - Require status checks to pass before merging (`quality (24)`, `codeql`, Socket/DeepScan checks where enabled).
   - Require branches to be up to date before merging.
   - Require conversation resolution before merging.
   - Require linear history.
@@ -89,3 +88,17 @@ Repository administrators should go through the following settings checklist to 
 - [ ] **Configure NPM Credentials**: Go to **Settings > Secrets and variables > Actions** and add `NPM_TOKEN` under Repository Secrets.
 - [ ] **Configure Release Please Token** (Optional): If running CI checks on Release Please PRs is required, add `RELEASE_PLEASE_TOKEN` (fine-grained PAT) to Repository Secrets.
 - [ ] **Enable GitHub Discussions** (Optional): Enable under General settings to provide community support.
+
+---
+
+## 6. Issue Triage and Label Taxonomy
+
+The public issue process is documented in [`docs/ISSUE_TRIAGE.md`](./ISSUE_TRIAGE.md). New issues should include:
+
+- affected area (`area:*`)
+- priority (`priority:P0` through `priority:P2`)
+- risk class when relevant (`risk:*`)
+- expected behavior and acceptance criteria
+- reproduction or validation evidence
+
+Roadmap issues must not be closed only because related documentation exists. Close them only when the acceptance criteria have been implemented, verified, and linked in the closing comment.

@@ -8,6 +8,34 @@ body:
       value: |
         Thank you for reporting this issue! Please provide as much detail as possible to help us reproduce and resolve the bug.
 
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      options:
+        - area:easyeda-bridge
+        - area:schematic
+        - area:pcb
+        - area:bom-sourcing
+        - area:manufacturing-export
+        - area:docs
+        - area:release
+        - area:security
+        - area:devex
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Impact / Priority
+      options:
+        - P0 - blocks installation, release, security, or live bridge operation
+        - P1 - important product, safety, or supply-chain issue
+        - P2 - roadmap, docs, polish, or non-blocking issue
+    validations:
+      required: true
+
   - type: textarea
     id: description
     attributes:
@@ -27,6 +55,17 @@ body:
         2. Set up the EasyEDA Pro client config using ...
         3. Call MCP tool `easyeda_schematic_components`
         4. See error: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What must be true before this bug can be closed?
+      placeholder: |
+        - [ ] Reproduction is covered by a test or smoke check.
+        - [ ] Fix is released or documented.
     validations:
       required: true
 

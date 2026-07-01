@@ -16,14 +16,27 @@ export default defineConfig({
       { text: 'Runtime Inventory', link: '/reference/runtime-inventory' },
       { text: 'Bridge Telemetry', link: '/reference/bridge-telemetry' },
       { text: 'Save/Export Safety', link: '/reference/save-export-rollback-safety' },
+      { text: 'Supply Chain Verification', link: '/supply-chain-verification' },
+      { text: 'Issue Triage', link: '/ISSUE_TRIAGE' },
     ],
     sidebar: [
+      {
+        text: 'Examples',
+        items: [
+          { text: 'Cookbook Gallery', link: '/examples/cookbook' },
+          { text: 'Schematic Review', link: '/examples/schematic-review' },
+          { text: 'BOM Sourcing', link: '/examples/bom-sourcing' },
+          { text: 'Manufacturing Review', link: '/examples/manufacturing-review' },
+          { text: 'Claude Prompts', link: '/examples/claude-prompts' },
+        ],
+      },
       {
         text: 'Introduction',
         items: [
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Configuration', link: '/guide/configuration' },
           { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+          { text: 'Best Practices Badge', link: '/BEST_PRACTICES_BADGE' },
         ],
       },
       {
@@ -36,6 +49,8 @@ export default defineConfig({
           { text: 'Runtime Inventory', link: '/reference/runtime-inventory' },
           { text: 'Bridge Telemetry', link: '/reference/bridge-telemetry' },
           { text: 'Save/Export Safety', link: '/reference/save-export-rollback-safety' },
+          { text: 'Supply Chain Verification', link: '/supply-chain-verification' },
+          { text: 'Issue Triage', link: '/ISSUE_TRIAGE' },
         ],
       },
     ],

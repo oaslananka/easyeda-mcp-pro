@@ -8,6 +8,36 @@ body:
       value: |
         We are always open to improving easyeda-mcp-pro! Please share your ideas here.
 
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - area:easyeda-bridge
+        - area:schematic
+        - area:pcb
+        - area:bom-sourcing
+        - area:manufacturing-export
+        - area:docs
+        - area:release
+        - area:security
+        - area:devex
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk Class
+      options:
+        - none
+        - risk:agent-safety
+        - risk:supply-chain
+        - security-sensitive
+        - write/mutation workflow
+    validations:
+      required: true
+
   - type: textarea
     id: problem
     attributes:
@@ -32,6 +62,18 @@ body:
       label: Alternatives Considered
       description: Describe any alternative solutions or workarounds you have considered.
       placeholder: E.g., Manually running DRC in EasyEDA Pro UI and exporting reports...
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Concrete checklist for closing this feature request.
+      placeholder: |
+        - [ ] API/tool behavior is implemented.
+        - [ ] Tests cover normal and unsafe inputs.
+        - [ ] Docs explain usage and limitations.
+    validations:
+      required: true
 
   - type: textarea
     id: context

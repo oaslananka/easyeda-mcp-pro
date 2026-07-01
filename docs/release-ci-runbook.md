@@ -21,7 +21,7 @@ The following gates must pass on main, release PRs, and dependency PRs:
 | Format check        | `pnpm format:check`        | Must pass                    |
 | TypeScript check    | `pnpm typecheck`           | Must pass                    |
 | Extension typecheck | `pnpm typecheck:extension` | Must pass                    |
-| Lint                | `pnpm lint`                | Must pass (warnings OK)      |
+| Lint                | `pnpm lint`                | Must pass with zero warnings |
 | Unit tests          | `pnpm test`                | Must pass                    |
 | Build               | `pnpm build`               | Must pass                    |
 | Extension build     | `pnpm build:extension`     | Must pass                    |
@@ -158,7 +158,7 @@ Before deciding a release is safe:
 - [ ] `pnpm typecheck` passes
 - [ ] `pnpm typecheck:extension` passes
 - [ ] `pnpm lint` has 0 errors (warnings OK)
-- [ ] `pnpm test` passes (all 124+ tests)
+- [ ] `pnpm test` passes
 - [ ] `pnpm build` produces clean output
 - [ ] `pnpm build:extension` and `pnpm verify:extension` pass
 - [ ] No open security alerts for critical vulnerabilities
@@ -171,3 +171,26 @@ Before deciding a release is safe:
 - **Renovate Dashboard**: Available via GitHub app
 - **CodeQL**: Runs on every push and PR
 - **Socket.dev**: Dependency vulnerability scanning on every PR
+
+## Release Artifact Verification
+
+For every public release, verify:
+
+```bash
+npm view easyeda-mcp-pro version dist-tags.latest time.modified --json
+gh release view easyeda-mcp-pro-vX.Y.Z --json tagName,isDraft,isPrerelease,assets
+```
+
+Expected release assets:
+
+- `easyeda-bridge-extension.eext` — EasyEDA extension package
+- `sbom.json` — CycloneDX SBOM attached to the release
+
+Expected workflow evidence:
+
+- npm publish uses provenance when supported by npm/GitHub Actions
+- GitHub release includes build provenance attestation
+- GHCR image tags include the exact version, minor tag, and `latest`
+- `pnpm verify:extension` reports marketplace metadata, documentation, logo, checksum, and phone-like-content checks
+
+If any asset is missing, do not promote the release as marketplace-ready. Re-run or fix the release workflow before announcing the version.

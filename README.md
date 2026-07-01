@@ -5,6 +5,7 @@
 [![CI](https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/easyeda-mcp-pro.svg)](https://www.npmjs.com/package/easyeda-mcp-pro)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13406/badge)](https://www.bestpractices.dev/projects/13406)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
 
 <p align="center">
@@ -45,7 +46,7 @@ For advanced configurations, manual instructions, and specific clients, see [Ins
 
 ## Overview
 
-easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes 50 default profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, and supplier integration.
+easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes 52 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, and supplier integration.
 
 The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling real-time access to open project data. It integrates with JLCPCB, LCSC, Mouser, and DigiKey for BOM sourcing and pricing.
 

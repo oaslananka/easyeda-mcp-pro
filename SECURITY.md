@@ -4,10 +4,10 @@
 
 Only the latest active release branch is officially supported for security updates.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.3.x   | :white_check_mark: |
-| < 0.3.x | :x:                |
+| Version                   | Supported          |
+| ------------------------- | ------------------ |
+| Latest npm/GitHub release | :white_check_mark: |
+| Older releases            | Best-effort only   |
 
 ## Reporting a Vulnerability
 
