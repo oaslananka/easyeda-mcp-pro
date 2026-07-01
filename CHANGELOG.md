@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.10.0...easyeda-mcp-pro-v0.11.0) (2026-07-01)
+
+
+### Features
+
+* add budget analyzer ([b030b6e](https://github.com/oaslananka/easyeda-mcp-pro/commit/b030b6ec1f0429b4b36508c6b74ca58fb18afdd9))
+* add budget analyzer ([64af036](https://github.com/oaslananka/easyeda-mcp-pro/commit/64af03634a42821e04e670aaba09b3d8108a835d))
+
 ## [0.10.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.9.0...easyeda-mcp-pro-v0.10.0) (2026-07-01)
 
 
