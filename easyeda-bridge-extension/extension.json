@@ -2,7 +2,7 @@
   "name": "easyeda-mcp-pro-bridge",
   "uuid": "e7b9fb543e9a4c2898e30d33e5c9b68a",
   "displayName": "MCP Pro Bridge",
-  "description": "WebSocket bridge for external MCP server connectivity",
+  "description": "Connect EasyEDA Pro to MCP clients for schematic and PCB inspection, BOM, DRC/ERC, exports, and AI-assisted hardware review.",
   "version": "0.6.7",
   "publisher": "oaslananka",
   "engines": {
@@ -12,8 +12,15 @@
   "categories": "Other",
   "keywords": [
     "mcp",
+    "ai",
     "bridge",
-    "websocket"
+    "schematic",
+    "pcb",
+    "bom",
+    "drc",
+    "erc",
+    "export",
+    "automation"
   ],
   "images": {
     "logo": "./images/logo.png"
@@ -77,5 +84,13 @@
         ]
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oaslananka/easyeda-mcp-pro"
+  },
+  "homepage": "https://github.com/oaslananka/easyeda-mcp-pro#readme",
+  "bugs": {
+    "url": "https://github.com/oaslananka/easyeda-mcp-pro/issues"
   }
 }

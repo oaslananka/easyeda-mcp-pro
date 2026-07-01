@@ -15,6 +15,8 @@ const archive = new ZipArchive({ zlib: { level: 9 } });
 
 archive.pipe(output);
 archive.file(join(root, 'extension.json'), { name: 'extension.json' });
+archive.file(join(root, '..', 'README.md'), { name: 'README.md' });
+archive.file(join(root, '..', 'CHANGELOG.md'), { name: 'CHANGELOG.md' });
 archive.directory(join(root, 'dist'), 'dist');
 archive.directory(join(root, 'images'), 'images');
 archive.directory(join(root, 'locales'), 'locales');
