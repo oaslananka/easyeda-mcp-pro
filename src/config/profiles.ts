@@ -14,14 +14,14 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Core',
     description:
       'High-confidence tools: diagnostics, EasyEDA API inventory, schematic, BOM, DRC/ERC, board layers/stackup, Gerber export',
-    approxToolCount: '41',
+    approxToolCount: '42',
     isDefault: true,
   },
   pro: {
     name: 'pro',
     label: 'Pro',
     description: 'Adds pick-and-place, PDF, netlist export for manufacturing workflows',
-    approxToolCount: '45',
+    approxToolCount: '46',
     isDefault: false,
   },
   full: {
@@ -29,7 +29,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Full',
     description:
       'Adds controlled documented EasyEDA API method calls for full runtime control without raw JavaScript execution',
-    approxToolCount: '54',
+    approxToolCount: '55',
     isDefault: false,
   },
   dev: {
@@ -37,7 +37,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Dev',
     description:
       'Adds diagnostics probes for bridge methods and live component runtime shape inspection',
-    approxToolCount: '58',
+    approxToolCount: '59',
     isDefault: false,
   },
   experimental: {

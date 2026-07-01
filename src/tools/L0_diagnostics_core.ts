@@ -3,6 +3,12 @@ import { type BridgeDiagnosticsSnapshot, type ToolDefinition, type ToolContext }
 import { type EnvConfig } from '../config/env.js';
 import { PROFILE_DEFINITIONS } from '../config/profiles.js';
 import { SERVER_VERSION } from '../config/version.js';
+import {
+  DEFAULT_LATENCY_BUDGETS,
+  DEFAULT_RETENTION_POLICY,
+  describeRetentionPolicy,
+  getGlobalMetricsCollector,
+} from '../observability/index.js';
 
 const apiInventoryInputSchema = z.object({
   filter: z.string().optional(),
@@ -312,6 +318,111 @@ function registerDiagnosticsCore(
           dev_bridge: config.EASYEDA_DEV_BRIDGE,
           bridge_raw_exec_enabled: config.BRIDGE_RAW_EXEC_ENABLED,
           raw_exec_experimental: config.MCP_RAW_EXEC_EXPERIMENTAL,
+        },
+      };
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_observability_report',
+    title: 'Observability report',
+    description:
+      'Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.',
+    profile: 'core',
+    evidence: ['inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'diagnostics',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      includeRecentEvents: z.boolean().default(true),
+    }),
+    outputSchema: z.object({
+      generated_at: z.string(),
+      server_version: z.string(),
+      budgets: z.array(
+        z.object({
+          category: z.string(),
+          p50Ms: z.number(),
+          p95Ms: z.number(),
+          timeoutMs: z.number(),
+          description: z.string(),
+        }),
+      ),
+      metrics: z.object({
+        generatedAt: z.string(),
+        startedAt: z.string(),
+        toolCalls: z.number().int().nonnegative(),
+        bridgeCalls: z.number().int().nonnegative(),
+        budgetWarnings: z.number().int().nonnegative(),
+        budgetFailures: z.number().int().nonnegative(),
+        recentEvents: z.array(z.unknown()),
+        byCategory: z.record(
+          z.string(),
+          z.object({
+            count: z.number().int().nonnegative(),
+            ok: z.number().int().nonnegative(),
+            errors: z.number().int().nonnegative(),
+            averageDurationMs: z.number(),
+            maxDurationMs: z.number(),
+          }),
+        ),
+        cache: z.object({
+          hits: z.number().int().nonnegative(),
+          misses: z.number().int().nonnegative(),
+          writes: z.number().int().nonnegative(),
+          deletes: z.number().int().nonnegative(),
+          hitRate: z.number(),
+        }),
+        vendors: z.record(
+          z.string(),
+          z.object({
+            requestCount: z.number().int().nonnegative(),
+            errorCount: z.number().int().nonnegative(),
+            averageDurationMs: z.number(),
+            lastStatusCode: z.number().optional(),
+          }),
+        ),
+      }),
+      retention: z.object({
+        cacheDefaultTtlSeconds: z.number().int().nonnegative(),
+        vendorCacheTtlSeconds: z.number().int().nonnegative(),
+        artifactRetentionDays: z.number().int().nonnegative(),
+        telemetryRetentionDays: z.number().int().nonnegative(),
+        cleanupCadence: z.enum(['manual', 'startup', 'daily']),
+        maxArtifactBytes: z.number().int().nonnegative(),
+        notes: z.array(z.string()),
+        summary: z.string(),
+      }),
+      timeout_policy: z.object({
+        bridge_default_timeout_ms: z.number().int().nonnegative(),
+        bridge_host: z.string(),
+        bridge_port: z.number().int().nonnegative(),
+      }),
+    }),
+    handler: async (_ctx: ToolContext, params: unknown) => {
+      const { includeRecentEvents } = z
+        .object({ includeRecentEvents: z.boolean().default(true) })
+        .parse(params);
+      const metrics = getGlobalMetricsCollector().snapshot();
+      return {
+        generated_at: new Date().toISOString(),
+        server_version: SERVER_VERSION,
+        budgets: DEFAULT_LATENCY_BUDGETS,
+        metrics: includeRecentEvents ? metrics : { ...metrics, recentEvents: [] },
+        retention: {
+          ...DEFAULT_RETENTION_POLICY,
+          summary: describeRetentionPolicy(DEFAULT_RETENTION_POLICY),
+        },
+        timeout_policy: {
+          bridge_default_timeout_ms: config.BRIDGE_TIMEOUT_MS,
+          bridge_host: config.BRIDGE_HOST,
+          bridge_port: config.BRIDGE_PORT,
         },
       };
     },

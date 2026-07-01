@@ -2,6 +2,7 @@ import { request } from 'undici';
 import type { Readable } from 'node:stream';
 import { EasyEdaMcpError } from '../schemas/common.js';
 import type pino from 'pino';
+import { getGlobalMetricsCollector } from '../observability/index.js';
 
 /** Default max retries for HTTP requests (2 retries = 3 total attempts). */
 export const DEFAULT_MAX_RETRIES = 2;
@@ -68,6 +69,8 @@ export async function httpRequestWithRetry(
   const method = options.method ?? 'GET';
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   let lastError: unknown;
+  const requestStartedAt = Date.now();
+  const vendorName = new URL(url).hostname;
 
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     try {
@@ -89,6 +92,12 @@ export async function httpRequestWithRetry(
         continue;
       }
 
+      getGlobalMetricsCollector().recordVendor(
+        vendorName,
+        Date.now() - requestStartedAt,
+        statusCode < 400,
+        statusCode,
+      );
       return { statusCode, responseText };
     } catch (err) {
       lastError = err;
@@ -101,6 +110,7 @@ export async function httpRequestWithRetry(
     }
   }
 
+  getGlobalMetricsCollector().recordVendor(vendorName, Date.now() - requestStartedAt, false);
   throw lastError instanceof EasyEdaMcpError
     ? lastError
     : new EasyEdaMcpError({

@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import { Storage } from '../../../src/storage/database.js';
+import {
+  getGlobalMetricsCollector,
+  resetGlobalMetricsCollector,
+} from '../../../src/observability/index.js';
 
 function createTestConfig() {
   return EnvSchema.parse({
@@ -16,6 +20,7 @@ describe('Storage', () => {
   let storage: Storage;
 
   beforeEach(() => {
+    resetGlobalMetricsCollector();
     const config = createTestConfig();
     storage = new Storage(config);
     storage.initialize();
@@ -59,6 +64,17 @@ describe('Storage', () => {
     storage.cacheClear();
     expect(storage.cacheGet('key1')).toBeNull();
     expect(storage.cacheGet('key2')).toBeNull();
+  });
+
+  it('should record cache observability counters', () => {
+    storage.cacheSet('observed', 'value');
+    expect(storage.cacheGet('observed')).toBe('value');
+    expect(storage.cacheGet('missing')).toBeNull();
+    storage.cacheDelete('observed');
+
+    const snapshot = getGlobalMetricsCollector().snapshot();
+    expect(snapshot.cache).toMatchObject({ hits: 1, misses: 1, writes: 1, deletes: 1 });
+    expect(snapshot.cache.hitRate).toBe(0.5);
   });
 
   it('should upsert and retrieve project cache', () => {

@@ -14,6 +14,7 @@ import {
 } from './protocol.js';
 import { EasyedaApiMethodSchema } from './types.js';
 import { SERVER_VERSION } from '../config/version.js';
+import { getGlobalMetricsCollector } from '../observability/index.js';
 
 const PAIRING_TIMEOUT_MS = 10_000;
 const STALE_SWEEP_MS = 30_000;
@@ -450,6 +451,15 @@ export class BridgeManager extends EventEmitter {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.requestMap.delete(id);
+        getGlobalMetricsCollector().recordTimed({
+          category:
+            method.startsWith('export.') || method.startsWith('board.export')
+              ? 'export'
+              : 'bridge-read',
+          name: method,
+          durationMs: timeoutMs,
+          ok: false,
+        });
         reject(new Error(`Bridge method "${method}" timed out after ${timeoutMs}ms`));
       }, timeoutMs);
 
@@ -515,6 +525,16 @@ export class BridgeManager extends EventEmitter {
 
     clearTimeout(entry.timer);
     this.requestMap.delete(data.id);
+    const durationMs = Date.now() - entry.startedAt;
+    getGlobalMetricsCollector().recordTimed({
+      category:
+        entry.method.startsWith('export.') || entry.method.startsWith('board.export')
+          ? 'export'
+          : 'bridge-read',
+      name: entry.method,
+      durationMs,
+      ok: data.ok,
+    });
 
     if (data.ok) {
       entry.resolve(data.result);

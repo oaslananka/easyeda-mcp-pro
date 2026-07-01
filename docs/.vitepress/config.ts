@@ -32,6 +32,8 @@ export default defineConfig({
           { text: 'Power Tree Analyzer', link: '/power-tree' },
           { text: 'High-Level PCB Layout', link: '/high-level-pcb-layout' },
           { text: 'Production QA Artifacts', link: '/production-qa' },
+          { text: 'Observability Budgets', link: '/observability-budgets' },
+          { text: 'Observability Budgets', link: '/observability-budgets' },
           { text: 'Production QA Artifacts', link: '/production-qa' },
           { text: 'High-Level PCB Layout', link: '/high-level-pcb-layout' },
           { text: 'Claude Prompts', link: '/examples/claude-prompts' },

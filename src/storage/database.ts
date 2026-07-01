@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import { getLogger } from '../utils/logger.js';
 import { type EnvConfig } from '../config/env.js';
 import { type ProjectCache, type ArtifactRecord } from './types.js';
+import { getGlobalMetricsCollector } from '../observability/index.js';
 
 /**
  * SQLite-backed persistent storage for the MCP server.
@@ -84,7 +85,10 @@ export class Storage {
           `SELECT value FROM cache WHERE key = ? AND (expires_at IS NULL OR expires_at > datetime('now'))`,
         )
         .get(key) as { value: string } | undefined;
-      return row?.value ?? null;
+
+      const value = row?.value ?? null;
+      getGlobalMetricsCollector().recordCache(value === null ? 'miss' : 'hit');
+      return value;
     } catch (err) {
       getLogger().error({ err, key }, 'cacheGet failed');
       return null;
@@ -101,6 +105,7 @@ export class Storage {
       this.db
         .prepare(`INSERT OR REPLACE INTO cache (key, value, ttl, expires_at) VALUES (?, ?, ?, ?)`)
         .run(key, value, ttlSec, expiresAt);
+      getGlobalMetricsCollector().recordCache('write');
     } catch (err) {
       getLogger().error({ err, key }, 'cacheSet failed');
     }
@@ -110,6 +115,7 @@ export class Storage {
   cacheDelete(key: string): void {
     try {
       this.db.prepare('DELETE FROM cache WHERE key = ?').run(key);
+      getGlobalMetricsCollector().recordCache('delete');
     } catch (err) {
       getLogger().error({ err, key }, 'cacheDelete failed');
     }
@@ -119,6 +125,7 @@ export class Storage {
   cacheClear(): void {
     try {
       this.db.prepare('DELETE FROM cache').run();
+      getGlobalMetricsCollector().recordCache('delete');
     } catch (err) {
       getLogger().error({ err }, 'cacheClear failed');
     }

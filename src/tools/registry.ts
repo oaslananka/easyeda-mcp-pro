@@ -10,6 +10,7 @@ import {
 import { type ToolProfile, getEnabledProfiles } from '../config/profiles.js';
 import { ZodError, type z } from 'zod';
 import { SERVER_VERSION } from '../config/version.js';
+import { getGlobalMetricsCollector, type ObservabilityCategory } from '../observability/index.js';
 
 // ── Structured error codes ────────────────────────────────────────────────
 
@@ -34,6 +35,16 @@ export interface StructuredError {
 
 const READ_ALL_SCOPE = 'easyeda:read';
 const WRITE_ALL_SCOPE = 'easyeda:write';
+
+function categoryForTool(tool: ToolDefinition): ObservabilityCategory {
+  if (tool.group === 'diagnostics') return 'diagnostics';
+  if (tool.group === 'export') return 'export';
+  if (tool.group === 'bom' && tool.name.includes('sourcing')) return 'vendor-api';
+  if (tool.group === 'drc-erc' || tool.group === 'pcb-constraints') return 'analysis';
+  if (tool.group === 'pcb-write') return tool.confirmWrite ? 'bridge-write' : 'analysis';
+  if (tool.confirmWrite) return 'bridge-write';
+  return 'analysis';
+}
 
 function parseToolScopes(value: unknown): Set<string> | null {
   if (typeof value !== 'string') return null;
@@ -252,7 +263,25 @@ export class ToolRegistry {
 
             // ── Parse & execute ───────────────────────────────────────
             const parsed = tool.inputSchema.parse(input ?? {});
-            const result = await tool.handler(context, parsed);
+            const startedAt = Date.now();
+            let result: unknown;
+            try {
+              result = await tool.handler(context, parsed);
+              getGlobalMetricsCollector().recordTimed({
+                category: categoryForTool(tool),
+                name: tool.name,
+                durationMs: Date.now() - startedAt,
+                ok: true,
+              });
+            } catch (err) {
+              getGlobalMetricsCollector().recordTimed({
+                category: categoryForTool(tool),
+                name: tool.name,
+                durationMs: Date.now() - startedAt,
+                ok: false,
+              });
+              throw err;
+            }
             const output = tool.outputSchema.safeParse(result);
 
             if (!output.success) {

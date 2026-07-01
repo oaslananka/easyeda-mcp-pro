@@ -33,6 +33,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_get_tool_profiles`             | `core`  | `low`    | List available tool profiles and their descriptions.                                                                                                                                                                                                                                                          |
 | `easyeda_health_check`                  | `core`  | `low`    | Return server health status, including runtime version, active profile, bridge state, and config validity.                                                                                                                                                                                                    |
 | `easyeda_live_smoke_report`             | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                               |
+| `easyeda_observability_report`          | `core`  | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                              |
 | `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                           |
 | `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board.                                                                                                                                                                                                                                              |
 | `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a specific layer with clearance settings.                                                                                                                                                                                                                                        |
@@ -824,6 +825,35 @@ Returns a JSON object matching the schema:
   checks: any;
   summary: any;
   raw: any;
+}
+```
+
+---
+
+## `easyeda_observability_report`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.
+
+### Input Parameters
+
+| Parameter             | Type  | Required | Description |
+| --------------------- | ----- | -------- | ----------- |
+| `includeRecentEvents` | `any` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  generated_at: any;
+  server_version: any;
+  budgets: any;
+  metrics: any;
+  retention: any;
+  timeout_policy: any;
 }
 ```
 

@@ -5,6 +5,10 @@ import { type ToolDefinition, type ToolContext } from '../../../src/tools/types.
 import { registerBuiltinTools } from '../../../src/tools/register.js';
 import { EnvSchema } from '../../../src/config/env.js';
 import { registeredOutputSchema, writePlanOutputSchema } from '../../../src/tools/transaction.js';
+import {
+  getGlobalMetricsCollector,
+  resetGlobalMetricsCollector,
+} from '../../../src/observability/index.js';
 
 // ── Default test config ───────────────────────────────────────────────────
 
@@ -89,6 +93,7 @@ describe('ToolRegistry', () => {
 
   beforeEach(() => {
     registry = new ToolRegistry();
+    resetGlobalMetricsCollector();
   });
 
   describe('basic operations', () => {
@@ -131,6 +136,39 @@ describe('ToolRegistry', () => {
       registry.register(createMockTool('b', 'pro'));
       const all = registry.getAllTools();
       expect(all).toHaveLength(2);
+    });
+  });
+
+  describe('observability instrumentation', () => {
+    it('records successful tool duration through registry wrapper', async () => {
+      registry.register(createMockTool('observed_tool', 'core'));
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+
+      const response = await handlers.get('observed_tool')!({});
+      const snapshot = getGlobalMetricsCollector().snapshot();
+
+      expect(response.isError).toBeFalsy();
+      expect(snapshot.byCategory.analysis.count).toBe(1);
+      expect(snapshot.byCategory.analysis.ok).toBe(1);
+    });
+
+    it('records failed tool duration through registry wrapper', async () => {
+      registry.register(
+        createMockTool('observed_failure', 'core', {
+          handler: async () => {
+            throw new Error('boom');
+          },
+        }),
+      );
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+
+      const response = await handlers.get('observed_failure')!({});
+      const snapshot = getGlobalMetricsCollector().snapshot();
+
+      expect(response.isError).toBe(true);
+      expect(snapshot.byCategory.analysis.errors).toBe(1);
     });
   });
 
