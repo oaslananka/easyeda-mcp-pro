@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.11.0...easyeda-mcp-pro-v0.12.0) (2026-07-01)
+
+
+### Features
+
+* add layout planning tools ([685e157](https://github.com/oaslananka/easyeda-mcp-pro/commit/685e157b4d2f478615ddd720f8a7df2f1b237631))
+* add layout planning tools ([d6bf84f](https://github.com/oaslananka/easyeda-mcp-pro/commit/d6bf84f7972c88547452ca5d3d55e7dc1fc06311))
+
 ## [0.11.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.10.0...easyeda-mcp-pro-v0.11.0) (2026-07-01)
 
 
