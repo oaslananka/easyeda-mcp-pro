@@ -10,6 +10,8 @@ It validates diagnostics, semantic ERC, power-tree analysis, PCB production revi
 pnpm eval:golden
 ```
 
+The default benchmark output path is ignored by git so routine validation does not dirty the working tree. Use `pnpm eval:golden:update` only when intentionally refreshing `tests/evals/results/latest.json`.
+
 The command runs without live EasyEDA access and without vendor credentials.
 
 ## Files
@@ -18,7 +20,7 @@ The command runs without live EasyEDA access and without vendor credentials.
 tests/evals/benchmark.v1.json
 tests/evals/benchmark.schema.json
 tests/evals/fixtures/
-tests/evals/results/latest.json
+.easyeda-mcp-pro/evals/latest.json
 ```
 
 ## Current public baseline
@@ -71,5 +73,5 @@ A regression is any failed scenario, overall score below the policy threshold, o
 1. Add a fixture under `tests/evals/fixtures/` when needed.
 2. Add a scenario entry to `tests/evals/benchmark.v1.json`.
 3. Extend `scripts/run-evals.mts` if the scenario uses a new local module/tool family.
-4. Run `pnpm eval:golden`.
+4. Run `pnpm eval:golden`. To intentionally refresh the tracked baseline, run `pnpm eval:golden:update`.
 5. Commit the updated benchmark result when the suite intentionally changes.

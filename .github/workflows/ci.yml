@@ -68,6 +68,14 @@ jobs:
       - run: pnpm generate:tools-doc
       - run: git diff --exit-code docs/reference/tools.md
       - run: pnpm docs:build
+      - name: Docker default startup smoke
+        run: |
+          docker build -t easyeda-mcp-pro:ci .
+          cid=$(docker run -d easyeda-mcp-pro:ci)
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          sleep 3
+          docker logs "$cid"
+          docker exec "$cid" node -e "const r = await fetch('http://127.0.0.1:3000/healthz'); if (!r.ok) process.exit(1); console.log(await r.text());"
 
   codeql:
     if: (github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops') && (github.event_name == 'push' || github.event_name == 'pull_request')

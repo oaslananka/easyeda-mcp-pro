@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateNets } from '../src/net-validation/index.js';
 import { analyzePowerTree } from '../src/power-tree/index.js';
@@ -13,7 +13,24 @@ import { DEFAULT_LATENCY_BUDGETS, DEFAULT_RETENTION_POLICY } from '../src/observ
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const manifestPath = join(root, 'tests/evals/benchmark.v1.json');
 const fixturesDir = join(root, 'tests/evals/fixtures');
-const resultsPath = join(root, 'tests/evals/results/latest.json');
+const baselineResultsPath = join(root, 'tests/evals/results/latest.json');
+const defaultResultsPath = join(root, '.easyeda-mcp-pro/evals/latest.json');
+
+function parseArgs(argv: string[]): { outputPath: string; updateBaseline: boolean } {
+  const updateBaseline = argv.includes('--update-baseline') || argv.includes('--update');
+  const outputIndex = argv.indexOf('--output');
+  if (outputIndex >= 0 && !argv[outputIndex + 1]) {
+    throw new Error('--output requires a file path');
+  }
+  const outputPath = updateBaseline
+    ? baselineResultsPath
+    : outputIndex >= 0
+      ? resolve(root, argv[outputIndex + 1])
+      : defaultResultsPath;
+  return { outputPath, updateBaseline };
+}
+
+const { outputPath: resultsPath } = parseArgs(process.argv.slice(2));
 
 type Scenario = {
   id: string;

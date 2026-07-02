@@ -33,8 +33,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV TRANSPORT=http
-ENV HTTP_HOST=0.0.0.0
+ENV HTTP_HOST=127.0.0.1
 ENV HTTP_PORT=3000
+# For externally reachable HTTP deployments, override HTTP_HOST=0.0.0.0 and provide OAuth + ALLOWED_ORIGINS.
 
 # Copy runtime assets and built package
 COPY --from=builder /app/package.json ./package.json
