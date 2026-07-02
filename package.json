@@ -71,7 +71,8 @@
     "docs:preview": "vitepress preview docs",
     "check:metadata": "node scripts/check-metadata.mjs",
     "inventory:capture": "tsx scripts/capture-runtime-inventory.mts",
-    "inventory:diff": "tsx scripts/diff-runtime-inventory.mts"
+    "inventory:diff": "tsx scripts/diff-runtime-inventory.mts",
+    "eval:golden": "tsx scripts/run-evals.mts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "sourceProjectId": "eval-manifest",
+  "generatedAt": "2026-07-01T00:00:00.000Z",
+  "artifacts": [],
+  "manufacturingPolicy": {
+    "requiredRoles": ["testpoint-checklist"]
+  }
+}

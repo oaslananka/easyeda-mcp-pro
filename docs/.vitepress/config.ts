@@ -33,6 +33,8 @@ export default defineConfig({
           { text: 'High-Level PCB Layout', link: '/high-level-pcb-layout' },
           { text: 'Production QA Artifacts', link: '/production-qa' },
           { text: 'Observability Budgets', link: '/observability-budgets' },
+          { text: 'Golden Eval Benchmark', link: '/benchmark-suite' },
+          { text: 'Golden Eval Benchmark', link: '/benchmark-suite' },
           { text: 'Observability Budgets', link: '/observability-budgets' },
           { text: 'Production QA Artifacts', link: '/production-qa' },
           { text: 'High-Level PCB Layout', link: '/high-level-pcb-layout' },

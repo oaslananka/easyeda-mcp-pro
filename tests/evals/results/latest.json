@@ -1,0 +1,122 @@
+{
+  "benchmark": "easyeda-mcp-pro-golden-evals",
+  "version": "1.0.0",
+  "generatedAt": "2026-07-02T11:48:37.315Z",
+  "overallScore": 95,
+  "passed": true,
+  "scenarioCount": 10,
+  "failedScenarioCount": 0,
+  "safetyViolationCount": 0,
+  "results": [
+    {
+      "id": "health-check-core",
+      "title": "Server health check",
+      "area": "diagnostics",
+      "tool": "easyeda_health_check",
+      "score": 100,
+      "threshold": 95,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "config-redaction",
+      "title": "Server config redaction",
+      "area": "diagnostics",
+      "tool": "easyeda_get_server_config",
+      "score": 90,
+      "threshold": 90,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "semantic-erc-unsafe",
+      "title": "Semantic ERC catches unsafe net metadata",
+      "area": "erc",
+      "tool": "easyeda_semantic_erc_validate",
+      "score": 100,
+      "threshold": 90,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "power-tree-thermal",
+      "title": "Power tree flags current and thermal failures",
+      "area": "power",
+      "tool": "easyeda_power_tree_analyze",
+      "score": 100,
+      "threshold": 90,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "pcb-production-review",
+      "title": "PCB production review blocks manufacturing-critical errors",
+      "area": "pcb-production",
+      "tool": "easyeda_pcb_production_review",
+      "score": 95,
+      "threshold": 85,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "layout-preview-safety",
+      "title": "High-level layout preview never writes",
+      "area": "pcb-write",
+      "tool": "easyeda_pcb_place_component_group",
+      "score": 95,
+      "threshold": 95,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "export-manifest-missing-role",
+      "title": "Export manifest detects missing required QA role",
+      "area": "export",
+      "tool": "validateExportManifest",
+      "score": 90,
+      "threshold": 85,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "production-qa-artifacts",
+      "title": "Production QA artifacts include test and assembly outputs",
+      "area": "qa",
+      "tool": "easyeda_production_qa_artifacts",
+      "score": 95,
+      "threshold": 90,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "vendor-failure-no-secret",
+      "title": "Vendor failure handling does not leak secrets",
+      "area": "vendor-api",
+      "tool": "vendorFailureFixture",
+      "score": 95,
+      "threshold": 95,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    },
+    {
+      "id": "observability-report",
+      "title": "Observability report exposes budgets and retention",
+      "area": "observability",
+      "tool": "easyeda_observability_report",
+      "score": 90,
+      "threshold": 90,
+      "passed": true,
+      "safetyViolation": false,
+      "findings": ["OK"]
+    }
+  ]
+}

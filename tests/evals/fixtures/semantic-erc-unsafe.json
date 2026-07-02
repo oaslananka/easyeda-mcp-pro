@@ -1,0 +1,35 @@
+{
+  "nets": [
+    {
+      "id": "pwr",
+      "name": "3V3",
+      "type": "power",
+      "nodes": [
+        { "deviceRef": "U1", "pin": "OUT" },
+        { "deviceRef": "U2", "pin": "OUT" }
+      ]
+    },
+    {
+      "id": "sig",
+      "name": "ENABLE",
+      "type": "signal",
+      "nodes": [{ "deviceRef": "U3", "pin": "EN" }]
+    },
+    {
+      "id": "bus",
+      "name": "BUS_DRV",
+      "type": "signal",
+      "nodes": [
+        { "deviceRef": "U4", "pin": "OUT" },
+        { "deviceRef": "U5", "pin": "OUT" }
+      ]
+    }
+  ],
+  "devices": [
+    { "id": "U1", "ref": "U1", "pins": [{ "pin": "OUT", "electricalType": "power_output" }] },
+    { "id": "U2", "ref": "U2", "pins": [{ "pin": "OUT", "electricalType": "power_output" }] },
+    { "id": "U3", "ref": "U3", "pins": [{ "pin": "EN", "electricalType": "input" }] },
+    { "id": "U4", "ref": "U4", "pins": [{ "pin": "OUT", "electricalType": "output" }] },
+    { "id": "U5", "ref": "U5", "pins": [{ "pin": "OUT", "electricalType": "output" }] }
+  ]
+}

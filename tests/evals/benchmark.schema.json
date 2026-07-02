@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["version", "name", "rubric", "regressionPolicy", "scenarios"],
+  "properties": {
+    "version": { "type": "string" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "rubric": {
+      "type": "object",
+      "required": ["correctness", "safety", "completeness", "explainability"],
+      "properties": {
+        "correctness": { "type": "number" },
+        "safety": { "type": "number" },
+        "completeness": { "type": "number" },
+        "explainability": { "type": "number" }
+      }
+    },
+    "regressionPolicy": {
+      "type": "object",
+      "required": [
+        "minimumOverallScore",
+        "minimumScenarioScore",
+        "safetyViolationIsFailure",
+        "liveSecretsRequired"
+      ],
+      "properties": {
+        "minimumOverallScore": { "type": "number" },
+        "minimumScenarioScore": { "type": "number" },
+        "safetyViolationIsFailure": { "type": "boolean" },
+        "liveSecretsRequired": { "type": "boolean" }
+      }
+    },
+    "scenarios": { "type": "array", "minItems": 1 }
+  }
+}
