@@ -1,20 +1,38 @@
 # easyeda-mcp-pro
 
-**Production-grade MCP server for EasyEDA Pro: safe PCB design inspection, BOM sourcing, manufacturing export, and AI-assisted hardware review.**
+> Production-grade MCP server for EasyEDA Pro: safe PCB design inspection, BOM sourcing, manufacturing export, and AI-assisted hardware review.
 
-[![CI](https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/easyeda-mcp-pro.svg)](https://www.npmjs.com/package/easyeda-mcp-pro)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13406/badge)](https://www.bestpractices.dev/projects/13406)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
-
-Compliance docs: [Third-Party Notices](THIRD_PARTY_NOTICES.md) · [Vendor Terms and Unsupported Workflows](docs/vendor-terms.md)
-
-<p align="center">
-  <a href="https://www.buymeacoffee.com/oaslananka">
-    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=oaslananka&button_colour=FFDD00&font_colour=000000&font_family=Arial&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" />
+<p align="left">
+  <a href="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml">
+    <img src="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml/badge.svg" alt="CI status" />
+  </a>
+  <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
+    <img src="https://img.shields.io/npm/v/easyeda-mcp-pro.svg?logo=npm" alt="npm version" />
+  </a>
+  <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
+    <img src="https://img.shields.io/npm/dt/easyeda-mcp-pro?logo=npm&label=total%20downloads" alt="npm total downloads" />
+  </a>
+  <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
+    <img src="https://img.shields.io/npm/dm/easyeda-mcp-pro?logo=npm&label=monthly%20downloads" alt="npm monthly downloads" />
+  </a>
+  <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
+    <img src="https://img.shields.io/node/v/easyeda-mcp-pro" alt="supported Node.js version" />
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" />
+  </a>
+  <a href="https://www.bestpractices.dev/projects/13406">
+    <img src="https://www.bestpractices.dev/projects/13406/badge" alt="OpenSSF Best Practices" />
+  </a>
+  <a href="https://github.com/oaslananka/easyeda-mcp-pro/security/policy">
+    <img src="https://img.shields.io/badge/security-policy-blue" alt="Security policy" />
+  </a>
+  <a href="https://deepwiki.com/oaslananka/easyeda-mcp-pro">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" />
   </a>
 </p>
+
+> **Compliance docs:** [Third-Party Notices](THIRD_PARTY_NOTICES.md) · [Vendor Terms and Unsupported Workflows](docs/vendor-terms.md)
 
 ---
 
@@ -48,7 +66,7 @@ For advanced configurations, manual instructions, and specific clients, see [Ins
 
 ## Overview
 
-easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes up to 60 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, and supplier integration.
+easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes up to 60 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
 
 The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling real-time access to open project data. It integrates with JLCPCB, LCSC, Mouser, and DigiKey for BOM sourcing and pricing.
 
@@ -488,7 +506,14 @@ See `.env.example` for the complete list of configuration variables.
 
 ## MCP Tools
 
-The server currently registers 50 default profile-gated tools. Tools are filtered by the active `TOOL_PROFILE`: `core` exposes the normal workflow tools, `pro` adds manufacturing exports, `full` adds controlled documented EasyEDA API calls, and `dev` adds runtime probes for debugging.
+The server currently registers up to 60 profile-gated tools. Tools are filtered by the active `TOOL_PROFILE`:
+
+- `core`: 42 tools
+- `pro`: 47 tools
+- `full`: 56 tools
+- `dev`: 60 tools
+
+`core` exposes the standard workflow tools, `pro` adds manufacturing exports, `full` adds controlled documented EasyEDA API calls, and `dev` adds runtime probes for debugging.
 
 Capability scopes add a second authorization layer when `TOOL_SCOPES` is set. Leave it empty for the default local all-capabilities mode, or restrict it with comma/space separated scopes such as `diagnostics:read`, `schematic:read`, `schematic:write`, `bom:read`, `bom:source`, `checks:read`, `pcb:read`, `pcb:write`, `export:write`, `api:read`, `api:write`, and `bridge:execute`.
 
@@ -588,7 +613,7 @@ The schematic write APIs use EasyEDA Pro extension APIs that EasyEDA currently m
 │  (via Plugin)    │     Protocol      │  └───────────────┘  │
 └─────────────────┘                    │  ┌───────────────┐  │
                                        │  │  ToolRegistry  │  │
-                                       │  │ (up to 60)    │  │
+                                       │  │ (up to 60 tools) │ │
                                        │  └───────────────┘  │
                                        │  ┌───────────────┐  │
                                        │  │    Storage     │──┼──► SQLite
@@ -729,6 +754,18 @@ This repository uses automated workflows to manage dependencies and releases:
 - **Renovate**: Automatically scans and updates dependencies based on rules configured in [.github/renovate.json](.github/renovate.json). For details on PR policies and automerging, see [Repository Governance](docs/REPOSITORY_GOVERNANCE.md).
 - **Release Please**: Automatically bumps package versions, updates files (like `package.json`, `server.json`, `extension.json`), and generates `CHANGELOG.md` upon merging Release PRs. For the full release procedure and Conventional Commit conventions, see [Release Process](docs/RELEASE_PROCESS.md).
 - **Secure Publishing**: The release workflow builds all assets (including `easyeda-bridge-extension.eext`), publishes to the NPM registry with cryptographic provenance, and uploads assets directly to the GitHub release.
+
+---
+
+## Support the project
+
+If this project helps you save time while working with EasyEDA Pro, BOM workflows, or MCP integrations, you can support ongoing development here:
+
+<p align="left">
+  <a href="https://www.buymeacoffee.com/oaslananka">
+    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=oaslananka&button_colour=FFDD00&font_colour=000000&font_family=Inter&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" />
+  </a>
+</p>
 
 ---
 
