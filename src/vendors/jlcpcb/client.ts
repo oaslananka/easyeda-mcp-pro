@@ -168,14 +168,16 @@ export class JlcpcbClient {
   }
 
   /**
-   * Place a PCB order with JLCPCB.
-   * @param request - The PCB order specification
-   * @returns Order result containing the order ID
+   * Paid/order-like operations are intentionally unsupported by this MCP package.
+   * Use the quote gating workflow to prepare audit evidence, then complete procurement outside the agent.
    */
-  async placeOrder(request: JlcPcbOrderRequest): Promise<JlcPcbOrderResult> {
-    return this.requestWithRetry<JlcPcbOrderResult>('/api/order/addOrder', {
-      method: 'POST',
-      body: request,
+  async placeOrder(_request: JlcPcbOrderRequest): Promise<JlcPcbOrderResult> {
+    throw new EasyEdaMcpError({
+      code: 'FEATURE_DISABLED',
+      message: 'JLCPCB order placement is intentionally unsupported by easyeda-mcp-pro.',
+      suggestion:
+        'Use easyeda_jlcpcb_quote_workflow for quote/audit preparation, then complete any purchase manually in an approved procurement workflow.',
+      retryable: false,
     });
   }
 

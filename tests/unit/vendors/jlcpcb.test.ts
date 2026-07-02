@@ -40,6 +40,15 @@ describe('JlcpcbClient', () => {
     expect(() => new JlcpcbClient(config)).toThrow('JLCPCB credentials are missing');
   });
 
+  it('should reject paid workflow method', async () => {
+    const config = createEnabledConfig();
+    const client = new JlcpcbClient(config);
+
+    await expect(
+      client.placeOrder({ boardCount: 5, layers: 2, width: 50, height: 30 }),
+    ).rejects.toThrow('intentionally unsupported');
+  });
+
   it('should have expected methods', () => {
     const config = createEnabledConfig();
     const client = new JlcpcbClient(config);

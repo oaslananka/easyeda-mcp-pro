@@ -4,6 +4,45 @@ import { type EnvConfig } from '../config/env.js';
 import { validatePcbConstraints } from '../pcb-constraints/index.js';
 import type { PcbConstraintInput } from '../pcb-constraints/types.js';
 import { generateProductionQaArtifacts } from '../production-qa/index.js';
+import { evaluateQuoteWorkflow } from '../quote-gating/index.js';
+
+const quoteBoardSchema = z.object({
+  boardCount: z.number().int().positive(),
+  layers: z.number().int().positive(),
+  widthMm: z.number().positive(),
+  heightMm: z.number().positive(),
+  thicknessMm: z.number().positive().optional(),
+  surfaceFinish: z.string().optional(),
+  solderMask: z.string().optional(),
+  copperWeight: z.string().optional(),
+  assembly: z.boolean().optional(),
+  stencil: z.boolean().optional(),
+});
+
+const quoteSnapshotSchema = z.object({
+  total: z.number().nonnegative().optional(),
+  currency: z.string().optional(),
+  breakdown: z.array(z.object({ item: z.string(), cost: z.number().nonnegative() })).optional(),
+  estimated: z.boolean().optional(),
+  nonBinding: z.boolean().optional(),
+  verifiedAt: z.string().optional(),
+  source: z.enum(['local-estimate', 'vendor-api', 'user-provided']).optional(),
+});
+
+const quoteConfirmationSchema = z.object({
+  confirmed: z.boolean().optional(),
+  confirmationText: z.string().optional(),
+  userId: z.string().optional(),
+  reason: z.string().optional(),
+});
+
+const quoteGateIssueSchema = z.object({
+  code: z.string(),
+  severity: z.enum(['error', 'warning', 'info']),
+  message: z.string(),
+  remediationHint: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+});
 
 const productionReviewBoardDataSchema = z.object({}).passthrough();
 
@@ -100,6 +139,124 @@ function registerExportTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
 ) {
+  registry.register({
+    name: 'easyeda_jlcpcb_quote_workflow',
+    title: 'JLCPCB quote workflow gate',
+    description:
+      'Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.',
+    profile: 'pro',
+    evidence: ['official-docs', 'inferred'],
+    risk: 'medium',
+    confirmWrite: false,
+    group: 'export',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      provider: z.enum(['jlcpcb', 'custom']).default('jlcpcb'),
+      action: z.enum(['estimate', 'verify_quote', 'place_order']).default('estimate'),
+      projectId: z.string().optional(),
+      board: quoteBoardSchema,
+      quote: quoteSnapshotSchema.optional(),
+      confirmation: quoteConfirmationSchema.optional(),
+      vendorTermsReviewed: z.boolean().optional(),
+      productionFilesReady: z.boolean().optional(),
+      exportManifestVerified: z.boolean().optional(),
+      productionReviewPassed: z.boolean().optional(),
+      allowedPaidOperations: z.boolean().optional(),
+    }),
+    outputSchema: z.object({
+      provider: z.string(),
+      action: z.string(),
+      project_id: z.string(),
+      status: z.string(),
+      allowed: z.boolean(),
+      quote: z.object({
+        total: z.number().optional(),
+        currency: z.string().optional(),
+        breakdown: z.array(z.object({ item: z.string(), cost: z.number() })).optional(),
+        estimated: z.boolean(),
+        non_binding: z.boolean(),
+        verified_at: z.string().optional(),
+        source: z.string(),
+      }),
+      risk: z.object({
+        level: z.string(),
+        paid_operation: z.boolean(),
+        human_confirmation_required: z.boolean(),
+        non_binding_estimate: z.boolean(),
+        vendor_terms_reviewed: z.boolean(),
+      }),
+      issues: z.array(quoteGateIssueSchema),
+      audit: z.object({
+        id: z.string(),
+        created_at: z.string(),
+        provider: z.string(),
+        action: z.string(),
+        project_id: z.string().optional(),
+        confirmed: z.boolean(),
+        user_id: z.string().optional(),
+        confirmation_text: z.string().optional(),
+        reason: z.string().optional(),
+        paid_operation_attempted: z.boolean(),
+        paid_operation_allowed: z.boolean(),
+      }),
+      summary: z.string(),
+      unsupported_operations: z.array(z.string()),
+    }),
+    handler: async (_ctx: ToolContext, params: unknown) => {
+      const report = evaluateQuoteWorkflow(params as Parameters<typeof evaluateQuoteWorkflow>[0]);
+      return {
+        provider: report.provider,
+        action: report.action,
+        project_id: report.projectId,
+        status: report.status,
+        allowed: report.allowed,
+        quote: {
+          total: report.quote.total,
+          currency: report.quote.currency,
+          breakdown: report.quote.breakdown,
+          estimated: report.quote.estimated,
+          non_binding: report.quote.nonBinding,
+          verified_at: report.quote.verifiedAt,
+          source: report.quote.source,
+        },
+        risk: {
+          level: report.risk.level,
+          paid_operation: report.risk.paidOperation,
+          human_confirmation_required: report.risk.humanConfirmationRequired,
+          non_binding_estimate: report.risk.nonBindingEstimate,
+          vendor_terms_reviewed: report.risk.vendorTermsReviewed,
+        },
+        issues: report.issues,
+        audit: {
+          id: report.audit.id,
+          created_at: report.audit.createdAt,
+          provider: report.audit.provider,
+          action: report.audit.action,
+          project_id: report.audit.projectId,
+          confirmed: report.audit.confirmed,
+          user_id: report.audit.userId,
+          confirmation_text: report.audit.confirmationText,
+          reason: report.audit.reason,
+          paid_operation_attempted: report.audit.paidOperationAttempted,
+          paid_operation_allowed: report.audit.paidOperationAllowed,
+        },
+        summary: report.summary,
+        unsupported_operations: [
+          'place_order',
+          'checkout',
+          'payment',
+          'coupon_apply',
+          'shipping_purchase',
+        ],
+      };
+    },
+  });
+
   registry.register({
     name: 'easyeda_production_qa_artifacts',
     title: 'Generate production QA artifacts',

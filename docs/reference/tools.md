@@ -32,6 +32,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_get_server_config`             | `core`  | `low`    | Return safe (redacted) server configuration. Secrets are never exposed.                                                                                                                                                                                                                                       |
 | `easyeda_get_tool_profiles`             | `core`  | `low`    | List available tool profiles and their descriptions.                                                                                                                                                                                                                                                          |
 | `easyeda_health_check`                  | `core`  | `low`    | Return server health status, including runtime version, active profile, bridge state, and config validity.                                                                                                                                                                                                    |
+| `easyeda_jlcpcb_quote_workflow`         | `pro`   | `medium` | Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.                                                                                                                                          |
 | `easyeda_live_smoke_report`             | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                               |
 | `easyeda_observability_report`          | `core`  | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                              |
 | `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                           |
@@ -795,6 +796,50 @@ Returns a JSON object matching the schema:
   transport: any;
   bridge_connected: any;
   ups: any;
+}
+```
+
+---
+
+## `easyeda_jlcpcb_quote_workflow`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.
+
+### Input Parameters
+
+| Parameter                | Type  | Required | Description |
+| ------------------------ | ----- | -------- | ----------- |
+| `provider`               | `any` | Yes      |             |
+| `action`                 | `any` | Yes      |             |
+| `projectId`              | `any` | No       |             |
+| `board`                  | `any` | Yes      |             |
+| `quote`                  | `any` | No       |             |
+| `confirmation`           | `any` | No       |             |
+| `vendorTermsReviewed`    | `any` | No       |             |
+| `productionFilesReady`   | `any` | No       |             |
+| `exportManifestVerified` | `any` | No       |             |
+| `productionReviewPassed` | `any` | No       |             |
+| `allowedPaidOperations`  | `any` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  provider: any;
+  action: any;
+  project_id: any;
+  status: any;
+  allowed: any;
+  quote: any;
+  risk: any;
+  issues: any;
+  audit: any;
+  summary: any;
+  unsupported_operations: any;
 }
 ```
 
