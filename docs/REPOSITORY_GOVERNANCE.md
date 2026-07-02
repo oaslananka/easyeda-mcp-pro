@@ -137,6 +137,6 @@ Before claiming a stronger OpenSSF bus-factor posture, the project should add at
 
 ## 8. OpenSSF Evidence Maintenance
 
-OpenSSF evidence is tracked in [`docs/OPENSSF_SILVER_EVIDENCE.md`](./OPENSSF_SILVER_EVIDENCE.md). BadgeApp answers must not be marked as `Met` unless the linked evidence accurately describes the live repository.
+OpenSSF evidence is tracked in [`docs/OPENSSF_BEST_PRACTICES.md`](./OPENSSF_BEST_PRACTICES.md). BadgeApp answers must not be marked as `Met` unless the linked evidence accurately describes the live repository.
 
 When governance, release, security, or continuity processes change, update this document and the OpenSSF evidence map in the same pull request.
