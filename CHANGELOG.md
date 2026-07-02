@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.17.0...easyeda-mcp-pro-v0.17.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* harden release and governance checks ([#95](https://github.com/oaslananka/easyeda-mcp-pro/issues/95)) ([9d8c5cc](https://github.com/oaslananka/easyeda-mcp-pro/commit/9d8c5cca690120533e2027fa34fe4df250a529cc))
+
 ## [0.17.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.16.0...easyeda-mcp-pro-v0.17.0) (2026-07-02)
 
 
