@@ -83,3 +83,73 @@ We use [Conventional Commits](https://www.conventionalcommits.org/) to track cha
    - Re-verifies all quality gates.
    - Publishes to npm with cryptographic provenance.
    - Uploads the compiled `easyeda-bridge-extension.eext` package to the GitHub Release.
+
+---
+
+## 6. Developer Certificate of Origin (DCO)
+
+By contributing to this project, you certify that you have the right to submit the contribution under the project license and that you agree to the [Developer Certificate of Origin](https://developercertificate.org/).
+
+Every non-trivial commit should include a `Signed-off-by` trailer:
+
+```text
+Signed-off-by: Your Name <you@example.com>
+```
+
+You can add this automatically with:
+
+```bash
+git commit -s
+```
+
+Pull requests with substantial code, documentation, CI, or release-process changes may be asked to add missing sign-off trailers before merge.
+
+---
+
+## 7. Coding Standards
+
+Contributions must follow the standards enforced by the repository tooling:
+
+- **TypeScript / JavaScript:** strict TypeScript configuration, ESLint, and Prettier.
+- **Markdown / YAML / JSON:** Prettier formatting where covered by repository configuration.
+- **Runtime validation:** untrusted inputs should use explicit schema validation, preferably Zod schemas already used by the project.
+- **Security-sensitive code:** default-deny behavior, log redaction for secrets, and explicit confirmation for write operations.
+- **Error handling:** return structured errors that explain the failed operation without leaking credentials or private design data.
+
+The required local checks are listed in [Quality Gates Checklist](#2-quality-gates-checklist). CI enforces the same general rules for pull requests and protected branches.
+
+---
+
+## 8. Testing Policy
+
+Major new functionality must include tests unless the change is documentation-only or cannot be meaningfully tested in CI. The expected test level depends on the change:
+
+- Tool schema or validation changes: unit tests for valid and invalid inputs.
+- Bridge protocol changes: protocol/manager tests or golden fixtures.
+- Supplier integrations: mocked API tests and negative-path tests for errors, credentials, and rate limits.
+- CLI/setup changes: tests for generated configuration and failure messages where practical.
+- Security fixes: regression tests for the fixed behavior when a public test is safe to include.
+
+Bug fixes should add regression tests for at least 50% of fixed bugs over a six-month window. If a regression test cannot be added, the pull request should explain why.
+
+Coverage is measured with:
+
+```bash
+pnpm test:coverage
+```
+
+The project target is at least 80% statement coverage where coverage tooling applies.
+
+---
+
+## 9. Pull Request Review Expectations
+
+A pull request should include:
+
+- a concise description of the change,
+- the risk level and affected area,
+- local validation commands that were run,
+- tests for new functionality or security-sensitive changes,
+- documentation updates when behavior, configuration, or public workflows change.
+
+For solo-maintainer operation, the maintainer may merge a pull request after required CI checks pass. For high-risk security, release, or credential changes, the maintainer should seek external review where practical before release.

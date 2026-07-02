@@ -32,3 +32,50 @@ In `production` mode the server enforces:
 - `JLCPCB_ENABLE_ORDERING` requires `JLCPCB_MODE=approved_api`
 - `HTTP_HOST` bound to `127.0.0.1` unless `OAUTH_ENABLED` is `true`
 - All env vars validated through a strict Zod schema at startup
+
+## Response Process
+
+The maintainer follows this process for private vulnerability reports:
+
+1. **Acknowledge** the report within 48 hours when possible.
+2. **Triage** severity, affected versions, exploitability, and whether the report is inside project scope.
+3. **Coordinate privately** with the reporter through GitHub Security Advisories or another agreed private channel.
+4. **Develop and test** a fix on a private branch or advisory fork when appropriate.
+5. **Release** the fix through the normal protected release workflow or an emergency patch workflow.
+6. **Publish** advisory details after a fixed version is available, unless disclosure would create unnecessary user risk.
+7. **Credit** the reporter unless they request anonymity.
+
+Target timelines:
+
+| Severity | Target fix or mitigation window after triage confirmation |
+| -------- | --------------------------------------------------------- |
+| Critical | 7 days                                                    |
+| High     | 14 days                                                   |
+| Medium   | 30 days                                                   |
+| Low      | Next normal release where practical                       |
+
+These are targets, not guarantees. Coordinated disclosure may require a different schedule.
+
+## Reporter Credit
+
+Resolved vulnerability reports should credit the reporter in the GitHub Security Advisory, release notes, or changelog unless the reporter requests anonymity or credit would increase risk.
+
+If no vulnerabilities were resolved in the last 12 months, the OpenSSF `vulnerability_report_credit` criterion should be marked as not applicable with this policy as evidence.
+
+## Security Requirements
+
+The software is intended to meet the following security requirements:
+
+- safe local operation by default,
+- no raw bridge execution by default,
+- explicit confirmation for design-changing operations,
+- no automatic paid supplier ordering without approved API mode and explicit user confirmation,
+- strict configuration validation at startup,
+- secrets in environment variables or secret stores rather than committed files,
+- log redaction for credentials and tokens,
+- OAuth/JWKS validation for remote HTTP deployments,
+- loopback-only defaults for local services,
+- generated artifacts constrained to configured output locations,
+- dependency and static-analysis monitoring in CI.
+
+Additional evidence is documented in [`docs/security-architecture.md`](docs/security-architecture.md), [`docs/SAFETY_MODEL.md`](docs/SAFETY_MODEL.md), and [`docs/SECURITY_ASSURANCE_CASE.md`](docs/SECURITY_ASSURANCE_CASE.md).
