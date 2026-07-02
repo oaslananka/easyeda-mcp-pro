@@ -124,6 +124,7 @@ jobs:
         with:
           subject-path: |
             dist/**
+            easyeda-bridge-extension.eext
             sbom.json
 
       - name: Verify NPM Token

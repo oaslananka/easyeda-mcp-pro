@@ -48,18 +48,33 @@ Users can verify a release by checking:
 4. npm provenance is present for the published package when available,
 5. the bridge extension artifact checksum, if published in the release notes or workflow logs, matches the downloaded artifact.
 
-## Signed release status
+## Signed and attested release status
 
-The project currently relies on GitHub release provenance, npm provenance, protected branches, and CI attestations. Cryptographically signed release tags are a Silver-target hardening item. Until signed tags are fully automated and documented, the OpenSSF `signed_releases` criterion should not be marked as fully met unless the maintainer signs the relevant release tags and publishes verification instructions.
+The project uses signed and attested release mechanisms for the release artifacts intended for broad use:
 
-## Planned signed tag policy
+- npm packages are published with `npm publish --provenance`, tying the package to the GitHub Actions workflow and source commit.
+- GitHub release build outputs are covered by GitHub Artifact Attestations through `actions/attest-build-provenance` for `dist/**`, `easyeda-bridge-extension.eext`, and `sbom.json`.
+- Release creation and publishing run from the protected `main` branch after release quality gates pass.
 
-The intended policy is:
+This is the project's signed-release posture for the OpenSSF `signed_releases` criterion. It uses provenance and artifact attestations rather than manually managed GPG tag signatures.
 
-- all major and minor release tags should be signed,
-- signing keys should not be stored on public distribution infrastructure,
-- verification instructions should be documented in this file,
-- release notes should link to this verification document.
+## Verification examples
+
+For npm provenance, inspect the package page or package metadata for provenance on the released version:
+
+```bash
+npm view easyeda-mcp-pro@latest version dist.integrity
+```
+
+For GitHub artifact attestations, download the released artifact and verify it against this repository:
+
+```bash
+gh attestation verify easyeda-bridge-extension.eext --repo oaslananka/easyeda-mcp-pro
+```
+
+## Signed tag policy
+
+Release tags are created by Release Please. GPG-signed release tags are not the primary signing mechanism; provenance and artifact attestations are. If the project later adds manual or automated GPG-signed tags, document the public key and verification process in this file.
 
 ## Related files
 
