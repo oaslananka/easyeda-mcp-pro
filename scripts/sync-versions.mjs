@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -54,7 +54,7 @@ if (fs.existsSync(serverJsonPath)) {
 try {
   const prettierFiles = [extensionJsonPath, serverJsonPath].filter((f) => fs.existsSync(f));
   if (prettierFiles.length > 0) {
-    execSync(`npx prettier --write ${prettierFiles.join(' ')}`, {
+    execFileSync('npx', ['prettier', '--write', ...prettierFiles], {
       cwd: root,
       stdio: 'pipe',
       encoding: 'utf8',

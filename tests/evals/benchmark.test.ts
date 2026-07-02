@@ -1,11 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('golden eval benchmark', () => {
   it('runs non-live benchmark suite and passes regression policy', () => {
-    execFileSync('pnpm', ['eval:golden'], { stdio: 'pipe' });
-    const report = JSON.parse(readFileSync('tests/evals/results/latest.json', 'utf8')) as {
+    const resultPath = '.easyeda-mcp-pro/evals/vitest-latest.json';
+    rmSync(resultPath, { force: true });
+    mkdirSync(dirname(resultPath), { recursive: true });
+    execFileSync('pnpm', ['exec', 'tsx', 'scripts/run-evals.mts', '--output', resultPath], {
+      stdio: 'pipe',
+    });
+    const report = JSON.parse(readFileSync(resultPath, 'utf8')) as {
       passed: boolean;
       overallScore: number;
       scenarioCount: number;

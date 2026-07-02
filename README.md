@@ -8,6 +8,8 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13406/badge)](https://www.bestpractices.dev/projects/13406)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
 
+Compliance docs: [Third-Party Notices](THIRD_PARTY_NOTICES.md) · [Vendor Terms and Unsupported Workflows](docs/vendor-terms.md)
+
 <p align="center">
   <a href="https://www.buymeacoffee.com/oaslananka">
     <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=oaslananka&button_colour=FFDD00&font_colour=000000&font_family=Arial&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" />
@@ -46,7 +48,7 @@ For advanced configurations, manual instructions, and specific clients, see [Ins
 
 ## Overview
 
-easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes 52 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, and supplier integration.
+easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes up to 60 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, and supplier integration.
 
 The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling real-time access to open project data. It integrates with JLCPCB, LCSC, Mouser, and DigiKey for BOM sourcing and pricing.
 
@@ -456,6 +458,24 @@ When `OAUTH_ENABLED=true`, every request to `/mcp` must include an `Authorizatio
 
 The server enforces startup safety checks: **non-loopback `HTTP_HOST` without OAuth is rejected**, and `HTTP_AUTH_DISABLED=true` is rejected outside non-production loopback deployments.
 
+### Docker defaults
+
+The Docker image starts in HTTP mode with `HTTP_HOST=127.0.0.1` so the default container boot path is safe and passes the same startup safety checks as local HTTP mode. For an externally reachable container, override the bind address and configure OAuth plus an explicit origin allowlist:
+
+```bash
+docker run --rm \
+  -e HTTP_HOST=0.0.0.0 \
+  -e ALLOWED_ORIGINS=https://your-client.example.com \
+  -e OAUTH_ENABLED=true \
+  -e OAUTH_ISSUER=https://issuer.example.com/ \
+  -e OAUTH_JWKS_URI=https://issuer.example.com/.well-known/jwks.json \
+  -e OAUTH_AUDIENCE=easyeda-mcp-pro \
+  -p 127.0.0.1:3000:3000 \
+  ghcr.io/oaslananka/easyeda-mcp-pro:latest
+```
+
+Do not expose non-loopback HTTP without OAuth. Use a reverse proxy or platform gateway for TLS termination and external access.
+
 #### HTTP Security Features
 
 - **Rate limiting**: Per-IP sliding window (configurable via `HTTP_RATE_LIMIT_MAX`), returns `429 Too Many Requests` with retry-after header
@@ -568,7 +588,7 @@ The schematic write APIs use EasyEDA Pro extension APIs that EasyEDA currently m
 │  (via Plugin)    │     Protocol      │  └───────────────┘  │
 └─────────────────┘                    │  ┌───────────────┐  │
                                        │  │  ToolRegistry  │  │
-                                       │  │  (41 tools)   │  │
+                                       │  │ (up to 60)    │  │
                                        │  └───────────────┘  │
                                        │  ┌───────────────┐  │
                                        │  │    Storage     │──┼──► SQLite

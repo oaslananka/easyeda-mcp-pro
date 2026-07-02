@@ -107,10 +107,10 @@ Tools are organized into hierarchical profiles: `core` < `pro` < `full` < `dev` 
 - The `TOOL_PROFILE` environment variable selects which tools are enabled.
 - Each tool definition declares a minimum `profile` level.
 - Only tools at or below the active profile are registered on the MCP server.
-- `core` is the default and exposes ~29 tools.
-- `pro` adds manufacturing export tools (pick-and-place, PDF, netlist).
-- `full` adds the controlled `easyeda_api_call` tool for direct EasyEDA API access.
-- `dev` adds runtime probes for debugging (bridge method probing, component inspection).
+- `core` is the default and exposes 42 tools.
+- `pro` exposes 47 tools and adds manufacturing export tools (pick-and-place, PDF, netlist).
+- `full` exposes 56 tools and adds the controlled `easyeda_api_call` tool for direct EasyEDA API access.
+- `dev` exposes 60 tools and adds runtime probes for debugging (bridge method probing, component inspection).
 - `experimental` enables MCP Apps, Tasks, simulation, autorouter, and AI action plans.
 
 **Security principle:** Privilege escalation is prevented because tool registration happens at startup. Changing the active profile requires a server restart.
@@ -359,7 +359,7 @@ Path traversal protection is enforced in all export tools — artifact paths are
 ### 9.3 Branch Protection
 
 - `main` requires PR approval (minimum 1 reviewer).
-- Status checks must pass: `quality (24)`, `quality (25)`, `codeql`.
+- Status checks must pass: `quality (24)` and CodeQL analysis.
 - Branches must be up to date before merging.
 - Linear history enforced (squash or rebase merge).
 
