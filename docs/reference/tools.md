@@ -312,12 +312,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter             | Type  | Required | Description |
-| --------------------- | ----- | -------- | ----------- |
-| `projectId`           | `any` | Yes      |             |
-| `low_stock_threshold` | `any` | No       |             |
-| `require_mpn`         | `any` | No       |             |
-| `require_footprint`   | `any` | No       |             |
+| Parameter                   | Type  | Required | Description |
+| --------------------------- | ----- | -------- | ----------- |
+| `projectId`                 | `any` | Yes      |             |
+| `low_stock_threshold`       | `any` | No       |             |
+| `require_mpn`               | `any` | No       |             |
+| `require_footprint`         | `any` | No       |             |
+| `stale_vendor_data_seconds` | `any` | No       |             |
+| `minimum_quality_score`     | `any` | No       |             |
 
 ### Output Format
 

@@ -1,7 +1,7 @@
 {
   "benchmark": "easyeda-mcp-pro-golden-evals",
   "version": "1.0.0",
-  "generatedAt": "2026-07-02T11:48:37.315Z",
+  "generatedAt": "2026-07-02T12:47:26.130Z",
   "overallScore": 95,
   "passed": true,
   "scenarioCount": 10,

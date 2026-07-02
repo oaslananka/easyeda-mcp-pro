@@ -107,3 +107,9 @@ Use the `status` field to decide whether the report is procurement-ready:
 - `found` and `no_match` are normal query outcomes.
 - `unauthorized`, `rate_limited`, `timeout`, `invalid_response`, and `unavailable` mean the supplier data is incomplete and should be rechecked before ordering.
 - `source`, `queried_at`, `from_cache`, and `cache_age_seconds` provide freshness/provenance for audit trails.
+
+## Component quality and alternates
+
+`easyeda_bom_quality_report` includes `component_quality` per entry. It summarizes lifecycle, stock, manufacturer/source diversity, package suitability, freshness, recommended action and alternate candidates.
+
+Use the top-level summary counters to track stale vendor data, missing vendor data, package mismatch, manufacturer risk, lifecycle risk, and entries without a safe alternate.

@@ -160,6 +160,8 @@ function registerBomSourcingTools(
       low_stock_threshold: z.number().int().nonnegative().default(100).optional(),
       require_mpn: z.boolean().default(true).optional(),
       require_footprint: z.boolean().default(true).optional(),
+      stale_vendor_data_seconds: z.number().int().nonnegative().optional(),
+      minimum_quality_score: z.number().int().min(0).max(100).optional(),
     }),
     outputSchema: z.object({
       bom_id: z.string(),
@@ -179,6 +181,13 @@ function registerBomSourcingTools(
         rate_limited_count: z.number().int().nonnegative(),
         timeout_count: z.number().int().nonnegative(),
         invalid_response_count: z.number().int().nonnegative(),
+        stale_vendor_data_count: z.number().int().nonnegative(),
+        missing_vendor_data_count: z.number().int().nonnegative(),
+        package_mismatch_count: z.number().int().nonnegative(),
+        manufacturer_risk_count: z.number().int().nonnegative(),
+        lifecycle_risk_count: z.number().int().nonnegative(),
+        no_safe_alternate_count: z.number().int().nonnegative(),
+        high_risk_component_count: z.number().int().nonnegative(),
       }),
       entries: z.array(
         z.object({
@@ -208,6 +217,44 @@ function registerBomSourcingTools(
               lead_time_days: z.number().optional(),
             }),
           ),
+
+          component_quality: z.object({
+            score: z.number().int().min(0).max(100),
+            risk: z.string(),
+            recommended_action: z.string(),
+            dimensions: z.object({
+              lifecycle: z.object({ score: z.number(), risk: z.string(), reason: z.string() }),
+              stock: z.object({ score: z.number(), risk: z.string(), reason: z.string() }),
+              manufacturer: z.object({ score: z.number(), risk: z.string(), reason: z.string() }),
+              package: z.object({ score: z.number(), risk: z.string(), reason: z.string() }),
+              freshness: z.object({ score: z.number(), risk: z.string(), reason: z.string() }),
+            }),
+            alternates: z.array(
+              z.object({
+                supplier: z.string(),
+                mpn: z.string().optional(),
+                lcsc: z.string().optional(),
+                manufacturer: z.string().optional(),
+                description: z.string().optional(),
+                lifecycle: z.string(),
+                stock: z.number(),
+                unit_price: z.number().optional(),
+                currency: z.string().optional(),
+                compatibility: z.string(),
+                score: z.number(),
+                reasons: z.array(z.string()),
+                caveats: z.array(z.string()),
+              }),
+            ),
+            provenance: z.object({
+              supplier_count: z.number().int().nonnegative(),
+              found_supplier_count: z.number().int().nonnegative(),
+              live_supplier_count: z.number().int().nonnegative(),
+              cached_supplier_count: z.number().int().nonnegative(),
+              oldest_cache_age_seconds: z.number().int().nonnegative(),
+              newest_query_at: z.string().optional(),
+            }),
+          }),
           issues: z.array(
             z.object({
               type: z.string(),
@@ -228,11 +275,15 @@ function registerBomSourcingTools(
         low_stock_threshold: lowStockThreshold,
         require_mpn: requireMpn,
         require_footprint: requireFootprint,
+        stale_vendor_data_seconds: staleVendorDataSeconds,
+        minimum_quality_score: minimumQualityScore,
       } = params as {
         projectId: string;
         low_stock_threshold?: number;
         require_mpn?: boolean;
         require_footprint?: boolean;
+        stale_vendor_data_seconds?: number;
+        minimum_quality_score?: number;
       };
       try {
         const bomResult = await ctx.bridge.call('bom.generate', {
@@ -268,6 +319,13 @@ function registerBomSourcingTools(
               rate_limited_count: 0,
               timeout_count: 0,
               invalid_response_count: 0,
+              stale_vendor_data_count: 0,
+              missing_vendor_data_count: 0,
+              package_mismatch_count: 0,
+              manufacturer_risk_count: 0,
+              lifecycle_risk_count: 0,
+              no_safe_alternate_count: 0,
+              high_risk_component_count: 0,
             },
             entries: [],
             has_supplier_errors: false,
@@ -293,6 +351,10 @@ function registerBomSourcingTools(
           lowStockThreshold: lowStockThreshold ?? DEFAULT_BOM_QUALITY_CONFIG.lowStockThreshold,
           requireMpn: requireMpn ?? DEFAULT_BOM_QUALITY_CONFIG.requireMpn,
           requireFootprint: requireFootprint ?? DEFAULT_BOM_QUALITY_CONFIG.requireFootprint,
+          staleVendorDataSeconds:
+            staleVendorDataSeconds ?? DEFAULT_BOM_QUALITY_CONFIG.staleVendorDataSeconds,
+          minimumQualityScore:
+            minimumQualityScore ?? DEFAULT_BOM_QUALITY_CONFIG.minimumQualityScore,
         };
 
         const report = await generateBomQualityReport(projectId, entries, adapters, config);
@@ -315,6 +377,13 @@ function registerBomSourcingTools(
             rate_limited_count: report.summary.rateLimitedCount,
             timeout_count: report.summary.timeoutCount,
             invalid_response_count: report.summary.invalidResponseCount,
+            stale_vendor_data_count: report.summary.staleVendorDataCount,
+            missing_vendor_data_count: report.summary.missingVendorDataCount,
+            package_mismatch_count: report.summary.packageMismatchCount,
+            manufacturer_risk_count: report.summary.manufacturerRiskCount,
+            lifecycle_risk_count: report.summary.lifecycleRiskCount,
+            no_safe_alternate_count: report.summary.noSafeAlternateCount,
+            high_risk_component_count: report.summary.highRiskComponentCount,
           },
           entries: report.entries.map((e) => ({
             reference: e.reference,
@@ -341,6 +410,36 @@ function registerBomSourcingTools(
               currency: s.currency,
               lead_time_days: s.leadTimeDays,
             })),
+
+            component_quality: {
+              score: e.componentQuality.score,
+              risk: e.componentQuality.risk,
+              recommended_action: e.componentQuality.recommendedAction,
+              dimensions: e.componentQuality.dimensions,
+              alternates: e.componentQuality.alternates.map((candidate) => ({
+                supplier: candidate.supplier,
+                mpn: candidate.mpn,
+                lcsc: candidate.lcsc,
+                manufacturer: candidate.manufacturer,
+                description: candidate.description,
+                lifecycle: candidate.lifecycle,
+                stock: candidate.stock,
+                unit_price: candidate.unitPrice,
+                currency: candidate.currency,
+                compatibility: candidate.compatibility,
+                score: candidate.score,
+                reasons: candidate.reasons,
+                caveats: candidate.caveats,
+              })),
+              provenance: {
+                supplier_count: e.componentQuality.provenance.supplierCount,
+                found_supplier_count: e.componentQuality.provenance.foundSupplierCount,
+                live_supplier_count: e.componentQuality.provenance.liveSupplierCount,
+                cached_supplier_count: e.componentQuality.provenance.cachedSupplierCount,
+                oldest_cache_age_seconds: e.componentQuality.provenance.oldestCacheAgeSeconds,
+                newest_query_at: e.componentQuality.provenance.newestQueryAt,
+              },
+            },
             issues: e.issues.map((i) => ({
               type: i.type,
               severity: i.severity,
@@ -366,6 +465,17 @@ function registerBomSourcingTools(
             missing_mpn_count: 0,
             missing_footprint_count: 0,
             low_stock_count: 0,
+            unauthorized_count: 0,
+            rate_limited_count: 0,
+            timeout_count: 0,
+            invalid_response_count: 0,
+            stale_vendor_data_count: 0,
+            missing_vendor_data_count: 0,
+            package_mismatch_count: 0,
+            manufacturer_risk_count: 0,
+            lifecycle_risk_count: 0,
+            no_safe_alternate_count: 0,
+            high_risk_component_count: 0,
           },
           entries: [],
           has_supplier_errors: false,
