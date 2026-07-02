@@ -39,7 +39,7 @@
   ·
   <a href="docs/vendor-terms.md">Vendor Terms and Unsupported Workflows</a>
   ·
-  <a href="docs/OPENSSF_SILVER_EVIDENCE.md">OpenSSF Silver Evidence</a>
+  <a href="docs/OPENSSF_BEST_PRACTICES.md">OpenSSF Best Practices</a>
 </p>
 
 </div>

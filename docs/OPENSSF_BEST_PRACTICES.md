@@ -1,8 +1,8 @@
-# OpenSSF Silver Evidence Map
+# OpenSSF Best Practices Map
 
 BadgeApp project: <https://www.bestpractices.dev/projects/13406>
 
-This file is a copy-ready evidence map for completing OpenSSF Best Practices Passing and Silver self-certification. The BadgeApp entry is owned by the maintainer, so this repository can provide evidence links, but the final `Met`, `Unmet`, or `N/A` selections must be saved by the logged-in project owner.
+This file is a copy-ready evidence map for OpenSSF Best Practices self-certification. It records the current Passing, Silver, and future badge evidence in one stable location. The BadgeApp entry is owned by the maintainer, so this repository can provide evidence links, but the final `Met`, `Unmet`, or `N/A` selections must be saved by the logged-in project owner.
 
 ## How to use this file
 
@@ -82,4 +82,4 @@ This file is a copy-ready evidence map for completing OpenSSF Best Practices Pas
 
 ## BadgeApp helper
 
-The file [`docs/openssf-badgeapp-autofill.js`](./openssf-badgeapp-autofill.js) is a best-effort browser-console helper for the logged-in BadgeApp form. It only sets radio values for criteria where evidence is now present. Review every value before saving.
+The file [`scripts/maintainer/openssf-badgeapp-autofill.js`](../scripts/maintainer/openssf-badgeapp-autofill.js) is a best-effort browser-console helper for the logged-in BadgeApp form. It only sets radio values for criteria where evidence is present. Review every value before saving.

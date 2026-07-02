@@ -48,12 +48,12 @@ When a BadgeApp criterion cannot be marked because evidence is missing, create a
 
 The repository now includes a dedicated Silver evidence package:
 
-- `docs/OPENSSF_SILVER_EVIDENCE.md` — copy-ready BadgeApp criterion-to-evidence map.
+- `docs/OPENSSF_BEST_PRACTICES.md` — copy-ready BadgeApp criterion-to-evidence map.
 - `docs/ROADMAP.md` — 12-month roadmap and non-goals.
 - `docs/MAINTAINER_CONTINUITY.md` — continuity and bus-factor documentation.
 - `docs/SECURITY_ASSURANCE_CASE.md` — threat model, trust boundaries, secure design argument, and countermeasures.
 - `docs/RELEASE_VERIFICATION.md` — release verification and signed-release target policy.
-- `docs/openssf-badgeapp-autofill.js` — optional browser-console helper for the logged-in BadgeApp form.
+- `scripts/maintainer/openssf-badgeapp-autofill.js` — optional browser-console helper for the logged-in BadgeApp form.
 
 ### Criteria that still need maintainer judgment
 
@@ -69,6 +69,6 @@ Do not blindly mark these as met:
 
 1. Open the BadgeApp project page for project `13406`.
 2. Complete Passing criteria first.
-3. Use `docs/OPENSSF_SILVER_EVIDENCE.md` to fill Silver evidence links.
+3. Use `docs/OPENSSF_BEST_PRACTICES.md` to fill Silver evidence links.
 4. Save only answers that match the live repository state.
 5. Create follow-up issues for any criterion that cannot honestly be marked `Met` or `N/A`.
