@@ -38,6 +38,8 @@
   <a href="THIRD_PARTY_NOTICES.md">Third-Party Notices</a>
   ·
   <a href="docs/vendor-terms.md">Vendor Terms and Unsupported Workflows</a>
+  ·
+  <a href="docs/OPENSSF_SILVER_EVIDENCE.md">OpenSSF Silver Evidence</a>
 </p>
 
 </div>

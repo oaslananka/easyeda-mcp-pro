@@ -4,23 +4,44 @@ This document outlines the governance model, security standards, branch protecti
 
 ---
 
+## 0. Governance Model
+
+`easyeda-mcp-pro` currently uses a solo-maintainer governance model. The project owner and lead maintainer is Osman Aslan (`@oaslananka`). The lead maintainer has final decision authority for roadmap scope, issue triage, merge decisions, release timing, security response, and OpenSSF BadgeApp self-certification.
+
+The project accepts public collaboration through GitHub issues, pull requests, discussions, and private GitHub Security Advisories. When external contributors submit changes, the maintainer reviews the change, requires CI to pass, and may request revisions before merge.
+
+High-risk changes should receive extra review where practical, even though the repository does not currently require a second approver. High-risk changes include authentication, bridge command execution, supplier API credentials, release automation, dependency security policy, and GitHub Actions permissions.
+
+## Roles and Responsibilities
+
+| Role             | Current holder              | Responsibilities                                                                                                            |
+| ---------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Lead maintainer  | Osman Aslan (`@oaslananka`) | Final project decisions, roadmap, issue triage, PR merge decisions, security response, releases, OpenSSF BadgeApp evidence. |
+| Release manager  | Osman Aslan (`@oaslananka`) | Release Please review, GitHub Releases, npm publishing, bridge extension artifacts, release verification.                   |
+| Security contact | Osman Aslan (`@oaslananka`) | Private vulnerability intake, triage, coordinated disclosure, advisory publication, reporter credit.                        |
+| Contributor      | Any GitHub contributor      | Submit issues/PRs, follow DCO/sign-off expectations, add tests/docs for changes.                                            |
+
+If another active maintainer is added, this table should be updated and branch protection should be revisited to require at least one independent approval for high-risk changes.
+
+---
+
 ## 1. Branch Protection Policy (main branch)
 
 To enforce code quality, security, and a clean history, the `main` branch must have the following protection rules configured in GitHub (**Settings > Branches > Add rule**):
 
-| Rule Setting                                     | Status       | Rationale                                                                                                         |
-| :----------------------------------------------- | :----------- | :---------------------------------------------------------------------------------------------------------------- |
-| **Require a pull request before merging**        | **Enabled**  | Prevents direct pushes to the production branch.                                                                  |
-| **Require approvals**                            | **Enabled**  | Enforces code review. Minimum of **1 approval** required.                                                         |
-| **Dismiss stale pull request approvals...**      | **Enabled**  | Invalidates reviews if new commits are pushed to the PR.                                                          |
-| **Require status checks to pass before merging** | **Enabled**  | Enforces automated quality checks.                                                                                |
-| _Status Check:_ `quality (24)`                   | **Required** | Ensures the codebase builds, lints, tests, audits, and verifies docs on Node 24.                                  |
-| _Status Check:_ `codeql`                         | **Required** | Ensures static application security analysis (SAST) passes.                                                       |
-| **Require branches to be up to date...**         | **Enabled**  | Enforces strict branch testing against the latest `main` commit.                                                  |
-| **Require conversation resolution...**           | **Enabled**  | Ensures all review comments are addressed.                                                                        |
-| **Require linear history**                       | **Optional** | Use only if maintainers prefer squash/rebase merges. Current repo history uses merge commits for PR traceability. |
-| **Do not allow force pushes**                    | **Enforced** | Prevents history rewriting on `main`.                                                                             |
-| **Do not allow deletions**                       | **Enforced** | Prevents accidental deletion of the `main` branch.                                                                |
+| Rule Setting                                     | Status                               | Rationale                                                                                                                                    |
+| :----------------------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Require a pull request before merging**        | **Enabled**                          | Prevents direct pushes to the production branch.                                                                                             |
+| **Require approvals**                            | **Disabled for solo maintainer**     | Required reviews are not enforced while the repository has a single maintainer; required checks and conversation resolution remain enforced. |
+| **Dismiss stale pull request approvals...**      | **N/A while approvals are disabled** | Re-enable if the repository adds another active maintainer and mandatory reviews return.                                                     |
+| **Require status checks to pass before merging** | **Enabled**                          | Enforces automated quality checks.                                                                                                           |
+| _Status Check:_ `quality (24)`                   | **Required**                         | Ensures the codebase builds, lints, tests, audits, and verifies docs on Node 24.                                                             |
+| _Status Check:_ `codeql`                         | **Required**                         | Ensures static application security analysis (SAST) passes.                                                                                  |
+| **Require branches to be up to date...**         | **Enabled**                          | Enforces strict branch testing against the latest `main` commit.                                                                             |
+| **Require conversation resolution...**           | **Enabled**                          | Ensures all review comments are addressed.                                                                                                   |
+| **Require linear history**                       | **Optional**                         | Use only if maintainers prefer squash/rebase merges. Current repo history uses merge commits for PR traceability.                            |
+| **Do not allow force pushes**                    | **Enforced**                         | Prevents history rewriting on `main`.                                                                                                        |
+| **Do not allow deletions**                       | **Enforced**                         | Prevents accidental deletion of the `main` branch.                                                                                           |
 
 ---
 
@@ -72,8 +93,9 @@ To prevent token leakage and unauthorized workflows:
 Repository administrators should go through the following settings checklist to align the live repository with this governance document:
 
 - [ ] **Configure Branch Protection**: Go to **Settings > Branches** and add a protection rule for `main` enforcing:
-  - Require a pull request before merging (with at least 1 approval).
-  - Dismiss stale pull request approvals when new commits are pushed.
+  - Require a pull request before merging.
+  - Do not require approval while the repository is in solo-maintainer mode.
+  - Re-enable stale-review dismissal when required reviews are restored.
   - Require status checks to pass before merging (`quality (24)`, `codeql`, Socket/DeepScan checks where enabled).
   - Require branches to be up to date before merging.
   - Require conversation resolution before merging.
@@ -102,3 +124,19 @@ The public issue process is documented in [`docs/ISSUE_TRIAGE.md`](./ISSUE_TRIAG
 - reproduction or validation evidence
 
 Roadmap issues must not be closed only because related documentation exists. Close them only when the acceptance criteria have been implemented, verified, and linked in the closing comment.
+
+---
+
+## 7. Continuity and Bus Factor
+
+Maintainer continuity is documented in [`docs/MAINTAINER_CONTINUITY.md`](./MAINTAINER_CONTINUITY.md). The project is currently a solo-maintainer project, so the bus factor is one. That risk is explicitly documented rather than hidden.
+
+Before claiming a stronger OpenSSF bus-factor posture, the project should add at least one trusted backup maintainer or successor path with enough access to triage issues, merge fixes, publish emergency releases, rotate credentials, and update security advisories.
+
+---
+
+## 8. OpenSSF Evidence Maintenance
+
+OpenSSF evidence is tracked in [`docs/OPENSSF_SILVER_EVIDENCE.md`](./OPENSSF_SILVER_EVIDENCE.md). BadgeApp answers must not be marked as `Met` unless the linked evidence accurately describes the live repository.
+
+When governance, release, security, or continuity processes change, update this document and the OpenSSF evidence map in the same pull request.

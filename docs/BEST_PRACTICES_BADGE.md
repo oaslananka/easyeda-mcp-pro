@@ -43,3 +43,32 @@ Recommended next manual entries:
 ## Repo-side rule
 
 When a BadgeApp criterion cannot be marked because evidence is missing, create a GitHub issue with a concrete acceptance criterion rather than marking it as met prematurely.
+
+## Silver evidence package
+
+The repository now includes a dedicated Silver evidence package:
+
+- `docs/OPENSSF_SILVER_EVIDENCE.md` — copy-ready BadgeApp criterion-to-evidence map.
+- `docs/ROADMAP.md` — 12-month roadmap and non-goals.
+- `docs/MAINTAINER_CONTINUITY.md` — continuity and bus-factor documentation.
+- `docs/SECURITY_ASSURANCE_CASE.md` — threat model, trust boundaries, secure design argument, and countermeasures.
+- `docs/RELEASE_VERIFICATION.md` — release verification and signed-release target policy.
+- `docs/openssf-badgeapp-autofill.js` — optional browser-console helper for the logged-in BadgeApp form.
+
+### Criteria that still need maintainer judgment
+
+Do not blindly mark these as met:
+
+- `achieve_passing`: only after BadgeApp shows Passing.
+- `achieve_silver`: only after all Silver MUST/MUST NOT criteria are satisfied.
+- `bus_factor`: currently one; either mark unmet/justified or add a backup maintainer.
+- `signed_releases` and `version_tags_signed`: not fully met until signed tags/releases are implemented and verification instructions are complete.
+- `internationalization`: likely N/A or justified unmet unless project text-localization support becomes a goal.
+
+### BadgeApp workflow
+
+1. Open the BadgeApp project page for project `13406`.
+2. Complete Passing criteria first.
+3. Use `docs/OPENSSF_SILVER_EVIDENCE.md` to fill Silver evidence links.
+4. Save only answers that match the live repository state.
+5. Create follow-up issues for any criterion that cannot honestly be marked `Met` or `N/A`.
