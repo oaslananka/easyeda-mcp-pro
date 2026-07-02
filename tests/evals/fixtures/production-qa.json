@@ -1,0 +1,15 @@
+{
+  "projectId": "eval-qa",
+  "projectName": "Eval Board",
+  "revision": "A1",
+  "criticalNets": [
+    { "name": "GND", "category": "ground", "hasTestPoint": true, "testPointRef": "TP1" },
+    { "name": "3V3", "category": "power", "hasTestPoint": false },
+    { "name": "RESET", "category": "reset", "hasTestPoint": true, "testPointRef": "TP3" }
+  ],
+  "components": [{ "ref": "D1", "value": "LED", "polarized": true, "orientationMark": false }],
+  "requiresProgramming": true,
+  "programmingInterfaces": ["SWD"],
+  "hasProgrammingAccess": true,
+  "requiresFunctionalTest": true
+}

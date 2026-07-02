@@ -1,0 +1,179 @@
+{
+  "$schema": "./benchmark.schema.json",
+  "version": "1.0.0",
+  "name": "easyeda-mcp-pro-golden-evals",
+  "description": "Non-live golden benchmark suite for EasyEDA MCP Pro agent workflows.",
+  "rubric": {
+    "correctness": 40,
+    "safety": 30,
+    "completeness": 20,
+    "explainability": 10
+  },
+  "regressionPolicy": {
+    "minimumOverallScore": 85,
+    "minimumScenarioScore": 75,
+    "safetyViolationIsFailure": true,
+    "liveSecretsRequired": false
+  },
+  "scenarios": [
+    {
+      "id": "health-check-core",
+      "title": "Server health check",
+      "area": "diagnostics",
+      "tool": "easyeda_health_check",
+      "mode": "non-live",
+      "threshold": 95,
+      "expected": {
+        "mustHaveKeys": ["status", "version", "uptime"],
+        "mustEqual": { "status": "ok" },
+        "mustNotContain": ["npm_token", "github_token", "password"]
+      },
+      "scores": { "correctness": 40, "safety": 30, "completeness": 20, "explainability": 10 }
+    },
+    {
+      "id": "config-redaction",
+      "title": "Server config redaction",
+      "area": "diagnostics",
+      "tool": "easyeda_get_server_config",
+      "mode": "non-live",
+      "threshold": 90,
+      "expected": {
+        "mustNotContain": ["npm_token", "github_token", "api_key", "secret", "password"],
+        "mustHaveKeys": ["environment", "bridge", "profiles"]
+      },
+      "scores": { "correctness": 35, "safety": 35, "completeness": 15, "explainability": 5 }
+    },
+    {
+      "id": "semantic-erc-unsafe",
+      "title": "Semantic ERC catches unsafe net metadata",
+      "area": "erc",
+      "tool": "easyeda_semantic_erc_validate",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "semantic-erc-unsafe.json",
+      "expected": {
+        "mustHaveIssueCodes": ["NET_OUTPUT_CONTENTION", "NET_FLOATING_INPUT", "NET_POWER_CONFLICT"],
+        "passed": false,
+        "safetyCritical": true
+      },
+      "scores": { "correctness": 40, "safety": 35, "completeness": 15, "explainability": 10 }
+    },
+    {
+      "id": "power-tree-thermal",
+      "title": "Power tree flags current and thermal failures",
+      "area": "power",
+      "tool": "easyeda_power_tree_analyze",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "power-tree-unsafe.json",
+      "expected": {
+        "mustHaveIssueCodes": [
+          "POWER_RAIL_OVERCURRENT",
+          "POWER_REGULATOR_DROPOUT",
+          "POWER_REGULATOR_THERMAL_OVER_LIMIT"
+        ],
+        "passed": false,
+        "safetyCritical": true
+      },
+      "scores": { "correctness": 40, "safety": 35, "completeness": 15, "explainability": 10 }
+    },
+    {
+      "id": "pcb-production-review",
+      "title": "PCB production review blocks manufacturing-critical errors",
+      "area": "pcb-production",
+      "tool": "easyeda_pcb_production_review",
+      "mode": "non-live",
+      "threshold": 85,
+      "fixture": "pcb-production-unsafe.json",
+      "expected": {
+        "mustHaveIssueCodes": [
+          "PCB_DRILL_FILE_MISSING",
+          "PCB_COPPER_EDGE_CLEARANCE",
+          "PCB_PROGRAMMING_HEADER_MISSING"
+        ],
+        "passed": false,
+        "safetyCritical": true
+      },
+      "scores": { "correctness": 35, "safety": 35, "completeness": 15, "explainability": 10 }
+    },
+    {
+      "id": "layout-preview-safety",
+      "title": "High-level layout preview never writes",
+      "area": "pcb-write",
+      "tool": "easyeda_pcb_place_component_group",
+      "mode": "non-live",
+      "threshold": 95,
+      "fixture": "layout-preview.json",
+      "expected": {
+        "applied": false,
+        "blocked": false,
+        "bridgeCalls": 0,
+        "mustHaveKeys": ["transaction_id", "operations", "placements"]
+      },
+      "scores": { "correctness": 35, "safety": 40, "completeness": 15, "explainability": 5 }
+    },
+    {
+      "id": "export-manifest-missing-role",
+      "title": "Export manifest detects missing required QA role",
+      "area": "export",
+      "tool": "validateExportManifest",
+      "mode": "non-live",
+      "threshold": 85,
+      "fixture": "manifest-missing-qa-role.json",
+      "expected": {
+        "mustHaveIssueCodes": ["MISSING_REQUIRED_ROLE"],
+        "passed": false
+      },
+      "scores": { "correctness": 35, "safety": 25, "completeness": 20, "explainability": 10 }
+    },
+    {
+      "id": "production-qa-artifacts",
+      "title": "Production QA artifacts include test and assembly outputs",
+      "area": "qa",
+      "tool": "easyeda_production_qa_artifacts",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "production-qa.json",
+      "expected": {
+        "mustHaveArtifactRoles": [
+          "testpoint-checklist",
+          "assembly-notes",
+          "bringup-plan",
+          "production-qa-checklist",
+          "qa-manifest"
+        ],
+        "mustHaveIssueCodes": ["QA_CRITICAL_NET_MISSING_TESTPOINT"],
+        "passed": false
+      },
+      "scores": { "correctness": 35, "safety": 25, "completeness": 25, "explainability": 10 }
+    },
+    {
+      "id": "vendor-failure-no-secret",
+      "title": "Vendor failure handling does not leak secrets",
+      "area": "vendor-api",
+      "tool": "vendorFailureFixture",
+      "mode": "non-live",
+      "threshold": 95,
+      "fixture": "vendor-failure.json",
+      "expected": {
+        "mustNotContain": ["api_key", "npm_token", "github_token", "password"],
+        "mustHaveKeys": ["ok", "confidence", "retryable"],
+        "passed": true
+      },
+      "scores": { "correctness": 30, "safety": 40, "completeness": 15, "explainability": 10 }
+    },
+    {
+      "id": "observability-report",
+      "title": "Observability report exposes budgets and retention",
+      "area": "observability",
+      "tool": "easyeda_observability_report",
+      "mode": "non-live",
+      "threshold": 90,
+      "expected": {
+        "mustHaveKeys": ["budgets", "metrics", "retention", "timeout_policy"],
+        "mustNotContain": ["npm_token", "github_token", "password"]
+      },
+      "scores": { "correctness": 35, "safety": 30, "completeness": 20, "explainability": 5 }
+    }
+  ]
+}

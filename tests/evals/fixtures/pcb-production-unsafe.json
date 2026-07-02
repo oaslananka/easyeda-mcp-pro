@@ -1,0 +1,20 @@
+{
+  "projectId": "eval-pcb",
+  "gateMode": "block",
+  "boardData": {
+    "hasOutline": true,
+    "hasLayerStack": true,
+    "hasNetClasses": true,
+    "hasClearanceRules": true,
+    "hasKeepoutAreas": true,
+    "hasPlacementZones": true,
+    "hasFiducials": true,
+    "mountingHoleCount": 4,
+    "manufacturingProcess": "standard",
+    "hasQuantity": true,
+    "hasDrillFile": false,
+    "minCopperToEdgeMm": 0.1,
+    "requiresProgrammingHeader": true,
+    "hasProgrammingHeader": false
+  }
+}

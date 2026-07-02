@@ -1,0 +1,22 @@
+{
+  "projectId": "eval-power",
+  "rails": [
+    { "id": "vin", "name": "VIN", "voltage": 3.6 },
+    { "id": "3v3", "name": "3V3", "voltage": 3.3, "maxCurrentA": 0.6 }
+  ],
+  "regulators": [
+    {
+      "id": "ldo1",
+      "ref": "U1",
+      "kind": "ldo",
+      "inputRailId": "vin",
+      "outputRailId": "3v3",
+      "maxOutputCurrentA": 0.5,
+      "dropoutVoltage": 0.5,
+      "thermalResistanceCPerW": 150,
+      "maxJunctionTempC": 85
+    }
+  ],
+  "loads": [{ "id": "load", "ref": "U2", "railId": "3v3", "currentA": 0.7, "peakCurrentA": 0.7 }],
+  "limits": { "ambientTempC": 60 }
+}

@@ -1,0 +1,6 @@
+{
+  "mode": "preview",
+  "board": { "widthMm": 60, "heightMm": 40 },
+  "anchor": { "x": 10, "y": 10 },
+  "components": [{ "ref": "U1", "primitiveId": "p-u1", "widthMm": 6, "heightMm": 6 }]
+}

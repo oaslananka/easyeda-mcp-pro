@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "passed": true,
+  "confidence": "low",
+  "retryable": true,
+  "message": "Vendor unavailable; result is degraded but no credential values are exposed."
+}
