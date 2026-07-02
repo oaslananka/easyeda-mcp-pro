@@ -1,8 +1,12 @@
+<div align="center">
+
 # easyeda-mcp-pro
 
-> Production-grade MCP server for EasyEDA Pro: safe PCB design inspection, BOM sourcing, manufacturing export, and AI-assisted hardware review.
+<p>
+  Production-grade MCP server for EasyEDA Pro: safe PCB design inspection, BOM sourcing, manufacturing export, and AI-assisted hardware review.
+</p>
 
-<p align="left">
+<p>
   <a href="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml">
     <img src="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml/badge.svg" alt="CI status" />
   </a>
@@ -11,9 +15,6 @@
   </a>
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
     <img src="https://img.shields.io/npm/dt/easyeda-mcp-pro?logo=npm&label=total%20downloads" alt="npm total downloads" />
-  </a>
-  <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
-    <img src="https://img.shields.io/npm/dm/easyeda-mcp-pro?logo=npm&label=monthly%20downloads" alt="npm monthly downloads" />
   </a>
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
     <img src="https://img.shields.io/node/v/easyeda-mcp-pro" alt="supported Node.js version" />
@@ -32,7 +33,14 @@
   </a>
 </p>
 
-> **Compliance docs:** [Third-Party Notices](THIRD_PARTY_NOTICES.md) · [Vendor Terms and Unsupported Workflows](docs/vendor-terms.md)
+<p>
+  <strong>Compliance docs:</strong>
+  <a href="THIRD_PARTY_NOTICES.md">Third-Party Notices</a>
+  ·
+  <a href="docs/vendor-terms.md">Vendor Terms and Unsupported Workflows</a>
+</p>
+
+</div>
 
 ---
 
