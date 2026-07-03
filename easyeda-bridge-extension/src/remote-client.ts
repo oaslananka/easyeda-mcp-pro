@@ -23,6 +23,7 @@ interface RemoteRelayClientOptions {
   log: (message: string, data?: unknown) => void;
   showToast: (message: string) => void;
   readActiveProject: () => RemoteActiveProject | undefined;
+  executeToolRequest?: (toolName: string, input: unknown) => Promise<unknown>;
 }
 
 interface RemoteEnvelope {
@@ -40,6 +41,25 @@ const DEFAULT_HOSTED_RELAY_URL = 'wss://relay.easyeda-mcp-pro.local/session';
 function makeMessageId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `msg_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function errorToRelayError(error: unknown): { code: string; message: string; suggestion?: string } {
+  const record = isRecord(error) ? error : {};
+  return {
+    code: typeof record.code === 'string' ? record.code : 'EASYEDA_API_ERROR',
+    message:
+      error instanceof Error
+        ? error.message
+        : typeof record.message === 'string'
+          ? record.message
+          : String(error),
+    suggestion:
+      typeof record.suggestion === 'string' ? record.suggestion : 'Check EasyEDA Pro and extension logs.',
+  };
 }
 
 export class RemoteRelayClient {
@@ -148,6 +168,28 @@ export class RemoteRelayClient {
       return;
     }
     if (message.type === 'tool_request') {
+      void this.handleToolRequest(message);
+    }
+  }
+
+  private async handleToolRequest(message: RemoteEnvelope): Promise<void> {
+    const startedAt = Date.now();
+    const toolName = typeof message.toolName === 'string' ? message.toolName : '';
+    if (!toolName) {
+      this.send({
+        type: 'tool_response',
+        requestMessageId: message.messageId,
+        ok: false,
+        error: {
+          code: 'REMOTE_TOOL_NAME_MISSING',
+          message: 'Remote tool request did not include a tool name.',
+          suggestion: 'Retry with a valid EasyEDA bridge method name.',
+        },
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+    if (!this.options.executeToolRequest) {
       this.send({
         type: 'tool_response',
         requestMessageId: message.messageId,
@@ -155,10 +197,29 @@ export class RemoteRelayClient {
         error: {
           code: 'REMOTE_EXECUTION_NOT_ENABLED',
           message: 'Remote command dispatch is not enabled in this extension build yet.',
-          suggestion:
-            'Use local bridge mode or wait for the next Remote Relay implementation phase.',
+          suggestion: 'Use local bridge mode or enable the Remote Relay dispatch integration.',
         },
-        durationMs: 0,
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    try {
+      const result = await this.options.executeToolRequest(toolName, message.input);
+      this.send({
+        type: 'tool_response',
+        requestMessageId: message.messageId,
+        ok: true,
+        result,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      this.send({
+        type: 'tool_response',
+        requestMessageId: message.messageId,
+        ok: false,
+        error: errorToRelayError(error),
+        durationMs: Date.now() - startedAt,
       });
     }
   }
