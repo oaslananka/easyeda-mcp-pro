@@ -10,10 +10,13 @@
  *   1. Validates the input DesignIntent.
  *   2. Transforms functional block requirements into Blocks.
  *   3. Creates power Rails from the DesignIntent's rail requirements.
- *   4. Creates empty Device slots with traceability refs.
- *   5. Generates placeholder Nets for each power rail.
- *   6. Copies manufacturing, mechanical, and safety intent into CircuitIR fields.
- *   7. Preserves all traceability IDs.
+ *   4. Plans one candidate Device per Block: a deterministic refdes, a
+ *      component role, and a package-family hint (see component-planning.ts).
+ *   5. Generates power Nets for each rail plus a synthesized common-ground Net.
+ *   6. Wires device/power-domain load relationships when unambiguous, and
+ *      synthesizes candidate connector Interfaces.
+ *   7. Copies manufacturing, mechanical, and safety intent into CircuitIR fields.
+ *   8. Preserves all traceability IDs.
  *
  * @module
  */
@@ -30,9 +33,11 @@ import {
   PowerDomain,
   SignalClass,
   PhysicalConstraint,
+  Interface,
 } from './circuit-ir.js';
 import { ValidationStatus, NetType, ConstraintSeverity } from './types.js';
 import { CircuitError, CircuitErrorCode, fromZodError } from './errors.js';
+import { planComponents, getDeviceRole } from './component-planning.js';
 
 // ── Compile options ───────────────────────────────────────────────────────
 
@@ -94,23 +99,6 @@ function compilePowerRails(designIntent: DesignIntent, blocks: Block[]): PowerRa
   });
 }
 
-function compileDeviceStubs(blocks: Block[]): Device[] {
-  // We create one stub Device per block as a placeholder. The user fills
-  // in actual MPNs during the planning step.
-  return blocks.map((block) => ({
-    id: `dev-${block.id}`,
-    ref: `U?`,
-    mpn: undefined,
-    manufacturer: undefined,
-    package: undefined,
-    datasheet: '',
-    lcsc: undefined,
-    blockRef: block.id,
-    designIntentRef: block.designIntentRef,
-    metadata: [],
-  }));
-}
-
 function compilePowerDomainId(rail: PowerRail): string {
   return `pd-${rail.id}`;
 }
@@ -144,6 +132,91 @@ function compilePowerDomains(rails: PowerRail[]): PowerDomain[] {
     designIntentRef: rail.designIntentRef,
     metadata: [],
   }));
+}
+
+/**
+ * Synthesize a single common-ground net. Every board with at least one power
+ * rail needs a ground reference; this net is intentionally board-wide (not
+ * tied to a specific rail or power domain) since DesignIntent does not model
+ * multiple isolated ground planes.
+ */
+function compileGroundNet(rails: PowerRail[]): Net[] {
+  if (rails.length === 0) return [];
+  return [
+    {
+      id: 'net-gnd',
+      name: 'GND',
+      type: NetType.Ground,
+      nodes: [],
+      designIntentRef: [],
+      metadata: [{ key: 'source', value: 'synthesized-common-ground' }],
+    },
+  ];
+}
+
+/**
+ * Synthesize a candidate Interface entry for each block whose planned
+ * component role is `connector`. Pinout is intentionally empty — DesignIntent
+ * does not specify pin-level connector detail — but the Interface node makes
+ * the connector's existence and traceability explicit before schematic entry.
+ */
+function compileInterfaceStubs(blocks: Block[], devices: Device[]): Interface[] {
+  const deviceByBlockRef = new Map(devices.map((d) => [d.blockRef, d]));
+  return blocks
+    .filter((block) => {
+      const device = deviceByBlockRef.get(block.id);
+      return device ? getDeviceRole(device) === 'connector' : false;
+    })
+    .map((block) => ({
+      id: `iface-${block.id}`,
+      name: block.name,
+      type: 'connector',
+      pinout: [],
+      blockRef: block.id,
+      designIntentRef: block.designIntentRef,
+    }));
+}
+
+/**
+ * Attach each device to the power domain it most plausibly draws from or
+ * supplies, and back-fill each power domain's `loadDeviceRefs`.
+ *
+ * This is intentionally conservative: DesignIntent does not specify which
+ * rail a given functional block operates on, so device-level power-domain
+ * assignment is only attempted when the design has exactly one rail overall
+ * (an unambiguous case). For multi-rail designs the compiler emits a warning
+ * instead of guessing a wrong rail assignment.
+ */
+function wirePowerDomainLoads(
+  devices: Device[],
+  rails: PowerRail[],
+  powerDomains: PowerDomain[],
+): { devices: Device[]; powerDomains: PowerDomain[]; warnings: string[] } {
+  const warnings: string[] = [];
+
+  if (rails.length !== 1 || powerDomains.length !== 1) {
+    if (rails.length > 1) {
+      warnings.push(
+        `Design declares ${rails.length} power rails; automatic device-to-rail power-domain ` +
+          `assignment was skipped because DesignIntent does not specify which rail each block ` +
+          `operates on. Assign each Device.powerDomainRef manually during CircuitIR review.`,
+      );
+    }
+    return { devices, powerDomains, warnings };
+  }
+
+  const domain = powerDomains[0];
+  if (!domain) {
+    return { devices, powerDomains, warnings };
+  }
+
+  const loadDeviceRefs = devices.map((device) => device.id);
+  const updatedDevices = devices.map((device) => ({ ...device, powerDomainRef: domain.id }));
+  const updatedDomains = powerDomains.map((pd) =>
+    pd.id === domain.id ? { ...pd, loadDeviceRefs } : pd,
+  );
+
+  return { devices: updatedDevices, powerDomains: updatedDomains, warnings };
 }
 
 function compileSignalClasses(designIntent: DesignIntent, powerNets: Net[]): SignalClass[] {
@@ -234,6 +307,7 @@ function buildCircuitIR(
   powerDomains: PowerDomain[],
   signalClasses: SignalClass[],
   physicalConstraints: PhysicalConstraint[],
+  interfaces: Interface[],
   opts: CompileOptions,
 ): CircuitIR {
   return {
@@ -251,7 +325,7 @@ function buildCircuitIR(
     powerDomains,
     signalClasses,
     physicalConstraints,
-    interfaces: [],
+    interfaces,
     constraints: [],
     bom: { excludeRefs: [], preferredVendors: [] },
     pcb: {
@@ -314,16 +388,27 @@ export function compile(input: unknown, options?: CompileOptions): CompileResult
   // ── 3. Compile Power Rails ──────────────────────────────────────────────
   const rails = compilePowerRails(designIntent, blocks);
 
-  // ── 4. Create Device stubs ──────────────────────────────────────────────
-  const devices = compileDeviceStubs(blocks);
+  // ── 4. Plan candidate component roles, refdes, and package hints ───────
+  const componentPlan = planComponents(blocks);
+  warnings.push(...componentPlan.warnings);
 
-  // ── 5. Create power nets ───────────────────────────────────────────────
-  const nets = compilePowerNets(rails);
+  // ── 5. Create power + ground nets ───────────────────────────────────────
+  const powerNets = compilePowerNets(rails);
+  const groundNet = compileGroundNet(rails);
+  const nets = [...powerNets, ...groundNet];
 
   // ── 6. Compile professional planning context ───────────────────────────
-  const powerDomains = compilePowerDomains(rails);
-  const signalClasses = compileSignalClasses(designIntent, nets);
+  const powerDomainWiring = wirePowerDomainLoads(
+    componentPlan.devices,
+    rails,
+    compilePowerDomains(rails),
+  );
+  warnings.push(...powerDomainWiring.warnings);
+  const devices = powerDomainWiring.devices;
+  const powerDomains = powerDomainWiring.powerDomains;
+  const signalClasses = compileSignalClasses(designIntent, powerNets);
   const physicalConstraints = compilePhysicalConstraints(designIntent);
+  const interfaces = compileInterfaceStubs(blocks, devices);
 
   // ── 7. Build CircuitIR ──────────────────────────────────────────────────
   const circuitIR = buildCircuitIR(
@@ -335,6 +420,7 @@ export function compile(input: unknown, options?: CompileOptions): CompileResult
     powerDomains,
     signalClasses,
     physicalConstraints,
+    interfaces,
     opts,
   );
 

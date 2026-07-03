@@ -134,16 +134,21 @@ User/AI ──► DesignIntent ──► Validate ──► Compile ──► Ci
 1. **Validate** DesignIntent against the schema
 2. **Transform** functional block requirements into `Block` nodes
 3. **Create** `Rail` nodes from power rail requirements
-4. **Stub** `Device` slots (one per block) — users fill in MPNs during planning
-5. **Generate** placeholder `Net` entries for each power rail
+4. **Plan** one candidate `Device` per block via `component-planning.ts` — a
+   deterministic refdes, a component role, and a package-family hint (see
+   [Component planning](#component-planning) below)
+5. **Generate** `Net` entries for each power rail plus one synthesized
+   common-ground `Net`
 6. **Synthesize** professional planning context:
-   - `powerDomains[]` from rails
+   - `powerDomains[]` from rails, with device load/source wiring when
+     unambiguous (see [Component planning](#component-planning))
    - `signalClasses[]` from power/electrical intent
    - `physicalConstraints[]` from mechanical and safety intent
+   - `interfaces[]` candidate stubs for blocks classified as connectors
 7. **Copy** mechanical constraints into `pcb` fields
 8. **Copy** manufacturing intent into `manufacturing` fields
 9. **Validate** the output CircuitIR (structural + cross-reference checks)
-10. Return draft CircuitIR + original DesignIntent (for traceability)
+10. Return draft CircuitIR + original DesignIntent + compiler warnings (for traceability)
 
 ### Compiler best-practice synthesis
 
@@ -151,10 +156,51 @@ The compiler now creates first-pass electronics planning structures from DesignI
 
 - each rail becomes a `PowerDomain` with voltage, tolerance, current, rail reference, and traceability;
 - power nets are linked to their rail, power domain, and the `sc-power` signal class;
+- a synthesized `GND` net models the board's common ground reference;
 - high-frequency electrical requirements create a `sc-high-speed` planning class;
-- board dimensions, mounting holes, and isolation requirements become physical constraints.
+- board dimensions, mounting holes, and isolation requirements become physical constraints;
+- connector-role blocks get a candidate `Interface` stub (pinout left empty for schematic entry).
 
 These synthesized structures are conservative planning hints. They do not replace human review, ERC/DRC, datasheets, or manufacturing rules; they make those review steps explicit and machine-checkable.
+
+### Component planning
+
+`src/circuit/component-planning.ts` replaces the old generic `U?` device stub
+with a deterministic component-role plan for every block:
+
+1. **Role inference** (`determineComponentRole`) — keyword matches on the
+   block's purpose text (`connector`/`header`/`usb`/`jack`, `fuse`/`polyfuse`/`ptc`,
+   `filter`/`decoupl`/`bypass`) take priority over the coarse `BlockType`
+   enum, because a "power-management" block may in practice be a regulator
+   _or_ a passive filter stage. Roles: `power-regulator`, `mcu-module`,
+   `sensor`, `communication-ic`, `analog-ic`, `connector`, `protection-diode`,
+   `fuse`, `passive-support`, `generic-ic`.
+2. **Deterministic refdes** — each role maps to a fixed refdes family
+   (`U`, `J`, `D`, `F`, `C`; see `ROLE_REFDES_PREFIX`), numbered sequentially
+   in block order. Refdes assignment is stable across repeated compiles of
+   the same DesignIntent.
+3. **Package-family hint** — a conservative footprint _family_ suggestion
+   per role (`ROLE_PACKAGE_HINT`), e.g. "SOT-23-5 or TO-220" for a
+   regulator. This is not a final footprint selection.
+4. **Planning-state marker** — every Device records `role`, `packageHint`,
+   and `planningState` (`candidate` for high-confidence roles, `placeholder`
+   for the `generic-ic` fallback) as `Device.metadata` entries, so downstream
+   tooling (including future BOM-sourcing integration) can tell a
+   manufacturable candidate apart from an unclassified placeholder. A
+   compiler warning is emitted for every `placeholder` device.
+
+The compiler never invents an `mpn`, `manufacturer`, or `package` value —
+those fields stay unset until a human or a BOM-sourcing step selects a real
+part. This is a deliberate non-goal: the planner narrows the search space,
+it does not select or order parts.
+
+Device-to-power-domain wiring (`Device.powerDomainRef` and
+`PowerDomain.loadDeviceRefs`) is populated automatically only when a design
+has exactly one power rail — an unambiguous case. DesignIntent does not
+specify which rail a given block operates on, so for multi-rail designs the
+compiler emits a warning instead of guessing a possibly-wrong rail
+assignment; assign `Device.powerDomainRef` manually during CircuitIR review
+in that case.
 
 ### Traceability model
 
@@ -248,20 +294,34 @@ if (!isReadyForEasyEDA(validated)) {
   "devices": [
     {
       "id": "dev-block-req-input",
-      "ref": "U?",
+      "ref": "D1",
       "blockRef": "block-req-input",
-      "designIntentRef": [{ "requirementId": "req-input" }]
+      "designIntentRef": [{ "requirementId": "req-input" }],
+      "metadata": [
+        { "key": "role", "value": "protection-diode" },
+        {
+          "key": "packageHint",
+          "value": "SOD-123/SMA (select by clamping voltage and current rating)"
+        },
+        { "key": "planningState", "value": "candidate" }
+      ]
     },
     {
       "id": "dev-block-req-regulator",
-      "ref": "U?",
+      "ref": "U1",
       "blockRef": "block-req-regulator",
-      "designIntentRef": [{ "requirementId": "req-regulator" }]
+      "designIntentRef": [{ "requirementId": "req-regulator" }],
+      "metadata": [
+        { "key": "role", "value": "power-regulator" },
+        { "key": "packageHint", "value": "SOT-23-5 or TO-220 (select by current/thermal rating)" },
+        { "key": "planningState", "value": "candidate" }
+      ]
     }
   ],
   "nets": [
     { "id": "net-rail-12V_IN", "name": "12V_IN", "type": "power", "nodes": [] },
-    { "id": "net-rail-3V3_OUT", "name": "3V3_OUT", "type": "power", "nodes": [] }
+    { "id": "net-rail-3V3_OUT", "name": "3V3_OUT", "type": "power", "nodes": [] },
+    { "id": "net-gnd", "name": "GND", "type": "ground", "nodes": [] }
   ],
   "rails": [
     {
@@ -318,10 +378,12 @@ src/circuit/
 ├── errors.ts             # Circuit-specific error types
 ├── design-intent.ts      # DesignIntent schema + validation
 ├── circuit-ir.ts         # CircuitIR schema + validation
+├── component-planning.ts # Component role, refdes, and package-hint synthesis
 └── compiler.ts           # DesignIntent → CircuitIR compiler
 
 tests/unit/circuit/
-├── design-intent.test.ts # DesignIntent validation tests
-├── circuit-ir.test.ts    # CircuitIR validation tests
-└── compiler.test.ts      # Compiler + review gate tests
+├── design-intent.test.ts       # DesignIntent validation tests
+├── circuit-ir.test.ts          # CircuitIR validation tests
+├── component-planning.test.ts  # Component role/refdes planning tests
+└── compiler.test.ts            # Compiler + review gate tests
 ```
