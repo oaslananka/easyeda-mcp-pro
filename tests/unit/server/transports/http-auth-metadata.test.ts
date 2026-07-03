@@ -40,6 +40,7 @@ describe('HTTP OAuth protected resource metadata', () => {
         scopes_supported: string[];
         bearer_methods_supported: string[];
       };
+
       expect(body.resource).toBe('http://127.0.0.1:3921/mcp');
       expect(body.authorization_servers).toEqual(['https://auth.example.com']);
       expect(body.scopes_supported).toContain('easyeda.read');
@@ -51,9 +52,9 @@ describe('HTTP OAuth protected resource metadata', () => {
   it('adds a metadata discovery challenge to 401 responses', async () => {
     await withServer(3922, async () => {
       const res = await fetch('http://127.0.0.1:3922/mcp');
+      const challenge = res.headers.get('www-authenticate');
 
       expect(res.status).toBe(401);
-      const challenge = res.headers.get('www-authenticate');
       expect(challenge).toContain(
         'resource_metadata="http://127.0.0.1:3922/.well-known/oauth-protected-resource/mcp"',
       );
