@@ -1,3 +1,5 @@
+import { RemoteRelayClient, type RemoteRelayMode } from './remote-client.js';
+
 declare const eda: EasyedaGlobal | undefined;
 declare const EDA: unknown | undefined;
 declare const api: unknown | undefined;
@@ -43,6 +45,13 @@ interface EasyedaGlobal {
   connect?: (mode?: ConnectMode) => Promise<void>;
   disconnect?: () => void;
   showStatus?: () => void;
+  connectRemoteRelay?: (
+    mode?: Exclude<RemoteRelayMode, 'disabled'>,
+    relayUrl?: string,
+    pairingCode?: string,
+  ) => void;
+  disconnectRemoteRelay?: () => void;
+  showRemoteRelayStatus?: () => void;
 }
 
 interface EasyedaWebSocketApi {
@@ -115,7 +124,6 @@ const RECONNECT_MAX_MS = 30000;
 const STORAGE_KEY = 'easyeda-mcp-pro:autoConnect';
 const HEARTBEAT_MS = 15000;
 const SOCKET_ID = 'easyeda-mcp-pro-bridge';
-const PORT_SCAN_LABEL = 'configured local port range';
 const API_CLASS_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'] as const;
 const DENIED_API_METHODS = new Set([
   'constructor',
@@ -134,6 +142,53 @@ let manualDisconnectRequested = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let externalInteractionWarningShown = false;
+
+let remoteRelayClient: RemoteRelayClient | null = null;
+
+function getRemoteRelayClient(): RemoteRelayClient {
+  remoteRelayClient ??= new RemoteRelayClient({
+    extensionVersion: '0.17.1', // x-release-please-version
+    log,
+    showToast,
+    readActiveProject: readRemoteActiveProject,
+  });
+  return remoteRelayClient;
+}
+
+function readRemoteActiveProject():
+  | { projectName?: string; documentType: 'schematic' | 'pcb' | 'unknown'; url?: string }
+  | undefined {
+  const href = typeof location !== 'undefined' ? location.href : undefined;
+  const title = typeof document !== 'undefined' ? document.title : undefined;
+  const projectName = title && title.trim() ? title.trim() : undefined;
+  if (!href && !projectName) return undefined;
+  const lower = `${href ?? ''} ${projectName ?? ''}`.toLowerCase();
+  const documentType = lower.includes('pcb')
+    ? 'pcb'
+    : lower.includes('sch')
+      ? 'schematic'
+      : 'unknown';
+  return { projectName, documentType, url: href };
+}
+
+function connectRemoteRelay(
+  mode: Exclude<RemoteRelayMode, 'disabled'> = 'hosted',
+  relayUrl?: string,
+  pairingCode?: string,
+): void {
+  getRemoteRelayClient().connect({ mode, relayUrl, pairingCode });
+}
+
+function disconnectRemoteRelay(): void {
+  getRemoteRelayClient().disconnect('user_disabled');
+  showToast('Remote Relay disabled');
+}
+
+function showRemoteRelayStatus(): void {
+  const status = getRemoteRelayClient().getStatus();
+  const project = status.activeProject?.projectName ?? 'no active project detected';
+  showToast(`Remote Relay: ${status.mode}/${status.state} | project: ${project}`);
+}
 
 function getGlobal(): EasyedaGlobal | null {
   if (typeof eda !== 'undefined' && eda) return eda;
@@ -2409,6 +2464,9 @@ function expose(): void {
     api.connect = connect;
     api.disconnect = disconnect;
     api.showStatus = showStatus;
+    api.connectRemoteRelay = connectRemoteRelay;
+    api.disconnectRemoteRelay = disconnectRemoteRelay;
+    api.showRemoteRelayStatus = showRemoteRelayStatus;
     (api as any).toggleAutoConnect = toggleAutoConnect;
     api.activate = handleActivate;
     api.deactivate = disconnect;
@@ -2418,6 +2476,9 @@ function expose(): void {
   globalScope.connect = connect;
   globalScope.disconnect = disconnect;
   globalScope.showStatus = showStatus;
+  globalScope.connectRemoteRelay = connectRemoteRelay;
+  globalScope.disconnectRemoteRelay = disconnectRemoteRelay;
+  globalScope.showRemoteRelayStatus = showRemoteRelayStatus;
   globalScope.toggleAutoConnect = toggleAutoConnect;
 }
 
