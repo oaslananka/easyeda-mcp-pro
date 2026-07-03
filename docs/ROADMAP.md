@@ -49,3 +49,16 @@ The latest npm and GitHub release is the actively maintained release. Older vers
 - Redistributing proprietary EasyEDA, JLCPCB, LCSC, Mouser, or DigiKey data.
 - Replacing human engineering review for manufacturability or safety-critical design decisions.
 - Enabling remote HTTP exposure without explicit authentication and allowed-origin controls.
+
+## v0.18.0 — Remote MCP Gateway & self-hosted tunnels
+
+Planned milestone for hosted and self-hosted remote MCP usage:
+
+- hosted Remote MCP Gateway endpoint design;
+- extension Remote Relay Mode;
+- pairing and session routing;
+- remote auth, scopes, approval policy, audit, and observability;
+- self-hosted remote setup using user-owned domains, tunnels, reverse proxies, or VPS deployments;
+- Claude Web connector and ChatGPT Apps SDK integration guidance.
+
+See [Remote MCP modes](./REMOTE_MCP_MODES.md), [remote security model](./REMOTE_SECURITY_MODEL.md), and [extension relay protocol](./EXTENSION_RELAY_PROTOCOL.md).
