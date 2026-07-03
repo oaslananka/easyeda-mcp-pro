@@ -47,7 +47,7 @@ To enforce code quality, security, and a clean history, the `main` branch must h
 
 ## 2. Dependency Management Policy (Renovate)
 
-We use **Renovate** to keep our software supply chain up to date while mitigating security risks.
+We use **Renovate** to keep our software supply chain up to date while mitigating security risks. Renovate is the sole tool that opens automated dependency-update pull requests, for both npm packages and GitHub Actions; no `.github/dependabot.yml` version-update config is maintained, so that two bots cannot propose conflicting updates for the same dependency. GitHub's platform-level Dependabot alerts and Dependabot security updates (vulnerability detection, not update PRs) remain enabled separately — see the checklist in section 5. Details and rationale are recorded in [`docs/adr/0002-dependency-management.md`](./adr/0002-dependency-management.md).
 
 ### Automerge Rules
 

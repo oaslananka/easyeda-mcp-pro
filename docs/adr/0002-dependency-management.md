@@ -35,3 +35,9 @@ We choose **Renovate** as our dependency automation provider.
   - Groups updates to reduce pull request and CI pipeline noise.
 - **Cons**:
   - Auto-merged PRs require robust unit and integration testing in CI to catch any regressions.
+
+## Addendum: Renovate vs. Dependabot (2026-07)
+
+Renovate is the **only** tool that opens automated dependency-update pull requests in this repository, for both npm packages (`renovate.json` default manager) and GitHub Actions (`matchManagers: ["github-actions"]` group). A `.github/dependabot.yml` version-update config is intentionally **not** present, so that two bots cannot open competing or duplicate update PRs for the same dependency.
+
+GitHub's platform-level Dependabot features — dependency graph, Dependabot alerts, and Dependabot security updates — remain **enabled** as vulnerability _detection_ (Settings > Security & analysis; see `docs/REPOSITORY_GOVERNANCE.md#5-maintainer-setup-checklist`). Those features do not require a `dependabot.yml` file; only Dependabot's _version-update_ PR feature does, and that is the piece this repository delegates to Renovate.
