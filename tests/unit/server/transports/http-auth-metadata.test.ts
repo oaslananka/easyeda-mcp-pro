@@ -18,7 +18,10 @@ function createTestConfig(port: number) {
 async function withServer<T>(port: number, fn: () => Promise<T>): Promise<T> {
   const httpTransport = createHttpTransport(createTestConfig(port));
   const server = http.createServer(httpTransport.app);
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) =>
+    server.listen(port, '127.0.0.1', resolve),
+  );
+
   try {
     return await fn();
   } finally {
