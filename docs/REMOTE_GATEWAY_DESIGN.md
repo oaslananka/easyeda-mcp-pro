@@ -10,6 +10,14 @@ https://mcp.example.com/mcp
 
 The endpoint should use the project's HTTP transport and remain separate from local-only stdio workflows.
 
+OAuth protected-resource discovery is available at:
+
+```text
+https://mcp.example.com/.well-known/oauth-protected-resource/mcp
+```
+
+Unauthenticated requests return a `WWW-Authenticate` challenge that points clients to that metadata document.
+
 ## Request flow
 
 ```text
@@ -32,21 +40,34 @@ extension response
 MCP response
 ```
 
-## Required configuration
+## Current HTTP/OAuth configuration
+
+These variables are implemented by the current runtime:
 
 ```env
-REMOTE_MODE=hosted
 TRANSPORT=http
 HTTP_HOST=0.0.0.0
 HTTP_PORT=3000
-PUBLIC_BASE_URL=https://mcp.example.com
-AUTH_REQUIRED=true
+ALLOWED_ORIGINS=https://client.example.com
+OAUTH_ENABLED=true
+OAUTH_ISSUER=https://auth.example.com
+OAUTH_AUDIENCE=https://mcp.example.com/mcp
+OAUTH_JWKS_URI=https://auth.example.com/.well-known/jwks.json
+OAUTH_REQUIRED_SCOPES=easyeda.read
+```
+
+The existing safe production guardrails should remain active. Public binding must require OAuth and an explicit origin allowlist.
+
+## Planned remote relay configuration
+
+These variables are design targets for the hosted relay runtime and must not be documented as production-ready until the relay runtime is implemented:
+
+```env
+REMOTE_MODE=hosted
 PAIRING_REQUIRED=true
 REQUIRE_APPROVAL_FOR_WRITE=true
 REQUIRE_APPROVAL_FOR_EXPORT=true
 ```
-
-The existing safe production guardrails should remain active. Public binding must require auth and explicit origin/base URL configuration.
 
 ## Route responsibilities
 
