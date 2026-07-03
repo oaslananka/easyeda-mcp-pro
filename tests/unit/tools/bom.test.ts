@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ToolRegistry } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import { registerBomCoreTools } from '../../../src/tools/L1_bom_core.js';
@@ -127,5 +130,188 @@ describe('BOM Tools Sourcing & Validate', () => {
     expect(result.obsolete).toContain('U1');
     expect(result.valid_count).toBe(1);
     expect(result.validated).toBe(true);
+  });
+
+  it('easyeda_bom_validate should return not_available when the bridge call fails', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockRejectedValue(new Error('bridge offline'));
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+    expect(result.validated).toBe(false);
+    expect(result.not_available).toBe(true);
+    expect(result.error).toBe('bridge offline');
+  });
+
+  describe('easyeda_bom_generate', () => {
+    it('returns formatted entries on success', async () => {
+      const tool = registry.get('easyeda_bom_generate');
+      bridgeCall.mockResolvedValue([
+        { reference: 'R1', value: '10k', footprint: '0603', lcsc: 'C1', quantity: 2 },
+      ]);
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'json',
+        groupBy: 'value',
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('bom.generate', {
+        projectId: 'proj-1',
+        format: 'json',
+        groupBy: 'value',
+      });
+      expect(result.total_entries).toBe(1);
+      expect(result.entries[0]).toMatchObject({ reference: 'R1', value: '10k', quantity: 2 });
+    });
+
+    it('returns not_available when the bridge call fails', async () => {
+      const tool = registry.get('easyeda_bom_generate');
+      bridgeCall.mockRejectedValue(new Error('no active project'));
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'json',
+        groupBy: 'value',
+      });
+
+      expect(result.not_available).toBe(true);
+      expect(result.total_entries).toBe(0);
+      expect(result.error).toBe('no active project');
+    });
+  });
+
+  describe('easyeda_bom_export', () => {
+    let tmpArtifactDir: string;
+
+    beforeEach(() => {
+      tmpArtifactDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bom-export-'));
+      context.config.artifactDir = tmpArtifactDir;
+    });
+
+    afterEach(() => {
+      fs.rmSync(tmpArtifactDir, { recursive: true, force: true });
+    });
+
+    it('exports the BOM to a file inside the artifact directory', async () => {
+      const tool = registry.get('easyeda_bom_export');
+      bridgeCall.mockResolvedValue({ entryCount: 3 });
+      const filePath = path.join(tmpArtifactDir, 'bom.csv');
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        filePath,
+      });
+
+      expect(result.exported).toBe(true);
+      expect(result.entry_count).toBe(3);
+    });
+
+    it('creates missing parent directories before exporting', async () => {
+      const tool = registry.get('easyeda_bom_export');
+      bridgeCall.mockResolvedValue({ entryCount: 1 });
+      const filePath = path.join(tmpArtifactDir, 'nested', 'dir', 'bom.csv');
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        filePath,
+      });
+
+      expect(result.exported).toBe(true);
+      expect(fs.existsSync(path.dirname(filePath))).toBe(true);
+    });
+
+    it('rejects a file path that escapes the artifact directory', async () => {
+      const tool = registry.get('easyeda_bom_export');
+      const outsidePath = path.join(os.tmpdir(), 'outside-bom.csv');
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        filePath: outsidePath,
+      });
+
+      expect(result.exported).toBe(false);
+      expect(result.not_available).toBe(true);
+      expect(bridgeCall).not.toHaveBeenCalled();
+    });
+
+    it('returns not_available when the bridge export call fails', async () => {
+      const tool = registry.get('easyeda_bom_export');
+      bridgeCall.mockRejectedValue(new Error('export failed'));
+      const filePath = path.join(tmpArtifactDir, 'bom.csv');
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        filePath,
+      });
+
+      expect(result.exported).toBe(false);
+      expect(result.not_available).toBe(true);
+      expect(result.error).toBe('export failed');
+    });
+  });
+
+  describe('easyeda_bom_sourcing edge cases', () => {
+    it('returns an empty parts list when the BOM has no entries', async () => {
+      const tool = registry.get('easyeda_bom_sourcing');
+      bridgeCall.mockResolvedValue([]);
+
+      const result = await tool?.handler(context, { projectId: 'proj-1' });
+
+      expect(result).toEqual({ project_id: 'proj-1', parts: [], total_parts: 0 });
+    });
+
+    it('returns not_available when the bridge call fails', async () => {
+      const tool = registry.get('easyeda_bom_sourcing');
+      bridgeCall.mockRejectedValue(new Error('bridge offline'));
+
+      const result = await tool?.handler(context, { projectId: 'proj-1' });
+
+      expect(result.not_available).toBe(true);
+      expect(result.parts).toEqual([]);
+    });
+  });
+
+  describe('easyeda_bom_quality_report', () => {
+    it('returns an empty report when the BOM has no entries', async () => {
+      const tool = registry.get('easyeda_bom_quality_report');
+      bridgeCall.mockResolvedValue([]);
+
+      const result = await tool?.handler(context, { projectId: 'proj-1' });
+
+      expect(result.total_entries).toBe(0);
+      expect(result.entries).toEqual([]);
+      expect(result.has_supplier_errors).toBe(false);
+    });
+
+    it('generates a quality report for BOM entries with no vendor clients configured', async () => {
+      const tool = registry.get('easyeda_bom_quality_report');
+      bridgeCall.mockResolvedValue([
+        { reference: 'R1', value: '10k', footprint: '0603', quantity: 1 },
+      ]);
+      context.vendors = { lcsc: null, jlcpcb: null, mouser: null, digikey: null };
+
+      const result = await tool?.handler(context, { projectId: 'proj-1' });
+
+      expect(result.bom_id).toBe('proj-1');
+      expect(result.total_entries).toBe(1);
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].reference).toBe('R1');
+    });
+
+    it('returns not_available when the bridge call fails', async () => {
+      const tool = registry.get('easyeda_bom_quality_report');
+      bridgeCall.mockRejectedValue(new Error('bridge offline'));
+
+      const result = await tool?.handler(context, { projectId: 'proj-1' });
+
+      expect(result.not_available).toBe(true);
+      expect(result.entries).toEqual([]);
+      expect(result.error).toBe('bridge offline');
+    });
   });
 });
