@@ -29,4 +29,7 @@ features:
   - title: 'Easy Setup Wizard'
     details: 'Automatically configures popular MCP client environments (Claude Desktop, Cursor, VS Code Copilot, etc.) in seconds.'
     icon: ⚡
+  - title: 'Remote MCP Ready'
+    details: 'Architecture docs for hosted gateways, self-hosted tunnels, extension relay, pairing, approvals, and remote security.'
+    icon: 🌐
 ---

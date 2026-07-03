@@ -40,6 +40,8 @@
   <a href="docs/vendor-terms.md">Vendor Terms and Unsupported Workflows</a>
   ·
   <a href="docs/OPENSSF_BEST_PRACTICES.md">OpenSSF Best Practices</a>
+  ·
+  <a href="docs/REMOTE_MCP_MODES.md">Remote MCP Modes</a>
 </p>
 
 </div>
