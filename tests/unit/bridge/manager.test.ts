@@ -463,6 +463,294 @@ describe('BridgeManager - reconnect', () => {
   });
 });
 
+describe('BridgeManager - call() round trip', () => {
+  it('resolves call() when the client sends a matching response', async () => {
+    const { manager, socket } = await setupSecureConnection();
+
+    socket.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as { id: string; type: string; method: string };
+      if (msg.type === 'request') {
+        socket.send(
+          JSON.stringify({ id: msg.id, type: 'response', ok: true, result: { saved: true } }),
+        );
+      }
+    });
+
+    const result = await manager.call('project.save', { projectId: 'p1' });
+    expect(result).toEqual({ saved: true });
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('rejects call() when the client responds with ok: false', async () => {
+    const { manager, socket } = await setupSecureConnection();
+
+    socket.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as { id: string; type: string };
+      if (msg.type === 'request') {
+        socket.send(
+          JSON.stringify({
+            id: msg.id,
+            type: 'response',
+            ok: false,
+            error: { message: 'no active project' },
+          }),
+        );
+      }
+    });
+
+    await expect(manager.call('project.save', {})).rejects.toThrow('no active project');
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('rejects pending calls when the bridge disconnects before a response arrives', async () => {
+    const { manager, socket } = await setupSecureConnection();
+
+    const pending = manager.call('project.save', {});
+    // do not respond; force a disconnect instead
+    manager.disconnect('shutting down');
+
+    await expect(pending).rejects.toThrow(/Bridge disconnected/);
+    socket.close();
+  });
+
+  it('times out call() when no response arrives within the timeout', async () => {
+    const { manager, socket } = await setupSecureConnection();
+
+    await expect(manager.call('project.save', {}, { timeoutMs: 20 })).rejects.toThrow(/timed out/);
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+});
+
+describe('BridgeManager - waitForConnection', () => {
+  it('resolves immediately when already connected', async () => {
+    const { manager, socket } = await setupSecureConnection();
+    await expect(manager.waitForConnection(50)).resolves.toBeUndefined();
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('rejects after the timeout when never connected', async () => {
+    const config = createTestConfig();
+    const manager = new BridgeManager(config);
+    await expect(manager.waitForConnection(20)).rejects.toThrow('Bridge not connected');
+  });
+
+  it('resolves once a connection is established', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const waiter = manager.waitForConnection(2000);
+    const socket = await openSocket(port);
+    sendHandshake(socket);
+    await waitForMessage(socket);
+
+    await expect(waiter).resolves.toBeUndefined();
+    socket.close();
+    manager.disconnect('test complete');
+  });
+});
+
+describe('BridgeManager - malformed messages', () => {
+  it('ignores non-JSON messages without crashing the connection', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const socket = await openSocket(port);
+    sendHandshake(socket);
+    await waitForMessage(socket);
+
+    socket.send('not valid json {{{');
+    // the connection should still be usable afterwards
+    await new Promise((r) => setTimeout(r, 20));
+    expect(manager.connected).toBe(true);
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('updates lastHeartbeatMs and emits heartbeat on a heartbeat message', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const heartbeatSpy = vi.fn();
+    manager.on('heartbeat', heartbeatSpy);
+
+    const socket = await openSocket(port);
+    sendHandshake(socket);
+    await waitForMessage(socket);
+
+    socket.send(JSON.stringify({ type: 'heartbeat', timestamp: 123456 }));
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(heartbeatSpy).toHaveBeenCalledWith(123456);
+    expect(manager.lastHeartbeatMs).toBeGreaterThan(0);
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+});
+
+/**
+ * Open a WebSocket and buffer incoming messages from the moment the socket is
+ * created (not from when 'open' resolves), since the server may push an
+ * unsolicited message (e.g. a pairing challenge) before the client-side
+ * 'open' event fires.
+ */
+function openBufferedSocket(
+  port: number,
+): Promise<{ socket: WebSocket; nextMessage: () => Promise<unknown> }> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}`);
+    const queue: unknown[] = [];
+    const waiters: Array<(v: unknown) => void> = [];
+
+    socket.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString());
+      const waiter = waiters.shift();
+      if (waiter) waiter(msg);
+      else queue.push(msg);
+    });
+
+    const nextMessage = (): Promise<unknown> => {
+      if (queue.length > 0) return Promise.resolve(queue.shift());
+      return new Promise((res) => waiters.push(res));
+    };
+
+    socket.once('open', () => resolve({ socket, nextMessage }));
+    socket.once('error', reject);
+  });
+}
+
+describe('BridgeManager - pairing (non-loopback host)', () => {
+  it('requires pairing before handshake and accepts a valid pairing response', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({
+      BRIDGE_HOST: '0.0.0.0',
+      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_TOKEN: 'pair-secret',
+    });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const { socket, nextMessage } = await openBufferedSocket(port);
+    const challengeMsg = (await nextMessage()) as { type: string; challenge: string };
+    expect(challengeMsg.type).toBe('pairing_challenge');
+
+    socket.send(
+      JSON.stringify({
+        type: 'pairing_response',
+        challenge: challengeMsg.challenge,
+        sessionToken: 'pair-secret',
+      }),
+    );
+
+    sendHandshake(socket, { sessionToken: 'pair-secret' });
+    const hello = await nextMessage();
+    expect(hello).toMatchObject({ type: 'hello' });
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('closes the connection on an invalid pairing response', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({
+      BRIDGE_HOST: '0.0.0.0',
+      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_TOKEN: 'pair-secret',
+    });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const { socket, nextMessage } = await openBufferedSocket(port);
+    const challengeMsg = (await nextMessage()) as { challenge: string };
+
+    socket.send(
+      JSON.stringify({
+        type: 'pairing_response',
+        challenge: challengeMsg.challenge,
+        sessionToken: 'wrong-secret',
+      }),
+    );
+
+    const code = await waitForClose(socket);
+    expect(code).toBe(4001);
+    manager.disconnect('test complete');
+  });
+
+  it('rejects any message before pairing completes', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({
+      BRIDGE_HOST: '0.0.0.0',
+      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_TOKEN: 'pair-secret',
+    });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const { socket, nextMessage } = await openBufferedSocket(port);
+    await nextMessage(); // pairing_challenge
+    sendHandshake(socket, { sessionToken: 'pair-secret' });
+
+    const code = await waitForClose(socket);
+    expect(code).toBe(4001);
+    manager.disconnect('test complete');
+  });
+});
+
+describe('BridgeManager - port fallback', () => {
+  it('falls back to the next port when the first is already in use', async () => {
+    const busyPort = await getFreePort();
+    const blocker = createServer();
+    await new Promise<void>((resolve) => blocker.listen(busyPort, '127.0.0.1', resolve));
+
+    try {
+      const freePort = await getFreePort();
+      const config = createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: `${busyPort},${freePort}`,
+      });
+      const manager = new BridgeManager(config);
+      await manager.connect();
+
+      expect(manager.activePort).toBe(freePort);
+      manager.disconnect('test complete');
+    } finally {
+      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+    }
+  });
+
+  it('throws when every candidate port is unavailable', async () => {
+    const busyPort = await getFreePort();
+    const blocker = createServer();
+    await new Promise<void>((resolve) => blocker.listen(busyPort, '127.0.0.1', resolve));
+
+    try {
+      const config = createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: String(busyPort),
+      });
+      const manager = new BridgeManager(config);
+      await expect(manager.connect()).rejects.toThrow();
+      expect(manager.state).toBe('error');
+    } finally {
+      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+    }
+  });
+});
+
 describe('parsePortScanSpec', () => {
   it('should parse single port', () => {
     expect(parsePortScanSpec('18601')).toEqual([18601]);
