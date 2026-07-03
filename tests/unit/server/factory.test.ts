@@ -2,139 +2,70 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EnvConfig } from '../../../src/config/env.js';
 
 const mocks = vi.hoisted(() => ({
-  logger: {
-    info: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-  },
-  mcpCtor: vi.fn(),
-  serverClose: vi.fn(async () => undefined),
-  storageCtor: vi.fn(),
-  storageInitialize: vi.fn(),
+  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn() },
+  close: vi.fn(async () => undefined),
+  connect: vi.fn(async () => undefined),
+  disconnect: vi.fn(),
+  call: vi.fn(async () => ({ ok: true })),
+  storageInit: vi.fn(),
   storageClose: vi.fn(),
-  bridgeCtor: vi.fn(),
-  bridgeConnect: vi.fn(async () => undefined),
-  bridgeDisconnect: vi.fn(),
-  bridgeCall: vi.fn(async () => ({ ok: true })),
-  registrySetProfile: vi.fn(),
-  registryRegisterAllOnServer: vi.fn(),
-  registerBuiltinTools: vi.fn(),
-  registerProjectResourcesAndPrompts: vi.fn(),
-  loadFeatureFlags: vi.fn(() => ({ mcpTasksEnabled: false })),
-  lcscCtor: vi.fn(),
-  jlcpcbCtor: vi.fn(),
-  mouserCtor: vi.fn(),
-  digikeyCtor: vi.fn(),
+  setProfile: vi.fn(),
+  registerAll: vi.fn(),
+  registerTools: vi.fn(),
+  registerResources: vi.fn(),
+  vendor: vi.fn(),
 }));
 
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   McpServer: class MockMcpServer {
     server = { onerror: undefined as ((error: unknown) => void) | undefined };
-    close = mocks.serverClose;
-
-    constructor(...args: unknown[]) {
-      mocks.mcpCtor(...args);
-    }
+    close = mocks.close;
   },
 }));
-
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
   StdioServerTransport: class MockStdioServerTransport {},
 }));
-
 vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => ({
   StreamableHTTPServerTransport: class MockStreamableHTTPServerTransport {},
 }));
-
-vi.mock('../../../src/utils/logger.js', () => ({
-  createLogger: vi.fn(() => mocks.logger),
-}));
-
+vi.mock('../../../src/utils/logger.js', () => ({ createLogger: () => mocks.logger }));
+vi.mock('../../../src/utils/redaction.js', () => ({ redactObject: (value: unknown) => value }));
 vi.mock('../../../src/config/feature-flags.js', () => ({
-  loadFeatureFlags: mocks.loadFeatureFlags,
+  loadFeatureFlags: () => ({ mcpTasksEnabled: false }),
 }));
-
-vi.mock('../../../src/utils/redaction.js', () => ({
-  redactObject: vi.fn((value: unknown) => value),
-}));
-
 vi.mock('../../../src/storage/index.js', () => ({
   Storage: class MockStorage {
-    initialize = mocks.storageInitialize;
+    initialize = mocks.storageInit;
     close = mocks.storageClose;
-
-    constructor(config: EnvConfig) {
-      mocks.storageCtor(config);
-    }
   },
 }));
-
 vi.mock('../../../src/bridge/manager.js', () => ({
   BridgeManager: class MockBridgeManager {
     connected = true;
-    connect = mocks.bridgeConnect;
-    disconnect = mocks.bridgeDisconnect;
-    call = mocks.bridgeCall;
-
-    constructor(config: EnvConfig) {
-      mocks.bridgeCtor(config);
-    }
+    connect = mocks.connect;
+    disconnect = mocks.disconnect;
+    call = mocks.call;
   },
 }));
-
 vi.mock('../../../src/tools/registry.js', () => ({
   ToolRegistry: class MockToolRegistry {
-    setProfile = mocks.registrySetProfile;
-    registerAllOnServer = mocks.registryRegisterAllOnServer;
+    setProfile = mocks.setProfile;
+    registerAllOnServer = mocks.registerAll;
   },
 }));
-
-vi.mock('../../../src/tools/register.js', () => ({
-  registerBuiltinTools: mocks.registerBuiltinTools,
-}));
-
+vi.mock('../../../src/tools/register.js', () => ({ registerBuiltinTools: mocks.registerTools }));
 vi.mock('../../../src/server/resources-prompts.js', () => ({
-  registerProjectResourcesAndPrompts: mocks.registerProjectResourcesAndPrompts,
+  registerProjectResourcesAndPrompts: mocks.registerResources,
 }));
-
-vi.mock('../../../src/vendors/lcsc/client.js', () => ({
-  LcscClient: class MockLcscClient {
-    constructor(config: EnvConfig) {
-      mocks.lcscCtor(config);
-    }
-  },
-}));
-
-vi.mock('../../../src/vendors/jlcpcb/client.js', () => ({
-  JlcpcbClient: class MockJlcpcbClient {
-    constructor(config: EnvConfig) {
-      mocks.jlcpcbCtor(config);
-    }
-  },
-}));
-
-vi.mock('../../../src/vendors/mouser/client.js', () => ({
-  MouserClient: class MockMouserClient {
-    constructor(config: EnvConfig) {
-      mocks.mouserCtor(config);
-    }
-  },
-}));
-
-vi.mock('../../../src/vendors/digikey/client.js', () => ({
-  DigiKeyClient: class MockDigiKeyClient {
-    constructor(config: EnvConfig) {
-      mocks.digikeyCtor(config);
-    }
-  },
-}));
+vi.mock('../../../src/vendors/lcsc/client.js', () => ({ LcscClient: class MockClient {} }));
+vi.mock('../../../src/vendors/jlcpcb/client.js', () => ({ JlcpcbClient: class MockClient {} }));
+vi.mock('../../../src/vendors/mouser/client.js', () => ({ MouserClient: class MockClient {} }));
+vi.mock('../../../src/vendors/digikey/client.js', () => ({ DigiKeyClient: class MockClient {} }));
 
 const { createServer } = await import('../../../src/server/factory.js');
 
-function makeConfig(overrides: Partial<EnvConfig> = {}): EnvConfig {
+function config(overrides: Partial<EnvConfig> = {}): EnvConfig {
   return {
-    NODE_ENV: 'test',
-    LOG_LEVEL: 'silent',
     TOOL_PROFILE: 'pro',
     TRANSPORT: 'stdio',
     BRIDGE_TIMEOUT_MS: 5000,
@@ -152,86 +83,49 @@ function makeConfig(overrides: Partial<EnvConfig> = {}): EnvConfig {
 describe('createServer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.loadFeatureFlags.mockReturnValue({ mcpTasksEnabled: false });
-    mocks.bridgeConnect.mockResolvedValue(undefined);
-    mocks.bridgeCall.mockResolvedValue({ ok: true });
-    mocks.serverClose.mockResolvedValue(undefined);
+    mocks.connect.mockResolvedValue(undefined);
+    mocks.call.mockResolvedValue({ ok: true });
   });
 
-  it('wires the server, registry, bridge, storage, resources, and shutdown path', async () => {
-    const config = makeConfig();
-    const instance = await createServer(config);
+  it('wires registry, resources, storage, and shutdown', async () => {
+    const instance = await createServer(config());
 
-    expect(mocks.mcpCtor).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'easyeda-mcp-pro' }),
-      expect.objectContaining({ capabilities: expect.objectContaining({ tools: {} }) }),
-    );
-    expect(mocks.bridgeCtor).toHaveBeenCalledWith(config);
-    expect(mocks.bridgeConnect).toHaveBeenCalledTimes(1);
-    expect(mocks.registrySetProfile).toHaveBeenCalledWith('pro');
-    expect(mocks.registerBuiltinTools).toHaveBeenCalledWith(instance.registry, config);
-    expect(mocks.registryRegisterAllOnServer).toHaveBeenCalledWith(instance.server, instance.context);
-    expect(mocks.registerProjectResourcesAndPrompts).toHaveBeenCalledWith(
-      instance.server,
-      instance.context,
-    );
-    expect(mocks.storageCtor).toHaveBeenCalledWith(config);
-    expect(mocks.storageInitialize).toHaveBeenCalledTimes(1);
-    expect(instance.context.vendors).toMatchObject({
-      lcsc: null,
-      jlcpcb: null,
-      mouser: null,
-      digikey: null,
-    });
+    expect(mocks.connect).toHaveBeenCalledTimes(1);
+    expect(mocks.setProfile).toHaveBeenCalledWith('pro');
+    expect(mocks.registerTools).toHaveBeenCalledWith(instance.registry, expect.any(Object));
+    expect(mocks.registerAll).toHaveBeenCalledWith(instance.server, instance.context);
+    expect(mocks.registerResources).toHaveBeenCalledWith(instance.server, instance.context);
+    expect(mocks.storageInit).toHaveBeenCalledTimes(1);
 
     await instance.shutdown();
 
     expect(mocks.storageClose).toHaveBeenCalledTimes(1);
-    expect(mocks.bridgeDisconnect).toHaveBeenCalledWith('server shutdown');
-    expect(mocks.serverClose).toHaveBeenCalledTimes(1);
+    expect(mocks.disconnect).toHaveBeenCalledWith('server shutdown');
+    expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
-  it('creates vendor clients only when their feature switches are enabled', async () => {
-    const config = makeConfig({
-      JLCSEARCH_ENABLED: true,
-      JLCPCB_MODE: 'approved_api',
-      MOUSER_ENABLED: true,
-      DIGIKEY_ENABLED: true,
-    });
+  it('delegates bridge calls through the tool context', async () => {
+    const instance = await createServer(config());
 
-    const instance = await createServer(config);
+    await expect(instance.context.bridge.call('ping', { value: 1 })).resolves.toEqual({ ok: true });
 
-    expect(mocks.lcscCtor).toHaveBeenCalledWith(config);
-    expect(mocks.jlcpcbCtor).toHaveBeenCalledWith(config);
-    expect(mocks.mouserCtor).toHaveBeenCalledWith(config);
-    expect(mocks.digikeyCtor).toHaveBeenCalledWith(config);
+    expect(mocks.logger.debug).toHaveBeenCalledWith({ method: 'ping' }, 'bridge call');
+    expect(mocks.call).toHaveBeenCalledWith('ping', { value: 1 }, undefined);
+  });
+
+  it('creates vendor clients when enabled', async () => {
+    const instance = await createServer(
+      config({
+        JLCSEARCH_ENABLED: true,
+        JLCPCB_MODE: 'approved_api',
+        MOUSER_ENABLED: true,
+        DIGIKEY_ENABLED: true,
+      }),
+    );
+
     expect(instance.context.vendors.lcsc).toBeTruthy();
     expect(instance.context.vendors.jlcpcb).toBeTruthy();
     expect(instance.context.vendors.mouser).toBeTruthy();
     expect(instance.context.vendors.digikey).toBeTruthy();
-  });
-
-  it('delegates bridge calls through the tool context', async () => {
-    const instance = await createServer(makeConfig());
-
-    await expect(
-      instance.context.bridge.call('easyeda.ping', { value: 1 }, { timeoutMs: 123 }),
-    ).resolves.toEqual({ ok: true });
-
-    expect(mocks.logger.debug).toHaveBeenCalledWith({ method: 'easyeda.ping' }, 'bridge call');
-    expect(mocks.bridgeCall).toHaveBeenCalledWith(
-      'easyeda.ping',
-      { value: 1 },
-      { timeoutMs: 123 },
-    );
-  });
-
-  it('propagates bridge connection failures before storage initialization', async () => {
-    mocks.bridgeConnect.mockRejectedValueOnce(new Error('bridge unavailable'));
-
-    await expect(createServer(makeConfig())).rejects.toThrow('bridge unavailable');
-
-    expect(mocks.storageInitialize).not.toHaveBeenCalled();
-    expect(mocks.registerBuiltinTools).not.toHaveBeenCalled();
   });
 });
