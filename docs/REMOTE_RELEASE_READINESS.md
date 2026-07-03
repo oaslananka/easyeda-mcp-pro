@@ -4,16 +4,16 @@ This document records the minimum evidence needed before remote MCP support is d
 
 ## Status language
 
-| Term | Meaning |
-| --- | --- |
-| Planned | Design exists, but users cannot call it yet. |
-| Experimental | Code exists behind explicit flags. |
-| Beta | Users can test it with documented limits. |
-| Production-ready | CI, live validation, security review, and runbooks are complete. |
+Use the following status terms consistently.
+
+- **Planned**: design exists, but users cannot call it yet.
+- **Experimental**: code exists behind explicit flags.
+- **Beta**: users can test it with documented limits.
+- **Production-ready**: CI, validation, security review, and runbooks are complete.
 
 ## Gateway release gate
 
-A release candidate should verify:
+A release candidate should verify the following items.
 
 - HTTP transport is intentional for remote mode.
 - A canonical public base URL is configured.
@@ -26,7 +26,7 @@ A release candidate should verify:
 
 ## Fake extension integration evidence
 
-CI-safe integration tests should run without live EasyEDA credentials and prove:
+CI-safe integration tests should run without live EasyEDA credentials and prove these cases.
 
 - Session registration and heartbeat work.
 - Pairing rejects expired, reused, and wrong-user codes.
@@ -37,7 +37,7 @@ CI-safe integration tests should run without live EasyEDA credentials and prove:
 
 ## Live EasyEDA compatibility evidence
 
-Before claiming support for a new EasyEDA Pro runtime version:
+Before claiming support for a new EasyEDA Pro runtime version, record the following evidence.
 
 - Capture a runtime inventory snapshot from a disposable project.
 - Record EasyEDA Pro version, bridge version, snapshot path, and method registry hash.
@@ -48,7 +48,7 @@ Before claiming support for a new EasyEDA Pro runtime version:
 
 ## Release evidence
 
-Release verification should confirm:
+Release verification should confirm these items.
 
 - Package and metadata versions are aligned.
 - Release artifact checksums are published.
