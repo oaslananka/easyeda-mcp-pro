@@ -151,6 +151,7 @@ function getRemoteRelayClient(): RemoteRelayClient {
     log,
     showToast,
     readActiveProject: readRemoteActiveProject,
+    executeToolRequest: (toolName, input) => dispatch(toolName, isRecord(input) ? input : {}),
   });
   return remoteRelayClient;
 }
