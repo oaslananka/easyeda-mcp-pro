@@ -58,7 +58,9 @@ function errorToRelayError(error: unknown): { code: string; message: string; sug
           ? record.message
           : String(error),
     suggestion:
-      typeof record.suggestion === 'string' ? record.suggestion : 'Check EasyEDA Pro and extension logs.',
+      typeof record.suggestion === 'string'
+        ? record.suggestion
+        : 'Check EasyEDA Pro and extension logs.',
   };
 }
 
