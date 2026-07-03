@@ -466,4 +466,178 @@ describe('Schematic Tools', () => {
     });
     expect(result?.error).toContain('permission denied');
   });
+
+  describe('easyeda_schematic_nets', () => {
+    it('lists nets with node connections', async () => {
+      const tool = registry.get('easyeda_schematic_nets');
+      expect(tool).toBeDefined();
+      bridgeCall.mockResolvedValue([{ netName: 'GND', nodes: [{ component: 'R1', pin: '2' }] }]);
+
+      const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.listNets', { projectId: 'proj-123' });
+      expect(result).toMatchObject({
+        project_id: 'proj-123',
+        total: 1,
+        nets: [{ net_name: 'GND', node_count: 1, nodes: [{ component_ref: 'R1', pin: '2' }] }],
+      });
+    });
+
+    it('returns not_available on bridge error', async () => {
+      const tool = registry.get('easyeda_schematic_nets');
+      bridgeCall.mockRejectedValue(new Error('bridge down'));
+
+      const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+      expect(result).toMatchObject({
+        project_id: 'proj-123',
+        nets: [],
+        total: 0,
+        not_available: true,
+      });
+      expect(result?.error).toBe('bridge down');
+    });
+  });
+
+  describe('easyeda_schematic_components', () => {
+    it('lists components with defaults for missing fields', async () => {
+      const tool = registry.get('easyeda_schematic_components');
+      expect(tool).toBeDefined();
+      bridgeCall.mockResolvedValue([{ reference: 'R1', value: '10k' }]);
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-123',
+        limit: 100,
+        offset: 0,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.listComponents', {
+        projectId: 'proj-123',
+        limit: 100,
+        offset: 0,
+      });
+      expect(result).toMatchObject({
+        project_id: 'proj-123',
+        total: 1,
+        components: [{ reference: 'R1', value: '10k', footprint: '' }],
+      });
+    });
+
+    it('returns not_available on bridge error', async () => {
+      const tool = registry.get('easyeda_schematic_components');
+      bridgeCall.mockRejectedValue(new Error('bridge down'));
+
+      const result = await tool?.handler(context, { projectId: 'proj-123', limit: 100, offset: 0 });
+
+      expect(result).toMatchObject({
+        project_id: 'proj-123',
+        components: [],
+        total: 0,
+        not_available: true,
+      });
+    });
+  });
+
+  describe('easyeda_schematic_search_device', () => {
+    it('returns devices found by the bridge', async () => {
+      const tool = registry.get('easyeda_schematic_search_device');
+      expect(tool).toBeDefined();
+      bridgeCall.mockResolvedValue([{ libraryUuid: 'lib-1', uuid: 'dev-1' }]);
+
+      const result = await tool?.handler(context, { key: 'resistor' });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.searchDevice', {
+        key: 'resistor',
+        libraryUuid: undefined,
+        classification: undefined,
+        symbolType: undefined,
+        itemsOfPage: 20,
+        page: 1,
+      });
+      expect(result).toEqual({ devices: [{ libraryUuid: 'lib-1', uuid: 'dev-1' }], total: 1 });
+    });
+
+    it('treats a non-array bridge response as no results', async () => {
+      const tool = registry.get('easyeda_schematic_search_device');
+      bridgeCall.mockResolvedValue(null);
+
+      const result = await tool?.handler(context, { key: 'resistor' });
+
+      expect(result).toEqual({ devices: [], total: 0 });
+    });
+
+    it('returns not_available on bridge error', async () => {
+      const tool = registry.get('easyeda_schematic_search_device');
+      bridgeCall.mockRejectedValue(new Error('search timeout'));
+
+      const result = await tool?.handler(context, { key: 'resistor' });
+
+      expect(result).toMatchObject({
+        devices: [],
+        total: 0,
+        not_available: true,
+        error: 'search timeout',
+      });
+    });
+  });
+
+  describe('easyeda_schematic_component_pins', () => {
+    it('parses pin data from a direct field response', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      expect(tool).toBeDefined();
+      bridgeCall.mockResolvedValue({
+        result: [{ pinNumber: '1', pinName: 'VCC', x: 10, y: 20, rotation: 0, pinLength: 5 }],
+      });
+
+      const result = await tool?.handler(context, { primitiveId: 'comp-1' });
+
+      expect(bridgeCall).toHaveBeenCalledWith('api.call', {
+        path: 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId',
+        args: ['comp-1'],
+      });
+      expect(result).toMatchObject({
+        primitiveId: 'comp-1',
+        success: true,
+        pins: [{ pinNumber: '1', pinName: 'VCC', x: 10, y: 20, rotation: 0, pinLength: 5 }],
+      });
+    });
+
+    it('falls back to the nested state object when direct fields are absent', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockResolvedValue({
+        result: [
+          { state: { PinNumber: '2', PinName: 'GND', X: 1, Y: 2, Rotation: 90, PinLength: 3 } },
+        ],
+      });
+
+      const result = await tool?.handler(context, { primitiveId: 'comp-2' });
+
+      expect(result?.pins).toEqual([
+        { pinNumber: '2', pinName: 'GND', x: 1, y: 2, rotation: 90, pinLength: 3 },
+      ]);
+    });
+
+    it('returns an empty pin list when the bridge result has no pins', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockResolvedValue(undefined);
+
+      const result = await tool?.handler(context, { primitiveId: 'comp-3' });
+
+      expect(result).toMatchObject({ primitiveId: 'comp-3', pins: [], success: true });
+    });
+
+    it('returns success=false on bridge error', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockRejectedValue(new Error('not found'));
+
+      const result = await tool?.handler(context, { primitiveId: 'missing' });
+
+      expect(result).toMatchObject({
+        primitiveId: 'missing',
+        pins: [],
+        success: false,
+        error: 'not found',
+      });
+    });
+  });
 });
