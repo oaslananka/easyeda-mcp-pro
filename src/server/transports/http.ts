@@ -6,6 +6,10 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { type EnvConfig } from '../../config/env.js';
 import { SERVER_VERSION } from '../../config/version.js';
 import { getLogger } from '../../utils/logger.js';
+import {
+  createProtectedResourceMetadata,
+  setProtectedResourceChallenge,
+} from './oauth-resource-metadata.js';
 
 export interface HttpTransportInstance {
   app: Express;
@@ -67,7 +71,14 @@ export function normalizeOAuthScope(scope: string): string {
 }
 
 /** Structured error responses for token validation failures. */
-function tokenError(res: Response, message: string, code = 'invalid_token'): void {
+function tokenError(
+  req: Request,
+  res: Response,
+  config: EnvConfig,
+  message: string,
+  code = 'invalid_token',
+): void {
+  setProtectedResourceChallenge(req, res, config, code);
   res.status(401).json({ error: message, code });
 }
 
@@ -115,13 +126,13 @@ function validateOAuthToken(config: EnvConfig) {
     // ── 1. Extract Bearer token ───────────────────────────────────────────
     const auth = req.headers.authorization;
     if (!auth || !auth.startsWith('Bearer ')) {
-      tokenError(res, 'Missing or invalid Authorization header', 'missing_auth');
+      tokenError(req, res, config, 'Missing or invalid Authorization header', 'missing_auth');
       return;
     }
 
     const token = auth.slice(7);
     if (!token) {
-      tokenError(res, 'Empty Bearer token', 'empty_token');
+      tokenError(req, res, config, 'Empty Bearer token', 'empty_token');
       return;
     }
 
@@ -135,7 +146,7 @@ function validateOAuthToken(config: EnvConfig) {
         // Validate token type (typ) — it lives in the protected header per JWT spec
         const typ = protectedHeader.typ;
         if (typ !== undefined && !SUPPORTED_TOKEN_TYPES.has(typ)) {
-          tokenError(res, `Unsupported token type: ${typ}`, 'unsupported_token_type');
+          tokenError(req, res, config, `Unsupported token type: ${typ}`, 'unsupported_token_type');
           return;
         }
 
@@ -170,15 +181,15 @@ function validateOAuthToken(config: EnvConfig) {
         //   '"aud" claim mismatch' → invalid_audience
         //   'signature verification failed' → invalid_signature
         if (/["']exp["']/.test(msg) || /expired|timestamp/i.test(msg)) {
-          tokenError(res, 'Token has expired', 'token_expired');
+          tokenError(req, res, config, 'Token has expired', 'token_expired');
         } else if (/["']iss["']/.test(msg) || /issuer/i.test(msg)) {
-          tokenError(res, 'Invalid token issuer', 'invalid_issuer');
+          tokenError(req, res, config, 'Invalid token issuer', 'invalid_issuer');
         } else if (/["']aud["']/.test(msg) || /audience/i.test(msg)) {
-          tokenError(res, 'Invalid token audience', 'invalid_audience');
+          tokenError(req, res, config, 'Invalid token audience', 'invalid_audience');
         } else if (/signature|key|JWT|JWS|malformed|parse/i.test(msg)) {
-          tokenError(res, 'Invalid token signature', 'invalid_signature');
+          tokenError(req, res, config, 'Invalid token signature', 'invalid_signature');
         } else {
-          tokenError(res, 'Token validation failed', 'token_validation_failed');
+          tokenError(req, res, config, 'Token validation failed', 'token_validation_failed');
         }
       });
   };
@@ -375,6 +386,14 @@ export function createHttpTransport(config: EnvConfig): HttpTransportInstance {
   app.use(createOriginValidator(config));
   app.use(handleCorsPreflight);
   app.use(validateMcpProtocolVersion(config));
+
+  app.get('/.well-known/oauth-protected-resource', (req, res) => {
+    res.json(createProtectedResourceMetadata(req, config));
+  });
+
+  app.get('/.well-known/oauth-protected-resource/mcp', (req, res) => {
+    res.json(createProtectedResourceMetadata(req, config));
+  });
 
   app.use(validateOAuthToken(config));
 
