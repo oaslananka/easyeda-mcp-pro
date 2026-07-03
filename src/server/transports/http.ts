@@ -59,20 +59,6 @@ function createRateLimiter(windowMs: number, maxRequests: number) {
  */
 const SUPPORTED_TOKEN_TYPES = new Set(['JWT', undefined]);
 
-function trimTrailingSlash(value: string): string {
-  return value.endsWith('/') ? value.slice(0, -1) : value;
-}
-
-function inferRequestBaseUrl(req: Request, config: EnvConfig): string {
-  const proto = isLoopback(config.HTTP_HOST) ? 'http' : 'https';
-  const host = req.headers.host || String(config.HTTP_HOST) + ':' + String(config.HTTP_PORT);
-  return trimTrailingSlash(config.PUBLIC_BASE_URL || proto + '://' + host);
-}
-
-export function getMcpResourceUrl(req: Request, config: EnvConfig): string {
-  return inferRequestBaseUrl(req, config) + '/mcp';
-}
-
 export function normalizeOAuthScope(scope: string): string {
   return scope
     .trim()
