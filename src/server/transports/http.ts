@@ -59,6 +59,27 @@ function createRateLimiter(windowMs: number, maxRequests: number) {
  */
 const SUPPORTED_TOKEN_TYPES = new Set(['JWT', undefined]);
 
+function trimTrailingSlash(value: string): string {
+  return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
+function inferRequestBaseUrl(req: Request, config: EnvConfig): string {
+  const proto = isLoopback(config.HTTP_HOST) ? 'http' : 'https';
+  const host = req.headers.host || String(config.HTTP_HOST) + ':' + String(config.HTTP_PORT);
+  return trimTrailingSlash(config.PUBLIC_BASE_URL || proto + '://' + host);
+}
+
+export function getMcpResourceUrl(req: Request, config: EnvConfig): string {
+  return inferRequestBaseUrl(req, config) + '/mcp';
+}
+
+export function normalizeOAuthScope(scope: string): string {
+  return scope
+    .trim()
+    .replace(/^easyeda:/, 'easyeda.')
+    .replace('project-admin', 'project_admin');
+}
+
 /** Structured error responses for token validation failures. */
 function tokenError(res: Response, message: string, code = 'invalid_token'): void {
   res.status(401).json({ error: message, code });
@@ -98,6 +119,7 @@ function validateOAuthToken(config: EnvConfig) {
   }
 
   const requiredScopes = parseScopeList(config.OAUTH_REQUIRED_SCOPES);
+  const normalizedRequiredScopes = requiredScopes.map(normalizeOAuthScope);
 
   // The config validator already ensures OAUTH_JWKS_URI is present when OAuth is enabled.
   // We cache the JWKSet for the lifetime of the server.
@@ -133,7 +155,10 @@ function validateOAuthToken(config: EnvConfig) {
 
         if (requiredScopes.length > 0) {
           const tokenScopes = extractTokenScopes(payload as Record<string, unknown>);
-          const missingScopes = requiredScopes.filter((scope) => !tokenScopes.has(scope));
+          const normalizedTokenScopes = new Set([...tokenScopes].map(normalizeOAuthScope));
+          const missingScopes = requiredScopes.filter(
+            (_scope, idx) => !normalizedTokenScopes.has(normalizedRequiredScopes[idx] ?? ''),
+          );
           if (missingScopes.length > 0) {
             res.status(403).json({
               error: 'Token is missing required OAuth scope',
