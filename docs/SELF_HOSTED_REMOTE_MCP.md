@@ -1,6 +1,8 @@
 # Self-hosted Remote MCP setup
 
-Self-hosted Remote MCP lets an operator expose EasyEDA MCP Pro through their own domain, tunnel, VPS, or reverse proxy. This mode is for power users and private deployments that need a public MCP endpoint without using the hosted gateway.
+Self-hosted Remote MCP lets an operator expose EasyEDA MCP Pro through their own domain, tunnel,
+VPS, or reverse proxy. This mode is for power users and private deployments that need a public MCP
+endpoint without using the hosted gateway.
 
 ## Architecture
 
@@ -40,11 +42,13 @@ The server exposes protected-resource metadata for remote clients at:
 https://mcp.user-domain.example/.well-known/oauth-protected-resource/mcp
 ```
 
-The local server should bind to localhost behind the tunnel or reverse proxy. Do not bind to all interfaces unless the host firewall, TLS, auth, and origin policy are explicitly configured.
+The local server should bind to localhost behind the tunnel or reverse proxy. Do not bind to all
+interfaces unless the host firewall, TLS, auth, and origin policy are explicitly configured.
 
 ## Planned relay controls
 
-The following settings are remote-relay design targets and should remain documented as planned until the relay runtime is implemented:
+The following settings are remote-relay design targets and should remain documented as planned until
+the relay runtime is implemented:
 
 ```env
 REMOTE_MODE=self_hosted
@@ -96,4 +100,5 @@ Before exposing a self-hosted endpoint:
 
 ## Security warning
 
-A tunnel only makes a local service reachable. It does not provide authorization by itself. Production self-hosted endpoints must use auth, pairing, approval policy, and safe logging.
+A tunnel only makes a local service reachable. It does not provide authorization by itself.
+Production self-hosted endpoints must use auth, pairing, approval policy, and safe logging.
