@@ -1,11 +1,31 @@
+import * as net from 'node:net';
 import { describe, expect, it } from 'vitest';
 import {
+  createDoctorReport,
   formatDoctorReport,
   formatHelp,
   formatSetupLocalReport,
+  formatVersion,
   parseCliArgs,
   type DoctorReport,
 } from '../../../src/cli/local-setup.js';
+
+function withEnv(overrides: Record<string, string | undefined>, fn: () => Promise<void>) {
+  const saved: Record<string, string | undefined> = {};
+  for (const key of Object.keys(overrides)) {
+    saved[key] = process.env[key];
+  }
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  return fn().finally(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+}
 
 describe('local setup CLI helpers', () => {
   it('parses setup and doctor commands', () => {
@@ -13,6 +33,44 @@ describe('local setup CLI helpers', () => {
     expect(parseCliArgs(['doctor']).command).toBe('doctor');
     expect(parseCliArgs(['--help']).command).toBe('help');
     expect(parseCliArgs([]).command).toBe('server');
+  });
+
+  it('parses the setup command with a client and profile', () => {
+    const result = parseCliArgs(['setup', 'cursor', '--profile', 'full']);
+    expect(result).toEqual({ command: 'setup', setupClient: 'cursor', setupProfile: 'full' });
+  });
+
+  it('defaults the setup client to "list" when omitted', () => {
+    expect(parseCliArgs(['--setup'])).toEqual({
+      command: 'setup',
+      setupClient: 'list',
+      setupProfile: undefined,
+    });
+  });
+
+  it('parses the extension command with --open and --copy', () => {
+    expect(parseCliArgs(['extension', '--open'])).toEqual({
+      command: 'extension',
+      extensionOpen: true,
+      extensionCopy: undefined,
+    });
+    expect(parseCliArgs(['--extension', '--copy', '/tmp/dest'])).toEqual({
+      command: 'extension',
+      extensionOpen: false,
+      extensionCopy: '/tmp/dest',
+    });
+  });
+
+  it('parses init and version commands', () => {
+    expect(parseCliArgs(['init']).command).toBe('init');
+    expect(parseCliArgs(['--init']).command).toBe('init');
+    expect(parseCliArgs(['version']).command).toBe('version');
+    expect(parseCliArgs(['-v']).command).toBe('version');
+    expect(parseCliArgs(['-h']).command).toBe('help');
+  });
+
+  it('falls back to the server command for unknown arguments', () => {
+    expect(parseCliArgs(['--not-a-real-flag']).command).toBe('server');
   });
 
   it('formats MCP client auto-start setup instructions', () => {
@@ -79,5 +137,68 @@ describe('local setup CLI helpers', () => {
   it('prints concise help', () => {
     expect(formatHelp()).toContain('easyeda-mcp-pro --setup-local');
     expect(formatHelp()).toContain('easyeda-mcp-pro --doctor');
+  });
+
+  it('formats the package version from the real package.json', () => {
+    expect(formatVersion()).toMatch(/^easyeda-mcp-pro@\d+\.\d+\.\d+/);
+  });
+
+  describe('createDoctorReport', () => {
+    it('reports a reachable bridge port and vendor diagnostics', async () => {
+      const server = net.createServer();
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+
+      try {
+        await withEnv(
+          {
+            BRIDGE_HOST: '127.0.0.1',
+            BRIDGE_PORT_SCAN: String(port),
+            JLCPCB_MODE: 'approved_api',
+            JLCPCB_CLIENT_ID: 'id',
+            JLCPCB_CLIENT_SECRET: 'secret',
+            MOUSER_ENABLED: 'true',
+            MOUSER_API_KEY: '',
+          },
+          async () => {
+            const report = await createDoctorReport();
+
+            expect(report.bridgePorts).toEqual([{ port, reachable: true }]);
+            expect(report.envValid).toBe(true);
+            expect(report.toolCounts?.total).toBeGreaterThan(0);
+            expect(report.vendorDiagnostics?.JLCPCB).toMatchObject({
+              enabled: true,
+              configured: true,
+              credentialStatus: 'present',
+            });
+            expect(report.vendorDiagnostics?.MOUSER).toMatchObject({
+              enabled: true,
+              configured: false,
+              credentialStatus: 'missing',
+            });
+            expect(report.nodeVersion).toBe(process.versions.node);
+          },
+        );
+      } finally {
+        server.close();
+      }
+    });
+
+    it('reports an unreachable bridge port when nothing is listening', async () => {
+      await withEnv({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: '1' }, async () => {
+        const report = await createDoctorReport();
+        expect(report.bridgePorts).toEqual([{ port: 1, reachable: false }]);
+      });
+    });
+
+    it('surfaces environment validation issues and omits tool counts', async () => {
+      await withEnv({ HTTP_PORT: 'not-a-number', BRIDGE_PORT_SCAN: '1' }, async () => {
+        const report = await createDoctorReport();
+        expect(report.envValid).toBe(false);
+        expect(report.envIssues.length).toBeGreaterThan(0);
+        expect(report.toolCounts).toBeUndefined();
+      });
+    });
   });
 });
