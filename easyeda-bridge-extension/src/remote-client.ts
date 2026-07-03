@@ -1,3 +1,5 @@
+import { resolveRemoteRisk } from './remote-risk.js';
+
 export type RemoteRelayMode = 'disabled' | 'hosted' | 'self_hosted';
 export type RemoteRelayState = 'disconnected' | 'connecting' | 'connected' | 'paired';
 
@@ -23,7 +25,17 @@ interface RemoteRelayClientOptions {
   log: (message: string, data?: unknown) => void;
   showToast: (message: string) => void;
   readActiveProject: () => RemoteActiveProject | undefined;
+  /**
+   * Execute a bridge method (the same vocabulary `dispatch()` accepts for
+   * local bridge requests) and return its result, or throw on failure.
+   */
   executeToolRequest?: (toolName: string, input: unknown) => Promise<unknown>;
+  /**
+   * Whether the local EasyEDA Pro user has explicitly opted in to allow
+   * write/export actions to be dispatched over this remote relay session.
+   * Defaults to "not approved" (fail closed) when omitted.
+   */
+  isRemoteWriteApproved?: () => boolean;
 }
 
 interface RemoteEnvelope {
@@ -200,6 +212,43 @@ export class RemoteRelayClient {
           code: 'REMOTE_EXECUTION_NOT_ENABLED',
           message: 'Remote command dispatch is not enabled in this extension build yet.',
           suggestion: 'Use local bridge mode or enable the Remote Relay dispatch integration.',
+        },
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    const declaredRiskLevel = typeof message.riskLevel === 'string' ? message.riskLevel : undefined;
+    const risk = resolveRemoteRisk(toolName, declaredRiskLevel);
+
+    if (risk === 'destructive') {
+      this.send({
+        type: 'tool_response',
+        requestMessageId: message.messageId,
+        ok: false,
+        error: {
+          code: 'REMOTE_DESTRUCTIVE_BLOCKED',
+          message: `"${toolName}" is classified as destructive and cannot be executed over a remote relay session.`,
+          suggestion: 'Perform destructive actions locally in EasyEDA Pro.',
+        },
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    if (
+      (risk === 'write' || risk === 'export') &&
+      this.options.isRemoteWriteApproved?.() !== true
+    ) {
+      this.send({
+        type: 'tool_response',
+        requestMessageId: message.messageId,
+        ok: false,
+        error: {
+          code: 'REMOTE_APPROVAL_REQUIRED',
+          message: `"${toolName}" can mutate or export design data and requires explicit local approval before it will run over a remote relay session.`,
+          suggestion:
+            'Enable "Allow remote write/export" in the EasyEDA Pro extension before retrying.',
         },
         durationMs: Date.now() - startedAt,
       });

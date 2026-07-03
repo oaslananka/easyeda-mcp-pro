@@ -53,6 +53,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "typecheck:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension typecheck",
+    "test:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension test",
     "lint": "eslint . --max-warnings 0",
     "lint:tools": "tsx scripts/lint-tool-metadata.mts",
     "format": "prettier --write .",

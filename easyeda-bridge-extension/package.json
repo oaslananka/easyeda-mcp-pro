@@ -6,11 +6,13 @@
     "build": "esbuild src/index.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=dist/index.js && node scripts/package.mjs",
     "build:watch": "esbuild src/index.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=dist/index.js --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "verify": "node scripts/verify-dist.mjs"
+    "verify": "node scripts/verify-dist.mjs",
+    "test": "vitest run"
   },
   "devDependencies": {
     "archiver": "^8.0.0",
     "esbuild": "^0.28.1",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   }
 }

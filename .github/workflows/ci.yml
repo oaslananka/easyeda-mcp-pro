@@ -48,6 +48,7 @@ jobs:
       - run: pnpm check:metadata
       - run: pnpm build:extension
       - run: pnpm verify:extension
+      - run: pnpm test:extension
       - name: Pack PR test package
         if: github.event_name == 'pull_request'
         run: |

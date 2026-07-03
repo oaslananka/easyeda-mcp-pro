@@ -91,6 +91,7 @@ jobs:
           pnpm verify:tool-coverage
           pnpm test
           pnpm test:coverage
+          pnpm test:extension
           pnpm generate:tools-doc
           git diff --exit-code docs/reference/tools.md
           pnpm check:metadata

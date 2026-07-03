@@ -52,6 +52,7 @@ interface EasyedaGlobal {
   ) => void;
   disconnectRemoteRelay?: () => void;
   showRemoteRelayStatus?: () => void;
+  setRemoteWriteApproval?: (approved: boolean) => void;
 }
 
 interface EasyedaWebSocketApi {
@@ -144,6 +145,10 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let externalInteractionWarningShown = false;
 
 let remoteRelayClient: RemoteRelayClient | null = null;
+// Fail closed by default: write/export tool_requests over Remote Relay are
+// rejected until the local EasyEDA Pro user explicitly opts in for this
+// session via setRemoteWriteApproval(true).
+let remoteWriteApproved = false;
 
 function getRemoteRelayClient(): RemoteRelayClient {
   remoteRelayClient ??= new RemoteRelayClient({
@@ -151,8 +156,16 @@ function getRemoteRelayClient(): RemoteRelayClient {
     log,
     showToast,
     readActiveProject: readRemoteActiveProject,
+    executeToolRequest: (toolName, input) =>
+      dispatch(toolName, (input ?? {}) as Record<string, unknown>),
+    isRemoteWriteApproved: () => remoteWriteApproved,
   });
   return remoteRelayClient;
+}
+
+function setRemoteWriteApproval(approved: boolean): void {
+  remoteWriteApproved = approved === true;
+  showToast(`Remote Relay write/export approval: ${remoteWriteApproved ? 'ON' : 'OFF'}`);
 }
 
 function readRemoteActiveProject():
@@ -176,10 +189,14 @@ function connectRemoteRelay(
   relayUrl?: string,
   pairingCode?: string,
 ): void {
+  // Each new session starts from the fail-closed default; approval never
+  // carries over from a previous relay session.
+  remoteWriteApproved = false;
   getRemoteRelayClient().connect({ mode, relayUrl, pairingCode });
 }
 
 function disconnectRemoteRelay(): void {
+  remoteWriteApproved = false;
   getRemoteRelayClient().disconnect('user_disabled');
   showToast('Remote Relay disabled');
 }
@@ -187,7 +204,8 @@ function disconnectRemoteRelay(): void {
 function showRemoteRelayStatus(): void {
   const status = getRemoteRelayClient().getStatus();
   const project = status.activeProject?.projectName ?? 'no active project detected';
-  showToast(`Remote Relay: ${status.mode}/${status.state} | project: ${project}`);
+  const approval = remoteWriteApproved ? 'write/export approved' : 'write/export blocked';
+  showToast(`Remote Relay: ${status.mode}/${status.state} | project: ${project} | ${approval}`);
 }
 
 function getGlobal(): EasyedaGlobal | null {
@@ -2467,6 +2485,7 @@ function expose(): void {
     api.connectRemoteRelay = connectRemoteRelay;
     api.disconnectRemoteRelay = disconnectRemoteRelay;
     api.showRemoteRelayStatus = showRemoteRelayStatus;
+    api.setRemoteWriteApproval = setRemoteWriteApproval;
     (api as any).toggleAutoConnect = toggleAutoConnect;
     api.activate = handleActivate;
     api.deactivate = disconnect;
@@ -2479,6 +2498,7 @@ function expose(): void {
   globalScope.connectRemoteRelay = connectRemoteRelay;
   globalScope.disconnectRemoteRelay = disconnectRemoteRelay;
   globalScope.showRemoteRelayStatus = showRemoteRelayStatus;
+  globalScope.setRemoteWriteApproval = setRemoteWriteApproval;
   globalScope.toggleAutoConnect = toggleAutoConnect;
 }
 
