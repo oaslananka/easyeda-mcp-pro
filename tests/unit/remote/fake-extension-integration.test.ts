@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ApprovalStore, requiresApproval } from '../../../src/remote/approval-policy.js';
-import { REMOTE_RELAY_PROTOCOL_VERSION, ToolRequestMessageSchema, ToolResponseMessageSchema } from '../../../src/remote/protocol.js';
+import {
+  REMOTE_RELAY_PROTOCOL_VERSION,
+  ToolRequestMessageSchema,
+  ToolResponseMessageSchema,
+} from '../../../src/remote/protocol.js';
 import { RemoteSessionRouter } from '../../../src/remote/session-router.js';
 
 function makeHarness(start = new Date('2026-07-03T00:00:00.000Z')) {
