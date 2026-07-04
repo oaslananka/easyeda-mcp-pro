@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.18.0...easyeda-mcp-pro-v0.19.0) (2026-07-04)
+
+
+### Features
+
+* **circuit:** add component planning synthesis ([#157](https://github.com/oaslananka/easyeda-mcp-pro/issues/157)) ([882f912](https://github.com/oaslananka/easyeda-mcp-pro/commit/882f9125dd7ce17bb575d9aef983c7daeaa03534))
+* **remote:** add hosted runtime endpoints ([#161](https://github.com/oaslananka/easyeda-mcp-pro/issues/161)) ([6229683](https://github.com/oaslananka/easyeda-mcp-pro/commit/622968357f18fbd84907c682940800e46ab0083e))
+
 ## [0.18.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.17.1...easyeda-mcp-pro-v0.18.0) (2026-07-03)
 
 
