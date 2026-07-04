@@ -18,6 +18,81 @@ const _deviceItemSchema = z
   })
   .passthrough();
 
+type SearchDeviceItem = Record<string, unknown>;
+
+const searchDevicePinCountKeys = [
+  'pin_count',
+  'pinCount',
+  'pinsCount',
+  'pinNumber',
+  'pin_num',
+  'pinNum',
+  'PinCount',
+] as const;
+
+const searchDevicePinArrayKeys = ['pins', 'pinList', 'pin_list', 'symbolPins'] as const;
+
+const searchDeviceSymbolTypeKeys = [
+  'symbol_type',
+  'symbolType',
+  'type',
+  'deviceType',
+  'symbol_type_name',
+  'SymbolType',
+] as const;
+
+function searchDeviceStringMetadata(
+  item: SearchDeviceItem,
+  keys: readonly string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === 'string' && value.trim().length > 0) return value;
+  }
+  return undefined;
+}
+
+function searchDeviceNumberMetadata(
+  item: SearchDeviceItem,
+  keys: readonly string[],
+): number | undefined {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value.trim());
+      if (Number.isInteger(parsed) && parsed >= 0) return parsed;
+    }
+  }
+  return undefined;
+}
+
+function searchDeviceArrayLengthMetadata(
+  item: SearchDeviceItem,
+  keys: readonly string[],
+): number | undefined {
+  for (const key of keys) {
+    const value = item[key];
+    if (Array.isArray(value)) return value.length;
+  }
+  return undefined;
+}
+
+function normalizeSearchDeviceItem(item: unknown): SearchDeviceItem {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return { raw: item };
+
+  const normalized: SearchDeviceItem = { ...(item as SearchDeviceItem) };
+  const pinCount =
+    searchDeviceNumberMetadata(normalized, searchDevicePinCountKeys) ??
+    searchDeviceArrayLengthMetadata(normalized, searchDevicePinArrayKeys);
+  if (pinCount !== undefined) normalized.pin_count = pinCount;
+
+  const symbolType = searchDeviceStringMetadata(normalized, searchDeviceSymbolTypeKeys);
+  if (symbolType) normalized.symbol_type = symbolType;
+
+  return normalized;
+}
+
 function registerSchematicReadTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -254,7 +329,14 @@ function registerSchematicReadTools(
     },
     inputSchema: searchDeviceInputSchema,
     outputSchema: z.object({
-      devices: z.array(z.unknown()),
+      devices: z.array(
+        z
+          .object({
+            pin_count: z.number().int().nonnegative().optional(),
+            symbol_type: z.string().optional(),
+          })
+          .passthrough(),
+      ),
       total: z.number().int().nonnegative(),
       not_available: z.boolean().optional(),
       error: z.string().optional(),
@@ -271,7 +353,7 @@ function registerSchematicReadTools(
           itemsOfPage,
           page,
         });
-        const devices = Array.isArray(result) ? result : [];
+        const devices = Array.isArray(result) ? result.map(normalizeSearchDeviceItem) : [];
         return {
           devices,
           total: devices.length,
