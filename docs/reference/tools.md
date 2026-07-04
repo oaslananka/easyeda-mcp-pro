@@ -1579,14 +1579,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description                                      |
-| -------------- | ----- | -------- | ------------------------------------------------ |
-| `projectId`    | `any` | Yes      | The project/schematic ID                         |
-| `netName`      | `any` | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET) |
-| `x`            | `any` | Yes      | X coordinate on the schematic canvas             |
-| `y`            | `any` | Yes      | Y coordinate on the schematic canvas             |
-| `rotation`     | `any` | No       | Rotation in degrees (0, 90, 180, 270)            |
-| `confirmWrite` | `any` | Yes      |                                                  |
+| Parameter        | Type  | Required | Description                                                                                                                                           |
+| ---------------- | ----- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`      | `any` | Yes      | The project/schematic ID                                                                                                                              |
+| `netName`        | `any` | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET)                                                                                                      |
+| `x`              | `any` | Yes      | X coordinate on the schematic canvas                                                                                                                  |
+| `y`              | `any` | Yes      | Y coordinate on the schematic canvas                                                                                                                  |
+| `rotation`       | `any` | No       | Rotation in degrees (0, 90, 180, 270)                                                                                                                 |
+| `identification` | `any` | No       | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
+| `confirmWrite`   | `any` | Yes      |                                                                                                                                                       |
 
 ### Output Format
 

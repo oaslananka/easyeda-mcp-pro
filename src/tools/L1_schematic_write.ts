@@ -237,6 +237,13 @@ function registerSchematicWriteTools(
       x: z.number().describe('X coordinate on the schematic canvas'),
       y: z.number().describe('Y coordinate on the schematic canvas'),
       rotation: z.number().optional().describe('Rotation in degrees (0, 90, 180, 270)'),
+      identification: z
+        .enum(['Power', 'Ground', 'AnalogGround', 'ProtectGround'])
+        .optional()
+        .describe(
+          'Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. ' +
+            'When omitted, places a generic named net label instead.',
+        ),
       confirmWrite: z.literal(true),
     }),
     outputSchema: z.object({
@@ -256,6 +263,7 @@ function registerSchematicWriteTools(
         x: number;
         y: number;
         rotation?: number;
+        identification?: string;
       };
       try {
         const result = await ctx.bridge.call('schematic.createNetFlag', {
@@ -264,6 +272,7 @@ function registerSchematicWriteTools(
           x: p.x,
           y: p.y,
           rotation: p.rotation,
+          identification: p.identification,
         });
         const data = result as { primitiveId?: string; netName?: string };
         return {

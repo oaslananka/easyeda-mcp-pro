@@ -210,6 +210,7 @@ describe('Schematic Tools', () => {
       x: 100,
       y: 200,
       rotation: 0,
+      identification: undefined,
     });
     expect(result).toEqual({
       success: true,
@@ -217,6 +218,35 @@ describe('Schematic Tools', () => {
         primitiveId: 'netflag-1',
         netName: 'TEST_NET',
       },
+    });
+  });
+
+  it('easyeda_schematic_create_net_flag should forward power-flag identification', async () => {
+    const tool = registry.get('easyeda_schematic_create_net_flag');
+    expect(tool).toBeDefined();
+
+    bridgeCall.mockResolvedValue({ primitiveId: 'netflag-2', netName: 'VCC' });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-123',
+      netName: 'VCC',
+      x: 0,
+      y: 0,
+      identification: 'Power',
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.createNetFlag', {
+      projectId: 'proj-123',
+      netName: 'VCC',
+      x: 0,
+      y: 0,
+      rotation: undefined,
+      identification: 'Power',
+    });
+    expect(result).toEqual({
+      success: true,
+      netFlag: { primitiveId: 'netflag-2', netName: 'VCC' },
     });
   });
 
