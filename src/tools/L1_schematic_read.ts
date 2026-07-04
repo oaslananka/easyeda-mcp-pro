@@ -460,6 +460,113 @@ function registerSchematicReadTools(
   });
 
   registry.register({
+    name: 'easyeda_schematic_verify_write',
+    title: 'Verify schematic write result',
+    description:
+      'Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.',
+    profile: 'core',
+    evidence: ['runtime-probe'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().optional(),
+      netName: z.string().optional(),
+      beforeComponentCount: z.number().int().nonnegative().optional(),
+      expectedComponentCountDelta: z.number().int().optional(),
+      includeWireCheck: z.boolean().optional(),
+    }),
+    outputSchema: z.object({
+      project_id: z.string().optional(),
+      net_name: z.string().optional(),
+      components_available: z.boolean(),
+      component_count: z.number().int().nonnegative().optional(),
+      component_count_delta: z.number().int().optional(),
+      component_delta_matches: z.boolean().optional(),
+      netlist_available: z.boolean(),
+      netlist_validation: z.unknown().optional(),
+      warnings: z.array(z.string()),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = z
+        .object({
+          projectId: z.string().optional(),
+          netName: z.string().optional(),
+          beforeComponentCount: z.number().int().nonnegative().optional(),
+          expectedComponentCountDelta: z.number().int().optional(),
+          includeWireCheck: z.boolean().optional(),
+        })
+        .parse(params ?? {});
+      const warnings: string[] = [];
+      let componentCount: number | undefined;
+      let componentCountDelta: number | undefined;
+      let componentDeltaMatches: boolean | undefined;
+      let componentsAvailable = false;
+      let netlistAvailable = false;
+      let netlistValidation: unknown;
+
+      try {
+        const components = await ctx.bridge.call('schematic.listComponents', {
+          projectId: p.projectId,
+          limit: 500,
+          offset: 0,
+        });
+        if (Array.isArray(components)) {
+          componentsAvailable = true;
+          componentCount = components.length;
+          if (p.beforeComponentCount !== undefined) {
+            componentCountDelta = componentCount - p.beforeComponentCount;
+            if (p.expectedComponentCountDelta !== undefined) {
+              componentDeltaMatches = componentCountDelta === p.expectedComponentCountDelta;
+              if (!componentDeltaMatches) {
+                warnings.push(
+                  `Expected component-count delta ${p.expectedComponentCountDelta}, got ${componentCountDelta}.`,
+                );
+              }
+            }
+          }
+        } else {
+          warnings.push('Component read-back returned a non-array response.');
+        }
+      } catch (err) {
+        warnings.push(
+          `Component read-back unavailable: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      try {
+        netlistValidation = await ctx.bridge.call('schematic.validateNetlist', {
+          projectId: p.projectId,
+          netName: p.netName,
+          includeWireCheck: p.includeWireCheck ?? false,
+        });
+        netlistAvailable = true;
+      } catch (err) {
+        warnings.push(
+          `Netlist validation unavailable: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      return {
+        project_id: p.projectId,
+        net_name: p.netName,
+        components_available: componentsAvailable,
+        component_count: componentCount,
+        component_count_delta: componentCountDelta,
+        component_delta_matches: componentDeltaMatches,
+        netlist_available: netlistAvailable,
+        netlist_validation: netlistValidation,
+        warnings,
+      };
+    },
+  });
+  registry.register({
     name: 'easyeda_schematic_component_pins',
     title: 'Get component pins',
     description:

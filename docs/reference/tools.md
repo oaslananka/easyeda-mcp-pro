@@ -66,6 +66,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords.                                                                                                                                                                                                                                      |
 | `easyeda_schematic_sheet_info`          | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                            |
 | `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the EasyEDA Pro schematic netlist for connectivity issues. Reports net names, connected component references and pins, floating pins, graphical wires without netlist connectivity, and mismatches between visual wires and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool. |
+| `easyeda_schematic_verify_write`       | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                         |
 | `easyeda_semantic_erc_validate`         | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                        |
 | `easyeda_wire_probe`                    | `dev`   | `low`    | Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                           |
 
@@ -1878,6 +1879,43 @@ Returns a JSON object matching the schema:
   valid: any;
   warnings: any;
   not_available: any;
+  error: any;
+}
+```
+
+---
+
+## `easyeda_schematic_verify_write`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.
+
+### Input Parameters
+
+| Parameter                     | Type  | Required | Description |
+| ----------------------------- | ----- | -------- | ----------- |
+| `projectId`                   | `any` | No       |             |
+| `netName`                     | `any` | No       |             |
+| `beforeComponentCount`        | `any` | No       |             |
+| `expectedComponentCountDelta` | `any` | No       |             |
+| `includeWireCheck`            | `any` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: any;
+  net_name: any;
+  components_available: any;
+  component_count: any;
+  component_count_delta: any;
+  component_delta_matches: any;
+  netlist_available: any;
+  netlist_validation: any;
+  warnings: any;
   error: any;
 }
 ```

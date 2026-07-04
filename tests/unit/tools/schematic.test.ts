@@ -690,6 +690,65 @@ describe('Schematic Tools', () => {
     });
   });
 
+  it('easyeda_schematic_verify_write returns component delta and netlist readback', async () => {
+    const tool = registry.get('easyeda_schematic_verify_write');
+    bridgeCall
+      .mockResolvedValueOnce([{ reference: 'R1' }, { reference: 'R2' }, { reference: 'C1' }])
+      .mockResolvedValueOnce({ valid: true, nets: [{ netName: 'OUT' }] });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-123',
+      netName: 'OUT',
+      beforeComponentCount: 2,
+      expectedComponentCountDelta: 1,
+      includeWireCheck: true,
+    });
+
+    expect(bridgeCall).toHaveBeenNthCalledWith(1, 'schematic.listComponents', {
+      projectId: 'proj-123',
+      limit: 500,
+      offset: 0,
+    });
+    expect(bridgeCall).toHaveBeenNthCalledWith(2, 'schematic.validateNetlist', {
+      projectId: 'proj-123',
+      netName: 'OUT',
+      includeWireCheck: true,
+    });
+    expect(result).toEqual({
+      project_id: 'proj-123',
+      net_name: 'OUT',
+      components_available: true,
+      component_count: 3,
+      component_count_delta: 1,
+      component_delta_matches: true,
+      netlist_available: true,
+      netlist_validation: { valid: true, nets: [{ netName: 'OUT' }] },
+      warnings: [],
+    });
+  });
+
+  it('easyeda_schematic_verify_write reports unavailable readbacks as warnings', async () => {
+    const tool = registry.get('easyeda_schematic_verify_write');
+    bridgeCall
+      .mockRejectedValueOnce(new Error('components unavailable'))
+      .mockRejectedValueOnce(new Error('netlist unavailable'));
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-123',
+      beforeComponentCount: 2,
+      expectedComponentCountDelta: 1,
+    });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      components_available: false,
+      netlist_available: false,
+    });
+    expect((result as { warnings: string[] }).warnings).toEqual([
+      'Component read-back unavailable: components unavailable',
+      'Netlist validation unavailable: netlist unavailable',
+    ]);
+  });
   describe('easyeda_schematic_component_pins', () => {
     it('parses pin data from a direct field response', async () => {
       const tool = registry.get('easyeda_schematic_component_pins');
