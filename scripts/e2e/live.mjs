@@ -4,14 +4,15 @@
  *
  * Exits: 0=all passed, 1=one or more checks failed
  */
-import { spawn } from 'node:child_process';
+import { spawnTrackedProcess } from './harness.mjs';
 import { createInterface } from 'node:readline';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import crypto from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, '..', '..');
 const CMD_TIMEOUT = 45_000;
 const BRIDGE_MAX_WAIT_S = 120;
 
@@ -81,11 +82,9 @@ async function main() {
   // ── Step 1: Start MCP server ───────────────────────────────────────────
   console.log('\u2500\u2500 [1/7] Start MCP Server & Connect Bridge \u2500\u2500\n');
 
-  const server = spawn('node', ['dist/index.js'], {
-    cwd: __dirname,
-    stdio: ['pipe', 'pipe', 'pipe'],
+  const serverProcess = spawnTrackedProcess('node', ['dist/index.js'], {
+    cwd: repoRoot,
     env: {
-      ...process.env,
       TRANSPORT: 'stdio',
       LOG_LEVEL: 'silent',
       TOOL_PROFILE: 'full',
@@ -94,6 +93,7 @@ async function main() {
       BRIDGE_TIMEOUT_MS: '30000',
     },
   });
+  const server = serverProcess.child;
 
   serverStdin = server.stdin;
   let serverExited = false;
@@ -125,15 +125,8 @@ async function main() {
   });
 
   function shutdown(label) {
-    try {
-      server.stdin.end();
-    } catch {}
-    setTimeout(() => {
-      try {
-        server.kill('SIGKILL');
-      } catch {}
-    }, 1000);
-    if (label) console.log(`  \ud83d\udd0c Shutdown: ${label}`);
+    serverProcess.shutdown(label);
+    serverProcess.detach();
   }
 
   await wait(2000);

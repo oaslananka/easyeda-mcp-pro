@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawnTrackedProcess } from './harness.mjs';
 import { Socket } from 'net';
 import { setTimeout as sleep } from 'timers/promises';
 
@@ -9,15 +9,11 @@ const POLL_INTERVAL = 5000;
 console.log('Process started at', new Date().toISOString());
 
 console.log('=== Starting MCP Server ===');
-const server = spawn('node', ['dist/index.js'], {
-  env: { ...process.env, LOG_LEVEL: 'info' },
-  stdio: ['pipe', 'pipe', 'pipe'],
+const serverProcess = spawnTrackedProcess('node', ['dist/index.js'], {
+  env: { LOG_LEVEL: 'info' },
 });
-
-let srvBuf = '';
-server.stdout.on('data', (d) => (srvBuf += d.toString()));
-server.stderr.on('data', (d) => (srvBuf += d.toString()));
-server.on('exit', (c) => console.log(`Server exited code=${c}`));
+const server = serverProcess.child;
+server.on('exit', (code) => console.log('Server exited code=' + code));
 
 await sleep(3000);
 
@@ -180,11 +176,12 @@ if (connected) {
 
 // Final output
 console.log('\n=== Server Logs ===');
-console.log(srvBuf.slice(-3000));
+console.log((serverProcess.stdoutLog + serverProcess.stderrLog).slice(-3000));
 
 console.log('\n=== Raw Buffer (last 2000) ===');
 console.log(buf.slice(-2000));
 
 sock.destroy();
-server.kill();
+serverProcess.shutdown('waiter complete');
+serverProcess.detach();
 process.exit(connected ? 0 : 1);
