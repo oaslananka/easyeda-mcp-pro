@@ -88,14 +88,16 @@ export function startStdioMcpServer(options = {}) {
     shutdown(signal);
     process.exit(signal === 'SIGINT' ? 130 : 143);
   };
+  const handleSigint = () => handleSignal('SIGINT');
+  const handleSigterm = () => handleSignal('SIGTERM');
   process.once('exit', handleExit);
-  process.once('SIGINT', () => handleSignal('SIGINT'));
-  process.once('SIGTERM', () => handleSignal('SIGTERM'));
+  process.once('SIGINT', handleSigint);
+  process.once('SIGTERM', handleSigterm);
 
   const detach = () => {
     process.removeListener('exit', handleExit);
-    process.removeListener('SIGINT', handleSignal);
-    process.removeListener('SIGTERM', handleSignal);
+    process.removeListener('SIGINT', handleSigint);
+    process.removeListener('SIGTERM', handleSigterm);
   };
 
   const mcpCall = (method, params = {}, callTimeoutMs = timeoutMs) =>
@@ -194,17 +196,19 @@ export function spawnTrackedProcess(command, args = [], options = {}) {
     shutdown(signal);
     process.exit(signal === 'SIGINT' ? 130 : 143);
   };
+  const handleSigint = () => handleSignal('SIGINT');
+  const handleSigterm = () => handleSignal('SIGTERM');
   process.once('exit', handleExit);
-  process.once('SIGINT', () => handleSignal('SIGINT'));
-  process.once('SIGTERM', () => handleSignal('SIGTERM'));
+  process.once('SIGINT', handleSigint);
+  process.once('SIGTERM', handleSigterm);
 
   return {
     child,
     shutdown,
     detach() {
       process.removeListener('exit', handleExit);
-      process.removeListener('SIGINT', handleSignal);
-      process.removeListener('SIGTERM', handleSignal);
+      process.removeListener('SIGINT', handleSigint);
+      process.removeListener('SIGTERM', handleSigterm);
     },
     get exited() {
       return exited;
