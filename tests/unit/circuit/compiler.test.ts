@@ -72,7 +72,10 @@ describe('compile', () => {
     const result = compile(powerSupplyIntent);
     expect(result.circuitIR).toBeDefined();
     expect(result.designIntent).toBeDefined();
-    expect(result.warnings).toEqual([]);
+    // Two rails with no explicit block/rail mapping is an ambiguous case;
+    // the compiler flags it instead of guessing a device-to-rail assignment.
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain('2 power rails');
 
     // Check compilation output
     const cir = result.circuitIR;
@@ -110,25 +113,53 @@ describe('compile', () => {
     expect(cir.rails[1].tolerance).toBe(3);
   });
 
-  it('creates device stubs for each block', () => {
+  it('creates a candidate device plan for each block', () => {
     const result = compile(powerSupplyIntent);
     const cir = result.circuitIR;
 
-    // One stub device per block
+    // One planned device per block
     expect(cir.devices).toHaveLength(3);
     for (const device of cir.devices) {
       expect(device.blockRef).toMatch(/^block-req-/);
       expect(device.designIntentRef).toHaveLength(1);
+      expect(device.metadata.map((m) => m.key)).toEqual(
+        expect.arrayContaining(['role', 'packageHint', 'planningState']),
+      );
     }
+
+    // Roles are inferred from block type/purpose and drive the refdes family.
+    const byBlock = Object.fromEntries(cir.devices.map((d) => [d.blockRef, d]));
+    expect(byBlock['block-req-input'].ref).toMatch(/^D\d+$/);
+    expect(byBlock['block-req-regulator'].ref).toMatch(/^U\d+$/);
+    // "Output ripple filtering and decoupling" is keyword-classified as a
+    // passive support device, not a generic IC.
+    expect(byBlock['block-req-output'].ref).toMatch(/^C\d+$/);
   });
 
-  it('creates power nets for each rail', () => {
+  it('creates power nets for each rail plus a synthesized ground net', () => {
     const result = compile(powerSupplyIntent);
     const cir = result.circuitIR;
 
-    expect(cir.nets).toHaveLength(2);
+    expect(cir.nets).toHaveLength(3);
     expect(cir.nets[0].name).toBe('12V_IN');
     expect(cir.nets[1].name).toBe('3V3_OUT');
+    expect(cir.nets[2]).toMatchObject({ name: 'GND', type: 'ground', nodes: [] });
+  });
+
+  it('does not synthesize a ground net when there are no power rails', () => {
+    // A design must declare at least one rail per DesignIntent validation,
+    // so exercise the zero-rails compiler path directly via skipValidation.
+    const zeroRailsIntent = {
+      ...powerSupplyIntent,
+      requirements: {
+        ...powerSupplyIntent.requirements,
+        electrical: {},
+        power: { rails: [] },
+        safety: {},
+      },
+    };
+    const result = compile(zeroRailsIntent, { skipValidation: true });
+    expect(result.circuitIR.nets.find((n) => n.name === 'GND')).toBeUndefined();
   });
 
   it('synthesizes power domains for each rail', () => {
@@ -186,6 +217,104 @@ describe('compile', () => {
       'pc-mounting-holes',
       'pc-isolation-clearance',
     ]);
+  });
+
+  it('wires devices to the sole power domain when there is exactly one rail', () => {
+    const singleRailIntent = {
+      $schema: DESIGN_INTENT_SCHEMA_VERSION,
+      project: {
+        name: 'USB Sensor Node',
+        goal: 'A USB-powered MCU board reading a sensor over I2C',
+        boardType: BoardType.McuBoard,
+      },
+      requirements: {
+        functionalBlocks: [
+          {
+            id: 'req-usb',
+            name: 'USB-C Connector',
+            type: 'interface',
+            purpose: 'USB-C connector for power and data',
+          },
+          {
+            id: 'req-mcu',
+            name: 'Main MCU',
+            type: 'microcontroller',
+            purpose: 'Runs the application firmware',
+          },
+          {
+            id: 'req-sensor',
+            name: 'Temperature Sensor',
+            type: 'sensor',
+            purpose: 'I2C temperature sensor',
+          },
+        ],
+        power: {
+          rails: [{ id: '5V_USB', voltage: 5.0, maxCurrentAmps: 0.5 }],
+        },
+        mechanical: { widthMm: 25, heightMm: 15, layers: 2 },
+        manufacturing: {},
+      },
+      assumptions: [],
+      unknowns: [],
+    };
+
+    const result = compile(singleRailIntent);
+    const cir = result.circuitIR;
+
+    // Unambiguous single-rail design: every device and the domain's
+    // loadDeviceRefs get wired automatically, with no ambiguity warning.
+    expect(result.warnings).toEqual([]);
+    expect(cir.powerDomains).toHaveLength(1);
+    expect(cir.powerDomains[0].loadDeviceRefs.sort()).toEqual(cir.devices.map((d) => d.id).sort());
+    for (const device of cir.devices) {
+      expect(device.powerDomainRef).toBe(cir.powerDomains[0].id);
+    }
+
+    // Role inference: connector, MCU/module, and sensor cases.
+    const byBlock = Object.fromEntries(cir.devices.map((d) => [d.blockRef, d]));
+    expect(byBlock['block-req-usb'].ref).toMatch(/^J\d+$/);
+    expect(byBlock['block-req-mcu'].ref).toMatch(/^U\d+$/);
+    expect(byBlock['block-req-sensor'].ref).toMatch(/^U\d+$/);
+
+    // The connector block gets a synthesized candidate Interface.
+    expect(cir.interfaces).toHaveLength(1);
+    expect(cir.interfaces[0]).toMatchObject({
+      name: 'USB-C Connector',
+      type: 'connector',
+      blockRef: 'block-req-usb',
+      pinout: [],
+    });
+  });
+
+  it('flags a generic/low-confidence role with a compiler warning', () => {
+    const vagueIntent = {
+      $schema: DESIGN_INTENT_SCHEMA_VERSION,
+      project: {
+        name: 'Custom Board',
+        goal: 'A board with an unclassified block',
+        boardType: BoardType.Custom,
+      },
+      requirements: {
+        functionalBlocks: [
+          {
+            id: 'req-mystery',
+            name: 'Mystery Block',
+            type: 'custom',
+            purpose: 'Something not yet decided',
+          },
+        ],
+        power: { rails: [{ id: 'VCC', voltage: 3.3 }] },
+        mechanical: {},
+        manufacturing: {},
+      },
+      assumptions: [],
+      unknowns: ['Component role has not been decided'],
+    };
+
+    const result = compile(vagueIntent);
+    expect(result.warnings.some((w) => w.includes('generic placeholder device'))).toBe(true);
+    const device = result.circuitIR.devices[0];
+    expect(device.metadata).toContainEqual({ key: 'planningState', value: 'placeholder' });
   });
 
   it('preserves traceability IDs from DesignIntent to CircuitIR', () => {
