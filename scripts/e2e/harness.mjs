@@ -89,8 +89,8 @@ export function startStdioMcpServer(options = {}) {
     process.exit(signal === 'SIGINT' ? 130 : 143);
   };
   process.once('exit', handleExit);
-  process.once('SIGINT', handleSignal);
-  process.once('SIGTERM', handleSignal);
+  process.once('SIGINT', () => handleSignal('SIGINT'));
+  process.once('SIGTERM', () => handleSignal('SIGTERM'));
 
   const detach = () => {
     process.removeListener('exit', handleExit);
@@ -195,8 +195,8 @@ export function spawnTrackedProcess(command, args = [], options = {}) {
     process.exit(signal === 'SIGINT' ? 130 : 143);
   };
   process.once('exit', handleExit);
-  process.once('SIGINT', handleSignal);
-  process.once('SIGTERM', handleSignal);
+  process.once('SIGINT', () => handleSignal('SIGINT'));
+  process.once('SIGTERM', () => handleSignal('SIGTERM'));
 
   return {
     child,
