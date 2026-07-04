@@ -60,11 +60,11 @@
 
 <p>
   <a href="https://www.buymeacoffee.com/oaslananka">
-    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=oaslananka&button_colour=FFDD00&font_colour=000000&font_family=Inter&outline_colour=000000&coffee_colour=ffffff" height="48" alt="Buy me a coffee" />
+    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=oaslananka&button_colour=FFDD00&font_colour=000000&font_family=Inter&outline_colour=000000&coffee_colour=ffffff" height="28" alt="Buy me a coffee" />
   </a>
   &nbsp;&nbsp;
   <a href="https://github.com/oaslananka/easyeda-mcp-pro">
-    <img src="https://img.shields.io/github/stars/oaslananka/easyeda-mcp-pro?style=for-the-badge&logo=github&label=Star%20on%20GitHub&color=181717&labelColor=181717" height="48" alt="Star on GitHub" />
+    <img src="https://img.shields.io/github/stars/oaslananka/easyeda-mcp-pro?style=for-the-badge&logo=github&label=Star%20on%20GitHub&color=FFA500&labelColor=181717" alt="Star on GitHub" />
   </a>
 </p>
 
