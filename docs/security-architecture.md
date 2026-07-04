@@ -140,6 +140,18 @@ Mutation tools also support a registry-level write transaction flow through `wri
 
 The safe sequence for agents is: plan → preview → user confirmation → apply with `confirmWrite=true` → verify with read-only checks.
 
+### Agent schematic write safety loop
+
+Agents that author schematics should not treat a successful write call as proof that the electrical intent is correct. Use this loop for placement and connectivity:
+
+1. Read placement context with `easyeda_schematic_sheet_info` and existing design state with `easyeda_schematic_components` / `easyeda_schematic_nets`.
+2. Choose parts with `easyeda_schematic_search_device` and check normalized `pin_count` / `symbol_type` before selecting a symbol.
+3. Preview placement with `easyeda_schematic_place_component` using `dryRun=true` and `checkPlacementCollision=true`. Review `placement_guard.warnings` and `nearby_components` before applying.
+4. Apply the placement only after explicit confirmation with `confirmWrite=true`. Set `verifyAfterWrite=true` to read back component count and surface whether read-back verification was available.
+5. After wiring/net assignment, verify connectivity with `easyeda_schematic_validate_netlist` and, when appropriate, `easyeda_semantic_erc_validate` before continuing to board or export workflows.
+
+`dryRun=true` does not mutate the design. It returns the requested placement preview and optional collision warning data. `verifyAfterWrite=true` performs a read-back pass after the write and reports component-count delta evidence. These checks are guardrails, not a substitute for final human design review.
+
 **Risk tiers:**
 
 | Risk Level | Tool Type                      | Examples                                                              | confirmWrite Required |

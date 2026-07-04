@@ -1754,17 +1754,21 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `deviceItem`   | `any` | Yes      |             |
-| `x`            | `any` | Yes      |             |
-| `y`            | `any` | Yes      |             |
-| `subPartName`  | `any` | No       |             |
-| `rotation`     | `any` | No       |             |
-| `mirror`       | `any` | No       |             |
-| `addIntoBom`   | `any` | No       |             |
-| `addIntoPcb`   | `any` | No       |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter                 | Type  | Required | Description |
+| ------------------------- | ----- | -------- | ----------- |
+| `deviceItem`              | `any` | Yes      |             |
+| `x`                       | `any` | Yes      |             |
+| `y`                       | `any` | Yes      |             |
+| `subPartName`             | `any` | No       |             |
+| `rotation`                | `any` | No       |             |
+| `mirror`                  | `any` | No       |             |
+| `addIntoBom`              | `any` | No       |             |
+| `addIntoPcb`              | `any` | No       |             |
+| `dryRun`                  | `any` | No       |             |
+| `verifyAfterWrite`        | `any` | No       |             |
+| `checkPlacementCollision` | `any` | No       |             |
+| `collisionRadius`         | `any` | No       |             |
+| `confirmWrite`            | `any` | Yes      |             |
 
 ### Output Format
 
@@ -1774,6 +1778,9 @@ Returns a JSON object matching the schema:
 {
   success: any;
   component: any;
+  dry_run: any;
+  placement_guard: any;
+  verification: any;
   error: any;
 }
 ```

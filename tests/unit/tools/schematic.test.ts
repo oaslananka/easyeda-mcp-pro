@@ -117,6 +117,85 @@ describe('Schematic Tools', () => {
     });
   });
 
+  it('easyeda_schematic_place_component supports dry-run collision warnings', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall.mockResolvedValueOnce([
+      { reference: 'R1', position: { x: 105, y: 203 } },
+      { reference: 'C1', position: { x: 400, y: 400 } },
+    ]);
+
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 100,
+      y: 200,
+      dryRun: true,
+      checkPlacementCollision: true,
+      collisionRadius: 10,
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.listComponents', {
+      projectId: 'active',
+      limit: 500,
+      offset: 0,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      dry_run: true,
+      placement_guard: {
+        collision_checked: true,
+        collision_radius: 10,
+        nearby_components: [{ reference: 'R1' }],
+      },
+      verification: {
+        applied: false,
+        before_component_count: 2,
+      },
+    });
+  });
+
+  it('easyeda_schematic_place_component can verify write readback', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall
+      .mockResolvedValueOnce([{ reference: 'R1', position: { x: 10, y: 10 } }])
+      .mockResolvedValueOnce({ componentId: 'comp-123' })
+      .mockResolvedValueOnce([
+        { reference: 'R1', position: { x: 10, y: 10 } },
+        { reference: 'R2', position: { x: 100, y: 200 } },
+      ]);
+
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 100,
+      y: 200,
+      verifyAfterWrite: true,
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).toHaveBeenCalledTimes(3);
+    expect(bridgeCall).toHaveBeenNthCalledWith(2, 'schematic.placeComponent', {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 100,
+      y: 200,
+      rotation: undefined,
+      mirror: undefined,
+      subPartName: undefined,
+      addIntoBom: undefined,
+      addIntoPcb: undefined,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      component: { componentId: 'comp-123' },
+      verification: {
+        applied: true,
+        before_component_count: 1,
+        after_component_count: 2,
+        component_count_delta: 1,
+        readback_available: true,
+      },
+    });
+  });
   it('easyeda_schematic_add_wire should call bridge and return success', async () => {
     const tool = registry.get('easyeda_schematic_add_wire');
     bridgeCall.mockResolvedValue({ wireId: 'wire-123' });

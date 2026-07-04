@@ -9,6 +9,102 @@ const deviceItemSchema = z
   })
   .passthrough();
 
+type SchematicComponentSnapshot = Record<string, unknown>;
+
+type PlacementGuardResult = {
+  collision_checked: boolean;
+  collision_radius: number;
+  warnings: string[];
+  nearby_components: SchematicComponentSnapshot[];
+};
+
+function schematicWriteNumberField(
+  item: SchematicComponentSnapshot,
+  keys: readonly string[],
+): number | undefined {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value.trim());
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return undefined;
+}
+
+function schematicWriteComponentPoint(
+  item: SchematicComponentSnapshot,
+): { x: number; y: number } | undefined {
+  const directX = schematicWriteNumberField(item, ['x', 'X', 'canvasX', 'positionX']);
+  const directY = schematicWriteNumberField(item, ['y', 'Y', 'canvasY', 'positionY']);
+  if (directX !== undefined && directY !== undefined) return { x: directX, y: directY };
+
+  const position = item.position;
+  if (position && typeof position === 'object' && !Array.isArray(position)) {
+    const pos = position as SchematicComponentSnapshot;
+    const x = schematicWriteNumberField(pos, ['x', 'X']);
+    const y = schematicWriteNumberField(pos, ['y', 'Y']);
+    if (x !== undefined && y !== undefined) return { x, y };
+  }
+
+  const bbox = item.bbox ?? item.boundingBox;
+  if (bbox && typeof bbox === 'object' && !Array.isArray(bbox)) {
+    const box = bbox as SchematicComponentSnapshot;
+    const x1 = schematicWriteNumberField(box, ['x', 'left', 'minX']);
+    const y1 = schematicWriteNumberField(box, ['y', 'top', 'minY']);
+    const x2 = schematicWriteNumberField(box, ['x2', 'right', 'maxX']);
+    const y2 = schematicWriteNumberField(box, ['y2', 'bottom', 'maxY']);
+    if (x1 !== undefined && y1 !== undefined && x2 !== undefined && y2 !== undefined) {
+      return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+    }
+  }
+
+  return undefined;
+}
+
+function schematicWritePlacementGuard(
+  components: SchematicComponentSnapshot[] | undefined,
+  x: number,
+  y: number,
+  collisionRadius: number,
+): PlacementGuardResult {
+  const nearby: SchematicComponentSnapshot[] = [];
+  for (const component of components ?? []) {
+    const point = schematicWriteComponentPoint(component);
+    if (!point) continue;
+    const distance = Math.hypot(point.x - x, point.y - y);
+    if (distance <= collisionRadius) nearby.push({ ...component, distance });
+  }
+
+  return {
+    collision_checked: true,
+    collision_radius: collisionRadius,
+    warnings:
+      nearby.length > 0
+        ? [
+            `Placement is within ${collisionRadius} schematic units of ${nearby.length} existing component(s). Review before applying.`,
+          ]
+        : [],
+    nearby_components: nearby,
+  };
+}
+
+async function readSchematicComponentsForVerification(
+  ctx: ToolContext,
+): Promise<SchematicComponentSnapshot[] | undefined> {
+  try {
+    const result = await ctx.bridge.call('schematic.listComponents', {
+      projectId: 'active',
+      limit: 500,
+      offset: 0,
+    });
+    return Array.isArray(result) ? (result as SchematicComponentSnapshot[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const placeComponentInputSchema = z.object({
   deviceItem: deviceItemSchema,
   x: z.number(),
@@ -18,6 +114,10 @@ const placeComponentInputSchema = z.object({
   mirror: z.boolean().optional(),
   addIntoBom: z.boolean().optional(),
   addIntoPcb: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
+  verifyAfterWrite: z.boolean().optional(),
+  checkPlacementCollision: z.boolean().optional(),
+  collisionRadius: z.number().positive().optional(),
   confirmWrite: z.literal(true),
 });
 
@@ -68,11 +168,45 @@ function registerSchematicWriteTools(
     outputSchema: z.object({
       success: z.boolean(),
       component: z.unknown().optional(),
+      dry_run: z.boolean().optional(),
+      placement_guard: z.unknown().optional(),
+      verification: z.unknown().optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const p = placeComponentInputSchema.parse(params);
       try {
+        const shouldReadBefore = Boolean(
+          p.dryRun || p.verifyAfterWrite || p.checkPlacementCollision,
+        );
+        const beforeComponents = shouldReadBefore
+          ? await readSchematicComponentsForVerification(ctx)
+          : undefined;
+        const collisionRadius = p.collisionRadius ?? 25;
+        const placementGuard = p.checkPlacementCollision
+          ? schematicWritePlacementGuard(beforeComponents, p.x, p.y, collisionRadius)
+          : undefined;
+
+        if (p.dryRun) {
+          return {
+            success: true,
+            dry_run: true,
+            placement_guard: placementGuard,
+            verification: {
+              applied: false,
+              before_component_count: beforeComponents?.length,
+              requested: {
+                deviceItem: p.deviceItem,
+                x: p.x,
+                y: p.y,
+                rotation: p.rotation,
+                mirror: p.mirror,
+                subPartName: p.subPartName,
+              },
+            },
+          };
+        }
+
         const result = await ctx.bridge.call('schematic.placeComponent', {
           deviceItem: p.deviceItem,
           x: p.x,
@@ -83,9 +217,33 @@ function registerSchematicWriteTools(
           addIntoBom: p.addIntoBom,
           addIntoPcb: p.addIntoPcb,
         });
+
+        if (!p.verifyAfterWrite && !placementGuard) {
+          return {
+            success: true,
+            component: result,
+          };
+        }
+
+        const afterComponents = p.verifyAfterWrite
+          ? await readSchematicComponentsForVerification(ctx)
+          : undefined;
         return {
           success: true,
           component: result,
+          placement_guard: placementGuard,
+          verification: p.verifyAfterWrite
+            ? {
+                applied: true,
+                before_component_count: beforeComponents?.length,
+                after_component_count: afterComponents?.length,
+                component_count_delta:
+                  beforeComponents && afterComponents
+                    ? afterComponents.length - beforeComponents.length
+                    : undefined,
+                readback_available: Boolean(afterComponents),
+              }
+            : undefined,
         };
       } catch (err) {
         return {
