@@ -1378,7 +1378,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         'pnl_Document.save',
       ]);
     case 'project.export':
-      return callFirst(['dmt_Project.export', 'project.export'], params);
+      return callFirst(
+        ['PCB_ManufactureData.getManufactureData', 'SCH_ManufactureData.getExportDocumentFile'],
+        params,
+      );
     case 'schematic.listNets':
       return listNetsApi();
     case 'schematic.getNetDetail': {
@@ -1653,7 +1656,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'board.getFeatures':
       return getFeaturesApi();
     case 'board.exportGerbers':
-      return callFirst(['dmt_PCB.exportGerbers', 'board.exportGerbers'], params);
+      return callFirst(['PCB_ManufactureData.getGerberFile'], params);
     case 'system.getStatus': {
       const globals: Record<string, unknown> = {};
       try {
@@ -1888,23 +1891,27 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'inventory.getPrice':
       return null;
     case 'design.ruleCheck':
-      return callFirst(['dmt_DRC.runRuleCheck', 'design.ruleCheck'], params);
+      return callFirst(['PCB_Drc.check', 'SCH_Drc.check'], params);
     case 'design.erc':
-      return callFirst(['dmt_ERC.run', 'design.erc'], params);
+      return callFirst(['SCH_Drc.check'], params);
     case 'design.drc':
-      return callFirst(['dmt_DRC.run', 'design.drc'], params);
+      return callFirst(['PCB_Drc.check', 'SCH_Drc.check'], params);
     case 'export.pickPlace':
-      return callFirst(
-        ['dmt_Project.exportPickPlace', 'dmt_PCB.exportPickAndPlace', 'board.exportPickPlace'],
-        params,
-      );
+      return callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params);
     case 'export.pdf':
       return callFirst(
-        ['dmt_Schematic.exportPdf', 'dmt_PCB.exportPdf', 'sch_Document.exportPdf'],
+        ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
         params.what === 'board' ? params : { ...params, type: 'schematic' },
       );
     case 'export.netlist':
-      return callFirst(['dmt_Project.exportNetlist', 'sch_Document.exportNetlist'], params);
+      return callFirst(
+        [
+          'SCH_Netlist.getNetlist',
+          'SCH_ManufactureData.getNetlistFile',
+          'PCB_ManufactureData.getNetlistFile',
+        ],
+        params,
+      );
     case 'pcb.placeComponent':
       return callFirst(
         ['PCB_PrimitiveComponent.create', 'pcb_PrimitiveComponent.create'],
@@ -1916,7 +1923,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       );
     case 'pcb.addTrack':
       return callFirst(
-        ['PCB_PrimitiveTrack.create', 'pcb_PrimitiveTrack.create'],
+        ['PCB_PrimitivePolyline.create', 'PCB_PrimitiveLine.create'],
         params.points,
         params.layer,
         params.width,

@@ -42,24 +42,6 @@ const COVERED_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'];
 const KNOWN_UNSUPPORTED: Record<string, string> = {
   'SCH_Netlist.connectPin | SCH_Netlist.create | sch_Netlist.create':
     'Intentional fallback. Primary path in connectPinToNetImpl is the SCH_PrimitiveComponent.getAll loop, which resolves.',
-  'design.erc | dmt_ERC.run':
-    'DMT_ERC absent in 3.2.149; schematic ERC is exposed as SCH_Drc.check. Tracked in #163.',
-  'design.drc | dmt_DRC.run':
-    'DMT_DRC absent in 3.2.149; DRC is exposed as PCB_Drc.check / SCH_Drc.check. Tracked in #178.',
-  'design.ruleCheck | dmt_DRC.runRuleCheck':
-    'DMT_DRC absent in 3.2.149; rule check is exposed as PCB_Drc.check / SCH_Drc.check. Tracked in #178.',
-  'dmt_Project.export | project.export':
-    'DMT_Project has no export() in 3.2.149; project export uses a different API. Tracked in #178.',
-  'board.exportGerbers | dmt_PCB.exportGerbers':
-    'DMT_PCB absent in 3.2.149; PCB fab output uses PCB_ManufactureData. Tracked in #178.',
-  'board.exportPickPlace | dmt_PCB.exportPickAndPlace | dmt_Project.exportPickPlace':
-    'DMT_PCB/DMT_Project pick-place export methods absent in 3.2.149; use PCB_ManufactureData. Tracked in #178.',
-  'dmt_PCB.exportPdf | dmt_Schematic.exportPdf | sch_Document.exportPdf':
-    'No exportPdf on these classes in 3.2.149. Tracked in #178.',
-  'dmt_Project.exportNetlist | sch_Document.exportNetlist':
-    'No exportNetlist on these classes in 3.2.149; netlist is exposed via SCH_Netlist.getNetlist / SCH_ManufactureData.getNetlistFile. Tracked in #178.',
-  'PCB_PrimitiveTrack.create | pcb_PrimitiveTrack.create':
-    'PCB_PrimitiveTrack does not exist in 3.2.149; tracks are PCB_PrimitiveLine / PCB_PrimitivePolyline. Tracked in #178.',
 };
 
 interface BaselineInventory {
