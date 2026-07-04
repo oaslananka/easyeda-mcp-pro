@@ -309,6 +309,37 @@ function readFirstPath<T>(paths: string[]): T | undefined {
   return undefined;
 }
 
+/**
+ * Best-effort extraction of a primitive id from a value returned by an EasyEDA
+ * Pro create* API. The runtime may return a plain object with primitiveId/uuid,
+ * or a primitive wrapper exposing getState_PrimitiveId()/getState().PrimitiveId.
+ */
+function extractPrimitiveId(result: unknown): string {
+  if (!result || typeof result !== 'object') return '';
+  const obj = result as Record<string, unknown>;
+  const direct = obj.primitiveId ?? obj.uuid;
+  if (direct) return String(direct);
+  try {
+    const getter = obj.getState_PrimitiveId;
+    if (typeof getter === 'function') {
+      const id = (getter as () => unknown).call(obj);
+      if (id) return String(id);
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const getState = obj.getState;
+    if (typeof getState === 'function') {
+      const state = (getState as () => unknown).call(obj) as Record<string, unknown> | undefined;
+      if (state?.PrimitiveId) return String(state.PrimitiveId);
+    }
+  } catch {
+    /* ignore */
+  }
+  return '';
+}
+
 function getApiCandidates(): Array<{ name: string; root: unknown }> {
   const candidates: Array<{ name: string; root: unknown }> = [];
   if (typeof eda !== 'undefined' && eda) candidates.push({ name: 'eda', root: eda });
@@ -1420,26 +1451,36 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const nfY = params.y as number;
       const nfName = params.netName as string;
       const nfRotation = (params.rotation as number) ?? 0;
-      const nfResult = await callFirst(
-        [
-          'SCH_PrimitiveNetLabel.create',
-          'sch_PrimitiveNetLabel.create',
-          'SCH_NetFlag.create',
-          'sch_NetFlag.create',
-        ],
-        nfX,
-        nfY,
-        nfName,
-        nfRotation,
-      );
-      const nfPrimitiveId =
-        typeof nfResult === 'object' && nfResult !== null
-          ? String(
-              (nfResult as Record<string, unknown>).primitiveId ??
-                (nfResult as Record<string, unknown>).uuid ??
-                '',
-            )
-          : '';
+      // EasyEDA Pro exposes two distinct primitives here (verified against the
+      // live runtime inventory):
+      //   - SCH_PrimitiveComponent.createNetFlag(identification, net, x, y, rotation, mirror)
+      //     is the power-symbol flag and only accepts the four power
+      //     identifications (Power / Ground / AnalogGround / ProtectGround).
+      //   - SCH_PrimitiveAttribute.createNetLabel(x, y, net) is the generic
+      //     named net label that works for any net name.
+      // Prefer the power flag when a valid identification is supplied,
+      // otherwise fall back to a generic net label.
+      const POWER_IDS = ['Power', 'Ground', 'AnalogGround', 'ProtectGround'];
+      const nfIdentification = params.identification as string | undefined;
+      let nfResult: unknown;
+      if (nfIdentification && POWER_IDS.includes(nfIdentification)) {
+        nfResult = await callFirst(
+          ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+          nfIdentification,
+          nfName,
+          nfX,
+          nfY,
+          nfRotation,
+        );
+      } else {
+        nfResult = await callFirst(
+          ['SCH_PrimitiveAttribute.createNetLabel', 'sch_PrimitiveAttribute.createNetLabel'],
+          nfX,
+          nfY,
+          nfName,
+        );
+      }
+      const nfPrimitiveId = extractPrimitiveId(nfResult);
       return {
         primitiveId: nfPrimitiveId || `netflag_${Date.now()}`,
         netName: nfName,
@@ -1449,29 +1490,26 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const npX = params.x as number;
       const npY = params.y as number;
       const npName = params.netName as string;
-      const npType = (params.portType as string) ?? 'passive';
       const npRotation = (params.rotation as number) ?? 0;
+      // SCH_PrimitiveComponent.createNetPort(direction, net, x, y, rotation, mirror)
+      // where direction is one of IN / OUT / BI. Map the MCP portType onto it.
+      const portTypeMap: Record<string, 'IN' | 'OUT' | 'BI'> = {
+        input: 'IN',
+        output: 'OUT',
+        bidirectional: 'BI',
+        triState: 'BI',
+        passive: 'BI',
+      };
+      const npDirection = portTypeMap[(params.portType as string) ?? 'passive'] ?? 'BI';
       const npResult = await callFirst(
-        [
-          'SCH_PrimitiveNetPort.create',
-          'sch_PrimitiveNetPort.create',
-          'SCH_NetPort.create',
-          'sch_NetPort.create',
-        ],
+        ['SCH_PrimitiveComponent.createNetPort', 'sch_PrimitiveComponent.createNetPort'],
+        npDirection,
+        npName,
         npX,
         npY,
-        npName,
-        npType,
         npRotation,
       );
-      const npPrimitiveId =
-        typeof npResult === 'object' && npResult !== null
-          ? String(
-              (npResult as Record<string, unknown>).primitiveId ??
-                (npResult as Record<string, unknown>).uuid ??
-                '',
-            )
-          : '';
+      const npPrimitiveId = extractPrimitiveId(npResult);
       return {
         primitiveId: npPrimitiveId || `netport_${Date.now()}`,
         netName: npName,
