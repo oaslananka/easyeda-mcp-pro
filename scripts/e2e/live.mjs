@@ -8,10 +8,12 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import crypto from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+// Scripts live in scripts/e2e/; the built server and .eext live at the repo root.
+const repoRoot = resolve(__dirname, '../..');
 const CMD_TIMEOUT = 45_000;
 const BRIDGE_MAX_WAIT_S = 120;
 
@@ -82,7 +84,7 @@ async function main() {
   console.log('\u2500\u2500 [1/7] Start MCP Server & Connect Bridge \u2500\u2500\n');
 
   const server = spawn('node', ['dist/index.js'], {
-    cwd: __dirname,
+    cwd: repoRoot,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {
       ...process.env,
@@ -738,7 +740,7 @@ async function main() {
   console.log('\nExtension file:');
   try {
     const fs = await import('fs');
-    const p = `${__dirname}/easyeda-bridge-extension.eext`;
+    const p = `${repoRoot}/easyeda-bridge-extension.eext`;
     const stat = fs.statSync(p);
     const hash = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
     console.log(`  Path: ${p}`);

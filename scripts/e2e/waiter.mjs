@@ -1,6 +1,12 @@
 import { spawn } from 'child_process';
 import { Socket } from 'net';
 import { setTimeout as sleep } from 'timers/promises';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// Scripts live in scripts/e2e/; the built server lives at the repo root.
+const repoRoot = resolve(__dirname, '../..');
 
 const SRV_TIMEOUT = 5 * 60 * 1000; // 5 min
 const POLL_INTERVAL = 5000;
@@ -10,6 +16,7 @@ console.log('Process started at', new Date().toISOString());
 
 console.log('=== Starting MCP Server ===');
 const server = spawn('node', ['dist/index.js'], {
+  cwd: repoRoot,
   env: { ...process.env, LOG_LEVEL: 'info' },
   stdio: ['pipe', 'pipe', 'pipe'],
 });

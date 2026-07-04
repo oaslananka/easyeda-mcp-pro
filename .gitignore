@@ -17,3 +17,8 @@ easyeda-bridge-extension.eext
 
 # Extension release artifacts
 easyeda-bridge-extension.checksums.json
+
+# Local ad-hoc experiment/scratch scripts (keep the repo root clean).
+# Committed dev scripts live in scripts/e2e/ instead.
+/_*.mjs
+/_scratch_*

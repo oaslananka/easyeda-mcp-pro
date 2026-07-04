@@ -5,8 +5,10 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { dirname, resolve } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
+// Scripts live in scripts/e2e/; the built server lives at the repo root.
+const repoRoot = resolve(__dirname, '../..');
 
 let reqId = 0;
 const pending = new Map();
@@ -34,7 +36,7 @@ async function toolCall(name, args = {}) {
 }
 
 const server = spawn('node', ['dist/index.js'], {
-  cwd: __dirname,
+  cwd: repoRoot,
   stdio: ['pipe', 'pipe', 'pipe'],
   env: {
     ...process.env,
