@@ -370,6 +370,96 @@ function registerSchematicReadTools(
   });
 
   registry.register({
+    name: 'easyeda_schematic_sheet_info',
+    title: 'Get schematic sheet info',
+    description:
+      'Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.',
+    profile: 'core',
+    evidence: ['runtime-probe'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().optional(),
+    }),
+    outputSchema: z.object({
+      project_id: z.string().optional(),
+      sheet: z.unknown().optional(),
+      page_size: z
+        .object({
+          width: z.number().optional(),
+          height: z.number().optional(),
+          unit: z.string().optional(),
+        })
+        .optional(),
+      frame: z.unknown().optional(),
+      origin: z.unknown().optional(),
+      grid: z.unknown().optional(),
+      raw: z.unknown().optional(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId } = z.object({ projectId: z.string().optional() }).parse(params ?? {});
+      try {
+        const result = await ctx.bridge.call('schematic.getSheetInfo', { projectId });
+        const root =
+          result && typeof result === 'object' && !Array.isArray(result)
+            ? (result as Record<string, unknown>)
+            : {};
+        const current =
+          root.currentPage &&
+          typeof root.currentPage === 'object' &&
+          !Array.isArray(root.currentPage)
+            ? (root.currentPage as Record<string, unknown>)
+            : root;
+        const readNumber = (keys: string[]): number | undefined => {
+          for (const key of keys) {
+            const value = current[key] ?? root[key];
+            if (typeof value === 'number' && Number.isFinite(value)) return value;
+            if (typeof value === 'string') {
+              const parsed = Number(value.trim());
+              if (Number.isFinite(parsed)) return parsed;
+            }
+          }
+          return undefined;
+        };
+        const readString = (keys: string[]): string | undefined => {
+          for (const key of keys) {
+            const value = current[key] ?? root[key];
+            if (typeof value === 'string' && value.trim()) return value;
+          }
+          return undefined;
+        };
+        return {
+          project_id: projectId,
+          sheet: current,
+          page_size: {
+            width: readNumber(['width', 'pageWidth', 'paperWidth', 'w']),
+            height: readNumber(['height', 'pageHeight', 'paperHeight', 'h']),
+            unit: readString(['unit', 'units', 'pageUnit']),
+          },
+          frame: current.frame ?? current.titleBlock ?? root.frame,
+          origin: current.origin ?? current.canvasOrigin ?? root.origin,
+          grid: current.grid ?? current.gridSize ?? root.grid,
+          raw: result,
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
     name: 'easyeda_schematic_component_pins',
     title: 'Get component pins',
     description:

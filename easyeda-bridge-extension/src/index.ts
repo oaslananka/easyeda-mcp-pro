@@ -884,6 +884,29 @@ async function listComponentsApi(): Promise<unknown> {
   return result;
 }
 
+async function getSchematicSheetInfoApi(): Promise<unknown> {
+  const currentPage = await callFirst([
+    'DMT_Schematic.getCurrentSchematicPageInfo',
+    'dmt_Schematic.getCurrentSchematicPageInfo',
+  ]);
+  let pages: unknown = [];
+  try {
+    pages = await callFirst([
+      'DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo',
+      'DMT_Schematic.getAllSchematicPagesInfo',
+      'dmt_Schematic.getCurrentSchematicAllSchematicPagesInfo',
+      'dmt_Schematic.getAllSchematicPagesInfo',
+    ]);
+  } catch (err) {
+    logRecoverableError('failed to read schematic pages list', err);
+  }
+
+  return {
+    currentPage: normalizeValue(currentPage, 5),
+    pages: normalizeValue(pages, 4),
+  };
+}
+
 async function listNetsApi(): Promise<unknown> {
   const schCompClass = readFirstPath<any>([
     'SCH_PrimitiveComponent',
@@ -1398,6 +1421,8 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     }
     case 'schematic.listComponents':
       return listComponentsApi();
+    case 'schematic.getSheetInfo':
+      return getSchematicSheetInfoApi();
     case 'schematic.searchDevice':
       return callFirst(
         ['LIB_Device.search', 'lib_Device.search'],
@@ -1838,6 +1863,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           'schematic.getNetDetail',
           'schematic.listComponents',
           'schematic.searchDevice',
+          'schematic.getSheetInfo',
           'schematic.placeComponent',
           'schematic.addWire',
           'schematic.deletePrimitive',

@@ -8,6 +8,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'schematic.getNetDetail',
   'schematic.listComponents',
   'schematic.searchDevice',
+  'schematic.getSheetInfo',
   'schematic.placeComponent',
   'schematic.addWire',
   'schematic.deletePrimitive',
