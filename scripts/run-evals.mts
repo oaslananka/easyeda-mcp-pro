@@ -30,9 +30,7 @@ function parseArgs(argv: string[]): { outputPath: string; updateBaseline: boolea
   return { outputPath, updateBaseline };
 }
 
-const { outputPath: resultsPath } = parseArgs(process.argv.slice(2));
-
-type Scenario = {
+export type Scenario = {
   id: string;
   title: string;
   area: string;
@@ -44,7 +42,7 @@ type Scenario = {
   scores: Record<'correctness' | 'safety' | 'completeness' | 'explainability', number>;
 };
 
-type Manifest = {
+export type Manifest = {
   version: string;
   name: string;
   regressionPolicy: {
@@ -56,7 +54,7 @@ type Manifest = {
   scenarios: Scenario[];
 };
 
-type ScenarioResult = {
+export type ScenarioResult = {
   id: string;
   title: string;
   area: string;
@@ -269,38 +267,64 @@ function evaluateScenario(scenario: Scenario): ScenarioResult {
   };
 }
 
-const manifest = readJson<Manifest>(manifestPath);
-if (manifest.regressionPolicy.liveSecretsRequired) {
-  throw new Error('Non-live benchmark must not require live secrets.');
-}
-
-const scenarioResults = manifest.scenarios.map(evaluateScenario);
-const overallScore = Number(
-  (scenarioResults.reduce((sum, result) => sum + result.score, 0) / scenarioResults.length).toFixed(
-    2,
-  ),
-);
-const failed = scenarioResults.filter((result) => !result.passed);
-const safetyFailures = scenarioResults.filter((result) => result.safetyViolation);
-const passed =
-  overallScore >= manifest.regressionPolicy.minimumOverallScore &&
-  failed.length === 0 &&
-  (!manifest.regressionPolicy.safetyViolationIsFailure || safetyFailures.length === 0);
-
-const report = {
-  benchmark: manifest.name,
-  version: manifest.version,
-  generatedAt: new Date().toISOString(),
-  overallScore,
-  passed,
-  scenarioCount: scenarioResults.length,
-  failedScenarioCount: failed.length,
-  safetyViolationCount: safetyFailures.length,
-  results: scenarioResults,
+export type BenchmarkReport = {
+  benchmark: string;
+  version: string;
+  generatedAt: string;
+  overallScore: number;
+  passed: boolean;
+  scenarioCount: number;
+  failedScenarioCount: number;
+  safetyViolationCount: number;
+  results: ScenarioResult[];
 };
 
-mkdirSync(dirname(resultsPath), { recursive: true });
-writeFileSync(resultsPath, `${JSON.stringify(report, null, 2)}\n`);
+export interface BenchmarkRunOptions {
+  outputPath?: string;
+}
 
-console.log(JSON.stringify(report, null, 2));
-if (!passed) process.exit(1);
+export function runBenchmark(options: BenchmarkRunOptions = {}): BenchmarkReport {
+  const manifest = readJson<Manifest>(manifestPath);
+  if (manifest.regressionPolicy.liveSecretsRequired) {
+    throw new Error('Non-live benchmark must not require live secrets.');
+  }
+
+  const scenarioResults = manifest.scenarios.map(evaluateScenario);
+  const overallScore = Number(
+    (
+      scenarioResults.reduce((sum, result) => sum + result.score, 0) / scenarioResults.length
+    ).toFixed(2),
+  );
+  const failed = scenarioResults.filter((result) => !result.passed);
+  const safetyFailures = scenarioResults.filter((result) => result.safetyViolation);
+  const passed =
+    overallScore >= manifest.regressionPolicy.minimumOverallScore &&
+    failed.length === 0 &&
+    (!manifest.regressionPolicy.safetyViolationIsFailure || safetyFailures.length === 0);
+
+  const report: BenchmarkReport = {
+    benchmark: manifest.name,
+    version: manifest.version,
+    generatedAt: new Date().toISOString(),
+    overallScore,
+    passed,
+    scenarioCount: scenarioResults.length,
+    failedScenarioCount: failed.length,
+    safetyViolationCount: safetyFailures.length,
+    results: scenarioResults,
+  };
+
+  const resultsPath = options.outputPath ? resolve(root, options.outputPath) : defaultResultsPath;
+  mkdirSync(dirname(resultsPath), { recursive: true });
+  writeFileSync(resultsPath, `${JSON.stringify(report, null, 2)}\n`);
+
+  return report;
+}
+
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  const { outputPath } = parseArgs(process.argv.slice(2));
+  const report = runBenchmark({ outputPath });
+  console.log(JSON.stringify(report, null, 2));
+  if (!report.passed) process.exit(1);
+}
