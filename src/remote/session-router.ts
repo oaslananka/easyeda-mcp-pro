@@ -82,17 +82,27 @@ export class RemoteSessionRouter {
   }
 
   completePairing(input: { code: string; userId: string; sessionId: string }): boolean {
-    const pairing = this.pairings.get(input.code);
-    const session = this.sessions.get(input.sessionId);
+    return this.completePairingInternal(input.code, input.userId, input.sessionId);
+  }
+
+  completePairingByCode(code: string, sessionId: string): boolean {
+    const item = this.pairings.get(code);
+    if (!item) return false;
+    return this.completePairingInternal(code, item.userId, sessionId);
+  }
+
+  private completePairingInternal(code: string, userId: string, sessionId: string): boolean {
+    const item = this.pairings.get(code);
+    const session = this.sessions.get(sessionId);
     const now = this.now();
-    if (!pairing || !session) return false;
-    if (pairing.usedAt) return false;
-    if (pairing.userId !== input.userId) return false;
-    if (pairing.sessionId && pairing.sessionId !== input.sessionId) return false;
-    if (pairing.expiresAt.getTime() <= now.getTime()) return false;
+    if (!item || !session) return false;
+    if (item.usedAt) return false;
+    if (item.userId !== userId) return false;
+    if (item.sessionId && item.sessionId !== sessionId) return false;
+    if (item.expiresAt.getTime() <= now.getTime()) return false;
     if (!session.connected || session.expiresAt.getTime() <= now.getTime()) return false;
-    pairing.usedAt = now;
-    session.userId = input.userId;
+    item.usedAt = now;
+    session.userId = userId;
     session.lastSeenAt = now;
     return true;
   }

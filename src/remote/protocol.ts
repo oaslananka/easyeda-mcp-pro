@@ -124,4 +124,5 @@ export const RelayMessageSchema = z.discriminatedUnion('type', [
 export type RelayMessage = z.infer<typeof RelayMessageSchema>;
 export type RegisterSessionMessage = z.infer<typeof RegisterSessionMessageSchema>;
 export type ToolRequestMessage = z.infer<typeof ToolRequestMessageSchema>;
+export type ToolResponseMessage = z.infer<typeof ToolResponseMessageSchema>;
 export type ApprovalRequestMessage = z.infer<typeof ApprovalRequestMessageSchema>;

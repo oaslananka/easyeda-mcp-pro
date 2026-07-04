@@ -10,12 +10,18 @@ import {
   createProtectedResourceMetadata,
   setProtectedResourceChallenge,
 } from './oauth-resource-metadata.js';
+import { RemoteGateway } from '../../remote/gateway.js';
 
 export interface HttpTransportInstance {
   app: Express;
   transport: StreamableHTTPServerTransport;
   start: () => Promise<void>;
   close: () => Promise<void>;
+  gateway: RemoteGateway;
+}
+
+export interface HttpTransportOptions {
+  gateway?: RemoteGateway;
 }
 
 interface RateLimitEntry {
@@ -359,6 +365,40 @@ export function handleCorsPreflight(req: Request, res: Response, next: NextFunct
   next();
 }
 
+function parseRemoteJsonBody(req: Request, res: Response, next: NextFunction): void {
+  if (!req.path.startsWith('/remote') || req.method === 'GET' || req.method === 'HEAD') {
+    next();
+    return;
+  }
+  if (req.body !== undefined) {
+    next();
+    return;
+  }
+  const contentType = req.headers['content-type'] ?? '';
+  if (!String(contentType).includes('application/json')) {
+    req.body = {};
+    next();
+    return;
+  }
+  let raw = '';
+  req.setEncoding('utf8');
+  req.on('data', (chunk: string) => {
+    raw += chunk;
+    if (raw.length > 1_000_000) {
+      res.status(413).json({ error: 'Request body too large', code: 'body_too_large' });
+      req.destroy();
+    }
+  });
+  req.on('end', () => {
+    try {
+      req.body = raw ? JSON.parse(raw) : {};
+      next();
+    } catch {
+      res.status(400).json({ error: 'Invalid JSON body', code: 'invalid_json' });
+    }
+  });
+}
+
 function addSecurityHeaders(_req: Request, res: Response, next: NextFunction): void {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -368,8 +408,12 @@ function addSecurityHeaders(_req: Request, res: Response, next: NextFunction): v
   next();
 }
 
-export function createHttpTransport(config: EnvConfig): HttpTransportInstance {
+export function createHttpTransport(
+  config: EnvConfig,
+  options: HttpTransportOptions = {},
+): HttpTransportInstance {
   const logger = getLogger();
+  const gateway = options.gateway ?? new RemoteGateway();
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
@@ -377,6 +421,7 @@ export function createHttpTransport(config: EnvConfig): HttpTransportInstance {
 
   const app = createMcpExpressApp({ host: config.HTTP_HOST });
 
+  app.use(parseRemoteJsonBody);
   app.use(addSecurityHeaders);
 
   app.use(createRateLimiter(60_000, config.HTTP_RATE_LIMIT_MAX));
@@ -413,11 +458,14 @@ export function createHttpTransport(config: EnvConfig): HttpTransportInstance {
     res.json({ status: 'ok', uptime: process.uptime() });
   });
 
+  gateway.registerHttpRoutes(app, config);
+
   let server: ReturnType<typeof app.listen> | undefined;
 
   const start = async () => {
     return new Promise<void>((resolve) => {
       server = app.listen(config.HTTP_PORT, config.HTTP_HOST, () => {
+        if (server) gateway.attachWebSocketServer(server);
         logger.info({ host: config.HTTP_HOST, port: config.HTTP_PORT }, 'HTTP transport listening');
         resolve();
       });
@@ -433,5 +481,5 @@ export function createHttpTransport(config: EnvConfig): HttpTransportInstance {
     }
   };
 
-  return { app, transport, start, close };
+  return { app, transport, start, close, gateway };
 }
