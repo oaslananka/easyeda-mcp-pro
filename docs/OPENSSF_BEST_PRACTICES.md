@@ -64,7 +64,7 @@ This file is a copy-ready evidence map for OpenSSF Best Practices self-certifica
 | `installation_standard_variables` | N/A                                         | npm-managed package install; no POSIX-style install path variables are used.                                                                                      |
 | `installation_development_quick`  | Met                                         | <https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CONTRIBUTING.md#local-development-setup>                                                                 |
 | `external_dependencies`           | Met                                         | <https://github.com/oaslananka/easyeda-mcp-pro/blob/main/package.json> and <https://github.com/oaslananka/easyeda-mcp-pro/blob/main/pnpm-lock.yaml>               |
-| `dependency_monitoring`           | Met                                         | Dependabot, Renovate, `pnpm audit`, Socket, and CodeQL.                                                                                                           |
+| `dependency_monitoring`           | Met                                         | Renovate (sole update-PR bot; see [ADR 0002](./adr/0002-dependency-management.md)), Dependabot alerts, `pnpm audit`, Socket, and CodeQL.                          |
 | `updateable_reused_components`    | Met                                         | npm/pnpm-managed dependencies and lockfile updates.                                                                                                               |
 | `interfaces_current`              | Met                                         | TypeScript strictness, dependency monitoring, and compatibility docs.                                                                                             |
 | `automated_integration_testing`   | Met                                         | <https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml>                                                                                          |
@@ -83,3 +83,7 @@ This file is a copy-ready evidence map for OpenSSF Best Practices self-certifica
 ## BadgeApp helper
 
 The file [`scripts/maintainer/openssf-badgeapp-autofill.js`](../scripts/maintainer/openssf-badgeapp-autofill.js) is a best-effort browser-console helper for the logged-in BadgeApp form. It only sets radio values for criteria where evidence is present. Review every value before saving.
+
+## OpenSSF Scorecard
+
+Separately from the BadgeApp self-certification above, [`.github/workflows/scorecard.yml`](../.github/workflows/scorecard.yml) runs the [OpenSSF Scorecard](https://github.com/ossf/scorecard) action on every push to `main` and weekly on a schedule. It publishes results to the public Scorecard API (`publish_results: true`) and uploads SARIF findings to GitHub code scanning. The current score is visible on the [Scorecard dashboard](https://scorecard.dev/viewer/?uri=github.com/oaslananka/easyeda-mcp-pro) and via the README badge. Scorecard findings support the `dependency_monitoring`, `static_analysis`, and `hardening` BadgeApp evidence above; review new low-scoring checks when the workflow runs and file follow-up issues for anything actionable.

@@ -25,6 +25,9 @@
   <a href="https://www.bestpractices.dev/projects/13406">
     <img src="https://www.bestpractices.dev/projects/13406/badge" alt="OpenSSF Best Practices" />
   </a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/oaslananka/easyeda-mcp-pro">
+    <img src="https://api.scorecard.dev/projects/github.com/oaslananka/easyeda-mcp-pro/badge" alt="OpenSSF Scorecard" />
+  </a>
   <a href="https://github.com/oaslananka/easyeda-mcp-pro/security/policy">
     <img src="https://img.shields.io/badge/security-policy-blue" alt="Security policy" />
   </a>
