@@ -2,6 +2,7 @@
 import process from 'node:process';
 import { BridgeManager } from '../src/bridge/manager.js';
 import { loadEnvConfig } from '../src/config/env.js';
+import { createLogger } from '../src/utils/logger.js';
 import {
   captureRuntimeInventorySnapshot,
   parseRuntimeInventoryCaptureConfig,
@@ -17,7 +18,9 @@ if (!config.enabled) {
   process.exit(0);
 }
 
-const bridge = new BridgeManager(loadEnvConfig());
+const envConfig = loadEnvConfig();
+createLogger(envConfig);
+const bridge = new BridgeManager(envConfig);
 const snapshot = await captureRuntimeInventorySnapshot(bridge, config);
 if (!snapshot) {
   throw new Error('Runtime inventory capture unexpectedly returned no snapshot.');

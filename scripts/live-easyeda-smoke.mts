@@ -2,6 +2,7 @@
 import process from 'node:process';
 import { BridgeManager } from '../src/bridge/manager.js';
 import { loadEnvConfig } from '../src/config/env.js';
+import { createLogger } from '../src/utils/logger.js';
 import {
   parseLiveSmokeConfig,
   runLiveSmokeChecks,
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   }
 
   const envConfig = loadEnvConfig();
+  createLogger(envConfig);
   const bridge = new BridgeManager(envConfig);
   const report = await runLiveSmokeChecks(bridge, smokeConfig);
   await writeLiveSmokeReport(smokeConfig.outputPath, report);
