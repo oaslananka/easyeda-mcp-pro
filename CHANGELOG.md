@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.20.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.19.0...easyeda-mcp-pro-v0.20.0) (2026-07-04)
+
+
+### Features
+
+* add schematic placement safety guardrails ([#189](https://github.com/oaslananka/easyeda-mcp-pro/issues/189)) ([3e8ccea](https://github.com/oaslananka/easyeda-mcp-pro/commit/3e8ccea01f5c7833435a37d6ad4c5530c1fe49e9))
+* add schematic sheet info tool ([f5b8bf1](https://github.com/oaslananka/easyeda-mcp-pro/commit/f5b8bf12fd2b90789e04c00afd08d7f678f018fc))
+* add schematic write verification tool ([a2e2332](https://github.com/oaslananka/easyeda-mcp-pro/commit/a2e2332eac0a53942375b7a639b796ff7e041fa6))
+* expose schematic search device metadata ([166949f](https://github.com/oaslananka/easyeda-mcp-pro/commit/166949fb2619ce1f77719cadf565fda81dca8b72))
+
+
+### Bug Fixes
+
+* align bridge runtime paths with EasyEDA inventory ([200587e](https://github.com/oaslananka/easyeda-mcp-pro/commit/200587e1a41cee034bdc34e4925ef1abcbc3c5ef))
+* **bridge:** correct net-flag/net-port runtime API paths ([b436d15](https://github.com/oaslananka/easyeda-mcp-pro/commit/b436d1576ea4dc041c32c3b1b8ca6e456aeb4ebe))
+* **bridge:** correct net-flag/net-port runtime API paths ([f8ad088](https://github.com/oaslananka/easyeda-mcp-pro/commit/f8ad088eecaaaccd90b35d3cc1a13a18f9763490))
+* initialize logger before bridge connect in live scripts ([c54a5b8](https://github.com/oaslananka/easyeda-mcp-pro/commit/c54a5b8a378e5564641b2abf45555ffcd70aca51))
+* initialize logger before bridge connect in live scripts ([7c08323](https://github.com/oaslananka/easyeda-mcp-pro/commit/7c08323a8086d54ccb7995b408bc617527a7be1c))
+
 ## [0.19.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.18.0...easyeda-mcp-pro-v0.19.0) (2026-07-04)
 
 
