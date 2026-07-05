@@ -694,6 +694,62 @@ Installation: Open EasyEDA Pro → **Settings** → **Extensions** → **Extensi
 
 ---
 
+## Agent plugin and skills
+
+This repository owns the product-level agent plugin and EasyEDA-specific skills for
+EasyEDA MCP Pro. The central [`agent-tools`](https://github.com/oaslananka/agent-tools)
+repository should catalog this plugin, but the manifest and workflow instructions live
+here so they stay synchronized with the actual MCP server, bridge extension, tool
+profiles, and EasyEDA runtime behavior.
+
+| File                                                                     | Purpose                                                                                         |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)               | Product-level plugin manifest for compatible agent runtimes and marketplace catalogs.           |
+| [`skills/easyeda-workflow/SKILL.md`](skills/easyeda-workflow/SKILL.md)   | End-to-end EasyEDA setup, inspection, controlled write, export, and reporting workflow.         |
+| [`skills/component-search/SKILL.md`](skills/component-search/SKILL.md)   | Component search, BOM review, sourcing, pricing, availability, and part-risk workflow.          |
+| [`skills/design-validation/SKILL.md`](skills/design-validation/SKILL.md) | DRC/ERC, semantic ERC, PCB constraints, production QA, export, and release-validation workflow. |
+
+### Agent setup
+
+EasyEDA MCP Pro can be launched with the published npm package or from a source checkout:
+
+```bash
+npx easyeda-mcp-pro
+TRANSPORT=http HTTP_HOST=127.0.0.1 HTTP_PORT=3000 npx easyeda-mcp-pro
+pnpm build && node dist/index.js
+```
+
+For live EasyEDA Pro workflows, install the EasyEDA bridge extension and confirm the
+bridge is reachable with `easyeda_health_check` and `easyeda_bridge_status`. Tool
+availability depends on `TOOL_PROFILE` and optional `TOOL_SCOPES` restrictions.
+
+For source checkouts, run the normal validation path before publishing plugin changes:
+
+```bash
+python3 -m json.tool .claude-plugin/plugin.json >/dev/null
+pnpm format:check
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm check:metadata
+```
+
+### Validation workflow
+
+Before listing this plugin as active from `agent-tools`, verify at least one compatible
+agent runtime can:
+
+1. Discover `.claude-plugin/plugin.json`.
+2. Launch or connect to `easyeda-mcp-pro` over `stdio` or HTTP.
+3. Call `easyeda_health_check`, `easyeda_bridge_status`, or `easyeda_get_capabilities`.
+4. Load a skill from `skills/` and follow the workflow without referencing missing tools.
+5. Report bridge state, tool profile, ERC, DRC, BOM, export artifacts, assumptions, and
+   human-review requirements separately.
+
+EasyEDA MCP Pro is an engineering assistant, not an autonomous manufacturing sign-off
+authority. Generated designs, component selections, and fabrication outputs require
+qualified human review before purchase, fabrication, or assembly.
+
 ## Development
 
 ### Prerequisites
