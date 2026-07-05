@@ -73,7 +73,8 @@
     "inventory:capture": "tsx scripts/capture-runtime-inventory.mts",
     "inventory:diff": "tsx scripts/diff-runtime-inventory.mts",
     "eval:golden": "tsx scripts/run-evals.mts",
-    "eval:golden:update": "tsx scripts/run-evals.mts --update-baseline"
+    "eval:golden:update": "tsx scripts/run-evals.mts --update-baseline",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

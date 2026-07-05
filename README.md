@@ -710,12 +710,12 @@ pnpm install
 cp .env.example .env
 
 # All quality gates (lint + format + typecheck + test + build)
+pnpm verify
+
+# Or, if you use Go Task:
 task verify
 
-# CI-equivalent fallback when Go Task is unavailable:
-pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build
-
-# Or use pnpm directly for focused checks:
+# Use focused checks while iterating:
 pnpm format:check          # Prettier
 pnpm typecheck             # TypeScript
 pnpm lint                  # ESLint
@@ -742,15 +742,17 @@ pnpm inspector
 
 This project includes a `Taskfile.yml` with the following commands:
 
-| Command          | Description                     |
-| ---------------- | ------------------------------- |
-| `task install`   | Install dependencies            |
-| `task lint`      | Run ESLint                      |
-| `task format`    | Check formatting with Prettier  |
-| `task typecheck` | Run TypeScript type checking    |
-| `task test`      | Run tests                       |
-| `task build`     | Build the project               |
-| `task verify`    | Run all quality gates (CI gate) |
+| Command          | Description                        |
+| ---------------- | ---------------------------------- |
+| `task install`   | Install dependencies               |
+| `task lint`      | Run ESLint                         |
+| `task format`    | Check formatting with Prettier     |
+| `task typecheck` | Run TypeScript type checking       |
+| `task test`      | Run tests                          |
+| `task build`     | Build the project                  |
+| `task verify`    | Run all quality gates via Taskfile |
+
+The package also exposes `pnpm verify`, which runs the same CI-equivalent local gate without requiring Go Task.
 
 Install [Go Task](https://taskfile.dev/installation/) to use these commands.
 
