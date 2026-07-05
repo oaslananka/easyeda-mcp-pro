@@ -3,6 +3,7 @@ import { type BridgeDiagnosticsSnapshot, type ToolDefinition, type ToolContext }
 import { type EnvConfig } from '../config/env.js';
 import { PROFILE_DEFINITIONS } from '../config/profiles.js';
 import { SERVER_VERSION } from '../config/version.js';
+import { STARTER_DEVICE_CATALOG } from '../catalog/index.js';
 import {
   DEFAULT_LATENCY_BUDGETS,
   DEFAULT_RETENTION_POLICY,
@@ -44,13 +45,13 @@ function registerDiagnosticsCore(
     name: 'easyeda_health_check',
     title: 'Health check',
     description:
-      'Return server health status, including runtime version, active profile, bridge state, and config validity.',
+      'Return server health status in one call: runtime version, active profile, bridge state, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
     confirmWrite: false,
     group: 'diagnostics',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       idempotentHint: true,
@@ -63,16 +64,31 @@ function registerDiagnosticsCore(
       profile: z.string(),
       transport: z.string(),
       bridge_connected: z.boolean(),
+      easyeda_version: z.string().optional(),
+      extension_version: z.string().optional(),
+      extension_version_mismatch: z.boolean(),
+      keyless_sourcing_enabled: z.boolean(),
+      catalog_device_count: z.number().int().nonnegative(),
       ups: z.number(),
     }),
     handler: async (ctx: ToolContext, _params: unknown) => {
+      const extensionVersionMismatch = ctx.bridge.extensionVersionMismatch ?? false;
       return {
-        status: ctx.bridge.connected ? ('ok' as const) : ('degraded' as const),
+        status: !ctx.bridge.connected
+          ? ('degraded' as const)
+          : extensionVersionMismatch
+            ? ('degraded' as const)
+            : ('ok' as const),
         version: SERVER_VERSION,
         node_version: process.version,
         profile: ctx.profile,
         transport: config.TRANSPORT,
         bridge_connected: ctx.bridge.connected,
+        easyeda_version: ctx.bridge.easyedaVersion,
+        extension_version: ctx.bridge.extensionVersion,
+        extension_version_mismatch: extensionVersionMismatch,
+        keyless_sourcing_enabled: ctx.config.keylessSourcingEnabled ?? true,
+        catalog_device_count: STARTER_DEVICE_CATALOG.length,
         ups: process.uptime(),
       };
     },
@@ -466,10 +482,32 @@ function registerDiagnosticsCore(
           status: ctx.bridge.connected ? ('pass' as const) : ('warn' as const),
           message: ctx.bridge.connected ? 'Bridge connected' : 'Bridge not connected',
         },
+        {
+          name: 'easyeda_version_detected',
+          status: ctx.bridge.easyedaVersion ? ('pass' as const) : ('skipped' as const),
+          message: ctx.bridge.easyedaVersion
+            ? `EasyEDA Pro version ${ctx.bridge.easyedaVersion}`
+            : ctx.bridge.connected
+              ? 'Skipped: bridge connected but did not report an EasyEDA version'
+              : 'Skipped: bridge not connected',
+        },
+        {
+          name: 'extension_version_match',
+          status: !ctx.bridge.extensionVersion
+            ? ('skipped' as const)
+            : ctx.bridge.extensionVersionMismatch
+              ? ('warn' as const)
+              : ('pass' as const),
+          message: !ctx.bridge.extensionVersion
+            ? 'Skipped: extension did not report a version'
+            : ctx.bridge.extensionVersionMismatch
+              ? `Extension version ${ctx.bridge.extensionVersion} does not match server version ${SERVER_VERSION}; update the extension in EasyEDA Pro`
+              : 'Extension version matches server version',
+        },
       ];
 
       return {
-        passed: checks.every((c) => c.status === 'pass'),
+        passed: checks.every((c) => c.status === 'pass' || c.status === 'skipped'),
         checks,
       };
     },

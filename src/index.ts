@@ -40,7 +40,9 @@ async function main() {
   }
 
   if (cli.command === 'doctor') {
-    process.stdout.write(`${formatDoctorReport(await createDoctorReport())}\n`);
+    process.stdout.write(
+      `${formatDoctorReport(await createDoctorReport(), { fix: cli.doctorFix })}\n`,
+    );
     return;
   }
 

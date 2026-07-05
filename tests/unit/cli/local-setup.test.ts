@@ -73,6 +73,11 @@ describe('local setup CLI helpers', () => {
     expect(parseCliArgs(['--not-a-real-flag']).command).toBe('server');
   });
 
+  it('parses the doctor --fix flag', () => {
+    expect(parseCliArgs(['doctor', '--fix'])).toEqual({ command: 'doctor', doctorFix: true });
+    expect(parseCliArgs(['--doctor'])).toEqual({ command: 'doctor', doctorFix: false });
+  });
+
   it('formats MCP client auto-start setup instructions', () => {
     const report = formatSetupLocalReport({
       packageName: 'easyeda-mcp-pro',
@@ -132,6 +137,87 @@ describe('local setup CLI helpers', () => {
     expect(formatDoctorReport(report)).toContain(
       'LCSC: enabled / configured / optional-missing / public-jlcsearch',
     );
+    expect(formatDoctorReport(report)).not.toContain('Suggested fixes:');
+  });
+
+  it('doctor --fix prints suggested fixes for each detected failure', () => {
+    const report: DoctorReport = {
+      setup: {
+        packageName: 'easyeda-mcp-pro',
+        packageVersion: '0.3.2',
+        packageRoot: '/repo',
+        serverEntryPath: '/repo/dist/index.js',
+        extensionPackagePath: '/repo/easyeda-bridge-extension.eext',
+        serverEntryExists: false,
+        extensionPackageExists: false,
+      },
+      nodeVersion: '18.19.0',
+      nodeSupported: false,
+      pnpmVersion: null,
+      envValid: false,
+      envIssues: ['BRIDGE_PORT: Expected number, received string'],
+      bridgeHost: '127.0.0.1',
+      bridgePorts: [
+        { port: 49620, reachable: false },
+        { port: 49621, reachable: false },
+      ],
+      toolCounts: { profile: 'core', enabled: 10, total: 20 },
+      vendorsConfigured: { MOUSER: false },
+      vendorDiagnostics: {
+        MOUSER: { enabled: true, configured: false, mode: 'api', credentialStatus: 'missing' },
+      },
+    };
+
+    const output = formatDoctorReport(report, { fix: true });
+
+    expect(output).toContain('Suggested fixes:');
+    expect(output).toContain('nvm install 24 && nvm use 24');
+    expect(output).toContain('npm install -g pnpm');
+    expect(output).toContain('Fix: set/correct BRIDGE_PORT: Expected number, received string');
+    expect(output).toContain('pnpm build');
+    expect(output).toContain('pnpm build:extension');
+    expect(output).toContain('Extension Manager and confirm the bridge extension is imported');
+    expect(output).toContain('MOUSER is enabled but missing required credentials');
+  });
+
+  it('doctor --fix reports a fallback port and no issues when everything is healthy', () => {
+    const healthyReport: DoctorReport = {
+      setup: {
+        packageName: 'easyeda-mcp-pro',
+        packageVersion: '0.3.2',
+        packageRoot: '/repo',
+        serverEntryPath: '/repo/dist/index.js',
+        extensionPackagePath: '/repo/easyeda-bridge-extension.eext',
+        serverEntryExists: true,
+        extensionPackageExists: true,
+      },
+      nodeVersion: '24.16.0',
+      nodeSupported: true,
+      pnpmVersion: '11.0.0',
+      envValid: true,
+      envIssues: [],
+      bridgeHost: '127.0.0.1',
+      bridgePorts: [{ port: 49620, reachable: true }],
+      toolCounts: { profile: 'core', enabled: 10, total: 20 },
+      vendorsConfigured: {},
+      vendorDiagnostics: {},
+    };
+
+    expect(formatDoctorReport(healthyReport, { fix: true })).toContain(
+      'No issues detected — nothing to fix.',
+    );
+
+    const fallbackReport: DoctorReport = {
+      ...healthyReport,
+      bridgePorts: [
+        { port: 49620, reachable: false },
+        { port: 49621, reachable: true },
+      ],
+    };
+
+    const fallbackOutput = formatDoctorReport(fallbackReport, { fix: true });
+    expect(fallbackOutput).toContain('reachable on a fallback port (49621)');
+    expect(fallbackOutput).toContain('BRIDGE_PORT=49621');
   });
 
   it('prints concise help', () => {

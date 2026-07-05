@@ -32,7 +32,16 @@ The AI client (e.g. Claude Desktop or Cursor) displays an error: `"Failed to sta
    ```bash
    npx easyeda-mcp-pro doctor
    ```
+   Add `--fix` to print a suggested-fixes section with the exact command or setting to
+   change for each detected failure (Node version, missing pnpm, invalid env, missing
+   build artifacts, unreachable bridge port, missing vendor credentials). `doctor --fix`
+   never modifies files — it only prints guidance.
 4. **Port Scan Configuration**: If you changed ports, ensure the server env var `BRIDGE_PORT` or `BRIDGE_PORT_SCAN` aligns with the extension's configured port (default is `49620`).
+5. **Extension Version Mismatch**: `easyeda_health_check` and `easyeda_run_self_test` report
+   `extension_version_mismatch: true` (and the mismatched versions) when the connected
+   bridge extension's version differs from the installed `easyeda-mcp-pro` package
+   version. Update the extension in EasyEDA Pro (Settings → Extensions → Extension
+   Manager) or reinstall `easyeda-bridge-extension.eext` from a matching release.
 
 ---
 
@@ -66,7 +75,25 @@ To bypass this locally, bind to `127.0.0.1`. For production deployments, configu
 
 ---
 
-## 5. Release Pipeline / NPM Token Failures
+## 5. Stale MCP Client Config
+
+### Symptom:
+
+Running `npx easyeda-mcp-pro setup <client>` (or `setup all`) prints "Stale entry
+detected and replaced" for a client instead of "Existing entry was already up to date."
+
+### Rationale & Solution:
+
+This means the client's MCP config file already had an `easyeda-mcp-pro` entry that
+differed from the one `setup` just wrote (for example, an entry from an older version
+that pointed at a local build path, or one missing a `TOOL_PROFILE` env var). The lines
+under "Stale entry detected and replaced" list exactly what changed
+(`command`, `args`, or `env`). `setup` always writes the correct current entry, so no
+further action is needed — restart the client to pick up the corrected config.
+
+---
+
+## 6. Release Pipeline / NPM Token Failures
 
 ### Symptom:
 

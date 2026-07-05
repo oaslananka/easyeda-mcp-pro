@@ -57,6 +57,7 @@ export class BridgeManager extends EventEmitter {
   private reconnectStartMs = 0;
   private pairingChallenges = new Map<string, PairingEntry>();
   private _methodRegistryHash: string;
+  private _extensionVersion: string | undefined;
 
   constructor(config: EnvConfig) {
     super();
@@ -102,6 +103,21 @@ export class BridgeManager extends EventEmitter {
 
   get methodRegistryHash(): string {
     return this._methodRegistryHash;
+  }
+
+  /** EasyEDA Pro application version reported at the last successful handshake. */
+  get easyedaVersion(): string | undefined {
+    return this.hello?.easyedaVersion;
+  }
+
+  /** Bridge extension version reported at the last successful handshake. */
+  get extensionVersion(): string | undefined {
+    return this._extensionVersion;
+  }
+
+  /** Whether the connected extension's version differs from this server's version. */
+  get extensionVersionMismatch(): boolean {
+    return this._extensionVersion !== undefined && this._extensionVersion !== SERVER_VERSION;
   }
 
   private isLoopbackHost(host: string): boolean {
@@ -266,6 +282,7 @@ export class BridgeManager extends EventEmitter {
       this.state = 'connecting';
       this._connectedAtMs = 0;
       this.hello = null;
+      this._extensionVersion = undefined;
       this.stopStaleSweep();
       this.stopHeartbeat();
 
@@ -337,6 +354,7 @@ export class BridgeManager extends EventEmitter {
 
     // Extension version mismatch warning
     const extVer = parsed.data.extensionVersion;
+    this._extensionVersion = extVer;
     if (extVer && extVer !== SERVER_VERSION) {
       logger.warn(
         `⚠️ EasyEDA Pro bridge extension version mismatch: extension is v${extVer}, but MCP server is v${SERVER_VERSION}. Please update the extension in EasyEDA Pro.`,
@@ -511,6 +529,7 @@ export class BridgeManager extends EventEmitter {
     }
 
     this.hello = null;
+    this._extensionVersion = undefined;
     this.reconnectAttempts = 0;
     this.emit('stateChanged', this.state, prev);
     this.emit('disconnected', reason ?? 'unknown');

@@ -91,6 +91,39 @@ function mergeServerEntry(
   return { ...existing, [serverKey]: servers };
 }
 
+/** Read the existing server entry for this project under `serverKey`, if any. */
+function readExistingEntry(
+  existing: Record<string, unknown>,
+  serverKey: string,
+): Record<string, unknown> | undefined {
+  const servers = existing[serverKey] as Record<string, unknown> | undefined;
+  const entry = servers?.[SERVER_NAME];
+  return entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : undefined;
+}
+
+function describeStaleConfig(
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): string[] {
+  const notes: string[] = [];
+  const prevCommand = JSON.stringify(previous.command);
+  const nextCommand = JSON.stringify(next.command);
+  if (prevCommand !== nextCommand) {
+    notes.push(`command: ${prevCommand} -> ${nextCommand}`);
+  }
+  const prevArgs = JSON.stringify(previous.args ?? []);
+  const nextArgs = JSON.stringify(next.args ?? []);
+  if (prevArgs !== nextArgs) {
+    notes.push(`args: ${prevArgs} -> ${nextArgs}`);
+  }
+  const prevEnv = JSON.stringify(previous.env ?? {});
+  const nextEnv = JSON.stringify(next.env ?? {});
+  if (prevEnv !== nextEnv) {
+    notes.push(`env: ${prevEnv} -> ${nextEnv}`);
+  }
+  return notes;
+}
+
 // ── Core: setup a single client ─────────────────────────────
 
 function setupClient(client: ClientDefinition, profile: string): string[] {
@@ -105,6 +138,7 @@ function setupClient(client: ClientDefinition, profile: string): string[] {
   const serverEntry = buildServerEntry(profile, client);
   const fileExists = existsSync(configPath);
   const existing = fileExists ? readJsonFile(configPath) : {};
+  const previousEntry = readExistingEntry(existing, client.serverKey);
   const merged = mergeServerEntry(existing, client.serverKey, serverEntry);
 
   writeJsonFile(configPath, merged);
@@ -114,6 +148,19 @@ function setupClient(client: ClientDefinition, profile: string): string[] {
   } else {
     lines.push(ok(`Created ${client.displayName} config`));
   }
+
+  if (previousEntry) {
+    const staleNotes = describeStaleConfig(previousEntry, serverEntry);
+    if (staleNotes.length > 0) {
+      lines.push(warn(`Stale entry detected and replaced:`));
+      for (const note of staleNotes) {
+        lines.push(info(`  ${note}`));
+      }
+    } else {
+      lines.push(info('Existing entry was already up to date.'));
+    }
+  }
+
   lines.push(info(`Path: ${configPath}`));
 
   return lines;
