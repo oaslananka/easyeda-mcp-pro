@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import { BridgeManager, parsePortScanSpec } from '../../../src/bridge/manager.js';
 import { getLogger } from '../../../src/utils/logger.js';
+import { SERVER_VERSION } from '../../../src/config/version.js';
 
 function createTestConfig(overrides: Record<string, unknown> = {}) {
   return EnvSchema.parse({
@@ -194,9 +195,65 @@ describe('BridgeManager', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('version mismatch: extension is v0.0.1'),
     );
+    expect(manager.extensionVersion).toBe('0.0.1');
+    expect(manager.extensionVersionMismatch).toBe(true);
+    expect(manager.easyedaVersion).toBe('test');
 
     warnSpy.mockRestore();
     socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('reports no version mismatch when the extension version matches the server version', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const socket = await openSocket(port);
+    socket.send(
+      JSON.stringify({
+        type: 'handshake',
+        protocol: 'easyeda-mcp-pro.bridge',
+        protocolVersion: '1.0.0',
+        clientName: 'easyeda-mcp-pro',
+        extensionVersion: SERVER_VERSION,
+        easyedaVersion: '2.0.0',
+        devMode: false,
+      }),
+    );
+
+    await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
+
+    expect(manager.extensionVersion).toBe(SERVER_VERSION);
+    expect(manager.extensionVersionMismatch).toBe(false);
+    expect(manager.easyedaVersion).toBe('2.0.0');
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('clears extensionVersion/easyedaVersion on disconnect', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const socket = await openSocket(port);
+    sendHandshake(socket);
+    await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
+    expect(manager.easyedaVersion).toBeDefined();
+
+    const closed = waitForClose(socket);
+    socket.close();
+    await closed;
+    // Give the manager's close handler a tick to run.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(manager.extensionVersion).toBeUndefined();
+    expect(manager.extensionVersionMismatch).toBe(false);
+    expect(manager.easyedaVersion).toBeUndefined();
+
     manager.disconnect('test complete');
   });
 });

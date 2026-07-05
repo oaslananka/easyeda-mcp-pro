@@ -87,6 +87,27 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
         logger.debug({ method }, 'bridge call');
         return bridge.call(method, params, opts);
       },
+      get uptimeMs() {
+        return bridge.uptimeMs;
+      },
+      get activePort() {
+        return bridge.activePort;
+      },
+      get lastHeartbeatMs() {
+        return bridge.lastHeartbeatMs;
+      },
+      get methodRegistryHash() {
+        return bridge.methodRegistryHash;
+      },
+      get easyedaVersion() {
+        return bridge.easyedaVersion;
+      },
+      get extensionVersion() {
+        return bridge.extensionVersion;
+      },
+      get extensionVersionMismatch() {
+        return bridge.extensionVersionMismatch;
+      },
     },
     config: {
       bridgeTimeoutMs: config.BRIDGE_TIMEOUT_MS,

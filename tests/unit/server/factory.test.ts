@@ -45,6 +45,13 @@ vi.mock('../../../src/bridge/manager.js', () => ({
     connect = mocks.connect;
     disconnect = mocks.disconnect;
     call = mocks.call;
+    uptimeMs = 12345;
+    activePort = 49620;
+    lastHeartbeatMs = 999;
+    methodRegistryHash = 'test-hash';
+    easyedaVersion = '2.0.0';
+    extensionVersion = '0.20.0';
+    extensionVersionMismatch = true;
   },
 }));
 vi.mock('../../../src/tools/registry.js', () => ({
@@ -114,6 +121,23 @@ describe('createServer', () => {
 
     expect(mocks.logger.debug).toHaveBeenCalledWith({ method: 'ping' }, 'bridge call');
     expect(mocks.call).toHaveBeenCalledWith('ping', { value: 1 }, undefined);
+  });
+
+  it('exposes bridge diagnostics and version fields through the tool context', async () => {
+    const instance = await createServer(config());
+
+    expect(instance.context.bridge.uptimeMs).toBe(12345);
+    expect(instance.context.bridge.activePort).toBe(49620);
+    expect(instance.context.bridge.lastHeartbeatMs).toBe(999);
+    expect(instance.context.bridge.methodRegistryHash).toBe('test-hash');
+    expect(instance.context.bridge.easyedaVersion).toBe('2.0.0');
+    expect(instance.context.bridge.extensionVersion).toBe('0.20.0');
+    expect(instance.context.bridge.extensionVersionMismatch).toBe(true);
+  });
+
+  it('exposes keylessSourcingEnabled through the tool context config', async () => {
+    const instance = await createServer(config({ KEYLESS_SOURCING_ENABLED: false }));
+    expect(instance.context.config.keylessSourcingEnabled).toBe(false);
   });
 
   it('creates vendor clients when enabled', async () => {

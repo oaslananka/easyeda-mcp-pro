@@ -19,6 +19,7 @@ export interface ParsedCliArgs {
   setupProfile?: string;
   extensionOpen?: boolean;
   extensionCopy?: string;
+  doctorFix?: boolean;
 }
 
 interface PackageInfo {
@@ -142,7 +143,7 @@ export function parseCliArgs(args: string[]): ParsedCliArgs {
     }
     case '--doctor':
     case 'doctor':
-      return { command: 'doctor' };
+      return { command: 'doctor', doctorFix: args.includes('--fix') };
     case '--init':
     case 'init':
       return { command: 'init' };
@@ -273,7 +274,81 @@ export async function createDoctorReport(
   };
 }
 
-export function formatDoctorReport(report: DoctorReport): string {
+/** Build the "Suggested fixes" lines for `doctor --fix`, one block per detected failure. */
+function buildSuggestedFixes(report: DoctorReport): string[] {
+  const fixes: string[] = [];
+  const reachable = report.bridgePorts.find((port) => port.reachable);
+
+  if (!report.nodeSupported) {
+    const major = Number(report.nodeVersion.split('.')[0]);
+    fixes.push(
+      `Node.js ${report.nodeVersion} is not supported (need >=24 <27, found major ${Number.isFinite(major) ? major : '?'}).`,
+      '  Fix: nvm install 24 && nvm use 24   (or upgrade Node.js from https://nodejs.org)',
+    );
+  }
+
+  if (!report.pnpmVersion) {
+    fixes.push(
+      'pnpm was not found on PATH.',
+      '  Fix: npm install -g pnpm   (only needed for local development, not for npx usage)',
+    );
+  }
+
+  if (!report.envValid) {
+    fixes.push('Environment configuration is invalid:');
+    for (const issue of report.envIssues) {
+      fixes.push(`  Fix: set/correct ${issue}`);
+    }
+  }
+
+  if (!report.setup.serverEntryExists) {
+    fixes.push(
+      `MCP server entry not found at ${report.setup.serverEntryPath}.`,
+      '  Fix: pnpm build   (or reinstall via npx easyeda-mcp-pro if using the published package)',
+    );
+  }
+
+  if (!report.setup.extensionPackageExists) {
+    fixes.push(
+      `Bridge extension package not found at ${report.setup.extensionPackagePath}.`,
+      '  Fix: pnpm build:extension   (or reinstall the npm package, which bundles the .eext)',
+    );
+  }
+
+  if (!reachable) {
+    fixes.push(
+      `Bridge server is not reachable on ${report.bridgeHost} (scanned ports: ${report.bridgePorts.map((p) => p.port).join(', ')}).`,
+      '  This is expected until your MCP client starts easyeda-mcp-pro. If your MCP client is running and this persists:',
+      '  Fix 1: In EasyEDA Pro, go to Settings > Extensions > Extension Manager and confirm the bridge extension is imported.',
+      '  Fix 2: Enable "Allow External Interaction" for the extension, then click MCP Bridge > Connect in the menu bar.',
+      '  Fix 3: If another process holds the configured port, set BRIDGE_PORT to a free port and update BRIDGE_PORT_SCAN to include it.',
+    );
+  } else if (reachable.port !== report.bridgePorts[0]?.port) {
+    fixes.push(
+      `Bridge is reachable on a fallback port (${reachable.port}) rather than the first scanned port (${report.bridgePorts[0]?.port}).`,
+      `  Fix: set BRIDGE_PORT=${reachable.port} to pin it and avoid future port-scan ambiguity.`,
+    );
+  }
+
+  if (report.vendorDiagnostics) {
+    for (const [name, vendor] of Object.entries(report.vendorDiagnostics)) {
+      if (vendor.credentialStatus === 'missing') {
+        fixes.push(
+          `${name} is enabled but missing required credentials (mode: ${vendor.mode}).`,
+          `  Fix: set the ${name} credential environment variables documented in docs/vendor-api-hardening.md, or disable it.`,
+        );
+      }
+    }
+  }
+
+  if (fixes.length === 0) {
+    fixes.push('No issues detected — nothing to fix.');
+  }
+
+  return fixes;
+}
+
+export function formatDoctorReport(report: DoctorReport, options?: { fix?: boolean }): string {
   const reachable = report.bridgePorts.find((port) => port.reachable);
   const bridgeStatus = reachable
     ? `reachable on ${report.bridgeHost}:${reachable.port}`
@@ -294,7 +369,7 @@ export function formatDoctorReport(report: DoctorReport): string {
     ? `Profile '${report.toolCounts.profile}' with ${report.toolCounts.enabled} / ${report.toolCounts.total} tools enabled`
     : 'Unknown tool configuration';
 
-  return [
+  const lines = [
     'easyeda-mcp-pro doctor',
     '',
     `Node.js: ${status(report.nodeSupported)} ${report.nodeVersion} (supported: >=24 <27)`,
@@ -309,7 +384,13 @@ export function formatDoctorReport(report: DoctorReport): string {
     reachable
       ? 'Bridge server is running. If EasyEDA is not connected, reload the extension and click MCP Bridge > Connect.'
       : 'Bridge server is not running yet. This is normal until your MCP client starts easyeda-mcp-pro.',
-  ].join('\n');
+  ];
+
+  if (options?.fix) {
+    lines.push('', 'Suggested fixes:', ...buildSuggestedFixes(report));
+  }
+
+  return lines.join('\n');
 }
 
 export function formatHelp(): string {
@@ -330,7 +411,8 @@ export function formatHelp(): string {
     '             --copy <dir>  Copy .eext to the specified directory',
     '',
     '  easyeda-mcp-pro --setup-local                Print MCP client config (legacy)',
-    '  easyeda-mcp-pro --doctor                     Check runtime, package, and bridge status',
+    '  easyeda-mcp-pro --doctor [--fix]              Check runtime, package, and bridge status',
+    '    --fix     Print suggested fixes for each detected failure (no files are changed)',
     '  easyeda-mcp-pro --version                    Print package version',
     '',
     'Examples:',

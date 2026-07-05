@@ -52,7 +52,40 @@ describe('auto-setup CLI module', () => {
 
     const result = runSetup({ client: 'cursor', profile: 'pro' });
     expect(result).toContain('Updated Cursor IDE config');
+    expect(result).not.toContain('Stale entry detected');
+    expect(result).not.toContain('already up to date');
     expect(fs.writeFileSync).toHaveBeenCalled();
+  });
+
+  it('detects and replaces a stale existing server entry', () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({
+        mcpServers: {
+          'easyeda-mcp-pro': { command: 'node', args: ['/old/path/dist/index.js'] },
+        },
+      }),
+    );
+
+    const result = runSetup({ client: 'cursor', profile: 'pro' });
+    expect(result).toContain('Stale entry detected and replaced');
+    expect(result).toContain('command:');
+    expect(result).toContain('args:');
+  });
+
+  it('reports an existing entry as already up to date when it matches exactly', () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({
+        mcpServers: {
+          'easyeda-mcp-pro': { command: 'npx', args: ['-y', 'easyeda-mcp-pro@latest'] },
+        },
+      }),
+    );
+
+    const result = runSetup({ client: 'cursor', profile: 'core' });
+    expect(result).toContain('Existing entry was already up to date.');
+    expect(result).not.toContain('Stale entry detected');
   });
 
   it('runs extension command and detects path', () => {

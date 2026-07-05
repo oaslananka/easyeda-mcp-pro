@@ -72,6 +72,9 @@ export interface ToolContext {
     lastHeartbeatMs?: number;
     methodRegistryHash?: string;
     telemetry?: unknown;
+    easyedaVersion?: string;
+    extensionVersion?: string;
+    extensionVersionMismatch?: boolean;
   };
   config: {
     bridgeTimeoutMs: number;

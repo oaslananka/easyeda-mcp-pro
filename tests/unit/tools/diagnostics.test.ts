@@ -53,6 +53,9 @@ describe('Diagnostics Tools', () => {
     expect(result?.node_version).toBeDefined();
     expect(result?.transport).toBe('stdio');
     expect(result?.ups).toBeGreaterThanOrEqual(0);
+    expect(result?.keyless_sourcing_enabled).toBe(true);
+    expect(result?.catalog_device_count).toBeGreaterThan(0);
+    expect(result?.extension_version_mismatch).toBe(false);
   });
 
   it('easyeda_health_check returns degraded when bridge not connected', async () => {
@@ -71,6 +74,40 @@ describe('Diagnostics Tools', () => {
 
     expect(result?.status).toBe('degraded');
     expect(result?.bridge_connected).toBe(false);
+  });
+
+  it('easyeda_health_check surfaces EasyEDA version and extension version mismatch', async () => {
+    const tool = registry.get('easyeda_health_check');
+
+    const mismatchContext: ToolContext = {
+      ...context,
+      bridge: {
+        connected: true,
+        call: bridgeCall,
+        easyedaVersion: '2.1.0',
+        extensionVersion: '0.0.1',
+        extensionVersionMismatch: true,
+      },
+    };
+
+    const result = await tool?.handler(mismatchContext, {});
+
+    expect(result?.status).toBe('degraded');
+    expect(result?.easyeda_version).toBe('2.1.0');
+    expect(result?.extension_version).toBe('0.0.1');
+    expect(result?.extension_version_mismatch).toBe(true);
+  });
+
+  it('easyeda_health_check reflects keylessSourcingEnabled=false from ctx.config', async () => {
+    const tool = registry.get('easyeda_health_check');
+
+    const disabledContext: ToolContext = {
+      ...context,
+      config: { ...context.config, keylessSourcingEnabled: false },
+    };
+
+    const result = await tool?.handler(disabledContext, {});
+    expect(result?.keyless_sourcing_enabled).toBe(false);
   });
 
   it('easyeda_bridge_status returns connected status with bridge details', async () => {
@@ -228,5 +265,42 @@ describe('Diagnostics Tools', () => {
     const bridgeCheck = result?.checks.find((c) => c.name === 'bridge_connected');
     expect(bridgeCheck?.status).toBe('warn');
     expect(bridgeCheck?.message).toBe('Bridge not connected');
+
+    const versionCheck = result?.checks.find((c) => c.name === 'easyeda_version_detected');
+    expect(versionCheck?.status).toBe('skipped');
+  });
+
+  it('easyeda_run_self_test passes easyeda_version_detected when the version is known', async () => {
+    const tool = registry.get('easyeda_run_self_test');
+
+    const versionedContext: ToolContext = {
+      ...context,
+      bridge: { connected: true, call: bridgeCall, easyedaVersion: '2.1.0' },
+    };
+
+    const result = await tool?.handler(versionedContext, {});
+    const versionCheck = result?.checks.find((c) => c.name === 'easyeda_version_detected');
+    expect(versionCheck?.status).toBe('pass');
+    expect(versionCheck?.message).toContain('2.1.0');
+    expect(result?.passed).toBe(true);
+  });
+
+  it('easyeda_run_self_test warns on extension_version_match when versions differ', async () => {
+    const tool = registry.get('easyeda_run_self_test');
+
+    const mismatchContext: ToolContext = {
+      ...context,
+      bridge: {
+        connected: true,
+        call: bridgeCall,
+        extensionVersion: '0.0.1',
+        extensionVersionMismatch: true,
+      },
+    };
+
+    const result = await tool?.handler(mismatchContext, {});
+    const extCheck = result?.checks.find((c) => c.name === 'extension_version_match');
+    expect(extCheck?.status).toBe('warn');
+    expect(result?.passed).toBe(false);
   });
 });
