@@ -1,0 +1,13 @@
+# Example Codex MCP configuration for EasyEDA MCP Pro.
+# Copy this block into your Codex config.toml and adjust env values if needed.
+
+[[mcp_servers]]
+name = "easyeda-mcp-pro"
+command = "npx"
+args = ["easyeda-mcp-pro"]
+
+[mcp_servers.env]
+TRANSPORT = "stdio"
+TOOL_PROFILE = "core"
+BRIDGE_HOST = "127.0.0.1"
+BRIDGE_PORT = "49620"

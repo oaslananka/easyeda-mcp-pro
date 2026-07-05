@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "easyeda-mcp-pro": {
+      "command": "npx",
+      "args": ["easyeda-mcp-pro"],
+      "env": {
+        "TRANSPORT": "stdio",
+        "TOOL_PROFILE": "core",
+        "BRIDGE_HOST": "127.0.0.1",
+        "BRIDGE_PORT": "49620"
+      }
+    }
+  }
+}

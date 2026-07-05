@@ -1,83 +1,11 @@
 {
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "easyeda-pro",
   "version": "0.20.0",
-  "description": "EasyEDA MCP Pro agent plugin for EasyEDA Pro project workflow automation, schematic/PCB inspection, BOM and sourcing, DRC/ERC validation, and manufacturing exports.",
+  "description": "EasyEDA MCP Pro plugin for EasyEDA Pro project workflow automation, schematic/PCB inspection, BOM and sourcing, DRC/ERC validation, and manufacturing exports.",
   "author": {
     "name": "oaslananka",
     "url": "https://github.com/oaslananka"
   },
-  "source": {
-    "source": "github",
-    "repo": "oaslananka/easyeda-mcp-pro"
-  },
-  "category": "engineering",
-  "tags": [
-    "easyeda",
-    "easyeda-pro",
-    "pcb",
-    "eda",
-    "mcp",
-    "hardware",
-    "electronics",
-    "jlcpcb",
-    "lcsc",
-    "bom"
-  ],
-  "mcp_servers": [
-    {
-      "name": "io.github.oaslananka/easyeda-mcp-pro",
-      "title": "EasyEDA MCP Pro",
-      "description": "MCP server for EasyEDA Pro: PCB inspection, BOM, exports, and hardware review.",
-      "package": {
-        "npm": "easyeda-mcp-pro"
-      },
-      "transports": ["stdio", "http"],
-      "launch_examples": [
-        "npx easyeda-mcp-pro",
-        "TRANSPORT=http HTTP_HOST=127.0.0.1 HTTP_PORT=3000 npx easyeda-mcp-pro",
-        "pnpm build && node dist/index.js"
-      ],
-      "registry_manifest": "server.json",
-      "minimum_requirements": [
-        "Node.js >=24 <27.",
-        "pnpm >=11 for source checkout development flows.",
-        "EasyEDA Pro plus the EasyEDA bridge extension for live project inspection and write operations.",
-        "TOOL_PROFILE set to core, pro, full, dev, or experimental according to the workflow boundary."
-      ]
-    }
-  ],
-  "skills": [
-    {
-      "name": "easyeda-workflow",
-      "path": "skills/easyeda-workflow/SKILL.md",
-      "description": "End-to-end EasyEDA Pro workflow guidance for setup, inspection, controlled writes, exports, and reporting."
-    },
-    {
-      "name": "component-search",
-      "path": "skills/component-search/SKILL.md",
-      "description": "Component discovery, BOM review, LCSC/JLCPCB sourcing, pricing, availability, and part-risk workflow."
-    },
-    {
-      "name": "design-validation",
-      "path": "skills/design-validation/SKILL.md",
-      "description": "EasyEDA DRC/ERC, semantic ERC, power-tree, PCB constraints, production QA, and release validation workflow."
-    }
-  ],
-  "documentation": {
-    "readme": "README.md",
-    "installation": "docs/INSTALLATION.md",
-    "chatgpt_app_integration": "docs/CHATGPT_APP_INTEGRATION.md",
-    "claude_web_connector": "docs/CLAUDE_WEB_CONNECTOR.md",
-    "remote_modes": "docs/REMOTE_MCP_MODES.md",
-    "agent_plugin": "README.md#agent-plugin-and-skills"
-  },
-  "safety": {
-    "human_review_required": true,
-    "notes": [
-      "EasyEDA MCP Pro is an engineering assistant, not an autonomous production sign-off authority.",
-      "Write operations require explicit workflow permission and must respect bridge capability, tool profile, and scope boundaries.",
-      "Manufacturing exports, sourcing decisions, and production QA artifacts require qualified human review before fabrication or assembly."
-    ]
-  },
-  "status": "ready-for-catalog-validation"
+  "skills": ["./skills/easyeda-workflow", "./skills/component-search", "./skills/design-validation"]
 }

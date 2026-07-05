@@ -704,7 +704,11 @@ profiles, and EasyEDA runtime behavior.
 
 | File                                                                     | Purpose                                                                                         |
 | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)               | Product-level plugin manifest for compatible agent runtimes and marketplace catalogs.           |
+| [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)               | Claude Code-valid plugin manifest for compatible agent runtimes and marketplace catalogs.       |
+| [`.mcp.json`](.mcp.json)                                                 | Project-local Claude Code MCP server configuration.                                             |
+| [`.codex/config.example.toml`](.codex/config.example.toml)               | Codex CLI MCP configuration example.                                                            |
+| [`.vscode/mcp.example.json`](.vscode/mcp.example.json)                   | VS Code / GitHub Copilot workspace MCP configuration example.                                   |
+| [`docs/agent-runtime-config.md`](docs/agent-runtime-config.md)           | Agent runtime setup and validation matrix.                                                      |
 | [`skills/easyeda-workflow/SKILL.md`](skills/easyeda-workflow/SKILL.md)   | End-to-end EasyEDA setup, inspection, controlled write, export, and reporting workflow.         |
 | [`skills/component-search/SKILL.md`](skills/component-search/SKILL.md)   | Component search, BOM review, sourcing, pricing, availability, and part-risk workflow.          |
 | [`skills/design-validation/SKILL.md`](skills/design-validation/SKILL.md) | DRC/ERC, semantic ERC, PCB constraints, production QA, export, and release-validation workflow. |
@@ -727,6 +731,7 @@ For source checkouts, run the normal validation path before publishing plugin ch
 
 ```bash
 python3 -m json.tool .claude-plugin/plugin.json >/dev/null
+claude plugin validate .
 pnpm format:check
 pnpm typecheck
 pnpm test
