@@ -1,5 +1,13 @@
 # Remote MCP security model
 
+**Current status:** this document specifies the required security model for the
+pairing/relay routing path once it is wired to real MCP tool calls. That integration
+does not exist yet — see `docs/REMOTE_RELEASE_READINESS.md`. Today, real tool calls
+never traverse the Session Router/Relay boundary shown below; they go through the local
+`BridgeManager` loopback connection instead. The controls below remain the bar that
+integration must meet before it ships, so treat this as a design/acceptance spec, not a
+description of a currently-enforced boundary.
+
 Remote MCP must not be treated as a public wrapper around local tool execution. Every remote path must enforce identity, pairing, session isolation, approval policy, and auditable routing.
 
 ## Trust boundaries

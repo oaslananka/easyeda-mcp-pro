@@ -28,6 +28,11 @@ Recommended scenarios:
 
 ## Manual validation
 
+**Not yet achievable:** every scenario below assumes a real MCP tool call can be routed
+through the pairing/session-router/relay subsystem. That integration does not exist yet
+(see `docs/REMOTE_RELEASE_READINESS.md`), so none of these can currently be executed
+end-to-end. Keep this section as the target validation checklist for when that lands.
+
 Before public beta:
 
 - hosted endpoint deployed under a test domain,

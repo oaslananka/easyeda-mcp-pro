@@ -1,5 +1,13 @@
 # Extension relay protocol
 
+**Current status:** the wire protocol and envelope shapes below are implemented
+(`src/remote/protocol.ts`, `easyeda-bridge-extension/src/remote-client.ts`) and unit
+tested. `RemoteRelayClient` genuinely connects and can execute real EasyEDA API calls
+when driven directly. What is missing is upstream of this protocol: no real MCP tool
+call (`/mcp`) currently produces a `tool_request` on this relay — see
+`docs/REMOTE_RELEASE_READINESS.md` for the tracked gap. `RemoteRelayClient` also has no
+reconnect/backoff logic yet, unlike the local bridge connection in the same file.
+
 The relay protocol carries authenticated gateway requests to an opted-in EasyEDA bridge extension session. The extension uses an outbound connection and does not expose a local listener to the public internet.
 
 ## Goals

@@ -4,6 +4,15 @@ Self-hosted Remote MCP lets an operator expose EasyEDA MCP Pro through their own
 VPS, or reverse proxy. This mode is for power users and private deployments that need a public MCP
 endpoint without using the hosted gateway.
 
+**Current status:** the setup below — tunneling the OAuth-protected HTTP transport out from a
+single always-on machine that also runs EasyEDA Pro and the bridge extension — works today with
+the existing HTTP/OAuth implementation. The bridge extension always connects to the MCP server
+over local loopback regardless of where the calling MCP client sits on the network, so this
+flow does not depend on the pairing/relay/approval subsystem described in "Planned relay
+controls" below. That subsystem exists and is tested in isolation but is not yet wired to real
+tool calls — see `docs/REMOTE_RELEASE_READINESS.md` for the tracked gap. Skip the "Planned relay
+controls" section and the pairing-related rows of the operator checklist until that lands.
+
 ## Architecture
 
 ```text

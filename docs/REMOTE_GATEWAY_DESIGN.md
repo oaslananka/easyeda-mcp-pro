@@ -24,6 +24,15 @@ document.
 
 ## Request flow
 
+> **Status: target design, not yet wired.** The steps below describe the intended flow
+> once tool execution is bridged to the relay. Today, a real `POST /mcp` tool call never
+> reaches the session router, policy/approval gate, or relay dispatch — it always
+> dispatches through the local-loopback `BridgeManager` WebSocket instead (see
+> `docs/REMOTE_RELEASE_READINESS.md` for the current-status writeup). The session
+> router, approval policy, and relay dispatch steps below exist and are tested only via
+> the separate `/remote/*` REST/WebSocket surface, which nothing in the `/mcp` tool-call
+> path currently calls.
+
 ```text
 remote MCP request
   ↓

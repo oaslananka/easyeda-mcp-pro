@@ -1,5 +1,13 @@
 # Pairing and session routing
 
+**Current status:** the pairing/session-router mechanics below are implemented in
+`src/remote/session-router.ts` and covered by thorough unit tests, and are reachable
+today via the `/remote/*` REST/WebSocket surface. What's described here as "remote
+tools can route to that session" does not yet happen for real MCP tool calls (`/mcp`) —
+see `docs/REMOTE_RELEASE_READINESS.md` for the tracked integration gap. This document
+accurately describes the session router's own behavior; it does not describe what
+currently happens when an MCP client calls a tool.
+
 Pairing binds a remote MCP identity to an active EasyEDA bridge extension session. Session routing ensures every tool call reaches only the intended user's EasyEDA project.
 
 ## Pairing lifecycle

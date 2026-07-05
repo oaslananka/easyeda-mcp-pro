@@ -1,5 +1,14 @@
 # ChatGPT app integration plan
 
+**Current status: Planned.** Nothing in this document is implemented yet. The hosted
+gateway has no live deployment, and the pairing/session-router/relay subsystem it would
+depend on (`src/remote/`) is not wired to real MCP tool calls — see
+`docs/REMOTE_RELEASE_READINESS.md` for the tracked gap. This remains a target
+architecture and requirements list, not a usable integration path today. The self-hosted
+tunnel path in `docs/SELF_HOSTED_REMOTE_MCP.md` works with any MCP client that supports
+an arbitrary remote MCP URL, including ChatGPT's developer/custom-connector paths, and
+does not require anything described below.
+
 ChatGPT integration should use the hosted Remote MCP architecture as the primary app path. Self-hosted endpoints remain an advanced/developer path for clients that can connect to arbitrary remote MCP URLs.
 
 ## Target architecture
