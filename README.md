@@ -712,13 +712,16 @@ cp .env.example .env
 # All quality gates (lint + format + typecheck + test + build)
 task verify
 
-# Or use pnpm directly:
+# CI-equivalent fallback when Go Task is unavailable:
+pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build
+
+# Or use pnpm directly for focused checks:
 pnpm format:check          # Prettier
 pnpm typecheck             # TypeScript
 pnpm lint                  # ESLint
 
 # Test
-pnpm test                  # Vitest (804 tests across 66 files)
+pnpm test                  # Vitest (812 tests across 67 files)
 pnpm test:coverage         # With coverage report
 
 # Golden E2E fixture smoke tests are included in `pnpm test`
