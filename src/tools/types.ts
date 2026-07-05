@@ -78,6 +78,7 @@ export interface ToolContext {
     artifactDir: string;
     bridgeHost: string;
     bridgePort: number;
+    keylessSourcingEnabled?: boolean;
     [key: string]: unknown;
   };
   vendors: {

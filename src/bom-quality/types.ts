@@ -56,6 +56,8 @@ export interface SupplierQueryResult {
   unitPrice?: number;
   currency?: string;
   leadTimeDays?: number;
+  /** Supplier-specific assembly classification (e.g. LCSC/JLCPCB basic/preferred/extended). */
+  classification?: string;
   /** ISO-8601 timestamp of this supplier response. */
   queriedAt: string;
   /** Data source endpoint or integration family used for provenance. */

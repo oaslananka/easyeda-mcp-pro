@@ -364,6 +364,7 @@ Returns a JSON object matching the schema:
   project_id: any;
   parts: any;
   total_parts: any;
+  keyless_sourcing_enabled: any;
   not_available: any;
 }
 ```
@@ -1813,6 +1814,7 @@ Returns a JSON object matching the schema:
 {
   devices: any;
   total: any;
+  provider_tier: any;
   not_available: any;
   error: any;
 }

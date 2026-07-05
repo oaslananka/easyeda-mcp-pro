@@ -4,12 +4,48 @@ EasyEDA MCP Pro treats supplier and fabrication integrations as optional externa
 
 ## Supported integrations
 
-| Vendor           | Purpose                                             | Required credentials                                                          | Default state                         | Notes                                                                               |
-| ---------------- | --------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
-| LCSC / jlcsearch | Component lookup, stock, price hints                | None for public jlcsearch; optional LCSC API key for official fallback        | Enabled when `JLCSEARCH_ENABLED=true` | Public search can be unavailable or incomplete.                                     |
-| Mouser           | Component search by MPN, stock, price hints         | `MOUSER_API_KEY` when `MOUSER_ENABLED=true`                                   | Disabled                              | Returns no-match, unauthorized, rate-limited, or unavailable statuses.              |
-| DigiKey          | Component search by MPN/keyword, stock, price hints | `DIGIKEY_CLIENT_ID` and `DIGIKEY_CLIENT_SECRET` when `DIGIKEY_ENABLED=true`   | Disabled, sandbox by default          | OAuth token failures are degraded to unauthorized/unavailable sourcing results.     |
-| JLCPCB           | Fabrication quote/capability/order APIs             | `JLCPCB_CLIENT_ID` and `JLCPCB_CLIENT_SECRET` when `JLCPCB_MODE=approved_api` | Disabled                              | Order placement remains separately gated by ordering flags and confirmation policy. |
+| Vendor           | Purpose                                             | Required credentials                                                          | Default state                                                             | Notes                                                                               |
+| ---------------- | --------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| LCSC / jlcsearch | Component lookup, stock, price, attributes          | None for public jlcsearch; optional LCSC API key for official fallback        | Enabled when `JLCSEARCH_ENABLED=true` and `KEYLESS_SOURCING_ENABLED=true` | Keyless tier only; category-scoped, in-stock-first snapshot (see below).            |
+| Mouser           | Component search by MPN, stock, price hints         | `MOUSER_API_KEY` when `MOUSER_ENABLED=true`                                   | Disabled                                                                  | Returns no-match, unauthorized, rate-limited, or unavailable statuses.              |
+| DigiKey          | Component search by MPN/keyword, stock, price hints | `DIGIKEY_CLIENT_ID` and `DIGIKEY_CLIENT_SECRET` when `DIGIKEY_ENABLED=true`   | Disabled, sandbox by default                                              | OAuth token failures are degraded to unauthorized/unavailable sourcing results.     |
+| JLCPCB           | Fabrication quote/capability/order APIs             | `JLCPCB_CLIENT_ID` and `JLCPCB_CLIENT_SECRET` when `JLCPCB_MODE=approved_api` | Disabled                                                                  | Order placement remains separately gated by ordering flags and confirmation policy. |
+
+## Keyless sourcing tier (LCSC / jlcsearch)
+
+`KEYLESS_SOURCING_ENABLED` (default `true`) governs whether sourcing tools attempt the
+keyless LCSC tier. `JLCSEARCH_ENABLED` (default `true`) governs whether the underlying
+LCSC client is constructed at all; both must be true for keyless LCSC lookups to run.
+
+The public jlcsearch API (`https://jlcsearch.tscircuit.com`) is a set of per-category
+snapshots, not a general-purpose search engine:
+
+- Each category (`resistors`, `capacitors`, `diodes`, `mosfets`, `leds`,
+  `microcontrollers`, `switches`, `led_drivers`) is served from its own
+  `/{category}/list.json` endpoint and returns only the ~100 highest-stock parts in
+  that category.
+- There is no generic cross-category full-text search and no single-part lookup
+  endpoint. `easyeda_bom_sourcing`'s keyless candidates are derived by matching
+  keywords/packages to a category and, for `getPartDetail`, scanning the cached
+  per-category snapshots for a matching LCSC id.
+- **Known limitation**: a part outside the top in-stock snapshot for its category will
+  not be found via the keyless tier, even though it exists at LCSC. This is a property
+  of the public dataset, not a bug — it is why supplier data remains advisory (see
+  `docs/vendor-terms.md`).
+- Each result reports `classification` (`basic` / `preferred` / `extended`, LCSC/JLCPCB
+  assembly terms) and `attributes` (parametric key/value pairs) when the source
+  provides them.
+
+Category responses are cached under `${CACHE_DIR}/vendors` for `SOURCING_CACHE_TTL_SECONDS`
+(default 6 hours) to reduce load on the public endpoint. Outbound vendor requests are
+additionally throttled per-hostname by `VENDOR_MIN_REQUEST_INTERVAL_MS` (default 150ms).
+Sourcing results report `from_cache` / `cache_age_seconds` so callers can tell live data
+from a cached snapshot.
+
+`easyeda_bom_sourcing` and `easyeda_bom_quality_report` unify keyless (LCSC) and
+authenticated (Mouser, DigiKey) suppliers behind `src/vendors/sourcing-facade.ts` /
+`src/bom-quality/adapter.ts`; each sourcing result reports which `tier` (`keyless` or
+`authenticated`) answered.
 
 ## Normalized supplier statuses
 
@@ -39,7 +75,11 @@ Every `easyeda_bom_quality_report` supplier datum includes:
 - optional `reason`
 - optional `status_code`
 
-The current implementation returns live data with `from_cache=false` and `cache_age_seconds=0`. The fields are present now so future cache implementations can preserve a stable response contract.
+LCSC keyless-tier lookups populate real `from_cache` / `cache_age_seconds` values once a
+category snapshot has been cached (see "Keyless sourcing tier" above). Mouser and
+DigiKey queries are not yet cached and always report `from_cache=false` /
+`cache_age_seconds=0`; the fields remain present for a stable response contract as that
+caching is added.
 
 ## Credential diagnostics
 

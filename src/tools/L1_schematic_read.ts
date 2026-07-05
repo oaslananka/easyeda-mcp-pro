@@ -338,6 +338,9 @@ function registerSchematicReadTools(
           .passthrough(),
       ),
       total: z.number().int().nonnegative(),
+      /** Where the result came from. Always 'local_library' — this tool queries the
+       *  active EasyEDA Pro session's device library, not vendor/supplier catalogs. */
+      provider_tier: z.literal('local_library').optional(),
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
@@ -357,6 +360,7 @@ function registerSchematicReadTools(
         return {
           devices,
           total: devices.length,
+          provider_tier: 'local_library' as const,
         };
       } catch (err) {
         return {

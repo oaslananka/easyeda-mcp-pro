@@ -252,8 +252,11 @@ export class LcscAdapter implements SupplierAdapter {
       unitPrice,
       currency: 'USD',
       leadTimeDays: detail.leadTime,
+      classification: detail.classification,
       queriedAt: now,
-      ...freshProvenance('lcsc'),
+      source: supplierSource('lcsc'),
+      cacheAgeSeconds: detail.fromCache ? (detail.cacheAgeSeconds ?? 0) : 0,
+      fromCache: detail.fromCache ?? false,
       confidence: 'high',
     };
   }
