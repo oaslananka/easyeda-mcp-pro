@@ -29,6 +29,24 @@ Use `.codex/config.example.toml` as a starting point. Copy the `[[mcp_servers]]`
 
 Use `.vscode/mcp.example.json` as a workspace MCP configuration example. If your VS Code profile already has MCP servers configured globally, copy only the `easyeda-mcp-pro` server block.
 
+## OpenCode
+
+Use `opencode.example.jsonc` as a project-level OpenCode MCP configuration example. Copy it to `opencode.json` in a working project, or merge the `mcp` block into an existing OpenCode config.
+
+OpenCode discovers project-local skills from `.opencode/skills/<name>/SKILL.md`, so this repository mirrors the EasyEDA skills there for OpenCode-native loading.
+
+Local MCP server command:
+
+```bash
+npx easyeda-mcp-pro
+```
+
+Typical prompt hint:
+
+```text
+Use the easyeda-mcp-pro MCP tools and the design-validation skill to validate this EasyEDA project.
+```
+
 ## Cursor and other MCP clients
 
 Most MCP-compatible clients can use the same stdio launch command:

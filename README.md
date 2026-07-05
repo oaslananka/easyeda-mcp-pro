@@ -708,6 +708,8 @@ profiles, and EasyEDA runtime behavior.
 | [`.mcp.json`](.mcp.json)                                                 | Project-local Claude Code MCP server configuration.                                             |
 | [`.codex/config.example.toml`](.codex/config.example.toml)               | Codex CLI MCP configuration example.                                                            |
 | [`.vscode/mcp.example.json`](.vscode/mcp.example.json)                   | VS Code / GitHub Copilot workspace MCP configuration example.                                   |
+| [`opencode.example.jsonc`](opencode.example.jsonc)                       | OpenCode project MCP configuration example.                                                     |
+| [`.opencode/skills/`](.opencode/skills)                                  | OpenCode-native mirrored skill definitions.                                                     |
 | [`docs/agent-runtime-config.md`](docs/agent-runtime-config.md)           | Agent runtime setup and validation matrix.                                                      |
 | [`skills/easyeda-workflow/SKILL.md`](skills/easyeda-workflow/SKILL.md)   | End-to-end EasyEDA setup, inspection, controlled write, export, and reporting workflow.         |
 | [`skills/component-search/SKILL.md`](skills/component-search/SKILL.md)   | Component search, BOM review, sourcing, pricing, availability, and part-risk workflow.          |

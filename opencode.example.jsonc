@@ -1,0 +1,24 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "easyeda-mcp-pro": {
+      "type": "local",
+      "command": ["npx", "easyeda-mcp-pro"],
+      "enabled": true,
+      "environment": {
+        "TRANSPORT": "stdio",
+        "TOOL_PROFILE": "core",
+        "BRIDGE_HOST": "127.0.0.1",
+        "BRIDGE_PORT": "49620"
+      },
+      "timeout": 15000
+    }
+  },
+  "permission": {
+    "skill": {
+      "easyeda-workflow": "allow",
+      "component-search": "allow",
+      "design-validation": "allow"
+    }
+  }
+}
