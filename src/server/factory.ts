@@ -77,6 +77,9 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
   const mouserClient = config.MOUSER_ENABLED ? new MouserClient(config) : null;
   const digikeyClient = config.DIGIKEY_ENABLED ? new DigiKeyClient(config) : null;
 
+  const storage = new Storage(config);
+  storage.initialize();
+
   const context: ToolContext = {
     profile: config.TOOL_PROFILE as ToolProfile,
     bridge: {
@@ -122,6 +125,7 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
       mouser: mouserClient,
       digikey: digikeyClient,
     },
+    storage,
   };
 
   registry.registerAllOnServer(server, context);
@@ -130,9 +134,6 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
   server.server.onerror = (error) => {
     logger.error({ err: error }, 'server error');
   };
-
-  const storage = new Storage(config);
-  storage.initialize();
 
   const transport = new StdioServerTransport();
 

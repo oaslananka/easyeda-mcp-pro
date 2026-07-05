@@ -183,16 +183,24 @@ with a deterministic component-role plan for every block:
    per role (`ROLE_PACKAGE_HINT`), e.g. "SOT-23-5 or TO-220" for a
    regulator. This is not a final footprint selection.
 4. **Planning-state marker** — every Device records `role`, `packageHint`,
-   and `planningState` (`candidate` for high-confidence roles, `placeholder`
-   for the `generic-ic` fallback) as `Device.metadata` entries, so downstream
-   tooling (including future BOM-sourcing integration) can tell a
-   manufacturable candidate apart from an unclassified placeholder. A
-   compiler warning is emitted for every `placeholder` device.
+   and `planningState` (`resolved` when a verified catalog device matched the
+   role, `candidate` for a high-confidence role with no catalog match,
+   `placeholder` for the `generic-ic` fallback) as `Device.metadata` entries,
+   so downstream tooling can tell a manufacturable candidate apart from an
+   unclassified placeholder. A compiler warning is emitted for every
+   `placeholder` device, and for a `candidate` device when a catalog was
+   provided but had no matching role.
 
-The compiler never invents an `mpn`, `manufacturer`, or `package` value —
-those fields stay unset until a human or a BOM-sourcing step selects a real
-part. This is a deliberate non-goal: the planner narrows the search space,
-it does not select or order parts.
+By default the compiler does not invent an `mpn`, `manufacturer`, or
+`package` value — those fields stay unset until a human, a BOM-sourcing
+step, or the verified device catalog resolves a real part. Callers may
+optionally pass `planComponents(blocks, { catalog })` with a pre-loaded
+device catalog (the starter catalog plus any devices cached by
+`easyeda_catalog_verify_device` — see `docs/catalog-ingestion.md`); when a
+high-confidence role matches a non-obsolete catalog device,
+`mpn`/`manufacturer`/`package`/`lcsc` are filled in from that device and
+`planningState` becomes `resolved`. This remains a narrowing/candidate step,
+not an ordering step — omitting `catalog` preserves the original behavior.
 
 Device-to-power-domain wiring (`Device.powerDomainRef` and
 `PowerDomain.loadDeviceRefs`) is populated automatically only when a design

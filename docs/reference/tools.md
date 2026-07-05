@@ -23,6 +23,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_canvas_capture`                | `core`  | `low`    | Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or the last-focused one) as-is; use easyeda_canvas_capture_region first to frame a specific area.                               |
 | `easyeda_canvas_capture_region`         | `core`  | `low`    | Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API.                                                                |
 | `easyeda_canvas_locate`                 | `core`  | `low`    | Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.                                                  |
+| `easyeda_catalog_list`                  | `pro`   | `low`    | List devices cached by easyeda_catalog_verify_device, with their validation status and provenance. Optionally filter by status (resolved/partial/unresolved). This is a local cache only — never redistributed.                                                                                               |
+| `easyeda_catalog_verify_device`         | `pro`   | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.          |
 | `easyeda_component_probe`               | `dev`   | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                          |
 | `easyeda_drc_run`                       | `core`  | `medium` | Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints.                                                                                                                                                                                      |
 | `easyeda_erc_run`                       | `core`  | `medium` | Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts.                                                                                                                                                                                        |
@@ -550,6 +552,67 @@ Returns a JSON object matching the schema:
   right: any;
   top: any;
   bottom: any;
+  not_available: any;
+  error: any;
+}
+```
+
+---
+
+## `easyeda_catalog_list`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> List devices cached by easyeda_catalog_verify_device, with their validation status and provenance. Optionally filter by status (resolved/partial/unresolved). This is a local cache only — never redistributed.
+
+### Input Parameters
+
+| Parameter | Type  | Required | Description |
+| --------- | ----- | -------- | ----------- |
+| `status`  | `any` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  devices: any;
+  total: any;
+  not_available: any;
+  error: any;
+}
+```
+
+---
+
+## `easyeda_catalog_verify_device`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.
+
+### Input Parameters
+
+| Parameter      | Type  | Required | Description |
+| -------------- | ----- | -------- | ----------- |
+| `lcscId`       | `any` | Yes      |             |
+| `confirmWrite` | `any` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  lcsc_id: any;
+  status: any;
+  valid: any;
+  errors: any;
+  warnings: any;
+  provenance: any;
+  entry: any;
+  cached: any;
   not_available: any;
   error: any;
 }

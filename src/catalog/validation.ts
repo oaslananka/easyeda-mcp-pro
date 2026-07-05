@@ -23,7 +23,7 @@ import {
   catalogValidationError,
 } from './errors.js';
 import type { DeviceCatalog, DeviceEntry } from './schema.js';
-import { DEVICE_CATALOG_SCHEMA_VERSION } from './schema.js';
+import { DEVICE_CATALOG_SCHEMA_VERSION, UNRESOLVED_REF_PREFIX } from './schema.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -152,6 +152,39 @@ function checkMissingFootprint(catalog: DeviceCatalog): CatalogValidationError[]
   return errors;
 }
 
+function checkUnresolvedReferences(catalog: DeviceCatalog): CatalogValidationError[] {
+  const errors: CatalogValidationError[] = [];
+
+  for (const device of catalog.devices) {
+    if (
+      CATEGORIES_REQUIRING_SYMBOL.has(device.category) &&
+      device.symbolRef.startsWith(UNRESOLVED_REF_PREFIX)
+    ) {
+      errors.push(
+        catalogValidationError(
+          CatalogErrorCode.DEVICE_UNRESOLVED_SYMBOL,
+          `Device "${device.id}" (category: ${device.category}) has no resolved symbol reference — it was ingested without a matching EasyEDA library entry`,
+          { deviceId: device.id, category: device.category, symbolRef: device.symbolRef },
+        ),
+      );
+    }
+    if (
+      CATEGORIES_REQUIRING_FOOTPRINT.has(device.category) &&
+      device.footprintRef.startsWith(UNRESOLVED_REF_PREFIX)
+    ) {
+      errors.push(
+        catalogValidationError(
+          CatalogErrorCode.DEVICE_UNRESOLVED_FOOTPRINT,
+          `Device "${device.id}" (category: ${device.category}) has no resolved footprint reference — it was ingested without a matching EasyEDA library entry`,
+          { deviceId: device.id, category: device.category, footprintRef: device.footprintRef },
+        ),
+      );
+    }
+  }
+
+  return errors;
+}
+
 function checkMissingPinMap(catalog: DeviceCatalog): CatalogValidationError[] {
   const errors: CatalogValidationError[] = [];
 
@@ -273,6 +306,7 @@ export function validateCatalog(catalog: DeviceCatalog): CatalogValidationResult
   errors.push(...checkDuplicateIds(catalog));
   errors.push(...checkMissingSymbol(catalog));
   errors.push(...checkMissingFootprint(catalog));
+  errors.push(...checkUnresolvedReferences(catalog));
   errors.push(...checkMissingPinMap(catalog));
   errors.push(...checkMissingMpn(catalog));
   warnings.push(...checkMissingAssemblyData(catalog));
@@ -341,6 +375,32 @@ function validateRequiredFields(entry: DeviceEntry): CatalogValidationError[] {
         ),
       );
     }
+  }
+
+  // Unresolved symbol/footprint reference check (ingested without a real EasyEDA match)
+  if (
+    CATEGORIES_REQUIRING_SYMBOL.has(entry.category) &&
+    entry.symbolRef.startsWith(UNRESOLVED_REF_PREFIX)
+  ) {
+    errors.push(
+      catalogValidationError(
+        CatalogErrorCode.DEVICE_UNRESOLVED_SYMBOL,
+        `Device "${entry.id}" (category: ${entry.category}) has no resolved symbol reference — it was ingested without a matching EasyEDA library entry`,
+        { deviceId: entry.id, category: entry.category, symbolRef: entry.symbolRef },
+      ),
+    );
+  }
+  if (
+    CATEGORIES_REQUIRING_FOOTPRINT.has(entry.category) &&
+    entry.footprintRef.startsWith(UNRESOLVED_REF_PREFIX)
+  ) {
+    errors.push(
+      catalogValidationError(
+        CatalogErrorCode.DEVICE_UNRESOLVED_FOOTPRINT,
+        `Device "${entry.id}" (category: ${entry.category}) has no resolved footprint reference — it was ingested without a matching EasyEDA library entry`,
+        { deviceId: entry.id, category: entry.category, footprintRef: entry.footprintRef },
+      ),
+    );
   }
 
   return errors;

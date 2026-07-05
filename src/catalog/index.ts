@@ -14,6 +14,7 @@ export type { CatalogErrorCode as CatalogErrorCodeType, CatalogValidationError }
 // Schema
 export {
   DEVICE_CATALOG_SCHEMA_VERSION,
+  UNRESOLVED_REF_PREFIX,
   DeviceCatalogSchema,
   DeviceEntrySchema,
   LifecycleStatusSchema,
@@ -48,3 +49,7 @@ export type { CatalogValidationResult } from './validation.js';
 
 // Starter catalog
 export { STARTER_DEVICE_CATALOG } from './starter.js';
+
+// Ingestion pipeline
+export { ingestDeviceFromLcsc } from './ingest.js';
+export type { IngestResult, IngestStatus } from './ingest.js';

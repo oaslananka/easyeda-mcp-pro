@@ -23,6 +23,17 @@ import { CatalogError, CatalogErrorCode, fromZodError } from './errors.js';
 
 export const DEVICE_CATALOG_SCHEMA_VERSION = 'device-catalog/v1';
 
+/**
+ * Prefix used for a `symbolRef`/`footprintRef` value when a device was
+ * ingested but the reference could not be resolved to a real EasyEDA
+ * library entry (e.g. `LIB_Device.getByLcscIds` found no match). Kept
+ * non-empty so it still satisfies `DeviceEntrySchema`'s `.min(1)`
+ * constraint, but flagged as invalid by `validateCatalog`/`validateDeviceEntry`
+ * for any category that requires a real symbol/footprint — see
+ * `src/catalog/validation.ts`.
+ */
+export const UNRESOLVED_REF_PREFIX = 'UNRESOLVED:';
+
 // ── Sub-schemas ───────────────────────────────────────────────────────────
 
 /**

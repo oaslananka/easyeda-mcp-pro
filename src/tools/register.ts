@@ -2,6 +2,7 @@ import { type EnvConfig } from '../config/env.js';
 import { registerBoardTools } from './L1_board.js';
 import { registerBomCoreTools } from './L1_bom_core.js';
 import { registerBomSourcingTools } from './L1_bom_sourcing.js';
+import { registerCatalogTools } from './L1_catalog.js';
 import { registerDiagnosticsCore } from './L0_diagnostics_core.js';
 import { registerDiagnosticsApi } from './L0_diagnostics_api.js';
 import { registerDrcErcTools } from './L1_drc_erc.js';
@@ -26,4 +27,5 @@ export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig):
   registerPcbWriteTools(registry, config);
   registerExportTools(registry, config);
   registerVisualTools(registry, config);
+  registerCatalogTools(registry, config);
 }

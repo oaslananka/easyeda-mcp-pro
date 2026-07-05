@@ -5,6 +5,7 @@ import { type LcscClient } from '../vendors/lcsc/client.js';
 import { type JlcpcbClient } from '../vendors/jlcpcb/client.js';
 import { type MouserClient } from '../vendors/mouser/client.js';
 import { type DigiKeyClient } from '../vendors/digikey/client.js';
+import { type Storage } from '../storage/index.js';
 
 export interface ToolDefinition<
   TInput extends z.ZodType = z.ZodType,
@@ -97,4 +98,6 @@ export interface ToolContext {
     mouser: MouserClient | null;
     digikey: DigiKeyClient | null;
   };
+  /** Local SQLite storage (project cache, artifacts, verified device catalog cache). */
+  storage?: Storage;
 }

@@ -7,7 +7,11 @@ import {
   isDeviceEntry,
   DEVICE_CATALOG_SCHEMA_VERSION,
 } from '../../../src/catalog/schema.js';
-import { validateCatalog, validateCatalogOrThrow } from '../../../src/catalog/validation.js';
+import {
+  validateCatalog,
+  validateCatalogOrThrow,
+  validateDeviceEntry as validateEntryBusinessRules,
+} from '../../../src/catalog/validation.js';
 import { CatalogError, CatalogErrorCode } from '../../../src/catalog/errors.js';
 import { STARTER_DEVICE_CATALOG } from '../../../src/catalog/starter.js';
 
@@ -449,5 +453,58 @@ describe('validateCatalog (business rules)', () => {
     expect(result.valid).toBe(true);
     // Some may have warnings (e.g., missing assembly data)
     expect(result.errors).toHaveLength(0);
+  });
+
+  it('detects an unresolved symbol reference for a category that requires one', () => {
+    const invalid = {
+      ...minimalValidCatalog,
+      devices: [{ ...minimalValidCatalog.devices[0], symbolRef: 'UNRESOLVED:C12345' }],
+    };
+    const result = validateCatalog(invalid);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.code === 'DEVICE_UNRESOLVED_SYMBOL')).toBe(true);
+  });
+
+  it('detects an unresolved footprint reference for a category that requires one', () => {
+    const invalid = {
+      ...minimalValidCatalog,
+      devices: [{ ...minimalValidCatalog.devices[0], footprintRef: 'UNRESOLVED:C12345' }],
+    };
+    const result = validateCatalog(invalid);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.code === 'DEVICE_UNRESOLVED_FOOTPRINT')).toBe(true);
+  });
+
+  it('does not flag a resolved (non-placeholder) symbol/footprint reference', () => {
+    const result = validateCatalog(minimalValidCatalog);
+    expect(result.errors.some((e) => e.code === 'DEVICE_UNRESOLVED_SYMBOL')).toBe(false);
+    expect(result.errors.some((e) => e.code === 'DEVICE_UNRESOLVED_FOOTPRINT')).toBe(false);
+  });
+});
+
+describe('validateDeviceEntry (business rules, single entry)', () => {
+  const mcuEntry = minimalValidCatalog.devices[0];
+
+  it('returns valid=true for a well-formed entry', () => {
+    const result = validateEntryBusinessRules(mcuEntry);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('flags an unresolved symbol reference', () => {
+    const result = validateEntryBusinessRules({ ...mcuEntry, symbolRef: 'UNRESOLVED:C12345' });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.code === 'DEVICE_UNRESOLVED_SYMBOL')).toBe(true);
+  });
+
+  it('flags an unresolved footprint reference', () => {
+    const result = validateEntryBusinessRules({ ...mcuEntry, footprintRef: 'UNRESOLVED:C12345' });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.code === 'DEVICE_UNRESOLVED_FOOTPRINT')).toBe(true);
+  });
+
+  it('does not require a pin map for a passive-category entry', () => {
+    const result = validateEntryBusinessRules(minimalDeviceEntry);
+    expect(result.errors.some((e) => e.code === 'DEVICE_MISSING_PIN_MAP')).toBe(false);
   });
 });

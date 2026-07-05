@@ -84,6 +84,8 @@ export function getRequiredToolScopes(tool: ToolDefinition): string[] {
       return ['export:write'];
     case 'visual':
       return ['schematic:read', 'pcb:read'];
+    case 'catalog':
+      return [tool.confirmWrite ? 'catalog:write' : 'catalog:read'];
     default:
       return [tool.confirmWrite ? WRITE_ALL_SCOPE : READ_ALL_SCOPE];
   }

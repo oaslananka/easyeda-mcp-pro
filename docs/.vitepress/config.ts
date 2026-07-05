@@ -22,6 +22,7 @@ export default defineConfig({
       { text: 'JLCPCB Quote Workflow', link: '/jlcpcb-quote-workflow' },
       { text: 'Component Quality', link: '/component-quality' },
       { text: 'Vendor API Hardening', link: '/vendor-api-hardening' },
+      { text: 'Catalog Ingestion', link: '/catalog-ingestion' },
       { text: 'Issue Triage', link: '/ISSUE_TRIAGE' },
     ],
     sidebar: [
@@ -68,6 +69,7 @@ export default defineConfig({
           { text: 'Save/Export Safety', link: '/reference/save-export-rollback-safety' },
           { text: 'Supply Chain Verification', link: '/supply-chain-verification' },
           { text: 'Power Tree Analyzer', link: '/power-tree' },
+          { text: 'Catalog Ingestion', link: '/catalog-ingestion' },
           { text: 'Issue Triage', link: '/ISSUE_TRIAGE' },
         ],
       },

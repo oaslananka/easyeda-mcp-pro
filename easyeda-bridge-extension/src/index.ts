@@ -1949,6 +1949,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           'canvas.capture',
           'canvas.captureRegion',
           'canvas.locate',
+          'library.getDeviceByLcscId',
         ],
         devMode: false,
         globals: globals,
@@ -2022,6 +2023,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         tabId?: string;
       };
       return callFirst(['DMT_EditorControl.zoomTo'], x, y, scaleRatio, tabId);
+    }
+    case 'library.getDeviceByLcscId': {
+      const lcscId = String(params.lcscId ?? '');
+      const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
+      return callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
     }
     case 'pcb.placeComponent':
       return callFirst(

@@ -3,8 +3,20 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { getLogger } from '../utils/logger.js';
 import { type EnvConfig } from '../config/env.js';
-import { type ProjectCache, type ArtifactRecord } from './types.js';
+import { type ProjectCache, type ArtifactRecord, type VerifiedDeviceRecord } from './types.js';
 import { getGlobalMetricsCollector } from '../observability/index.js';
+
+function rowToVerifiedDeviceRecord(row: Record<string, unknown>): VerifiedDeviceRecord {
+  return {
+    lcscId: row.lcsc_id as string,
+    entryJson: row.entry_json as string,
+    status: row.status as VerifiedDeviceRecord['status'],
+    errorCount: row.error_count as number,
+    warningCount: row.warning_count as number,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
 
 /**
  * SQLite-backed persistent storage for the MCP server.
@@ -67,6 +79,16 @@ export class Storage {
         file_path TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         metadata TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS verified_devices (
+        lcsc_id TEXT PRIMARY KEY,
+        entry_json TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('resolved','partial','unresolved')),
+        error_count INTEGER NOT NULL DEFAULT 0,
+        warning_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
       CREATE INDEX IF NOT EXISTS idx_artifacts_project ON artifacts(project_hash);
@@ -226,6 +248,79 @@ export class Storage {
     } catch (err) {
       getLogger().error({ err, projectHash, type }, 'getArtifacts failed');
       return [];
+    }
+  }
+
+  /** Insert or replace a verified-device cache entry, keyed by LCSC id. */
+  upsertVerifiedDevice(record: Omit<VerifiedDeviceRecord, 'createdAt' | 'updatedAt'>): void {
+    try {
+      const existing = this.db
+        .prepare('SELECT created_at FROM verified_devices WHERE lcsc_id = ?')
+        .get(record.lcscId) as { created_at: string } | undefined;
+      this.db
+        .prepare(
+          `
+        INSERT INTO verified_devices (lcsc_id, entry_json, status, error_count, warning_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))
+        ON CONFLICT(lcsc_id) DO UPDATE SET
+          entry_json = excluded.entry_json,
+          status = excluded.status,
+          error_count = excluded.error_count,
+          warning_count = excluded.warning_count,
+          updated_at = excluded.updated_at
+      `,
+        )
+        .run(
+          record.lcscId,
+          record.entryJson,
+          record.status,
+          record.errorCount,
+          record.warningCount,
+          existing?.created_at ?? null,
+        );
+    } catch (err) {
+      getLogger().error({ err, lcscId: record.lcscId }, 'upsertVerifiedDevice failed');
+    }
+  }
+
+  /** Look up a cached verified-device entry by LCSC id. Returns `null` if not found. */
+  getVerifiedDevice(lcscId: string): VerifiedDeviceRecord | null {
+    try {
+      const row = this.db
+        .prepare('SELECT * FROM verified_devices WHERE lcsc_id = ?')
+        .get(lcscId) as Record<string, unknown> | undefined;
+      if (!row) return null;
+      return rowToVerifiedDeviceRecord(row);
+    } catch (err) {
+      getLogger().error({ err, lcscId }, 'getVerifiedDevice failed');
+      return null;
+    }
+  }
+
+  /** List cached verified devices, optionally filtered by status, newest first. */
+  listVerifiedDevices(status?: VerifiedDeviceRecord['status']): VerifiedDeviceRecord[] {
+    try {
+      let query = 'SELECT * FROM verified_devices';
+      const params: string[] = [];
+      if (status) {
+        query += ' WHERE status = ?';
+        params.push(status);
+      }
+      query += ' ORDER BY updated_at DESC';
+      const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+      return rows.map(rowToVerifiedDeviceRecord);
+    } catch (err) {
+      getLogger().error({ err, status }, 'listVerifiedDevices failed');
+      return [];
+    }
+  }
+
+  /** Remove a cached verified-device entry by LCSC id. */
+  deleteVerifiedDevice(lcscId: string): void {
+    try {
+      this.db.prepare('DELETE FROM verified_devices WHERE lcsc_id = ?').run(lcscId);
+    } catch (err) {
+      getLogger().error({ err, lcscId }, 'deleteVerifiedDevice failed');
     }
   }
 

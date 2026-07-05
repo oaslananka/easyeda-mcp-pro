@@ -148,4 +148,92 @@ describe('Storage', () => {
     const all = storage.getArtifacts('p1');
     expect(all).toHaveLength(3);
   });
+
+  describe('verified devices', () => {
+    it('upserts and retrieves a verified device by LCSC id', () => {
+      storage.upsertVerifiedDevice({
+        lcscId: 'C25804',
+        entryJson: '{"id":"device-lcsc-c25804"}',
+        status: 'resolved',
+        errorCount: 0,
+        warningCount: 1,
+      });
+
+      const record = storage.getVerifiedDevice('C25804');
+      expect(record).toMatchObject({
+        lcscId: 'C25804',
+        entryJson: '{"id":"device-lcsc-c25804"}',
+        status: 'resolved',
+        errorCount: 0,
+        warningCount: 1,
+      });
+      expect(record?.createdAt).toBeTruthy();
+      expect(record?.updatedAt).toBeTruthy();
+    });
+
+    it('returns null for a device that was never cached', () => {
+      expect(storage.getVerifiedDevice('C000000')).toBeNull();
+    });
+
+    it('updates status/entry on repeated ingestion without changing createdAt', async () => {
+      storage.upsertVerifiedDevice({
+        lcscId: 'C111111',
+        entryJson: '{"v":1}',
+        status: 'unresolved',
+        errorCount: 2,
+        warningCount: 0,
+      });
+      const first = storage.getVerifiedDevice('C111111');
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      storage.upsertVerifiedDevice({
+        lcscId: 'C111111',
+        entryJson: '{"v":2}',
+        status: 'resolved',
+        errorCount: 0,
+        warningCount: 0,
+      });
+      const second = storage.getVerifiedDevice('C111111');
+
+      expect(second).toMatchObject({ entryJson: '{"v":2}', status: 'resolved', errorCount: 0 });
+      expect(second?.createdAt).toBe(first?.createdAt);
+    });
+
+    it('lists verified devices newest-first, optionally filtered by status', () => {
+      storage.upsertVerifiedDevice({
+        lcscId: 'C1',
+        entryJson: '{}',
+        status: 'resolved',
+        errorCount: 0,
+        warningCount: 0,
+      });
+      storage.upsertVerifiedDevice({
+        lcscId: 'C2',
+        entryJson: '{}',
+        status: 'unresolved',
+        errorCount: 1,
+        warningCount: 0,
+      });
+
+      const all = storage.listVerifiedDevices();
+      expect(all.map((d) => d.lcscId).sort()).toEqual(['C1', 'C2']);
+
+      const resolvedOnly = storage.listVerifiedDevices('resolved');
+      expect(resolvedOnly).toHaveLength(1);
+      expect(resolvedOnly[0]?.lcscId).toBe('C1');
+    });
+
+    it('deletes a verified device', () => {
+      storage.upsertVerifiedDevice({
+        lcscId: 'C3',
+        entryJson: '{}',
+        status: 'resolved',
+        errorCount: 0,
+        warningCount: 0,
+      });
+      storage.deleteVerifiedDevice('C3');
+      expect(storage.getVerifiedDevice('C3')).toBeNull();
+    });
+  });
 });

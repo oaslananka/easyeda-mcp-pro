@@ -2,18 +2,49 @@ import { describe, it, expect } from 'vitest';
 import {
   determineComponentRole,
   planComponents,
+  resolveCandidateDevice,
   getDeviceRole,
   ROLE_REFDES_PREFIX,
   ROLE_PACKAGE_HINT,
 } from '../../../src/circuit/component-planning.js';
 import { BlockType } from '../../../src/circuit/types.js';
 import type { Block } from '../../../src/circuit/circuit-ir.js';
+import { UNRESOLVED_REF_PREFIX, type DeviceEntry } from '../../../src/catalog/schema.js';
 
 function makeBlock(overrides: Partial<Block> & Pick<Block, 'id' | 'name' | 'type'>): Block {
   return {
     description: undefined,
     designIntentRef: [{ requirementId: `req-${overrides.id}` }],
     children: [],
+    ...overrides,
+  };
+}
+
+function makeDeviceEntry(
+  overrides: Partial<DeviceEntry> & Pick<DeviceEntry, 'id' | 'category'>,
+): DeviceEntry {
+  return {
+    displayName: overrides.id,
+    description: undefined,
+    subCategory: undefined,
+    symbolRef: 'SYM:TEST',
+    footprintRef: 'FOOT:TEST',
+    model3dRef: '__missing__',
+    manufacturer: 'Acme',
+    mpn: 'ACME-1',
+    lcsc: 'C1',
+    jlcpcb: undefined,
+    supplierIds: [],
+    package: '0603',
+    standardPackage: undefined,
+    pinMapping: [],
+    electricalParams: [],
+    lifecycleStatus: 'active',
+    assemblyHint: undefined,
+    datasheetUrl: undefined,
+    productPageUrl: undefined,
+    metadata: [],
+    notes: undefined,
     ...overrides,
   };
 }
@@ -155,6 +186,107 @@ describe('planComponents', () => {
     expect(device.metadata.find((m) => m.key === 'packageHint')?.value).toBe(
       ROLE_PACKAGE_HINT['power-regulator'],
     );
+  });
+
+  it('is unaffected when no catalog option is passed (backward compatible)', () => {
+    const blocks: Block[] = [
+      makeBlock({ id: 'a', name: 'Regulator', type: BlockType.PowerManagement }),
+    ];
+    const withoutOptions = planComponents(blocks);
+    const withEmptyOptions = planComponents(blocks, {});
+    expect(withoutOptions).toEqual(withEmptyOptions);
+  });
+
+  it('resolves mpn/manufacturer/package/lcsc from a matching catalog device', () => {
+    const catalog = [makeDeviceEntry({ id: 'device-regulator-1', category: 'power' })];
+    const blocks: Block[] = [
+      makeBlock({ id: 'a', name: 'Regulator', type: BlockType.PowerManagement }),
+    ];
+
+    const { devices, warnings } = planComponents(blocks, { catalog });
+    const device = devices[0];
+
+    expect(device.mpn).toBe('ACME-1');
+    expect(device.manufacturer).toBe('Acme');
+    expect(device.package).toBe('0603');
+    expect(device.lcsc).toBe('C1');
+    expect(device.metadata).toContainEqual({ key: 'planningState', value: 'resolved' });
+    expect(device.metadata).toContainEqual({ key: 'catalogDeviceId', value: 'device-regulator-1' });
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('leaves the device as a candidate and warns when the catalog has no matching role', () => {
+    const catalog = [makeDeviceEntry({ id: 'device-sensor-1', category: 'sensor' })];
+    const blocks: Block[] = [
+      makeBlock({ id: 'a', name: 'Regulator', type: BlockType.PowerManagement }),
+    ];
+
+    const { devices, warnings } = planComponents(blocks, { catalog });
+    const device = devices[0];
+
+    expect(device.mpn).toBeUndefined();
+    expect(device.metadata).toContainEqual({ key: 'planningState', value: 'candidate' });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('easyeda_catalog_verify_device');
+  });
+
+  it('does not attempt catalog resolution for low-confidence (placeholder) roles', () => {
+    const catalog = [makeDeviceEntry({ id: 'device-generic-1', category: 'passive' })];
+    const blocks: Block[] = [makeBlock({ id: 'a', name: 'Mystery', type: 'custom' })];
+
+    const { devices, warnings } = planComponents(blocks, { catalog });
+    expect(devices[0].metadata).toContainEqual({ key: 'planningState', value: 'placeholder' });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('insufficient design intent');
+  });
+
+  it('skips an obsolete catalog device even when the category matches', () => {
+    const catalog = [
+      makeDeviceEntry({ id: 'device-old', category: 'power', lifecycleStatus: 'obsolete' }),
+    ];
+    const blocks: Block[] = [
+      makeBlock({ id: 'a', name: 'Regulator', type: BlockType.PowerManagement }),
+    ];
+
+    const { devices } = planComponents(blocks, { catalog });
+    expect(devices[0].mpn).toBeUndefined();
+    expect(devices[0].metadata).toContainEqual({ key: 'planningState', value: 'candidate' });
+  });
+});
+
+describe('resolveCandidateDevice', () => {
+  it('returns undefined for a role with no catalog-category mapping', () => {
+    const catalog = [makeDeviceEntry({ id: 'device-1', category: 'power' })];
+    expect(resolveCandidateDevice('generic-ic', catalog)).toBeUndefined();
+  });
+
+  it("returns undefined when no device matches the role's category", () => {
+    const catalog = [makeDeviceEntry({ id: 'device-1', category: 'sensor' })];
+    expect(resolveCandidateDevice('power-regulator', catalog)).toBeUndefined();
+  });
+
+  it('excludes obsolete devices from matching', () => {
+    const catalog = [
+      makeDeviceEntry({ id: 'device-1', category: 'power', lifecycleStatus: 'obsolete' }),
+    ];
+    expect(resolveCandidateDevice('power-regulator', catalog)).toBeUndefined();
+  });
+
+  it('prefers a device with a resolved symbol/footprint and a pin map over a placeholder one', () => {
+    const unresolved = makeDeviceEntry({
+      id: 'device-unresolved',
+      category: 'power',
+      symbolRef: `${UNRESOLVED_REF_PREFIX}C1`,
+      footprintRef: `${UNRESOLVED_REF_PREFIX}C1`,
+    });
+    const resolved = makeDeviceEntry({
+      id: 'device-resolved',
+      category: 'power',
+      pinMapping: [{ pin: '1', name: 'VIN' }],
+    });
+
+    const match = resolveCandidateDevice('power-regulator', [unresolved, resolved]);
+    expect(match?.id).toBe('device-resolved');
   });
 });
 

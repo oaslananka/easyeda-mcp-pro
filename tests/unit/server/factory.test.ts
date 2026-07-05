@@ -140,6 +140,12 @@ describe('createServer', () => {
     expect(instance.context.config.keylessSourcingEnabled).toBe(false);
   });
 
+  it('exposes the same storage instance through the tool context', async () => {
+    const instance = await createServer(config());
+    expect(instance.context.storage).toBeDefined();
+    expect(instance.context.storage).toBe(instance.storage);
+  });
+
   it('creates vendor clients when enabled', async () => {
     const instance = await createServer(
       config({

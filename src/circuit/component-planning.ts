@@ -6,17 +6,24 @@
  * planning-state marker that differentiates a confidently-classified
  * candidate device from a low-confidence placeholder.
  *
- * This module intentionally does not select real MPNs, manufacturers, or
+ * By default this module does not select real MPNs, manufacturers, or
  * footprints — it narrows the search space (role + refdes + package family)
  * so a human, BOM-sourcing tool, or downstream planning step can make the
- * final manufacturable selection. See docs/circuit-ir.md for the full
- * synthesis pipeline this module is part of.
+ * final manufacturable selection. Callers may optionally pass a pre-loaded
+ * device catalog (`PlanComponentsOptions.catalog` — the starter catalog plus
+ * any devices cached by `easyeda_catalog_verify_device`); when a
+ * high-confidence role matches a non-obsolete catalog device, that device's
+ * MPN/manufacturer/package/LCSC id are used and `planningState` becomes
+ * `resolved` instead of `candidate`. See docs/catalog-ingestion.md for what
+ * "resolved" does and does not guarantee, and docs/circuit-ir.md for the
+ * full synthesis pipeline this module is part of.
  *
  * @module
  */
 
 import { BlockType } from './types.js';
 import type { Block, Device } from './circuit-ir.js';
+import { UNRESOLVED_REF_PREFIX, type DeviceEntry } from '../catalog/schema.js';
 
 // ── Component roles ───────────────────────────────────────────────────────
 
@@ -73,7 +80,54 @@ export const COMPONENT_PLAN_METADATA_KEYS = {
   role: 'role',
   packageHint: 'packageHint',
   planningState: 'planningState',
+  catalogDeviceId: 'catalogDeviceId',
 } as const;
+
+/**
+ * Best-effort mapping from a component role to a catalog category
+ * (`src/catalog/schema.ts`'s free-text `category` field). Roles with no
+ * entry here (`generic-ic`) are never looked up — there's no reliable
+ * category to search for a role that couldn't be classified.
+ */
+const ROLE_TO_CATALOG_CATEGORY: Partial<Record<ComponentRole, string>> = {
+  'power-regulator': 'power',
+  'mcu-module': 'microcontroller',
+  sensor: 'sensor',
+  'communication-ic': 'communication',
+  'analog-ic': 'amplifier',
+  connector: 'connector',
+  'protection-diode': 'protection',
+  fuse: 'protection',
+  'passive-support': 'passive',
+};
+
+/**
+ * Find the best catalog candidate for a component role, preferring devices
+ * with a resolved (non-placeholder) symbol/footprint and a non-empty pin
+ * map over ones ingested without an EasyEDA library match (see
+ * `src/catalog/ingest.ts`). Returns `undefined` when the role has no
+ * catalog-category mapping, no candidates exist, or all candidates are
+ * obsolete.
+ */
+export function resolveCandidateDevice(
+  role: ComponentRole,
+  catalog: DeviceEntry[],
+): DeviceEntry | undefined {
+  const category = ROLE_TO_CATALOG_CATEGORY[role];
+  if (!category) return undefined;
+
+  const candidates = catalog.filter(
+    (device) => device.category === category && device.lifecycleStatus !== 'obsolete',
+  );
+  if (candidates.length === 0) return undefined;
+
+  const resolutionScore = (device: DeviceEntry): number =>
+    (device.symbolRef.startsWith(UNRESOLVED_REF_PREFIX) ? 0 : 1) +
+    (device.footprintRef.startsWith(UNRESOLVED_REF_PREFIX) ? 0 : 1) +
+    (device.pinMapping.length > 0 ? 1 : 0);
+
+  return [...candidates].sort((a, b) => resolutionScore(b) - resolutionScore(a))[0];
+}
 
 /**
  * Determine a component role for a Block from its `type` and free-text
@@ -129,26 +183,51 @@ export interface ComponentPlanResult {
   warnings: string[];
 }
 
+export interface PlanComponentsOptions {
+  /**
+   * A pre-loaded catalog (e.g. the starter catalog plus cached verified
+   * devices from `easyeda_catalog_verify_device`) to resolve high-confidence
+   * roles against. Omit to preserve the original role/refdes/package-hint-only
+   * behavior — this parameter is purely additive and opt-in; existing callers
+   * are unaffected.
+   */
+  catalog?: DeviceEntry[];
+}
+
 /**
  * Plan one candidate Device per Block: a deterministic refdes, a component
- * role, and a package-family hint, recorded as Device metadata alongside
- * a `planningState` of `candidate` (role inferred with high confidence) or
- * `placeholder` (role could not be determined; manual classification
- * required).
+ * role, and a package-family hint, recorded as Device metadata alongside a
+ * `planningState` of `resolved` (a verified catalog device matched the
+ * role), `candidate` (role inferred with high confidence but no catalog
+ * match), or `placeholder` (role could not be determined; manual
+ * classification required).
  *
  * Refdes numbering is deterministic and stable across repeated compiles of
  * the same DesignIntent, because it is derived solely from block order.
  */
-export function planComponents(blocks: Block[]): ComponentPlanResult {
+export function planComponents(
+  blocks: Block[],
+  options?: PlanComponentsOptions,
+): ComponentPlanResult {
   const refdesCounters: Record<string, number> = {};
   const warnings: string[] = [];
+  const catalog = options?.catalog;
 
   const devices = blocks.map((block) => {
     const plan = determineComponentRole({ type: block.type, description: block.description });
     const prefix = ROLE_REFDES_PREFIX[plan.role];
     refdesCounters[prefix] = (refdesCounters[prefix] ?? 0) + 1;
     const ref = `${prefix}${refdesCounters[prefix]}`;
-    const planningState = plan.confidence === 'high' ? 'candidate' : 'placeholder';
+
+    const match =
+      catalog && plan.confidence === 'high'
+        ? resolveCandidateDevice(plan.role, catalog)
+        : undefined;
+    const planningState = match
+      ? 'resolved'
+      : plan.confidence === 'high'
+        ? 'candidate'
+        : 'placeholder';
 
     if (planningState === 'placeholder') {
       warnings.push(
@@ -156,22 +235,32 @@ export function planComponents(blocks: Block[]): ComponentPlanResult {
           `component role; using a generic placeholder device (${ref}). Provide a more ` +
           `specific block type or purpose to enable manufacturable candidate planning.`,
       );
+    } else if (catalog && plan.confidence === 'high' && !match) {
+      warnings.push(
+        `Block "${block.name}" (${block.id}): role "${plan.role}" has no matching verified ` +
+          `catalog device (${ref}). Run easyeda_catalog_verify_device with a candidate LCSC ` +
+          `part number to add one, or provide a manufacturable selection manually.`,
+      );
     }
 
     const device: Device = {
       id: `dev-${block.id}`,
       ref,
-      mpn: undefined,
-      manufacturer: undefined,
-      package: undefined,
-      datasheet: '',
-      lcsc: undefined,
+      mpn: match?.mpn,
+      manufacturer: match?.manufacturer,
+      package: match?.package,
+      datasheet: match?.datasheetUrl || '',
+      lcsc: match?.lcsc,
       blockRef: block.id,
       designIntentRef: block.designIntentRef,
       metadata: [
         { key: COMPONENT_PLAN_METADATA_KEYS.role, value: plan.role },
-        { key: COMPONENT_PLAN_METADATA_KEYS.packageHint, value: ROLE_PACKAGE_HINT[plan.role] },
+        {
+          key: COMPONENT_PLAN_METADATA_KEYS.packageHint,
+          value: match?.package ?? ROLE_PACKAGE_HINT[plan.role],
+        },
         { key: COMPONENT_PLAN_METADATA_KEYS.planningState, value: planningState },
+        ...(match ? [{ key: COMPONENT_PLAN_METADATA_KEYS.catalogDeviceId, value: match.id }] : []),
       ],
     };
     return device;

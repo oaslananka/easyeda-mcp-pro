@@ -4,12 +4,12 @@ Remote tool approval protects the user from unintended project changes when a cl
 
 ## Risk levels
 
-| Risk level  | Examples                                                                           | Default behavior                                          |
-| ----------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Read        | list project, inspect netlist, read BOM, read DRC/ERC report, capture canvas image | Allowed after auth and pairing.                           |
-| Write       | add component, create net, edit wire, update PCB primitive                         | Requires explicit approval.                               |
-| Export      | generate Gerber, BOM, pick-and-place, manufacturing package                        | Requires explicit approval.                               |
-| Destructive | delete, overwrite, bulk replace, publish/share, place order                        | Requires stronger confirmation or is disabled by default. |
+| Risk level  | Examples                                                                                  | Default behavior                                          |
+| ----------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Read        | list project, inspect netlist, read BOM, read DRC/ERC report, capture canvas image        | Allowed after auth and pairing.                           |
+| Write       | add component, create net, edit wire, update PCB primitive, verify/cache a catalog device | Requires explicit approval.                               |
+| Export      | generate Gerber, BOM, pick-and-place, manufacturing package                               | Requires explicit approval.                               |
+| Destructive | delete, overwrite, bulk replace, publish/share, place order                               | Requires stronger confirmation or is disabled by default. |
 
 ## Approval prompt requirements
 
