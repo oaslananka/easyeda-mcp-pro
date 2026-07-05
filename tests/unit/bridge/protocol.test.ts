@@ -82,6 +82,21 @@ describe('BridgeProtocol schemas', () => {
         devMode: false,
       });
       expect(result.easyedaVersion).toBeUndefined();
+      expect(result.maxPayloadSize).toBeUndefined();
+    });
+
+    it('should accept maxPayloadSize when present', () => {
+      const result = BridgeHelloSchema.parse({
+        type: 'hello',
+        bridgeVersion: '1.0.0',
+        contractVersion: BRIDGE_CONTRACT_VERSION,
+        supportedProtocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+        capabilities: [],
+        methodRegistryHash: 'abc',
+        devMode: false,
+        maxPayloadSize: 1_048_576,
+      });
+      expect(result.maxPayloadSize).toBe(1_048_576);
     });
   });
 

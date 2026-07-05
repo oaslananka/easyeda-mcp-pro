@@ -47,6 +47,13 @@ export interface ToolDefinition<
   inputSchema: TInput;
   outputSchema: TOutput;
   handler: (context: ToolContext, input: z.infer<TInput>) => Promise<z.infer<TOutput>>;
+  /**
+   * Optional: extract MCP image content blocks (e.g. a PNG canvas capture)
+   * from a successful, schema-validated tool result. Returned images are
+   * appended to the response's `content` array alongside the usual JSON/text
+   * block. Most tools omit this.
+   */
+  imageContent?: (output: z.infer<TOutput>) => Array<{ data: string; mimeType: string }>;
 }
 
 export interface BridgeDiagnosticsSnapshot {

@@ -369,6 +369,7 @@ export class BridgeManager extends EventEmitter {
       easyedaVersion: parsed.data.easyedaVersion,
       capabilities: EasyedaApiMethodSchema.options,
       methodRegistryHash: this._methodRegistryHash,
+      maxPayloadSize: this.config.BRIDGE_MAX_PAYLOAD_SIZE,
       devMode: parsed.data.devMode ?? false,
     };
 

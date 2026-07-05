@@ -82,6 +82,8 @@ export function getRequiredToolScopes(tool: ToolDefinition): string[] {
       return ['pcb:write'];
     case 'export':
       return ['export:write'];
+    case 'visual':
+      return ['schematic:read', 'pcb:read'];
     default:
       return [tool.confirmWrite ? WRITE_ALL_SCOPE : READ_ALL_SCOPE];
   }
@@ -296,9 +298,17 @@ export class ToolRegistry {
               typeof output.data === 'object' && output.data !== null
                 ? (output.data as Record<string, unknown>)
                 : { value: output.data };
+            const images = tool.imageContent?.(output.data) ?? [];
             return {
               structuredContent,
-              content: [{ type: 'text' as const, text: JSON.stringify(output.data, null, 2) }],
+              content: [
+                { type: 'text' as const, text: JSON.stringify(output.data, null, 2) },
+                ...images.map((image) => ({
+                  type: 'image' as const,
+                  data: image.data,
+                  mimeType: image.mimeType,
+                })),
+              ],
             };
           } catch (err) {
             // ── Zod validation errors ─────────────────────────────────

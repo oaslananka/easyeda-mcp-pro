@@ -330,6 +330,58 @@ describe('ToolRegistry', () => {
     });
   });
 
+  describe('image content', () => {
+    it('appends an image content block when the tool defines imageContent', async () => {
+      const tool = createMockTool('image_tool', 'core', {
+        outputSchema: z.object({ ok: z.boolean(), image_base64: z.string().optional() }),
+        handler: async () => ({ ok: true, image_base64: 'ZmFrZS1wbmctYnl0ZXM=' }),
+        imageContent: (output) =>
+          output.image_base64 ? [{ data: output.image_base64, mimeType: 'image/png' }] : [],
+      });
+      registry.register(tool);
+
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+
+      const response = await handlers.get('image_tool')!({});
+
+      expect(response.isError).toBeFalsy();
+      expect(response.content).toHaveLength(2);
+      expect(response.content[0]).toMatchObject({ type: 'text' });
+      expect(response.content[1]).toEqual({
+        type: 'image',
+        data: 'ZmFrZS1wbmctYnl0ZXM=',
+        mimeType: 'image/png',
+      });
+    });
+
+    it('does not add an image block when imageContent returns an empty array', async () => {
+      const tool = createMockTool('no_image_tool', 'core', {
+        outputSchema: z.object({ ok: z.boolean() }),
+        handler: async () => ({ ok: true }),
+        imageContent: () => [],
+      });
+      registry.register(tool);
+
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+
+      const response = await handlers.get('no_image_tool')!({});
+      expect(response.content).toHaveLength(1);
+    });
+
+    it('does not add an image block for tools that omit imageContent entirely', async () => {
+      const tool = createMockTool('plain_tool', 'core');
+      registry.register(tool);
+
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+
+      const response = await handlers.get('plain_tool')!({});
+      expect(response.content).toHaveLength(1);
+    });
+  });
+
   describe('capability scope gate', () => {
     it('should allow all tools when TOOL_SCOPES is empty', async () => {
       const tool = createMockTool('scope_default_allow', 'core');
@@ -508,6 +560,7 @@ describe('ToolRegistry', () => {
           'export',
           'pcb-constraints',
           'pcb-write',
+          'visual',
         ]).toContain(tool.group);
 
         // profile must be valid

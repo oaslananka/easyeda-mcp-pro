@@ -60,6 +60,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension test",
     "smoke:easyeda": "tsx scripts/live-easyeda-smoke.mts",
     "verify:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension verify",
     "inspector": "pnpm build && npx @modelcontextprotocol/inspector node dist/index.js",
@@ -74,7 +75,7 @@
     "inventory:diff": "tsx scripts/diff-runtime-inventory.mts",
     "eval:golden": "tsx scripts/run-evals.mts",
     "eval:golden:update": "tsx scripts/run-evals.mts --update-baseline",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build"
+    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm test:extension && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

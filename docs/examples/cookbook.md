@@ -97,3 +97,32 @@ Run a manufacturing preflight for the active project. Check export package readi
 - Quote/order actions require explicit user confirmation and audit.
 - Export packages must include hashes and clear generation metadata.
 - Any missing board outline, drill, placement, or BOM artifact should block handoff until reviewed.
+
+## 6. Visual verification after a schematic edit
+
+**Goal:** After placing a component or drawing a wire, visually confirm the change looks
+right before continuing — catch overlaps, dangling wires, or misplacements a structural
+diff alone would miss.
+
+**Prompt:**
+
+```text
+Place a 0603 decoupling capacitor near U1's VCC pin and wire it to VCC and GND. After placing it, capture the area and check the result looks correct before doing anything else.
+```
+
+**Tool sequence:**
+
+1. `easyeda_schematic_place_component` / `easyeda_schematic_add_wire` (with `confirmWrite: true`)
+2. `easyeda_canvas_capture_region` framed around the edited area (or `easyeda_canvas_capture`
+   for the whole visible viewport)
+3. Visually inspect the returned PNG for overlaps, dangling wire ends, or misplacement
+4. If something looks wrong, use `easyeda_schematic_verify_write` or a follow-up
+   read-only inspection tool to confirm the structural state, then correct it
+
+**Safety checkpoints:**
+
+- `easyeda_canvas_capture_region` moves the user's visible viewport (EasyEDA Pro has no
+  offscreen rendering API) — mention this to the user before use in an interactive session.
+- Treat the captured image as a visual sanity check, not a substitute for DRC/ERC.
+- A capture that fails with `not_available` (e.g. `PAYLOAD_TOO_LARGE`) should fall back to
+  structural inspection tools rather than blocking the whole review.

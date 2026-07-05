@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
@@ -5,6 +7,72 @@ import { validatePcbConstraints } from '../pcb-constraints/index.js';
 import type { PcbConstraintInput } from '../pcb-constraints/types.js';
 import { generateProductionQaArtifacts } from '../production-qa/index.js';
 import { evaluateQuoteWorkflow } from '../quote-gating/index.js';
+
+interface BinaryBridgeResult {
+  base64?: string;
+  fileName?: string;
+}
+
+interface WriteExportResult {
+  ok: boolean;
+  filePath?: string;
+  byteLength?: number;
+  error?: string;
+}
+
+/**
+ * Write a bridge export result to disk under `ctx.config.artifactDir`.
+ *
+ * The EasyEDA manufacturing-data APIs (Gerbers/PDF/netlist/pick-place) return
+ * in-memory Blob/File objects. The bridge extension converts these to a
+ * `{base64, fileName, ...}` JSON payload (see
+ * `easyeda-bridge-extension/src/binary-result.ts`) since Blob/File cannot
+ * cross the JSON-only WS transport directly. Some paths (e.g. a netlist
+ * method that returns plain structured data instead of a file) may return
+ * non-binary JSON instead — that is written as formatted JSON so the tool's
+ * `exported`/`file_path` contract stays meaningful either way.
+ */
+function writeExportPayload(
+  ctx: ToolContext,
+  data: unknown,
+  requestedPath: string | undefined,
+  defaultFileName: string,
+): WriteExportResult {
+  if (
+    data === undefined ||
+    data === null ||
+    (typeof data === 'object' && Object.keys(data).length === 0)
+  ) {
+    // An empty object is what a stale/un-upgraded bridge extension produces when it
+    // tries to JSON-serialize a Blob/File directly (JSON.stringify(blob) === '{}'),
+    // so treat it the same as "no data" rather than writing a useless `{}` file.
+    return { ok: false, error: 'Bridge did not return export data.' };
+  }
+
+  const binary = data as BinaryBridgeResult;
+  let buffer: Buffer;
+  let fileName = defaultFileName;
+  if (typeof binary.base64 === 'string') {
+    buffer = Buffer.from(binary.base64, 'base64');
+    fileName = binary.fileName || defaultFileName;
+  } else {
+    buffer = Buffer.from(JSON.stringify(data, null, 2), 'utf-8');
+  }
+
+  const artifactDir = path.resolve(ctx.config.artifactDir);
+  const target = requestedPath ? path.resolve(requestedPath) : path.resolve(artifactDir, fileName);
+  const relative = path.relative(artifactDir, target);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return { ok: false, error: 'File path must be inside the artifact directory.' };
+  }
+
+  const parentDir = path.dirname(target);
+  if (!fs.existsSync(parentDir)) {
+    fs.mkdirSync(parentDir, { recursive: true });
+  }
+  fs.writeFileSync(target, buffer);
+  return { ok: true, filePath: target, byteLength: buffer.byteLength };
+}
 
 const quoteBoardSchema = z.object({
   boardCount: z.number().int().positive(),
@@ -337,6 +405,7 @@ function registerExportTools(
     },
     inputSchema: z.object({
       projectId: z.string(),
+      filePath: z.string().optional(),
       drillFormat: z.enum(['excellon', 'millimeter', 'inch']).optional(),
       excludeLayer: z.array(z.string()).optional(),
       ledPanel: z.boolean().optional(),
@@ -350,6 +419,7 @@ function registerExportTools(
     outputSchema: z.object({
       project_id: z.string(),
       artifact_path: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
       file_count: z.number().int().nonnegative().optional(),
       exported: z.boolean(),
       blocked_by_production_review: z.boolean().optional(),
@@ -365,18 +435,21 @@ function registerExportTools(
         })
         .optional(),
       not_available: z.boolean().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, drillFormat, excludeLayer, ledPanel, productionReview } = params as {
-        projectId: string;
-        drillFormat?: string;
-        excludeLayer?: string[];
-        ledPanel?: boolean;
-        productionReview?: {
-          mode?: 'off' | 'warn' | 'block';
-          boardData?: Partial<PcbConstraintInput>;
+      const { projectId, filePath, drillFormat, excludeLayer, ledPanel, productionReview } =
+        params as {
+          projectId: string;
+          filePath?: string;
+          drillFormat?: string;
+          excludeLayer?: string[];
+          ledPanel?: boolean;
+          productionReview?: {
+            mode?: 'off' | 'warn' | 'block';
+            boardData?: Partial<PcbConstraintInput>;
+          };
         };
-      };
       try {
         const productionReviewResult = runProductionReview(
           productionReview?.boardData,
@@ -398,11 +471,20 @@ function registerExportTools(
           excludeLayer,
           ledPanel,
         });
-        const data = result as { artifactPath?: string; fileCount?: number };
+        const written = writeExportPayload(ctx, result, filePath, `${projectId}-gerbers.zip`);
+        if (!written.ok) {
+          return {
+            project_id: projectId,
+            exported: false,
+            not_available: true,
+            error: written.error,
+            production_review: productionReviewResult,
+          };
+        }
         return {
           project_id: projectId,
-          artifact_path: data.artifactPath,
-          file_count: data.fileCount,
+          artifact_path: written.filePath,
+          byte_length: written.byteLength,
           exported: true,
           production_review: productionReviewResult,
         };
@@ -440,28 +522,49 @@ function registerExportTools(
     inputSchema: z.object({
       projectId: z.string(),
       format: z.enum(['csv', 'txt']).default('csv'),
+      filePath: z.string().optional(),
     }),
     outputSchema: z.object({
       project_id: z.string(),
       format: z.string(),
       file_path: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
       component_count: z.number().int().nonnegative().optional(),
       exported: z.boolean(),
       not_available: z.boolean().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, format } = params as { projectId: string; format: string };
+      const { projectId, format, filePath } = params as {
+        projectId: string;
+        format: string;
+        filePath?: string;
+      };
       try {
         const result = await ctx.bridge.call('export.pickPlace', {
           projectId,
           format,
         });
-        const data = result as { filePath?: string; componentCount?: number };
+        const written = writeExportPayload(
+          ctx,
+          result,
+          filePath,
+          `${projectId}-pick-place.${format}`,
+        );
+        if (!written.ok) {
+          return {
+            project_id: projectId,
+            format,
+            exported: false,
+            not_available: true,
+            error: written.error,
+          };
+        }
         return {
           project_id: projectId,
           format,
-          file_path: data.filePath,
-          component_count: data.componentCount,
+          file_path: written.filePath,
+          byte_length: written.byteLength,
           exported: true,
         };
       } catch (err) {
@@ -495,21 +598,25 @@ function registerExportTools(
       projectId: z.string(),
       scope: z.enum(['schematic', 'board', 'both']).default('both'),
       orientation: z.enum(['portrait', 'landscape']).default('landscape'),
+      filePath: z.string().optional(),
     }),
     outputSchema: z.object({
       project_id: z.string(),
       scope: z.string(),
       orientation: z.string(),
       file_path: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
       pages: z.number().int().nonnegative().optional(),
       exported: z.boolean(),
       not_available: z.boolean().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, scope, orientation } = params as {
+      const { projectId, scope, orientation, filePath } = params as {
         projectId: string;
         scope: string;
         orientation: string;
+        filePath?: string;
       };
       try {
         const result = await ctx.bridge.call('export.pdf', {
@@ -518,13 +625,23 @@ function registerExportTools(
           orientation,
           what: scope,
         });
-        const data = result as { filePath?: string; pages?: number };
+        const written = writeExportPayload(ctx, result, filePath, `${projectId}-${scope}.pdf`);
+        if (!written.ok) {
+          return {
+            project_id: projectId,
+            scope,
+            orientation,
+            exported: false,
+            not_available: true,
+            error: written.error,
+          };
+        }
         return {
           project_id: projectId,
           scope,
           orientation,
-          file_path: data.filePath,
-          pages: data.pages,
+          file_path: written.filePath,
+          byte_length: written.byteLength,
           exported: true,
         };
       } catch (err) {
@@ -559,28 +676,51 @@ function registerExportTools(
     inputSchema: z.object({
       projectId: z.string(),
       format: z.enum(['pads', 'allegro', 'altium']).default('pads'),
+      filePath: z.string().optional(),
     }),
     outputSchema: z.object({
       project_id: z.string(),
       format: z.string(),
       file_path: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
       net_count: z.number().int().nonnegative().optional(),
       exported: z.boolean(),
       not_available: z.boolean().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, format } = params as { projectId: string; format: string };
+      const { projectId, format, filePath } = params as {
+        projectId: string;
+        format: string;
+        filePath?: string;
+      };
       try {
         const result = await ctx.bridge.call('export.netlist', {
           projectId,
           format,
         });
-        const data = result as { filePath?: string; netCount?: number };
+        const written = writeExportPayload(ctx, result, filePath, `${projectId}-netlist.${format}`);
+        if (!written.ok) {
+          return {
+            project_id: projectId,
+            format,
+            exported: false,
+            not_available: true,
+            error: written.error,
+          };
+        }
+        const netCount =
+          result &&
+          typeof result === 'object' &&
+          typeof (result as { netCount?: unknown }).netCount === 'number'
+            ? (result as { netCount: number }).netCount
+            : undefined;
         return {
           project_id: projectId,
           format,
-          file_path: data.filePath,
-          net_count: data.netCount,
+          file_path: written.filePath,
+          byte_length: written.byteLength,
+          net_count: netCount,
           exported: true,
         };
       } catch (err) {

@@ -44,4 +44,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'pcb.deleteComponent',
   'pcb.modifyComponent',
   'api.execute',
+  'canvas.capture',
+  'canvas.captureRegion',
+  'canvas.locate',
 ]);

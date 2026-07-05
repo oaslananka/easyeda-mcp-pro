@@ -58,6 +58,10 @@ export const BridgeHelloSchema = z.object({
   capabilities: z.array(z.string()),
   methodRegistryHash: z.string(),
   devMode: z.boolean(),
+  /** The server's configured BRIDGE_MAX_PAYLOAD_SIZE, so the extension can self-limit
+   *  binary (Blob/File) results before sending — avoiding a payload-too-large close
+   *  of the whole connection over one oversized response. */
+  maxPayloadSize: z.number().int().positive().optional(),
 });
 
 /**

@@ -1,4 +1,5 @@
 import { RemoteRelayClient, type RemoteRelayMode } from './remote-client.js';
+import { normalizeBinaryResult, type BinaryResultPayload } from './binary-result.js';
 
 declare const eda: EasyedaGlobal | undefined;
 declare const EDA: unknown | undefined;
@@ -124,6 +125,11 @@ const RECONNECT_MAX_MS = 30000;
 const STORAGE_KEY = 'easyeda-mcp-pro:autoConnect';
 const HEARTBEAT_MS = 15000;
 const SOCKET_ID = 'easyeda-mcp-pro-bridge';
+// Fraction of the server's advertised BRIDGE_MAX_PAYLOAD_SIZE we allow a single
+// binary (Blob/File) result to use, leaving headroom for base64 (~1.33x raw
+// bytes) plus JSON envelope overhead. Exceeding the server's actual limit closes
+// the whole WS connection, not just the offending call — so we self-limit first.
+const PAYLOAD_SAFETY_MARGIN = 0.6;
 const API_CLASS_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'] as const;
 const DENIED_API_METHODS = new Set([
   'constructor',
@@ -142,6 +148,9 @@ let manualDisconnectRequested = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let externalInteractionWarningShown = false;
+// Updated from the server's `hello` message; matches BRIDGE_MAX_PAYLOAD_SIZE default
+// until the handshake completes.
+let bridgeMaxPayloadSize = 1_048_576;
 
 let remoteRelayClient: RemoteRelayClient | null = null;
 
@@ -338,6 +347,41 @@ function extractPrimitiveId(result: unknown): string {
     /* ignore */
   }
   return '';
+}
+
+function isBinaryResultPayload(value: unknown): value is BinaryResultPayload {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as { base64?: unknown }).base64 === 'string' &&
+    typeof (value as { byteLength?: unknown }).byteLength === 'number'
+  );
+}
+
+/**
+ * Wraps `normalizeBinaryResult`, additionally rejecting a payload that would
+ * exceed the server's advertised BRIDGE_MAX_PAYLOAD_SIZE (see
+ * `bridgeMaxPayloadSize`) before it is ever handed to `send()`. Sending an
+ * oversized WS frame closes the whole connection (code 4009) rather than just
+ * failing this one call, so we throw a normal, small, structured error
+ * instead — handleRequest() turns it into an ok:false response.
+ */
+async function normalizeBinaryResultSafely(
+  value: unknown,
+  fallbackFileName: string,
+): Promise<unknown> {
+  const normalized = await normalizeBinaryResult(value, fallbackFileName);
+  if (isBinaryResultPayload(normalized)) {
+    const budget = Math.floor(bridgeMaxPayloadSize * PAYLOAD_SAFETY_MARGIN);
+    if (normalized.byteLength > budget) {
+      throw newBridgeError(
+        'PAYLOAD_TOO_LARGE',
+        `"${normalized.fileName}" is ${normalized.byteLength} bytes, which exceeds the safe transport budget (${budget} bytes, derived from the server's BRIDGE_MAX_PAYLOAD_SIZE=${bridgeMaxPayloadSize}).`,
+        'Increase BRIDGE_MAX_PAYLOAD_SIZE in the MCP server environment, or (for canvas captures) zoom to a smaller region.',
+      );
+    }
+  }
+  return normalized;
 }
 
 function getApiCandidates(): Array<{ name: string; root: unknown }> {
@@ -1681,7 +1725,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'board.getFeatures':
       return getFeaturesApi();
     case 'board.exportGerbers':
-      return callFirst(['PCB_ManufactureData.getGerberFile'], params);
+      return normalizeBinaryResultSafely(
+        await callFirst(['PCB_ManufactureData.getGerberFile'], params),
+        'gerbers.zip',
+      );
     case 'system.getStatus': {
       const globals: Record<string, unknown> = {};
       try {
@@ -1899,6 +1946,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           'pcb.addZone',
           'pcb.deleteComponent',
           'pcb.modifyComponent',
+          'canvas.capture',
+          'canvas.captureRegion',
+          'canvas.locate',
         ],
         devMode: false,
         globals: globals,
@@ -1923,21 +1973,56 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'design.drc':
       return callFirst(['PCB_Drc.check', 'SCH_Drc.check'], params);
     case 'export.pickPlace':
-      return callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params);
+      return normalizeBinaryResultSafely(
+        await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params),
+        `pick-place.${typeof params.format === 'string' ? params.format : 'csv'}`,
+      );
     case 'export.pdf':
-      return callFirst(
-        ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
-        params.what === 'board' ? params : { ...params, type: 'schematic' },
+      return normalizeBinaryResultSafely(
+        await callFirst(
+          ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
+          params.what === 'board' ? params : { ...params, type: 'schematic' },
+        ),
+        'export.pdf',
       );
     case 'export.netlist':
-      return callFirst(
-        [
-          'SCH_Netlist.getNetlist',
-          'SCH_ManufactureData.getNetlistFile',
-          'PCB_ManufactureData.getNetlistFile',
-        ],
-        params,
+      return normalizeBinaryResultSafely(
+        await callFirst(
+          [
+            'SCH_Netlist.getNetlist',
+            'SCH_ManufactureData.getNetlistFile',
+            'PCB_ManufactureData.getNetlistFile',
+          ],
+          params,
+        ),
+        `netlist.${typeof params.format === 'string' ? params.format : 'txt'}`,
       );
+    case 'canvas.capture': {
+      const tabId = typeof params.tabId === 'string' ? params.tabId : undefined;
+      const blob = await callFirst(['DMT_EditorControl.getCurrentRenderedAreaImage'], tabId);
+      return normalizeBinaryResultSafely(blob, 'capture.png');
+    }
+    case 'canvas.captureRegion': {
+      const { left, right, top, bottom, tabId } = params as {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+        tabId?: string;
+      };
+      await callFirst(['DMT_EditorControl.zoomToRegion'], left, right, top, bottom, tabId);
+      const blob = await callFirst(['DMT_EditorControl.getCurrentRenderedAreaImage'], tabId);
+      return normalizeBinaryResultSafely(blob, 'capture-region.png');
+    }
+    case 'canvas.locate': {
+      const { x, y, scaleRatio, tabId } = params as {
+        x?: number;
+        y?: number;
+        scaleRatio?: number;
+        tabId?: string;
+      };
+      return callFirst(['DMT_EditorControl.zoomTo'], x, y, scaleRatio, tabId);
+    }
     case 'pcb.placeComponent':
       return callFirst(
         ['PCB_PrimitiveComponent.create', 'pcb_PrimitiveComponent.create'],
@@ -2210,6 +2295,9 @@ function handleMessage(raw: string): InboundMessageType {
         protocolVersion: BRIDGE_VERSION,
         supportedProtocolVersions: supportedVersions,
       });
+    }
+    if (typeof record.maxPayloadSize === 'number' && record.maxPayloadSize > 0) {
+      bridgeMaxPayloadSize = record.maxPayloadSize;
     }
     log('Bridge handshake accepted');
     return 'hello';

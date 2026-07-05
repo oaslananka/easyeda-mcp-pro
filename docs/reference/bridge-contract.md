@@ -45,11 +45,17 @@ After accepting the handshake, the server replies:
   "easyedaVersion": "<runtime version>",
   "capabilities": ["schematic.listNets"],
   "methodRegistryHash": "<16-char sha256 prefix>",
-  "devMode": false
+  "devMode": false,
+  "maxPayloadSize": 1048576
 }
 ```
 
 `methodRegistryHash` is computed from the sorted bridge method registry. A changed hash means the server and extension should be rechecked against the live compatibility smoke harness.
+
+`maxPayloadSize` mirrors the server's configured `BRIDGE_MAX_PAYLOAD_SIZE` (bytes). The
+extension uses it to self-limit binary (Blob/File) results — e.g. `canvas.capture` and
+the `export.*` methods — before sending, since a response frame that exceeds this limit
+closes the whole WS connection (code 4009), not just the offending call.
 
 ## Compatibility rules
 
@@ -59,6 +65,8 @@ After accepting the handshake, the server replies:
 - Warn when extension and server package versions differ.
 - Include `methodRegistryHash` in every hello.
 - Extension logs a warning when the hello contract version differs or does not list its protocol version.
+- Extension self-limits binary (Blob/File) results to a safety margin under `maxPayloadSize`
+  before sending, returning a structured `PAYLOAD_TOO_LARGE` error instead of an oversized frame.
 
 ## Release checklist
 

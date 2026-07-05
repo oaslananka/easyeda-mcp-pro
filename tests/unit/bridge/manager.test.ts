@@ -392,6 +392,26 @@ describe('BridgeManager - method registry hash', () => {
     socket.close();
     manager.disconnect('test complete');
   });
+
+  it('includes the configured BRIDGE_MAX_PAYLOAD_SIZE in hello', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({
+      BRIDGE_HOST: '127.0.0.1',
+      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_MAX_PAYLOAD_SIZE: 2_097_152,
+    });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const socket = await openSocket(port);
+    sendHandshake(socket);
+
+    const msg = (await waitForMessage(socket)) as Record<string, unknown>;
+    expect(msg.maxPayloadSize).toBe(2_097_152);
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
 });
 
 describe('BridgeManager - payload size limit', () => {
@@ -578,6 +598,71 @@ describe('BridgeManager - call() round trip', () => {
     const { manager, socket } = await setupSecureConnection();
 
     await expect(manager.call('project.save', {}, { timeoutMs: 20 })).rejects.toThrow(/timed out/);
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('round-trips a canvas.capture request/response without a live EasyEDA process', async () => {
+    // Simulates the bridge extension's response shape after it has already
+    // converted a Blob to base64 (see easyeda-bridge-extension/src/binary-result.ts) —
+    // no real EasyEDA Pro process is needed to exercise the server-side contract.
+    const { manager, socket } = await setupSecureConnection();
+
+    socket.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as { id: string; type: string; method: string };
+      if (msg.type === 'request' && msg.method === 'canvas.capture') {
+        socket.send(
+          JSON.stringify({
+            id: msg.id,
+            type: 'response',
+            ok: true,
+            result: {
+              base64: 'ZmFrZS1wbmctYnl0ZXM=',
+              mimeType: 'image/png',
+              fileName: 'capture.png',
+              byteLength: 14,
+            },
+          }),
+        );
+      }
+    });
+
+    const result = await manager.call('canvas.capture', { tabId: 'tab-1' });
+    expect(result).toMatchObject({
+      base64: 'ZmFrZS1wbmctYnl0ZXM=',
+      mimeType: 'image/png',
+      fileName: 'capture.png',
+    });
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('surfaces a payload-too-large error from canvas.capture as a normal rejected call', async () => {
+    // The extension self-limits before sending (normalizeBinaryResultSafely) rather
+    // than sending an oversized frame that would close the whole connection — this
+    // is what that error looks like from the server's perspective.
+    const { manager, socket } = await setupSecureConnection();
+
+    socket.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as { id: string; type: string; method: string };
+      if (msg.type === 'request' && msg.method === 'canvas.capture') {
+        socket.send(
+          JSON.stringify({
+            id: msg.id,
+            type: 'response',
+            ok: false,
+            error: {
+              code: 'PAYLOAD_TOO_LARGE',
+              message: '"capture.png" is 5000000 bytes, which exceeds the safe transport budget',
+            },
+          }),
+        );
+      }
+    });
+
+    await expect(manager.call('canvas.capture', {})).rejects.toThrow(/exceeds the safe transport/);
 
     socket.close();
     manager.disconnect('test complete');

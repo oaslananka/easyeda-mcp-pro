@@ -20,6 +20,9 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_bom_validate`                  | `core`  | `medium` | Validate the project BOM against LCSC inventory to identify missing, obsolete, or alternate parts.                                                                                                                                                                                                            |
 | `easyeda_bridge_probe_methods`          | `dev`   | `medium` | Query the EasyEDA Pro bridge for available API methods. Requires bridge connection. (dev/pro only)                                                                                                                                                                                                            |
 | `easyeda_bridge_status`                 | `core`  | `low`    | Check EasyEDA Pro bridge connection status, version, and capabilities.                                                                                                                                                                                                                                        |
+| `easyeda_canvas_capture`                | `core`  | `low`    | Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or the last-focused one) as-is; use easyeda_canvas_capture_region first to frame a specific area.                               |
+| `easyeda_canvas_capture_region`         | `core`  | `low`    | Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API.                                                                |
+| `easyeda_canvas_locate`                 | `core`  | `low`    | Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.                                                  |
 | `easyeda_component_probe`               | `dev`   | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                          |
 | `easyeda_drc_run`                       | `core`  | `medium` | Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints.                                                                                                                                                                                      |
 | `easyeda_erc_run`                       | `core`  | `medium` | Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts.                                                                                                                                                                                        |
@@ -457,6 +460,103 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_canvas_capture`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or the last-focused one) as-is; use easyeda_canvas_capture_region first to frame a specific area.
+
+### Input Parameters
+
+| Parameter | Type  | Required | Description |
+| --------- | ----- | -------- | ----------- |
+| `tabId`   | `any` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  captured: any;
+  mime_type: any;
+  file_name: any;
+  byte_length: any;
+  image_base64: any;
+  not_available: any;
+  error: any;
+}
+```
+
+---
+
+## `easyeda_canvas_capture_region`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API.
+
+### Input Parameters
+
+| Parameter | Type  | Required | Description |
+| --------- | ----- | -------- | ----------- |
+| `left`    | `any` | Yes      |             |
+| `right`   | `any` | Yes      |             |
+| `top`     | `any` | Yes      |             |
+| `bottom`  | `any` | Yes      |             |
+| `tabId`   | `any` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  captured: any;
+  mime_type: any;
+  file_name: any;
+  byte_length: any;
+  image_base64: any;
+  not_available: any;
+  error: any;
+}
+```
+
+---
+
+## `easyeda_canvas_locate`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.
+
+### Input Parameters
+
+| Parameter    | Type  | Required | Description |
+| ------------ | ----- | -------- | ----------- |
+| `x`          | `any` | No       |             |
+| `y`          | `any` | No       |             |
+| `scaleRatio` | `any` | No       |             |
+| `tabId`      | `any` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  located: any;
+  left: any;
+  right: any;
+  top: any;
+  bottom: any;
+  not_available: any;
+  error: any;
+}
+```
+
+---
+
 ## `easyeda_component_probe`
 
 **Profile:** `dev` | **Risk Level:** `low`
@@ -557,6 +657,7 @@ Returns a JSON object matching the schema:
 | Parameter          | Type  | Required | Description |
 | ------------------ | ----- | -------- | ----------- |
 | `projectId`        | `any` | Yes      |             |
+| `filePath`         | `any` | No       |             |
 | `drillFormat`      | `any` | No       |             |
 | `excludeLayer`     | `any` | No       |             |
 | `ledPanel`         | `any` | No       |             |
@@ -570,11 +671,13 @@ Returns a JSON object matching the schema:
 {
   project_id: any;
   artifact_path: any;
+  byte_length: any;
   file_count: any;
   exported: any;
   blocked_by_production_review: any;
   production_review: any;
   not_available: any;
+  error: any;
 }
 ```
 
@@ -592,6 +695,7 @@ Returns a JSON object matching the schema:
 | ----------- | ----- | -------- | ----------- |
 | `projectId` | `any` | Yes      |             |
 | `format`    | `any` | Yes      |             |
+| `filePath`  | `any` | No       |             |
 
 ### Output Format
 
@@ -602,9 +706,11 @@ Returns a JSON object matching the schema:
   project_id: any;
   format: any;
   file_path: any;
+  byte_length: any;
   net_count: any;
   exported: any;
   not_available: any;
+  error: any;
 }
 ```
 
@@ -623,6 +729,7 @@ Returns a JSON object matching the schema:
 | `projectId`   | `any` | Yes      |             |
 | `scope`       | `any` | Yes      |             |
 | `orientation` | `any` | Yes      |             |
+| `filePath`    | `any` | No       |             |
 
 ### Output Format
 
@@ -634,9 +741,11 @@ Returns a JSON object matching the schema:
   scope: any;
   orientation: any;
   file_path: any;
+  byte_length: any;
   pages: any;
   exported: any;
   not_available: any;
+  error: any;
 }
 ```
 
@@ -654,6 +763,7 @@ Returns a JSON object matching the schema:
 | ----------- | ----- | -------- | ----------- |
 | `projectId` | `any` | Yes      |             |
 | `format`    | `any` | Yes      |             |
+| `filePath`  | `any` | No       |             |
 
 ### Output Format
 
@@ -664,9 +774,11 @@ Returns a JSON object matching the schema:
   project_id: any;
   format: any;
   file_path: any;
+  byte_length: any;
   component_count: any;
   exported: any;
   not_available: any;
+  error: any;
 }
 ```
 

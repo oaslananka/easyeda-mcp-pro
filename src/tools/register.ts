@@ -10,6 +10,7 @@ import { registerPcbConstraintTools } from './L1_pcb_constraints.js';
 import { registerPcbWriteTools } from './L1_pcb_write.js';
 import { registerSchematicReadTools } from './L1_schematic_read.js';
 import { registerSchematicWriteTools } from './L1_schematic_write.js';
+import { registerVisualTools } from './L1_visual.js';
 import { type ToolRegistry } from './registry.js';
 
 export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig): void {
@@ -24,4 +25,5 @@ export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig):
   registerPcbConstraintTools(registry, config);
   registerPcbWriteTools(registry, config);
   registerExportTools(registry, config);
+  registerVisualTools(registry, config);
 }

@@ -8,11 +8,11 @@ This document explains the security posture, permission checks, data privacy con
 
 Our tools are categorized into three risk tiers based on their potential impact on project data and external services:
 
-| Risk Level | Tool Type                            | Description                                                                                                           | Confirmation Required         |
-| :--------- | :----------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :---------------------------- |
-| **Low**    | `Read-only` / `Diagnostics`          | Queries project metadata, diagnostics status, layers, stackups, and BOM. Cannot mutate project state.                 | **No**                        |
-| **Medium** | `Schematic Write`                    | Mutates schematic sheets (placing components, drawing wires, deleting or modifying primitives).                       | **Yes (`confirmWrite=true`)** |
-| **High**   | `PCB Write` / `Exports` / `API Call` | Mutates PCB layouts (tracks, vias, zones, components), exports fabrication files, or makes direct class-method calls. | **Yes (`confirmWrite=true`)** |
+| Risk Level | Tool Type                              | Description                                                                                                                                                                                                                                                                                                                  | Confirmation Required         |
+| :--------- | :------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------- |
+| **Low**    | `Read-only` / `Diagnostics` / `Visual` | Queries project metadata, diagnostics status, layers, stackups, BOM, and canvas captures (`easyeda_canvas_capture`, `easyeda_canvas_capture_region`, `easyeda_canvas_locate`). Cannot mutate project state, though a capture/locate call does move the user's visible viewport (EasyEDA Pro has no offscreen rendering API). | **No**                        |
+| **Medium** | `Schematic Write`                      | Mutates schematic sheets (placing components, drawing wires, deleting or modifying primitives).                                                                                                                                                                                                                              | **Yes (`confirmWrite=true`)** |
+| **High**   | `PCB Write` / `Exports` / `API Call`   | Mutates PCB layouts (tracks, vias, zones, components), exports fabrication files, or makes direct class-method calls.                                                                                                                                                                                                        | **Yes (`confirmWrite=true`)** |
 
 ---
 
@@ -45,6 +45,10 @@ Only explicitly initiated queries to third-party suppliers are sent over the net
 3. **Mouser / DigiKey**: Retrieves market pricing and stock data if Mouser/DigiKey credentials are provided in `.env`.
 
 _No design geometry or netlist data is ever uploaded to these suppliers._
+
+Canvas captures (`easyeda_canvas_capture*`) are returned directly as MCP image content in
+the tool response — they are not written to `ARTIFACT_DIR` or persisted anywhere on the
+server by default. The image only goes as far as the MCP client that requested it.
 
 ---
 
