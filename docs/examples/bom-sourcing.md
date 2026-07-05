@@ -55,29 +55,53 @@ Check if the LCSC parts specified in your design are active, in stock, or obsole
 
 ### 3. Query Real-Time Pricing and Sourcing
 
-Fetch current pricing tiers for assembly budgeting:
+Fetch current pricing and stock for BOM parts. With an empty `.env`, this works out of
+the box: LCSC parts are resolved through the keyless jlcsearch tier
+(`KEYLESS_SOURCING_ENABLED=true` by default), no credentials required.
 
 **MCP Call**:
-`easyeda_bom_sourcing` with LCSC part numbers.
+`easyeda_bom_sourcing` with a `projectId` (an optional `suppliers` filter restricts which
+suppliers are tried; omit it to try every configured supplier).
 
 **Sourcing Output**:
 
 ```json
 {
-  "parts": {
-    "C19702": {
-      "stock": 45000,
-      "priceTiers": [
-        { "minQty": 10, "price": 0.012 },
-        { "minQty": 100, "price": 0.008 }
-      ],
-      "status": "active"
+  "project_id": "proj-123",
+  "parts": [
+    {
+      "reference": "R1",
+      "value": "10k",
+      "lcsc": "C25804",
+      "sourcing": [
+        {
+          "supplier": "lcsc",
+          "tier": "keyless",
+          "in_stock": true,
+          "quantity_available": 37165617,
+          "unit_price": 0.000842857,
+          "currency": "USD",
+          "classification": "basic",
+          "from_cache": false,
+          "cache_age_seconds": 0
+        }
+      ]
     }
-  }
+  ],
+  "total_parts": 1,
+  "keyless_sourcing_enabled": true
 }
 ```
 
-If a part is out of stock, the assistant can query `lib_recommend_part` or search LCSC using keywords to propose pin-compatible alternates.
+`tier` reports which provider answered: `keyless` (public jlcsearch data, no
+credentials) or `authenticated` (Mouser/DigiKey, requires API credentials).
+`classification` reports LCSC/JLCPCB assembly status (`basic`, `preferred`, `extended`)
+when the source provides it. A part missing from the sourcing array means no configured
+supplier had it in stock in the queried tier — the keyless tier only sees each
+category's top in-stock snapshot, so a low-stock or obscure part may need an
+authenticated supplier or manual lookup. If a part is out of stock, the assistant can
+query `lib_recommend_part` or search LCSC using keywords to propose pin-compatible
+alternates.
 
 ---
 

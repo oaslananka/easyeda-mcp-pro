@@ -663,7 +663,11 @@ describe('Schematic Tools', () => {
         itemsOfPage: 20,
         page: 1,
       });
-      expect(result).toEqual({ devices: [{ libraryUuid: 'lib-1', uuid: 'dev-1' }], total: 1 });
+      expect(result).toEqual({
+        devices: [{ libraryUuid: 'lib-1', uuid: 'dev-1' }],
+        total: 1,
+        provider_tier: 'local_library',
+      });
     });
 
     it('treats a non-array bridge response as no results', async () => {
@@ -672,7 +676,7 @@ describe('Schematic Tools', () => {
 
       const result = await tool?.handler(context, { key: 'resistor' });
 
-      expect(result).toEqual({ devices: [], total: 0 });
+      expect(result).toEqual({ devices: [], total: 0, provider_tier: 'local_library' });
     });
 
     it('returns not_available on bridge error', async () => {

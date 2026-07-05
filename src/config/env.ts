@@ -67,6 +67,10 @@ export const EnvSchema = z.object({
   LCSC_API_KEY: z.string().default(''),
   LCSC_API_SECRET: z.string().default(''),
 
+  KEYLESS_SOURCING_ENABLED: envBoolean().default(true),
+  SOURCING_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(604800).default(21600),
+  VENDOR_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().min(0).max(10000).default(150),
+
   MOUSER_ENABLED: envBoolean().default(false),
   MOUSER_API_KEY: z.string().default(''),
   MOUSER_API_BASE_URL: z.string().default('https://api.mouser.com'),
@@ -112,6 +116,9 @@ const PROJECT_VAR_PREFIXES = [
   'JLCPCB_',
   'JLCSEARCH_',
   'LCSC_',
+  'KEYLESS_',
+  'SOURCING_',
+  'VENDOR_',
   'MOUSER_',
   'DIGIKEY_',
   'OAUTH_',

@@ -11,6 +11,37 @@ export const DEFAULT_BASE_DELAY_MS = 1000;
 /** Default timeout for HTTP requests (30 seconds). */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
+let vendorMinIntervalMs = 0;
+const lastRequestAtByHost = new Map<string, number>();
+
+/**
+ * Configure the minimum interval between outbound requests to the same
+ * vendor hostname. Applied by {@link httpRequestWithRetry} before every
+ * attempt (including retries). Set to 0 to disable rate limiting.
+ */
+export function configureVendorRateLimit(minIntervalMs: number): void {
+  vendorMinIntervalMs = Math.max(0, minIntervalMs);
+}
+
+/** Test-only: reset rate limiter state between test cases. */
+export function resetVendorRateLimitStateForTests(): void {
+  lastRequestAtByHost.clear();
+  vendorMinIntervalMs = 0;
+}
+
+async function waitForVendorRateLimit(hostname: string): Promise<void> {
+  if (vendorMinIntervalMs <= 0) return;
+  const last = lastRequestAtByHost.get(hostname);
+  const now = Date.now();
+  if (last !== undefined) {
+    const elapsed = now - last;
+    if (elapsed < vendorMinIntervalMs) {
+      await new Promise((resolve) => setTimeout(resolve, vendorMinIntervalMs - elapsed));
+    }
+  }
+  lastRequestAtByHost.set(hostname, Date.now());
+}
+
 /**
  * Read the entire body of a readable stream and return it as a UTF-8 string.
  * Works with both Buffer and string chunks.
@@ -75,6 +106,7 @@ export async function httpRequestWithRetry(
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     try {
       logger.debug({ url, method, attempt }, 'http request');
+      await waitForVendorRateLimit(vendorName);
 
       const { statusCode, body } = await request(url, {
         method,

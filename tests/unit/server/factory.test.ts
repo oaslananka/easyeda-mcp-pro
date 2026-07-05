@@ -76,6 +76,9 @@ function config(overrides: Partial<EnvConfig> = {}): EnvConfig {
     JLCPCB_MODE: 'disabled',
     MOUSER_ENABLED: false,
     DIGIKEY_ENABLED: false,
+    CACHE_DIR: '.easyeda-mcp-pro/cache',
+    VENDOR_MIN_REQUEST_INTERVAL_MS: 0,
+    KEYLESS_SOURCING_ENABLED: true,
     ...overrides,
   } as EnvConfig;
 }

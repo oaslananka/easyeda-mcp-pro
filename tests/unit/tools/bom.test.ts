@@ -86,6 +86,7 @@ describe('BOM Tools Sourcing & Validate', () => {
       sourcing: [
         {
           supplier: 'lcsc',
+          tier: 'keyless',
           in_stock: true,
           quantity_available: 1500,
           unit_price: 0.015,
@@ -95,6 +96,37 @@ describe('BOM Tools Sourcing & Validate', () => {
       ],
     });
     expect(result.parts[1]?.sourcing).toHaveLength(0);
+    expect(result.keyless_sourcing_enabled).toBe(true);
+  });
+
+  it('easyeda_bom_sourcing surfaces classification metadata from the keyless tier', async () => {
+    const tool = registry.get('easyeda_bom_sourcing');
+
+    bridgeCall.mockResolvedValue([{ reference: 'R1', value: '10k', lcsc: 'C12345', quantity: 1 }]);
+    getPartDetailMock.mockResolvedValue({
+      lcsc: 'C12345',
+      stockCount: 1500,
+      price: '0.015',
+      classification: 'basic',
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+    expect(result.parts[0]?.sourcing[0]).toMatchObject({ classification: 'basic' });
+  });
+
+  it('easyeda_bom_sourcing skips the keyless tier when KEYLESS_SOURCING_ENABLED is false', async () => {
+    const tool = registry.get('easyeda_bom_sourcing');
+
+    bridgeCall.mockResolvedValue([{ reference: 'R1', value: '10k', lcsc: 'C12345', quantity: 1 }]);
+    getPartDetailMock.mockResolvedValue({ lcsc: 'C12345', stockCount: 1500 });
+    context.config.keylessSourcingEnabled = false;
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+    expect(getPartDetailMock).not.toHaveBeenCalled();
+    expect(result.parts[0]?.sourcing).toEqual([]);
+    expect(result.keyless_sourcing_enabled).toBe(false);
   });
 
   it('easyeda_bom_validate should categorize missing, invalid, and obsolete parts', async () => {

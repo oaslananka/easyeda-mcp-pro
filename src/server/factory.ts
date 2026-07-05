@@ -19,6 +19,8 @@ import { LcscClient } from '../vendors/lcsc/client.js';
 import { JlcpcbClient } from '../vendors/jlcpcb/client.js';
 import { MouserClient } from '../vendors/mouser/client.js';
 import { DigiKeyClient } from '../vendors/digikey/client.js';
+import { createFileVendorCache } from '../vendors/cache.js';
+import { configureVendorRateLimit } from '../vendors/base-http-client.js';
 
 export interface McpServerInstance {
   server: McpServer;
@@ -67,7 +69,10 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
   registry.setProfile(config.TOOL_PROFILE as ToolProfile);
   registerBuiltinTools(registry, config);
 
-  const lcscClient = config.JLCSEARCH_ENABLED ? new LcscClient(config) : null;
+  configureVendorRateLimit(config.VENDOR_MIN_REQUEST_INTERVAL_MS);
+  const vendorCache = createFileVendorCache(config.CACHE_DIR);
+
+  const lcscClient = config.JLCSEARCH_ENABLED ? new LcscClient(config, vendorCache) : null;
   const jlcClient = config.JLCPCB_MODE === 'approved_api' ? new JlcpcbClient(config) : null;
   const mouserClient = config.MOUSER_ENABLED ? new MouserClient(config) : null;
   const digikeyClient = config.DIGIKEY_ENABLED ? new DigiKeyClient(config) : null;
@@ -88,6 +93,7 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
       artifactDir: config.ARTIFACT_DIR,
       bridgeHost: config.BRIDGE_HOST,
       bridgePort: config.BRIDGE_PORT,
+      keylessSourcingEnabled: config.KEYLESS_SOURCING_ENABLED,
     },
     vendors: {
       lcsc: lcscClient,

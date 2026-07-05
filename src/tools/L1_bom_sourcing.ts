@@ -7,6 +7,7 @@ import {
   DEFAULT_BOM_QUALITY_CONFIG,
 } from '../bom-quality/index.js';
 import type { BomQualityConfig } from '../bom-quality/types.js';
+import { resolvePartSourcing } from '../vendors/sourcing-facade.js';
 
 function registerBomSourcingTools(
   registry: { register: (def: ToolDefinition) => void },
@@ -41,23 +42,29 @@ function registerBomSourcingTools(
           sourcing: z.array(
             z.object({
               supplier: z.string(),
+              tier: z.enum(['keyless', 'authenticated']),
               in_stock: z.boolean(),
               quantity_available: z.number().int().nonnegative().optional(),
               unit_price: z.number().nonnegative().optional(),
               currency: z.string().optional(),
               lead_time_days: z.number().int().nonnegative().optional(),
+              classification: z.string().optional(),
+              from_cache: z.boolean().optional(),
+              cache_age_seconds: z.number().int().nonnegative().optional(),
             }),
           ),
         }),
       ),
       total_parts: z.number().int().nonnegative(),
+      keyless_sourcing_enabled: z.boolean().optional(),
       not_available: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, suppliers = ['lcsc'] } = params as {
+      const { projectId, suppliers } = params as {
         projectId: string;
         suppliers?: string[];
       };
+      const keylessSourcingEnabled = ctx.config.keylessSourcingEnabled ?? true;
       try {
         const bomResult = await ctx.bridge.call('bom.generate', {
           projectId,
@@ -77,40 +84,42 @@ function registerBomSourcingTools(
 
         const parts = await Promise.allSettled(
           bomEntries.map(async (entry) => {
-            const sourcing: Array<{
+            let sourcing: Array<{
               supplier: string;
+              tier: 'keyless' | 'authenticated';
               in_stock: boolean;
               quantity_available?: number;
               unit_price?: number;
               currency?: string;
               lead_time_days?: number;
+              classification?: string;
+              from_cache?: boolean;
+              cache_age_seconds?: number;
             }> = [];
 
-            if (suppliers.includes('lcsc') && ctx.vendors.lcsc && entry.lcsc) {
-              try {
-                const detail = await ctx.vendors.lcsc.getPartDetail(entry.lcsc);
-                if (detail) {
-                  const rawDetail = detail as unknown as Record<string, unknown>;
-                  sourcing.push({
-                    supplier: 'lcsc',
-                    in_stock: (detail.stockCount ?? detail.stock ?? 0) > 0,
-                    quantity_available: detail.stockCount ?? detail.stock,
-                    unit_price:
-                      (rawDetail.priceBreaks as Array<{ unitPrice?: number }> | undefined)?.[0]
-                        ?.unitPrice ??
-                      (typeof rawDetail.price === 'number'
-                        ? rawDetail.price
-                        : typeof rawDetail.price === 'string'
-                          ? parseFloat(rawDetail.price)
-                          : undefined),
-                    currency: 'USD',
-                    lead_time_days: detail.leadTime,
-                  });
-                }
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              } catch (_err) {
-                // ignore and continue
-              }
+            try {
+              const results = await resolvePartSourcing(
+                ctx.vendors,
+                { lcsc: entry.lcsc },
+                { suppliers, keylessSourcingEnabled },
+              );
+              sourcing = results
+                .filter((r) => r.found)
+                .map((r) => ({
+                  supplier: r.supplier,
+                  tier: r.tier,
+                  in_stock: r.in_stock,
+                  quantity_available: r.quantity_available,
+                  unit_price: r.unit_price,
+                  currency: r.currency,
+                  lead_time_days: r.lead_time_days,
+                  classification: r.classification,
+                  from_cache: r.from_cache,
+                  cache_age_seconds: r.cache_age_seconds,
+                }));
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            } catch (_err) {
+              // ignore and continue with no sourcing data for this entry
             }
 
             return {
@@ -128,6 +137,7 @@ function registerBomSourcingTools(
             r.status === 'fulfilled' ? r.value : { reference: '', value: '', sourcing: [] },
           ),
           total_parts: bomEntries.length,
+          keyless_sourcing_enabled: keylessSourcingEnabled,
         };
       } catch (err) {
         return {
