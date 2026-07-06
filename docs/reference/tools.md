@@ -44,9 +44,12 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                                              |
 | `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board.                                                                                                                                                                                                                                                                 |
 | `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a specific layer with clearance settings.                                                                                                                                                                                                                                                           |
+| `easyeda_pcb_autoroute`                 | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
 | `easyeda_pcb_constraint_check`          | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
 | `easyeda_pcb_constraint_report`         | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                                                  |
 | `easyeda_pcb_delete_component`          | `full`  | `high`   | Delete components from the PCB layout by their primitive IDs.                                                                                                                                                                                                                                                                    |
+| `easyeda_pcb_export_route_context`      | `pro`   | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                                  |
+| `easyeda_pcb_floorplan`                 | `full`  | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
 | `easyeda_pcb_modify_component`          | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                                   |
 | `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout.                                                                                                                                                                                                                                                                            |
 | `easyeda_pcb_place_component_group`     | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
@@ -1277,6 +1280,48 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_pcb_autoroute`
+
+**Profile:** `pro` | **Risk Level:** `high`
+
+> Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).
+
+### Input Parameters
+
+| Parameter               | Type                  | Required             | Description          |
+| ----------------------- | --------------------- | -------------------- | -------------------- |
+| `projectId`             | `string`              | Yes                  |                      |
+| `routingNets`           | `"selected"           | "selectedComponents" | string[] (optional)` | No  |     |
+| `cornerStyle`           | `"45"                 | "90" (optional)`     | No                   |     |
+| `existingPrimitiveMode` | `"keep"               | "remove" (optional)` | No                   |     |
+| `optimization`          | `"completion"         | "faster" (optional)` | No                   |     |
+| `layers`                | `number[] (optional)` | No                   |                      |
+| `ignoreNets`            | `string[] (optional)` | No                   |                      |
+| `boardData`             | `object (optional)`   | No                   |                      |
+| `confirmWrite`          | `boolean (optional)`  | No                   |                      |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  overall_verdict: 'success' | 'partial' | 'blocked' | 'failed';
+  blocked_by_preflight: boolean;
+  preflight: object(optional);
+  autoroute_result: object(optional);
+  post_route_drc: object(optional);
+  post_route_constraint_report: object(optional);
+  summary: string;
+  not_available: boolean(optional);
+  error: string(optional);
+}
+```
+
+---
+
 ## `easyeda_pcb_constraint_check`
 
 **Profile:** `core` | **Risk Level:** `low`
@@ -1358,6 +1403,88 @@ Returns a JSON object matching the schema:
   success: boolean;
   deletedCount: number(optional);
   error: string(optional);
+}
+```
+
+---
+
+## `easyeda_pcb_export_route_context`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.
+
+### Input Parameters
+
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `projectId` | `string`            | Yes      |             |
+| `filePath`  | `string (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  artifact_path: string(optional);
+  byte_length: number(optional);
+  exported: boolean;
+  not_available: boolean(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_pcb_floorplan`
+
+**Profile:** `full` | **Risk Level:** `high`
+
+> Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).
+
+### Input Parameters
+
+| Parameter                          | Type                 | Required | Description |
+| ---------------------------------- | -------------------- | -------- | ----------- |
+| `circuitIR`                        | `any`                | Yes      |             |
+| `devices`                          | `object[]`           | Yes      |             |
+| `projectId`                        | `string (optional)`  | No       |             |
+| `mode`                             | `"preview"           | "apply"` | Yes         |                     |
+| `board`                            | `object`             | Yes      |             |
+| `anchor`                           | `object`             | Yes      |             |
+| `columns`                          | `number (optional)`  | No       |             |
+| `spacingMm`                        | `number (optional)`  | No       |             |
+| `minSpacingMm`                     | `number (optional)`  | No       |             |
+| `topLayer`                         | `number (optional)`  | No       |             |
+| `bottomLayer`                      | `number (optional)`  | No       |             |
+| `connectorEdge`                    | `"top"               | "bottom" | "left"      | "right" (optional)` | No  |     |
+| `connectorEdgeMarginMm`            | `number (optional)`  | No       |             |
+| `thermalSpacingBoostMm`            | `number (optional)`  | No       |             |
+| `thermalDissipationThresholdWatts` | `number (optional)`  | No       |             |
+| `confirmWrite`                     | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  floorplan_notes: string[];
+  summary: string;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 

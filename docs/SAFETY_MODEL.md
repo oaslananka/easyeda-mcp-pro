@@ -39,6 +39,22 @@ operation list before applying.
 
 ---
 
+### 1.2 Layout autonomy and autorouting (`easyeda_pcb_floorplan`, `easyeda_pcb_autoroute`, `easyeda_pcb_export_route_context`)
+
+- `easyeda_pcb_floorplan` (profile `full`) is the same preview/apply/rollback-via-project-constraints
+  pattern as `easyeda_pcb_place_component_group`, driven from CircuitIR physical constraints instead
+  of a hand-built grid. See `docs/high-level-pcb-layout.md` for what it can and cannot infer.
+- `easyeda_pcb_autoroute` (profile `pro`) calls EasyEDA Pro's native autorouter through the existing
+  documented `api.call` path (`PCB_Document.autoRouting`) — a `@beta` API per `@jlceda/pro-api-types`,
+  so unavailability on a given EasyEDA Pro version is reported as `not_available: true`, never a
+  silent success. It always runs a pre-flight constraint check (blocking before any bridge call on
+  error) and a mandatory post-route DRC + constraint report, folded into `overall_verdict`.
+- `easyeda_pcb_export_route_context` (profile `pro`, read-only, no `confirmWrite`) exports a Specctra
+  DSN file for external, vendor-neutral autorouters — it does not mutate the project and does not
+  re-import a routed result; that re-import happens in EasyEDA Pro itself.
+
+---
+
 ## 2. The `confirmWrite` Safety Parameter
 
 To prevent AI models from executing destructive or mutating operations accidentally, all writing and mutating tools enforce a mandatory parameter:

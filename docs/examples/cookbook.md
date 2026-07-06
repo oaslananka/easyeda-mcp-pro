@@ -192,3 +192,36 @@ with its input and output capacitors and wire everything to VIN_5V, VOUT_3V3, an
   `rollback_notes` fields rather than assuming a clean state.
 - `easyeda_workflow_decouple_ic` follows the same pattern for adding decoupling capacitors to
   an already-placed IC's power pins in one call.
+
+## 9. Floorplan, autoroute, verify — with a vendor-neutral fallback
+
+**Goal:** Go from a CircuitIR to a routed, DRC-checked board, without silently reporting
+success and without getting stuck if the native autorouter is unavailable.
+
+**Prompt:**
+
+```text
+Floorplan the board from this CircuitIR, keeping the connector on the bottom edge and the
+regulator on the bottom copper side, then autoroute it and confirm it's actually clean
+before telling me it's done.
+```
+
+**Tool sequence:**
+
+1. `easyeda_pcb_floorplan` with `mode: 'preview'`, then `mode: 'apply', confirmWrite: true` —
+   places components per CircuitIR physical constraints (keepouts, top/bottom side,
+   connector edge, thermal spacing)
+2. `easyeda_pcb_autoroute` with `confirmWrite: true` — runs a pre-flight constraint check,
+   calls the native autorouter, then a mandatory post-route DRC + constraint report
+3. If `overall_verdict` is `partial` or `failed` (or the autorouter reports `not_available`),
+   fall back to `easyeda_pcb_export_route_context` to get a Specctra DSN file for an external
+   autorouter such as FreeRouting, then re-import the routed result through EasyEDA Pro itself
+
+**Safety checkpoints:**
+
+- Never report "routed" from `overall_verdict` alone without also surfacing `post_route_drc`
+  and `post_route_constraint_report` to the user — a `partial` verdict means real issues exist.
+- `PCB_Document.autoRouting` is a `@beta` EasyEDA Pro API — a `not_available: true` response
+  means try the DSN export fallback, not retry the same call.
+- Top-side and bottom-side floorplan passes are not cross-checked for collisions — read
+  `floorplan_notes` and eyeball the result (e.g. via `easyeda_canvas_capture`) before autorouting.

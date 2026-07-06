@@ -4,7 +4,7 @@ import { type EnvConfig } from '../config/env.js';
 import { validatePcbConstraints, buildConstraintReport } from '../pcb-constraints/index.js';
 import type { PcbConstraintInput } from '../pcb-constraints/types.js';
 
-const pcbBoardDataSchema = z.object({
+export const pcbBoardDataSchema = z.object({
   widthMm: z.number().nonnegative().optional(),
   heightMm: z.number().nonnegative().optional(),
   layerCount: z.number().int().nonnegative().optional(),
@@ -72,7 +72,7 @@ function mapPcbIssue(issue: {
  * Fetch board data from the live EasyEDA bridge when no explicit boardData is provided.
  * Queries dimensions, layers, and stackup in parallel via Promise.allSettled.
  */
-async function fetchBoardDataFromBridge(
+export async function fetchBoardDataFromBridge(
   ctx: ToolContext,
   projectId: string,
 ): Promise<PcbConstraintInput> {
