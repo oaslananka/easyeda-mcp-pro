@@ -262,10 +262,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_add_wire',
     title: 'Add schematic wire',
     description:
-      'Add a wire segment connecting schematic coordinates/pins — real native EasyEDA ' +
-      'connectivity (unlike connect_pin_to_net). Fails with NET_COLLISION if the path touches ' +
-      "another net's wire. The guard checks only wires: crossing a pin/flag/label coordinate " +
-      'silently shorts it, so never route across a foreign pin column.',
+      'Add a wire connecting schematic coordinates/pins — real native connectivity. Same ' +
+      '`netName` connects pins globally: separate stubs sharing one name merge into one net (no ' +
+      "label needed). NET_COLLISION guards touching another net's wire, but checks only wires — " +
+      'crossing a pin/flag coordinate still shorts it.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -390,9 +390,9 @@ function registerSchematicWriteTools(
     title: 'Create net flag',
     description:
       'Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/' +
-      'ProtectGround) it places a power-flag symbol binding to a coincident pin. Without it, a ' +
-      'generic net label — inert unless on a wire, so add a short stub from the pin. Same-named ' +
-      'flags/labels connect globally by name.',
+      'ProtectGround) it places a power-flag symbol binding to a coincident pin (use for ' +
+      'VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire ' +
+      'stubs sharing one netName.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
