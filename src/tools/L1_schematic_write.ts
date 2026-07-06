@@ -153,7 +153,11 @@ function registerSchematicWriteTools(
   registry.register({
     name: 'easyeda_schematic_place_component',
     title: 'Place schematic component',
-    description: 'Place a library component/device on the active schematic sheet.',
+    description:
+      'Place a library component/device on the active schematic sheet. Placed parts keep the ' +
+      'designator placeholder ("R?", "U?"); EasyEDA does not auto-annotate via the API. Assign a ' +
+      'unique designator with modify_primitive before trusting the netlist — it keys nodes by ' +
+      'designator, so duplicate "R?" merge into one node.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -258,11 +262,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_add_wire',
     title: 'Add schematic wire',
     description:
-      'Add a wire segment connecting schematic coordinates/pins. This is the tool that creates ' +
-      'real, native EasyEDA electrical connectivity (unlike connect_pin_to_net). Fails with a ' +
-      'NET_COLLISION error if the requested path would touch a coordinate already used by a ' +
-      'different net, since EasyEDA auto-merges wires sharing a coordinate and that would ' +
-      'silently short the two nets together.',
+      'Add a wire segment connecting schematic coordinates/pins — real native EasyEDA ' +
+      'connectivity (unlike connect_pin_to_net). Fails with NET_COLLISION if the path touches ' +
+      "another net's wire. The guard checks only wires: crossing a pin/flag/label coordinate " +
+      'silently shorts it, so never route across a foreign pin column.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -386,7 +389,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_create_net_flag',
     title: 'Create net flag',
     description:
-      'Create a named schematic net flag at specified coordinates. This controlled write declares real SCH_Net connectivity in the EasyEDA Pro netlist.',
+      'Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/' +
+      'ProtectGround) it places a power-flag symbol binding to a coincident pin. Without it, a ' +
+      'generic net label — inert unless on a wire, so add a short stub from the pin. Same-named ' +
+      'flags/labels connect globally by name.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',

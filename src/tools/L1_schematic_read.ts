@@ -167,7 +167,10 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_components',
     title: 'List schematic components',
     description:
-      'List all components in the schematic with their properties including reference, value, footprint, LCSC part number, manufacturer, and datasheet.',
+      'List all components in the schematic with their properties including primitive ID, ' +
+      'reference, value, footprint, LCSC part number, manufacturer, datasheet, and placement ' +
+      '(x/y/rotation). The primitive ID is required by modify_primitive, delete_primitive, and ' +
+      'component_pins, which only accept real IDs, not reference designators.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -187,12 +190,16 @@ function registerSchematicReadTools(
       project_id: z.string(),
       components: z.array(
         z.object({
+          primitiveId: z.string().optional(),
           reference: z.string(),
           value: z.string(),
           footprint: z.string(),
           lcsc: z.string().optional(),
           manufacturer: z.string().optional(),
           datasheet: z.string().optional(),
+          x: z.number().optional(),
+          y: z.number().optional(),
+          rotation: z.number().optional(),
         }),
       ),
       total: z.number().int().nonnegative(),
@@ -212,22 +219,30 @@ function registerSchematicReadTools(
           offset,
         });
         const comps = result as Array<{
+          primitiveId?: string;
           reference?: string;
           value?: string;
           footprint?: string;
           lcsc?: string;
           manufacturer?: string;
           datasheet?: string;
+          x?: number;
+          y?: number;
+          rotation?: number;
         }>;
         return {
           project_id: projectId,
           components: (comps ?? []).map((c) => ({
+            primitiveId: c.primitiveId,
             reference: c.reference ?? '',
             value: c.value ?? '',
             footprint: c.footprint ?? '',
             lcsc: c.lcsc,
             manufacturer: c.manufacturer,
             datasheet: c.datasheet,
+            x: c.x,
+            y: c.y,
+            rotation: c.rotation,
           })),
           total: comps?.length ?? 0,
         };
@@ -235,6 +250,83 @@ function registerSchematicReadTools(
         return {
           project_id: projectId,
           components: [],
+          total: 0,
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_wires',
+    title: 'List schematic wires',
+    description:
+      'List wire segments in the schematic with their primitive ID, line coordinates, net ' +
+      'name, color, and line style. The primitive ID is required by delete_primitive and ' +
+      'modify_primitive, which only accept real IDs — there is no way to resolve a wire to its ' +
+      'ID from schematic_nets alone.',
+    profile: 'core',
+    evidence: ['official-docs'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string(),
+      limit: z.number().int().min(1).max(50).default(50),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      wires: z.array(
+        z.object({
+          primitiveId: z.string().optional(),
+          line: z.unknown().optional(),
+          net: z.string().optional(),
+          color: z.string().nullable().optional(),
+          lineWidth: z.number().nullable().optional(),
+          lineType: z.unknown().optional(),
+        }),
+      ),
+      total: z.number().int().nonnegative(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, limit } = params as { projectId: string; limit: number };
+      try {
+        const result = await ctx.bridge.call('system.inspectWires', { limit });
+        const data = result as {
+          total?: number;
+          samples?: Array<{
+            primitiveId?: string;
+            line?: unknown;
+            net?: string;
+            color?: string | null;
+            lineWidth?: number | null;
+            lineType?: unknown;
+          }>;
+        };
+        return {
+          project_id: projectId,
+          wires: (data.samples ?? []).map((w) => ({
+            primitiveId: w.primitiveId,
+            line: w.line,
+            net: w.net,
+            color: w.color,
+            lineWidth: w.lineWidth,
+            lineType: w.lineType,
+          })),
+          total: data.total ?? data.samples?.length ?? 0,
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
+          wires: [],
           total: 0,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
@@ -683,6 +775,7 @@ function registerSchematicReadTools(
       floating_pins: z.array(
         z.object({
           primitiveId: z.string(),
+          designator: z.string().optional(),
           pinNumber: z.string(),
         }),
       ),
@@ -716,7 +809,7 @@ function registerSchematicReadTools(
             pins?: string[];
             hasNetFlag?: boolean;
           }>;
-          floatingPins?: Array<{ primitiveId?: string; pinNumber?: string }>;
+          floatingPins?: Array<{ primitiveId?: string; designator?: string; pinNumber?: string }>;
           wiresWithoutNetlist?: Array<{ wireId?: string; netName?: string }>;
           warnings?: string[];
         };
@@ -731,6 +824,7 @@ function registerSchematicReadTools(
           total_nets: data.nets?.length ?? 0,
           floating_pins: (data.floatingPins ?? []).map((fp) => ({
             primitiveId: fp.primitiveId ?? '',
+            designator: fp.designator,
             pinNumber: fp.pinNumber ?? '',
           })),
           wires_without_netlist: data.wiresWithoutNetlist

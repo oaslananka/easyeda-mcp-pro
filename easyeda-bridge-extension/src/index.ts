@@ -991,12 +991,16 @@ async function listComponentsApi(): Promise<unknown> {
     }
 
     result.push({
+      primitiveId: safeGetState(c, 'PrimitiveId') ?? '',
       reference: ref,
       value: val,
       footprint: fp,
       lcsc: lcsc,
       manufacturer: mfr,
       datasheet: ds,
+      x: safeGetState(c, 'X'),
+      y: safeGetState(c, 'Y'),
+      rotation: safeGetState(c, 'Rotation'),
     });
   }
   return result;
@@ -1093,6 +1097,90 @@ async function listNetsApi(): Promise<unknown> {
     });
   }
   return result;
+}
+
+/**
+ * Assign the next free designator to a freshly placed component whose
+ * designator is still an unresolved placeholder ("R?", "U?", "LED?", ...).
+ * EasyEDA Pro's SCH_PrimitiveComponent.create leaves the library placeholder
+ * in place and exposes no annotate API, so every placed part would otherwise
+ * share the same "?" designator — which collapses distinct components into a
+ * single node in the netlist readback. Returns the new designator (or
+ * undefined if nothing was changed). Best-effort: any failure is swallowed by
+ * the caller so a placement is never rolled back over annotation.
+ */
+async function assignAutoDesignator(created: unknown): Promise<string | undefined> {
+  const pid = extractPrimitiveId(created);
+  if (!pid) return undefined;
+  const schCompClass = readFirstPath<any>([
+    'SCH_PrimitiveComponent',
+    'SCH_PrimitiveComponent3',
+    'sch_PrimitiveComponent',
+  ]);
+  if (
+    !schCompClass ||
+    typeof schCompClass.get !== 'function' ||
+    typeof schCompClass.modify !== 'function'
+  ) {
+    return undefined;
+  }
+
+  let current: any;
+  try {
+    current = await schCompClass.get(pid);
+  } catch (e) {
+    logRecoverableError(`auto-designator: get(${pid}) failed`, e);
+    return undefined;
+  }
+  if (!current) return undefined;
+
+  const desig = String(safeGetState(current, 'Designator') ?? '');
+  // Only annotate placeholders like "R?" / "LED?" (letters then one-or-more
+  // '?'). A designator that already carries a number is left untouched.
+  const placeholder = /^([A-Za-z]+)\?+$/.exec(desig);
+  if (!placeholder) return undefined;
+  const prefix = placeholder[1];
+
+  let maxN = 0;
+  try {
+    const comps = await schCompClass.getAll(undefined, true);
+    const rx = new RegExp(`^${prefix}(\\d+)$`);
+    for (const c of comps || []) {
+      const ref =
+        typeof c.getState_Designator === 'function' ? String(c.getState_Designator()) : '';
+      const rm = rx.exec(ref);
+      if (rm) {
+        const n = parseInt(rm[1], 10);
+        if (n > maxN) maxN = n;
+      }
+    }
+  } catch (e) {
+    logRecoverableError('auto-designator: scan failed', e);
+  }
+  const newDesig = `${prefix}${maxN + 1}`;
+
+  // Snapshot-merge exactly like schematic.modifyPrimitive so only the
+  // designator changes and manufacturer/supplier/otherProperty are preserved.
+  const existingOther =
+    (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
+  const merged: Record<string, unknown> = {
+    x: safeGetState(current, 'X'),
+    y: safeGetState(current, 'Y'),
+    rotation: safeGetState(current, 'Rotation'),
+    mirror: safeGetState(current, 'Mirror'),
+    addIntoBom: safeGetState(current, 'AddIntoBom'),
+    addIntoPcb: safeGetState(current, 'AddIntoPcb'),
+    designator: newDesig,
+    name: safeGetState(current, 'Name'),
+    uniqueId: safeGetState(current, 'UniqueId'),
+    manufacturer: safeGetState(current, 'Manufacturer'),
+    manufacturerId: safeGetState(current, 'ManufacturerId'),
+    supplier: safeGetState(current, 'Supplier'),
+    supplierId: safeGetState(current, 'SupplierId'),
+    otherProperty: existingOther,
+  };
+  await schCompClass.modify(pid, merged);
+  return newDesig;
 }
 
 async function inspectComponentsApi(limit = 5): Promise<unknown> {
@@ -1681,15 +1769,28 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.itemsOfPage,
         params.page,
       );
-    case 'schematic.placeComponent':
+    case 'schematic.placeComponent': {
       // SCH_PrimitiveComponent.create expects (deviceItem, x, y) only.
       // Extra arguments cause the API to hang or reject.
-      return callFirst(
+      const createdComp = await callFirst(
         ['SCH_PrimitiveComponent.create', 'sch_PrimitiveComponent.create'],
         params.deviceItem,
         params.x,
         params.y,
       );
+      // Resolve the library "R?"/"U?" placeholder to a unique designator so the
+      // netlist keeps distinct parts distinct. Best-effort: if annotation fails
+      // the component is still placed, just with its placeholder designator.
+      try {
+        const newDesig = await assignAutoDesignator(createdComp);
+        if (newDesig && createdComp && typeof createdComp === 'object') {
+          (createdComp as Record<string, unknown>).designator = newDesig;
+        }
+      } catch (e) {
+        logRecoverableError('auto-designator failed', e);
+      }
+      return createdComp;
+    }
     case 'schematic.addWire': {
       const rawPoints: Array<{ x: number; y: number }> = Array.isArray(params.points)
         ? params.points
@@ -1837,6 +1938,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           nfRotation,
         );
       } else {
+        // NOTE: createNetLabel returns no addressable primitive id, and an
+        // unattached net label is not registered in SCH_PrimitiveAttribute's
+        // id set until it lands on a wire (verified live via api.call), so
+        // there is no reliable id to recover at creation time.
         nfResult = await callFirst(
           ['SCH_PrimitiveAttribute.createNetLabel', 'sch_PrimitiveAttribute.createNetLabel'],
           nfX,
@@ -1926,12 +2031,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         netName: string;
         nodes: Array<{ component: string; pin: string }>;
       }>;
-      const comps = (await listComponentsApi()) as Array<{
-        reference: string;
-        value: string;
-        footprint: string;
-        lcsc: string;
-      }>;
       const connectedRefs = new Set<string>();
       const connectedPins = new Set<string>();
       const nets = (netlistData || []).map((n) => {
@@ -1946,8 +2045,22 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           hasNetFlag: true,
         };
       });
-      // Floating pins: components that exist but aren't in any net's nodes
-      const floatingPins: Array<{ primitiveId: string; pinNumber: string }> = [];
+      // Floating pins: pins whose (designator, pin) does not appear in any
+      // net's node list. Determine connectivity from the same authoritative
+      // net data used to build `nets` above — NOT by re-reading each pin's
+      // OtherProperty.net. That property is only populated for pins connected
+      // via a stamped pin property and is empty for pins connected by a wire,
+      // power/ground flag, or net label, so re-reading it misreported every
+      // wire/flag/label-connected pin as floating.
+      const connectedNodes = new Set<string>();
+      for (const n of netlistData || []) {
+        for (const node of n.nodes || []) {
+          connectedNodes.add(`${node.component} ${node.pin}`);
+        }
+      }
+      const floatingPins: Array<{ primitiveId: string; designator: string; pinNumber: string }> =
+        [];
+      const partRefs = new Set<string>();
       const schCompClass = readFirstPath<any>([
         'SCH_PrimitiveComponent',
         'SCH_PrimitiveComponent3',
@@ -1957,31 +2070,35 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         const allComps = await schCompClass.getAll(undefined, true);
         for (const c of allComps || []) {
           const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
-          if (ref && typeof c.getAllPins === 'function') {
-            try {
-              const pins = await c.getAllPins();
-              for (const p of pins || []) {
-                if (typeof p.getState_PinNumber !== 'function') continue;
-                let pinNet = '';
-                if (typeof p.getState_OtherProperty === 'function') {
-                  const other = p.getState_OtherProperty();
-                  if (other) pinNet = String(other.net || other.Net || '');
-                }
-                if (!pinNet) {
-                  floatingPins.push({
-                    primitiveId: ref,
-                    pinNumber: String(p.getState_PinNumber()),
-                  });
-                }
+          // Skip primitives without a designator (title block, net flags, net
+          // ports, net labels): they are not schematic parts and have no pins
+          // to treat as floating, and counting them inflated the tally.
+          if (!ref || typeof c.getAllPins !== 'function') continue;
+          partRefs.add(ref);
+          const primitiveId =
+            typeof c.getState_PrimitiveId === 'function' ? String(c.getState_PrimitiveId()) : '';
+          try {
+            const pins = await c.getAllPins();
+            for (const p of pins || []) {
+              if (typeof p.getState_PinNumber !== 'function') continue;
+              const pinNum = String(p.getState_PinNumber());
+              if (!connectedNodes.has(`${ref} ${pinNum}`)) {
+                floatingPins.push({
+                  primitiveId: primitiveId || ref,
+                  designator: ref,
+                  pinNumber: pinNum,
+                });
               }
-            } catch {
-              // skip component
             }
+          } catch {
+            // skip component
           }
         }
       }
       const warnings: string[] = [];
-      const totalRefs = comps.length;
+      // Count only real parts (those with a designator), not net flags/ports/
+      // labels or the title block, so the tally is not inflated by non-parts.
+      const totalRefs = partRefs.size;
       if (floatingPins.length > 0) {
         warnings.push(`${floatingPins.length} pin(s) are not connected to any net.`);
       }
