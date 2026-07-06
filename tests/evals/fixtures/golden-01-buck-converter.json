@@ -1,0 +1,219 @@
+{
+  "designIntent": {
+    "project": {
+      "name": "12V-to-5V 3A Buck Converter Module",
+      "goal": "Step down a 12V input rail to a regulated 5V output capable of continuously supplying 3A to downstream logic boards.",
+      "boardType": "power-supply"
+    },
+    "requirements": {
+      "functionalBlocks": [
+        {
+          "id": "fb-buck",
+          "name": "Buck Regulator Stage",
+          "type": "power-management",
+          "purpose": "Synchronous buck converter stepping 12V down to 5V at up to 3A"
+        },
+        {
+          "id": "fb-output-filter",
+          "name": "Output Filter",
+          "type": "power-management",
+          "purpose": "Output LC filter and bulk capacitance for the 5V rail"
+        }
+      ],
+      "electrical": {
+        "vinMin": 10.8,
+        "vinMax": 13.2,
+        "currentMaxAmps": 3,
+        "frequencyMaxHz": 500000
+      },
+      "power": {
+        "rails": [
+          {
+            "id": "5V_OUT",
+            "voltage": 5,
+            "tolerance": 5,
+            "maxCurrentAmps": 3,
+            "description": "Regulated 5V output rail"
+          }
+        ]
+      },
+      "mechanical": { "widthMm": 50, "heightMm": 30, "layers": 2, "mountingHoles": true },
+      "manufacturing": { "volume": "small-series", "process": "lead-free" },
+      "safety": {}
+    },
+    "assumptions": ["Input power is pre-regulated 12V from an external supply"],
+    "unknowns": []
+  },
+  "ercInput": {
+    "nets": [
+      {
+        "id": "vin",
+        "name": "VIN_12V",
+        "type": "power",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "VIN" },
+          { "deviceRef": "C1", "pin": "1" }
+        ]
+      },
+      {
+        "id": "sw",
+        "name": "SW",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "SW" },
+          { "deviceRef": "L1", "pin": "1" }
+        ]
+      },
+      {
+        "id": "vout",
+        "name": "5V_OUT",
+        "type": "power",
+        "nodes": [
+          { "deviceRef": "L1", "pin": "2" },
+          { "deviceRef": "C2", "pin": "1" },
+          { "deviceRef": "U1", "pin": "FB" }
+        ]
+      },
+      {
+        "id": "gnd",
+        "name": "GND",
+        "type": "ground",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "GND" },
+          { "deviceRef": "C1", "pin": "2" },
+          { "deviceRef": "C2", "pin": "2" }
+        ]
+      }
+    ],
+    "devices": [
+      {
+        "id": "U1",
+        "ref": "U1",
+        "category": "power-regulator",
+        "pins": [
+          { "pin": "VIN", "electricalType": "power_input" },
+          { "pin": "SW", "electricalType": "output" },
+          { "pin": "FB", "electricalType": "input" },
+          { "pin": "GND", "electricalType": "power_input" }
+        ]
+      },
+      {
+        "id": "C1",
+        "ref": "C1",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      },
+      {
+        "id": "L1",
+        "ref": "L1",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      },
+      {
+        "id": "C2",
+        "ref": "C2",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      }
+    ]
+  },
+  "drcInput": {
+    "widthMm": 50,
+    "heightMm": 30,
+    "layerCount": 2,
+    "hasOutline": true,
+    "mountingHoleCount": 4,
+    "hasLayerStack": true,
+    "hasNetClasses": true,
+    "hasClearanceRules": true,
+    "hasKeepoutAreas": true,
+    "hasPlacementZones": true,
+    "hasFiducials": true,
+    "hasTestPads": true,
+    "hasDrillFile": true,
+    "minCopperToEdgeMm": 0.35,
+    "minDrillMm": 0.3,
+    "minAnnularRingMm": 0.15,
+    "minSolderMaskSliverMm": 0.12,
+    "smtComponentCount": 4,
+    "fiducialCount": 3,
+    "toolingHoleCount": 2,
+    "polarizedComponentCount": 1,
+    "polarityMarkCount": 1,
+    "criticalNetNames": ["VIN_12V", "5V_OUT", "GND"],
+    "testPointNets": ["VIN_12V", "5V_OUT", "GND"],
+    "hasHighVoltage": false,
+    "manufacturingProcess": "lead-free",
+    "hasQuantity": true,
+    "requiresProgrammingHeader": false,
+    "hasProgrammingHeader": false,
+    "hasFabricationNotes": true
+  },
+  "exportManifestInput": {
+    "version": "1.0.0",
+    "sourceProjectId": "golden-01-buck-converter",
+    "generatedAt": "2026-07-06T00:00:00.000Z",
+    "manufacturingPolicy": { "requiredRoles": ["board-outline", "bom", "drc-report"] },
+    "artifacts": [
+      {
+        "filename": "buck-F.Cu.gbr",
+        "fileType": "gerber",
+        "purpose": "Top copper",
+        "role": "top-copper",
+        "required": true,
+        "stale": false,
+        "checksum": "a1",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 2048
+      },
+      {
+        "filename": "buck-outline.gko",
+        "fileType": "gerber",
+        "purpose": "Board outline",
+        "role": "board-outline",
+        "required": true,
+        "stale": false,
+        "checksum": "a2",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 512
+      },
+      {
+        "filename": "buck-bom.csv",
+        "fileType": "bom",
+        "purpose": "Bill of materials",
+        "role": "bom",
+        "required": true,
+        "stale": false,
+        "checksum": "a3",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 1024
+      },
+      {
+        "filename": "buck-drc.json",
+        "fileType": "drc-report",
+        "purpose": "DRC report",
+        "role": "drc-report",
+        "required": true,
+        "stale": false,
+        "checksum": "a4",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 256
+      }
+    ]
+  },
+  "bomEntries": [
+    { "ref": "U1", "mpn": "TPS54360BDDAR", "lcsc": "C86153", "quantity": 1 },
+    { "ref": "L1", "mpn": "SRP1265A-4R7M", "lcsc": "C321262", "quantity": 1 },
+    { "ref": "C1", "mpn": "CL21A106KAYNNNE", "lcsc": "C15850", "quantity": 2 },
+    { "ref": "C2", "mpn": "CL21A226MAQNNNE", "lcsc": "C19702", "quantity": 2 }
+  ]
+}

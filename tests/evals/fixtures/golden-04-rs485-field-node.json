@@ -1,0 +1,289 @@
+{
+  "designIntent": {
+    "project": {
+      "name": "RS-485 Field Node",
+      "goal": "An RS-485 transceiver field node with input regulation and bus termination, exposing a UART header for a host MCU, with isolation called out as a safety requirement for the field-facing bus side.",
+      "boardType": "custom"
+    },
+    "requirements": {
+      "functionalBlocks": [
+        {
+          "id": "fb-connector",
+          "name": "Field Power/Bus Connector",
+          "type": "connector",
+          "purpose": "Screw-terminal connector carrying field power and the RS-485 A/B pair"
+        },
+        {
+          "id": "fb-regulator",
+          "name": "3.3V Regulator",
+          "type": "power-management",
+          "purpose": "Regulate field power down to the transceiver's 3.3V logic rail"
+        },
+        {
+          "id": "fb-transceiver",
+          "name": "RS-485 Transceiver",
+          "type": "communication-ic",
+          "purpose": "Half-duplex RS-485 transceiver with bus termination"
+        },
+        {
+          "id": "fb-uart-header",
+          "name": "UART Header",
+          "type": "connector",
+          "purpose": "Header exposing TX/RX/direction-control to a host MCU board"
+        }
+      ],
+      "electrical": { "vinMin": 4.5, "vinMax": 5.5, "currentMaxAmps": 0.3 },
+      "power": {
+        "rails": [
+          {
+            "id": "3V3",
+            "voltage": 3.3,
+            "tolerance": 5,
+            "maxCurrentAmps": 0.3,
+            "description": "Transceiver logic rail"
+          }
+        ]
+      },
+      "mechanical": { "widthMm": 40, "heightMm": 30, "layers": 2, "mountingHoles": true },
+      "manufacturing": { "volume": "small-series", "process": "lead-free" },
+      "safety": {
+        "isolation": true,
+        "regulatory": "Field-side bus should be galvanically isolated from the host MCU supply in the final revision; this board does not yet implement isolation."
+      }
+    },
+    "assumptions": [
+      "Bus termination is enabled on this node; verify only the two physical end-nodes of the bus have termination populated"
+    ],
+    "unknowns": ["Whether galvanic isolation will be required for the target installation"]
+  },
+  "ercInput": {
+    "nets": [
+      {
+        "id": "vin",
+        "name": "VIN_FIELD",
+        "type": "power",
+        "nodes": [
+          { "deviceRef": "J1", "pin": "VIN" },
+          { "deviceRef": "U2", "pin": "VIN" }
+        ]
+      },
+      {
+        "id": "3v3",
+        "name": "3V3",
+        "type": "power",
+        "nodes": [
+          { "deviceRef": "U2", "pin": "VOUT" },
+          { "deviceRef": "U1", "pin": "VCC" }
+        ]
+      },
+      {
+        "id": "gnd",
+        "name": "GND",
+        "type": "ground",
+        "nodes": [
+          { "deviceRef": "J1", "pin": "GND" },
+          { "deviceRef": "U2", "pin": "GND" },
+          { "deviceRef": "U1", "pin": "GND" },
+          { "deviceRef": "J2", "pin": "GND" }
+        ]
+      },
+      {
+        "id": "rs485-a",
+        "name": "RS485_A",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "J1", "pin": "A" },
+          { "deviceRef": "U1", "pin": "A" },
+          { "deviceRef": "R1", "pin": "1" }
+        ]
+      },
+      {
+        "id": "rs485-b",
+        "name": "RS485_B",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "J1", "pin": "B" },
+          { "deviceRef": "U1", "pin": "B" },
+          { "deviceRef": "R1", "pin": "2" }
+        ]
+      },
+      {
+        "id": "uart-tx",
+        "name": "UART_TX",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "J2", "pin": "TX" },
+          { "deviceRef": "U1", "pin": "DI" }
+        ]
+      },
+      {
+        "id": "uart-rx",
+        "name": "UART_RX",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "J2", "pin": "RX" },
+          { "deviceRef": "U1", "pin": "RO" }
+        ]
+      },
+      {
+        "id": "uart-de",
+        "name": "UART_DE",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "J2", "pin": "DE_CTRL" },
+          { "deviceRef": "U1", "pin": "DE" },
+          { "deviceRef": "U1", "pin": "RE" }
+        ]
+      }
+    ],
+    "devices": [
+      {
+        "id": "J1",
+        "ref": "J1",
+        "category": "connector",
+        "pins": [
+          { "pin": "VIN", "electricalType": "power_output" },
+          { "pin": "GND", "electricalType": "power_output" },
+          { "pin": "A", "electricalType": "passive" },
+          { "pin": "B", "electricalType": "passive" }
+        ]
+      },
+      {
+        "id": "U2",
+        "ref": "U2",
+        "category": "power-regulator",
+        "pins": [
+          { "pin": "VIN", "electricalType": "power_input" },
+          { "pin": "VOUT", "electricalType": "power_output" },
+          { "pin": "GND", "electricalType": "power_input" }
+        ]
+      },
+      {
+        "id": "U1",
+        "ref": "U1",
+        "category": "communication-ic",
+        "pins": [
+          { "pin": "VCC", "electricalType": "power_input" },
+          { "pin": "GND", "electricalType": "power_input" },
+          { "pin": "A", "electricalType": "bidirectional" },
+          { "pin": "B", "electricalType": "bidirectional" },
+          { "pin": "DI", "electricalType": "input" },
+          { "pin": "RO", "electricalType": "output" },
+          { "pin": "DE", "electricalType": "input" },
+          { "pin": "RE", "electricalType": "input" }
+        ]
+      },
+      {
+        "id": "J2",
+        "ref": "J2",
+        "category": "connector",
+        "pins": [
+          { "pin": "TX", "electricalType": "output" },
+          { "pin": "RX", "electricalType": "input" },
+          { "pin": "DE_CTRL", "electricalType": "output" },
+          { "pin": "GND", "electricalType": "power_output" }
+        ]
+      },
+      {
+        "id": "R1",
+        "ref": "R1",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      }
+    ]
+  },
+  "drcInput": {
+    "widthMm": 40,
+    "heightMm": 30,
+    "layerCount": 2,
+    "hasOutline": true,
+    "mountingHoleCount": 4,
+    "hasLayerStack": true,
+    "hasNetClasses": true,
+    "hasClearanceRules": true,
+    "hasKeepoutAreas": true,
+    "hasPlacementZones": true,
+    "hasFiducials": true,
+    "hasTestPads": true,
+    "hasDrillFile": true,
+    "minCopperToEdgeMm": 0.35,
+    "minDrillMm": 0.3,
+    "minAnnularRingMm": 0.15,
+    "minSolderMaskSliverMm": 0.12,
+    "smtComponentCount": 3,
+    "fiducialCount": 3,
+    "toolingHoleCount": 2,
+    "polarizedComponentCount": 0,
+    "polarityMarkCount": 0,
+    "criticalNetNames": ["RS485_A", "RS485_B", "3V3", "GND"],
+    "testPointNets": ["RS485_A", "RS485_B", "3V3", "GND"],
+    "hasHighVoltage": false,
+    "manufacturingProcess": "lead-free",
+    "hasQuantity": true,
+    "requiresProgrammingHeader": false,
+    "hasProgrammingHeader": false,
+    "hasFabricationNotes": true
+  },
+  "exportManifestInput": {
+    "version": "1.0.0",
+    "sourceProjectId": "golden-04-rs485-field-node",
+    "generatedAt": "2026-07-06T00:00:00.000Z",
+    "manufacturingPolicy": { "requiredRoles": ["board-outline", "bom", "drc-report"] },
+    "artifacts": [
+      {
+        "filename": "rs485-node-F.Cu.gbr",
+        "fileType": "gerber",
+        "purpose": "Top copper",
+        "role": "top-copper",
+        "required": true,
+        "stale": false,
+        "checksum": "d1",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 2048
+      },
+      {
+        "filename": "rs485-node-outline.gko",
+        "fileType": "gerber",
+        "purpose": "Board outline",
+        "role": "board-outline",
+        "required": true,
+        "stale": false,
+        "checksum": "d2",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 512
+      },
+      {
+        "filename": "rs485-node-bom.csv",
+        "fileType": "bom",
+        "purpose": "Bill of materials",
+        "role": "bom",
+        "required": true,
+        "stale": false,
+        "checksum": "d3",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 1024
+      },
+      {
+        "filename": "rs485-node-drc.json",
+        "fileType": "drc-report",
+        "purpose": "DRC report",
+        "role": "drc-report",
+        "required": true,
+        "stale": false,
+        "checksum": "d4",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 256
+      }
+    ]
+  },
+  "bomEntries": [
+    { "ref": "J1", "mpn": "1725711", "lcsc": "C381164", "quantity": 1 },
+    { "ref": "U2", "mpn": "AMS1117-3.3", "lcsc": "C6186", "quantity": 1 },
+    { "ref": "U1", "mpn": "SP3485EN-L/TR", "lcsc": "C181179", "quantity": 1 },
+    { "ref": "J2", "mpn": "PH2.0-4P", "lcsc": "C160404", "quantity": 1 },
+    { "ref": "R1", "mpn": "0603WAF1200T5E", "lcsc": "C22775", "quantity": 1 }
+  ]
+}

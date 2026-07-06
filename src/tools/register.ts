@@ -14,6 +14,7 @@ import { registerSchematicReadTools } from './L1_schematic_read.js';
 import { registerSchematicWriteTools } from './L1_schematic_write.js';
 import { registerVisualTools } from './L1_visual.js';
 import { registerAutoroutingTools } from './L2_autorouting.js';
+import { registerSimulationTools } from './L2_simulation.js';
 import { registerWorkflowTools } from './L2_workflows.js';
 import { type ToolRegistry } from './registry.js';
 
@@ -34,4 +35,5 @@ export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig):
   registerDesignRulesTools(registry, config);
   registerWorkflowTools(registry, config);
   registerAutoroutingTools(registry, config);
+  registerSimulationTools(registry, config);
 }
