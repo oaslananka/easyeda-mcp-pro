@@ -1,5 +1,6 @@
 # ── Multi-stage Build Stage ───────────────────────────────────
-FROM node:24-alpine AS builder
+# node:24-alpine
+FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS builder
 
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@11.5.1 --activate
@@ -27,7 +28,8 @@ RUN pnpm build:extension
 RUN CI=true pnpm install --prod --ignore-scripts
 
 # ── Production Runner Stage ────────────────────────────────────
-FROM node:24-alpine AS runner
+# node:24-alpine
+FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runner
 
 WORKDIR /app
 
