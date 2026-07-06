@@ -740,10 +740,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_validate_netlist',
     title: 'Validate netlist',
     description:
-      'Validate the EasyEDA Pro schematic netlist for connectivity issues. ' +
-      'Reports net names, connected component references and pins, floating pins, ' +
-      'graphical wires without netlist connectivity, and mismatches between visual wires ' +
-      'and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool.',
+      'Validate the schematic netlist: inferred nets, connected refs/pins, floating pins, plus a ' +
+      'cross-check with native ERC (native_erc). `valid` needs BOTH the inference clean AND ' +
+      'native ERC 0 errors — inference alone false-positives when pins overlap without a wire.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'low',

@@ -1183,6 +1183,60 @@ async function assignAutoDesignator(created: unknown): Promise<string | undefine
   return newDesig;
 }
 
+/**
+ * Apply a rotation to a freshly placed component. SCH_PrimitiveComponent.create
+ * only accepts (deviceItem, x, y) — passing extra args hangs the API — so the
+ * `rotation` requested by place_component was silently dropped. Set it here via
+ * the same snapshot-merge used by modifyPrimitive so no other field is wiped.
+ * Best-effort: a failure leaves the component at its default rotation.
+ */
+async function applyPlacedRotation(created: unknown, rotation: unknown): Promise<number | undefined> {
+  const rot = typeof rotation === 'number' ? rotation : Number(rotation);
+  if (!Number.isFinite(rot) || rot === 0) return undefined;
+  const pid = extractPrimitiveId(created);
+  if (!pid) return undefined;
+  const schCompClass = readFirstPath<any>([
+    'SCH_PrimitiveComponent',
+    'SCH_PrimitiveComponent3',
+    'sch_PrimitiveComponent',
+  ]);
+  if (
+    !schCompClass ||
+    typeof schCompClass.get !== 'function' ||
+    typeof schCompClass.modify !== 'function'
+  ) {
+    return undefined;
+  }
+  let current: any;
+  try {
+    current = await schCompClass.get(pid);
+  } catch (e) {
+    logRecoverableError(`apply-rotation: get(${pid}) failed`, e);
+    return undefined;
+  }
+  if (!current) return undefined;
+  const existingOther =
+    (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
+  const merged: Record<string, unknown> = {
+    x: safeGetState(current, 'X'),
+    y: safeGetState(current, 'Y'),
+    rotation: rot,
+    mirror: safeGetState(current, 'Mirror'),
+    addIntoBom: safeGetState(current, 'AddIntoBom'),
+    addIntoPcb: safeGetState(current, 'AddIntoPcb'),
+    designator: safeGetState(current, 'Designator'),
+    name: safeGetState(current, 'Name'),
+    uniqueId: safeGetState(current, 'UniqueId'),
+    manufacturer: safeGetState(current, 'Manufacturer'),
+    manufacturerId: safeGetState(current, 'ManufacturerId'),
+    supplier: safeGetState(current, 'Supplier'),
+    supplierId: safeGetState(current, 'SupplierId'),
+    otherProperty: existingOther,
+  };
+  await schCompClass.modify(pid, merged);
+  return rot;
+}
+
 async function inspectComponentsApi(limit = 5): Promise<unknown> {
   const schCompClass = readFirstPath<any>([
     'SCH_PrimitiveComponent',
@@ -1788,6 +1842,16 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         }
       } catch (e) {
         logRecoverableError('auto-designator failed', e);
+      }
+      // create() ignores rotation; apply it after placement so the caller's
+      // requested orientation actually takes effect.
+      try {
+        const appliedRot = await applyPlacedRotation(createdComp, params.rotation);
+        if (appliedRot !== undefined && createdComp && typeof createdComp === 'object') {
+          (createdComp as Record<string, unknown>).rotation = appliedRot;
+        }
+      } catch (e) {
+        logRecoverableError('apply-rotation failed', e);
       }
       return createdComp;
     }
