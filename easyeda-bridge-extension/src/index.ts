@@ -275,7 +275,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function logRecoverableError(context: string, error: unknown): void {
-  console.warn(`[easyeda-mcp-pro] ${context}`, error);
+  // Pass `context` as a plain argument (never interpolated into the first/format
+  // argument) so a value derived from external data can't be read as a printf-style
+  // format specifier by `console.warn`'s format-string handling.
+  console.warn('[easyeda-mcp-pro]', context, error);
 }
 
 async function callFirst(paths: string[], ...args: unknown[]): Promise<unknown> {

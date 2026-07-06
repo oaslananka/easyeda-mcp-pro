@@ -108,7 +108,7 @@ jobs:
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: |
           npm install --ignore-scripts --no-save --package-lock-only 2>/dev/null || true
-          npx --yes @cyclonedx/cyclonedx-npm --ignore-npm-errors --output-format JSON --output-file sbom.json
+          npx --yes @cyclonedx/cyclonedx-npm@5.0.0 --ignore-npm-errors --output-format JSON --output-file sbom.json
 
       - name: Upload SBOM Artifact
         if: ${{ env.RELEASE_RUN == 'true' }}

@@ -1,5 +1,6 @@
 # ── Multi-stage Build Stage ───────────────────────────────────
-FROM node:24-alpine AS builder
+# node:24-alpine
+FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS builder
 
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@11.5.1 --activate
@@ -27,7 +28,8 @@ RUN pnpm build:extension
 RUN CI=true pnpm install --prod --ignore-scripts
 
 # ── Production Runner Stage ────────────────────────────────────
-FROM node:24-alpine AS runner
+# node:24-alpine
+FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runner
 
 WORKDIR /app
 
@@ -38,11 +40,18 @@ ENV HTTP_PORT=3000
 ENV ALLOWED_ORIGINS=
 # For public HTTP deployments, override HTTP_HOST=0.0.0.0 and provide auth plus ALLOWED_ORIGINS.
 
-# Copy runtime assets and built package
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/easyeda-bridge-extension.eext ./easyeda-bridge-extension.eext
-COPY --from=builder /app/node_modules ./node_modules
+# Copy runtime assets and built package, owned by the non-root "node" user
+# baked into the official image (uid/gid 1000).
+COPY --from=builder --chown=node:node /app/package.json ./package.json
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.eext ./easyeda-bridge-extension.eext
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+
+# WORKDIR created /app while still root; hand ownership to "node" so the app
+# can create its runtime DATA_DIR (.easyeda-mcp-pro/) under it at startup.
+RUN chown node:node /app
+
+USER node
 
 EXPOSE 3000
 
