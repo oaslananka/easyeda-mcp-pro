@@ -1306,7 +1306,7 @@ async function inspectComponentsApi(limit = 5): Promise<unknown> {
   };
 }
 
-async function inspectWiresApi(limit = 10): Promise<unknown> {
+async function inspectWiresApi(limit = 10, offset = 0): Promise<unknown> {
   const schWireClass = readFirstPath<any>([
     'SCH_PrimitiveWire',
     'SCH_PrimitiveWire3',
@@ -1318,11 +1318,11 @@ async function inspectWiresApi(limit = 10): Promise<unknown> {
 
   const wires = await schWireClass.getAll();
   const items = Array.isArray(wires) ? wires : [];
+  const start = Math.max(0, offset);
+  const end = start + Math.max(1, Math.min(limit, 50));
   return {
     total: items.length,
-    samples: items
-      .slice(0, Math.max(1, Math.min(limit, 50)))
-      .map((item) => summarizeWirePrimitive(item)),
+    samples: items.slice(start, end).map((item) => summarizeWirePrimitive(item)),
   };
 }
 
@@ -2262,7 +2262,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'system.inspectComponents':
       return inspectComponentsApi(typeof params.limit === 'number' ? params.limit : 5);
     case 'system.inspectWires':
-      return inspectWiresApi(typeof params.limit === 'number' ? params.limit : 10);
+      return inspectWiresApi(
+        typeof params.limit === 'number' ? params.limit : 10,
+        typeof params.offset === 'number' ? params.offset : 0,
+      );
     case 'api.call':
       return callAllowedApi(
         typeof params.path === 'string' ? params.path : '',

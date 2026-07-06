@@ -276,10 +276,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_wires',
     title: 'List schematic wires',
     description:
-      'List wire segments in the schematic with their primitive ID, line coordinates, net ' +
-      'name, color, and line style. The primitive ID is required by delete_primitive and ' +
-      'modify_primitive, which only accept real IDs — there is no way to resolve a wire to its ' +
-      'ID from schematic_nets alone.',
+      'List wire segments: primitiveId, line coordinates, net name, color, style. Page with ' +
+      'offset (check total) past the 50-wire-per-call cap. primitiveId is required by ' +
+      'delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -293,6 +292,7 @@ function registerSchematicReadTools(
     inputSchema: z.object({
       projectId: z.string(),
       limit: z.number().int().min(1).max(50).default(50),
+      offset: z.number().int().min(0).default(0),
     }),
     outputSchema: z.object({
       project_id: z.string(),
@@ -311,9 +311,13 @@ function registerSchematicReadTools(
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, limit } = params as { projectId: string; limit: number };
+      const { projectId, limit, offset } = params as {
+        projectId: string;
+        limit: number;
+        offset: number;
+      };
       try {
-        const result = await ctx.bridge.call('system.inspectWires', { limit });
+        const result = await ctx.bridge.call('system.inspectWires', { limit, offset });
         const data = result as {
           total?: number;
           samples?: Array<{
