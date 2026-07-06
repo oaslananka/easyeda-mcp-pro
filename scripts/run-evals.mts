@@ -10,6 +10,11 @@ import { validateExportManifest } from '../src/export-manifest/index.js';
 import { generateProductionQaArtifacts } from '../src/production-qa/index.js';
 import { DEFAULT_LATENCY_BUDGETS, DEFAULT_RETENTION_POLICY } from '../src/observability/index.js';
 import { calculateTraceWidth, type TraceWidthInput } from '../src/design-rules/trace-width.js';
+import { compile } from '../src/circuit/compiler.js';
+import type { DesignIntent } from '../src/circuit/design-intent.js';
+import type { NetValidationInput } from '../src/net-validation/index.js';
+import type { PcbConstraintInput } from '../src/pcb-constraints/index.js';
+import type { ExportManifestInput } from '../src/export-manifest/index.js';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const manifestPath = join(root, 'tests/evals/benchmark.v1.json');
@@ -158,6 +163,37 @@ function runScenario(scenario: Scenario): unknown {
         retention: DEFAULT_RETENTION_POLICY,
         timeout_policy: { bridge_default_timeout_ms: 15000 },
       };
+    case 'easyeda_golden_benchmark': {
+      const fixture = loadFixture<{
+        designIntent: unknown;
+        ercInput: NetValidationInput;
+        drcInput: PcbConstraintInput;
+        exportManifestInput: ExportManifestInput;
+        bomEntries: Array<{ ref: string; mpn: string; lcsc: string; quantity: number }>;
+      }>(scenario);
+
+      let irValid = true;
+      try {
+        compile(fixture.designIntent as DesignIntent);
+      } catch {
+        irValid = false;
+      }
+
+      const erc = validateNets(fixture.ercInput);
+      const drc = validatePcbConstraints(fixture.drcInput);
+      const exportResult = validateExportManifest(fixture.exportManifestInput);
+      const bomFullySourced = fixture.bomEntries.every(
+        (entry) => /^C\d+$/.test(entry.lcsc) && entry.quantity > 0,
+      );
+
+      return {
+        ir_valid: irValid,
+        erc_clean: erc.valid,
+        drc_clean: drc.valid,
+        export_manifest_valid: exportResult.valid,
+        bom_fully_sourced: bomFullySourced,
+      };
+    }
     default:
       throw new Error(`Unsupported benchmark tool: ${scenario.tool}`);
   }

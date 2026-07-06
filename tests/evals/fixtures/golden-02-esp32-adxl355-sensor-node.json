@@ -1,0 +1,249 @@
+{
+  "designIntent": {
+    "project": {
+      "name": "ESP32-S3 ADXL355 Sensor Node",
+      "goal": "A battery-friendly Wi-Fi sensor node that reads a low-noise 3-axis accelerometer over SPI and reports readings over Wi-Fi/BLE.",
+      "boardType": "sensor-board"
+    },
+    "requirements": {
+      "functionalBlocks": [
+        {
+          "id": "fb-mcu",
+          "name": "ESP32-S3 MCU",
+          "type": "microcontroller",
+          "purpose": "Wi-Fi/BLE MCU running the sensor firmware"
+        },
+        {
+          "id": "fb-sensor",
+          "name": "ADXL355 Accelerometer",
+          "type": "sensor",
+          "purpose": "Low-noise 3-axis MEMS accelerometer read over SPI"
+        },
+        {
+          "id": "fb-power",
+          "name": "3.3V Regulator",
+          "type": "power-management",
+          "purpose": "Regulate battery input down to a clean 3.3V rail"
+        }
+      ],
+      "electrical": { "vinMin": 3.0, "vinMax": 3.6, "currentMaxAmps": 0.5 },
+      "power": {
+        "rails": [
+          {
+            "id": "3V3",
+            "voltage": 3.3,
+            "tolerance": 5,
+            "maxCurrentAmps": 0.5,
+            "description": "Main 3.3V logic and sensor rail"
+          }
+        ]
+      },
+      "mechanical": { "widthMm": 40, "heightMm": 25, "layers": 2, "mountingHoles": true },
+      "manufacturing": { "volume": "prototype", "process": "lead-free" },
+      "safety": {}
+    },
+    "assumptions": ["Powered from a single-cell Li-Po through an external charger board"],
+    "unknowns": []
+  },
+  "ercInput": {
+    "nets": [
+      {
+        "id": "3v3",
+        "name": "3V3",
+        "type": "power",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "1" },
+          { "deviceRef": "U2", "pin": "1" },
+          { "deviceRef": "U2", "pin": "2" },
+          { "deviceRef": "C1", "pin": "1" }
+        ]
+      },
+      {
+        "id": "gnd",
+        "name": "GND",
+        "type": "ground",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "9" },
+          { "deviceRef": "U2", "pin": "3" },
+          { "deviceRef": "U2", "pin": "14" },
+          { "deviceRef": "C1", "pin": "2" }
+        ]
+      },
+      {
+        "id": "spi-cs",
+        "name": "ACCEL_CS",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "16" },
+          { "deviceRef": "U2", "pin": "4" }
+        ]
+      },
+      {
+        "id": "spi-sclk",
+        "name": "ACCEL_SCLK",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "15" },
+          { "deviceRef": "U2", "pin": "5" }
+        ]
+      },
+      {
+        "id": "spi-mosi",
+        "name": "ACCEL_MOSI",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "13" },
+          { "deviceRef": "U2", "pin": "6" }
+        ]
+      },
+      {
+        "id": "spi-miso",
+        "name": "ACCEL_MISO",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "12" },
+          { "deviceRef": "U2", "pin": "7" }
+        ]
+      },
+      {
+        "id": "drdy",
+        "name": "ACCEL_DRDY",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "37" },
+          { "deviceRef": "U2", "pin": "8" }
+        ]
+      }
+    ],
+    "devices": [
+      {
+        "id": "U1",
+        "ref": "U1",
+        "category": "microcontroller",
+        "pins": [
+          { "pin": "1", "electricalType": "power_input" },
+          { "pin": "9", "electricalType": "power_input" },
+          { "pin": "12", "electricalType": "input" },
+          { "pin": "13", "electricalType": "output" },
+          { "pin": "15", "electricalType": "output" },
+          { "pin": "16", "electricalType": "output" },
+          { "pin": "37", "electricalType": "input" }
+        ]
+      },
+      {
+        "id": "U2",
+        "ref": "U2",
+        "category": "sensor",
+        "pins": [
+          { "pin": "1", "electricalType": "power_input" },
+          { "pin": "2", "electricalType": "power_input" },
+          { "pin": "3", "electricalType": "power_input" },
+          { "pin": "4", "electricalType": "input" },
+          { "pin": "5", "electricalType": "input" },
+          { "pin": "6", "electricalType": "input" },
+          { "pin": "7", "electricalType": "output" },
+          { "pin": "8", "electricalType": "output" },
+          { "pin": "14", "electricalType": "power_input" }
+        ]
+      },
+      {
+        "id": "C1",
+        "ref": "C1",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      }
+    ]
+  },
+  "drcInput": {
+    "widthMm": 40,
+    "heightMm": 25,
+    "layerCount": 2,
+    "hasOutline": true,
+    "mountingHoleCount": 4,
+    "hasLayerStack": true,
+    "hasNetClasses": true,
+    "hasClearanceRules": true,
+    "hasKeepoutAreas": true,
+    "hasPlacementZones": true,
+    "hasFiducials": true,
+    "hasTestPads": true,
+    "hasDrillFile": true,
+    "minCopperToEdgeMm": 0.35,
+    "minDrillMm": 0.3,
+    "minAnnularRingMm": 0.15,
+    "minSolderMaskSliverMm": 0.12,
+    "smtComponentCount": 3,
+    "fiducialCount": 3,
+    "toolingHoleCount": 2,
+    "polarizedComponentCount": 0,
+    "polarityMarkCount": 0,
+    "criticalNetNames": ["3V3", "GND", "ACCEL_CS", "ACCEL_SCLK"],
+    "testPointNets": ["3V3", "GND", "ACCEL_CS", "ACCEL_SCLK"],
+    "hasHighVoltage": false,
+    "manufacturingProcess": "lead-free",
+    "hasQuantity": true,
+    "requiresProgrammingHeader": true,
+    "hasProgrammingHeader": true,
+    "hasFabricationNotes": true
+  },
+  "exportManifestInput": {
+    "version": "1.0.0",
+    "sourceProjectId": "golden-02-esp32-adxl355",
+    "generatedAt": "2026-07-06T00:00:00.000Z",
+    "manufacturingPolicy": { "requiredRoles": ["board-outline", "bom", "drc-report"] },
+    "artifacts": [
+      {
+        "filename": "sensor-node-F.Cu.gbr",
+        "fileType": "gerber",
+        "purpose": "Top copper",
+        "role": "top-copper",
+        "required": true,
+        "stale": false,
+        "checksum": "b1",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 2048
+      },
+      {
+        "filename": "sensor-node-outline.gko",
+        "fileType": "gerber",
+        "purpose": "Board outline",
+        "role": "board-outline",
+        "required": true,
+        "stale": false,
+        "checksum": "b2",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 512
+      },
+      {
+        "filename": "sensor-node-bom.csv",
+        "fileType": "bom",
+        "purpose": "Bill of materials",
+        "role": "bom",
+        "required": true,
+        "stale": false,
+        "checksum": "b3",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 1024
+      },
+      {
+        "filename": "sensor-node-drc.json",
+        "fileType": "drc-report",
+        "purpose": "DRC report",
+        "role": "drc-report",
+        "required": true,
+        "stale": false,
+        "checksum": "b4",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 256
+      }
+    ]
+  },
+  "bomEntries": [
+    { "ref": "U1", "mpn": "ESP32-S3-MINI-1-N8", "lcsc": "C12345678", "quantity": 1 },
+    { "ref": "U2", "mpn": "ADXL355BEZ", "lcsc": "C23456789", "quantity": 1 },
+    { "ref": "C1", "mpn": "CL21A106KAYNNNE", "lcsc": "C15850", "quantity": 1 }
+  ]
+}
