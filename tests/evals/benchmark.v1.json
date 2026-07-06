@@ -189,6 +189,101 @@
         "mustNotContain": ["npm_token", "github_token", "password"]
       },
       "scores": { "correctness": 35, "safety": 30, "completeness": 20, "explainability": 5 }
+    },
+    {
+      "id": "golden-01-buck-converter",
+      "title": "Golden benchmark: 12V-to-5V 3A buck converter module",
+      "area": "golden-benchmark",
+      "tool": "easyeda_golden_benchmark",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "golden-01-buck-converter.json",
+      "expected": {
+        "mustEqual": {
+          "ir_valid": true,
+          "erc_clean": true,
+          "drc_clean": true,
+          "export_manifest_valid": true,
+          "bom_fully_sourced": true
+        }
+      },
+      "scores": { "correctness": 40, "safety": 30, "completeness": 20, "explainability": 10 }
+    },
+    {
+      "id": "golden-02-esp32-adxl355-sensor-node",
+      "title": "Golden benchmark: ESP32-S3 + ADXL355 sensor node",
+      "area": "golden-benchmark",
+      "tool": "easyeda_golden_benchmark",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "golden-02-esp32-adxl355-sensor-node.json",
+      "expected": {
+        "mustEqual": {
+          "ir_valid": true,
+          "erc_clean": true,
+          "drc_clean": true,
+          "export_manifest_valid": true,
+          "bom_fully_sourced": true
+        }
+      },
+      "scores": { "correctness": 40, "safety": 30, "completeness": 20, "explainability": 10 }
+    },
+    {
+      "id": "golden-03-usbc-dev-board",
+      "title": "Golden benchmark: USB-C powered dev board with 3.3V rail and protection",
+      "area": "golden-benchmark",
+      "tool": "easyeda_golden_benchmark",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "golden-03-usbc-dev-board.json",
+      "expected": {
+        "mustEqual": {
+          "ir_valid": true,
+          "erc_clean": true,
+          "drc_clean": true,
+          "export_manifest_valid": true,
+          "bom_fully_sourced": true
+        }
+      },
+      "scores": { "correctness": 40, "safety": 30, "completeness": 20, "explainability": 10 }
+    },
+    {
+      "id": "golden-04-rs485-field-node",
+      "title": "Golden benchmark: RS-485 field node with isolation notes",
+      "area": "golden-benchmark",
+      "tool": "easyeda_golden_benchmark",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "golden-04-rs485-field-node.json",
+      "expected": {
+        "mustEqual": {
+          "ir_valid": true,
+          "erc_clean": true,
+          "drc_clean": true,
+          "export_manifest_valid": true,
+          "bom_fully_sourced": true
+        }
+      },
+      "scores": { "correctness": 40, "safety": 30, "completeness": 20, "explainability": 10 }
+    },
+    {
+      "id": "golden-05-led-driver",
+      "title": "Golden benchmark: constant-current LED driver",
+      "area": "golden-benchmark",
+      "tool": "easyeda_golden_benchmark",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "golden-05-led-driver.json",
+      "expected": {
+        "mustEqual": {
+          "ir_valid": true,
+          "erc_clean": true,
+          "drc_clean": true,
+          "export_manifest_valid": true,
+          "bom_fully_sourced": true
+        }
+      },
+      "scores": { "correctness": 40, "safety": 30, "completeness": 20, "explainability": 10 }
     }
   ]
 }

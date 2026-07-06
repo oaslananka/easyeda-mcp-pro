@@ -1,0 +1,223 @@
+{
+  "designIntent": {
+    "project": {
+      "name": "USB-C Powered 3.3V Dev Board",
+      "goal": "A small development board powered entirely from USB-C VBUS, regulating down to a protected 3.3V logic rail with ESD/surge protection on the input.",
+      "boardType": "mcu-board"
+    },
+    "requirements": {
+      "functionalBlocks": [
+        {
+          "id": "fb-usbc",
+          "name": "USB-C Power Input",
+          "type": "connector",
+          "purpose": "USB-C receptacle used for 5V power delivery only (no data)"
+        },
+        {
+          "id": "fb-protection",
+          "name": "Input Protection",
+          "type": "power-management",
+          "purpose": "TVS diode across VBUS/GND for ESD and surge protection"
+        },
+        {
+          "id": "fb-regulator",
+          "name": "3.3V Regulator",
+          "type": "power-management",
+          "purpose": "Linear regulator producing the board's 3.3V logic rail"
+        }
+      ],
+      "electrical": { "vinMin": 4.75, "vinMax": 5.25, "currentMaxAmps": 1 },
+      "power": {
+        "rails": [
+          {
+            "id": "3V3",
+            "voltage": 3.3,
+            "tolerance": 5,
+            "maxCurrentAmps": 1,
+            "description": "Main 3.3V logic rail"
+          }
+        ]
+      },
+      "mechanical": { "widthMm": 45, "heightMm": 35, "layers": 2, "mountingHoles": true },
+      "manufacturing": { "volume": "prototype", "process": "lead-free" },
+      "safety": {}
+    },
+    "assumptions": ["USB-C is used for power delivery only; no USB data lines are connected"],
+    "unknowns": []
+  },
+  "ercInput": {
+    "nets": [
+      {
+        "id": "vbus",
+        "name": "VBUS",
+        "type": "power",
+        "nodes": [
+          { "deviceRef": "J1", "pin": "VBUS" },
+          { "deviceRef": "D1", "pin": "1" },
+          { "deviceRef": "U1", "pin": "VIN" },
+          { "deviceRef": "C1", "pin": "1" }
+        ]
+      },
+      {
+        "id": "3v3",
+        "name": "3V3",
+        "type": "power",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "VOUT" },
+          { "deviceRef": "C2", "pin": "1" }
+        ]
+      },
+      {
+        "id": "gnd",
+        "name": "GND",
+        "type": "ground",
+        "nodes": [
+          { "deviceRef": "J1", "pin": "GND" },
+          { "deviceRef": "D1", "pin": "2" },
+          { "deviceRef": "U1", "pin": "GND" },
+          { "deviceRef": "C1", "pin": "2" },
+          { "deviceRef": "C2", "pin": "2" }
+        ]
+      }
+    ],
+    "devices": [
+      {
+        "id": "J1",
+        "ref": "J1",
+        "category": "connector",
+        "pins": [
+          { "pin": "VBUS", "electricalType": "power_output" },
+          { "pin": "GND", "electricalType": "power_output" }
+        ]
+      },
+      {
+        "id": "D1",
+        "ref": "D1",
+        "category": "protection",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      },
+      {
+        "id": "U1",
+        "ref": "U1",
+        "category": "power-regulator",
+        "pins": [
+          { "pin": "VIN", "electricalType": "power_input" },
+          { "pin": "VOUT", "electricalType": "power_output" },
+          { "pin": "GND", "electricalType": "power_input" }
+        ]
+      },
+      {
+        "id": "C1",
+        "ref": "C1",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      },
+      {
+        "id": "C2",
+        "ref": "C2",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      }
+    ]
+  },
+  "drcInput": {
+    "widthMm": 45,
+    "heightMm": 35,
+    "layerCount": 2,
+    "hasOutline": true,
+    "mountingHoleCount": 4,
+    "hasLayerStack": true,
+    "hasNetClasses": true,
+    "hasClearanceRules": true,
+    "hasKeepoutAreas": true,
+    "hasPlacementZones": true,
+    "hasFiducials": true,
+    "hasTestPads": true,
+    "hasDrillFile": true,
+    "minCopperToEdgeMm": 0.35,
+    "minDrillMm": 0.3,
+    "minAnnularRingMm": 0.15,
+    "minSolderMaskSliverMm": 0.12,
+    "smtComponentCount": 4,
+    "fiducialCount": 3,
+    "toolingHoleCount": 2,
+    "polarizedComponentCount": 1,
+    "polarityMarkCount": 1,
+    "criticalNetNames": ["VBUS", "3V3", "GND"],
+    "testPointNets": ["VBUS", "3V3", "GND"],
+    "hasHighVoltage": false,
+    "manufacturingProcess": "lead-free",
+    "hasQuantity": true,
+    "requiresProgrammingHeader": false,
+    "hasProgrammingHeader": false,
+    "hasFabricationNotes": true
+  },
+  "exportManifestInput": {
+    "version": "1.0.0",
+    "sourceProjectId": "golden-03-usbc-dev-board",
+    "generatedAt": "2026-07-06T00:00:00.000Z",
+    "manufacturingPolicy": { "requiredRoles": ["board-outline", "bom", "drc-report"] },
+    "artifacts": [
+      {
+        "filename": "usbc-board-F.Cu.gbr",
+        "fileType": "gerber",
+        "purpose": "Top copper",
+        "role": "top-copper",
+        "required": true,
+        "stale": false,
+        "checksum": "c1",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 2048
+      },
+      {
+        "filename": "usbc-board-outline.gko",
+        "fileType": "gerber",
+        "purpose": "Board outline",
+        "role": "board-outline",
+        "required": true,
+        "stale": false,
+        "checksum": "c2",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 512
+      },
+      {
+        "filename": "usbc-board-bom.csv",
+        "fileType": "bom",
+        "purpose": "Bill of materials",
+        "role": "bom",
+        "required": true,
+        "stale": false,
+        "checksum": "c3",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 1024
+      },
+      {
+        "filename": "usbc-board-drc.json",
+        "fileType": "drc-report",
+        "purpose": "DRC report",
+        "role": "drc-report",
+        "required": true,
+        "stale": false,
+        "checksum": "c4",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 256
+      }
+    ]
+  },
+  "bomEntries": [
+    { "ref": "J1", "mpn": "USB4110-GF-A", "lcsc": "C165948", "quantity": 1 },
+    { "ref": "D1", "mpn": "PESD5V0S1UAY", "lcsc": "C7522", "quantity": 1 },
+    { "ref": "U1", "mpn": "AMS1117-3.3", "lcsc": "C6186", "quantity": 1 },
+    { "ref": "C1", "mpn": "CL21A106KAYNNNE", "lcsc": "C15850", "quantity": 1 },
+    { "ref": "C2", "mpn": "CL21A106KAYNNNE", "lcsc": "C15850", "quantity": 1 }
+  ]
+}

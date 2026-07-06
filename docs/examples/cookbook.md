@@ -192,3 +192,69 @@ with its input and output capacitors and wire everything to VIN_5V, VOUT_3V3, an
   `rollback_notes` fields rather than assuming a clean state.
 - `easyeda_workflow_decouple_ic` follows the same pattern for adding decoupling capacitors to
   an already-placed IC's power pins in one call.
+
+## 9. Floorplan, autoroute, verify — with a vendor-neutral fallback
+
+**Goal:** Go from a CircuitIR to a routed, DRC-checked board, without silently reporting
+success and without getting stuck if the native autorouter is unavailable.
+
+**Prompt:**
+
+```text
+Floorplan the board from this CircuitIR, keeping the connector on the bottom edge and the
+regulator on the bottom copper side, then autoroute it and confirm it's actually clean
+before telling me it's done.
+```
+
+**Tool sequence:**
+
+1. `easyeda_pcb_floorplan` with `mode: 'preview'`, then `mode: 'apply', confirmWrite: true` —
+   places components per CircuitIR physical constraints (keepouts, top/bottom side,
+   connector edge, thermal spacing)
+2. `easyeda_pcb_autoroute` with `confirmWrite: true` — runs a pre-flight constraint check,
+   calls the native autorouter, then a mandatory post-route DRC + constraint report
+3. If `overall_verdict` is `partial` or `failed` (or the autorouter reports `not_available`),
+   fall back to `easyeda_pcb_export_route_context` to get a Specctra DSN file for an external
+   autorouter such as FreeRouting, then re-import the routed result through EasyEDA Pro itself
+
+**Safety checkpoints:**
+
+- Never report "routed" from `overall_verdict` alone without also surfacing `post_route_drc`
+  and `post_route_constraint_report` to the user — a `partial` verdict means real issues exist.
+- `PCB_Document.autoRouting` is a `@beta` EasyEDA Pro API — a `not_available: true` response
+  means try the DSN export fallback, not retry the same call.
+- Top-side and bottom-side floorplan passes are not cross-checked for collisions — read
+  `floorplan_notes` and eyeball the result (e.g. via `easyeda_canvas_capture`) before autorouting.
+
+## 10. Checking a rail electrically before committing to a layout
+
+**Goal:** Before placing a regulator stage, get a rough electrical sanity check — does the
+output land near the target voltage under the expected load — without needing a full
+schematic simulation setup.
+
+**Prompt:**
+
+```text
+Before you place this 3.3V regulator stage, check that it'll actually hold 3.3V at 500mA
+of load from a 5V input.
+```
+
+**Tool sequence:**
+
+1. `easyeda_workflow_power_rail` with `mode: 'preview'` and a `verifyRail` block
+   (`inputVoltage`, `outputVoltage`, `loadCurrentA`) — attaches a `verification` field to
+   the same response, so this doesn't cost an extra tool call
+2. If `verification.available` is `false`, ngspice isn't installed — say so plainly rather
+   than silently skipping the check; the placement plan itself is still valid
+3. Only then proceed to `mode: 'apply', confirmWrite: true`
+
+**Safety checkpoints:**
+
+- `verification` comes from a **standalone simplified model** (ideal source + dropout
+  clamp + output resistance), not a simulation of the literal components you're about to
+  place — always surface the `caveat` field alongside any pass/fail result.
+- This is a rough sanity check, not a substitute for a real simulation or bench
+  measurement, especially for anything safety-critical or thermally marginal.
+- `easyeda_simulate_operating_point` / `easyeda_simulate_transient` are available directly
+  for more general circuit checks (RC networks, diode/LED current limiting, etc.) beyond
+  the power-rail workflow's built-in hook.

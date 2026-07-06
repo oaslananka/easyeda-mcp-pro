@@ -33,7 +33,7 @@ const layoutApplyResultSchema = z.object({
   error: z.string().optional(),
 });
 
-async function applyLayoutOperations(
+export async function applyLayoutOperations(
   ctx: ToolContext,
   operations: Array<{ method: string; params: Record<string, unknown> }>,
 ) {

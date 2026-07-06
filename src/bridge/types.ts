@@ -43,6 +43,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'pcb.addZone',
   'pcb.deleteComponent',
   'pcb.modifyComponent',
+  'pcb.exportRouteContext',
   'api.execute',
   'canvas.capture',
   'canvas.captureRegion',

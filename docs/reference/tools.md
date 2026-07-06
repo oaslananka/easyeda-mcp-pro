@@ -44,9 +44,12 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                                              |
 | `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board.                                                                                                                                                                                                                                                                 |
 | `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a specific layer with clearance settings.                                                                                                                                                                                                                                                           |
+| `easyeda_pcb_autoroute`                 | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
 | `easyeda_pcb_constraint_check`          | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
 | `easyeda_pcb_constraint_report`         | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                                                  |
 | `easyeda_pcb_delete_component`          | `full`  | `high`   | Delete components from the PCB layout by their primitive IDs.                                                                                                                                                                                                                                                                    |
+| `easyeda_pcb_export_route_context`      | `pro`   | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                                  |
+| `easyeda_pcb_floorplan`                 | `full`  | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
 | `easyeda_pcb_modify_component`          | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                                   |
 | `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout.                                                                                                                                                                                                                                                                            |
 | `easyeda_pcb_place_component_group`     | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
@@ -74,6 +77,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the EasyEDA Pro schematic netlist for connectivity issues. Reports net names, connected component references and pins, floating pins, graphical wires without netlist connectivity, and mismatches between visual wires and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool.                    |
 | `easyeda_schematic_verify_write`        | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                               |
 | `easyeda_semantic_erc_validate`         | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                                           |
+| `easyeda_simulate_operating_point`      | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
+| `easyeda_simulate_transient`            | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
 | `easyeda_wire_probe`                    | `dev`   | `low`    | Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                              |
 | `easyeda_workflow_connector_breakout`   | `pro`   | `medium` | Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).                                                                                                                                   |
 | `easyeda_workflow_decouple_ic`          | `pro`   | `medium` | Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).                                                                   |
@@ -1277,6 +1282,48 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_pcb_autoroute`
+
+**Profile:** `pro` | **Risk Level:** `high`
+
+> Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).
+
+### Input Parameters
+
+| Parameter               | Type                  | Required             | Description          |
+| ----------------------- | --------------------- | -------------------- | -------------------- |
+| `projectId`             | `string`              | Yes                  |                      |
+| `routingNets`           | `"selected"           | "selectedComponents" | string[] (optional)` | No  |     |
+| `cornerStyle`           | `"45"                 | "90" (optional)`     | No                   |     |
+| `existingPrimitiveMode` | `"keep"               | "remove" (optional)` | No                   |     |
+| `optimization`          | `"completion"         | "faster" (optional)` | No                   |     |
+| `layers`                | `number[] (optional)` | No                   |                      |
+| `ignoreNets`            | `string[] (optional)` | No                   |                      |
+| `boardData`             | `object (optional)`   | No                   |                      |
+| `confirmWrite`          | `boolean (optional)`  | No                   |                      |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  overall_verdict: 'success' | 'partial' | 'blocked' | 'failed';
+  blocked_by_preflight: boolean;
+  preflight: object(optional);
+  autoroute_result: object(optional);
+  post_route_drc: object(optional);
+  post_route_constraint_report: object(optional);
+  summary: string;
+  not_available: boolean(optional);
+  error: string(optional);
+}
+```
+
+---
+
 ## `easyeda_pcb_constraint_check`
 
 **Profile:** `core` | **Risk Level:** `low`
@@ -1358,6 +1405,88 @@ Returns a JSON object matching the schema:
   success: boolean;
   deletedCount: number(optional);
   error: string(optional);
+}
+```
+
+---
+
+## `easyeda_pcb_export_route_context`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.
+
+### Input Parameters
+
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `projectId` | `string`            | Yes      |             |
+| `filePath`  | `string (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  artifact_path: string(optional);
+  byte_length: number(optional);
+  exported: boolean;
+  not_available: boolean(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_pcb_floorplan`
+
+**Profile:** `full` | **Risk Level:** `high`
+
+> Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).
+
+### Input Parameters
+
+| Parameter                          | Type                 | Required | Description |
+| ---------------------------------- | -------------------- | -------- | ----------- |
+| `circuitIR`                        | `any`                | Yes      |             |
+| `devices`                          | `object[]`           | Yes      |             |
+| `projectId`                        | `string (optional)`  | No       |             |
+| `mode`                             | `"preview"           | "apply"` | Yes         |                     |
+| `board`                            | `object`             | Yes      |             |
+| `anchor`                           | `object`             | Yes      |             |
+| `columns`                          | `number (optional)`  | No       |             |
+| `spacingMm`                        | `number (optional)`  | No       |             |
+| `minSpacingMm`                     | `number (optional)`  | No       |             |
+| `topLayer`                         | `number (optional)`  | No       |             |
+| `bottomLayer`                      | `number (optional)`  | No       |             |
+| `connectorEdge`                    | `"top"               | "bottom" | "left"      | "right" (optional)` | No  |     |
+| `connectorEdgeMarginMm`            | `number (optional)`  | No       |             |
+| `thermalSpacingBoostMm`            | `number (optional)`  | No       |             |
+| `thermalDissipationThresholdWatts` | `number (optional)`  | No       |             |
+| `confirmWrite`                     | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  floorplan_notes: string[];
+  summary: string;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -2234,6 +2363,71 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_simulate_operating_point`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.
+
+### Input Parameters
+
+| Parameter   | Type                  | Required | Description |
+| ----------- | --------------------- | -------- | ----------- |
+| `circuit`   | `object`              | Yes      |             |
+| `railSpecs` | `object[] (optional)` | No       |             |
+| `timeoutMs` | `number (optional)`   | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  available: boolean;
+  ngspice_version: string (optional);
+  node_voltages: Record<string, number> (optional);
+  rail_verdicts: object[] (optional);
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_simulate_transient`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.
+
+### Input Parameters
+
+| Parameter         | Type                  | Required | Description |
+| ----------------- | --------------------- | -------- | ----------- |
+| `circuit`         | `object`              | Yes      |             |
+| `stepSeconds`     | `number`              | Yes      |             |
+| `stopTimeSeconds` | `number`              | Yes      |             |
+| `railSpecs`       | `object[] (optional)` | No       |             |
+| `timeoutMs`       | `number (optional)`   | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  available: boolean;
+  ngspice_version: string (optional);
+  samples: object[] (optional);
+  truncated: boolean (optional);
+  rail_verdicts: object[] (optional);
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
 ## `easyeda_wire_probe`
 
 **Profile:** `dev` | **Risk Level:** `low`
@@ -2419,6 +2613,7 @@ Returns a JSON object matching the schema:
 | `inputNetName`  | `string`             | Yes      |             |
 | `outputNetName` | `string`             | Yes      |             |
 | `components`    | `object[]`           | Yes      |             |
+| `verifyRail`    | `object (optional)`  | No       |             |
 | `confirmWrite`  | `boolean (optional)` | No       |             |
 
 ### Output Format
@@ -2441,6 +2636,7 @@ Returns a JSON object matching the schema:
   summary: string;
   rollback_notes: string[];
   error: string (optional);
+  verification: object (optional);
 }
 ```
 
