@@ -17,7 +17,11 @@
 import { createHash } from 'node:crypto';
 import type {
   WorkflowBlockInput,
+  WorkflowComponentInput,
+  WorkflowExecutionMode,
+  WorkflowExistingComponentInput,
   WorkflowIssue,
+  WorkflowNetPortInput,
   WorkflowOperation,
   WorkflowPlan,
   WorkflowPlannedComponent,
@@ -43,15 +47,11 @@ export function refPlaceholder(ref: string): string {
 }
 
 /** Build a deterministic plan for a compound schematic workflow (place + wire + net-port). */
-export function planWorkflowBlock(
-  input: WorkflowBlockInput,
-  transactionPrefix: string,
-): WorkflowPlan {
-  const mode = input.mode ?? 'preview';
-  const components = input.components ?? [];
-  const existingComponents = input.existingComponents ?? [];
-  const netPorts = input.netPorts ?? [];
-  const spacing = input.spacing ?? 10;
+function validateWorkflowInputs(
+  components: WorkflowComponentInput[],
+  existingComponents: WorkflowExistingComponentInput[],
+  netPorts: WorkflowNetPortInput[],
+): WorkflowIssue[] {
   const issues: WorkflowIssue[] = [];
 
   if (components.length === 0 && existingComponents.length === 0 && netPorts.length === 0) {
@@ -124,6 +124,39 @@ export function planWorkflowBlock(
     seenNetPorts.add(port.netName);
   }
 
+  return issues;
+}
+
+function workflowPlanSummary(
+  blocked: boolean,
+  issues: WorkflowIssue[],
+  mode: WorkflowExecutionMode,
+  components: WorkflowComponentInput[],
+  existingComponents: WorkflowExistingComponentInput[],
+  netPorts: WorkflowNetPortInput[],
+  operations: WorkflowOperation[],
+): string {
+  if (blocked) {
+    const errorCount = issues.filter((entry) => entry.severity === 'error').length;
+    return `Blocked: ${errorCount} error(s) found before planning operations.`;
+  }
+  const verb = mode === 'apply' ? 'Applying' : 'Planned';
+  return (
+    `${verb} ${components.length} new component(s), ${existingComponents.length} ` +
+    `existing-component wiring, and ${netPorts.length} net port(s) across ${operations.length} operation(s).`
+  );
+}
+
+export function planWorkflowBlock(
+  input: WorkflowBlockInput,
+  transactionPrefix: string,
+): WorkflowPlan {
+  const mode = input.mode ?? 'preview';
+  const components = input.components ?? [];
+  const existingComponents = input.existingComponents ?? [];
+  const netPorts = input.netPorts ?? [];
+  const spacing = input.spacing ?? 10;
+  const issues = validateWorkflowInputs(components, existingComponents, netPorts);
   const blocked = issues.some((entry) => entry.severity === 'error');
 
   const placements: WorkflowPlannedComponent[] = components.map((component, index) => ({
@@ -219,11 +252,15 @@ export function planWorkflowBlock(
     );
   }
 
-  const summary = blocked
-    ? `Blocked: ${issues.filter((entry) => entry.severity === 'error').length} error(s) found before planning operations.`
-    : `${mode === 'apply' ? 'Applying' : 'Planned'} ${components.length} new component(s), ` +
-      `${existingComponents.length} existing-component wiring, and ${netPorts.length} net port(s) ` +
-      `across ${operations.length} operation(s).`;
+  const summary = workflowPlanSummary(
+    blocked,
+    issues,
+    mode,
+    components,
+    existingComponents,
+    netPorts,
+    operations,
+  );
 
   return {
     projectId: input.projectId,

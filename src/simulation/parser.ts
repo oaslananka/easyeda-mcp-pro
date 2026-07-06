@@ -39,7 +39,11 @@ function normalizeVectorName(name: string): string {
   return match?.[1] ?? name;
 }
 
-const NUMERIC_ROW = /^\s*(\d+)((?:\s+[-+]?[\d.]+(?:[eE][-+]?\d+)?)+)\s*$/;
+// The index/value split only needs to locate the leading integer index and capture the
+// rest of the row — individual numeric tokens are parsed (and validated) downstream via
+// `.split(/\s+/).map(Number)` plus a `Number.isFinite` check, so this doesn't need to
+// re-validate each number's exact format itself.
+const NUMERIC_ROW = /^\s*(\d+)\s+(.+?)\s*$/;
 
 export function parseTransientOutput(stdout: string): TransientResult {
   const lines = stdout.split(/\r?\n/);

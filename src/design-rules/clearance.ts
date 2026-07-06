@@ -66,7 +66,7 @@ export function lookupClearance(input: ClearanceInput): ClearanceResult {
 
   const band = BANDS.find((b) => voltageV <= b.maxVoltageV);
   if (!band) {
-    const last = BANDS[BANDS.length - 1] ?? BANDS[0];
+    const last = BANDS.at(-1) ?? BANDS[0];
     if (!last) throw new Error('Clearance band table is empty');
     return {
       minClearanceMm: last.internalMm,

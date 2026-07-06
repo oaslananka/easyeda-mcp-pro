@@ -17,7 +17,7 @@ import type { SimAnalysis, SimCircuit, SimComponent } from './types.js';
 // bare node token, and real netlists commonly use purely numeric refs/nodes (R1, node "2",
 // etc.) — so this only excludes characters that could inject SPICE syntax (whitespace,
 // newlines, `.`, `;`, parens, quotes), not "must start with a letter".
-const SAFE_IDENTIFIER = /^[A-Za-z0-9_]+$/;
+const SAFE_IDENTIFIER = /^\w+$/;
 
 export function assertSafeIdentifier(value: string, kind: string): void {
   if (!SAFE_IDENTIFIER.test(value)) {
@@ -34,16 +34,16 @@ function componentCard(component: SimComponent, modelCards: Map<string, string>)
       return `R${component.ref} ${n1} ${n2} ${component.value}`;
     case 'capacitor':
       return `C${component.ref} ${n1} ${n2} ${component.value}${
-        component.initialCondition !== undefined ? ` IC=${component.initialCondition}` : ''
+        component.initialCondition === undefined ? '' : ` IC=${component.initialCondition}`
       }`;
     case 'inductor':
       return `L${component.ref} ${n1} ${n2} ${component.value}${
-        component.initialCondition !== undefined ? ` IC=${component.initialCondition}` : ''
+        component.initialCondition === undefined ? '' : ` IC=${component.initialCondition}`
       }`;
     case 'diode':
     case 'led': {
       const model = getDiodeModel(component.modelName);
-      const modelCardName = `MODEL_${model.name.replace(/[^A-Za-z0-9_]/g, '_')}`;
+      const modelCardName = `MODEL_${model.name.replace(/\W/g, '_')}`;
       if (!modelCards.has(modelCardName)) {
         const params = Object.entries(model.params)
           .map(([key, value]) => `${key}=${value}`)
@@ -87,7 +87,7 @@ function collectNodes(circuit: SimCircuit): string[] {
     for (const node of component.nodes) nodes.add(node);
   }
   nodes.delete(circuit.groundNode);
-  return Array.from(nodes).sort();
+  return Array.from(nodes).sort((a, b) => a.localeCompare(b));
 }
 
 /** Build a complete, ngspice-batch-mode-ready SPICE deck for the given circuit and analysis. */

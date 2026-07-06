@@ -5,7 +5,8 @@ import { buildSpiceDeck } from '../simulation/netlist.js';
 import { detectNgspice, runNgspiceDeck } from '../simulation/runner.js';
 import { parseOperatingPointOutput, parseTransientOutput } from '../simulation/parser.js';
 import { verifyRailAgainstSpec } from '../simulation/verify.js';
-import type { SimCircuit, SimComponent } from '../simulation/types.js';
+import type { SimCircuit } from '../simulation/types.js';
+export type { SimComponent } from '../simulation/types.js';
 
 const nodesSchema = z.array(z.string().min(1)).min(2).max(3);
 
@@ -257,7 +258,7 @@ function registerTransientTool(registry: { register: (def: ToolDefinition) => vo
           time_seconds: sample.timeSeconds,
           node_voltages: sample.nodeVoltages,
         }));
-        const lastSample = result.samples[result.samples.length - 1];
+        const lastSample = result.samples.at(-1);
         const railVerdicts = lastSample
           ? p.railSpecs?.map((spec) => verifyRailAgainstSpec(lastSample.nodeVoltages, spec))
           : undefined;
@@ -289,4 +290,3 @@ function registerSimulationTools(
 }
 
 export { registerSimulationTools };
-export type { SimComponent };

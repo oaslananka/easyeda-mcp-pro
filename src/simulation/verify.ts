@@ -6,7 +6,7 @@ export function verifyRailAgainstSpec(
   nodeVoltages: Record<string, number>,
   spec: RailSpec,
 ): RailVerdict {
-  const observedVoltage = nodeVoltages[spec.nodeName] ?? NaN;
+  const observedVoltage = nodeVoltages[spec.nodeName] ?? Number.NaN;
   const tolerance = (spec.tolerancePercent / 100) * spec.nominalVoltage;
   const minAllowedVoltage = spec.nominalVoltage - Math.abs(tolerance);
   const maxAllowedVoltage = spec.nominalVoltage + Math.abs(tolerance);

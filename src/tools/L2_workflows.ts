@@ -50,6 +50,13 @@ const netPortInputSchema = z.object({
 
 const pointSchema = z.object({ x: z.number(), y: z.number() });
 
+/** Fields every `easyeda_workflow_*` tool accepts, regardless of its own domain-specific input. */
+const workflowIdentitySchema = z.object({
+  projectId: z.string().min(1),
+  mode: z.enum(['preview', 'apply']).default('preview'),
+  anchor: pointSchema,
+});
+
 const workflowIssueSchema = z.object({
   code: z.string(),
   severity: z.enum(['error', 'warning', 'info']),
@@ -150,6 +157,49 @@ interface ApplyOutcome {
  * net ports) from this same transaction — see `WorkflowPlan.rollbackNotes` for what cannot
  * be rolled back (pin connections applied to pre-existing components).
  */
+interface OperationOutcome {
+  method: string;
+  ref?: string;
+  success: boolean;
+  primitiveId?: string;
+  error?: string;
+}
+
+/** Apply one operation, resolving `$ref:` placeholders against already-applied refs. */
+async function applySingleOperation(
+  ctx: ToolContext,
+  op: WorkflowOperation,
+  refToPrimitiveId: Map<string, string>,
+): Promise<{ outcome: OperationOutcome; newPrimitiveId?: string }> {
+  try {
+    const params = resolveOperationParams(op.params, refToPrimitiveId);
+    const result = await ctx.bridge.call<Record<string, unknown>, unknown>(op.method, params);
+    const data = result as { primitiveId?: string; result?: string } | string | undefined;
+    const primitiveId =
+      typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined);
+
+    if (op.kind === 'placeComponent' && primitiveId) {
+      refToPrimitiveId.set(op.ref, primitiveId);
+    }
+    const createsNewPrimitive =
+      (op.kind === 'placeComponent' || op.kind === 'createNetPort') && Boolean(primitiveId);
+
+    return {
+      outcome: { method: op.method, ref: operationRef(op), success: true, primitiveId },
+      newPrimitiveId: createsNewPrimitive ? primitiveId : undefined,
+    };
+  } catch (err) {
+    return {
+      outcome: {
+        method: op.method,
+        ref: operationRef(op),
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
+}
+
 async function applyWorkflowPlan(ctx: ToolContext, plan: WorkflowPlan): Promise<ApplyOutcome> {
   const refToPrimitiveId = new Map<string, string>();
   const appliedNewPrimitiveIds: string[] = [];
@@ -158,36 +208,10 @@ async function applyWorkflowPlan(ctx: ToolContext, plan: WorkflowPlan): Promise<
 
   for (const op of plan.operations) {
     if (failed) break;
-    try {
-      const params = resolveOperationParams(op.params, refToPrimitiveId);
-      const result = await ctx.bridge.call<Record<string, unknown>, unknown>(op.method, params);
-      const data = result as { primitiveId?: string; result?: string } | string | undefined;
-      const primitiveId =
-        typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined);
-
-      if (op.kind === 'placeComponent' && primitiveId) {
-        refToPrimitiveId.set(op.ref, primitiveId);
-        appliedNewPrimitiveIds.push(primitiveId);
-      }
-      if (op.kind === 'createNetPort' && primitiveId) {
-        appliedNewPrimitiveIds.push(primitiveId);
-      }
-
-      applyResults.push({
-        method: op.method,
-        ref: operationRef(op),
-        success: true,
-        primitiveId,
-      });
-    } catch (err) {
-      failed = true;
-      applyResults.push({
-        method: op.method,
-        ref: operationRef(op),
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+    const { outcome, newPrimitiveId } = await applySingleOperation(ctx, op, refToPrimitiveId);
+    applyResults.push(outcome);
+    if (newPrimitiveId) appliedNewPrimitiveIds.push(newPrimitiveId);
+    if (!outcome.success) failed = true;
   }
 
   let rolledBack = false;
@@ -289,6 +313,14 @@ async function verifyPowerRail(spec: VerifyRailInput) {
   }
 }
 
+function applyOutcomeSummary(failed: boolean, rolledBack: boolean, appliedCount: number): string {
+  if (!failed) return `Applied ${appliedCount} operation(s).`;
+  if (rolledBack) {
+    return 'Apply failed part-way through; newly-created primitives from this transaction were rolled back.';
+  }
+  return 'Apply failed part-way through and automatic rollback also failed — review the project manually.';
+}
+
 async function runWorkflow(
   ctx: ToolContext,
   input: WorkflowBlockInput,
@@ -299,79 +331,60 @@ async function runWorkflow(
   const plan = planWorkflowBlock(input, transactionPrefix);
   extraIssues(plan);
   const blocked = plan.issues.some((entry) => entry.severity === 'error');
+  const base = {
+    project_id: plan.projectId,
+    transaction_id: plan.transactionId,
+    mode: plan.mode,
+    placements: plan.placements,
+    operations: plan.operations,
+    issues: mapIssues(plan.issues),
+    rollback_notes: plan.rollbackNotes,
+  };
 
   if (input.mode !== 'apply') {
     return {
+      ...base,
       success: !blocked,
-      project_id: plan.projectId,
-      transaction_id: plan.transactionId,
-      mode: plan.mode,
       applied: false,
       blocked,
       rolled_back: false,
-      placements: plan.placements,
-      operations: plan.operations,
-      issues: mapIssues(plan.issues),
       summary: plan.summary,
-      rollback_notes: plan.rollbackNotes,
     };
   }
 
   if (blocked) {
     return {
+      ...base,
       success: false,
-      project_id: plan.projectId,
-      transaction_id: plan.transactionId,
-      mode: plan.mode,
       applied: false,
       blocked: true,
       rolled_back: false,
-      placements: plan.placements,
-      operations: plan.operations,
-      issues: mapIssues(plan.issues),
       summary: plan.summary,
-      rollback_notes: plan.rollbackNotes,
       error: 'Workflow plan contains blocking errors.',
     };
   }
 
   if (confirmWrite !== true) {
     return {
+      ...base,
       success: false,
-      project_id: plan.projectId,
-      transaction_id: plan.transactionId,
-      mode: plan.mode,
       applied: false,
       blocked: true,
       rolled_back: false,
-      placements: plan.placements,
-      operations: plan.operations,
-      issues: mapIssues(plan.issues),
       summary: 'Apply blocked because confirmWrite=true was not provided.',
-      rollback_notes: plan.rollbackNotes,
       error: 'confirmWrite=true is required to apply this workflow.',
     };
   }
 
   const outcome = await applyWorkflowPlan(ctx, plan);
   return {
+    ...base,
     success: !outcome.failed,
-    project_id: plan.projectId,
-    transaction_id: plan.transactionId,
-    mode: plan.mode,
     applied: !outcome.failed,
     blocked: false,
     rolled_back: outcome.rolledBack,
-    placements: plan.placements,
-    operations: plan.operations,
     apply_results: outcome.applyResults,
-    issues: mapIssues(plan.issues),
-    summary: outcome.failed
-      ? outcome.rolledBack
-        ? 'Apply failed part-way through; newly-created primitives from this transaction were rolled back.'
-        : 'Apply failed part-way through and automatic rollback also failed — review the project manually.'
-      : `Applied ${outcome.applyResults.length} operation(s).`,
-    rollback_notes: plan.rollbackNotes,
+    summary: applyOutcomeSummary(outcome.failed, outcome.rolledBack, outcome.applyResults.length),
     error: outcome.applyResults.find((entry) => !entry.success)?.error,
   };
 }
@@ -398,10 +411,7 @@ function registerWorkflowTools(
       destructiveHint: false,
       idempotentHint: false,
     },
-    inputSchema: z.object({
-      projectId: z.string().min(1),
-      mode: z.enum(['preview', 'apply']).default('preview'),
-      anchor: pointSchema,
+    inputSchema: workflowIdentitySchema.extend({
       spacing: z.number().positive().optional(),
       groundNetName: z.string().min(1).default('GND'),
       inputNetName: z.string().min(1),
@@ -486,10 +496,7 @@ function registerWorkflowTools(
       destructiveHint: false,
       idempotentHint: false,
     },
-    inputSchema: z.object({
-      projectId: z.string().min(1),
-      mode: z.enum(['preview', 'apply']).default('preview'),
-      anchor: pointSchema,
+    inputSchema: workflowIdentitySchema.extend({
       spacing: z.number().positive().optional(),
       groundNetName: z.string().min(1).default('GND'),
       icPowerPins: z.array(pinConnectionSchema).min(1),
@@ -581,10 +588,7 @@ function registerWorkflowTools(
       destructiveHint: false,
       idempotentHint: false,
     },
-    inputSchema: z.object({
-      projectId: z.string().min(1),
-      mode: z.enum(['preview', 'apply']).default('preview'),
-      anchor: pointSchema,
+    inputSchema: workflowIdentitySchema.extend({
       spacing: z.number().positive().optional(),
       blockName: z.string().optional(),
       components: z.array(componentInputSchema).default([]),
@@ -627,10 +631,7 @@ function registerWorkflowTools(
       destructiveHint: false,
       idempotentHint: false,
     },
-    inputSchema: z.object({
-      projectId: z.string().min(1),
-      mode: z.enum(['preview', 'apply']).default('preview'),
-      anchor: pointSchema,
+    inputSchema: workflowIdentitySchema.extend({
       netPortAnchor: pointSchema.optional(),
       connectorRef: z.string().min(1).default('J1'),
       connector: deviceItemSchema,

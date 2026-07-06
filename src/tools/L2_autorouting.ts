@@ -4,9 +4,13 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { planFloorplan, type FloorplanInput } from '../pcb-layout/floorplan.js';
-import { applyLayoutOperations } from './L1_pcb_write.js';
+import {
+  applyLayoutOperations,
+  layoutIssueSchema,
+  layoutOperationSchema,
+  layoutApplyResultSchema,
+} from './L1_pcb_write.js';
 import { validateCircuitIR } from '../circuit/circuit-ir.js';
-import { CircuitError } from '../circuit/errors.js';
 import {
   validatePcbConstraints,
   buildConstraintReport,
@@ -24,26 +28,6 @@ const floorplanDeviceInputSchema = z.object({
   rotation: z.number().optional(),
   primitiveId: z.string().optional(),
   footprint: z.string().optional(),
-});
-
-const layoutIssueSchema = z.object({
-  code: z.string(),
-  severity: z.enum(['error', 'warning', 'info']),
-  message: z.string(),
-  remediationHint: z.string(),
-  details: z.record(z.string(), z.unknown()).optional(),
-});
-
-const layoutOperationSchema = z.object({
-  method: z.string(),
-  params: z.record(z.string(), z.unknown()),
-});
-
-const layoutApplyResultSchema = z.object({
-  method: z.string(),
-  success: z.boolean(),
-  primitiveId: z.string().optional(),
-  error: z.string().optional(),
 });
 
 // ── easyeda_pcb_floorplan ───────────────────────────────────────────────────
@@ -137,45 +121,38 @@ function registerFloorplanTool(registry: { register: (def: ToolDefinition) => vo
           floorplan_notes: [],
           summary: 'CircuitIR validation failed.',
           not_available: true,
-          error:
-            err instanceof CircuitError
-              ? err.message
-              : err instanceof Error
-                ? err.message
-                : String(err),
+          // CircuitError extends Error, so this also covers the CircuitError case.
+          error: err instanceof Error ? err.message : String(err),
         };
       }
 
       const plan = planFloorplan({ ...p, circuitIR });
+      const base = {
+        project_id: plan.projectId,
+        transaction_id: plan.transactionId,
+        mode: plan.mode,
+        placements: plan.placements,
+        operations: plan.operations,
+        issues: plan.issues,
+        floorplan_notes: plan.floorplanNotes,
+      };
 
       if (p.mode !== 'apply') {
         return {
+          ...base,
           success: !plan.blocked,
-          project_id: plan.projectId,
-          transaction_id: plan.transactionId,
-          mode: plan.mode,
           applied: false,
           blocked: plan.blocked,
-          placements: plan.placements,
-          operations: plan.operations,
-          issues: plan.issues,
-          floorplan_notes: plan.floorplanNotes,
           summary: plan.summary,
         };
       }
 
       if (plan.blocked) {
         return {
+          ...base,
           success: false,
-          project_id: plan.projectId,
-          transaction_id: plan.transactionId,
-          mode: plan.mode,
           applied: false,
           blocked: true,
-          placements: plan.placements,
-          operations: plan.operations,
-          issues: plan.issues,
-          floorplan_notes: plan.floorplanNotes,
           summary: plan.summary,
           error: 'Floorplan contains blocking constraint errors.',
         };
@@ -183,16 +160,10 @@ function registerFloorplanTool(registry: { register: (def: ToolDefinition) => vo
 
       if (p.confirmWrite !== true) {
         return {
+          ...base,
           success: false,
-          project_id: plan.projectId,
-          transaction_id: plan.transactionId,
-          mode: plan.mode,
           applied: false,
           blocked: true,
-          placements: plan.placements,
-          operations: plan.operations,
-          issues: plan.issues,
-          floorplan_notes: plan.floorplanNotes,
           summary: 'Apply blocked because confirmWrite=true was not provided.',
           error: 'confirmWrite=true is required to apply a floorplan.',
         };
@@ -201,17 +172,11 @@ function registerFloorplanTool(registry: { register: (def: ToolDefinition) => vo
       const applyResults = await applyLayoutOperations(ctx, plan.operations);
       const failed = applyResults.some((result) => !result.success);
       return {
+        ...base,
         success: !failed,
-        project_id: plan.projectId,
-        transaction_id: plan.transactionId,
-        mode: plan.mode,
         applied: !failed,
         blocked: false,
-        placements: plan.placements,
-        operations: plan.operations,
         apply_results: applyResults,
-        issues: plan.issues,
-        floorplan_notes: plan.floorplanNotes,
         summary: failed
           ? 'Floorplan apply failed before all operations completed.'
           : `Applied ${applyResults.length} placement operation(s).`,
@@ -230,6 +195,25 @@ function registerFloorplanTool(registry: { register: (def: ToolDefinition) => vo
  */
 const CORNER_STYLE_VALUES: Record<'45' | '90', number> = { '45': 0, '90': 1 };
 const OPTIMIZATION_VALUES: Record<'completion' | 'faster', number> = { completion: 1, faster: 0 };
+
+function computeOverallVerdict(
+  autorouteStarted: boolean,
+  drcPassed: boolean | undefined,
+  constraintVerdict: string | undefined,
+): 'success' | 'partial' | 'failed' {
+  if (!autorouteStarted) return 'failed';
+  if ((drcPassed ?? true) && constraintVerdict === 'approved') return 'success';
+  return 'partial';
+}
+
+function summaryForVerdict(verdict: 'success' | 'partial' | 'failed'): string {
+  if (verdict === 'success')
+    return 'Autoroute completed and post-route DRC/constraint checks passed.';
+  if (verdict === 'partial') {
+    return 'Autoroute completed but post-route checks found issues requiring review.';
+  }
+  return 'Autoroute did not complete successfully.';
+}
 
 function registerAutorouteTool(registry: { register: (def: ToolDefinition) => void }) {
   registry.register({
@@ -463,11 +447,11 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
         constraintReportSummary = undefined;
       }
 
-      const overallVerdict: 'success' | 'partial' | 'failed' = !autorouteStarted
-        ? 'failed'
-        : (drcSummary?.passed ?? true) && constraintReportSummary?.verdict === 'approved'
-          ? 'success'
-          : 'partial';
+      const overallVerdict = computeOverallVerdict(
+        autorouteStarted,
+        drcSummary?.passed,
+        constraintReportSummary?.verdict,
+      );
 
       return {
         success: autorouteStarted,
@@ -482,12 +466,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
         autoroute_result: autorouteResult,
         post_route_drc: drcSummary,
         post_route_constraint_report: constraintReportSummary,
-        summary:
-          overallVerdict === 'success'
-            ? 'Autoroute completed and post-route DRC/constraint checks passed.'
-            : overallVerdict === 'partial'
-              ? 'Autoroute completed but post-route checks found issues requiring review.'
-              : 'Autoroute did not complete successfully.',
+        summary: summaryForVerdict(overallVerdict),
       };
     },
   });
