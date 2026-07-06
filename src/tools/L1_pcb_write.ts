@@ -15,25 +15,25 @@ const layoutRectSchema = z.object({
   heightMm: z.number().positive(),
   name: z.string().optional(),
 });
-const layoutIssueSchema = z.object({
+export const layoutIssueSchema = z.object({
   code: z.string(),
   severity: z.enum(['error', 'warning', 'info']),
   message: z.string(),
   remediationHint: z.string(),
   details: z.record(z.string(), z.unknown()).optional(),
 });
-const layoutOperationSchema = z.object({
+export const layoutOperationSchema = z.object({
   method: z.string(),
   params: z.record(z.string(), z.unknown()),
 });
-const layoutApplyResultSchema = z.object({
+export const layoutApplyResultSchema = z.object({
   method: z.string(),
   success: z.boolean(),
   primitiveId: z.string().optional(),
   error: z.string().optional(),
 });
 
-async function applyLayoutOperations(
+export async function applyLayoutOperations(
   ctx: ToolContext,
   operations: Array<{ method: string; params: Record<string, unknown> }>,
 ) {

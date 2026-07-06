@@ -1,6 +1,8 @@
 import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { type ToolContext } from '../tools/types.js';
+import { listDfmChecklist } from '../design-rules/dfm-checklist.js';
+import { listProtocolRoutingKeys } from '../design-rules/protocol-routing.js';
 
 interface BridgeNet {
   netName?: string;
@@ -110,6 +112,26 @@ function reviewWorkflowText(): string {
   ].join('\n');
 }
 
+function designRulesReferenceText(): string {
+  return [
+    '# Design Rules Reference',
+    '',
+    'The `easyeda_design_rules_lookup` tool returns generic engineering reference guidance ' +
+      '(rule-of-thumb estimates, each carrying a `source` and a `caveat`) for the following topics:',
+    '',
+    '- `trace-width` — IPC-2221 conductor width for a required current/temperature rise',
+    '- `max-current` — IPC-2221 max current for a given trace width (reverse lookup)',
+    '- `clearance` — simplified voltage-based electrical clearance bands',
+    `- \`protocol-routing\` — routing guidance for: ${listProtocolRoutingKeys().join(', ')}`,
+    '- `decoupling` — per-pin decoupling capacitor recipes by IC category',
+    '- `bulk-capacitance` — rail bulk capacitance sizing (shared rule with the power-tree analyzer)',
+    '- `dfm-checklist` — see easyeda://design-rules/dfm-checklist for the full static list',
+    '',
+    'None of these are certified values — always confirm against the cited standard, your ' +
+      "fabricator's capability table, or the target IC's datasheet before finalizing a design.",
+  ].join('\n');
+}
+
 function promptText(title: string, projectId: string, body: string): string {
   return [
     title,
@@ -161,6 +183,28 @@ export function registerProjectResourcesAndPrompts(server: McpServer, context: T
       mimeType: 'text/markdown',
     },
     async (uri) => textResource(uri, reviewWorkflowText()),
+  );
+
+  server.registerResource(
+    'design_rules_reference',
+    'easyeda://design-rules/reference',
+    {
+      title: 'Design rules reference',
+      description: 'Overview of the topics available via easyeda_design_rules_lookup.',
+      mimeType: 'text/markdown',
+    },
+    async (uri) => textResource(uri, designRulesReferenceText()),
+  );
+
+  server.registerResource(
+    'design_rules_dfm_checklist',
+    'easyeda://design-rules/dfm-checklist',
+    {
+      title: 'DFM checklist',
+      description: 'Static, generic design-for-manufacturability reference checklist.',
+      mimeType: 'application/json',
+    },
+    async (uri) => jsonResource(uri, { items: listDfmChecklist() }),
   );
 
   server.registerPrompt(
@@ -231,6 +275,44 @@ export function registerProjectResourcesAndPrompts(server: McpServer, context: T
               'Prepare the EasyEDA project for manufacturing review.',
               projectId,
               'Inspect ERC/DRC status, board outline, layers, vias, Gerber export readiness, BOM readiness, pick-and-place readiness, and human approval gates.',
+            ),
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    'review_layout',
+    {
+      title: 'Review PCB layout',
+      description:
+        'Review PCB layout against constraint checks and generic engineering design rules.',
+      argsSchema: promptArgsSchema,
+    },
+    ({ projectId }) => ({
+      description: 'PCB layout review prompt for EasyEDA projects.',
+      messages: [
+        {
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: promptText(
+              'Review the EasyEDA project PCB layout.',
+              projectId,
+              [
+                'Run easyeda_pcb_constraint_check and easyeda_pcb_production_review first.',
+                'For each current-carrying net you are unsure about, call easyeda_design_rules_lookup ' +
+                  '(topic=trace-width) rather than guessing a trace width.',
+                'For any net carrying a meaningful voltage differential, look up clearance ' +
+                  '(topic=clearance) before finalizing spacing.',
+                'For any bus (USB/RS-485/I2C/SPI/UART/Ethernet), look up protocol-routing guidance ' +
+                  'before finalizing topology, impedance, or termination.',
+                'Cross-check placement against easyeda://design-rules/dfm-checklist and the ' +
+                  'decoupling topic before sign-off.',
+                'Every design-rules result includes a source and caveat — cite them, and flag ' +
+                  'anything the agent could not verify against a real datasheet or fab capability table.',
+              ].join('\n'),
             ),
           },
         },

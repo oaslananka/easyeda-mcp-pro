@@ -1729,6 +1729,14 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         await callFirst(['PCB_ManufactureData.getGerberFile'], params),
         'gerbers.zip',
       );
+    case 'pcb.exportRouteContext':
+      return normalizeBinaryResultSafely(
+        await callFirst(
+          ['PCB_ManufactureData.getDsnFile'],
+          typeof params.fileName === 'string' ? params.fileName : undefined,
+        ),
+        'route-context.dsn',
+      );
     case 'system.getStatus': {
       const globals: Record<string, unknown> = {};
       try {

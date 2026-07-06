@@ -5,75 +5,85 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 
 ## Summary of Tools
 
-| Tool Name                               | Profile | Risk     | Description                                                                                                                                                                                                                                                                                                   |
-| --------------------------------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `easyeda_api_call`                      | `full`  | `high`   | Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. This is not raw JavaScript execution.                                                                                                                                                                     |
-| `easyeda_api_inventory`                 | `core`  | `low`    | Inspect the live EasyEDA extension runtime and list available documented API classes, runtime paths, and methods.                                                                                                                                                                                             |
-| `easyeda_board_dimensions`              | `core`  | `low`    | Get the PCB board outline dimensions, shape, and mounting hole information.                                                                                                                                                                                                                                   |
-| `easyeda_board_features`                | `core`  | `low`    | Get counts of board features including vias, tracks, copper zones, and pads.                                                                                                                                                                                                                                  |
-| `easyeda_board_layers`                  | `core`  | `low`    | List all layers in the PCB design including signal, power, plane, and mechanical layers.                                                                                                                                                                                                                      |
-| `easyeda_board_stackup`                 | `core`  | `low`    | Get the PCB layer stackup including thickness, material, and dielectric constants.                                                                                                                                                                                                                            |
-| `easyeda_bom_export`                    | `core`  | `low`    | Export the bill of materials to a file on disk in the specified format.                                                                                                                                                                                                                                       |
-| `easyeda_bom_generate`                  | `core`  | `low`    | Generate a bill of materials for the project with grouping and formatting options.                                                                                                                                                                                                                            |
-| `easyeda_bom_quality_report`            | `core`  | `medium` | Generate a BOM quality report that identifies unavailable, single-source, missing-MPN, missing-footprint, and low-stock items across configured suppliers.                                                                                                                                                    |
-| `easyeda_bom_sourcing`                  | `core`  | `medium` | Retrieve pricing and availability information for all parts in the project BOM from specified suppliers.                                                                                                                                                                                                      |
-| `easyeda_bom_validate`                  | `core`  | `medium` | Validate the project BOM against LCSC inventory to identify missing, obsolete, or alternate parts.                                                                                                                                                                                                            |
-| `easyeda_bridge_probe_methods`          | `dev`   | `medium` | Query the EasyEDA Pro bridge for available API methods. Requires bridge connection. (dev/pro only)                                                                                                                                                                                                            |
-| `easyeda_bridge_status`                 | `core`  | `low`    | Check EasyEDA Pro bridge connection status, version, and capabilities.                                                                                                                                                                                                                                        |
-| `easyeda_canvas_capture`                | `core`  | `low`    | Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or the last-focused one) as-is; use easyeda_canvas_capture_region first to frame a specific area.                               |
-| `easyeda_canvas_capture_region`         | `core`  | `low`    | Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API.                                                                |
-| `easyeda_canvas_locate`                 | `core`  | `low`    | Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.                                                  |
-| `easyeda_catalog_list`                  | `pro`   | `low`    | List devices cached by easyeda_catalog_verify_device, with their validation status and provenance. Optionally filter by status (resolved/partial/unresolved). This is a local cache only — never redistributed.                                                                                               |
-| `easyeda_catalog_verify_device`         | `pro`   | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.          |
-| `easyeda_component_probe`               | `dev`   | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                          |
-| `easyeda_drc_run`                       | `core`  | `medium` | Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints.                                                                                                                                                                                      |
-| `easyeda_erc_run`                       | `core`  | `medium` | Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts.                                                                                                                                                                                        |
-| `easyeda_export_gerbers`                | `core`  | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                        |
-| `easyeda_export_netlist`                | `pro`   | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                       |
-| `easyeda_export_pdf`                    | `pro`   | `low`    | Export the schematic and/or board layout to PDF.                                                                                                                                                                                                                                                              |
-| `easyeda_export_pick_place`             | `pro`   | `low`    | Export pick-and-place (centroid) file for PCB assembly. Contains component reference, position, rotation, and layer.                                                                                                                                                                                          |
-| `easyeda_get_capabilities`              | `core`  | `low`    | Return server capabilities, including available profiles, enabled feature flags, and supported operations.                                                                                                                                                                                                    |
-| `easyeda_get_feature_flags`             | `core`  | `low`    | Return current feature flag values.                                                                                                                                                                                                                                                                           |
-| `easyeda_get_server_config`             | `core`  | `low`    | Return safe (redacted) server configuration. Secrets are never exposed.                                                                                                                                                                                                                                       |
-| `easyeda_get_tool_profiles`             | `core`  | `low`    | List available tool profiles and their descriptions.                                                                                                                                                                                                                                                          |
-| `easyeda_health_check`                  | `core`  | `low`    | Return server health status in one call: runtime version, active profile, bridge state, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.                                                        |
-| `easyeda_jlcpcb_quote_workflow`         | `pro`   | `medium` | Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.                                                                                                                                          |
-| `easyeda_live_smoke_report`             | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                               |
-| `easyeda_observability_report`          | `core`  | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                              |
-| `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                           |
-| `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board.                                                                                                                                                                                                                                              |
-| `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a specific layer with clearance settings.                                                                                                                                                                                                                                        |
-| `easyeda_pcb_constraint_check`          | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                          |
-| `easyeda_pcb_constraint_report`         | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                               |
-| `easyeda_pcb_delete_component`          | `full`  | `high`   | Delete components from the PCB layout by their primitive IDs.                                                                                                                                                                                                                                                 |
-| `easyeda_pcb_modify_component`          | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                |
-| `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout.                                                                                                                                                                                                                                                         |
-| `easyeda_pcb_place_component_group`     | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                         |
-| `easyeda_pcb_production_review`         | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                |
-| `easyeda_pcb_route_path_plan`           | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                      |
-| `easyeda_power_tree_analyze`            | `core`  | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                   |
-| `easyeda_production_qa_artifacts`       | `pro`   | `low`    | Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.                                                                                                                                                                     |
-| `easyeda_project_save`                  | `core`  | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                  |
-| `easyeda_rule_check_summary`            | `core`  | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                |
-| `easyeda_run_self_test`                 | `core`  | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                           |
-| `easyeda_schematic_add_wire`            | `core`  | `medium` | Add a wire segment connecting schematic coordinates/pins.                                                                                                                                                                                                                                                     |
-| `easyeda_schematic_component_pins`      | `core`  | `low`    | Get exact pin numbers, names, and coordinates for a schematic component by its primitive ID.                                                                                                                                                                                                                  |
-| `easyeda_schematic_components`          | `core`  | `low`    | List all components in the schematic with their properties including reference, value, footprint, LCSC part number, manufacturer, and datasheet.                                                                                                                                                              |
-| `easyeda_schematic_connect_pin_to_net`  | `core`  | `medium` | Connect a specific component pin to a named net. This creates an actual SCH_Netlist entry associating the pin with the net. If the net does not exist yet, it is created on the fly. This is the core tool for populating the real EasyEDA netlist with pin-to-net connectivity.                              |
-| `easyeda_schematic_connect_pins_by_net` | `core`  | `medium` | Connect multiple component pins to a named net in a single operation. All specified pins will be assigned to the same net, creating SCH_Netlist entries. If the net does not exist, it is created. This is the bulk equivalent of connect_pin_to_net.                                                         |
-| `easyeda_schematic_create_net_flag`     | `core`  | `medium` | Create a named schematic net flag at specified coordinates. This controlled write declares real SCH_Net connectivity in the EasyEDA Pro netlist.                                                                                                                                                              |
-| `easyeda_schematic_create_net_port`     | `core`  | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                               |
-| `easyeda_schematic_delete_primitive`    | `core`  | `medium` | Delete components, wires, or other drawing objects from the schematic by their primitive UUIDs.                                                                                                                                                                                                               |
-| `easyeda_schematic_modify_primitive`    | `core`  | `medium` | Modify properties (value, reference, attributes, etc.) of a schematic component/object.                                                                                                                                                                                                                       |
-| `easyeda_schematic_net_detail`          | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                             |
-| `easyeda_schematic_nets`                | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                   |
-| `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet.                                                                                                                                                                                                                                               |
-| `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords.                                                                                                                                                                                                                                      |
-| `easyeda_schematic_sheet_info`          | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                            |
-| `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the EasyEDA Pro schematic netlist for connectivity issues. Reports net names, connected component references and pins, floating pins, graphical wires without netlist connectivity, and mismatches between visual wires and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool. |
-| `easyeda_schematic_verify_write`        | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                            |
-| `easyeda_semantic_erc_validate`         | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                        |
-| `easyeda_wire_probe`                    | `dev`   | `low`    | Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                           |
+| Tool Name                               | Profile | Risk     | Description                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------- | ------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `easyeda_api_call`                      | `full`  | `high`   | Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. This is not raw JavaScript execution.                                                                                                                                                                                        |
+| `easyeda_api_inventory`                 | `core`  | `low`    | Inspect the live EasyEDA extension runtime and list available documented API classes, runtime paths, and methods.                                                                                                                                                                                                                |
+| `easyeda_board_dimensions`              | `core`  | `low`    | Get the PCB board outline dimensions, shape, and mounting hole information.                                                                                                                                                                                                                                                      |
+| `easyeda_board_features`                | `core`  | `low`    | Get counts of board features including vias, tracks, copper zones, and pads.                                                                                                                                                                                                                                                     |
+| `easyeda_board_layers`                  | `core`  | `low`    | List all layers in the PCB design including signal, power, plane, and mechanical layers.                                                                                                                                                                                                                                         |
+| `easyeda_board_stackup`                 | `core`  | `low`    | Get the PCB layer stackup including thickness, material, and dielectric constants.                                                                                                                                                                                                                                               |
+| `easyeda_bom_export`                    | `core`  | `low`    | Export the bill of materials to a file on disk in the specified format.                                                                                                                                                                                                                                                          |
+| `easyeda_bom_generate`                  | `core`  | `low`    | Generate a bill of materials for the project with grouping and formatting options.                                                                                                                                                                                                                                               |
+| `easyeda_bom_quality_report`            | `core`  | `medium` | Generate a BOM quality report that identifies unavailable, single-source, missing-MPN, missing-footprint, and low-stock items across configured suppliers.                                                                                                                                                                       |
+| `easyeda_bom_sourcing`                  | `core`  | `medium` | Retrieve pricing and availability information for all parts in the project BOM from specified suppliers.                                                                                                                                                                                                                         |
+| `easyeda_bom_validate`                  | `core`  | `medium` | Validate the project BOM against LCSC inventory to identify missing, obsolete, or alternate parts.                                                                                                                                                                                                                               |
+| `easyeda_bridge_probe_methods`          | `dev`   | `medium` | Query the EasyEDA Pro bridge for available API methods. Requires bridge connection. (dev/pro only)                                                                                                                                                                                                                               |
+| `easyeda_bridge_status`                 | `core`  | `low`    | Check EasyEDA Pro bridge connection status, version, and capabilities.                                                                                                                                                                                                                                                           |
+| `easyeda_canvas_capture`                | `core`  | `low`    | Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or the last-focused one) as-is; use easyeda_canvas_capture_region first to frame a specific area.                                                  |
+| `easyeda_canvas_capture_region`         | `core`  | `low`    | Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API.                                                                                   |
+| `easyeda_canvas_locate`                 | `core`  | `low`    | Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.                                                                     |
+| `easyeda_catalog_list`                  | `pro`   | `low`    | List devices cached by easyeda_catalog_verify_device, with their validation status and provenance. Optionally filter by status (resolved/partial/unresolved). This is a local cache only — never redistributed.                                                                                                                  |
+| `easyeda_catalog_verify_device`         | `pro`   | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.                             |
+| `easyeda_component_probe`               | `dev`   | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                                             |
+| `easyeda_design_rules_lookup`           | `core`  | `low`    | Look up generic engineering reference guidance: IPC-2221 trace-width/current-capacity, clearance bands, protocol routing data (USB/RS-485/I2C/SPI/UART/Ethernet), decoupling recipes and bulk capacitance sizing, and a static DFM checklist. Every result cites a source and caveat: these are estimates, not certified values. |
+| `easyeda_drc_run`                       | `core`  | `medium` | Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints.                                                                                                                                                                                                         |
+| `easyeda_erc_run`                       | `core`  | `medium` | Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts.                                                                                                                                                                                                           |
+| `easyeda_export_gerbers`                | `core`  | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                           |
+| `easyeda_export_netlist`                | `pro`   | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                          |
+| `easyeda_export_pdf`                    | `pro`   | `low`    | Export the schematic and/or board layout to PDF.                                                                                                                                                                                                                                                                                 |
+| `easyeda_export_pick_place`             | `pro`   | `low`    | Export pick-and-place (centroid) file for PCB assembly. Contains component reference, position, rotation, and layer.                                                                                                                                                                                                             |
+| `easyeda_get_capabilities`              | `core`  | `low`    | Return server capabilities, including available profiles, enabled feature flags, and supported operations.                                                                                                                                                                                                                       |
+| `easyeda_get_feature_flags`             | `core`  | `low`    | Return current feature flag values.                                                                                                                                                                                                                                                                                              |
+| `easyeda_get_server_config`             | `core`  | `low`    | Return safe (redacted) server configuration. Secrets are never exposed.                                                                                                                                                                                                                                                          |
+| `easyeda_get_tool_profiles`             | `core`  | `low`    | List available tool profiles and their descriptions.                                                                                                                                                                                                                                                                             |
+| `easyeda_health_check`                  | `core`  | `low`    | Return server health status in one call: runtime version, active profile, bridge state, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.                                                                           |
+| `easyeda_jlcpcb_quote_workflow`         | `pro`   | `medium` | Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.                                                                                                                                                             |
+| `easyeda_live_smoke_report`             | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                                                  |
+| `easyeda_observability_report`          | `core`  | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                                                 |
+| `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                                              |
+| `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board.                                                                                                                                                                                                                                                                 |
+| `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a specific layer with clearance settings.                                                                                                                                                                                                                                                           |
+| `easyeda_pcb_autoroute`                 | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
+| `easyeda_pcb_constraint_check`          | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
+| `easyeda_pcb_constraint_report`         | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                                                  |
+| `easyeda_pcb_delete_component`          | `full`  | `high`   | Delete components from the PCB layout by their primitive IDs.                                                                                                                                                                                                                                                                    |
+| `easyeda_pcb_export_route_context`      | `pro`   | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                                  |
+| `easyeda_pcb_floorplan`                 | `full`  | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
+| `easyeda_pcb_modify_component`          | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                                   |
+| `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout.                                                                                                                                                                                                                                                                            |
+| `easyeda_pcb_place_component_group`     | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
+| `easyeda_pcb_production_review`         | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                   |
+| `easyeda_pcb_route_path_plan`           | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                         |
+| `easyeda_power_tree_analyze`            | `core`  | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                      |
+| `easyeda_production_qa_artifacts`       | `pro`   | `low`    | Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.                                                                                                                                                                                        |
+| `easyeda_project_save`                  | `core`  | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                                     |
+| `easyeda_rule_check_summary`            | `core`  | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                                   |
+| `easyeda_run_self_test`                 | `core`  | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                                              |
+| `easyeda_schematic_add_wire`            | `core`  | `medium` | Add a wire segment connecting schematic coordinates/pins.                                                                                                                                                                                                                                                                        |
+| `easyeda_schematic_component_pins`      | `core`  | `low`    | Get exact pin numbers, names, and coordinates for a schematic component by its primitive ID.                                                                                                                                                                                                                                     |
+| `easyeda_schematic_components`          | `core`  | `low`    | List all components in the schematic with their properties including reference, value, footprint, LCSC part number, manufacturer, and datasheet.                                                                                                                                                                                 |
+| `easyeda_schematic_connect_pin_to_net`  | `core`  | `medium` | Connect a specific component pin to a named net. This creates an actual SCH_Netlist entry associating the pin with the net. If the net does not exist yet, it is created on the fly. This is the core tool for populating the real EasyEDA netlist with pin-to-net connectivity.                                                 |
+| `easyeda_schematic_connect_pins_by_net` | `core`  | `medium` | Connect multiple component pins to a named net in a single operation. All specified pins will be assigned to the same net, creating SCH_Netlist entries. If the net does not exist, it is created. This is the bulk equivalent of connect_pin_to_net.                                                                            |
+| `easyeda_schematic_create_net_flag`     | `core`  | `medium` | Create a named schematic net flag at specified coordinates. This controlled write declares real SCH_Net connectivity in the EasyEDA Pro netlist.                                                                                                                                                                                 |
+| `easyeda_schematic_create_net_port`     | `core`  | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                                                  |
+| `easyeda_schematic_delete_primitive`    | `core`  | `medium` | Delete components, wires, or other drawing objects from the schematic by their primitive UUIDs.                                                                                                                                                                                                                                  |
+| `easyeda_schematic_modify_primitive`    | `core`  | `medium` | Modify properties (value, reference, attributes, etc.) of a schematic component/object.                                                                                                                                                                                                                                          |
+| `easyeda_schematic_net_detail`          | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                                                |
+| `easyeda_schematic_nets`                | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
+| `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet.                                                                                                                                                                                                                                                                  |
+| `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords.                                                                                                                                                                                                                                                         |
+| `easyeda_schematic_sheet_info`          | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
+| `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the EasyEDA Pro schematic netlist for connectivity issues. Reports net names, connected component references and pins, floating pins, graphical wires without netlist connectivity, and mismatches between visual wires and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool.                    |
+| `easyeda_schematic_verify_write`        | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                               |
+| `easyeda_semantic_erc_validate`         | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                                           |
+| `easyeda_simulate_operating_point`      | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
+| `easyeda_simulate_transient`            | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
+| `easyeda_wire_probe`                    | `dev`   | `low`    | Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                              |
+| `easyeda_workflow_connector_breakout`   | `pro`   | `medium` | Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).                                                                                                                                   |
+| `easyeda_workflow_decouple_ic`          | `pro`   | `medium` | Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).                                                                   |
+| `easyeda_workflow_place_block`          | `pro`   | `medium` | Place a group of components, wire their pin-to-net connections (new and/or pre-existing components), and create net ports for block-external nets — all as a single atomic transaction with rollback on partial failure (confirmWrite required).                                                                                 |
+| `easyeda_workflow_power_rail`           | `pro`   | `medium` | Place a regulator and its supporting passives and wire them to input/output/ground nets in a single atomic transaction, instead of one primitive call per component. Caller supplies already-resolved device items and pin connections; this tool does not select parts (confirmWrite required).                                 |
 
 ---
 
@@ -85,11 +95,11 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `path`         | `any` | Yes      |             |
-| `args`         | `any` | Yes      |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type      | Required | Description |
+| -------------- | --------- | -------- | ----------- |
+| `path`         | `string`  | Yes      |             |
+| `args`         | `any[]`   | Yes      |             |
+| `confirmWrite` | `boolean` | Yes      |             |
 
 ### Output Format
 
@@ -97,12 +107,12 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  ok: any;
-  path: any;
-  resolvedPath: any;
-  result: any;
-  error: any;
-  requires_confirmation: any;
+  ok: boolean;
+  path: string;
+  resolvedPath: string(optional);
+  result: any(optional);
+  error: string(optional);
+  requires_confirmation: boolean(optional);
 }
 ```
 
@@ -116,9 +126,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type  | Required | Description |
-| --------- | ----- | -------- | ----------- |
-| `filter`  | `any` | No       |             |
+| Parameter | Type                | Required | Description |
+| --------- | ------------------- | -------- | ----------- |
+| `filter`  | `string (optional)` | No       |             |
 
 ### Output Format
 
@@ -126,10 +136,10 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  classes: any;
-  total: any;
-  not_available: any;
-  error: any;
+  classes: object[];
+  total: number;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -143,9 +153,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
 
 ### Output Format
 
@@ -153,13 +163,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  width_mm: any;
-  height_mm: any;
-  shape: any;
-  mounting_hole_count: any;
-  area_mm2: any;
-  not_available: any;
+  project_id: string;
+  width_mm: number(optional);
+  height_mm: number(optional);
+  shape: string(optional);
+  mounting_hole_count: number;
+  area_mm2: number(optional);
+  not_available: boolean(optional);
 }
 ```
 
@@ -173,9 +183,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
 
 ### Output Format
 
@@ -183,13 +193,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  vias: any;
-  tracks: any;
-  zones: any;
-  pads: any;
-  components: any;
-  not_available: any;
+  project_id: string;
+  vias: number;
+  tracks: number;
+  zones: number;
+  pads: number;
+  components: number(optional);
+  not_available: boolean(optional);
 }
 ```
 
@@ -203,9 +213,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
 
 ### Output Format
 
@@ -213,10 +223,10 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  layers: any;
-  total: any;
-  not_available: any;
+  project_id: string;
+  layers: object[];
+  total: number;
+  not_available: boolean (optional);
 }
 ```
 
@@ -230,9 +240,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
 
 ### Output Format
 
@@ -240,11 +250,11 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  total_layers: any;
-  board_thickness_mm: any;
-  layers: any;
-  not_available: any;
+  project_id: string;
+  total_layers: number;
+  board_thickness_mm: number (optional);
+  layers: object[];
+  not_available: boolean (optional);
 }
 ```
 
@@ -258,11 +268,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `format`    | `any` | Yes      |             |
-| `filePath`  | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `format`    | `'csv'   | 'json'   | 'xlsx'`     | Yes |     |
+| `filePath`  | `string` | Yes      |             |
 
 ### Output Format
 
@@ -270,12 +280,12 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  format: any;
-  file_path: any;
-  exported: any;
-  entry_count: any;
-  not_available: any;
+  project_id: string;
+  format: string;
+  file_path: string;
+  exported: boolean;
+  entry_count: number(optional);
+  not_available: boolean(optional);
 }
 ```
 
@@ -289,11 +299,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `format`    | `any` | Yes      |             |
-| `groupBy`   | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description  |
+| ----------- | -------- | -------- | ------------ |
+| `projectId` | `string` | Yes      |              |
+| `format`    | `'csv'   | 'json'   | 'xlsx'`      | Yes |     |
+| `groupBy`   | `'value' | 'lcsc'   | 'footprint'` | Yes |     |
 
 ### Output Format
 
@@ -301,12 +311,12 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  format: any;
-  group_by: any;
-  entries: any;
-  total_entries: any;
-  not_available: any;
+  project_id: string;
+  format: string;
+  group_by: string;
+  entries: object[];
+  total_entries: number;
+  not_available: boolean (optional);
 }
 ```
 
@@ -320,14 +330,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                   | Type  | Required | Description |
-| --------------------------- | ----- | -------- | ----------- |
-| `projectId`                 | `any` | Yes      |             |
-| `low_stock_threshold`       | `any` | No       |             |
-| `require_mpn`               | `any` | No       |             |
-| `require_footprint`         | `any` | No       |             |
-| `stale_vendor_data_seconds` | `any` | No       |             |
-| `minimum_quality_score`     | `any` | No       |             |
+| Parameter                   | Type                 | Required | Description |
+| --------------------------- | -------------------- | -------- | ----------- |
+| `projectId`                 | `string`             | Yes      |             |
+| `low_stock_threshold`       | `number (optional)`  | No       |             |
+| `require_mpn`               | `boolean (optional)` | No       |             |
+| `require_footprint`         | `boolean (optional)` | No       |             |
+| `stale_vendor_data_seconds` | `number (optional)`  | No       |             |
+| `minimum_quality_score`     | `number (optional)`  | No       |             |
 
 ### Output Format
 
@@ -335,13 +345,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  bom_id: any;
-  generated_at: any;
-  total_entries: any;
-  summary: any;
-  entries: any;
-  has_supplier_errors: any;
-  not_available: any;
+  bom_id: string;
+  generated_at: string;
+  total_entries: number;
+  summary: object;
+  entries: object[];
+  has_supplier_errors: boolean;
+  not_available: boolean (optional);
 }
 ```
 
@@ -355,10 +365,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `suppliers` | `any` | No       |             |
+| Parameter   | Type                  | Required | Description |
+| ----------- | --------------------- | -------- | ----------- |
+| `projectId` | `string`              | Yes      |             |
+| `suppliers` | `string[] (optional)` | No       |             |
 
 ### Output Format
 
@@ -366,11 +376,11 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  parts: any;
-  total_parts: any;
-  keyless_sourcing_enabled: any;
-  not_available: any;
+  project_id: string;
+  parts: object[];
+  total_parts: number;
+  keyless_sourcing_enabled: boolean (optional);
+  not_available: boolean (optional);
 }
 ```
 
@@ -384,9 +394,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
 
 ### Output Format
 
@@ -394,14 +404,14 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  total_parts: any;
-  missing_lcsc: any;
-  invalid_lcsc: any;
-  obsolete: any;
-  valid_count: any;
-  validated: any;
-  not_available: any;
+  project_id: string;
+  total_parts: number;
+  missing_lcsc: string[];
+  invalid_lcsc: string[];
+  obsolete: string[];
+  valid_count: number;
+  validated: boolean;
+  not_available: boolean (optional);
 }
 ```
 
@@ -415,9 +425,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type  | Required | Description |
-| --------- | ----- | -------- | ----------- |
-| `filter`  | `any` | No       |             |
+| Parameter | Type                | Required | Description |
+| --------- | ------------------- | -------- | ----------- |
+| `filter`  | `string (optional)` | No       |             |
 
 ### Output Format
 
@@ -425,8 +435,8 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  methods: any;
-  total: any;
+  methods: object[];
+  total: number;
 }
 ```
 
@@ -448,15 +458,15 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  connected: any;
-  bridge_version: any;
-  easyeda_version: any;
-  capabilities: any;
-  dev_mode: any;
-  last_heartbeat_ms: any;
-  uptime_ms: any;
-  status_error: any;
-  diagnostics: any;
+  connected: boolean;
+  bridge_version: string (optional);
+  easyeda_version: string (optional);
+  capabilities: string[] (optional);
+  dev_mode: boolean (optional);
+  last_heartbeat_ms: number (optional);
+  uptime_ms: number (optional);
+  status_error: string (optional);
+  diagnostics: object (optional);
 }
 ```
 
@@ -470,9 +480,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type  | Required | Description |
-| --------- | ----- | -------- | ----------- |
-| `tabId`   | `any` | No       |             |
+| Parameter | Type                | Required | Description |
+| --------- | ------------------- | -------- | ----------- |
+| `tabId`   | `string (optional)` | No       |             |
 
 ### Output Format
 
@@ -480,13 +490,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  captured: any;
-  mime_type: any;
-  file_name: any;
-  byte_length: any;
-  image_base64: any;
-  not_available: any;
-  error: any;
+  captured: boolean;
+  mime_type: string(optional);
+  file_name: string(optional);
+  byte_length: number(optional);
+  image_base64: string(optional);
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -500,13 +510,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type  | Required | Description |
-| --------- | ----- | -------- | ----------- |
-| `left`    | `any` | Yes      |             |
-| `right`   | `any` | Yes      |             |
-| `top`     | `any` | Yes      |             |
-| `bottom`  | `any` | Yes      |             |
-| `tabId`   | `any` | No       |             |
+| Parameter | Type                | Required | Description |
+| --------- | ------------------- | -------- | ----------- |
+| `left`    | `number`            | Yes      |             |
+| `right`   | `number`            | Yes      |             |
+| `top`     | `number`            | Yes      |             |
+| `bottom`  | `number`            | Yes      |             |
+| `tabId`   | `string (optional)` | No       |             |
 
 ### Output Format
 
@@ -514,13 +524,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  captured: any;
-  mime_type: any;
-  file_name: any;
-  byte_length: any;
-  image_base64: any;
-  not_available: any;
-  error: any;
+  captured: boolean;
+  mime_type: string(optional);
+  file_name: string(optional);
+  byte_length: number(optional);
+  image_base64: string(optional);
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -534,12 +544,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter    | Type  | Required | Description |
-| ------------ | ----- | -------- | ----------- |
-| `x`          | `any` | No       |             |
-| `y`          | `any` | No       |             |
-| `scaleRatio` | `any` | No       |             |
-| `tabId`      | `any` | No       |             |
+| Parameter    | Type                | Required | Description |
+| ------------ | ------------------- | -------- | ----------- |
+| `x`          | `number (optional)` | No       |             |
+| `y`          | `number (optional)` | No       |             |
+| `scaleRatio` | `number (optional)` | No       |             |
+| `tabId`      | `string (optional)` | No       |             |
 
 ### Output Format
 
@@ -547,13 +557,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  located: any;
-  left: any;
-  right: any;
-  top: any;
-  bottom: any;
-  not_available: any;
-  error: any;
+  located: boolean;
+  left: number(optional);
+  right: number(optional);
+  top: number(optional);
+  bottom: number(optional);
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -567,9 +577,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type  | Required | Description |
-| --------- | ----- | -------- | ----------- |
-| `status`  | `any` | No       |             |
+| Parameter | Type        | Required  | Description              |
+| --------- | ----------- | --------- | ------------------------ |
+| `status`  | `'resolved' | 'partial' | 'unresolved' (optional)` | No  |     |
 
 ### Output Format
 
@@ -577,10 +587,10 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  devices: any;
-  total: any;
-  not_available: any;
-  error: any;
+  devices: object[];
+  total: number;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -594,10 +604,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `lcscId`       | `any` | Yes      |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type      | Required | Description |
+| -------------- | --------- | -------- | ----------- |
+| `lcscId`       | `string`  | Yes      |             |
+| `confirmWrite` | `boolean` | Yes      |             |
 
 ### Output Format
 
@@ -605,16 +615,16 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  lcsc_id: any;
-  status: any;
-  valid: any;
-  errors: any;
-  warnings: any;
-  provenance: any;
-  entry: any;
-  cached: any;
-  not_available: any;
-  error: any;
+  lcsc_id: string;
+  status: 'resolved' | 'partial' | 'unresolved';
+  valid: boolean;
+  errors: object[];
+  warnings: object[];
+  provenance: object;
+  entry: object;
+  cached: boolean;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -628,9 +638,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type  | Required | Description |
-| --------- | ----- | -------- | ----------- |
-| `limit`   | `any` | Yes      |             |
+| Parameter | Type     | Required | Description |
+| --------- | -------- | -------- | ----------- |
+| `limit`   | `number` | Yes      |             |
 
 ### Output Format
 
@@ -638,10 +648,102 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  total: any;
-  samples: any;
-  not_available: any;
-  error: any;
+  total: number;
+  samples: any[];
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_design_rules_lookup`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Look up generic engineering reference guidance: IPC-2221 trace-width/current-capacity, clearance bands, protocol routing data (USB/RS-485/I2C/SPI/UART/Ethernet), decoupling recipes and bulk capacitance sizing, and a static DFM checklist. Every result cites a source and caveat: these are estimates, not certified values.
+
+### Input Parameters
+
+This tool accepts one of several shapes, selected by the `topic` field:
+
+**When `topic` is 'trace-width':**
+
+| Parameter          | Type            | Required    | Description |
+| ------------------ | --------------- | ----------- | ----------- |
+| `topic`            | `'trace-width'` | Yes         |             |
+| `currentA`         | `number`        | Yes         |             |
+| `temperatureRiseC` | `number`        | Yes         |             |
+| `layer`            | `'external'     | 'internal'` | Yes         |     |
+| `copperWeightOz`   | `number`        | Yes         |             |
+
+**When `topic` is 'max-current':**
+
+| Parameter          | Type            | Required    | Description |
+| ------------------ | --------------- | ----------- | ----------- |
+| `topic`            | `'max-current'` | Yes         |             |
+| `traceWidthMils`   | `number`        | Yes         |             |
+| `temperatureRiseC` | `number`        | Yes         |             |
+| `layer`            | `'external'     | 'internal'` | Yes         |     |
+| `copperWeightOz`   | `number`        | Yes         |             |
+
+**When `topic` is 'clearance':**
+
+| Parameter  | Type          | Required    | Description |
+| ---------- | ------------- | ----------- | ----------- |
+| `topic`    | `'clearance'` | Yes         |             |
+| `voltageV` | `number`      | Yes         |             |
+| `location` | `'external'   | 'internal'` | Yes         |     |
+
+**When `topic` is 'protocol-routing':**
+
+| Parameter  | Type                 | Required | Description |
+| ---------- | -------------------- | -------- | ----------- |
+| `topic`    | `'protocol-routing'` | Yes      |             |
+| `protocol` | `'usb2'              | 'usb3'   | 'rs485'     | 'i2c' | 'spi' | 'uart' | 'ethernet-10-100' | 'ethernet-1000' (optional)` | No  |     |
+
+**When `topic` is 'decoupling':**
+
+| Parameter  | Type             | Required | Description |
+| ---------- | ---------------- | -------- | ----------- |
+| `topic`    | `'decoupling'`   | Yes      |             |
+| `category` | `'digital-logic' | 'mcu'    | 'analog'    | 'rf' | 'crystal-oscillator' | 'power-regulator' (optional)` | No  |     |
+
+**When `topic` is 'bulk-capacitance':**
+
+| Parameter                  | Type                 | Required | Description |
+| -------------------------- | -------------------- | -------- | ----------- |
+| `topic`                    | `'bulk-capacitance'` | Yes      |             |
+| `loadA`                    | `number`             | Yes      |             |
+| `minBulkCapacitanceUfPerA` | `number (optional)`  | No       |             |
+| `minBulkCapacitanceUf`     | `number (optional)`  | No       |             |
+
+**When `topic` is 'dfm-checklist':**
+
+| Parameter  | Type                | Required   | Description |
+| ---------- | ------------------- | ---------- | ----------- |
+| `topic`    | `'dfm-checklist'`   | Yes        |             |
+| `category` | `'clearance'        | 'drilling' | 'copper'    | 'solder-mask' | 'silkscreen' | 'panelization' | 'assembly' (optional)` | No  |     |
+| `id`       | `string (optional)` | No         |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  topic: string;
+  traceWidth: object (optional);
+  maxCurrent: object (optional);
+  clearance: object (optional);
+  protocolRouting: object (optional);
+  protocolRoutingList: object[] (optional);
+  decoupling: object (optional);
+  decouplingList: object[] (optional);
+  bulkCapacitance: object (optional);
+  dfmChecklist: object[] (optional);
+  dfmChecklistItem: object (optional);
+  error: string (optional);
 }
 ```
 
@@ -655,10 +757,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `rules`     | `any` | No       |             |
+| Parameter   | Type                  | Required | Description |
+| ----------- | --------------------- | -------- | ----------- |
+| `projectId` | `string`              | Yes      |             |
+| `rules`     | `string[] (optional)` | No       |             |
 
 ### Output Format
 
@@ -666,13 +768,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  violations: any;
-  total_violations: any;
-  error_count: any;
-  warning_count: any;
-  passed: any;
-  not_available: any;
+  project_id: string;
+  violations: object[];
+  total_violations: number;
+  error_count: number;
+  warning_count: number;
+  passed: boolean;
+  not_available: boolean (optional);
 }
 ```
 
@@ -686,10 +788,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `checks`    | `any` | No       |             |
+| Parameter   | Type                  | Required | Description |
+| ----------- | --------------------- | -------- | ----------- |
+| `projectId` | `string`              | Yes      |             |
+| `checks`    | `string[] (optional)` | No       |             |
 
 ### Output Format
 
@@ -697,13 +799,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  violations: any;
-  total_violations: any;
-  error_count: any;
-  warning_count: any;
-  passed: any;
-  not_available: any;
+  project_id: string;
+  violations: object[];
+  total_violations: number;
+  error_count: number;
+  warning_count: number;
+  passed: boolean;
+  not_available: boolean (optional);
 }
 ```
 
@@ -717,14 +819,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter          | Type  | Required | Description |
-| ------------------ | ----- | -------- | ----------- |
-| `projectId`        | `any` | Yes      |             |
-| `filePath`         | `any` | No       |             |
-| `drillFormat`      | `any` | No       |             |
-| `excludeLayer`     | `any` | No       |             |
-| `ledPanel`         | `any` | No       |             |
-| `productionReview` | `any` | No       |             |
+| Parameter          | Type                  | Required     | Description        |
+| ------------------ | --------------------- | ------------ | ------------------ |
+| `projectId`        | `string`              | Yes          |                    |
+| `filePath`         | `string (optional)`   | No           |                    |
+| `drillFormat`      | `'excellon'           | 'millimeter' | 'inch' (optional)` | No  |     |
+| `excludeLayer`     | `string[] (optional)` | No           |                    |
+| `ledPanel`         | `boolean (optional)`  | No           |                    |
+| `productionReview` | `object (optional)`   | No           |                    |
 
 ### Output Format
 
@@ -732,15 +834,15 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  artifact_path: any;
-  byte_length: any;
-  file_count: any;
-  exported: any;
-  blocked_by_production_review: any;
-  production_review: any;
-  not_available: any;
-  error: any;
+  project_id: string;
+  artifact_path: string(optional);
+  byte_length: number(optional);
+  file_count: number(optional);
+  exported: boolean;
+  blocked_by_production_review: boolean(optional);
+  production_review: object(optional);
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -754,11 +856,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `format`    | `any` | Yes      |             |
-| `filePath`  | `any` | No       |             |
+| Parameter   | Type                | Required  | Description |
+| ----------- | ------------------- | --------- | ----------- |
+| `projectId` | `string`            | Yes       |             |
+| `format`    | `'pads'             | 'allegro' | 'altium'`   | Yes |     |
+| `filePath`  | `string (optional)` | No        |             |
 
 ### Output Format
 
@@ -766,14 +868,14 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  format: any;
-  file_path: any;
-  byte_length: any;
-  net_count: any;
-  exported: any;
-  not_available: any;
-  error: any;
+  project_id: string;
+  format: string;
+  file_path: string(optional);
+  byte_length: number(optional);
+  net_count: number(optional);
+  exported: boolean;
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -787,12 +889,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter     | Type  | Required | Description |
-| ------------- | ----- | -------- | ----------- |
-| `projectId`   | `any` | Yes      |             |
-| `scope`       | `any` | Yes      |             |
-| `orientation` | `any` | Yes      |             |
-| `filePath`    | `any` | No       |             |
+| Parameter     | Type                | Required     | Description |
+| ------------- | ------------------- | ------------ | ----------- |
+| `projectId`   | `string`            | Yes          |             |
+| `scope`       | `'schematic'        | 'board'      | 'both'`     | Yes |     |
+| `orientation` | `'portrait'         | 'landscape'` | Yes         |     |
+| `filePath`    | `string (optional)` | No           |             |
 
 ### Output Format
 
@@ -800,15 +902,15 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  scope: any;
-  orientation: any;
-  file_path: any;
-  byte_length: any;
-  pages: any;
-  exported: any;
-  not_available: any;
-  error: any;
+  project_id: string;
+  scope: string;
+  orientation: string;
+  file_path: string(optional);
+  byte_length: number(optional);
+  pages: number(optional);
+  exported: boolean;
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -822,11 +924,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `format`    | `any` | Yes      |             |
-| `filePath`  | `any` | No       |             |
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `projectId` | `string`            | Yes      |             |
+| `format`    | `'csv'              | 'txt'`   | Yes         |     |
+| `filePath`  | `string (optional)` | No       |             |
 
 ### Output Format
 
@@ -834,14 +936,14 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  format: any;
-  file_path: any;
-  byte_length: any;
-  component_count: any;
-  exported: any;
-  not_available: any;
-  error: any;
+  project_id: string;
+  format: string;
+  file_path: string(optional);
+  byte_length: number(optional);
+  component_count: number(optional);
+  exported: boolean;
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -863,13 +965,13 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  server_name: any;
-  server_version: any;
-  protocol_version: any;
-  profiles: any;
-  current_profile: any;
-  feature_flags: any;
-  transports: any;
+  server_name: string;
+  server_version: string;
+  protocol_version: string;
+  profiles: object[];
+  current_profile: string;
+  feature_flags: Record<string, boolean>;
+  transports: string[];
 }
 ```
 
@@ -891,7 +993,7 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  flags: any;
+  flags: Record<string, boolean>;
 }
 ```
 
@@ -905,9 +1007,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type  | Required | Description |
-| --------------- | ----- | -------- | ----------- |
-| `include_flags` | `any` | Yes      |             |
+| Parameter       | Type      | Required | Description |
+| --------------- | --------- | -------- | ----------- |
+| `include_flags` | `boolean` | Yes      |             |
 
 ### Output Format
 
@@ -915,14 +1017,14 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  node_env: any;
-  log_level: any;
-  profile: any;
-  transport: any;
-  bridge_host: any;
-  bridge_port: any;
-  mcp_protocol_version: any;
-  flags: any;
+  node_env: string;
+  log_level: string;
+  profile: string;
+  transport: string;
+  bridge_host: string;
+  bridge_port: number;
+  mcp_protocol_version: string;
+  flags: Record<string, boolean>(optional);
 }
 ```
 
@@ -944,8 +1046,8 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  current: any;
-  profiles: any;
+  current: string;
+  profiles: object[];
 }
 ```
 
@@ -967,18 +1069,18 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  status: any;
-  version: any;
-  node_version: any;
-  profile: any;
-  transport: any;
-  bridge_connected: any;
-  easyeda_version: any;
-  extension_version: any;
-  extension_version_mismatch: any;
-  keyless_sourcing_enabled: any;
-  catalog_device_count: any;
-  ups: any;
+  status: 'ok' | 'degraded' | 'unavailable';
+  version: string;
+  node_version: string;
+  profile: string;
+  transport: string;
+  bridge_connected: boolean;
+  easyeda_version: string(optional);
+  extension_version: string(optional);
+  extension_version_mismatch: boolean;
+  keyless_sourcing_enabled: boolean;
+  catalog_device_count: number;
+  ups: number;
 }
 ```
 
@@ -992,19 +1094,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                | Type  | Required | Description |
-| ------------------------ | ----- | -------- | ----------- |
-| `provider`               | `any` | Yes      |             |
-| `action`                 | `any` | Yes      |             |
-| `projectId`              | `any` | No       |             |
-| `board`                  | `any` | Yes      |             |
-| `quote`                  | `any` | No       |             |
-| `confirmation`           | `any` | No       |             |
-| `vendorTermsReviewed`    | `any` | No       |             |
-| `productionFilesReady`   | `any` | No       |             |
-| `exportManifestVerified` | `any` | No       |             |
-| `productionReviewPassed` | `any` | No       |             |
-| `allowedPaidOperations`  | `any` | No       |             |
+| Parameter                | Type                 | Required       | Description    |
+| ------------------------ | -------------------- | -------------- | -------------- |
+| `provider`               | `'jlcpcb'            | 'custom'`      | Yes            |     |
+| `action`                 | `'estimate'          | 'verify_quote' | 'place_order'` | Yes |     |
+| `projectId`              | `string (optional)`  | No             |                |
+| `board`                  | `object`             | Yes            |                |
+| `quote`                  | `object (optional)`  | No             |                |
+| `confirmation`           | `object (optional)`  | No             |                |
+| `vendorTermsReviewed`    | `boolean (optional)` | No             |                |
+| `productionFilesReady`   | `boolean (optional)` | No             |                |
+| `exportManifestVerified` | `boolean (optional)` | No             |                |
+| `productionReviewPassed` | `boolean (optional)` | No             |                |
+| `allowedPaidOperations`  | `boolean (optional)` | No             |                |
 
 ### Output Format
 
@@ -1012,17 +1114,17 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  provider: any;
-  action: any;
-  project_id: any;
-  status: any;
-  allowed: any;
-  quote: any;
-  risk: any;
-  issues: any;
-  audit: any;
-  summary: any;
-  unsupported_operations: any;
+  provider: string;
+  action: string;
+  project_id: string;
+  status: string;
+  allowed: boolean;
+  quote: object;
+  risk: object;
+  issues: object[];
+  audit: object;
+  summary: string;
+  unsupported_operations: string[];
 }
 ```
 
@@ -1036,12 +1138,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter    | Type  | Required | Description |
-| ------------ | ----- | -------- | ----------- |
-| `projectId`  | `any` | Yes      |             |
-| `limit`      | `any` | Yes      |             |
-| `includeRaw` | `any` | Yes      |             |
-| `timeoutMs`  | `any` | Yes      |             |
+| Parameter    | Type      | Required | Description |
+| ------------ | --------- | -------- | ----------- |
+| `projectId`  | `string`  | Yes      |             |
+| `limit`      | `number`  | Yes      |             |
+| `includeRaw` | `boolean` | Yes      |             |
+| `timeoutMs`  | `number`  | Yes      |             |
 
 ### Output Format
 
@@ -1049,12 +1151,12 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  ok: any;
-  project_id: any;
-  generated_at: any;
-  checks: any;
-  summary: any;
-  raw: any;
+  ok: boolean;
+  project_id: string;
+  generated_at: string;
+  checks: object[];
+  summary: object;
+  raw: object (optional);
 }
 ```
 
@@ -1068,9 +1170,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter             | Type  | Required | Description |
-| --------------------- | ----- | -------- | ----------- |
-| `includeRecentEvents` | `any` | Yes      |             |
+| Parameter             | Type      | Required | Description |
+| --------------------- | --------- | -------- | ----------- |
+| `includeRecentEvents` | `boolean` | Yes      |             |
 
 ### Output Format
 
@@ -1078,12 +1180,12 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  generated_at: any;
-  server_version: any;
-  budgets: any;
-  metrics: any;
-  retention: any;
-  timeout_policy: any;
+  generated_at: string;
+  server_version: string;
+  budgets: object[];
+  metrics: object;
+  retention: object;
+  timeout_policy: object;
 }
 ```
 
@@ -1097,13 +1199,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `points`       | `any` | Yes      |             |
-| `layer`        | `any` | Yes      |             |
-| `width`        | `any` | Yes      |             |
-| `netName`      | `any` | No       |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type                | Required | Description |
+| -------------- | ------------------- | -------- | ----------- |
+| `points`       | `object[]`          | Yes      |             |
+| `layer`        | `number`            | Yes      |             |
+| `width`        | `number`            | Yes      |             |
+| `netName`      | `string (optional)` | No       |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
 
 ### Output Format
 
@@ -1111,9 +1213,9 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  primitiveId: any;
-  error: any;
+  success: boolean;
+  primitiveId: string(optional);
+  error: string(optional);
 }
 ```
 
@@ -1127,14 +1229,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type  | Required | Description |
-| --------------- | ----- | -------- | ----------- |
-| `x`             | `any` | Yes      |             |
-| `y`             | `any` | Yes      |             |
-| `outerDiameter` | `any` | Yes      |             |
-| `holeSize`      | `any` | Yes      |             |
-| `netName`       | `any` | No       |             |
-| `confirmWrite`  | `any` | Yes      |             |
+| Parameter       | Type                | Required | Description |
+| --------------- | ------------------- | -------- | ----------- |
+| `x`             | `number`            | Yes      |             |
+| `y`             | `number`            | Yes      |             |
+| `outerDiameter` | `number`            | Yes      |             |
+| `holeSize`      | `number`            | Yes      |             |
+| `netName`       | `string (optional)` | No       |             |
+| `confirmWrite`  | `'true'`            | Yes      |             |
 
 ### Output Format
 
@@ -1142,9 +1244,9 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  primitiveId: any;
-  error: any;
+  success: boolean;
+  primitiveId: string(optional);
+  error: string(optional);
 }
 ```
 
@@ -1158,13 +1260,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `points`       | `any` | Yes      |             |
-| `layer`        | `any` | Yes      |             |
-| `netName`      | `any` | No       |             |
-| `clearance`    | `any` | No       |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type                | Required | Description |
+| -------------- | ------------------- | -------- | ----------- |
+| `points`       | `object[]`          | Yes      |             |
+| `layer`        | `number`            | Yes      |             |
+| `netName`      | `string (optional)` | No       |             |
+| `clearance`    | `number (optional)` | No       |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
 
 ### Output Format
 
@@ -1172,9 +1274,51 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  primitiveId: any;
-  error: any;
+  success: boolean;
+  primitiveId: string(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_pcb_autoroute`
+
+**Profile:** `pro` | **Risk Level:** `high`
+
+> Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).
+
+### Input Parameters
+
+| Parameter               | Type                  | Required             | Description          |
+| ----------------------- | --------------------- | -------------------- | -------------------- |
+| `projectId`             | `string`              | Yes                  |                      |
+| `routingNets`           | `'selected'           | 'selectedComponents' | string[] (optional)` | No  |     |
+| `cornerStyle`           | `'45'                 | '90' (optional)`     | No                   |     |
+| `existingPrimitiveMode` | `'keep'               | 'remove' (optional)` | No                   |     |
+| `optimization`          | `'completion'         | 'faster' (optional)` | No                   |     |
+| `layers`                | `number[] (optional)` | No                   |                      |
+| `ignoreNets`            | `string[] (optional)` | No                   |                      |
+| `boardData`             | `object (optional)`   | No                   |                      |
+| `confirmWrite`          | `boolean (optional)`  | No                   |                      |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  overall_verdict: 'success' | 'partial' | 'blocked' | 'failed';
+  blocked_by_preflight: boolean;
+  preflight: object(optional);
+  autoroute_result: object(optional);
+  post_route_drc: object(optional);
+  post_route_constraint_report: object(optional);
+  summary: string;
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -1188,10 +1332,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `boardData` | `any` | No       |             |
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `projectId` | `string`            | Yes      |             |
+| `boardData` | `object (optional)` | No       |             |
 
 ### Output Format
 
@@ -1199,12 +1343,12 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  valid: any;
-  errors: any;
-  warnings: any;
-  summary: any;
-  not_available: any;
+  project_id: string;
+  valid: boolean;
+  errors: object[];
+  warnings: object[];
+  summary: object;
+  not_available: boolean (optional);
 }
 ```
 
@@ -1218,10 +1362,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `boardData` | `any` | No       |             |
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `projectId` | `string`            | Yes      |             |
+| `boardData` | `object (optional)` | No       |             |
 
 ### Output Format
 
@@ -1229,11 +1373,11 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  verdict: any;
-  checked: any;
-  manualReviewRequired: any;
-  not_available: any;
+  project_id: string;
+  verdict: string;
+  checked: object[];
+  manualReviewRequired: object[];
+  not_available: boolean (optional);
 }
 ```
 
@@ -1247,10 +1391,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `primitiveIds` | `any` | Yes      |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type       | Required | Description |
+| -------------- | ---------- | -------- | ----------- |
+| `primitiveIds` | `string[]` | Yes      |             |
+| `confirmWrite` | `'true'`   | Yes      |             |
 
 ### Output Format
 
@@ -1258,9 +1402,91 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  deletedCount: any;
-  error: any;
+  success: boolean;
+  deletedCount: number(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_pcb_export_route_context`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.
+
+### Input Parameters
+
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `projectId` | `string`            | Yes      |             |
+| `filePath`  | `string (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  artifact_path: string(optional);
+  byte_length: number(optional);
+  exported: boolean;
+  not_available: boolean(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_pcb_floorplan`
+
+**Profile:** `full` | **Risk Level:** `high`
+
+> Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).
+
+### Input Parameters
+
+| Parameter                          | Type                 | Required | Description |
+| ---------------------------------- | -------------------- | -------- | ----------- |
+| `circuitIR`                        | `any`                | Yes      |             |
+| `devices`                          | `object[]`           | Yes      |             |
+| `projectId`                        | `string (optional)`  | No       |             |
+| `mode`                             | `'preview'           | 'apply'` | Yes         |                     |
+| `board`                            | `object`             | Yes      |             |
+| `anchor`                           | `object`             | Yes      |             |
+| `columns`                          | `number (optional)`  | No       |             |
+| `spacingMm`                        | `number (optional)`  | No       |             |
+| `minSpacingMm`                     | `number (optional)`  | No       |             |
+| `topLayer`                         | `number (optional)`  | No       |             |
+| `bottomLayer`                      | `number (optional)`  | No       |             |
+| `connectorEdge`                    | `'top'               | 'bottom' | 'left'      | 'right' (optional)` | No  |     |
+| `connectorEdgeMarginMm`            | `number (optional)`  | No       |             |
+| `thermalSpacingBoostMm`            | `number (optional)`  | No       |             |
+| `thermalDissipationThresholdWatts` | `number (optional)`  | No       |             |
+| `confirmWrite`                     | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  floorplan_notes: string[];
+  summary: string;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -1274,11 +1500,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `primitiveId`  | `any` | Yes      |             |
-| `property`     | `any` | Yes      |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type                  | Required | Description |
+| -------------- | --------------------- | -------- | ----------- |
+| `primitiveId`  | `string`              | Yes      |             |
+| `property`     | `Record<string, any>` | Yes      |             |
+| `confirmWrite` | `'true'`              | Yes      |             |
 
 ### Output Format
 
@@ -1286,8 +1512,8 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  error: any;
+  success: boolean;
+  error: string(optional);
 }
 ```
 
@@ -1301,14 +1527,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `footprint`    | `any` | Yes      |             |
-| `x`            | `any` | Yes      |             |
-| `y`            | `any` | Yes      |             |
-| `rotation`     | `any` | Yes      |             |
-| `layer`        | `any` | Yes      |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type     | Required | Description |
+| -------------- | -------- | -------- | ----------- |
+| `footprint`    | `string` | Yes      |             |
+| `x`            | `number` | Yes      |             |
+| `y`            | `number` | Yes      |             |
+| `rotation`     | `number` | Yes      |             |
+| `layer`        | `number` | Yes      |             |
+| `confirmWrite` | `'true'` | Yes      |             |
 
 ### Output Format
 
@@ -1316,9 +1542,9 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  primitiveId: any;
-  error: any;
+  success: boolean;
+  primitiveId: string(optional);
+  error: string(optional);
 }
 ```
 
@@ -1332,19 +1558,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `projectId`    | `any` | No       |             |
-| `mode`         | `any` | Yes      |             |
-| `board`        | `any` | Yes      |             |
-| `anchor`       | `any` | Yes      |             |
-| `columns`      | `any` | No       |             |
-| `spacingMm`    | `any` | No       |             |
-| `layer`        | `any` | Yes      |             |
-| `minSpacingMm` | `any` | No       |             |
-| `components`   | `any` | Yes      |             |
-| `keepouts`     | `any` | No       |             |
-| `confirmWrite` | `any` | No       |             |
+| Parameter      | Type                  | Required | Description |
+| -------------- | --------------------- | -------- | ----------- |
+| `projectId`    | `string (optional)`   | No       |             |
+| `mode`         | `'preview'            | 'apply'` | Yes         |     |
+| `board`        | `object`              | Yes      |             |
+| `anchor`       | `object`              | Yes      |             |
+| `columns`      | `number (optional)`   | No       |             |
+| `spacingMm`    | `number (optional)`   | No       |             |
+| `layer`        | `number`              | Yes      |             |
+| `minSpacingMm` | `number (optional)`   | No       |             |
+| `components`   | `object[]`            | Yes      |             |
+| `keepouts`     | `object[] (optional)` | No       |             |
+| `confirmWrite` | `boolean (optional)`  | No       |             |
 
 ### Output Format
 
@@ -1352,18 +1578,18 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  project_id: any;
-  transaction_id: any;
-  mode: any;
-  applied: any;
-  blocked: any;
-  placements: any;
-  operations: any;
-  apply_results: any;
-  issues: any;
-  summary: any;
-  error: any;
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  error: string (optional);
 }
 ```
 
@@ -1377,11 +1603,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `boardData` | `any` | No       |             |
-| `gateMode`  | `any` | Yes      |             |
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `projectId` | `string`            | Yes      |             |
+| `boardData` | `object (optional)` | No       |             |
+| `gateMode`  | `'warn'             | 'block'  | 'off'`      | Yes |     |
 
 ### Output Format
 
@@ -1389,15 +1615,15 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  passed: any;
-  blocked: any;
-  gate_mode: any;
-  severity_counts: any;
-  errors: any;
-  warnings: any;
-  summary: any;
-  not_available: any;
+  project_id: string;
+  passed: boolean;
+  blocked: boolean;
+  gate_mode: string;
+  severity_counts: object;
+  errors: object[];
+  warnings: object[];
+  summary: object;
+  not_available: boolean (optional);
 }
 ```
 
@@ -1411,19 +1637,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `projectId`    | `any` | No       |             |
-| `mode`         | `any` | Yes      |             |
-| `board`        | `any` | No       |             |
-| `netName`      | `any` | Yes      |             |
-| `layer`        | `any` | Yes      |             |
-| `widthMm`      | `any` | Yes      |             |
-| `waypoints`    | `any` | Yes      |             |
-| `keepouts`     | `any` | No       |             |
-| `maxLengthMm`  | `any` | No       |             |
-| `minWidthMm`   | `any` | No       |             |
-| `confirmWrite` | `any` | No       |             |
+| Parameter      | Type                  | Required | Description |
+| -------------- | --------------------- | -------- | ----------- |
+| `projectId`    | `string (optional)`   | No       |             |
+| `mode`         | `'preview'            | 'apply'` | Yes         |     |
+| `board`        | `object (optional)`   | No       |             |
+| `netName`      | `string`              | Yes      |             |
+| `layer`        | `number`              | Yes      |             |
+| `widthMm`      | `number`              | Yes      |             |
+| `waypoints`    | `object[]`            | Yes      |             |
+| `keepouts`     | `object[] (optional)` | No       |             |
+| `maxLengthMm`  | `number (optional)`   | No       |             |
+| `minWidthMm`   | `number (optional)`   | No       |             |
+| `confirmWrite` | `boolean (optional)`  | No       |             |
 
 ### Output Format
 
@@ -1431,21 +1657,21 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  project_id: any;
-  transaction_id: any;
-  mode: any;
-  applied: any;
-  blocked: any;
-  net_name: any;
-  layer: any;
-  width_mm: any;
-  path_length_mm: any;
-  operations: any;
-  apply_results: any;
-  issues: any;
-  summary: any;
-  error: any;
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  net_name: string;
+  layer: number;
+  width_mm: number;
+  path_length_mm: number;
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  error: string (optional);
 }
 ```
 
@@ -1459,16 +1685,16 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter     | Type  | Required | Description |
-| ------------- | ----- | -------- | ----------- |
-| `projectId`   | `any` | No       |             |
-| `rails`       | `any` | Yes      |             |
-| `sources`     | `any` | No       |             |
-| `regulators`  | `any` | No       |             |
-| `loads`       | `any` | No       |             |
-| `protections` | `any` | No       |             |
-| `capacitors`  | `any` | No       |             |
-| `limits`      | `any` | No       |             |
+| Parameter     | Type                  | Required | Description |
+| ------------- | --------------------- | -------- | ----------- |
+| `projectId`   | `string (optional)`   | No       |             |
+| `rails`       | `object[]`            | Yes      |             |
+| `sources`     | `object[] (optional)` | No       |             |
+| `regulators`  | `object[] (optional)` | No       |             |
+| `loads`       | `object[] (optional)` | No       |             |
+| `protections` | `object[] (optional)` | No       |             |
+| `capacitors`  | `object[] (optional)` | No       |             |
+| `limits`      | `object (optional)`   | No       |             |
 
 ### Output Format
 
@@ -1476,12 +1702,12 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  passed: any;
-  rails: any;
-  regulators: any;
-  issues: any;
-  summary: any;
+  project_id: string;
+  passed: boolean;
+  rails: object[];
+  regulators: object[];
+  issues: object[];
+  summary: object;
 }
 ```
 
@@ -1495,18 +1721,18 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                | Type  | Required | Description |
-| ------------------------ | ----- | -------- | ----------- |
-| `projectId`              | `any` | No       |             |
-| `projectName`            | `any` | No       |             |
-| `revision`               | `any` | No       |             |
-| `criticalNets`           | `any` | No       |             |
-| `components`             | `any` | No       |             |
-| `requiresProgramming`    | `any` | No       |             |
-| `programmingInterfaces`  | `any` | No       |             |
-| `hasProgrammingAccess`   | `any` | No       |             |
-| `hasBattery`             | `any` | No       |             |
-| `requiresFunctionalTest` | `any` | No       |             |
+| Parameter                | Type                  | Required | Description |
+| ------------------------ | --------------------- | -------- | ----------- |
+| `projectId`              | `string (optional)`   | No       |             |
+| `projectName`            | `string (optional)`   | No       |             |
+| `revision`               | `string (optional)`   | No       |             |
+| `criticalNets`           | `object[] (optional)` | No       |             |
+| `components`             | `object[] (optional)` | No       |             |
+| `requiresProgramming`    | `boolean (optional)`  | No       |             |
+| `programmingInterfaces`  | `string[] (optional)` | No       |             |
+| `hasProgrammingAccess`   | `boolean (optional)`  | No       |             |
+| `hasBattery`             | `boolean (optional)`  | No       |             |
+| `requiresFunctionalTest` | `boolean (optional)`  | No       |             |
 
 ### Output Format
 
@@ -1514,14 +1740,14 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  project_name: any;
-  revision: any;
-  passed: any;
-  issues: any;
-  checklist: any;
-  artifacts: any;
-  summary: any;
+  project_id: string;
+  project_name: string (optional);
+  revision: string (optional);
+  passed: boolean;
+  issues: object[];
+  checklist: object[];
+  artifacts: object[];
+  summary: object;
 }
 ```
 
@@ -1535,10 +1761,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description                      |
-| -------------- | ----- | -------- | -------------------------------- |
-| `projectId`    | `any` | Yes      | The project/schematic ID to save |
-| `confirmWrite` | `any` | Yes      |                                  |
+| Parameter      | Type     | Required | Description                      |
+| -------------- | -------- | -------- | -------------------------------- |
+| `projectId`    | `string` | Yes      | The project/schematic ID to save |
+| `confirmWrite` | `'true'` | Yes      |                                  |
 
 ### Output Format
 
@@ -1546,10 +1772,10 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  project_id: any;
-  saved_at: any;
-  error: any;
+  success: boolean;
+  project_id: string;
+  saved_at: string(optional);
+  error: string(optional);
 }
 ```
 
@@ -1563,9 +1789,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
 
 ### Output Format
 
@@ -1573,11 +1799,11 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  drc: any;
-  erc: any;
-  overall_passed: any;
-  not_available: any;
+  project_id: string;
+  drc: object;
+  erc: object;
+  overall_passed: boolean;
+  not_available: boolean(optional);
 }
 ```
 
@@ -1599,8 +1825,8 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  passed: any;
-  checks: any;
+  passed: boolean;
+  checks: object[];
 }
 ```
 
@@ -1614,14 +1840,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `points`       | `any` | Yes      |             |
-| `netName`      | `any` | No       |             |
-| `color`        | `any` | No       |             |
-| `lineWidth`    | `any` | No       |             |
-| `lineType`     | `any` | No       |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type                | Required | Description |
+| -------------- | ------------------- | -------- | ----------- |
+| `points`       | `object[]`          | Yes      |             |
+| `netName`      | `string (optional)` | No       |             |
+| `color`        | `string (optional)` | No       |             |
+| `lineWidth`    | `number (optional)` | No       |             |
+| `lineType`     | `string (optional)` | No       |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
 
 ### Output Format
 
@@ -1629,9 +1855,9 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  wire: any;
-  error: any;
+  success: boolean;
+  wire: any(optional);
+  error: string(optional);
 }
 ```
 
@@ -1645,9 +1871,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter     | Type  | Required | Description |
-| ------------- | ----- | -------- | ----------- |
-| `primitiveId` | `any` | Yes      |             |
+| Parameter     | Type     | Required | Description |
+| ------------- | -------- | -------- | ----------- |
+| `primitiveId` | `string` | Yes      |             |
 
 ### Output Format
 
@@ -1655,10 +1881,10 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  primitiveId: any;
-  pins: any;
-  success: any;
-  error: any;
+  primitiveId: string;
+  pins: object[];
+  success: boolean;
+  error: string (optional);
 }
 ```
 
@@ -1672,11 +1898,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `limit`     | `any` | Yes      |             |
-| `offset`    | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `limit`     | `number` | Yes      |             |
+| `offset`    | `number` | Yes      |             |
 
 ### Output Format
 
@@ -1684,11 +1910,11 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  components: any;
-  total: any;
-  not_available: any;
-  error: any;
+  project_id: string;
+  components: object[];
+  total: number;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -1702,13 +1928,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description                                                          |
-| -------------- | ----- | -------- | -------------------------------------------------------------------- |
-| `projectId`    | `any` | Yes      | The project/schematic ID                                             |
-| `primitiveId`  | `any` | Yes      | The primitive ID of the component                                    |
-| `pinNumber`    | `any` | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND") |
-| `netName`      | `any` | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)            |
-| `confirmWrite` | `any` | Yes      |                                                                      |
+| Parameter      | Type     | Required | Description                                                          |
+| -------------- | -------- | -------- | -------------------------------------------------------------------- |
+| `projectId`    | `string` | Yes      | The project/schematic ID                                             |
+| `primitiveId`  | `string` | Yes      | The primitive ID of the component                                    |
+| `pinNumber`    | `string` | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND") |
+| `netName`      | `string` | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)            |
+| `confirmWrite` | `'true'` | Yes      |                                                                      |
 
 ### Output Format
 
@@ -1716,9 +1942,9 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  connection: any;
-  error: any;
+  success: boolean;
+  connection: object(optional);
+  error: string(optional);
 }
 ```
 
@@ -1732,12 +1958,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description                                  |
-| -------------- | ----- | -------- | -------------------------------------------- |
-| `projectId`    | `any` | Yes      | The project/schematic ID                     |
-| `netName`      | `any` | Yes      | The net name to assign pins to               |
-| `pins`         | `any` | Yes      | List of component pins to connect to the net |
-| `confirmWrite` | `any` | Yes      |                                              |
+| Parameter      | Type       | Required | Description                                  |
+| -------------- | ---------- | -------- | -------------------------------------------- |
+| `projectId`    | `string`   | Yes      | The project/schematic ID                     |
+| `netName`      | `string`   | Yes      | The net name to assign pins to               |
+| `pins`         | `object[]` | Yes      | List of component pins to connect to the net |
+| `confirmWrite` | `'true'`   | Yes      |                                              |
 
 ### Output Format
 
@@ -1745,10 +1971,10 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  connections: any;
-  count: any;
-  error: any;
+  success: boolean;
+  connections: object[] (optional);
+  count: number;
+  error: string (optional);
 }
 ```
 
@@ -1762,15 +1988,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type  | Required | Description                                                                                                                                           |
-| ---------------- | ----- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `projectId`      | `any` | Yes      | The project/schematic ID                                                                                                                              |
-| `netName`        | `any` | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET)                                                                                                      |
-| `x`              | `any` | Yes      | X coordinate on the schematic canvas                                                                                                                  |
-| `y`              | `any` | Yes      | Y coordinate on the schematic canvas                                                                                                                  |
-| `rotation`       | `any` | No       | Rotation in degrees (0, 90, 180, 270)                                                                                                                 |
-| `identification` | `any` | No       | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
-| `confirmWrite`   | `any` | Yes      |                                                                                                                                                       |
+| Parameter        | Type                | Required | Description                                      |
+| ---------------- | ------------------- | -------- | ------------------------------------------------ |
+| `projectId`      | `string`            | Yes      | The project/schematic ID                         |
+| `netName`        | `string`            | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET) |
+| `x`              | `number`            | Yes      | X coordinate on the schematic canvas             |
+| `y`              | `number`            | Yes      | Y coordinate on the schematic canvas             |
+| `rotation`       | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)            |
+| `identification` | `'Power'            | 'Ground' | 'AnalogGround'                                   | 'ProtectGround' (optional)` | No  | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
+| `confirmWrite`   | `'true'`            | Yes      |                                                  |
 
 ### Output Format
 
@@ -1778,9 +2004,9 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  netFlag: any;
-  error: any;
+  success: boolean;
+  netFlag: object(optional);
+  error: string(optional);
 }
 ```
 
@@ -1794,15 +2020,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description                                         |
-| -------------- | ----- | -------- | --------------------------------------------------- |
-| `projectId`    | `any` | Yes      | The project/schematic ID                            |
-| `netName`      | `any` | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS) |
-| `x`            | `any` | Yes      | X coordinate on the schematic canvas                |
-| `y`            | `any` | Yes      | Y coordinate on the schematic canvas                |
-| `portType`     | `any` | No       | Electrical type of the port                         |
-| `rotation`     | `any` | No       | Rotation in degrees (0, 90, 180, 270)               |
-| `confirmWrite` | `any` | Yes      |                                                     |
+| Parameter      | Type                | Required | Description                                         |
+| -------------- | ------------------- | -------- | --------------------------------------------------- |
+| `projectId`    | `string`            | Yes      | The project/schematic ID                            |
+| `netName`      | `string`            | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS) |
+| `x`            | `number`            | Yes      | X coordinate on the schematic canvas                |
+| `y`            | `number`            | Yes      | Y coordinate on the schematic canvas                |
+| `portType`     | `'input'            | 'output' | 'bidirectional'                                     | 'triState' | 'passive' (optional)` | No  | Electrical type of the port |
+| `rotation`     | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)               |
+| `confirmWrite` | `'true'`            | Yes      |                                                     |
 
 ### Output Format
 
@@ -1810,9 +2036,9 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  netPort: any;
-  error: any;
+  success: boolean;
+  netPort: object(optional);
+  error: string(optional);
 }
 ```
 
@@ -1826,10 +2052,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `primitiveIds` | `any` | Yes      |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type       | Required | Description |
+| -------------- | ---------- | -------- | ----------- |
+| `primitiveIds` | `string[]` | Yes      |             |
+| `confirmWrite` | `'true'`   | Yes      |             |
 
 ### Output Format
 
@@ -1837,8 +2063,8 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  error: any;
+  success: boolean;
+  error: string(optional);
 }
 ```
 
@@ -1852,11 +2078,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type  | Required | Description |
-| -------------- | ----- | -------- | ----------- |
-| `primitiveId`  | `any` | Yes      |             |
-| `property`     | `any` | Yes      |             |
-| `confirmWrite` | `any` | Yes      |             |
+| Parameter      | Type                  | Required | Description |
+| -------------- | --------------------- | -------- | ----------- |
+| `primitiveId`  | `string`              | Yes      |             |
+| `property`     | `Record<string, any>` | Yes      |             |
+| `confirmWrite` | `'true'`              | Yes      |             |
 
 ### Output Format
 
@@ -1864,9 +2090,9 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  result: any;
-  error: any;
+  success: boolean;
+  result: any(optional);
+  error: string(optional);
 }
 ```
 
@@ -1880,10 +2106,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
-| `netName`   | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `netName`   | `string` | Yes      |             |
 
 ### Output Format
 
@@ -1891,11 +2117,11 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  net_name: any;
-  node_count: any;
-  nodes: any;
-  not_available: any;
+  project_id: string;
+  net_name: string;
+  node_count: number;
+  nodes: object[];
+  not_available: boolean (optional);
 }
 ```
 
@@ -1909,9 +2135,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | Yes      |             |
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
 
 ### Output Format
 
@@ -1919,10 +2145,10 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  nets: any;
-  total: any;
-  not_available: any;
+  project_id: string;
+  nets: object[];
+  total: number;
+  not_available: boolean (optional);
 }
 ```
 
@@ -1936,21 +2162,21 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                 | Type  | Required | Description |
-| ------------------------- | ----- | -------- | ----------- |
-| `deviceItem`              | `any` | Yes      |             |
-| `x`                       | `any` | Yes      |             |
-| `y`                       | `any` | Yes      |             |
-| `subPartName`             | `any` | No       |             |
-| `rotation`                | `any` | No       |             |
-| `mirror`                  | `any` | No       |             |
-| `addIntoBom`              | `any` | No       |             |
-| `addIntoPcb`              | `any` | No       |             |
-| `dryRun`                  | `any` | No       |             |
-| `verifyAfterWrite`        | `any` | No       |             |
-| `checkPlacementCollision` | `any` | No       |             |
-| `collisionRadius`         | `any` | No       |             |
-| `confirmWrite`            | `any` | Yes      |             |
+| Parameter                 | Type                 | Required | Description |
+| ------------------------- | -------------------- | -------- | ----------- |
+| `deviceItem`              | `object`             | Yes      |             |
+| `x`                       | `number`             | Yes      |             |
+| `y`                       | `number`             | Yes      |             |
+| `subPartName`             | `string (optional)`  | No       |             |
+| `rotation`                | `number (optional)`  | No       |             |
+| `mirror`                  | `boolean (optional)` | No       |             |
+| `addIntoBom`              | `boolean (optional)` | No       |             |
+| `addIntoPcb`              | `boolean (optional)` | No       |             |
+| `dryRun`                  | `boolean (optional)` | No       |             |
+| `verifyAfterWrite`        | `boolean (optional)` | No       |             |
+| `checkPlacementCollision` | `boolean (optional)` | No       |             |
+| `collisionRadius`         | `number (optional)`  | No       |             |
+| `confirmWrite`            | `'true'`             | Yes      |             |
 
 ### Output Format
 
@@ -1958,12 +2184,12 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  success: any;
-  component: any;
-  dry_run: any;
-  placement_guard: any;
-  verification: any;
-  error: any;
+  success: boolean;
+  component: any(optional);
+  dry_run: boolean(optional);
+  placement_guard: any(optional);
+  verification: any(optional);
+  error: string(optional);
 }
 ```
 
@@ -1977,14 +2203,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type  | Required | Description |
-| ---------------- | ----- | -------- | ----------- |
-| `key`            | `any` | Yes      |             |
-| `libraryUuid`    | `any` | No       |             |
-| `classification` | `any` | No       |             |
-| `symbolType`     | `any` | No       |             |
-| `itemsOfPage`    | `any` | Yes      |             |
-| `page`           | `any` | Yes      |             |
+| Parameter        | Type                | Required             | Description |
+| ---------------- | ------------------- | -------------------- | ----------- |
+| `key`            | `string`            | Yes                  |             |
+| `libraryUuid`    | `string (optional)` | No                   |             |
+| `classification` | `string             | string[] (optional)` | No          |     |
+| `symbolType`     | `string (optional)` | No                   |             |
+| `itemsOfPage`    | `number`            | Yes                  |             |
+| `page`           | `number`            | Yes                  |             |
 
 ### Output Format
 
@@ -1992,11 +2218,11 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  devices: any;
-  total: any;
-  provider_tier: any;
-  not_available: any;
-  error: any;
+  devices: object[];
+  total: number;
+  provider_tier: 'local_library' (optional);
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -2010,9 +2236,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type  | Required | Description |
-| ----------- | ----- | -------- | ----------- |
-| `projectId` | `any` | No       |             |
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `projectId` | `string (optional)` | No       |             |
 
 ### Output Format
 
@@ -2020,15 +2246,15 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  sheet: any;
-  page_size: any;
-  frame: any;
-  origin: any;
-  grid: any;
-  raw: any;
-  not_available: any;
-  error: any;
+  project_id: string(optional);
+  sheet: any(optional);
+  page_size: object(optional);
+  frame: any(optional);
+  origin: any(optional);
+  grid: any(optional);
+  raw: any(optional);
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -2042,10 +2268,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter          | Type  | Required | Description                                                            |
-| ------------------ | ----- | -------- | ---------------------------------------------------------------------- |
-| `projectId`        | `any` | Yes      | The project/schematic ID                                               |
-| `includeWireCheck` | `any` | Yes      | When true, also check for graphical wires without netlist connectivity |
+| Parameter          | Type      | Required | Description                                                            |
+| ------------------ | --------- | -------- | ---------------------------------------------------------------------- |
+| `projectId`        | `string`  | Yes      | The project/schematic ID                                               |
+| `includeWireCheck` | `boolean` | Yes      | When true, also check for graphical wires without netlist connectivity |
 
 ### Output Format
 
@@ -2053,15 +2279,15 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  netlist: any;
-  total_nets: any;
-  floating_pins: any;
-  wires_without_netlist: any;
-  valid: any;
-  warnings: any;
-  not_available: any;
-  error: any;
+  project_id: string;
+  netlist: object[];
+  total_nets: number;
+  floating_pins: object[];
+  wires_without_netlist: object[] (optional);
+  valid: boolean;
+  warnings: string[];
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -2075,13 +2301,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                     | Type  | Required | Description |
-| ----------------------------- | ----- | -------- | ----------- |
-| `projectId`                   | `any` | No       |             |
-| `netName`                     | `any` | No       |             |
-| `beforeComponentCount`        | `any` | No       |             |
-| `expectedComponentCountDelta` | `any` | No       |             |
-| `includeWireCheck`            | `any` | No       |             |
+| Parameter                     | Type                 | Required | Description |
+| ----------------------------- | -------------------- | -------- | ----------- |
+| `projectId`                   | `string (optional)`  | No       |             |
+| `netName`                     | `string (optional)`  | No       |             |
+| `beforeComponentCount`        | `number (optional)`  | No       |             |
+| `expectedComponentCountDelta` | `number (optional)`  | No       |             |
+| `includeWireCheck`            | `boolean (optional)` | No       |             |
 
 ### Output Format
 
@@ -2089,16 +2315,16 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  net_name: any;
-  components_available: any;
-  component_count: any;
-  component_count_delta: any;
-  component_delta_matches: any;
-  netlist_available: any;
-  netlist_validation: any;
-  warnings: any;
-  error: any;
+  project_id: string (optional);
+  net_name: string (optional);
+  components_available: boolean;
+  component_count: number (optional);
+  component_count_delta: number (optional);
+  component_delta_matches: boolean (optional);
+  netlist_available: boolean;
+  netlist_validation: any (optional);
+  warnings: string[];
+  error: string (optional);
 }
 ```
 
@@ -2112,12 +2338,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter    | Type  | Required | Description |
-| ------------ | ----- | -------- | ----------- |
-| `projectId`  | `any` | No       |             |
-| `nets`       | `any` | Yes      |             |
-| `devices`    | `any` | No       |             |
-| `interfaces` | `any` | No       |             |
+| Parameter    | Type                  | Required | Description |
+| ------------ | --------------------- | -------- | ----------- |
+| `projectId`  | `string (optional)`   | No       |             |
+| `nets`       | `object[]`            | Yes      |             |
+| `devices`    | `object[] (optional)` | No       |             |
+| `interfaces` | `object[] (optional)` | No       |             |
 
 ### Output Format
 
@@ -2125,13 +2351,78 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: any;
-  passed: any;
-  error_count: any;
-  warning_count: any;
-  total_issues: any;
-  errors: any;
-  warnings: any;
+  project_id: string;
+  passed: boolean;
+  error_count: number;
+  warning_count: number;
+  total_issues: number;
+  errors: object[];
+  warnings: object[];
+}
+```
+
+---
+
+## `easyeda_simulate_operating_point`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.
+
+### Input Parameters
+
+| Parameter   | Type                  | Required | Description |
+| ----------- | --------------------- | -------- | ----------- |
+| `circuit`   | `object`              | Yes      |             |
+| `railSpecs` | `object[] (optional)` | No       |             |
+| `timeoutMs` | `number (optional)`   | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  available: boolean;
+  ngspice_version: string (optional);
+  node_voltages: Record<string, number> (optional);
+  rail_verdicts: object[] (optional);
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_simulate_transient`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.
+
+### Input Parameters
+
+| Parameter         | Type                  | Required | Description |
+| ----------------- | --------------------- | -------- | ----------- |
+| `circuit`         | `object`              | Yes      |             |
+| `stepSeconds`     | `number`              | Yes      |             |
+| `stopTimeSeconds` | `number`              | Yes      |             |
+| `railSpecs`       | `object[] (optional)` | No       |             |
+| `timeoutMs`       | `number (optional)`   | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  available: boolean;
+  ngspice_version: string (optional);
+  samples: object[] (optional);
+  truncated: boolean (optional);
+  rail_verdicts: object[] (optional);
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -2145,9 +2436,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type  | Required | Description |
-| --------- | ----- | -------- | ----------- |
-| `limit`   | `any` | Yes      |             |
+| Parameter | Type     | Required | Description |
+| --------- | -------- | -------- | ----------- |
+| `limit`   | `number` | Yes      |             |
 
 ### Output Format
 
@@ -2155,10 +2446,197 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  total: any;
-  samples: any;
-  not_available: any;
-  error: any;
+  total: number;
+  samples: any[];
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_connector_breakout`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).
+
+### Input Parameters
+
+| Parameter       | Type                 | Required | Description |
+| --------------- | -------------------- | -------- | ----------- |
+| `projectId`     | `string`             | Yes      |             |
+| `mode`          | `'preview'           | 'apply'` | Yes         |     |
+| `anchor`        | `object`             | Yes      |             |
+| `netPortAnchor` | `object (optional)`  | No       |             |
+| `connectorRef`  | `string`             | Yes      |             |
+| `connector`     | `object`             | Yes      |             |
+| `rotation`      | `number (optional)`  | No       |             |
+| `mirror`        | `boolean (optional)` | No       |             |
+| `subPartName`   | `string (optional)`  | No       |             |
+| `pins`          | `object[]`           | Yes      |             |
+| `confirmWrite`  | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_decouple_ic`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).
+
+### Input Parameters
+
+| Parameter            | Type                 | Required | Description |
+| -------------------- | -------------------- | -------- | ----------- |
+| `projectId`          | `string`             | Yes      |             |
+| `mode`               | `'preview'           | 'apply'` | Yes         |      |
+| `anchor`             | `object`             | Yes      |             |
+| `spacing`            | `number (optional)`  | No       |             |
+| `groundNetName`      | `string`             | Yes      |             |
+| `icPowerPins`        | `object[]`           | Yes      |             |
+| `capacitor`          | `object`             | Yes      |             |
+| `capacitorPins`      | `object`             | Yes      |             |
+| `decouplingCategory` | `'digital-logic'     | 'mcu'    | 'analog'    | 'rf' | 'crystal-oscillator' | 'power-regulator'` | Yes |     |
+| `confirmWrite`       | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+  decoupling_guidance: object (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_place_block`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Place a group of components, wire their pin-to-net connections (new and/or pre-existing components), and create net ports for block-external nets — all as a single atomic transaction with rollback on partial failure (confirmWrite required).
+
+### Input Parameters
+
+| Parameter            | Type                 | Required | Description |
+| -------------------- | -------------------- | -------- | ----------- |
+| `projectId`          | `string`             | Yes      |             |
+| `mode`               | `'preview'           | 'apply'` | Yes         |     |
+| `anchor`             | `object`             | Yes      |             |
+| `spacing`            | `number (optional)`  | No       |             |
+| `blockName`          | `string (optional)`  | No       |             |
+| `components`         | `object[]`           | Yes      |             |
+| `existingComponents` | `object[]`           | Yes      |             |
+| `netPorts`           | `object[]`           | Yes      |             |
+| `netPortAnchor`      | `object (optional)`  | No       |             |
+| `confirmWrite`       | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_power_rail`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Place a regulator and its supporting passives and wire them to input/output/ground nets in a single atomic transaction, instead of one primitive call per component. Caller supplies already-resolved device items and pin connections; this tool does not select parts (confirmWrite required).
+
+### Input Parameters
+
+| Parameter       | Type                 | Required | Description |
+| --------------- | -------------------- | -------- | ----------- |
+| `projectId`     | `string`             | Yes      |             |
+| `mode`          | `'preview'           | 'apply'` | Yes         |     |
+| `anchor`        | `object`             | Yes      |             |
+| `spacing`       | `number (optional)`  | No       |             |
+| `groundNetName` | `string`             | Yes      |             |
+| `inputNetName`  | `string`             | Yes      |             |
+| `outputNetName` | `string`             | Yes      |             |
+| `components`    | `object[]`           | Yes      |             |
+| `verifyRail`    | `object (optional)`  | No       |             |
+| `confirmWrite`  | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+  verification: object (optional);
 }
 ```
 

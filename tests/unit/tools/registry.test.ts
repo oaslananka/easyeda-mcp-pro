@@ -562,6 +562,9 @@ describe('ToolRegistry', () => {
           'pcb-write',
           'visual',
           'catalog',
+          'design-rules',
+          'workflows',
+          'simulation',
         ]).toContain(tool.group);
 
         // profile must be valid

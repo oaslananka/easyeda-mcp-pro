@@ -550,12 +550,12 @@ See `.env.example` for the complete list of configuration variables.
 
 ## MCP Tools
 
-The server currently registers up to 60 profile-gated tools. Tools are filtered by the active `TOOL_PROFILE`:
+The server currently registers up to 77 profile-gated tools. Tools are filtered by the active `TOOL_PROFILE`:
 
-- `core`: 42 tools
-- `pro`: 47 tools
-- `full`: 56 tools
-- `dev`: 60 tools
+- `core`: 48 tools
+- `pro`: 63 tools
+- `full`: 73 tools
+- `dev`: 77 tools
 
 `core` exposes the standard workflow tools, `pro` adds manufacturing exports, `full` adds controlled documented EasyEDA API calls, and `dev` adds runtime probes for debugging.
 

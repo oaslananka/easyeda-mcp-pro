@@ -1,6 +1,6 @@
 /** Power-tree analyzer public API. */
 
-export { analyzePowerTree } from './analysis.js';
+export { analyzePowerTree, DEFAULT_LIMITS, requiredBulkCapacitance } from './analysis.js';
 export type {
   CapacitorRole,
   PowerCapacitorInput,

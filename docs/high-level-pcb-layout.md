@@ -142,3 +142,30 @@ These tools follow the same safety policy as primitive PCB writes:
 4. Run read-only DRC/ERC, production review, and export checks after applying.
 
 The tools are intentionally conservative. When geometry is ambiguous, they prefer blocking the plan over applying potentially unsafe layout changes.
+
+## Floorplanning from CircuitIR
+
+`easyeda_pcb_floorplan` (profile `full`) translates CircuitIR physical constraints into an `easyeda_pcb_place_component_group`-compatible plan, instead of the caller having to hand-build the grid itself. CircuitIR devices carry no physical footprint dimensions, so the caller must supply a `widthMm`/`heightMm` per device alongside the CircuitIR.
+
+It reads:
+
+- **Keepouts** — `circuitIR.pcb.keepoutAreas`, approximated as axis-aligned bounding boxes (not the exact polygon).
+- **Top/bottom side** — a `physicalConstraints` entry of `type: 'placement'` with `preferredSide: 'bottom'` routes that device to a separate pass on `bottomLayer` instead of `topLayer`.
+- **Connector edges** — any device tagged with role `connector` (see `component-planning.ts`) is placed in its own pass hugging a chosen board edge (`connectorEdge`, default `bottom`) rather than the general grid.
+- **Thermal spacing** — a device at or above `thermalDissipationThresholdWatts` (or with an explicit `type: 'thermal'` constraint) boosts the minimum spacing for its whole pass by `thermalSpacingBoostMm`.
+
+Because top and bottom devices genuinely share the same board area on a real two-sided board, each pass is collision-checked independently — cross-side overlaps are not flagged. Every response's `floorplan_notes` field states this and any other simplification made for that specific plan, so nothing is silently assumed.
+
+## Autorouting
+
+`easyeda_pcb_autoroute` (profile `pro`) drives EasyEDA Pro's native autorouter — `PCB_Document.autoRouting`, reached through the existing documented `api.call` path, not a new dedicated bridge method. This is a `@beta` EasyEDA Pro API per `@jlceda/pro-api-types`, so it may not be available in every EasyEDA Pro version; a failed call is reported as `not_available: true`, never a silent success.
+
+The tool never returns success without evidence:
+
+1. **Pre-flight** — `validatePcbConstraints` runs first; any error blocks the call before the bridge is touched (`blocked_by_preflight: true`).
+2. **Autoroute** — calls `PCB_Document.autoRouting` with the requested nets/corner-style/optimization/existing-primitive-mode, translated to the exact numeric enum values EasyEDA Pro's runtime expects.
+3. **Post-route (mandatory)** — runs `design.drc` and a fresh `validatePcbConstraints` + `buildConstraintReport` pass, and folds both into `overall_verdict`: `success` only when autorouting completed _and_ DRC passed _and_ the constraint report verdict is `approved`; otherwise `partial` (needs review) or `failed`.
+
+## Vendor-neutral route-context export
+
+`easyeda_pcb_export_route_context` (profile `pro`, read-only) exports the board as a **Specctra DSN file** via `PCB_ManufactureData.getDsnFile` — an open interchange format supported by external autorouters such as FreeRouting, not an EasyEDA-specific one. This is the "no vendor lock" escape hatch: if the native autorouter isn't available or doesn't produce a good result, route externally and re-import the result through EasyEDA Pro's own SES/DSN import — this server does not perform that re-import.

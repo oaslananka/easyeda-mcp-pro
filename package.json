@@ -62,6 +62,7 @@
     "test:coverage": "vitest run --coverage",
     "test:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension test",
     "smoke:easyeda": "tsx scripts/live-easyeda-smoke.mts",
+    "smoke:ngspice": "tsx scripts/live-ngspice-smoke.mts",
     "verify:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension verify",
     "inspector": "pnpm build && npx @modelcontextprotocol/inspector node dist/index.js",
     "generate:methods": "tsx scripts/generate-method-registry.ts",

@@ -116,12 +116,61 @@ describe('registerProjectResourcesAndPrompts', () => {
       'project_netlist',
       'project_bom',
       'project_review_workflow',
+      'design_rules_reference',
+      'design_rules_dfm_checklist',
     ]);
     expect(prompts.map((prompt) => prompt.name)).toEqual([
       'review_schematic',
       'review_bom',
       'prepare_manufacturing_review',
+      'review_layout',
     ]);
+  });
+
+  it('should expose a design rules reference resource', async () => {
+    const { server, resources } = createMockServer();
+    registerProjectResourcesAndPrompts(asMcpServer(server), createMockContext());
+
+    const resource = requireResource(resources, 'design_rules_reference');
+    const result = (await resource.callback(
+      new URL('easyeda://design-rules/reference'),
+      {},
+      {},
+    )) as {
+      contents: Array<{ text: string }>;
+    };
+
+    expect(firstTextContent(result)).toContain('easyeda_design_rules_lookup');
+  });
+
+  it('should expose the static DFM checklist as a JSON resource', async () => {
+    const { server, resources } = createMockServer();
+    registerProjectResourcesAndPrompts(asMcpServer(server), createMockContext());
+
+    const resource = requireResource(resources, 'design_rules_dfm_checklist');
+    const result = (await resource.callback(
+      new URL('easyeda://design-rules/dfm-checklist'),
+      {},
+      {},
+    )) as { contents: Array<{ text: string }> };
+    const payload = JSON.parse(firstTextContent(result)) as { items: unknown[] };
+
+    expect(payload.items.length).toBeGreaterThan(5);
+  });
+
+  it('should create a review_layout prompt that references the design rules tool', () => {
+    const { server, prompts } = createMockServer();
+    registerProjectResourcesAndPrompts(asMcpServer(server), createMockContext());
+
+    const prompt = requirePrompt(prompts, 'review_layout');
+    const result = prompt.callback({ projectId: 'demo' }, {}) as {
+      messages: Array<{ content: { text: string } }>;
+    };
+
+    const [message] = result.messages;
+    if (!message) throw new Error('Missing prompt message.');
+    expect(message.content.text).toContain('easyeda_design_rules_lookup');
+    expect(message.content.text).toContain('easyeda_pcb_constraint_check');
   });
 
   it('should expose a project netlist resource through the bridge', async () => {
