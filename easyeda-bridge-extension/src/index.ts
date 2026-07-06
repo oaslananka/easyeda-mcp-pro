@@ -1237,6 +1237,40 @@ async function applyPlacedRotation(created: unknown, rotation: unknown): Promise
   return rot;
 }
 
+/**
+ * Reposition / reorient a net flag or net port. SCH_PrimitiveComponent.modify()
+ * rejects these primitives ("仅当器件类型为元件时允许使用该函数进行修改" — the
+ * convenience wrapper only accepts real parts), so mutate the primitive in place
+ * through its low-level fluent setters (setState_X/Y/Rotation/Mirror/Net + done),
+ * which are not gated by that guard. This is what lets modify_primitive move a
+ * VCC/GND flag's symbol+label away from a crowded pin. Only x/y/rotation/mirror/
+ * net are meaningful for a flag; any other field in `property` is ignored.
+ */
+async function applyNetFlagState(
+  current: unknown,
+  primitiveId: string,
+  property: Record<string, unknown>,
+): Promise<unknown> {
+  const c = current as Record<string, (arg?: unknown) => unknown>;
+  const applied: Record<string, unknown> = {};
+  const setIf = (key: string, setter: string) => {
+    const v = property[key];
+    if (v !== undefined && typeof c[setter] === 'function') {
+      c[setter](v);
+      applied[key] = v;
+    }
+  };
+  setIf('x', 'setState_X');
+  setIf('y', 'setState_Y');
+  setIf('rotation', 'setState_Rotation');
+  setIf('mirror', 'setState_Mirror');
+  setIf('net', 'setState_Net');
+  if (typeof c.done === 'function') {
+    await c.done();
+  }
+  return { primitiveId, componentType: readComponentType(current), applied };
+}
+
 async function inspectComponentsApi(limit = 5): Promise<unknown> {
   const schCompClass = readFirstPath<any>([
     'SCH_PrimitiveComponent',
@@ -1917,6 +1951,13 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           logRecoverableError(`SCH_PrimitiveComponent.get(${primitiveId}) failed`, e);
         }
         if (current) {
+          // Net flags / net ports are components too, but the modify() wrapper
+          // refuses them. Reposition them via the low-level setState path so
+          // modify_primitive can move a VCC/GND flag's label off a crowded pin.
+          const ct = readComponentType(current);
+          if (ct === 'netflag' || ct === 'netport') {
+            return applyNetFlagState(current, primitiveId, property);
+          }
           const existingOther =
             (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
           const incomingOther = property.otherProperty as Record<string, unknown> | undefined;

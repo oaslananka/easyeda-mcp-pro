@@ -345,10 +345,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_modify_primitive',
     title: 'Modify schematic primitive',
     description:
-      'Modify properties (value, reference, attributes, etc.) of a schematic component/object. ' +
-      'Only the fields you pass in `property` are changed — the current value of every other ' +
-      'field (designator, manufacturer, supplier, otherProperty, etc.) is read back first and ' +
-      'preserved, so a partial update will not wipe unrelated properties.',
+      'Modify a schematic component/object: only fields in property change; others are read back ' +
+      'and preserved, so partial updates never wipe unrelated data. Also moves net flags/ports — ' +
+      'pass x/y, rotation 0/90/180/270, or mirror to shift a VCC/GND flag label off a crowded ' +
+      'pin, keeping it over its wire.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
