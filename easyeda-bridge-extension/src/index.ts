@@ -945,7 +945,7 @@ function newBridgeError(code: string, message: string, suggestion: string, data?
   return error;
 }
 
-async function listComponentsApi(): Promise<unknown> {
+async function listComponentsApi(limit?: number, offset = 0): Promise<unknown> {
   const schCompClass = readFirstPath<any>([
     'SCH_PrimitiveComponent',
     'SCH_PrimitiveComponent3',
@@ -957,7 +957,11 @@ async function listComponentsApi(): Promise<unknown> {
     throw new Error('SCH_PrimitiveComponent class not found in EasyEDA Pro API');
   }
 
-  const comps = await schCompClass.getAll(undefined, true);
+  const allComps = (await schCompClass.getAll(undefined, true)) || [];
+  const total = allComps.length;
+  const start = Math.max(0, offset);
+  const end = typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
+  const comps = allComps.slice(start, end);
   const result: any[] = [];
 
   for (const c of comps || []) {
@@ -1018,7 +1022,7 @@ async function listComponentsApi(): Promise<unknown> {
       rotation: safeGetState(c, 'Rotation'),
     });
   }
-  return result;
+  return { total, items: result };
 }
 
 async function getSchematicSheetInfoApi(): Promise<unknown> {
@@ -1532,7 +1536,7 @@ async function getFeaturesApi(): Promise<unknown> {
 }
 
 async function generateBomApi(params: any): Promise<unknown> {
-  const comps = (await listComponentsApi()) as any[];
+  const comps = ((await listComponentsApi()) as { items: any[] }).items;
   const groupBy = params.groupBy || 'value';
   const groups = new Map<string, any>();
 
@@ -1859,7 +1863,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       return match;
     }
     case 'schematic.listComponents':
-      return listComponentsApi();
+      return listComponentsApi(
+        typeof params.limit === 'number' ? params.limit : undefined,
+        typeof params.offset === 'number' ? params.offset : 0,
+      );
     case 'schematic.getSheetInfo':
       return getSchematicSheetInfoApi();
     case 'schematic.searchDevice':
@@ -2543,7 +2550,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'bom.generate':
       return generateBomApi(params);
     case 'bom.validate': {
-      const comps = (await listComponentsApi()) as any[];
+      const comps = ((await listComponentsApi()) as { items: any[] }).items;
       return { totalParts: comps.length, missing: [], obsolete: [], alternates: [] };
     }
     case 'inventory.search':

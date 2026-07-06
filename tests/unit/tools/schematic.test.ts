@@ -612,7 +612,7 @@ describe('Schematic Tools', () => {
     it('lists components with defaults for missing fields', async () => {
       const tool = registry.get('easyeda_schematic_components');
       expect(tool).toBeDefined();
-      bridgeCall.mockResolvedValue([{ reference: 'R1', value: '10k' }]);
+      bridgeCall.mockResolvedValue({ total: 1, items: [{ reference: 'R1', value: '10k' }] });
 
       const result = await tool?.handler(context, {
         projectId: 'proj-123',

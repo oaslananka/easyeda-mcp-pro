@@ -182,8 +182,8 @@ function registerSchematicReadTools(
     },
     inputSchema: z.object({
       projectId: z.string(),
-      limit: z.number().int().min(1).max(500).default(100),
-      offset: z.number().int().min(0).default(0),
+      limit: z.coerce.number().int().min(1).max(500).default(100),
+      offset: z.coerce.number().int().min(0).default(0),
     }),
     outputSchema: z.object({
       project_id: z.string(),
@@ -222,23 +222,27 @@ function registerSchematicReadTools(
           limit,
           offset,
         });
-        const comps = result as Array<{
-          primitiveId?: string;
-          reference?: string;
-          value?: string;
-          footprint?: string;
-          lcsc?: string;
-          manufacturer?: string;
-          manufacturerId?: string;
-          datasheet?: string;
-          deviceUuid?: string;
-          deviceLibraryUuid?: string;
-          deviceName?: string;
-          symbolName?: string;
-          x?: number;
-          y?: number;
-          rotation?: number;
-        }>;
+        const { total: bridgeTotal, items } = result as {
+          total?: number;
+          items?: Array<{
+            primitiveId?: string;
+            reference?: string;
+            value?: string;
+            footprint?: string;
+            lcsc?: string;
+            manufacturer?: string;
+            manufacturerId?: string;
+            datasheet?: string;
+            deviceUuid?: string;
+            deviceLibraryUuid?: string;
+            deviceName?: string;
+            symbolName?: string;
+            x?: number;
+            y?: number;
+            rotation?: number;
+          }>;
+        };
+        const comps = items ?? [];
         return {
           project_id: projectId,
           components: (comps ?? []).map((c) => ({
@@ -258,7 +262,7 @@ function registerSchematicReadTools(
             y: c.y,
             rotation: c.rotation,
           })),
-          total: comps?.length ?? 0,
+          total: bridgeTotal ?? comps.length,
         };
       } catch (err) {
         return {
@@ -291,8 +295,8 @@ function registerSchematicReadTools(
     },
     inputSchema: z.object({
       projectId: z.string(),
-      limit: z.number().int().min(1).max(50).default(50),
-      offset: z.number().int().min(0).default(0),
+      limit: z.coerce.number().int().min(1).max(50).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
     }),
     outputSchema: z.object({
       project_id: z.string(),
