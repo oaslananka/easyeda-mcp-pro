@@ -2105,10 +2105,35 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       if (connectedRefs.size < totalRefs) {
         warnings.push(`${totalRefs - connectedRefs.size} component(s) have no net connections.`);
       }
+      // The `nets` above are INFERRED from pin properties + coordinate
+      // coincidence. A power/ground flag (or any pin) sitting exactly on
+      // another pin is reported here as connected, but EasyEDA's native ERC
+      // treats overlapping endpoints as "overlap and not connected" unless a
+      // wire actually joins them. Cross-check with the native ERC so `valid`
+      // cannot be a false positive (this is the authoritative source).
+      let nativeErc: { errorCount: number; warningCount: number; passed: boolean } | undefined;
+      try {
+        const drc = await runDrcCheck(['SCH_Drc.check']);
+        nativeErc = {
+          errorCount: drc.errorCount,
+          warningCount: drc.warningCount,
+          passed: drc.passed,
+        };
+        if (drc.errorCount > 0) {
+          warnings.push(
+            `Native ERC reports ${drc.errorCount} error(s): the inferred connectivity above may ` +
+              'include pins that overlap without a wire (not truly connected). Run erc_run or ' +
+              "check EasyEDA's DRC panel for authoritative, per-violation detail.",
+          );
+        }
+      } catch (e) {
+        logRecoverableError('validateNetlist: native ERC cross-check failed', e);
+      }
       return {
         nets,
         floatingPins,
         wiresWithoutNetlist: [],
+        nativeErc,
         warnings,
       };
     }

@@ -787,6 +787,13 @@ function registerSchematicReadTools(
           }),
         )
         .optional(),
+      native_erc: z
+        .object({
+          error_count: z.number().int().nonnegative(),
+          warning_count: z.number().int().nonnegative(),
+          passed: z.boolean(),
+        })
+        .optional(),
       valid: z.boolean(),
       warnings: z.array(z.string()),
       not_available: z.boolean().optional(),
@@ -811,8 +818,10 @@ function registerSchematicReadTools(
           }>;
           floatingPins?: Array<{ primitiveId?: string; designator?: string; pinNumber?: string }>;
           wiresWithoutNetlist?: Array<{ wireId?: string; netName?: string }>;
+          nativeErc?: { errorCount?: number; warningCount?: number; passed?: boolean };
           warnings?: string[];
         };
+        const nativeErcPassed = data.nativeErc?.passed ?? true;
         return {
           project_id: projectId,
           netlist: (data.nets ?? []).map((n) => ({
@@ -833,7 +842,17 @@ function registerSchematicReadTools(
                 netName: w.netName,
               }))
             : undefined,
-          valid: data.warnings?.length === 0,
+          native_erc: data.nativeErc
+            ? {
+                error_count: data.nativeErc.errorCount ?? 0,
+                warning_count: data.nativeErc.warningCount ?? 0,
+                passed: data.nativeErc.passed ?? false,
+              }
+            : undefined,
+          // Authoritative: only valid when the inference is clean AND EasyEDA's
+          // native ERC reports zero errors (overlapping-but-unwired pins pass
+          // the inference but fail native ERC).
+          valid: data.warnings?.length === 0 && nativeErcPassed,
           warnings: data.warnings ?? [],
         };
       } catch (err) {
