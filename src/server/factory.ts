@@ -12,6 +12,7 @@ import { loadFeatureFlags } from '../config/feature-flags.js';
 import { Storage } from '../storage/index.js';
 import { type HttpTransportInstance } from './transports/http.js';
 import { BridgeManager } from '../bridge/manager.js';
+import { CdpBridgeManager } from '../bridge/cdp-manager.js';
 import { registerBuiltinTools } from '../tools/register.js';
 import { registerProjectResourcesAndPrompts } from './resources-prompts.js';
 
@@ -29,7 +30,7 @@ export interface McpServerInstance {
   httpTransport?: HttpTransportInstance;
   context: ToolContext;
   storage?: Storage;
-  bridge: BridgeManager;
+  bridge: BridgeManager | CdpBridgeManager;
   shutdown: () => Promise<void>;
 }
 
@@ -43,6 +44,7 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
       transport: config.TRANSPORT,
       nodeVersion: process.version,
       flags: redactObject(flags),
+      bridgeMode: process.env.EASYEDA_BRIDGE === 'cdp' ? 'cdp' : 'extension',
     },
     'server initializing',
   );
@@ -62,7 +64,10 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
     },
   );
 
-  const bridge = new BridgeManager(config);
+  const bridge =
+    process.env.EASYEDA_BRIDGE === 'cdp'
+      ? new CdpBridgeManager(config)
+      : new BridgeManager(config);
   await bridge.connect();
 
   const registry = new ToolRegistry();
@@ -116,7 +121,7 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
       bridgeTimeoutMs: config.BRIDGE_TIMEOUT_MS,
       artifactDir: config.ARTIFACT_DIR,
       bridgeHost: config.BRIDGE_HOST,
-      bridgePort: config.BRIDGE_PORT,
+      bridgePort: bridge.activePort || config.BRIDGE_PORT,
       keylessSourcingEnabled: config.KEYLESS_SOURCING_ENABLED,
     },
     vendors: {
