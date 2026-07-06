@@ -88,6 +88,10 @@ export function getRequiredToolScopes(tool: ToolDefinition): string[] {
       return [tool.confirmWrite ? 'catalog:write' : 'catalog:read'];
     case 'design-rules':
       return ['design-rules:read'];
+    case 'workflows':
+      return ['schematic:write'];
+    case 'simulation':
+      return ['simulation:read'];
     default:
       return [tool.confirmWrite ? WRITE_ALL_SCOPE : READ_ALL_SCOPE];
   }

@@ -1,0 +1,234 @@
+{
+  "designIntent": {
+    "project": {
+      "name": "Constant-Current LED Driver",
+      "goal": "A small constant-current LED driver module regulating LED forward current via a sense resistor, powered from a 12V rail.",
+      "boardType": "power-supply"
+    },
+    "requirements": {
+      "functionalBlocks": [
+        {
+          "id": "fb-driver",
+          "name": "Constant-Current Driver IC",
+          "type": "power-management",
+          "purpose": "Regulates LED forward current using an external current-sense resistor"
+        },
+        {
+          "id": "fb-led",
+          "name": "LED Load",
+          "type": "other",
+          "purpose": "High-power LED load driven at a fixed forward current"
+        },
+        {
+          "id": "fb-input-filter",
+          "name": "Input Filter",
+          "type": "power-management",
+          "purpose": "Input bulk capacitance for the 12V supply"
+        }
+      ],
+      "electrical": { "vinMin": 11, "vinMax": 13, "currentMaxAmps": 1 },
+      "power": {
+        "rails": [
+          {
+            "id": "LED_CURRENT",
+            "voltage": 3,
+            "tolerance": 10,
+            "maxCurrentAmps": 0.7,
+            "description": "Regulated LED forward current loop"
+          }
+        ]
+      },
+      "mechanical": { "widthMm": 30, "heightMm": 20, "layers": 2, "mountingHoles": true },
+      "manufacturing": { "volume": "small-series", "process": "lead-free" },
+      "safety": {}
+    },
+    "assumptions": [
+      "A single high-power LED is used; the sense resistor value sets the regulated forward current"
+    ],
+    "unknowns": []
+  },
+  "ercInput": {
+    "nets": [
+      {
+        "id": "vin",
+        "name": "VIN_12V",
+        "type": "power",
+        "nodes": [
+          { "deviceRef": "J1", "pin": "VIN" },
+          { "deviceRef": "U1", "pin": "VIN" },
+          { "deviceRef": "C1", "pin": "1" }
+        ]
+      },
+      {
+        "id": "gnd",
+        "name": "GND",
+        "type": "ground",
+        "nodes": [
+          { "deviceRef": "J1", "pin": "GND" },
+          { "deviceRef": "U1", "pin": "GND" },
+          { "deviceRef": "C1", "pin": "2" },
+          { "deviceRef": "R1", "pin": "2" }
+        ]
+      },
+      {
+        "id": "led-out",
+        "name": "LED_OUT",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "U1", "pin": "OUT" },
+          { "deviceRef": "D1", "pin": "1" }
+        ]
+      },
+      {
+        "id": "led-sense",
+        "name": "LED_SENSE",
+        "type": "signal",
+        "nodes": [
+          { "deviceRef": "D1", "pin": "2" },
+          { "deviceRef": "R1", "pin": "1" },
+          { "deviceRef": "U1", "pin": "ISENSE" }
+        ]
+      }
+    ],
+    "devices": [
+      {
+        "id": "J1",
+        "ref": "J1",
+        "category": "connector",
+        "pins": [
+          { "pin": "VIN", "electricalType": "power_output" },
+          { "pin": "GND", "electricalType": "power_output" }
+        ]
+      },
+      {
+        "id": "U1",
+        "ref": "U1",
+        "category": "power-regulator",
+        "pins": [
+          { "pin": "VIN", "electricalType": "power_input" },
+          { "pin": "GND", "electricalType": "power_input" },
+          { "pin": "OUT", "electricalType": "output" },
+          { "pin": "ISENSE", "electricalType": "input" }
+        ]
+      },
+      {
+        "id": "D1",
+        "ref": "D1",
+        "category": "other",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      },
+      {
+        "id": "R1",
+        "ref": "R1",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      },
+      {
+        "id": "C1",
+        "ref": "C1",
+        "category": "passive",
+        "pins": [
+          { "pin": "1", "electricalType": "passive" },
+          { "pin": "2", "electricalType": "passive" }
+        ]
+      }
+    ]
+  },
+  "drcInput": {
+    "widthMm": 30,
+    "heightMm": 20,
+    "layerCount": 2,
+    "hasOutline": true,
+    "mountingHoleCount": 4,
+    "hasLayerStack": true,
+    "hasNetClasses": true,
+    "hasClearanceRules": true,
+    "hasKeepoutAreas": true,
+    "hasPlacementZones": true,
+    "hasFiducials": true,
+    "hasTestPads": true,
+    "hasDrillFile": true,
+    "minCopperToEdgeMm": 0.35,
+    "minDrillMm": 0.3,
+    "minAnnularRingMm": 0.15,
+    "minSolderMaskSliverMm": 0.12,
+    "smtComponentCount": 3,
+    "fiducialCount": 3,
+    "toolingHoleCount": 2,
+    "polarizedComponentCount": 1,
+    "polarityMarkCount": 1,
+    "criticalNetNames": ["VIN_12V", "LED_OUT", "GND"],
+    "testPointNets": ["VIN_12V", "LED_OUT", "GND"],
+    "hasHighVoltage": false,
+    "manufacturingProcess": "lead-free",
+    "hasQuantity": true,
+    "requiresProgrammingHeader": false,
+    "hasProgrammingHeader": false,
+    "hasFabricationNotes": true
+  },
+  "exportManifestInput": {
+    "version": "1.0.0",
+    "sourceProjectId": "golden-05-led-driver",
+    "generatedAt": "2026-07-06T00:00:00.000Z",
+    "manufacturingPolicy": { "requiredRoles": ["board-outline", "bom", "drc-report"] },
+    "artifacts": [
+      {
+        "filename": "led-driver-F.Cu.gbr",
+        "fileType": "gerber",
+        "purpose": "Top copper",
+        "role": "top-copper",
+        "required": true,
+        "stale": false,
+        "checksum": "e1",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 2048
+      },
+      {
+        "filename": "led-driver-outline.gko",
+        "fileType": "gerber",
+        "purpose": "Board outline",
+        "role": "board-outline",
+        "required": true,
+        "stale": false,
+        "checksum": "e2",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 512
+      },
+      {
+        "filename": "led-driver-bom.csv",
+        "fileType": "bom",
+        "purpose": "Bill of materials",
+        "role": "bom",
+        "required": true,
+        "stale": false,
+        "checksum": "e3",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 1024
+      },
+      {
+        "filename": "led-driver-drc.json",
+        "fileType": "drc-report",
+        "purpose": "DRC report",
+        "role": "drc-report",
+        "required": true,
+        "stale": false,
+        "checksum": "e4",
+        "checksumAlgorithm": "sha256",
+        "fileSize": 256
+      }
+    ]
+  },
+  "bomEntries": [
+    { "ref": "J1", "mpn": "PH2.0-2P", "lcsc": "C160402", "quantity": 1 },
+    { "ref": "U1", "mpn": "AL8807Q", "lcsc": "C87439", "quantity": 1 },
+    { "ref": "D1", "mpn": "CREE-XPG3", "lcsc": "C965460", "quantity": 1 },
+    { "ref": "R1", "mpn": "WSL2512R1000FEA", "lcsc": "C24968", "quantity": 1 },
+    { "ref": "C1", "mpn": "CL21A106KAYNNNE", "lcsc": "C15850", "quantity": 1 }
+  ]
+}
