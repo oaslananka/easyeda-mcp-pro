@@ -226,6 +226,22 @@ describe('Workflow Tools', () => {
       expect(netNames).toContain('VDDIO');
       expect(netNames.filter((name: string) => name === 'GND')).toHaveLength(2);
     });
+
+    it('blocks apply when confirmWrite is not true', async () => {
+      const tool = registry.get('easyeda_workflow_decouple_ic');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        mode: 'apply',
+        anchor: { x: 0, y: 0 },
+        groundNetName: 'GND',
+        icPowerPins: [{ pin: '8', netName: 'VDD' }],
+        capacitor: deviceItem,
+        decouplingCategory: 'mcu',
+      })) as any;
+      expect(bridgeCall).not.toHaveBeenCalled();
+      expect(result.applied).toBe(false);
+      expect(result.error).toMatch(/confirmWrite=true is required/);
+    });
   });
 
   describe('easyeda_workflow_place_block', () => {
@@ -273,6 +289,23 @@ describe('Workflow Tools', () => {
         result.rollback_notes.some((note: string) => note.includes('cannot be rolled back')),
       ).toBe(true);
     });
+
+    it('blocks apply when confirmWrite is not true', async () => {
+      const tool = registry.get('easyeda_workflow_place_block');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        mode: 'apply',
+        anchor: { x: 0, y: 0 },
+        components: [
+          { ref: 'U1', role: 'mcu', deviceItem, pinConnections: [{ pin: '1', netName: 'VCC' }] },
+        ],
+        existingComponents: [],
+        netPorts: [],
+      })) as any;
+      expect(bridgeCall).not.toHaveBeenCalled();
+      expect(result.applied).toBe(false);
+      expect(result.error).toMatch(/confirmWrite=true is required/);
+    });
   });
 
   describe('easyeda_workflow_connector_breakout', () => {
@@ -294,6 +327,21 @@ describe('Workflow Tools', () => {
       const kinds = result.operations.map((op: any) => op.kind);
       expect(kinds.filter((k: string) => k === 'createNetPort')).toHaveLength(2);
       expect(kinds.filter((k: string) => k === 'connectPinToNet')).toHaveLength(2);
+    });
+
+    it('blocks apply when confirmWrite is not true', async () => {
+      const tool = registry.get('easyeda_workflow_connector_breakout');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        mode: 'apply',
+        anchor: { x: 0, y: 0 },
+        connectorRef: 'J1',
+        connector: deviceItem,
+        pins: [{ pin: '1', netName: 'RS485_A' }],
+      })) as any;
+      expect(bridgeCall).not.toHaveBeenCalled();
+      expect(result.applied).toBe(false);
+      expect(result.error).toMatch(/confirmWrite=true is required/);
     });
   });
 });
