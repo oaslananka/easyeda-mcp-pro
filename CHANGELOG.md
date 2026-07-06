@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.21.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.20.0...easyeda-mcp-pro-v0.21.0) (2026-07-06)
+
+
+### Features
+
+* **catalog:** add a thin, honest device ingestion pipeline ([#207](https://github.com/oaslananka/easyeda-mcp-pro/issues/207)) ([a6495c0](https://github.com/oaslananka/easyeda-mcp-pro/commit/a6495c064976efd8800178d83f6b9d9fd1fcd5b2))
+* **diagnostics:** enrich health checks and add doctor --fix guidance ([#197](https://github.com/oaslananka/easyeda-mcp-pro/issues/197)) ([4f5317c](https://github.com/oaslananka/easyeda-mcp-pro/commit/4f5317cd4127611ce96fb4af6f0efa248d263edf))
+* **vendors:** fix and expand keyless LCSC sourcing tier ([#195](https://github.com/oaslananka/easyeda-mcp-pro/issues/195)) ([78e784a](https://github.com/oaslananka/easyeda-mcp-pro/commit/78e784ac1d2fb7ed46e18f491643105b4421c6ab))
+* **visual:** add canvas capture tools and fix Blob export serialization ([#198](https://github.com/oaslananka/easyeda-mcp-pro/issues/198)) ([225e28c](https://github.com/oaslananka/easyeda-mcp-pro/commit/225e28ce4214accdedd6c2bb1b6112f2396f29ca))
+* WS-06 through WS-13 — engineering knowledge pack, workflows, autorouting, simulation, golden benchmark, continuity audit ([#214](https://github.com/oaslananka/easyeda-mcp-pro/issues/214)) ([0e9e63c](https://github.com/oaslananka/easyeda-mcp-pro/commit/0e9e63c75f564611333e94f3b1478f9770b6f20e))
+
 ## [0.20.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.19.0...easyeda-mcp-pro-v0.20.0) (2026-07-04)
 
 
