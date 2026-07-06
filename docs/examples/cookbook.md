@@ -157,3 +157,38 @@ rules rather than assuming values, and cite what you found.
   (mains-adjacent clearance, high-current traces) for confirmation against the actual
   standard, the fabricator's capability table, or the target IC's datasheet.
 - The `review_layout` MCP prompt encodes this same sequence for reuse.
+
+## 8. Building a power-rail stage in three tool calls
+
+**Goal:** Place a regulator with its input/output capacitors and wire the whole stage to
+named nets as one atomic transaction, instead of one primitive call per component and per
+pin connection.
+
+**Prompt:**
+
+```text
+Add a 3.3V regulator stage to the active schematic: search for the part, then place it
+with its input and output capacitors and wire everything to VIN_5V, VOUT_3V3, and GND.
+```
+
+**Tool sequence (3 calls total):**
+
+1. `easyeda_schematic_search_device` — resolve the regulator's `deviceItem` (`libraryUuid`/`uuid`)
+2. `easyeda_schematic_search_device` — resolve a generic 0603 ceramic capacitor's `deviceItem`
+   (reused for both the input and output capacitor)
+3. `easyeda_workflow_power_rail` with `mode: 'preview'` first to inspect the deterministic
+   plan, then again with `mode: 'apply', confirmWrite: true` — this single call places the
+   regulator plus both capacitors and wires every pin to `VIN_5V` / `VOUT_3V3` / `GND`
+
+**Safety checkpoints:**
+
+- Always preview before apply: the plan lists every component, its computed placement
+  coordinates, and every pin-to-net connection it will make before anything is written.
+- This tool does not select parts for you — it only orchestrates placement and wiring of
+  device items you've already resolved, so a wrong part number is still your responsibility
+  to catch before calling it.
+- If apply fails part-way through, newly-placed components/net ports from that same call are
+  rolled back automatically (best-effort) — check the response's `rolled_back` and
+  `rollback_notes` fields rather than assuming a clean state.
+- `easyeda_workflow_decouple_ic` follows the same pattern for adding decoupling capacitors to
+  an already-placed IC's power pins in one call.

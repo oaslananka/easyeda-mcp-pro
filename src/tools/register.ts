@@ -13,6 +13,7 @@ import { registerPcbWriteTools } from './L1_pcb_write.js';
 import { registerSchematicReadTools } from './L1_schematic_read.js';
 import { registerSchematicWriteTools } from './L1_schematic_write.js';
 import { registerVisualTools } from './L1_visual.js';
+import { registerWorkflowTools } from './L2_workflows.js';
 import { type ToolRegistry } from './registry.js';
 
 export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig): void {
@@ -30,4 +31,5 @@ export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig):
   registerVisualTools(registry, config);
   registerCatalogTools(registry, config);
   registerDesignRulesTools(registry, config);
+  registerWorkflowTools(registry, config);
 }

@@ -8,11 +8,34 @@ This document explains the security posture, permission checks, data privacy con
 
 Our tools are categorized into three risk tiers based on their potential impact on project data and external services:
 
-| Risk Level | Tool Type                              | Description                                                                                                                                                                                                                                                                                                                  | Confirmation Required         |
-| :--------- | :------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------- |
-| **Low**    | `Read-only` / `Diagnostics` / `Visual` | Queries project metadata, diagnostics status, layers, stackups, BOM, and canvas captures (`easyeda_canvas_capture`, `easyeda_canvas_capture_region`, `easyeda_canvas_locate`). Cannot mutate project state, though a capture/locate call does move the user's visible viewport (EasyEDA Pro has no offscreen rendering API). | **No**                        |
-| **Medium** | `Schematic Write` / `Catalog`          | Mutates schematic sheets (placing components, drawing wires, deleting or modifying primitives), or ingests/caches a device from an LCSC part number (`easyeda_catalog_verify_device`) — a local cache write, not a project mutation, but gated the same way since downstream planning may trust the result.                  | **Yes (`confirmWrite=true`)** |
-| **High**   | `PCB Write` / `Exports` / `API Call`   | Mutates PCB layouts (tracks, vias, zones, components), exports fabrication files, or makes direct class-method calls.                                                                                                                                                                                                        | **Yes (`confirmWrite=true`)** |
+| Risk Level | Tool Type                                   | Description                                                                                                                                                                                                                                                                                                                                                                                      | Confirmation Required         |
+| :--------- | :------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------- |
+| **Low**    | `Read-only` / `Diagnostics` / `Visual`      | Queries project metadata, diagnostics status, layers, stackups, BOM, and canvas captures (`easyeda_canvas_capture`, `easyeda_canvas_capture_region`, `easyeda_canvas_locate`). Cannot mutate project state, though a capture/locate call does move the user's visible viewport (EasyEDA Pro has no offscreen rendering API).                                                                     | **No**                        |
+| **Medium** | `Schematic Write` / `Catalog` / `Workflows` | Mutates schematic sheets (placing components, drawing wires, deleting or modifying primitives), ingests/caches a device from an LCSC part number (`easyeda_catalog_verify_device`) — a local cache write, not a project mutation, but gated the same way since downstream planning may trust the result — or runs a compound multi-step schematic transaction (`easyeda_workflow_*`, see below). | **Yes (`confirmWrite=true`)** |
+| **High**   | `PCB Write` / `Exports` / `API Call`        | Mutates PCB layouts (tracks, vias, zones, components), exports fabrication files, or makes direct class-method calls.                                                                                                                                                                                                                                                                            | **Yes (`confirmWrite=true`)** |
+
+---
+
+### 1.1 Compound workflow tools (`easyeda_workflow_*`)
+
+The `easyeda_workflow_power_rail`, `easyeda_workflow_decouple_ic`, `easyeda_workflow_place_block`, and
+`easyeda_workflow_connector_breakout` tools collapse several schematic primitive operations (place,
+wire, net-port) into one atomic call, each with its own `mode: 'preview' | 'apply'` field (distinct
+from the generic `writeMode` transaction envelope) so a caller can inspect the exact, deterministic
+operation list before applying.
+
+- **Determinism:** the same input always produces the same transaction id and operation list — no
+  hidden device search or fuzzy part selection happens inside these tools. Callers must supply
+  already-resolved `deviceItem` (`libraryUuid`/`uuid`) values, typically obtained from
+  `easyeda_schematic_search_device` or a verified catalog entry.
+- **Rollback on partial failure:** if any operation in the sequence fails, every primitive newly
+  created _in that same transaction_ (placed components and net ports) is deleted via
+  `schematic.deletePrimitive`. This is best-effort — if the rollback call itself fails, the tool
+  reports `rolled_back: false` and the affected primitives must be reviewed manually.
+- **Known rollback limitation:** pin-to-net connections applied to a _pre-existing_ component
+  (`existingComponents`, used by `easyeda_workflow_place_block` and the decoupling workflow's target
+  IC) cannot be undone automatically — the bridge protocol has no disconnect-pin primitive. Every
+  plan/apply response's `rollback_notes` field states explicitly whether this applies to that call.
 
 ---
 

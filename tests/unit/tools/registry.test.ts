@@ -563,6 +563,7 @@ describe('ToolRegistry', () => {
           'visual',
           'catalog',
           'design-rules',
+          'workflows',
         ]).toContain(tool.group);
 
         // profile must be valid

@@ -75,6 +75,10 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_verify_write`        | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                               |
 | `easyeda_semantic_erc_validate`         | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                                           |
 | `easyeda_wire_probe`                    | `dev`   | `low`    | Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                              |
+| `easyeda_workflow_connector_breakout`   | `pro`   | `medium` | Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).                                                                                                                                   |
+| `easyeda_workflow_decouple_ic`          | `pro`   | `medium` | Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).                                                                   |
+| `easyeda_workflow_place_block`          | `pro`   | `medium` | Place a group of components, wire their pin-to-net connections (new and/or pre-existing components), and create net ports for block-external nets — all as a single atomic transaction with rollback on partial failure (confirmWrite required).                                                                                 |
+| `easyeda_workflow_power_rail`           | `pro`   | `medium` | Place a regulator and its supporting passives and wire them to input/output/ground nets in a single atomic transaction, instead of one primitive call per component. Caller supplies already-resolved device items and pin connections; this tool does not select parts (confirmWrite required).                                 |
 
 ---
 
@@ -2251,6 +2255,191 @@ Returns a JSON object matching the schema:
   total: number;
   samples: any[];
   not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_connector_breakout`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).
+
+### Input Parameters
+
+| Parameter       | Type                 | Required | Description |
+| --------------- | -------------------- | -------- | ----------- |
+| `projectId`     | `string`             | Yes      |             |
+| `mode`          | `"preview"           | "apply"` | Yes         |     |
+| `anchor`        | `object`             | Yes      |             |
+| `netPortAnchor` | `object (optional)`  | No       |             |
+| `connectorRef`  | `string`             | Yes      |             |
+| `connector`     | `object`             | Yes      |             |
+| `rotation`      | `number (optional)`  | No       |             |
+| `mirror`        | `boolean (optional)` | No       |             |
+| `subPartName`   | `string (optional)`  | No       |             |
+| `pins`          | `object[]`           | Yes      |             |
+| `confirmWrite`  | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_decouple_ic`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).
+
+### Input Parameters
+
+| Parameter            | Type                 | Required | Description |
+| -------------------- | -------------------- | -------- | ----------- |
+| `projectId`          | `string`             | Yes      |             |
+| `mode`               | `"preview"           | "apply"` | Yes         |      |
+| `anchor`             | `object`             | Yes      |             |
+| `spacing`            | `number (optional)`  | No       |             |
+| `groundNetName`      | `string`             | Yes      |             |
+| `icPowerPins`        | `object[]`           | Yes      |             |
+| `capacitor`          | `object`             | Yes      |             |
+| `capacitorPins`      | `object`             | Yes      |             |
+| `decouplingCategory` | `"digital-logic"     | "mcu"    | "analog"    | "rf" | "crystal-oscillator" | "power-regulator"` | Yes |     |
+| `confirmWrite`       | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+  decoupling_guidance: object (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_place_block`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Place a group of components, wire their pin-to-net connections (new and/or pre-existing components), and create net ports for block-external nets — all as a single atomic transaction with rollback on partial failure (confirmWrite required).
+
+### Input Parameters
+
+| Parameter            | Type                 | Required | Description |
+| -------------------- | -------------------- | -------- | ----------- |
+| `projectId`          | `string`             | Yes      |             |
+| `mode`               | `"preview"           | "apply"` | Yes         |     |
+| `anchor`             | `object`             | Yes      |             |
+| `spacing`            | `number (optional)`  | No       |             |
+| `blockName`          | `string (optional)`  | No       |             |
+| `components`         | `object[]`           | Yes      |             |
+| `existingComponents` | `object[]`           | Yes      |             |
+| `netPorts`           | `object[]`           | Yes      |             |
+| `netPortAnchor`      | `object (optional)`  | No       |             |
+| `confirmWrite`       | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_power_rail`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Place a regulator and its supporting passives and wire them to input/output/ground nets in a single atomic transaction, instead of one primitive call per component. Caller supplies already-resolved device items and pin connections; this tool does not select parts (confirmWrite required).
+
+### Input Parameters
+
+| Parameter       | Type                 | Required | Description |
+| --------------- | -------------------- | -------- | ----------- |
+| `projectId`     | `string`             | Yes      |             |
+| `mode`          | `"preview"           | "apply"` | Yes         |     |
+| `anchor`        | `object`             | Yes      |             |
+| `spacing`       | `number (optional)`  | No       |             |
+| `groundNetName` | `string`             | Yes      |             |
+| `inputNetName`  | `string`             | Yes      |             |
+| `outputNetName` | `string`             | Yes      |             |
+| `components`    | `object[]`           | Yes      |             |
+| `confirmWrite`  | `boolean (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
   error: string (optional);
 }
 ```
