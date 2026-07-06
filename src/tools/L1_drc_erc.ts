@@ -12,7 +12,12 @@ function registerDrcErcTools(
     name: 'easyeda_drc_run',
     title: 'Run design rule check',
     description:
-      'Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints.',
+      'Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints. ' +
+      'This invokes the same native check as clicking "Check DRC" in EasyEDA Pro, which opens/refreshes the bottom DRC panel ' +
+      "in the user's EasyEDA window as a visible side effect (some violation classes are only populated by the UI-driven check path). " +
+      'The native API only returns coarse per-severity counts, not itemized detail — each violation entry describes how many ' +
+      'issues of that severity were found, not which specific wire/net/component is affected. For that detail the user must ' +
+      "look at EasyEDA Pro's own DRC panel directly.",
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -113,7 +118,12 @@ function registerDrcErcTools(
     name: 'easyeda_erc_run',
     title: 'Run electrical rule check',
     description:
-      'Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts.',
+      'Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts. ' +
+      'This invokes the same native check as clicking "Check DRC" in EasyEDA Pro, which opens/refreshes the bottom DRC panel ' +
+      "in the user's EasyEDA window as a visible side effect (some violation classes, e.g. duplicate net-name labels on a " +
+      'merged wire, are only populated by the UI-driven check path). The native API only returns coarse per-severity counts, ' +
+      'not itemized detail — each violation entry describes how many issues of that severity were found, not which specific ' +
+      "wire/net/component is affected. For that detail the user must look at EasyEDA Pro's own DRC panel directly.",
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',

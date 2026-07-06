@@ -352,6 +352,77 @@ function extractPrimitiveId(result: unknown): string {
   return '';
 }
 
+/**
+ * Reads `obj.getState_<Key>()` defensively, returning undefined if the getter
+ * is missing or throws. Used to snapshot a primitive's current property values
+ * before a partial `.modify()` call, since the native EasyEDA API resets any
+ * field omitted from the property object rather than leaving it untouched.
+ */
+function safeGetState(obj: unknown, key: string): unknown {
+  const getter = (obj as Record<string, unknown> | null | undefined)?.[`getState_${key}`];
+  if (typeof getter !== 'function') return undefined;
+  try {
+    return (getter as () => unknown).call(obj);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Normalizes SCH_PrimitiveWire's `line` shape (flat number[] or [x,y][]) into points. */
+function normalizeWireLine(line: unknown): Array<{ x: number; y: number }> {
+  if (!Array.isArray(line) || line.length === 0) return [];
+  if (Array.isArray(line[0])) {
+    return (line as number[][])
+      .filter((pair) => Array.isArray(pair) && pair.length >= 2)
+      .map(([x, y]) => ({ x, y }));
+  }
+  const flat = line as number[];
+  const pts: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    pts.push({ x: flat[i], y: flat[i + 1] });
+  }
+  return pts;
+}
+
+/**
+ * Checks whether any of `points` exactly coincides with a coordinate already
+ * used by an existing wire on a *different* net. EasyEDA Pro auto-merges
+ * wires that share a coordinate (not just endpoints), which silently unions
+ * their connectivity — a real hazard when routing two unrelated nets through
+ * overlapping "highway" columns/rows. Returns the first collision found, or
+ * null if the runtime doesn't expose wire introspection or none is found.
+ */
+async function findForeignNetCollision(
+  points: Array<{ x: number; y: number }>,
+  netName: string,
+): Promise<{ x: number; y: number; foreignNet: string } | null> {
+  if (!netName || points.length === 0) return null;
+  const schWireClass = readFirstPath<any>(['SCH_PrimitiveWire', 'sch_PrimitiveWire']);
+  if (!schWireClass || typeof schWireClass.getAll !== 'function') return null;
+
+  let wires: unknown[] = [];
+  try {
+    wires = (await schWireClass.getAll()) || [];
+  } catch (e) {
+    logRecoverableError('failed to read existing wires for net-collision check', e);
+    return null;
+  }
+
+  for (const wire of wires) {
+    const wireNet = String(safeGetState(wire, 'Net') ?? '');
+    if (!wireNet || wireNet === netName) continue;
+    const wirePts = normalizeWireLine(safeGetState(wire, 'Line'));
+    for (const p of points) {
+      for (const wp of wirePts) {
+        if (wp.x === p.x && wp.y === p.y) {
+          return { x: p.x, y: p.y, foreignNet: wireNet };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function isBinaryResultPayload(value: unknown): value is BinaryResultPayload {
   return (
     !!value &&
@@ -1435,6 +1506,136 @@ async function connectPinToNetImpl(
   }
 }
 
+function normalizeDrcSeverity(raw: unknown): 'error' | 'warning' | 'info' {
+  const s = String(raw ?? '').toLowerCase();
+  if (s.includes('fatal') || s.includes('error')) return 'error';
+  if (s.includes('warn')) return 'warning';
+  return 'info';
+}
+
+function normalizeDrcViolation(item: unknown): Record<string, unknown> {
+  const obj: Record<string, unknown> = item && typeof item === 'object' ? { ...item } : {};
+  const message = obj.message ?? obj.msg ?? obj.description ?? obj.text ?? obj.detail ?? item;
+  const severitySource = obj.level ?? obj.severity ?? obj.type ?? obj.errorLevel;
+  const posSource =
+    obj.position && typeof obj.position === 'object'
+      ? (obj.position as Record<string, unknown>)
+      : obj.location && typeof obj.location === 'object'
+        ? (obj.location as Record<string, unknown>)
+        : obj;
+  const x = posSource.x;
+  const y = posSource.y;
+  return {
+    rule: String(obj.rule ?? obj.ruleName ?? obj.type ?? 'unknown'),
+    description: typeof message === 'string' ? message : JSON.stringify(message),
+    severity: normalizeDrcSeverity(severitySource),
+    net: obj.net ?? obj.netName ?? undefined,
+    component: obj.component ?? obj.ref ?? obj.designator ?? obj.primitiveId ?? undefined,
+    location:
+      typeof x === 'number' && typeof y === 'number'
+        ? { x, y, layer: obj.layer as string | undefined }
+        : undefined,
+  };
+}
+
+/**
+ * Detects the `{type: 'fatal'|'error'|'warn'|'info', count: number}` shape
+ * that `SCH_Drc.check`/`PCB_Drc.check` actually return in verbose mode —
+ * confirmed live: a schematic with 6 real "multiple net names" warnings
+ * (visible itemized in EasyEDA's own bottom DRC panel) produced exactly one
+ * verbose-array entry, `{type:"warn", count:6}`. The native API only exposes
+ * coarse per-severity totals through its return value; the itemized
+ * per-violation text (which wire, which net) is rendered by the UI panel
+ * itself and is not part of what check() resolves with, so it cannot be
+ * reconstructed here.
+ */
+function normalizeDrcAggregate(
+  item: unknown,
+): { severity: 'error' | 'warning' | 'info'; count: number } | null {
+  const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+  if (!obj) return null;
+  const { type, count } = obj;
+  if (typeof type === 'string' && typeof count === 'number') {
+    return { severity: normalizeDrcSeverity(type), count };
+  }
+  return null;
+}
+
+/**
+ * Runs the native SCH_Drc.check/PCB_Drc.check API correctly.
+ *
+ * The previous implementation forwarded a single `{projectId, ...}` params
+ * object as the function's first argument, but the real signature is
+ * `check(strict: boolean, userInterface: boolean, includeVerboseError: boolean)`
+ * — three positional booleans, not one options object. Passing an object for
+ * `strict` made `includeVerboseError` implicitly `undefined` (falsy), which
+ * selects the *boolean-return* overload instead of the verbose-array one. The
+ * tool then silently treated that stray `true`/`false` as an empty result,
+ * so `easyeda_erc_run`/`easyeda_drc_run` always reported 0 violations/passed
+ * regardless of what EasyEDA's own DRC panel actually found.
+ *
+ * Passing `userInterface: false` alone was still not enough: verified live
+ * against a schematic with 6 real "multiple net names" wire warnings visible
+ * in EasyEDA's own bottom DRC panel, `check(true, false, true)` returned an
+ * empty violations array — the netlist/wire-consistency class of checks only
+ * runs as part of the *UI-driven* check path, not the headless one. Calling
+ * with `userInterface: true` (the same thing clicking "Check DRC" does) is
+ * required to actually populate the verbose violations array; this opens/
+ * refreshes the bottom DRC panel in the user's EasyEDA window as a visible
+ * side effect, same as the manual button.
+ */
+async function runDrcCheck(classPaths: string[]): Promise<{
+  violations: Array<Record<string, unknown>>;
+  totalViolations: number;
+  errorCount: number;
+  warningCount: number;
+  passed: boolean;
+}> {
+  const raw = await callFirst(classPaths, true, true, true);
+  const items = Array.isArray(raw) ? raw : [];
+
+  const aggregates = items
+    .map(normalizeDrcAggregate)
+    .filter((a): a is { severity: 'error' | 'warning' | 'info'; count: number } => a !== null);
+
+  if (aggregates.length > 0) {
+    const violations = aggregates
+      .filter((a) => a.count > 0)
+      .map((a) => ({
+        rule: 'aggregate',
+        description:
+          `${a.count} ${a.severity}(s) reported by EasyEDA's native design/electrical rule ` +
+          "check. Per-violation detail (affected wire/net/component) is only shown in EasyEDA " +
+          "Pro's own bottom DRC panel and is not exposed by the check() API's return value.",
+        severity: a.severity,
+      }));
+    const errorCount = aggregates
+      .filter((a) => a.severity === 'error')
+      .reduce((sum, a) => sum + a.count, 0);
+    const warningCount = aggregates
+      .filter((a) => a.severity === 'warning')
+      .reduce((sum, a) => sum + a.count, 0);
+    return {
+      violations,
+      totalViolations: aggregates.reduce((sum, a) => sum + a.count, 0),
+      errorCount,
+      warningCount,
+      passed: errorCount === 0,
+    };
+  }
+
+  const violations = items.map(normalizeDrcViolation);
+  const errorCount = violations.filter((v) => v.severity === 'error').length;
+  const warningCount = violations.filter((v) => v.severity === 'warning').length;
+  return {
+    violations,
+    totalViolations: violations.length,
+    errorCount,
+    warningCount,
+    passed: errorCount === 0,
+  };
+}
+
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
   switch (method) {
     case 'project.open':
@@ -1490,11 +1691,29 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.y,
       );
     case 'schematic.addWire': {
-      const pts = Array.isArray(params.points) ? params.points.flatMap((p: any) => [p.x, p.y]) : [];
+      const rawPoints: Array<{ x: number; y: number }> = Array.isArray(params.points)
+        ? params.points
+        : [];
+      const netName = params.netName as string;
+
+      const collision = await findForeignNetCollision(rawPoints, netName);
+      if (collision) {
+        throw newBridgeError(
+          'NET_COLLISION',
+          `Refusing to draw wire for net "${netName}": point (${collision.x}, ${collision.y}) ` +
+            `coincides with an existing wire on net "${collision.foreignNet}". EasyEDA Pro ` +
+            'auto-merges wires that share a coordinate (not just endpoints), which would ' +
+            'silently short these two nets together.',
+          `Route this wire through coordinates not used by net "${collision.foreignNet}", ` +
+            'or call schematic_nets afterward to confirm the intended topology.',
+        );
+      }
+
+      const pts = rawPoints.flatMap((p) => [p.x, p.y]);
       return callFirst(
         ['SCH_PrimitiveWire.create', 'sch_PrimitiveWire.create'],
         pts,
-        params.netName,
+        netName,
         params.color,
         params.lineWidth,
         params.lineType,
@@ -1510,7 +1729,76 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         ],
         params.primitiveIds,
       );
-    case 'schematic.modifyPrimitive':
+    case 'schematic.modifyPrimitive': {
+      // The native SCH_PrimitiveComponent.modify/SCH_PrimitiveWire.modify APIs
+      // reset any property field omitted from the call rather than leaving it
+      // unchanged (e.g. passing only `{ designator }` wipes manufacturer/
+      // supplier/otherProperty). To make partial updates behave like partial
+      // updates, snapshot the primitive's current state first and merge the
+      // caller's partial property over it before writing.
+      const primitiveId = params.primitiveId as string;
+      const property = (params.property as Record<string, unknown>) || {};
+
+      const schCompClass = readFirstPath<any>([
+        'SCH_PrimitiveComponent',
+        'SCH_PrimitiveComponent3',
+        'sch_PrimitiveComponent',
+      ]);
+      if (schCompClass && typeof schCompClass.get === 'function' && typeof schCompClass.modify === 'function') {
+        let current: unknown;
+        try {
+          current = await schCompClass.get(primitiveId);
+        } catch (e) {
+          logRecoverableError(`SCH_PrimitiveComponent.get(${primitiveId}) failed`, e);
+        }
+        if (current) {
+          const existingOther =
+            (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
+          const incomingOther = property.otherProperty as Record<string, unknown> | undefined;
+          const merged: Record<string, unknown> = {
+            x: safeGetState(current, 'X'),
+            y: safeGetState(current, 'Y'),
+            rotation: safeGetState(current, 'Rotation'),
+            mirror: safeGetState(current, 'Mirror'),
+            addIntoBom: safeGetState(current, 'AddIntoBom'),
+            addIntoPcb: safeGetState(current, 'AddIntoPcb'),
+            designator: safeGetState(current, 'Designator'),
+            name: safeGetState(current, 'Name'),
+            uniqueId: safeGetState(current, 'UniqueId'),
+            manufacturer: safeGetState(current, 'Manufacturer'),
+            manufacturerId: safeGetState(current, 'ManufacturerId'),
+            supplier: safeGetState(current, 'Supplier'),
+            supplierId: safeGetState(current, 'SupplierId'),
+            ...property,
+            otherProperty: incomingOther ? { ...existingOther, ...incomingOther } : existingOther,
+          };
+          return schCompClass.modify(primitiveId, merged);
+        }
+      }
+
+      const schWireClass = readFirstPath<any>(['SCH_PrimitiveWire', 'sch_PrimitiveWire']);
+      if (schWireClass && typeof schWireClass.get === 'function' && typeof schWireClass.modify === 'function') {
+        let current: unknown;
+        try {
+          current = await schWireClass.get(primitiveId);
+        } catch (e) {
+          logRecoverableError(`SCH_PrimitiveWire.get(${primitiveId}) failed`, e);
+        }
+        if (current) {
+          const merged: Record<string, unknown> = {
+            line: safeGetState(current, 'Line'),
+            net: safeGetState(current, 'Net'),
+            color: safeGetState(current, 'Color'),
+            lineWidth: safeGetState(current, 'LineWidth'),
+            lineType: safeGetState(current, 'LineType'),
+            ...property,
+          };
+          return schWireClass.modify(primitiveId, merged);
+        }
+      }
+
+      // Fallback for primitive types this runtime doesn't expose get() for —
+      // best-effort passthrough, same as the previous behavior.
       return callFirst(
         [
           'SCH_PrimitiveComponent.modify',
@@ -1518,9 +1806,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           'sch_PrimitiveComponent.modify',
           'sch_PrimitiveWire.modify',
         ],
-        params.primitiveId,
-        params.property,
+        primitiveId,
+        property,
       );
+    }
     case 'schematic.createNetFlag': {
       const nfX = params.x as number;
       const nfY = params.y as number;
@@ -1596,7 +1885,18 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.pinNumber as string,
         params.netName as string,
       );
-      return { connected: true };
+      // connectPinToNetImpl stamps a custom pin.OtherProperty.net value; it is
+      // NOT a real SCH_Netlist/SCH_Net entry, so it is invisible to ERC,
+      // ratsnest, and autorouting. Report that honestly rather than implying
+      // this created genuine EasyEDA connectivity.
+      return {
+        connected: true,
+        real: false,
+        warning:
+          'This records a logical pin/net association as a custom pin property, not real ' +
+          'EasyEDA netlist connectivity. It will NOT appear in ERC, ratsnest, or autorouting. ' +
+          'Use schematic.addWire to create genuine electrical connectivity.',
+      };
     }
     case 'schematic.connectPinsByNet': {
       const pins = params.pins as Array<{ primitiveId: string; pinNumber: string }>;
@@ -1612,7 +1912,14 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           );
         }
       }
-      return { count: connectedCount };
+      return {
+        count: connectedCount,
+        real: false,
+        warning:
+          'This records logical pin/net associations as custom pin properties, not real ' +
+          'EasyEDA netlist connectivity. It will NOT appear in ERC, ratsnest, or autorouting. ' +
+          'Use schematic.addWire to create genuine electrical connectivity.',
+      };
     }
     case 'schematic.validateNetlist': {
       const netlistData = (await listNetsApi()) as Array<{
@@ -1979,11 +2286,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'inventory.getPrice':
       return null;
     case 'design.ruleCheck':
-      return callFirst(['PCB_Drc.check', 'SCH_Drc.check'], params);
+      return runDrcCheck(['PCB_Drc.check', 'SCH_Drc.check']);
     case 'design.erc':
-      return callFirst(['SCH_Drc.check'], params);
+      return runDrcCheck(['SCH_Drc.check']);
     case 'design.drc':
-      return callFirst(['PCB_Drc.check', 'SCH_Drc.check'], params);
+      return runDrcCheck(['PCB_Drc.check', 'SCH_Drc.check']);
     case 'export.pickPlace':
       return normalizeBinaryResultSafely(
         await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params),
