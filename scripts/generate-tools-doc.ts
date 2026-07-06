@@ -5,7 +5,7 @@ import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { format } from 'prettier';
+import { format, resolveConfig } from 'prettier';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -21,7 +21,7 @@ function getFriendlyZodType(schema: z.ZodTypeAny): string {
   if (typeName === 'boolean') return 'boolean';
   if (typeName === 'enum') {
     const values = def.entries ? Object.values(def.entries) : (def.values ?? []);
-    return (values as string[]).map((v) => `"${v}"`).join(' | ');
+    return (values as string[]).map((v) => `'${v}'`).join(' | ');
   }
   if (typeName === 'optional') return `${getFriendlyZodType(def.innerType)} (optional)`;
   if (typeName === 'nullable') return `${getFriendlyZodType(def.innerType)} | null`;
@@ -31,7 +31,7 @@ function getFriendlyZodType(schema: z.ZodTypeAny): string {
   }
   if (typeName === 'literal') {
     const values = def.values ?? [def.value];
-    return (values as unknown[]).map((v) => `"${String(v)}"`).join(' | ');
+    return (values as unknown[]).map((v) => `'${String(v)}'`).join(' | ');
   }
   if (typeName === 'pipe') return getFriendlyZodType(def.in);
   if (typeName === 'record') return `Record<string, ${getFriendlyZodType(def.valueType)}>`;
@@ -140,8 +140,14 @@ async function main() {
     mkdirSync(destDir, { recursive: true });
   }
 
-  const content = await format(generateMarkdown(), { parser: 'markdown' });
-  writeFileSync(join(destDir, 'tools.md'), content, 'utf8');
+  const destPath = join(destDir, 'tools.md');
+  // Without the project's .prettierrc, prettier's embedded-code formatter (for the
+  // fenced ```ts blocks) falls back to its own defaults (double quotes) instead of this
+  // repo's singleQuote:true — resolveConfig() picks that up explicitly rather than
+  // relying on a subsequent `prettier --write` pass to reconcile the mismatch.
+  const projectConfig = (await resolveConfig(destPath)) ?? {};
+  const content = await format(generateMarkdown(), { ...projectConfig, parser: 'markdown' });
+  writeFileSync(destPath, content, 'utf8');
   console.log('Successfully generated docs/reference/tools.md');
 }
 

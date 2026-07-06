@@ -271,7 +271,7 @@ Returns a JSON object matching the schema:
 | Parameter   | Type     | Required | Description |
 | ----------- | -------- | -------- | ----------- |
 | `projectId` | `string` | Yes      |             |
-| `format`    | `"csv"   | "json"   | "xlsx"`     | Yes |     |
+| `format`    | `'csv'   | 'json'   | 'xlsx'`     | Yes |     |
 | `filePath`  | `string` | Yes      |             |
 
 ### Output Format
@@ -302,8 +302,8 @@ Returns a JSON object matching the schema:
 | Parameter   | Type     | Required | Description  |
 | ----------- | -------- | -------- | ------------ |
 | `projectId` | `string` | Yes      |              |
-| `format`    | `"csv"   | "json"   | "xlsx"`      | Yes |     |
-| `groupBy`   | `"value" | "lcsc"   | "footprint"` | Yes |     |
+| `format`    | `'csv'   | 'json'   | 'xlsx'`      | Yes |     |
+| `groupBy`   | `'value' | 'lcsc'   | 'footprint'` | Yes |     |
 
 ### Output Format
 
@@ -579,7 +579,7 @@ Returns a JSON object matching the schema:
 
 | Parameter | Type        | Required  | Description              |
 | --------- | ----------- | --------- | ------------------------ |
-| `status`  | `"resolved" | "partial" | "unresolved" (optional)` | No  |     |
+| `status`  | `'resolved' | 'partial' | 'unresolved' (optional)` | No  |     |
 
 ### Output Format
 
@@ -616,7 +616,7 @@ Returns a JSON object matching the schema:
 ```ts
 {
   lcsc_id: string;
-  status: "resolved" | "partial" | "unresolved";
+  status: 'resolved' | 'partial' | 'unresolved';
   valid: boolean;
   errors: object[];
   warnings: object[];
@@ -667,63 +667,63 @@ Returns a JSON object matching the schema:
 
 This tool accepts one of several shapes, selected by the `topic` field:
 
-**When `topic` is "trace-width":**
+**When `topic` is 'trace-width':**
 
 | Parameter          | Type            | Required    | Description |
 | ------------------ | --------------- | ----------- | ----------- |
-| `topic`            | `"trace-width"` | Yes         |             |
+| `topic`            | `'trace-width'` | Yes         |             |
 | `currentA`         | `number`        | Yes         |             |
 | `temperatureRiseC` | `number`        | Yes         |             |
-| `layer`            | `"external"     | "internal"` | Yes         |     |
+| `layer`            | `'external'     | 'internal'` | Yes         |     |
 | `copperWeightOz`   | `number`        | Yes         |             |
 
-**When `topic` is "max-current":**
+**When `topic` is 'max-current':**
 
 | Parameter          | Type            | Required    | Description |
 | ------------------ | --------------- | ----------- | ----------- |
-| `topic`            | `"max-current"` | Yes         |             |
+| `topic`            | `'max-current'` | Yes         |             |
 | `traceWidthMils`   | `number`        | Yes         |             |
 | `temperatureRiseC` | `number`        | Yes         |             |
-| `layer`            | `"external"     | "internal"` | Yes         |     |
+| `layer`            | `'external'     | 'internal'` | Yes         |     |
 | `copperWeightOz`   | `number`        | Yes         |             |
 
-**When `topic` is "clearance":**
+**When `topic` is 'clearance':**
 
 | Parameter  | Type          | Required    | Description |
 | ---------- | ------------- | ----------- | ----------- |
-| `topic`    | `"clearance"` | Yes         |             |
+| `topic`    | `'clearance'` | Yes         |             |
 | `voltageV` | `number`      | Yes         |             |
-| `location` | `"external"   | "internal"` | Yes         |     |
+| `location` | `'external'   | 'internal'` | Yes         |     |
 
-**When `topic` is "protocol-routing":**
+**When `topic` is 'protocol-routing':**
 
 | Parameter  | Type                 | Required | Description |
 | ---------- | -------------------- | -------- | ----------- |
-| `topic`    | `"protocol-routing"` | Yes      |             |
-| `protocol` | `"usb2"              | "usb3"   | "rs485"     | "i2c" | "spi" | "uart" | "ethernet-10-100" | "ethernet-1000" (optional)` | No  |     |
+| `topic`    | `'protocol-routing'` | Yes      |             |
+| `protocol` | `'usb2'              | 'usb3'   | 'rs485'     | 'i2c' | 'spi' | 'uart' | 'ethernet-10-100' | 'ethernet-1000' (optional)` | No  |     |
 
-**When `topic` is "decoupling":**
+**When `topic` is 'decoupling':**
 
 | Parameter  | Type             | Required | Description |
 | ---------- | ---------------- | -------- | ----------- |
-| `topic`    | `"decoupling"`   | Yes      |             |
-| `category` | `"digital-logic" | "mcu"    | "analog"    | "rf" | "crystal-oscillator" | "power-regulator" (optional)` | No  |     |
+| `topic`    | `'decoupling'`   | Yes      |             |
+| `category` | `'digital-logic' | 'mcu'    | 'analog'    | 'rf' | 'crystal-oscillator' | 'power-regulator' (optional)` | No  |     |
 
-**When `topic` is "bulk-capacitance":**
+**When `topic` is 'bulk-capacitance':**
 
 | Parameter                  | Type                 | Required | Description |
 | -------------------------- | -------------------- | -------- | ----------- |
-| `topic`                    | `"bulk-capacitance"` | Yes      |             |
+| `topic`                    | `'bulk-capacitance'` | Yes      |             |
 | `loadA`                    | `number`             | Yes      |             |
 | `minBulkCapacitanceUfPerA` | `number (optional)`  | No       |             |
 | `minBulkCapacitanceUf`     | `number (optional)`  | No       |             |
 
-**When `topic` is "dfm-checklist":**
+**When `topic` is 'dfm-checklist':**
 
 | Parameter  | Type                | Required   | Description |
 | ---------- | ------------------- | ---------- | ----------- |
-| `topic`    | `"dfm-checklist"`   | Yes        |             |
-| `category` | `"clearance"        | "drilling" | "copper"    | "solder-mask" | "silkscreen" | "panelization" | "assembly" (optional)` | No  |     |
+| `topic`    | `'dfm-checklist'`   | Yes        |             |
+| `category` | `'clearance'        | 'drilling' | 'copper'    | 'solder-mask' | 'silkscreen' | 'panelization' | 'assembly' (optional)` | No  |     |
 | `id`       | `string (optional)` | No         |             |
 
 ### Output Format
@@ -823,7 +823,7 @@ Returns a JSON object matching the schema:
 | ------------------ | --------------------- | ------------ | ------------------ |
 | `projectId`        | `string`              | Yes          |                    |
 | `filePath`         | `string (optional)`   | No           |                    |
-| `drillFormat`      | `"excellon"           | "millimeter" | "inch" (optional)` | No  |     |
+| `drillFormat`      | `'excellon'           | 'millimeter' | 'inch' (optional)` | No  |     |
 | `excludeLayer`     | `string[] (optional)` | No           |                    |
 | `ledPanel`         | `boolean (optional)`  | No           |                    |
 | `productionReview` | `object (optional)`   | No           |                    |
@@ -859,7 +859,7 @@ Returns a JSON object matching the schema:
 | Parameter   | Type                | Required  | Description |
 | ----------- | ------------------- | --------- | ----------- |
 | `projectId` | `string`            | Yes       |             |
-| `format`    | `"pads"             | "allegro" | "altium"`   | Yes |     |
+| `format`    | `'pads'             | 'allegro' | 'altium'`   | Yes |     |
 | `filePath`  | `string (optional)` | No        |             |
 
 ### Output Format
@@ -892,8 +892,8 @@ Returns a JSON object matching the schema:
 | Parameter     | Type                | Required     | Description |
 | ------------- | ------------------- | ------------ | ----------- |
 | `projectId`   | `string`            | Yes          |             |
-| `scope`       | `"schematic"        | "board"      | "both"`     | Yes |     |
-| `orientation` | `"portrait"         | "landscape"` | Yes         |     |
+| `scope`       | `'schematic'        | 'board'      | 'both'`     | Yes |     |
+| `orientation` | `'portrait'         | 'landscape'` | Yes         |     |
 | `filePath`    | `string (optional)` | No           |             |
 
 ### Output Format
@@ -927,7 +927,7 @@ Returns a JSON object matching the schema:
 | Parameter   | Type                | Required | Description |
 | ----------- | ------------------- | -------- | ----------- |
 | `projectId` | `string`            | Yes      |             |
-| `format`    | `"csv"              | "txt"`   | Yes         |     |
+| `format`    | `'csv'              | 'txt'`   | Yes         |     |
 | `filePath`  | `string (optional)` | No       |             |
 
 ### Output Format
@@ -1096,8 +1096,8 @@ Returns a JSON object matching the schema:
 
 | Parameter                | Type                 | Required       | Description    |
 | ------------------------ | -------------------- | -------------- | -------------- |
-| `provider`               | `"jlcpcb"            | "custom"`      | Yes            |     |
-| `action`                 | `"estimate"          | "verify_quote" | "place_order"` | Yes |     |
+| `provider`               | `'jlcpcb'            | 'custom'`      | Yes            |     |
+| `action`                 | `'estimate'          | 'verify_quote' | 'place_order'` | Yes |     |
 | `projectId`              | `string (optional)`  | No             |                |
 | `board`                  | `object`             | Yes            |                |
 | `quote`                  | `object (optional)`  | No             |                |
@@ -1205,7 +1205,7 @@ Returns a JSON object matching the schema:
 | `layer`        | `number`            | Yes      |             |
 | `width`        | `number`            | Yes      |             |
 | `netName`      | `string (optional)` | No       |             |
-| `confirmWrite` | `"true"`            | Yes      |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
 
 ### Output Format
 
@@ -1236,7 +1236,7 @@ Returns a JSON object matching the schema:
 | `outerDiameter` | `number`            | Yes      |             |
 | `holeSize`      | `number`            | Yes      |             |
 | `netName`       | `string (optional)` | No       |             |
-| `confirmWrite`  | `"true"`            | Yes      |             |
+| `confirmWrite`  | `'true'`            | Yes      |             |
 
 ### Output Format
 
@@ -1266,7 +1266,7 @@ Returns a JSON object matching the schema:
 | `layer`        | `number`            | Yes      |             |
 | `netName`      | `string (optional)` | No       |             |
 | `clearance`    | `number (optional)` | No       |             |
-| `confirmWrite` | `"true"`            | Yes      |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
 
 ### Output Format
 
@@ -1293,10 +1293,10 @@ Returns a JSON object matching the schema:
 | Parameter               | Type                  | Required             | Description          |
 | ----------------------- | --------------------- | -------------------- | -------------------- |
 | `projectId`             | `string`              | Yes                  |                      |
-| `routingNets`           | `"selected"           | "selectedComponents" | string[] (optional)` | No  |     |
-| `cornerStyle`           | `"45"                 | "90" (optional)`     | No                   |     |
-| `existingPrimitiveMode` | `"keep"               | "remove" (optional)` | No                   |     |
-| `optimization`          | `"completion"         | "faster" (optional)` | No                   |     |
+| `routingNets`           | `'selected'           | 'selectedComponents' | string[] (optional)` | No  |     |
+| `cornerStyle`           | `'45'                 | '90' (optional)`     | No                   |     |
+| `existingPrimitiveMode` | `'keep'               | 'remove' (optional)` | No                   |     |
+| `optimization`          | `'completion'         | 'faster' (optional)` | No                   |     |
 | `layers`                | `number[] (optional)` | No                   |                      |
 | `ignoreNets`            | `string[] (optional)` | No                   |                      |
 | `boardData`             | `object (optional)`   | No                   |                      |
@@ -1394,7 +1394,7 @@ Returns a JSON object matching the schema:
 | Parameter      | Type       | Required | Description |
 | -------------- | ---------- | -------- | ----------- |
 | `primitiveIds` | `string[]` | Yes      |             |
-| `confirmWrite` | `"true"`   | Yes      |             |
+| `confirmWrite` | `'true'`   | Yes      |             |
 
 ### Output Format
 
@@ -1453,7 +1453,7 @@ Returns a JSON object matching the schema:
 | `circuitIR`                        | `any`                | Yes      |             |
 | `devices`                          | `object[]`           | Yes      |             |
 | `projectId`                        | `string (optional)`  | No       |             |
-| `mode`                             | `"preview"           | "apply"` | Yes         |                     |
+| `mode`                             | `'preview'           | 'apply'` | Yes         |                     |
 | `board`                            | `object`             | Yes      |             |
 | `anchor`                           | `object`             | Yes      |             |
 | `columns`                          | `number (optional)`  | No       |             |
@@ -1461,7 +1461,7 @@ Returns a JSON object matching the schema:
 | `minSpacingMm`                     | `number (optional)`  | No       |             |
 | `topLayer`                         | `number (optional)`  | No       |             |
 | `bottomLayer`                      | `number (optional)`  | No       |             |
-| `connectorEdge`                    | `"top"               | "bottom" | "left"      | "right" (optional)` | No  |     |
+| `connectorEdge`                    | `'top'               | 'bottom' | 'left'      | 'right' (optional)` | No  |     |
 | `connectorEdgeMarginMm`            | `number (optional)`  | No       |             |
 | `thermalSpacingBoostMm`            | `number (optional)`  | No       |             |
 | `thermalDissipationThresholdWatts` | `number (optional)`  | No       |             |
@@ -1504,7 +1504,7 @@ Returns a JSON object matching the schema:
 | -------------- | --------------------- | -------- | ----------- |
 | `primitiveId`  | `string`              | Yes      |             |
 | `property`     | `Record<string, any>` | Yes      |             |
-| `confirmWrite` | `"true"`              | Yes      |             |
+| `confirmWrite` | `'true'`              | Yes      |             |
 
 ### Output Format
 
@@ -1534,7 +1534,7 @@ Returns a JSON object matching the schema:
 | `y`            | `number` | Yes      |             |
 | `rotation`     | `number` | Yes      |             |
 | `layer`        | `number` | Yes      |             |
-| `confirmWrite` | `"true"` | Yes      |             |
+| `confirmWrite` | `'true'` | Yes      |             |
 
 ### Output Format
 
@@ -1561,7 +1561,7 @@ Returns a JSON object matching the schema:
 | Parameter      | Type                  | Required | Description |
 | -------------- | --------------------- | -------- | ----------- |
 | `projectId`    | `string (optional)`   | No       |             |
-| `mode`         | `"preview"            | "apply"` | Yes         |     |
+| `mode`         | `'preview'            | 'apply'` | Yes         |     |
 | `board`        | `object`              | Yes      |             |
 | `anchor`       | `object`              | Yes      |             |
 | `columns`      | `number (optional)`   | No       |             |
@@ -1607,7 +1607,7 @@ Returns a JSON object matching the schema:
 | ----------- | ------------------- | -------- | ----------- |
 | `projectId` | `string`            | Yes      |             |
 | `boardData` | `object (optional)` | No       |             |
-| `gateMode`  | `"warn"             | "block"  | "off"`      | Yes |     |
+| `gateMode`  | `'warn'             | 'block'  | 'off'`      | Yes |     |
 
 ### Output Format
 
@@ -1640,7 +1640,7 @@ Returns a JSON object matching the schema:
 | Parameter      | Type                  | Required | Description |
 | -------------- | --------------------- | -------- | ----------- |
 | `projectId`    | `string (optional)`   | No       |             |
-| `mode`         | `"preview"            | "apply"` | Yes         |     |
+| `mode`         | `'preview'            | 'apply'` | Yes         |     |
 | `board`        | `object (optional)`   | No       |             |
 | `netName`      | `string`              | Yes      |             |
 | `layer`        | `number`              | Yes      |             |
@@ -1764,7 +1764,7 @@ Returns a JSON object matching the schema:
 | Parameter      | Type     | Required | Description                      |
 | -------------- | -------- | -------- | -------------------------------- |
 | `projectId`    | `string` | Yes      | The project/schematic ID to save |
-| `confirmWrite` | `"true"` | Yes      |                                  |
+| `confirmWrite` | `'true'` | Yes      |                                  |
 
 ### Output Format
 
@@ -1847,7 +1847,7 @@ Returns a JSON object matching the schema:
 | `color`        | `string (optional)` | No       |             |
 | `lineWidth`    | `number (optional)` | No       |             |
 | `lineType`     | `string (optional)` | No       |             |
-| `confirmWrite` | `"true"`            | Yes      |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
 
 ### Output Format
 
@@ -1934,7 +1934,7 @@ Returns a JSON object matching the schema:
 | `primitiveId`  | `string` | Yes      | The primitive ID of the component                                    |
 | `pinNumber`    | `string` | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND") |
 | `netName`      | `string` | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)            |
-| `confirmWrite` | `"true"` | Yes      |                                                                      |
+| `confirmWrite` | `'true'` | Yes      |                                                                      |
 
 ### Output Format
 
@@ -1963,7 +1963,7 @@ Returns a JSON object matching the schema:
 | `projectId`    | `string`   | Yes      | The project/schematic ID                     |
 | `netName`      | `string`   | Yes      | The net name to assign pins to               |
 | `pins`         | `object[]` | Yes      | List of component pins to connect to the net |
-| `confirmWrite` | `"true"`   | Yes      |                                              |
+| `confirmWrite` | `'true'`   | Yes      |                                              |
 
 ### Output Format
 
@@ -1995,8 +1995,8 @@ Returns a JSON object matching the schema:
 | `x`              | `number`            | Yes      | X coordinate on the schematic canvas             |
 | `y`              | `number`            | Yes      | Y coordinate on the schematic canvas             |
 | `rotation`       | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)            |
-| `identification` | `"Power"            | "Ground" | "AnalogGround"                                   | "ProtectGround" (optional)` | No  | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
-| `confirmWrite`   | `"true"`            | Yes      |                                                  |
+| `identification` | `'Power'            | 'Ground' | 'AnalogGround'                                   | 'ProtectGround' (optional)` | No  | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
+| `confirmWrite`   | `'true'`            | Yes      |                                                  |
 
 ### Output Format
 
@@ -2026,9 +2026,9 @@ Returns a JSON object matching the schema:
 | `netName`      | `string`            | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS) |
 | `x`            | `number`            | Yes      | X coordinate on the schematic canvas                |
 | `y`            | `number`            | Yes      | Y coordinate on the schematic canvas                |
-| `portType`     | `"input"            | "output" | "bidirectional"                                     | "triState" | "passive" (optional)` | No  | Electrical type of the port |
+| `portType`     | `'input'            | 'output' | 'bidirectional'                                     | 'triState' | 'passive' (optional)` | No  | Electrical type of the port |
 | `rotation`     | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)               |
-| `confirmWrite` | `"true"`            | Yes      |                                                     |
+| `confirmWrite` | `'true'`            | Yes      |                                                     |
 
 ### Output Format
 
@@ -2055,7 +2055,7 @@ Returns a JSON object matching the schema:
 | Parameter      | Type       | Required | Description |
 | -------------- | ---------- | -------- | ----------- |
 | `primitiveIds` | `string[]` | Yes      |             |
-| `confirmWrite` | `"true"`   | Yes      |             |
+| `confirmWrite` | `'true'`   | Yes      |             |
 
 ### Output Format
 
@@ -2082,7 +2082,7 @@ Returns a JSON object matching the schema:
 | -------------- | --------------------- | -------- | ----------- |
 | `primitiveId`  | `string`              | Yes      |             |
 | `property`     | `Record<string, any>` | Yes      |             |
-| `confirmWrite` | `"true"`              | Yes      |             |
+| `confirmWrite` | `'true'`              | Yes      |             |
 
 ### Output Format
 
@@ -2176,7 +2176,7 @@ Returns a JSON object matching the schema:
 | `verifyAfterWrite`        | `boolean (optional)` | No       |             |
 | `checkPlacementCollision` | `boolean (optional)` | No       |             |
 | `collisionRadius`         | `number (optional)`  | No       |             |
-| `confirmWrite`            | `"true"`             | Yes      |             |
+| `confirmWrite`            | `'true'`             | Yes      |             |
 
 ### Output Format
 
@@ -2220,7 +2220,7 @@ Returns a JSON object matching the schema:
 {
   devices: object[];
   total: number;
-  provider_tier: "local_library" (optional);
+  provider_tier: 'local_library' (optional);
   not_available: boolean (optional);
   error: string (optional);
 }
@@ -2466,7 +2466,7 @@ Returns a JSON object matching the schema:
 | Parameter       | Type                 | Required | Description |
 | --------------- | -------------------- | -------- | ----------- |
 | `projectId`     | `string`             | Yes      |             |
-| `mode`          | `"preview"           | "apply"` | Yes         |     |
+| `mode`          | `'preview'           | 'apply'` | Yes         |     |
 | `anchor`        | `object`             | Yes      |             |
 | `netPortAnchor` | `object (optional)`  | No       |             |
 | `connectorRef`  | `string`             | Yes      |             |
@@ -2513,14 +2513,14 @@ Returns a JSON object matching the schema:
 | Parameter            | Type                 | Required | Description |
 | -------------------- | -------------------- | -------- | ----------- |
 | `projectId`          | `string`             | Yes      |             |
-| `mode`               | `"preview"           | "apply"` | Yes         |      |
+| `mode`               | `'preview'           | 'apply'` | Yes         |      |
 | `anchor`             | `object`             | Yes      |             |
 | `spacing`            | `number (optional)`  | No       |             |
 | `groundNetName`      | `string`             | Yes      |             |
 | `icPowerPins`        | `object[]`           | Yes      |             |
 | `capacitor`          | `object`             | Yes      |             |
 | `capacitorPins`      | `object`             | Yes      |             |
-| `decouplingCategory` | `"digital-logic"     | "mcu"    | "analog"    | "rf" | "crystal-oscillator" | "power-regulator"` | Yes |     |
+| `decouplingCategory` | `'digital-logic'     | 'mcu'    | 'analog'    | 'rf' | 'crystal-oscillator' | 'power-regulator'` | Yes |     |
 | `confirmWrite`       | `boolean (optional)` | No       |             |
 
 ### Output Format
@@ -2560,7 +2560,7 @@ Returns a JSON object matching the schema:
 | Parameter            | Type                 | Required | Description |
 | -------------------- | -------------------- | -------- | ----------- |
 | `projectId`          | `string`             | Yes      |             |
-| `mode`               | `"preview"           | "apply"` | Yes         |     |
+| `mode`               | `'preview'           | 'apply'` | Yes         |     |
 | `anchor`             | `object`             | Yes      |             |
 | `spacing`            | `number (optional)`  | No       |             |
 | `blockName`          | `string (optional)`  | No       |             |
@@ -2606,7 +2606,7 @@ Returns a JSON object matching the schema:
 | Parameter       | Type                 | Required | Description |
 | --------------- | -------------------- | -------- | ----------- |
 | `projectId`     | `string`             | Yes      |             |
-| `mode`          | `"preview"           | "apply"` | Yes         |     |
+| `mode`          | `'preview'           | 'apply'` | Yes         |     |
 | `anchor`        | `object`             | Yes      |             |
 | `spacing`       | `number (optional)`  | No       |             |
 | `groundNetName` | `string`             | Yes      |             |
