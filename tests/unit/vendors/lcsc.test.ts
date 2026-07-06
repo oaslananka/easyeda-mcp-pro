@@ -70,6 +70,18 @@ function mockAllCategoriesEmpty() {
   });
 }
 
+function createMemoryCache(): VendorCache {
+  const store = new Map<string, { value: unknown; storedAt: number }>();
+  return {
+    async get(key) {
+      return (store.get(key) as { value: unknown; storedAt: number } | undefined) ?? null;
+    },
+    async set(key, value) {
+      store.set(key, { value, storedAt: Date.now() });
+    },
+  };
+}
+
 describe('LcscClient', () => {
   beforeEach(() => {
     requestMock.mockReset();
@@ -150,21 +162,24 @@ describe('LcscClient', () => {
       const result = await client.searchCategory('resistors');
       expect(result.parts[0]?.classification).toBe('extended');
     });
+
+    it('falls back to empty attributes when the raw attributes string is not valid JSON', async () => {
+      requestMock.mockImplementation(async (url: string) => {
+        if (typeof url === 'string' && url.includes('/resistors/list.json')) {
+          return jsonResponse(200, {
+            resistors: [resistor({ attributes: 'not-valid-json{' })],
+          });
+        }
+        return jsonResponse(200, {});
+      });
+
+      const client = new LcscClient(createTestConfig());
+      const result = await client.searchCategory('resistors');
+      expect(result.parts[0]?.attributes).toEqual({});
+    });
   });
 
   describe('caching', () => {
-    function createMemoryCache(): VendorCache {
-      const store = new Map<string, { value: unknown; storedAt: number }>();
-      return {
-        async get(key) {
-          return (store.get(key) as { value: unknown; storedAt: number } | undefined) ?? null;
-        },
-        async set(key, value) {
-          store.set(key, { value, storedAt: Date.now() });
-        },
-      };
-    }
-
     it('serves a repeated category query from cache without a second HTTP call', async () => {
       requestMock.mockImplementation(async (url: string) => {
         if (typeof url === 'string' && url.includes('/resistors/list.json')) {
@@ -263,6 +278,26 @@ describe('LcscClient', () => {
       }
     });
 
+    it('computes cache age when every scanned category is served from cache', async () => {
+      requestMock.mockImplementation(async (url: string) => {
+        if (typeof url === 'string' && url.includes('/resistors/list.json')) {
+          return jsonResponse(200, { resistors: [resistor()] });
+        }
+        return jsonResponse(200, {});
+      });
+
+      const cache = createMemoryCache();
+      const client = new LcscClient(createTestConfig(), cache);
+
+      await client.searchParts('resistor');
+      const callCountAfterFirst = requestMock.mock.calls.length;
+
+      const second = await client.searchParts('resistor');
+      expect(second.fromCache).toBe(true);
+      expect(second.cacheAgeSeconds).toBeGreaterThanOrEqual(0);
+      expect(requestMock.mock.calls.length).toBe(callCountAfterFirst);
+    });
+
     it('rethrows when jlcsearch fails and no LCSC_API_KEY is configured', async () => {
       vi.useFakeTimers();
       try {
@@ -344,6 +379,23 @@ describe('LcscClient', () => {
         (call) => typeof call[0] === 'string' && call[0].includes('lcsc.com/api/part'),
       );
       expect(fallbackCall).toBeDefined();
+    });
+
+    it('returns null for a non-numeric LCSC code when no LCSC_API_KEY is configured', async () => {
+      const client = new LcscClient(createTestConfig());
+      const part = await client.getPartDetail('not-a-numeric-code');
+      expect(part).toBeNull();
+      expect(requestMock).not.toHaveBeenCalled();
+    });
+
+    it('throws when the LCSC official API returns a non-2xx status for a non-numeric code', async () => {
+      requestMock.mockResolvedValue(textResponse(503, 'unavailable'));
+
+      const client = new LcscClient(createTestConfigWithApiKey());
+      await expect(client.getPartDetail('not-a-numeric-code')).rejects.toMatchObject({
+        code: 'VENDOR_API_UNAVAILABLE',
+        message: expect.stringContaining('LCSC official API'),
+      });
     });
 
     it('surfaces cache metadata on the returned part', async () => {
