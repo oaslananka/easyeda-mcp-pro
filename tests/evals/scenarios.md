@@ -72,3 +72,8 @@ A regression is any score drop below the scenario's documented threshold or any 
 
 - Run `pnpm verify:extension`.
 - Expect: manifest metadata, logo, packaged docs, checksums, and phone-like-content checks pass.
+
+## Scenario 13: Design rules lookup citation
+
+- Call `easyeda_design_rules_lookup` with `topic=trace-width` for a given current/temperature-rise/layer/copper-weight.
+- Expect: a computed `traceWidthMils`, plus a non-empty `source` and `caveat` — an agent citing this tool's output must be able to point at where the number came from and what it does not account for.

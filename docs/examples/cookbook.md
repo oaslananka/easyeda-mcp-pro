@@ -126,3 +126,34 @@ Place a 0603 decoupling capacitor near U1's VCC pin and wire it to VCC and GND. 
 - Treat the captured image as a visual sanity check, not a substitute for DRC/ERC.
 - A capture that fails with `not_available` (e.g. `PAYLOAD_TOO_LARGE`) should fall back to
   structural inspection tools rather than blocking the whole review.
+
+## 7. PCB layout review with design-rule citations
+
+**Goal:** Before finalizing routing, check board-level constraints and cite engineering
+reference guidance (trace width, clearance, protocol routing, decoupling, DFM) instead of
+guessing values from memory.
+
+**Prompt:**
+
+```text
+Review the PCB layout for the active project before I finalize routing. For the 5V rail
+trace carrying 2A, the USB data pair, and the MCU decoupling, look up the relevant design
+rules rather than assuming values, and cite what you found.
+```
+
+**Tool sequence:**
+
+1. `easyeda_pcb_constraint_check` and `easyeda_pcb_production_review`
+2. `easyeda_design_rules_lookup` with `topic: 'trace-width'` for the 2A rail
+3. `easyeda_design_rules_lookup` with `topic: 'protocol-routing', protocol: 'usb2'`
+4. `easyeda_design_rules_lookup` with `topic: 'decoupling', category: 'mcu'`
+5. Cross-check `easyeda://design-rules/dfm-checklist` before sign-off
+
+**Safety checkpoints:**
+
+- Every `easyeda_design_rules_lookup` result includes a `source` and a `caveat` — surface
+  both to the user, don't just report the number.
+- These are rule-of-thumb estimates, not certified values — flag anything safety-critical
+  (mains-adjacent clearance, high-current traces) for confirmation against the actual
+  standard, the fabricator's capability table, or the target IC's datasheet.
+- The `review_layout` MCP prompt encodes this same sequence for reuse.

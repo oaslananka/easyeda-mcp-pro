@@ -20,7 +20,7 @@ import type {
   RegulatorThermalReport,
 } from './types.js';
 
-const DEFAULT_LIMITS: Required<PowerTreeLimits> = {
+export const DEFAULT_LIMITS: Required<PowerTreeLimits> = {
   minCurrentMarginPercent: 20,
   minThermalMarginC: 20,
   ambientTempC: 25,
@@ -108,7 +108,7 @@ function railBulkCapacitance(rail: PowerRailInput, capacitors: PowerCapacitorInp
   );
 }
 
-function requiredBulkCapacitance(loadA: number, limits: Required<PowerTreeLimits>): number {
+export function requiredBulkCapacitance(loadA: number, limits: Required<PowerTreeLimits>): number {
   return Math.max(limits.minBulkCapacitanceUf, loadA * limits.minBulkCapacitanceUfPerA);
 }
 

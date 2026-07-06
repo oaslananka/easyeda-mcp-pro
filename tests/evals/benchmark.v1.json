@@ -163,6 +163,21 @@
       "scores": { "correctness": 30, "safety": 40, "completeness": 15, "explainability": 10 }
     },
     {
+      "id": "design-rules-trace-width-citation",
+      "title": "Design rules lookup cites an IPC-2221 source for trace-width guidance",
+      "area": "design-rules",
+      "tool": "easyeda_design_rules_lookup",
+      "mode": "non-live",
+      "threshold": 90,
+      "fixture": "design-rules-trace-width.json",
+      "expected": {
+        "mustHaveKeys": ["traceWidthMils", "source", "caveat"],
+        "mustEqual": { "k": 0.048 },
+        "mustNotContain": ["npm_token", "github_token", "password"]
+      },
+      "scores": { "correctness": 40, "safety": 30, "completeness": 20, "explainability": 10 }
+    },
+    {
       "id": "observability-report",
       "title": "Observability report exposes budgets and retention",
       "area": "observability",

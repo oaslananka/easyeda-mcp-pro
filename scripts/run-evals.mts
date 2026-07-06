@@ -9,6 +9,7 @@ import { planComponentGroupPlacement } from '../src/pcb-layout/index.js';
 import { validateExportManifest } from '../src/export-manifest/index.js';
 import { generateProductionQaArtifacts } from '../src/production-qa/index.js';
 import { DEFAULT_LATENCY_BUDGETS, DEFAULT_RETENTION_POLICY } from '../src/observability/index.js';
+import { calculateTraceWidth, type TraceWidthInput } from '../src/design-rules/trace-width.js';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const manifestPath = join(root, 'tests/evals/benchmark.v1.json');
@@ -146,6 +147,10 @@ function runScenario(scenario: Scenario): unknown {
       return generateProductionQaArtifacts(loadFixture(scenario));
     case 'vendorFailureFixture':
       return loadFixture(scenario);
+    case 'easyeda_design_rules_lookup': {
+      const result = calculateTraceWidth(loadFixture<TraceWidthInput>(scenario));
+      return { topic: 'trace-width', ...result };
+    }
     case 'easyeda_observability_report':
       return {
         budgets: DEFAULT_LATENCY_BUDGETS,

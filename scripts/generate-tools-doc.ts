@@ -10,23 +10,51 @@ import { format } from 'prettier';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Zod v4 exposes its internal schema kind as `_def.type` (Zod v3 used `_def.typeName`).
 function getFriendlyZodType(schema: z.ZodTypeAny): string {
-  const typeName = schema._def?.typeName;
-  if (typeName === 'ZodObject') return 'object';
-  if (typeName === 'ZodArray') return `${getFriendlyZodType((schema as any).element)}[]`;
-  if (typeName === 'ZodString') return 'string';
-  if (typeName === 'ZodNumber') return 'number';
-  if (typeName === 'ZodBoolean') return 'boolean';
-  if (typeName === 'ZodEnum')
-    return (schema as any).options.map((v: string) => `"${v}"`).join(' | ');
-  if (typeName === 'ZodOptional')
-    return `${getFriendlyZodType((schema as any).unwrap())} (optional)`;
-  if (typeName === 'ZodNullable') return `${getFriendlyZodType((schema as any).unwrap())} | null`;
-  if (typeName === 'ZodUnion')
-    return (schema as any).options.map((opt: any) => getFriendlyZodType(opt)).join(' | ');
-  if (typeName === 'ZodLiteral') return `"${schema._def.value}"`;
-  if (typeName === 'ZodEffects') return getFriendlyZodType((schema as any).innerType());
+  const def = schema._def as Record<string, any>;
+  const typeName = def?.type;
+  if (typeName === 'object') return 'object';
+  if (typeName === 'array') return `${getFriendlyZodType(def.element)}[]`;
+  if (typeName === 'string') return 'string';
+  if (typeName === 'number') return 'number';
+  if (typeName === 'boolean') return 'boolean';
+  if (typeName === 'enum') {
+    const values = def.entries ? Object.values(def.entries) : (def.values ?? []);
+    return (values as string[]).map((v) => `"${v}"`).join(' | ');
+  }
+  if (typeName === 'optional') return `${getFriendlyZodType(def.innerType)} (optional)`;
+  if (typeName === 'nullable') return `${getFriendlyZodType(def.innerType)} | null`;
+  if (typeName === 'union') {
+    const options: z.ZodTypeAny[] = def.options ?? [];
+    return options.map((opt) => getFriendlyZodType(opt)).join(' | ');
+  }
+  if (typeName === 'literal') {
+    const values = def.values ?? [def.value];
+    return (values as unknown[]).map((v) => `"${String(v)}"`).join(' | ');
+  }
+  if (typeName === 'pipe') return getFriendlyZodType(def.in);
+  if (typeName === 'record') return `Record<string, ${getFriendlyZodType(def.valueType)}>`;
+  if (typeName === 'default') return getFriendlyZodType(def.innerType);
   return 'any';
+}
+
+function pushParamsTable(md: string[], shape: Record<string, z.ZodTypeAny>): void {
+  const keys = Object.keys(shape);
+  if (keys.length === 0) {
+    md.push('No parameters required.', '');
+    return;
+  }
+  md.push('| Parameter | Type | Required | Description |');
+  md.push('|-----------|------|----------|-------------|');
+  for (const [key, prop] of Object.entries(shape)) {
+    const schema = prop as z.ZodTypeAny;
+    const isOptional = schema instanceof z.ZodOptional || schema._def?.type === 'optional';
+    const typeName = getFriendlyZodType(schema);
+    const desc = schema.description ?? '';
+    md.push(`| \`${key}\` | \`${typeName}\` | ${isOptional ? 'No' : 'Yes'} | ${desc} |`);
+  }
+  md.push('');
 }
 
 function generateMarkdown(): string {
@@ -68,22 +96,18 @@ function generateMarkdown(): string {
     // Input parameters
     md.push('### Input Parameters', '');
     if (tool.inputSchema instanceof z.ZodObject) {
-      const shape = tool.inputSchema.shape;
-      const keys = Object.keys(shape);
-      if (keys.length === 0) {
-        md.push('No parameters required.', '');
-      } else {
-        md.push('| Parameter | Type | Required | Description |');
-        md.push('|-----------|------|----------|-------------|');
-        for (const [key, prop] of Object.entries(shape)) {
-          const schema = prop as z.ZodTypeAny;
-          const isOptional =
-            schema instanceof z.ZodOptional || schema._def.typeName === 'ZodOptional';
-          const typeName = getFriendlyZodType(schema);
-          const desc = schema.description ?? '';
-          md.push(`| \`${key}\` | \`${typeName}\` | ${isOptional ? 'No' : 'Yes'} | ${desc} |`);
-        }
-        md.push('');
+      pushParamsTable(md, tool.inputSchema.shape);
+    } else if (tool.inputSchema instanceof z.ZodDiscriminatedUnion) {
+      md.push('This tool accepts one of several shapes, selected by the `topic` field:', '');
+      for (const variant of tool.inputSchema._def.options as z.ZodObject<any>[]) {
+        const discriminatorEntry = Object.entries(variant.shape).find(
+          ([, prop]) => (prop as z.ZodTypeAny)._def.type === 'literal',
+        );
+        const label = discriminatorEntry
+          ? getFriendlyZodType(discriminatorEntry[1] as z.ZodTypeAny)
+          : 'variant';
+        md.push(`**When \`topic\` is ${label}:**`, '');
+        pushParamsTable(md, variant.shape);
       }
     } else {
       md.push('No parameters required.', '');
