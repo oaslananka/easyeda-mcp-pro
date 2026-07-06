@@ -979,6 +979,8 @@ async function listComponentsApi(): Promise<unknown> {
 
     const lcsc = typeof c.getState_SupplierId === 'function' ? c.getState_SupplierId() : '';
     const mfr = typeof c.getState_Manufacturer === 'function' ? c.getState_Manufacturer() : '';
+    const mfrId =
+      typeof c.getState_ManufacturerId === 'function' ? c.getState_ManufacturerId() : '';
     let ds = '';
 
     if (typeof c.getState_OtherProperty === 'function') {
@@ -990,6 +992,14 @@ async function listComponentsApi(): Promise<unknown> {
       }
     }
 
+    // Device identity — needed to re-place / clone a part. `Component` holds the
+    // device uuid+libraryUuid (a valid place_component deviceItem within THIS
+    // project; for a clean project, re-resolve via lcsc/manufacturerId/name).
+    // `Symbol` names the schematic symbol used.
+    const comp =
+      typeof c.getState_Component === 'function' ? c.getState_Component() : undefined;
+    const sym = typeof c.getState_Symbol === 'function' ? c.getState_Symbol() : undefined;
+
     result.push({
       primitiveId: safeGetState(c, 'PrimitiveId') ?? '',
       reference: ref,
@@ -997,7 +1007,12 @@ async function listComponentsApi(): Promise<unknown> {
       footprint: fp,
       lcsc: lcsc,
       manufacturer: mfr,
+      manufacturerId: mfrId,
       datasheet: ds,
+      deviceUuid: comp?.uuid ?? '',
+      deviceLibraryUuid: comp?.libraryUuid ?? '',
+      deviceName: comp?.name ?? '',
+      symbolName: sym?.name ?? '',
       x: safeGetState(c, 'X'),
       y: safeGetState(c, 'Y'),
       rotation: safeGetState(c, 'Rotation'),

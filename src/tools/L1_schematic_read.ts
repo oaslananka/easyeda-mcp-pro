@@ -167,10 +167,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_components',
     title: 'List schematic components',
     description:
-      'List all components in the schematic with their properties including primitive ID, ' +
-      'reference, value, footprint, LCSC part number, manufacturer, datasheet, and placement ' +
-      '(x/y/rotation). The primitive ID is required by modify_primitive, delete_primitive, and ' +
-      'component_pins, which only accept real IDs, not reference designators.',
+      'List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and ' +
+      'device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem ' +
+      'in this project), deviceName, symbolName, lcsc, manufacturerId.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -196,7 +195,12 @@ function registerSchematicReadTools(
           footprint: z.string(),
           lcsc: z.string().optional(),
           manufacturer: z.string().optional(),
+          manufacturerId: z.string().optional(),
           datasheet: z.string().optional(),
+          deviceUuid: z.string().optional(),
+          deviceLibraryUuid: z.string().optional(),
+          deviceName: z.string().optional(),
+          symbolName: z.string().optional(),
           x: z.number().optional(),
           y: z.number().optional(),
           rotation: z.number().optional(),
@@ -225,7 +229,12 @@ function registerSchematicReadTools(
           footprint?: string;
           lcsc?: string;
           manufacturer?: string;
+          manufacturerId?: string;
           datasheet?: string;
+          deviceUuid?: string;
+          deviceLibraryUuid?: string;
+          deviceName?: string;
+          symbolName?: string;
           x?: number;
           y?: number;
           rotation?: number;
@@ -239,7 +248,12 @@ function registerSchematicReadTools(
             footprint: c.footprint ?? '',
             lcsc: c.lcsc,
             manufacturer: c.manufacturer,
+            manufacturerId: c.manufacturerId,
             datasheet: c.datasheet,
+            deviceUuid: c.deviceUuid,
+            deviceLibraryUuid: c.deviceLibraryUuid,
+            deviceName: c.deviceName,
+            symbolName: c.symbolName,
             x: c.x,
             y: c.y,
             rotation: c.rotation,
