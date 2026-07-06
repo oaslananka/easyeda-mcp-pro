@@ -77,3 +77,8 @@ A regression is any score drop below the scenario's documented threshold or any 
 
 - Call `easyeda_design_rules_lookup` with `topic=trace-width` for a given current/temperature-rise/layer/copper-weight.
 - Expect: a computed `traceWidthMils`, plus a non-empty `source` and `caveat` — an agent citing this tool's output must be able to point at where the number came from and what it does not account for.
+
+## Scenarios 14-18: Golden benchmark — Intent to Gerber (five canonical designs)
+
+- Five hand-authored, fully-worked-out designs, each scored across five pipeline milestones (`ir_valid`, `erc_clean`, `drc_clean`, `export_manifest_valid`, `bom_fully_sourced`): a 12V→5V/3A buck converter, an ESP32-S3 + ADXL355 sensor node (exercising the starter catalog's real entries), a USB-C powered 3.3V dev board with input protection, an RS-485 field node with isolation notes, and a constant-current LED driver.
+- Expect: all five milestones pass for all five designs in non-live mode, with no secrets required. See `docs/benchmark-suite.md`'s "Golden benchmark" section for exactly what each milestone checks and does not prove.
