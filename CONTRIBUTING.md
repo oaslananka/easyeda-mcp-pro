@@ -142,7 +142,14 @@ The project target is at least 80% statement coverage where coverage tooling app
 
 ---
 
-## 9. Pull Request Review Expectations
+## 9. Branching Strategy
+
+- Create every feature/fix branch from the latest `main`, and open every pull request directly against `main`. Do not stack a branch's pull request on top of another feature branch — a chain of sequential branch-to-branch merges can silently never reach `main` if one link in the chain is merged out of order or left unmerged.
+- Keep pull requests scoped to a single unit of work (one feature, one fix, one focused refactor). Prefer several small pull requests merged in sequence over one branch that accumulates many unrelated commits before opening a pull request — small PRs are easier to review, bisect, and revert independently.
+
+---
+
+## 10. Pull Request Review Expectations
 
 A pull request should include:
 
