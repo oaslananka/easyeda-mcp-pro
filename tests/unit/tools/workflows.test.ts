@@ -170,6 +170,34 @@ describe('Workflow Tools', () => {
       expect(result.rolled_back).toBe(false);
       expect(result.summary).toMatch(/rollback also failed/);
     });
+
+    it('omits verification when verifyRail is not provided', async () => {
+      const tool = registry.get('easyeda_workflow_power_rail');
+      const result = (await tool?.handler(context, {
+        ...basePowerRailInput(),
+        mode: 'preview',
+      })) as any;
+      expect(result.verification).toBeUndefined();
+    });
+
+    it('attaches a verification verdict when verifyRail is provided (ngspice unavailable in this env)', async () => {
+      const tool = registry.get('easyeda_workflow_power_rail');
+      const result = (await tool?.handler(context, {
+        ...basePowerRailInput(),
+        mode: 'preview',
+        verifyRail: {
+          inputVoltage: 5,
+          outputVoltage: 3.3,
+          loadCurrentA: 0.5,
+        },
+      })) as any;
+      // No ngspice binary is installed in this test environment, so this exercises the
+      // real graceful-degradation path rather than a mocked success.
+      expect(result.verification).toBeDefined();
+      expect(result.verification.available).toBe(false);
+      expect(result.verification.error).toMatch(/not installed/);
+      expect(result.verification.caveat).toMatch(/Simplified linear regulator model/);
+    });
   });
 
   describe('easyeda_workflow_decouple_ic', () => {

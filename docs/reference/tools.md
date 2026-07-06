@@ -77,6 +77,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the EasyEDA Pro schematic netlist for connectivity issues. Reports net names, connected component references and pins, floating pins, graphical wires without netlist connectivity, and mismatches between visual wires and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool.                    |
 | `easyeda_schematic_verify_write`        | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                               |
 | `easyeda_semantic_erc_validate`         | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                                           |
+| `easyeda_simulate_operating_point`      | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
+| `easyeda_simulate_transient`            | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
 | `easyeda_wire_probe`                    | `dev`   | `low`    | Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                              |
 | `easyeda_workflow_connector_breakout`   | `pro`   | `medium` | Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).                                                                                                                                   |
 | `easyeda_workflow_decouple_ic`          | `pro`   | `medium` | Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).                                                                   |
@@ -2361,6 +2363,71 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_simulate_operating_point`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.
+
+### Input Parameters
+
+| Parameter   | Type                  | Required | Description |
+| ----------- | --------------------- | -------- | ----------- |
+| `circuit`   | `object`              | Yes      |             |
+| `railSpecs` | `object[] (optional)` | No       |             |
+| `timeoutMs` | `number (optional)`   | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  available: boolean;
+  ngspice_version: string (optional);
+  node_voltages: Record<string, number> (optional);
+  rail_verdicts: object[] (optional);
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_simulate_transient`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.
+
+### Input Parameters
+
+| Parameter         | Type                  | Required | Description |
+| ----------------- | --------------------- | -------- | ----------- |
+| `circuit`         | `object`              | Yes      |             |
+| `stepSeconds`     | `number`              | Yes      |             |
+| `stopTimeSeconds` | `number`              | Yes      |             |
+| `railSpecs`       | `object[] (optional)` | No       |             |
+| `timeoutMs`       | `number (optional)`   | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  available: boolean;
+  ngspice_version: string (optional);
+  samples: object[] (optional);
+  truncated: boolean (optional);
+  rail_verdicts: object[] (optional);
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
 ## `easyeda_wire_probe`
 
 **Profile:** `dev` | **Risk Level:** `low`
@@ -2546,6 +2613,7 @@ Returns a JSON object matching the schema:
 | `inputNetName`  | `string`             | Yes      |             |
 | `outputNetName` | `string`             | Yes      |             |
 | `components`    | `object[]`           | Yes      |             |
+| `verifyRail`    | `object (optional)`  | No       |             |
 | `confirmWrite`  | `boolean (optional)` | No       |             |
 
 ### Output Format
@@ -2568,6 +2636,7 @@ Returns a JSON object matching the schema:
   summary: string;
   rollback_notes: string[];
   error: string (optional);
+  verification: object (optional);
 }
 ```
 

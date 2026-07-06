@@ -9,6 +9,11 @@ import type {
   WorkflowPlan,
 } from '../workflows/types.js';
 import { lookupDecouplingGuidance, type DecouplingCategory } from '../design-rules/decoupling.js';
+import { buildSpiceDeck } from '../simulation/netlist.js';
+import { detectNgspice, runNgspiceDeck } from '../simulation/runner.js';
+import { parseOperatingPointOutput } from '../simulation/parser.js';
+import { verifyRailAgainstSpec } from '../simulation/verify.js';
+import type { SimCircuit } from '../simulation/types.js';
 
 const deviceItemSchema = z.object({
   libraryUuid: z.string().min(1),
@@ -202,6 +207,88 @@ function pushIssue(plan: WorkflowPlan, issue: WorkflowIssue): void {
   plan.issues.push(issue);
 }
 
+const verifyRailInputSchema = z.object({
+  inputVoltage: z.number(),
+  outputVoltage: z.number().positive(),
+  dropoutVoltage: z.number().nonnegative().default(0.3),
+  outputResistanceOhms: z.number().nonnegative().default(0.1),
+  loadCurrentA: z.number().positive(),
+  tolerancePercent: z.number().positive().default(5),
+});
+
+type VerifyRailInput = z.infer<typeof verifyRailInputSchema>;
+
+const railVerificationOutputSchema = z.object({
+  available: z.boolean(),
+  ngspice_version: z.string().optional(),
+  observed_voltage: z.number().optional(),
+  within_tolerance: z.boolean().optional(),
+  caveat: z.string(),
+  error: z.string().optional(),
+});
+
+/**
+ * Attach an optional electrical verification verdict to a power-rail workflow's result.
+ * This is a deliberately standalone, simplified model of the rail — not a simulation of
+ * the literal placed components/pins — see `src/simulation/types.ts`'s `LdoBehavioralComponent`
+ * doc for exactly what the model does and does not capture.
+ */
+async function verifyPowerRail(spec: VerifyRailInput) {
+  const caveat =
+    'Simplified linear regulator model (ideal source + dropout clamp + output resistance), ' +
+    'not a simulation of the literal placed components — see docs/simulation.md.';
+  const availability = await detectNgspice();
+  if (!availability.available) {
+    return {
+      available: false,
+      caveat,
+      error: `ngspice is not installed or not on PATH: ${availability.error ?? 'unknown reason'}`,
+    };
+  }
+
+  const circuit: SimCircuit = {
+    title: 'power rail verification',
+    groundNode: '0',
+    components: [
+      { ref: '1', kind: 'dc-voltage-source', nodes: ['vin', '0'], voltage: spec.inputVoltage },
+      {
+        ref: '1',
+        kind: 'ldo-behavioral',
+        nodes: ['vin', 'vout', '0'],
+        targetVoltage: spec.outputVoltage,
+        dropoutVoltage: spec.dropoutVoltage,
+        outputResistanceOhms: spec.outputResistanceOhms,
+      },
+      { ref: '1', kind: 'dc-current-source', nodes: ['vout', '0'], current: spec.loadCurrentA },
+    ],
+  };
+
+  try {
+    const deck = buildSpiceDeck(circuit, { kind: 'operating-point' });
+    const { stdout } = await runNgspiceDeck(deck);
+    const result = parseOperatingPointOutput(stdout);
+    const verdict = verifyRailAgainstSpec(result.nodeVoltages, {
+      nodeName: 'vout',
+      nominalVoltage: spec.outputVoltage,
+      tolerancePercent: spec.tolerancePercent,
+    });
+    return {
+      available: true,
+      ngspice_version: availability.version,
+      observed_voltage: verdict.observedVoltage,
+      within_tolerance: verdict.withinTolerance,
+      caveat,
+    };
+  } catch (err) {
+    return {
+      available: true,
+      ngspice_version: availability.version,
+      caveat,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 async function runWorkflow(
   ctx: ToolContext,
   input: WorkflowBlockInput,
@@ -320,9 +407,12 @@ function registerWorkflowTools(
       inputNetName: z.string().min(1),
       outputNetName: z.string().min(1),
       components: z.array(componentInputSchema).min(1),
+      verifyRail: verifyRailInputSchema.optional(),
       confirmWrite: z.boolean().optional(),
     }),
-    outputSchema: workflowOutputSchema,
+    outputSchema: workflowOutputSchema.extend({
+      verification: railVerificationOutputSchema.optional(),
+    }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const p = params as {
         projectId: string;
@@ -333,6 +423,7 @@ function registerWorkflowTools(
         inputNetName: string;
         outputNetName: string;
         components: WorkflowBlockInput['components'];
+        verifyRail?: VerifyRailInput;
         confirmWrite?: boolean;
       };
       const input: WorkflowBlockInput = {
@@ -342,7 +433,7 @@ function registerWorkflowTools(
         spacing: p.spacing,
         components: p.components,
       };
-      return runWorkflow(ctx, input, 'wf_power_rail', p.confirmWrite, (plan) => {
+      const result = await runWorkflow(ctx, input, 'wf_power_rail', p.confirmWrite, (plan) => {
         const allConnections = (p.components ?? []).flatMap((c) => c.pinConnections);
         const hasRegulator = (p.components ?? []).some((c) =>
           c.role.toLowerCase().includes('regulator'),
@@ -371,6 +462,9 @@ function registerWorkflowTools(
           }
         }
       });
+
+      if (!p.verifyRail) return result;
+      return { ...result, verification: await verifyPowerRail(p.verifyRail) };
     },
   });
 

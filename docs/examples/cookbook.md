@@ -225,3 +225,36 @@ before telling me it's done.
   means try the DSN export fallback, not retry the same call.
 - Top-side and bottom-side floorplan passes are not cross-checked for collisions — read
   `floorplan_notes` and eyeball the result (e.g. via `easyeda_canvas_capture`) before autorouting.
+
+## 10. Checking a rail electrically before committing to a layout
+
+**Goal:** Before placing a regulator stage, get a rough electrical sanity check — does the
+output land near the target voltage under the expected load — without needing a full
+schematic simulation setup.
+
+**Prompt:**
+
+```text
+Before you place this 3.3V regulator stage, check that it'll actually hold 3.3V at 500mA
+of load from a 5V input.
+```
+
+**Tool sequence:**
+
+1. `easyeda_workflow_power_rail` with `mode: 'preview'` and a `verifyRail` block
+   (`inputVoltage`, `outputVoltage`, `loadCurrentA`) — attaches a `verification` field to
+   the same response, so this doesn't cost an extra tool call
+2. If `verification.available` is `false`, ngspice isn't installed — say so plainly rather
+   than silently skipping the check; the placement plan itself is still valid
+3. Only then proceed to `mode: 'apply', confirmWrite: true`
+
+**Safety checkpoints:**
+
+- `verification` comes from a **standalone simplified model** (ideal source + dropout
+  clamp + output resistance), not a simulation of the literal components you're about to
+  place — always surface the `caveat` field alongside any pass/fail result.
+- This is a rough sanity check, not a substitute for a real simulation or bench
+  measurement, especially for anything safety-critical or thermally marginal.
+- `easyeda_simulate_operating_point` / `easyeda_simulate_transient` are available directly
+  for more general circuit checks (RC networks, diode/LED current limiting, etc.) beyond
+  the power-rail workflow's built-in hook.
