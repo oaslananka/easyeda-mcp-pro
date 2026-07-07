@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.22.0...easyeda-mcp-pro-v0.23.0) (2026-07-07)
+
+
+### Features
+
+* auto-extract live semantic ERC (B5) + live write-path regression suite (B6) ([#221](https://github.com/oaslananka/easyeda-mcp-pro/issues/221)) ([b5552c9](https://github.com/oaslananka/easyeda-mcp-pro/commit/b5552c967f123d3f10f508291ec7f90abc9a8c76))
+
 ## [0.22.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.21.0...easyeda-mcp-pro-v0.22.0) (2026-07-07)
 
 
