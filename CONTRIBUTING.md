@@ -21,6 +21,31 @@ pnpm build
 pnpm build:extension
 ```
 
+### The dev hot-loop (no extension re-import)
+
+The extension is split into a **loader** (`easyeda-bridge-extension/src/index.ts` — socket
+lifecycle, rarely changes) and a **dispatcher** (`src/dispatcher.ts` — every EasyEDA API
+interaction). In dev mode the server pushes a rebuilt dispatcher bundle over the bridge and the
+loader swaps it in live, so you almost never re-import the `.eext`:
+
+```bash
+# One-time: build a dev extension (hot-swap compiled in) and import the .eext in EasyEDA Pro
+pnpm --filter @easyeda-mcp-pro/bridge-extension build:dev
+
+# Terminal 1 — server with hot-swap auto-push (tsx watch restarts on server changes)
+pnpm dev:hotloop
+
+# Terminal 2 — rebuild dispatcher + repackage on every extension source change
+pnpm dev:extension
+```
+
+Edit `dispatcher.ts` → esbuild rebuilds in <1 s → the server pushes the new build → the next tool
+call runs the new code. `easyeda_dev_hot_swap` (dev profile) gives manual push/revert/status, and
+`easyeda_run_self_test` fails loudly with `method_registry_match` when the extension serves stale
+dispatch logic. Re-importing the `.eext` is only needed when the **loader** itself changes.
+Hot swap is refused in production (`BRIDGE_HOT_SWAP_ENABLED` guard) and marketplace builds compile
+the swap path out entirely.
+
 ---
 
 ## 2. Quality Gates Checklist

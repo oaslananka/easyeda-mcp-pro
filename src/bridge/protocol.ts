@@ -22,6 +22,11 @@ export const BridgeHandshakeSchema = z.object({
   easyedaVersion: z.string().optional(),
   devMode: z.boolean().optional(),
   sessionToken: z.string().optional(),
+  /** Hash of the extension's active dispatcher method list (same algorithm as
+   *  the server's methodRegistryHash) so stale dispatch logic fails loudly. */
+  methodListHash: z.string().optional(),
+  /** Version of the extension loader shell (tracks the .eext import). */
+  loaderVersion: z.string().optional(),
 });
 
 /**
@@ -62,6 +67,13 @@ export const BridgeHelloSchema = z.object({
    *  binary (Blob/File) results before sending — avoiding a payload-too-large close
    *  of the whole connection over one oversized response. */
   maxPayloadSize: z.number().int().positive().optional(),
+  /** Whether this server reassembles `{type:'chunk'}` envelopes, letting the
+   *  extension split payloads larger than maxPayloadSize across frames. */
+  supportsChunking: z.boolean().optional(),
+  /** Aggregate cap for one chunked payload (defaults to 8× maxPayloadSize). */
+  maxAggregatePayloadSize: z.number().int().positive().optional(),
+  /** Whether this server accepts system.hotSwap.* dispatcher pushes (dev only). */
+  hotSwapEnabled: z.boolean().optional(),
 });
 
 /**

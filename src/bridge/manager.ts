@@ -22,6 +22,11 @@ const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
 // Zombie detection: if no heartbeat received within 3× the heartbeat interval, close the socket.
 const HEARTBEAT_LIVENESS_MULTIPLIER = 3;
+// A chunked payload may total this many times BRIDGE_MAX_PAYLOAD_SIZE before
+// the connection is closed (memory bound for reassembly).
+const CHUNK_AGGREGATE_MULTIPLIER = 8;
+// Drop a partial chunk assembly that has not completed within this window.
+const CHUNK_ASSEMBLY_TTL_MS = 60_000;
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -58,6 +63,8 @@ export class BridgeManager extends EventEmitter {
   private pairingChallenges = new Map<string, PairingEntry>();
   private _methodRegistryHash: string;
   private _extensionVersion: string | undefined;
+  private _extensionMethodListHash: string | undefined;
+  private _loaderVersion: string | undefined;
 
   constructor(config: EnvConfig) {
     super();
@@ -118,6 +125,29 @@ export class BridgeManager extends EventEmitter {
   /** Whether the connected extension's version differs from this server's version. */
   get extensionVersionMismatch(): boolean {
     return this._extensionVersion !== undefined && this._extensionVersion !== SERVER_VERSION;
+  }
+
+  /** Method-list hash reported by the extension's active dispatcher at handshake. */
+  get extensionMethodListHash(): string | undefined {
+    return this._extensionMethodListHash;
+  }
+
+  /** Extension loader version reported at handshake (tracks the .eext import). */
+  get loaderVersion(): string | undefined {
+    return this._loaderVersion;
+  }
+
+  /**
+   * True when the extension reported a dispatcher method-list hash that does
+   * not match this server's method registry — i.e. the extension is serving
+   * stale (or newer) dispatch logic. Undefined-hash extensions (older builds)
+   * report false here; extension_version_mismatch covers those.
+   */
+  get registryMismatch(): boolean {
+    return (
+      this._extensionMethodListHash !== undefined &&
+      this._extensionMethodListHash !== this._methodRegistryHash
+    );
   }
 
   private isLoopbackHost(host: string): boolean {
@@ -211,6 +241,87 @@ export class BridgeManager extends EventEmitter {
       logger.info('sent pairing challenge to new client');
     }
 
+    // A5: reassembly buffers for `{type:'chunk'}` envelopes from this client.
+    // A chunked payload may exceed the per-frame cap but is bounded by the
+    // aggregate cap; partial assemblies expire after CHUNK_ASSEMBLY_TTL_MS.
+    const chunkAssemblies = new Map<
+      string,
+      {
+        chunks: Array<string | undefined>;
+        total: number;
+        received: number;
+        bytes: number;
+        startedAt: number;
+      }
+    >();
+    const aggregateCap = this.config.BRIDGE_MAX_PAYLOAD_SIZE * CHUNK_AGGREGATE_MULTIPLIER;
+
+    const routeParsed = (data: { type?: string } & Record<string, unknown>): void => {
+      if (data.type === 'handshake') {
+        this.handleHandshake(ws, data);
+      } else if (data.type === 'response') {
+        this.handleResponse(data as unknown as BridgeResponse);
+      } else if (data.type === 'request') {
+        this.handleIncomingRequest(ws, data);
+      } else if (data.type === 'heartbeat') {
+        this._lastHeartbeatMs = Date.now();
+        this.emit('heartbeat', data.timestamp);
+      }
+    };
+
+    const handleChunk = (data: Record<string, unknown>): void => {
+      const id = typeof data.id === 'string' ? data.id : '';
+      const seq = typeof data.seq === 'number' ? data.seq : -1;
+      const total = typeof data.total === 'number' ? data.total : 0;
+      const piece = typeof data.data === 'string' ? data.data : undefined;
+      if (!id || seq < 0 || total < 1 || total > 4096 || seq >= total || piece === undefined) {
+        logger.warn({ id, seq, total }, 'invalid chunk envelope');
+        return;
+      }
+      const now = Date.now();
+      for (const [key, entry] of chunkAssemblies) {
+        if (now - entry.startedAt > CHUNK_ASSEMBLY_TTL_MS) chunkAssemblies.delete(key);
+      }
+      let assembly = chunkAssemblies.get(id);
+      if (!assembly) {
+        assembly = {
+          chunks: new Array<string | undefined>(total),
+          total,
+          received: 0,
+          bytes: 0,
+          startedAt: now,
+        };
+        chunkAssemblies.set(id, assembly);
+      }
+      if (assembly.total !== total) {
+        chunkAssemblies.delete(id);
+        logger.warn({ id }, 'chunk total changed mid-assembly, dropping');
+        return;
+      }
+      if (assembly.chunks[seq] === undefined) {
+        assembly.received += 1;
+        assembly.bytes += piece.length;
+      }
+      assembly.chunks[seq] = piece;
+      if (assembly.bytes > aggregateCap) {
+        chunkAssemblies.delete(id);
+        logger.warn(
+          { id, bytes: assembly.bytes, aggregateCap },
+          'chunked payload exceeds aggregate cap',
+        );
+        ws.close(4009, 'payload_too_large');
+        return;
+      }
+      if (assembly.received === assembly.total) {
+        chunkAssemblies.delete(id);
+        try {
+          routeParsed(JSON.parse(assembly.chunks.join('')));
+        } catch (err) {
+          logger.error({ err, id }, 'failed to parse reassembled chunked payload');
+        }
+      }
+    };
+
     ws.on('message', (raw) => {
       try {
         // 0. Payload size enforcement (before parsing)
@@ -254,17 +365,12 @@ export class BridgeManager extends EventEmitter {
           return;
         }
 
-        // 3. Normal message routing
-        if (data.type === 'handshake') {
-          this.handleHandshake(ws, data);
-        } else if (data.type === 'response') {
-          this.handleResponse(data);
-        } else if (data.type === 'request') {
-          this.handleIncomingRequest(ws, data);
-        } else if (data.type === 'heartbeat') {
-          this._lastHeartbeatMs = Date.now();
-          this.emit('heartbeat', data.timestamp);
+        // 3. Normal message routing (chunk envelopes reassemble, then route)
+        if (data.type === 'chunk') {
+          handleChunk(data);
+          return;
         }
+        routeParsed(data);
       } catch (err) {
         logger.error({ err }, 'bridge message processing error');
       }
@@ -283,6 +389,8 @@ export class BridgeManager extends EventEmitter {
       this._connectedAtMs = 0;
       this.hello = null;
       this._extensionVersion = undefined;
+      this._extensionMethodListHash = undefined;
+      this._loaderVersion = undefined;
       this.stopStaleSweep();
       this.stopHeartbeat();
 
@@ -361,6 +469,26 @@ export class BridgeManager extends EventEmitter {
       );
     }
 
+    // Dispatcher registry staleness: unlike the advisory version warning, this
+    // compares the actual method surface, so a stale dispatcher fails loudly
+    // in health_check/run_self_test (and triggers an auto-push in hot-swap dev mode).
+    this._extensionMethodListHash = parsed.data.methodListHash;
+    this._loaderVersion = parsed.data.loaderVersion;
+    if (this.registryMismatch) {
+      logger.error(
+        {
+          extensionMethodListHash: this._extensionMethodListHash,
+          serverMethodRegistryHash: this._methodRegistryHash,
+        },
+        'bridge method registry mismatch: the extension dispatcher is stale. ' +
+          'Re-import the extension, or enable BRIDGE_HOT_SWAP_ENABLED for auto-push in dev.',
+      );
+      this.emit('registryMismatch', {
+        extensionMethodListHash: this._extensionMethodListHash,
+        serverMethodRegistryHash: this._methodRegistryHash,
+      });
+    }
+
     this.hello = {
       type: 'hello',
       bridgeVersion: SERVER_VERSION,
@@ -370,6 +498,9 @@ export class BridgeManager extends EventEmitter {
       capabilities: EasyedaApiMethodSchema.options,
       methodRegistryHash: this._methodRegistryHash,
       maxPayloadSize: this.config.BRIDGE_MAX_PAYLOAD_SIZE,
+      supportsChunking: true,
+      maxAggregatePayloadSize: this.config.BRIDGE_MAX_PAYLOAD_SIZE * CHUNK_AGGREGATE_MULTIPLIER,
+      hotSwapEnabled: this.config.BRIDGE_HOT_SWAP_ENABLED || undefined,
       devMode: parsed.data.devMode ?? false,
     };
 
@@ -531,6 +662,8 @@ export class BridgeManager extends EventEmitter {
 
     this.hello = null;
     this._extensionVersion = undefined;
+    this._extensionMethodListHash = undefined;
+    this._loaderVersion = undefined;
     this.reconnectAttempts = 0;
     this.emit('stateChanged', this.state, prev);
     this.emit('disconnected', reason ?? 'unknown');

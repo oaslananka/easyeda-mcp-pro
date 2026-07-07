@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
+import {
+  fetchLoaderStatus,
+  pushDispatcher,
+  readDispatcherArtifact,
+  revertDispatcher,
+} from '../bridge/hotswap.js';
 
 const apiCallInputSchema = z.object({
   path: z.string().regex(/^[A-Za-z]+_[A-Za-z0-9]+\.[A-Za-z][A-Za-z0-9_]*$/),
@@ -167,6 +173,86 @@ function registerDiagnosticsApi(
           return { ok: true, result: (result as Record<string, unknown>).result };
         } catch (err) {
           return { ok: false, error: err instanceof Error ? err.message : String(err) };
+        }
+      },
+    });
+  }
+
+  if (config.BRIDGE_HOT_SWAP_ENABLED) {
+    const hotSwapInputSchema = z.object({
+      action: z.enum(['status', 'push', 'revert']),
+      bundlePath: z.string().optional(),
+      confirmWrite: z.boolean().default(false),
+    });
+
+    registry.register({
+      name: 'easyeda_dev_hot_swap',
+      title: 'Hot-swap extension dispatcher',
+      description:
+        'Dev-only: push the freshly built extension dispatcher bundle (dist/dispatcher.js) into the ' +
+        'running EasyEDA extension over the bridge, replacing its dispatch logic without re-importing ' +
+        'the .eext. action=status reports the active dispatcher build; push sends the bundle at ' +
+        'bundlePath (defaults to BRIDGE_HOT_SWAP_WATCH); revert restores the baked dispatcher. ' +
+        'Requires BRIDGE_HOT_SWAP_ENABLED=true (refused in production), a dev extension build, and ' +
+        'confirmWrite=true for push/revert.',
+      profile: 'dev',
+      evidence: ['runtime-probe'],
+      risk: 'high',
+      confirmWrite: true,
+      group: 'diagnostics',
+      version: '1.0.0',
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+      inputSchema: hotSwapInputSchema,
+      outputSchema: z.object({
+        ok: z.boolean(),
+        action: z.string(),
+        status: z.unknown().optional(),
+        buildId: z.string().optional(),
+        methodCount: z.number().optional(),
+        error: z.string().optional(),
+        requires_confirmation: z.boolean().optional(),
+      }),
+      handler: async (ctx: ToolContext, params: unknown) => {
+        const { action, bundlePath, confirmWrite } = hotSwapInputSchema.parse(params);
+        try {
+          if (action === 'status') {
+            const status = await fetchLoaderStatus(ctx.bridge.call);
+            return { ok: true, action, status };
+          }
+          if (!confirmWrite) {
+            return {
+              ok: false,
+              action,
+              requires_confirmation: true,
+              error: `Hot-swap "${action}" replaces live extension code and requires confirmWrite=true.`,
+            };
+          }
+          if (action === 'revert') {
+            const result = await revertDispatcher(ctx.bridge.call);
+            return { ok: true, action, buildId: result.buildId };
+          }
+          const path = bundlePath || config.BRIDGE_HOT_SWAP_WATCH;
+          if (!path) {
+            return {
+              ok: false,
+              action,
+              error:
+                'No bundle path: pass bundlePath or set BRIDGE_HOT_SWAP_WATCH to easyeda-bridge-extension/dist/dispatcher.js.',
+            };
+          }
+          const artifact = readDispatcherArtifact(path);
+          const result = await pushDispatcher(
+            ctx.bridge.call,
+            artifact,
+            config.BRIDGE_HOT_SWAP_CHUNK_BYTES,
+          );
+          return { ok: true, action, buildId: result.buildId, methodCount: result.methodCount };
+        } catch (err) {
+          return { ok: false, action, error: err instanceof Error ? err.message : String(err) };
         }
       },
     });

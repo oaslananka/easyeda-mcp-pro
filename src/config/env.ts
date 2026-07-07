@@ -42,6 +42,13 @@ export const EnvSchema = z.object({
   BRIDGE_TOKEN: z.string().default(''),
   EASYEDA_DEV_BRIDGE: envBoolean().default(false),
   BRIDGE_RAW_EXEC_ENABLED: envBoolean().default(false),
+  // Dev-only dispatcher hot swap: push a freshly built extension dispatcher
+  // bundle over the bridge without re-importing the .eext. Remote code
+  // execution by design — refused in production, mirrors BRIDGE_RAW_EXEC_ENABLED.
+  BRIDGE_HOT_SWAP_ENABLED: envBoolean().default(false),
+  // Path to the dispatcher bundle to watch/push (easyeda-bridge-extension/dist/dispatcher.js).
+  BRIDGE_HOT_SWAP_WATCH: z.string().default(''),
+  BRIDGE_HOT_SWAP_CHUNK_BYTES: z.coerce.number().int().min(4096).max(1048576).default(65536),
 
   DATA_DIR: z.string().default('.easyeda-mcp-pro'),
   SQLITE_PATH: z.string().default('.easyeda-mcp-pro/easyeda-mcp-pro.sqlite'),
@@ -229,6 +236,11 @@ export function validateSafeConfig(config: EnvConfig): void {
     if (config.BRIDGE_RAW_EXEC_ENABLED) {
       // Logger not yet initialized — env config is loaded first
       console.error('SAFETY: BRIDGE_RAW_EXEC_ENABLED=true is not allowed in production mode.');
+      process.exit(1);
+    }
+    if (config.BRIDGE_HOT_SWAP_ENABLED) {
+      // Logger not yet initialized — env config is loaded first
+      console.error('SAFETY: BRIDGE_HOT_SWAP_ENABLED=true is not allowed in production mode.');
       process.exit(1);
     }
     if (config.JLCPCB_ENABLE_ORDERING && config.JLCPCB_MODE !== 'approved_api') {

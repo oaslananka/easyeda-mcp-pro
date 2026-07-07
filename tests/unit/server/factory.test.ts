@@ -28,7 +28,10 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
 vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => ({
   StreamableHTTPServerTransport: class MockStreamableHTTPServerTransport {},
 }));
-vi.mock('../../../src/utils/logger.js', () => ({ createLogger: () => mocks.logger }));
+vi.mock('../../../src/utils/logger.js', () => ({
+  createLogger: () => mocks.logger,
+  getLogger: () => mocks.logger,
+}));
 vi.mock('../../../src/utils/redaction.js', () => ({ redactObject: (value: unknown) => value }));
 vi.mock('../../../src/config/feature-flags.js', () => ({
   loadFeatureFlags: () => ({ mcpTasksEnabled: false }),

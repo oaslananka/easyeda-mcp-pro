@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { type BridgeDiagnosticsSnapshot, type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
+import { EasyedaApiMethodSchema } from '../bridge/types.js';
 import { PROFILE_DEFINITIONS } from '../config/profiles.js';
 import { SERVER_VERSION } from '../config/version.js';
 import { STARTER_DEVICE_CATALOG } from '../catalog/index.js';
@@ -67,16 +68,18 @@ function registerDiagnosticsCore(
       easyeda_version: z.string().optional(),
       extension_version: z.string().optional(),
       extension_version_mismatch: z.boolean(),
+      registry_mismatch: z.boolean(),
       keyless_sourcing_enabled: z.boolean(),
       catalog_device_count: z.number().int().nonnegative(),
       ups: z.number(),
     }),
     handler: async (ctx: ToolContext, _params: unknown) => {
       const extensionVersionMismatch = ctx.bridge.extensionVersionMismatch ?? false;
+      const registryMismatch = ctx.bridge.registryMismatch ?? false;
       return {
         status: !ctx.bridge.connected
           ? ('degraded' as const)
-          : extensionVersionMismatch
+          : extensionVersionMismatch || registryMismatch
             ? ('degraded' as const)
             : ('ok' as const),
         version: SERVER_VERSION,
@@ -87,6 +90,7 @@ function registerDiagnosticsCore(
         easyeda_version: ctx.bridge.easyedaVersion,
         extension_version: ctx.bridge.extensionVersion,
         extension_version_mismatch: extensionVersionMismatch,
+        registry_mismatch: registryMismatch,
         keyless_sourcing_enabled: ctx.config.keylessSourcingEnabled ?? true,
         catalog_device_count: STARTER_DEVICE_CATALOG.length,
         ups: process.uptime(),
@@ -504,6 +508,22 @@ function registerDiagnosticsCore(
               ? `Extension version ${ctx.bridge.extensionVersion} does not match server version ${SERVER_VERSION}; update the extension in EasyEDA Pro`
               : 'Extension version matches server version',
         },
+        {
+          // Unlike the advisory version check above, a stale dispatcher method
+          // registry FAILS the self test: the extension would silently serve
+          // old dispatch logic for methods the server believes exist.
+          name: 'method_registry_match',
+          status: !ctx.bridge.extensionMethodListHash
+            ? ('skipped' as const)
+            : ctx.bridge.registryMismatch
+              ? ('fail' as const)
+              : ('pass' as const),
+          message: !ctx.bridge.extensionMethodListHash
+            ? 'Skipped: extension did not report a dispatcher method-list hash (pre-0.22 build)'
+            : ctx.bridge.registryMismatch
+              ? `Extension dispatcher method registry (${ctx.bridge.extensionMethodListHash}) does not match the server registry (${ctx.bridge.methodRegistryHash}). Re-import the extension, or enable BRIDGE_HOT_SWAP_ENABLED to auto-push in dev.`
+              : 'Extension dispatcher method registry matches the server',
+        },
       ];
 
       return {
@@ -540,11 +560,49 @@ function registerDiagnosticsCore(
         }),
       ),
       total: z.number(),
+      source: z.enum(['loader_status', 'server_registry']).optional(),
+      dispatcher_build_id: z.string().optional(),
     }),
-    handler: async (_ctx: ToolContext, _params: unknown) => {
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { filter } = z.object({ filter: z.string().optional() }).parse(params);
+      const registryMethods = [...EasyedaApiMethodSchema.options].sort();
+
+      // Prefer the live method list from the extension loader (exact for the
+      // active dispatcher); fall back to the server registry with availability
+      // implied by the bridge connection when the loader predates loaderStatus.
+      let extensionMethods: Set<string> | null = null;
+      let buildId: string | undefined;
+      try {
+        const status = await ctx.bridge.call<
+          Record<string, never>,
+          { buildId?: string; methodCount?: number } & Record<string, unknown>
+        >('system.loaderStatus', {});
+        buildId = typeof status.buildId === 'string' ? status.buildId : undefined;
+        const list = (
+          await ctx.bridge.call<Record<string, never>, { capabilities?: unknown }>(
+            'system.getStatus',
+            {},
+          )
+        ).capabilities;
+        if (Array.isArray(list)) {
+          extensionMethods = new Set(list.filter((m): m is string => typeof m === 'string'));
+        }
+      } catch {
+        // Loader status unavailable — old extension build or bridge down.
+      }
+
+      const normalizedFilter = filter?.toLowerCase().trim();
+      const methods = registryMethods
+        .filter((name) => !normalizedFilter || name.toLowerCase().includes(normalizedFilter))
+        .map((name) => ({
+          name,
+          available: extensionMethods ? extensionMethods.has(name) : ctx.bridge.connected,
+        }));
       return {
-        methods: [],
-        total: 0,
+        methods,
+        total: methods.length,
+        source: extensionMethods ? ('loader_status' as const) : ('server_registry' as const),
+        dispatcher_build_id: buildId,
       };
     },
   });
