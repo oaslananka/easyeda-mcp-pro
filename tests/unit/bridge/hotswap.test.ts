@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { pushDispatcher, readDispatcherArtifact } from '../../../src/bridge/hotswap.js';
+import {
+  fetchLoaderStatus,
+  pushDispatcher,
+  readDispatcherArtifact,
+  revertDispatcher,
+} from '../../../src/bridge/hotswap.js';
 
 function makeArtifactDir(source: string, buildId?: string): string {
   const dir = mkdtempSync(join(tmpdir(), 'hotswap-'));
@@ -64,6 +69,17 @@ describe('pushDispatcher', () => {
     expect(calls[calls.length - 1].method).toBe('system.hotSwap.commit');
   });
 
+  it('throws when the commit does not report a successful swap', async () => {
+    const dir = makeArtifactDir('z'.repeat(100), 'daaaaxbbbbxcccc');
+    const artifact = readDispatcherArtifact(join(dir, 'dispatcher.js'));
+    const call = vi.fn(async (method: string) =>
+      method === 'system.hotSwap.commit' ? { swapped: false } : {},
+    );
+    await expect(pushDispatcher(call as never, artifact, 4096)).rejects.toThrow(
+      /did not report a successful swap/,
+    );
+  });
+
   it('throws when the extension echoes a different buildId', async () => {
     const dir = makeArtifactDir('y'.repeat(100), 'daaaaxbbbbxcccc');
     const artifact = readDispatcherArtifact(join(dir, 'dispatcher.js'));
@@ -73,5 +89,17 @@ describe('pushDispatcher', () => {
     await expect(pushDispatcher(call as never, artifact, 4096)).rejects.toThrow(
       /build id mismatch/,
     );
+  });
+});
+
+describe('fetchLoaderStatus and revertDispatcher', () => {
+  it('delegate to the matching bridge methods', async () => {
+    const call = vi.fn(async (method: string) => {
+      if (method === 'system.loaderStatus') return { activeDispatcher: 'pushed', buildId: 'd1' };
+      if (method === 'system.hotSwap.revert') return { reverted: true, buildId: 'd0' };
+      return {};
+    });
+    await expect(fetchLoaderStatus(call as never)).resolves.toMatchObject({ buildId: 'd1' });
+    await expect(revertDispatcher(call as never)).resolves.toMatchObject({ reverted: true });
   });
 });
