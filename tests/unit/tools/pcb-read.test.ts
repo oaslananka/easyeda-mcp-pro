@@ -91,6 +91,21 @@ describe('PCB Read Tools', () => {
     expect(result?.tracks).toHaveLength(2);
   });
 
+  it('easyeda_pcb_tracks reports not_available on bridge error instead of throwing', async () => {
+    const tool = registry.get('easyeda_pcb_tracks');
+    bridgeCall.mockRejectedValue(new Error('Bridge not connected'));
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', limit: 100, offset: 0 });
+
+    expect(result).toEqual({
+      project_id: 'proj-123',
+      tracks: [],
+      total: 0,
+      not_available: true,
+      error: 'Bridge not connected',
+    });
+  });
+
   it('easyeda_pcb_vias returns items and total from the bridge', async () => {
     const tool = registry.get('easyeda_pcb_vias');
     bridgeCall.mockResolvedValue({
@@ -105,6 +120,21 @@ describe('PCB Read Tools', () => {
       project_id: 'proj-123',
       vias: [{ primitiveId: 'v1', net: 'GND', x: 150, y: 150, holeDiameter: 300, diameter: 600 }],
       total: 1,
+    });
+  });
+
+  it('easyeda_pcb_vias reports not_available on bridge error instead of throwing', async () => {
+    const tool = registry.get('easyeda_pcb_vias');
+    bridgeCall.mockRejectedValue(new Error('Bridge not connected'));
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', limit: 100, offset: 0 });
+
+    expect(result).toEqual({
+      project_id: 'proj-123',
+      vias: [],
+      total: 0,
+      not_available: true,
+      error: 'Bridge not connected',
     });
   });
 });

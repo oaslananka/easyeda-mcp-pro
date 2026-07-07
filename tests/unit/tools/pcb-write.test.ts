@@ -280,6 +280,22 @@ describe('PCB Write Tools', () => {
     });
   });
 
+  it('easyeda_pcb_add_zone should report bridge errors instead of throwing', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    bridgeCall.mockRejectedValue(new Error('not_available'));
+
+    const result = await tool?.handler(context, {
+      points: [
+        { x: 0, y: 0 },
+        { x: 20, y: 0 },
+      ],
+      layer: 2,
+      confirmWrite: true,
+    });
+
+    expect(result).toEqual({ success: false, error: 'not_available' });
+  });
+
   it('easyeda_pcb_delete_component should call bridge delete', async () => {
     const tool = registry.get('easyeda_pcb_delete_component');
     bridgeCall.mockResolvedValue({
@@ -327,6 +343,18 @@ describe('PCB Write Tools', () => {
     });
   });
 
+  it('easyeda_pcb_delete_component should report bridge errors instead of throwing', async () => {
+    const tool = registry.get('easyeda_pcb_delete_component');
+    bridgeCall.mockRejectedValue(new Error('Bridge not connected'));
+
+    const result = await tool?.handler(context, {
+      primitiveIds: ['comp-1'],
+      confirmWrite: true,
+    });
+
+    expect(result).toEqual({ success: false, error: 'Bridge not connected' });
+  });
+
   it('easyeda_pcb_modify_component should call bridge modify', async () => {
     const tool = registry.get('easyeda_pcb_modify_component');
     bridgeCall.mockResolvedValue(true);
@@ -344,5 +372,18 @@ describe('PCB Write Tools', () => {
     expect(result).toEqual({
       success: true,
     });
+  });
+
+  it('easyeda_pcb_modify_component should report bridge errors instead of throwing', async () => {
+    const tool = registry.get('easyeda_pcb_modify_component');
+    bridgeCall.mockRejectedValue(new Error('Primitive not found'));
+
+    const result = await tool?.handler(context, {
+      primitiveId: 'comp-1',
+      property: { x: 50 },
+      confirmWrite: true,
+    });
+
+    expect(result).toEqual({ success: false, error: 'Primitive not found' });
   });
 });
