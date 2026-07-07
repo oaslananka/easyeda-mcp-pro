@@ -3,7 +3,7 @@ name: Auto assign incoming issues and PRs
 on:
   issues:
     types: [opened]
-  pull_request_target:
+  pull_request:
     types: [opened, reopened, ready_for_review]
 
 permissions:
@@ -18,12 +18,13 @@ jobs:
     steps:
       - name: Assign to oaslananka
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           script: |
             const number = context.payload.issue?.number ?? context.payload.pull_request?.number;
 
             if (!Number.isInteger(number)) {
-              core.setFailed('No issue or pull request number was found in this event payload.');
+              core.notice('No issue or pull request number was found in this event payload.');
               return;
             }
 
