@@ -696,7 +696,7 @@ export class CdpBridgeManager extends EventEmitter {
   }
 
   private computeMethodRegistryHash(): string {
-    const sorted = [...EasyedaApiMethodSchema.options].sort();
+    const sorted = [...EasyedaApiMethodSchema.options].sort((a, b) => a.localeCompare(b));
     return crypto.createHash('sha256').update(sorted.join(',')).digest('hex').slice(0, 16);
   }
 }
