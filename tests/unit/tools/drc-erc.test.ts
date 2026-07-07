@@ -170,6 +170,25 @@ describe('DRC/ERC Tools', () => {
     });
   });
 
+  it('easyeda_erc_run surfaces inferred floating pins alongside the native aggregate', async () => {
+    const tool = registry.get('easyeda_erc_run');
+    bridgeCall.mockResolvedValue({
+      violations: [{ rule: 'aggregate', description: '1 warning(s)', severity: 'warning' }],
+      totalViolations: 1,
+      errorCount: 0,
+      warningCount: 1,
+      inferredFloatingPins: [{ primitiveId: 'r1', designator: 'R1', pinNumber: '2' }],
+      detailSource: 'inferred_partial',
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+    expect(result?.inferred_floating_pins).toEqual([
+      { primitiveId: 'r1', designator: 'R1', pinNumber: '2' },
+    ]);
+    expect(result?.detail_source).toBe('inferred_partial');
+  });
+
   it('easyeda_erc_run handles empty violations', async () => {
     const tool = registry.get('easyeda_erc_run');
     expect(tool).toBeDefined();

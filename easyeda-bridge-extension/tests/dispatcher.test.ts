@@ -131,6 +131,64 @@ describe('createDispatcher', () => {
     expect(status.dispatcherBuildId).toBe(dispatcher.buildId);
   });
 
+  // Live-verified (2026-07-07, twice): SCH_Drc.check()'s verbose mode only
+  // ever returns per-severity aggregates, e.g. exactly [{type:"warn",count:1}]
+  // for a schematic with one floating-pin part — no location/net/component
+  // field at any depth. design.erc supplements that native count with
+  // floating pins located via this bridge's own netlist inference.
+  it('design.erc supplements the native aggregate with inferred floating pins', async () => {
+    const pinConnected = {
+      getState_PinNumber: () => '1',
+      getState_OtherProperty: () => ({ net: 'NET_A' }),
+    };
+    const pinFloating = {
+      getState_PinNumber: () => '2',
+      getState_OtherProperty: () => ({}),
+    };
+    const comp = {
+      getState_Designator: () => 'R1',
+      getState_PrimitiveId: () => 'r1',
+      getAllPins: async () => [pinConnected, pinFloating],
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [comp] },
+        SCH_Drc: { check: async () => [{ type: 'warn', count: 1 }] },
+      }),
+    );
+    const result = await dispatcher.dispatch('design.erc', {});
+    expect(result).toMatchObject({
+      warningCount: 1,
+      errorCount: 0,
+      passed: true,
+      inferredFloatingPins: [{ primitiveId: 'r1', designator: 'R1', pinNumber: '2' }],
+      detailSource: 'inferred_partial',
+    });
+  });
+
+  it('design.erc reports native_aggregate_only when no floating pins are found', async () => {
+    const pinConnected = {
+      getState_PinNumber: () => '1',
+      getState_OtherProperty: () => ({ net: 'NET_A' }),
+    };
+    const comp = {
+      getState_Designator: () => 'R1',
+      getState_PrimitiveId: () => 'r1',
+      getAllPins: async () => [pinConnected],
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [comp] },
+        SCH_Drc: { check: async () => [] },
+      }),
+    );
+    const result = await dispatcher.dispatch('design.erc', {});
+    expect(result).toMatchObject({
+      inferredFloatingPins: [],
+      detailSource: 'native_aggregate_only',
+    });
+  });
+
   // Live-verified against EasyEDA Pro (2026-07-07): PCB_PrimitiveVia.create's
   // real signature is (net, x, y, holeDiameter, diameter, viaType,
   // designRuleBlindViaName, locked, solderMaskExpansion) — net comes FIRST,

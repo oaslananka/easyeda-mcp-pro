@@ -28,7 +28,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_component_probe`               | `dev`   | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                                             |
 | `easyeda_design_rules_lookup`           | `core`  | `low`    | Look up generic engineering reference guidance: IPC-2221 trace-width/current-capacity, clearance bands, protocol routing data (USB/RS-485/I2C/SPI/UART/Ethernet), decoupling recipes and bulk capacitance sizing, and a static DFM checklist. Every result cites a source and caveat: these are estimates, not certified values. |
 | `easyeda_drc_run`                       | `core`  | `medium` | Run the native design rule check (DRC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes in the user's window as a visible side effect. Returns coarse per-severity counts only — which specific wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.                |
-| `easyeda_erc_run`                       | `core`  | `medium` | Run the native electrical rule check (ERC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes as a visible side effect. Returns coarse per-severity counts only — which wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.                                          |
+| `easyeda_erc_run`                       | `core`  | `medium` | Run the native electrical rule check (ERC). Native counts are coarse; inferred_floating_pins supplements them with located, unconnected pins from this bridge's own inference (best-effort — other categories still need the DRC panel).                                                                                         |
 | `easyeda_export_gerbers`                | `core`  | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                           |
 | `easyeda_export_netlist`                | `pro`   | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                          |
 | `easyeda_export_pdf`                    | `pro`   | `low`    | Export the schematic and/or board layout to PDF.                                                                                                                                                                                                                                                                                 |
@@ -790,7 +790,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Run the native electrical rule check (ERC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes as a visible side effect. Returns coarse per-severity counts only — which wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.
+> Run the native electrical rule check (ERC). Native counts are coarse; inferred_floating_pins supplements them with located, unconnected pins from this bridge's own inference (best-effort — other categories still need the DRC panel).
 
 ### Input Parameters
 
@@ -811,6 +811,8 @@ Returns a JSON object matching the schema:
   error_count: number;
   warning_count: number;
   passed: boolean;
+  inferred_floating_pins: object[] (optional);
+  detail_source: 'inferred_partial' | 'native_aggregate_only' (optional);
   not_available: boolean (optional);
 }
 ```

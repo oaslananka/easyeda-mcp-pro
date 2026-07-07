@@ -116,12 +116,11 @@ function registerDrcErcTools(
     name: 'easyeda_erc_run',
     title: 'Run electrical rule check',
     description:
-      'Run the native electrical rule check (ERC): same as clicking "Check DRC" in EasyEDA Pro, ' +
-      'so the bottom DRC panel opens/refreshes as a visible side effect. Returns coarse ' +
-      'per-severity counts only — which wire/net/component is affected is shown only in ' +
-      "EasyEDA Pro's own DRC panel.",
+      'Run the native electrical rule check (ERC). Native counts are coarse; ' +
+      'inferred_floating_pins supplements them with located, unconnected pins from this ' +
+      "bridge's own inference (best-effort — other categories still need the DRC panel).",
     profile: 'core',
-    evidence: ['official-docs'],
+    evidence: ['official-docs', 'runtime-probe'],
     risk: 'medium',
     confirmWrite: false,
     group: 'drc-erc',
@@ -155,6 +154,16 @@ function registerDrcErcTools(
       error_count: z.number().int().nonnegative(),
       warning_count: z.number().int().nonnegative(),
       passed: z.boolean(),
+      inferred_floating_pins: z
+        .array(
+          z.object({
+            primitiveId: z.string(),
+            designator: z.string(),
+            pinNumber: z.string(),
+          }),
+        )
+        .optional(),
+      detail_source: z.enum(['inferred_partial', 'native_aggregate_only']).optional(),
       not_available: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -172,6 +181,12 @@ function registerDrcErcTools(
           totalViolations?: number;
           errorCount?: number;
           warningCount?: number;
+          inferredFloatingPins?: Array<{
+            primitiveId: string;
+            designator: string;
+            pinNumber: string;
+          }>;
+          detailSource?: 'inferred_partial' | 'native_aggregate_only';
         };
         const violations = (data.violations ?? []).map((v) => ({
           net: v.net,
@@ -195,6 +210,8 @@ function registerDrcErcTools(
           warning_count:
             data.warningCount ?? violations.filter((v) => v.severity === 'warning').length,
           passed: (data.errorCount ?? 0) === 0,
+          inferred_floating_pins: data.inferredFloatingPins,
+          detail_source: data.detailSource,
         };
       } catch (err) {
         return {

@@ -1800,6 +1800,63 @@ async function runDrcCheck(classPaths: string[]): Promise<{
   };
 }
 
+/**
+ * Find schematic pins whose (designator, pinNumber) does not appear in any
+ * inferred net's node list. Shared by schematic.validateNetlist and the ERC
+ * enhancement in design.erc — see the comment at validateNetlist's call site
+ * for why connectivity is read from listNetsApi()'s authoritative net data
+ * rather than by re-reading each pin's OtherProperty.net.
+ */
+async function findFloatingPinsApi(): Promise<{
+  floatingPins: Array<{ primitiveId: string; designator: string; pinNumber: string }>;
+  partRefs: string[];
+}> {
+  const netlistData = (await listNetsApi()) as SchematicNetEntry[];
+  const connectedNodes = new Set<string>();
+  for (const n of netlistData) {
+    for (const node of n.nodes || []) {
+      connectedNodes.add(`${node.component} ${node.pin}`);
+    }
+  }
+  const floatingPins: Array<{ primitiveId: string; designator: string; pinNumber: string }> = [];
+  const partRefs = new Set<string>();
+  const schCompClass = readFirstPath<any>([
+    'SCH_PrimitiveComponent',
+    'SCH_PrimitiveComponent3',
+    'sch_PrimitiveComponent',
+  ]);
+  if (schCompClass && typeof schCompClass.getAll === 'function') {
+    const allComps = await schCompClass.getAll(undefined, true);
+    for (const c of allComps || []) {
+      const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
+      // Skip primitives without a designator (title block, net flags, net
+      // ports, net labels): they are not schematic parts and have no pins
+      // to treat as floating, and counting them inflated the tally.
+      if (!ref || typeof c.getAllPins !== 'function') continue;
+      partRefs.add(ref);
+      const primitiveId =
+        typeof c.getState_PrimitiveId === 'function' ? String(c.getState_PrimitiveId()) : '';
+      try {
+        const pins = await c.getAllPins();
+        for (const p of pins || []) {
+          if (typeof p.getState_PinNumber !== 'function') continue;
+          const pinNum = String(p.getState_PinNumber());
+          if (!connectedNodes.has(`${ref} ${pinNum}`)) {
+            floatingPins.push({
+              primitiveId: primitiveId || ref,
+              designator: ref,
+              pinNumber: pinNum,
+            });
+          }
+        }
+      } catch {
+        // skip component
+      }
+    }
+  }
+  return { floatingPins, partRefs: [...partRefs] };
+}
+
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
   switch (method) {
     case 'project.open':
@@ -2163,53 +2220,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // via a stamped pin property and is empty for pins connected by a wire,
       // power/ground flag, or net label, so re-reading it misreported every
       // wire/flag/label-connected pin as floating.
-      const connectedNodes = new Set<string>();
-      for (const n of netlistData) {
-        for (const node of n.nodes || []) {
-          connectedNodes.add(`${node.component} ${node.pin}`);
-        }
-      }
-      const floatingPins: Array<{ primitiveId: string; designator: string; pinNumber: string }> =
-        [];
-      const partRefs = new Set<string>();
-      const schCompClass = readFirstPath<any>([
-        'SCH_PrimitiveComponent',
-        'SCH_PrimitiveComponent3',
-        'sch_PrimitiveComponent',
-      ]);
-      if (schCompClass && typeof schCompClass.getAll === 'function') {
-        const allComps = await schCompClass.getAll(undefined, true);
-        for (const c of allComps || []) {
-          const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
-          // Skip primitives without a designator (title block, net flags, net
-          // ports, net labels): they are not schematic parts and have no pins
-          // to treat as floating, and counting them inflated the tally.
-          if (!ref || typeof c.getAllPins !== 'function') continue;
-          partRefs.add(ref);
-          const primitiveId =
-            typeof c.getState_PrimitiveId === 'function' ? String(c.getState_PrimitiveId()) : '';
-          try {
-            const pins = await c.getAllPins();
-            for (const p of pins || []) {
-              if (typeof p.getState_PinNumber !== 'function') continue;
-              const pinNum = String(p.getState_PinNumber());
-              if (!connectedNodes.has(`${ref} ${pinNum}`)) {
-                floatingPins.push({
-                  primitiveId: primitiveId || ref,
-                  designator: ref,
-                  pinNumber: pinNum,
-                });
-              }
-            }
-          } catch {
-            // skip component
-          }
-        }
-      }
+      const { floatingPins, partRefs } = await findFloatingPinsApi();
       const warnings: string[] = [];
       // Count only real parts (those with a designator), not net flags/ports/
       // labels or the title block, so the tally is not inflated by non-parts.
-      const totalRefs = partRefs.size;
+      const totalRefs = partRefs.length;
       if (floatingPins.length > 0) {
         warnings.push(`${floatingPins.length} pin(s) are not connected to any net.`);
       }
@@ -2481,8 +2496,32 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       return null;
     case 'design.ruleCheck':
       return runDrcCheck(['PCB_Drc.check', 'SCH_Drc.check']);
-    case 'design.erc':
-      return runDrcCheck(['SCH_Drc.check']);
+    case 'design.erc': {
+      const result = await runDrcCheck(['SCH_Drc.check']);
+      // SCH_Drc.check()'s verbose mode only ever returns per-severity
+      // aggregates (confirmed live twice: a schematic with exactly one
+      // floating-pin part produced exactly [{type:"warn",count:1}], no
+      // location/net/component fields at any depth). Floating pins are the
+      // one ERC category our own connectivity inference can locate
+      // independently, so surface them as a best-effort supplement —
+      // clearly not a full decomposition of the native count, since other
+      // ERC categories (short circuits, conflicting pin types, etc.) have
+      // no inference-based equivalent.
+      try {
+        const { floatingPins } = await findFloatingPinsApi();
+        return {
+          ...result,
+          inferredFloatingPins: floatingPins,
+          detailSource:
+            floatingPins.length > 0
+              ? ('inferred_partial' as const)
+              : ('native_aggregate_only' as const),
+        };
+      } catch (e) {
+        logRecoverableError('design.erc: floating-pin inference failed', e);
+        return { ...result, inferredFloatingPins: [], detailSource: 'native_aggregate_only' };
+      }
+    }
     case 'design.drc':
       return runDrcCheck(['PCB_Drc.check', 'SCH_Drc.check']);
     case 'export.pickPlace':
