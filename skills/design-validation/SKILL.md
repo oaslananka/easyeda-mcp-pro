@@ -29,6 +29,7 @@ Do not use this skill to approve a project for fabrication or assembly without q
 Collect:
 
 - Active EasyEDA project and bridge status
+- **Which document tab is focused in EasyEDA Pro** — schematic validation tools need the schematic tab active, PCB validation tools need the PCB tab active. A tool called against the wrong tab does not error, it silently returns an empty/`not_available` result — do not report "no issues found" from a validation run that may simply have had no data to check.
 - Validation target: schematic, PCB, BOM, export, quote, or production package
 - Manufacturer or assembly constraints
 - Power rails, currents, connector requirements, and critical nets
@@ -45,11 +46,13 @@ Collect:
 - `easyeda_get_capabilities`
 - `easyeda_get_tool_profiles`
 - `easyeda_run_self_test`
+- `easyeda_live_write_regression` (dev profile) — exercises real write paths against the live bridge and reports pass/fail per step; use to distinguish "the bridge itself is misbehaving" from "the design has real issues" when validation results look suspicious
 
 ### Schematic validation
 
-- `easyeda_erc_run`
-- `easyeda_semantic_erc_validate`
+- `easyeda_erc_run` — native ERC is coarse (per-severity aggregate counts only, e.g. "1 warning"); it does not natively report which pin/net/component is affected. This tool supplements it with `inferred_floating_pins`/`detail_source` (best-effort, located via netlist inference) — treat `detail_source: 'native_aggregate_only'` as a signal that no itemized detail is available for that run.
+- `easyeda_semantic_erc_auto` — extracts nets/devices/pins from the *live* schematic and runs semantic ERC without a hand-authored netlist. Electrical types are inferred from pin/net naming conventions, not verified against EasyEDA's own metadata (which is unreliably populated — a passive part's pins can report a native type like "IN"). Prefer this over `easyeda_semantic_erc_validate` when the goal is validating what's actually drawn, not a hypothetical netlist.
+- `easyeda_semantic_erc_validate` — same rule engine as `..._auto`, but takes a fully hand-authored `nets`/`devices` structure. Use when the schematic isn't drawn yet, or when inferred classification isn't trustworthy enough for the check being run.
 - `easyeda_schematic_validate_netlist`
 - `easyeda_schematic_verify_write`
 - `easyeda_schematic_components`
@@ -59,7 +62,7 @@ Collect:
 
 ### PCB validation
 
-- `easyeda_drc_run`
+- `easyeda_drc_run` — native PCB DRC is coarse (per-severity aggregate counts only), with no itemized-violation inference layer (unlike `easyeda_erc_run`). Report a DRC pass/fail as "N errors, location unknown — open the DRC panel in EasyEDA Pro for detail," not as a located finding.
 - `easyeda_rule_check_summary`
 - `easyeda_board_layers`
 - `easyeda_board_stackup`
@@ -91,7 +94,7 @@ Collect:
 
 1. Confirm server and bridge state with `easyeda_health_check` and `easyeda_bridge_status`.
 2. Confirm that the active profile exposes the needed validation tools.
-3. Run schematic validation with `easyeda_erc_run`, `easyeda_semantic_erc_validate`, and `easyeda_schematic_validate_netlist` when schematic scope is included.
+3. Run schematic validation with `easyeda_erc_run`, `easyeda_semantic_erc_auto` (or `..._validate` if working from a hand-authored netlist), and `easyeda_schematic_validate_netlist` when schematic scope is included.
 4. Run PCB validation with `easyeda_drc_run`, `easyeda_rule_check_summary`, and board inspection tools when PCB scope is included.
 5. Run power-tree and critical-net validation when the design has named rails, current constraints, or safety-sensitive nets.
 6. Run PCB constraint and production review tools against the provided manufacturer constraints.
@@ -121,7 +124,7 @@ Stop and report clearly when:
 
 - EasyEDA bridge is disconnected
 - Required validation tools are hidden by the active tool profile
-- ERC/DRC tools cannot obtain project data
+- ERC/DRC tools cannot obtain project data — check document tab focus (schematic vs PCB) before treating an empty result as "no issues"
 - Manufacturer constraints are missing for production review
 - BOM/sourcing data is incomplete
 - Export tools fail or artifact paths are ambiguous
