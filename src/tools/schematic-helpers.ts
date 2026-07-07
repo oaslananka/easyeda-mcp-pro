@@ -1,0 +1,45 @@
+import { type ToolContext } from './types.js';
+
+export interface BridgeSchematicPin {
+  pinNumber: string;
+  pinName: string;
+  x: number;
+  y: number;
+  rotation: number;
+  pinLength: number;
+  /** Raw native EasyEDA pin-type string (e.g. "IN", "OUT", "Undefined") when
+   *  present. Unreliably authored across the library — see pin-classifier.ts
+   *  for why callers should not trust this alone. */
+  pinType?: string;
+}
+
+/**
+ * Fetch a component's pins via the bridge's generic api.call passthrough to
+ * SCH_PrimitiveComponent.getAllPinsByPrimitiveId, normalizing EasyEDA's
+ * flat-or-nested (top-level x vs state.X) result shape. Shared by
+ * easyeda_schematic_component_pins and the semantic-ERC auto-extractor.
+ */
+export async function fetchComponentPins(
+  ctx: ToolContext,
+  primitiveId: string,
+): Promise<BridgeSchematicPin[]> {
+  const result = await ctx.bridge.call<{ path: string; args: unknown[] }, unknown>('api.call', {
+    path: 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId',
+    args: [primitiveId],
+  });
+  const resultObj = result as { result?: Array<Record<string, unknown>> } | undefined;
+  const pins = Array.isArray(resultObj?.result) ? resultObj.result : [];
+  return pins.map((p: Record<string, unknown>) => {
+    const state = p.state as Record<string, unknown> | undefined;
+    const pinType = p.pinType ?? state?.pinType ?? state?.PinType;
+    return {
+      pinNumber: p.pinNumber !== undefined ? String(p.pinNumber) : String(state?.PinNumber ?? ''),
+      pinName: p.pinName !== undefined ? String(p.pinName) : String(state?.PinName ?? ''),
+      x: p.x !== undefined ? Number(p.x) : Number(state?.X ?? 0),
+      y: p.y !== undefined ? Number(p.y) : Number(state?.Y ?? 0),
+      rotation: p.rotation !== undefined ? Number(p.rotation) : Number(state?.Rotation ?? 0),
+      pinLength: p.pinLength !== undefined ? Number(p.pinLength) : Number(state?.PinLength ?? 0),
+      pinType: pinType !== undefined ? String(pinType) : undefined,
+    };
+  });
+}

@@ -774,6 +774,27 @@ describe('Schematic Tools', () => {
       });
     });
 
+    it('exposes native pinType when the bridge reports one', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockResolvedValue({
+        result: [
+          {
+            pinNumber: '1',
+            pinName: 'VCC',
+            x: 10,
+            y: 20,
+            rotation: 0,
+            pinLength: 5,
+            pinType: 'IN',
+          },
+        ],
+      });
+
+      const result = await tool?.handler(context, { primitiveId: 'comp-1' });
+
+      expect(result?.pins[0]).toMatchObject({ pinNumber: '1', pinType: 'IN' });
+    });
+
     it('falls back to the nested state object when direct fields are absent', async () => {
       const tool = registry.get('easyeda_schematic_component_pins');
       bridgeCall.mockResolvedValue({
