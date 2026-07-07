@@ -44,6 +44,8 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension build:watch",
+    "dev:hotloop": "BRIDGE_HOT_SWAP_ENABLED=true BRIDGE_HOT_SWAP_WATCH=easyeda-bridge-extension/dist/dispatcher.js TOOL_PROFILE=dev tsx watch src/index.ts",
     "clean": "node scripts/clean.mjs",
     "prebuild": "node scripts/sync-versions.mjs",
     "build": "pnpm clean && tsc -p tsconfig.build.json",

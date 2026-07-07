@@ -167,7 +167,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_components',
     title: 'List schematic components',
     description:
-      'List all components in the schematic with their properties including reference, value, footprint, LCSC part number, manufacturer, and datasheet.',
+      'List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and ' +
+      'device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem ' +
+      'in this project), deviceName, symbolName, lcsc, manufacturerId.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -180,19 +182,28 @@ function registerSchematicReadTools(
     },
     inputSchema: z.object({
       projectId: z.string(),
-      limit: z.number().int().min(1).max(500).default(100),
-      offset: z.number().int().min(0).default(0),
+      limit: z.coerce.number().int().min(1).max(500).default(100),
+      offset: z.coerce.number().int().min(0).default(0),
     }),
     outputSchema: z.object({
       project_id: z.string(),
       components: z.array(
         z.object({
+          primitiveId: z.string().optional(),
           reference: z.string(),
           value: z.string(),
           footprint: z.string(),
           lcsc: z.string().optional(),
           manufacturer: z.string().optional(),
+          manufacturerId: z.string().optional(),
           datasheet: z.string().optional(),
+          deviceUuid: z.string().optional(),
+          deviceLibraryUuid: z.string().optional(),
+          deviceName: z.string().optional(),
+          symbolName: z.string().optional(),
+          x: z.number().optional(),
+          y: z.number().optional(),
+          rotation: z.number().optional(),
         }),
       ),
       total: z.number().int().nonnegative(),
@@ -211,30 +222,133 @@ function registerSchematicReadTools(
           limit,
           offset,
         });
-        const comps = result as Array<{
-          reference?: string;
-          value?: string;
-          footprint?: string;
-          lcsc?: string;
-          manufacturer?: string;
-          datasheet?: string;
-        }>;
+        const { total: bridgeTotal, items } = result as {
+          total?: number;
+          items?: Array<{
+            primitiveId?: string;
+            reference?: string;
+            value?: string;
+            footprint?: string;
+            lcsc?: string;
+            manufacturer?: string;
+            manufacturerId?: string;
+            datasheet?: string;
+            deviceUuid?: string;
+            deviceLibraryUuid?: string;
+            deviceName?: string;
+            symbolName?: string;
+            x?: number;
+            y?: number;
+            rotation?: number;
+          }>;
+        };
+        const comps = items ?? [];
         return {
           project_id: projectId,
-          components: (comps ?? []).map((c) => ({
+          components: comps.map((c) => ({
+            primitiveId: c.primitiveId,
             reference: c.reference ?? '',
             value: c.value ?? '',
             footprint: c.footprint ?? '',
             lcsc: c.lcsc,
             manufacturer: c.manufacturer,
+            manufacturerId: c.manufacturerId,
             datasheet: c.datasheet,
+            deviceUuid: c.deviceUuid,
+            deviceLibraryUuid: c.deviceLibraryUuid,
+            deviceName: c.deviceName,
+            symbolName: c.symbolName,
+            x: c.x,
+            y: c.y,
+            rotation: c.rotation,
           })),
-          total: comps?.length ?? 0,
+          total: bridgeTotal ?? comps.length,
         };
       } catch (err) {
         return {
           project_id: projectId,
           components: [],
+          total: 0,
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_wires',
+    title: 'List schematic wires',
+    description:
+      'List wire segments: primitiveId, line coordinates, net name, color, style. Page with ' +
+      'offset (check total) past the 50-wire-per-call cap. primitiveId is required by ' +
+      'delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.',
+    profile: 'core',
+    evidence: ['official-docs'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string(),
+      limit: z.coerce.number().int().min(1).max(50).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      wires: z.array(
+        z.object({
+          primitiveId: z.string().optional(),
+          line: z.unknown().optional(),
+          net: z.string().optional(),
+          color: z.string().nullable().optional(),
+          lineWidth: z.number().nullable().optional(),
+          lineType: z.unknown().optional(),
+        }),
+      ),
+      total: z.number().int().nonnegative(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, limit, offset } = params as {
+        projectId: string;
+        limit: number;
+        offset: number;
+      };
+      try {
+        const result = await ctx.bridge.call('system.inspectWires', { limit, offset });
+        const data = result as {
+          total?: number;
+          samples?: Array<{
+            primitiveId?: string;
+            line?: unknown;
+            net?: string;
+            color?: string | null;
+            lineWidth?: number | null;
+            lineType?: unknown;
+          }>;
+        };
+        return {
+          project_id: projectId,
+          wires: (data.samples ?? []).map((w) => ({
+            primitiveId: w.primitiveId,
+            line: w.line,
+            net: w.net,
+            color: w.color,
+            lineWidth: w.lineWidth,
+            lineType: w.lineType,
+          })),
+          total: data.total ?? data.samples?.length ?? 0,
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
+          wires: [],
           total: 0,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
@@ -648,10 +762,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_validate_netlist',
     title: 'Validate netlist',
     description:
-      'Validate the EasyEDA Pro schematic netlist for connectivity issues. ' +
-      'Reports net names, connected component references and pins, floating pins, ' +
-      'graphical wires without netlist connectivity, and mismatches between visual wires ' +
-      'and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool.',
+      'Validate the schematic netlist: inferred nets, connected refs/pins, floating pins, plus a ' +
+      'cross-check with native ERC (native_erc). `valid` needs BOTH the inference clean AND ' +
+      'native ERC 0 errors — inference alone false-positives when pins overlap without a wire.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'low',
@@ -683,6 +796,7 @@ function registerSchematicReadTools(
       floating_pins: z.array(
         z.object({
           primitiveId: z.string(),
+          designator: z.string().optional(),
           pinNumber: z.string(),
         }),
       ),
@@ -693,6 +807,13 @@ function registerSchematicReadTools(
             netName: z.string().optional(),
           }),
         )
+        .optional(),
+      native_erc: z
+        .object({
+          error_count: z.number().int().nonnegative(),
+          warning_count: z.number().int().nonnegative(),
+          passed: z.boolean(),
+        })
         .optional(),
       valid: z.boolean(),
       warnings: z.array(z.string()),
@@ -716,10 +837,12 @@ function registerSchematicReadTools(
             pins?: string[];
             hasNetFlag?: boolean;
           }>;
-          floatingPins?: Array<{ primitiveId?: string; pinNumber?: string }>;
+          floatingPins?: Array<{ primitiveId?: string; designator?: string; pinNumber?: string }>;
           wiresWithoutNetlist?: Array<{ wireId?: string; netName?: string }>;
+          nativeErc?: { errorCount?: number; warningCount?: number; passed?: boolean };
           warnings?: string[];
         };
+        const nativeErcPassed = data.nativeErc?.passed ?? true;
         return {
           project_id: projectId,
           netlist: (data.nets ?? []).map((n) => ({
@@ -731,6 +854,7 @@ function registerSchematicReadTools(
           total_nets: data.nets?.length ?? 0,
           floating_pins: (data.floatingPins ?? []).map((fp) => ({
             primitiveId: fp.primitiveId ?? '',
+            designator: fp.designator,
             pinNumber: fp.pinNumber ?? '',
           })),
           wires_without_netlist: data.wiresWithoutNetlist
@@ -739,7 +863,17 @@ function registerSchematicReadTools(
                 netName: w.netName,
               }))
             : undefined,
-          valid: data.warnings?.length === 0,
+          native_erc: data.nativeErc
+            ? {
+                error_count: data.nativeErc.errorCount ?? 0,
+                warning_count: data.nativeErc.warningCount ?? 0,
+                passed: data.nativeErc.passed ?? false,
+              }
+            : undefined,
+          // Authoritative: only valid when the inference is clean AND EasyEDA's
+          // native ERC reports zero errors (overlapping-but-unwired pins pass
+          // the inference but fail native ERC).
+          valid: data.warnings?.length === 0 && nativeErcPassed,
           warnings: data.warnings ?? [],
         };
       } catch (err) {

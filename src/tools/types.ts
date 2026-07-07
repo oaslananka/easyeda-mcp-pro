@@ -83,6 +83,12 @@ export interface ToolContext {
     easyedaVersion?: string;
     extensionVersion?: string;
     extensionVersionMismatch?: boolean;
+    /** Hash of the extension's active dispatcher method list (from handshake). */
+    extensionMethodListHash?: string;
+    /** Extension loader version (tracks the imported .eext shell). */
+    loaderVersion?: string;
+    /** True when the extension dispatcher's method list differs from the server registry. */
+    registryMismatch?: boolean;
   };
   config: {
     bridgeTimeoutMs: number;

@@ -153,7 +153,11 @@ function registerSchematicWriteTools(
   registry.register({
     name: 'easyeda_schematic_place_component',
     title: 'Place schematic component',
-    description: 'Place a library component/device on the active schematic sheet.',
+    description:
+      'Place a library component/device on the active schematic sheet. The bridge auto-assigns ' +
+      'the next free designator ("R?" → "R1", "R2", …); check the returned designator. If ' +
+      'annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by ' +
+      'designator, so duplicate "R?" merge into one node.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -257,7 +261,11 @@ function registerSchematicWriteTools(
   registry.register({
     name: 'easyeda_schematic_add_wire',
     title: 'Add schematic wire',
-    description: 'Add a wire segment connecting schematic coordinates/pins.',
+    description:
+      'Add a wire connecting schematic coordinates/pins — real native connectivity. Same ' +
+      '`netName` connects pins globally: separate stubs sharing one name merge into one net (no ' +
+      "label needed). NET_COLLISION guards touching another net's wire, but checks only wires — " +
+      'crossing a pin/flag coordinate still shorts it.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -337,7 +345,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_modify_primitive',
     title: 'Modify schematic primitive',
     description:
-      'Modify properties (value, reference, attributes, etc.) of a schematic component/object.',
+      'Modify a schematic component/object: only fields in property change; others are read back ' +
+      'and preserved, so partial updates never wipe unrelated data. Also moves net flags/ports — ' +
+      'pass x/y, rotation 0/90/180/270, or mirror to shift a VCC/GND flag label off a crowded ' +
+      'pin, keeping it over its wire.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -378,7 +389,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_create_net_flag',
     title: 'Create net flag',
     description:
-      'Create a named schematic net flag at specified coordinates. This controlled write declares real SCH_Net connectivity in the EasyEDA Pro netlist.',
+      'Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/' +
+      'ProtectGround) it places a power-flag symbol binding to a coincident pin (use for ' +
+      'VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire ' +
+      'stubs sharing one netName.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
@@ -527,15 +541,15 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_connect_pin_to_net',
     title: 'Connect pin to net',
     description:
-      'Connect a specific component pin to a named net. This creates an actual SCH_Netlist entry ' +
-      'associating the pin with the net. If the net does not exist yet, it is created on the fly. ' +
-      'This is the core tool for populating the real EasyEDA netlist with pin-to-net connectivity.',
+      'Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact ' +
+      'coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin ' +
+      'to everything else on that net — visible to ERC, ratsnest, and autorouting.',
     profile: 'core',
-    evidence: ['inferred'],
+    evidence: ['runtime-probe'],
     risk: 'medium',
     confirmWrite: true,
     group: 'schematic',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       idempotentHint: false,
@@ -550,10 +564,18 @@ function registerSchematicWriteTools(
         .string()
         .min(1)
         .describe('The net name to connect the pin to (e.g. VCC, GND, DATA0)'),
+      stubLength: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Length of the wire stub drawn outward from the pin. Defaults to 10.'),
       confirmWrite: z.literal(true),
     }),
     outputSchema: z.object({
       success: z.boolean(),
+      real: z.boolean().optional(),
+      created_primitive_id: z.string().optional(),
+      endpoint: z.object({ x: z.number(), y: z.number() }).optional(),
       connection: z
         .object({
           primitiveId: z.string(),
@@ -569,6 +591,7 @@ function registerSchematicWriteTools(
         primitiveId: string;
         pinNumber: string;
         netName: string;
+        stubLength?: number;
       };
       try {
         const result = await ctx.bridge.call('schematic.connectPinToNet', {
@@ -576,10 +599,19 @@ function registerSchematicWriteTools(
           primitiveId: p.primitiveId,
           pinNumber: p.pinNumber,
           netName: p.netName,
+          stubLength: p.stubLength,
         });
-        const data = result as { connected?: boolean };
+        const data = result as {
+          connected?: boolean;
+          real?: boolean;
+          primitiveId?: string;
+          endpoint?: { x: number; y: number };
+        };
         return {
           success: data?.connected !== false,
+          real: data?.real,
+          created_primitive_id: data?.primitiveId,
+          endpoint: data?.endpoint,
           connection: {
             primitiveId: p.primitiveId,
             pinNumber: p.pinNumber,
@@ -599,15 +631,16 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_connect_pins_by_net',
     title: 'Connect pins by net',
     description:
-      'Connect multiple component pins to a named net in a single operation. ' +
-      'All specified pins will be assigned to the same net, creating SCH_Netlist entries. ' +
-      'If the net does not exist, it is created. This is the bulk equivalent of connect_pin_to_net.',
+      'Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with ' +
+      'netName, so all listed pins (and anything else already on that net) merge into one net. ' +
+      'Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported ' +
+      'in failures rather than aborting the batch.',
     profile: 'core',
-    evidence: ['inferred'],
+    evidence: ['runtime-probe'],
     risk: 'medium',
     confirmWrite: true,
     group: 'schematic',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       idempotentHint: false,
@@ -625,10 +658,26 @@ function registerSchematicWriteTools(
         .min(1)
         .max(500)
         .describe('List of component pins to connect to the net'),
+      stubLength: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Length of the wire stub drawn outward from each pin. Defaults to 10.'),
       confirmWrite: z.literal(true),
     }),
     outputSchema: z.object({
       success: z.boolean(),
+      real: z.boolean().optional(),
+      created_primitive_ids: z.array(z.string()).optional(),
+      failures: z
+        .array(
+          z.object({
+            primitiveId: z.string(),
+            pinNumber: z.string(),
+            error: z.string(),
+          }),
+        )
+        .optional(),
       connections: z
         .array(
           z.object({
@@ -646,18 +695,28 @@ function registerSchematicWriteTools(
         projectId: string;
         netName: string;
         pins: Array<{ primitiveId: string; pinNumber: string }>;
+        stubLength?: number;
       };
       try {
         const result = await ctx.bridge.call('schematic.connectPinsByNet', {
           projectId: p.projectId,
           netName: p.netName,
           pins: p.pins,
+          stubLength: p.stubLength,
         });
-        const data = result as { count?: number };
+        const data = result as {
+          count?: number;
+          real?: boolean;
+          createdPrimitiveIds?: string[];
+          failures?: Array<{ primitiveId: string; pinNumber: string; error: string }>;
+        };
         const count = data?.count ?? p.pins.length;
 
         return {
           success: true,
+          real: data?.real,
+          created_primitive_ids: data?.createdPrimitiveIds,
+          failures: data?.failures,
           connections: p.pins.map((pin) => ({
             primitiveId: pin.primitiveId,
             pinNumber: pin.pinNumber,

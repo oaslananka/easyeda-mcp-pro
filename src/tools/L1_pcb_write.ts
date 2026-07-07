@@ -302,9 +302,12 @@ function registerPcbWriteTools(
   registry.register({
     name: 'easyeda_pcb_place_component',
     title: 'Place component on PCB',
-    description: 'Place a component footprint on the active PCB layout.',
+    description:
+      'Place a component footprint on the active PCB layout. CAUTION: the native create() call ' +
+      'needs 6 args but this tool sends only 5 (footprint, x, y, rotation, layer) — ' +
+      'live-confirmed mismatch, not yet resolved. Verify placement visually before trusting it.',
     profile: 'full',
-    evidence: ['official-docs'],
+    evidence: ['inferred'],
     risk: 'high',
     confirmWrite: true,
     group: 'pcb-write',
@@ -363,19 +366,22 @@ function registerPcbWriteTools(
   registry.register({
     name: 'easyeda_pcb_add_track',
     title: 'Add PCB track',
-    description: 'Draw a copper track/trace segment on the PCB board.',
+    description:
+      'Draw a copper track/trace on the PCB board. A multi-point path is written as one line ' +
+      'segment per consecutive point pair (all sharing netName, so they form one electrical ' +
+      'track — same coordinate/name merge model as schematic wires).',
     profile: 'full',
-    evidence: ['official-docs'],
+    evidence: ['runtime-probe'],
     risk: 'high',
     confirmWrite: true,
     group: 'pcb-write',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
     },
     inputSchema: z.object({
-      points: z.array(z.object({ x: z.number(), y: z.number() })),
+      points: z.array(z.object({ x: z.number(), y: z.number() })).min(2),
       layer: z.number(),
       width: z.number(),
       netName: z.string().optional(),
@@ -384,6 +390,7 @@ function registerPcbWriteTools(
     outputSchema: z.object({
       success: z.boolean(),
       primitiveId: z.string().optional(),
+      primitiveIds: z.array(z.string()).optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -394,21 +401,19 @@ function registerPcbWriteTools(
         netName?: string;
       };
       try {
-        const flatPoints = p.points.flatMap((pt) => [pt.x, pt.y]);
         const result = await ctx.bridge.call<
           Record<string, unknown>,
-          { primitiveId?: string; result?: string }
+          { primitiveId?: string; primitiveIds?: string[] }
         >('pcb.addTrack', {
-          points: flatPoints,
+          points: p.points,
           layer: p.layer,
           width: p.width,
           netName: p.netName,
         });
-        const data = result as { primitiveId?: string; result?: string } | string;
         return {
           success: true,
-          primitiveId:
-            typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined),
+          primitiveId: result?.primitiveId,
+          primitiveIds: result?.primitiveIds,
         };
       } catch (err) {
         return {
@@ -422,9 +427,13 @@ function registerPcbWriteTools(
   registry.register({
     name: 'easyeda_pcb_add_via',
     title: 'Add PCB via',
-    description: 'Place a via to connect different copper layers on the PCB board.',
+    description:
+      'Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize ' +
+      'are passed through to the native API unconverted (same native unit as x/y) — their ' +
+      'real-world scale was not independently verified against a known physical dimension, so ' +
+      'confirm the resulting via size visually before trusting it.',
     profile: 'full',
-    evidence: ['official-docs'],
+    evidence: ['runtime-probe'],
     risk: 'high',
     confirmWrite: true,
     group: 'pcb-write',
@@ -483,9 +492,12 @@ function registerPcbWriteTools(
   registry.register({
     name: 'easyeda_pcb_add_zone',
     title: 'Add PCB copper zone/pour',
-    description: 'Create a copper pour zone on a specific layer with clearance settings.',
+    description:
+      'Create a copper pour zone on a layer with clearance settings. CAUTION: the native ' +
+      'create() call needs 9 args but this tool sends only 4 (points, layer, netName, ' +
+      'clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.',
     profile: 'full',
-    evidence: ['official-docs'],
+    evidence: ['inferred'],
     risk: 'high',
     confirmWrite: true,
     group: 'pcb-write',

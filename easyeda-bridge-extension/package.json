@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=dist/index.js && node scripts/package.mjs",
-    "build:watch": "esbuild src/index.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=dist/index.js --watch",
+    "build": "node scripts/build.mjs && node scripts/package.mjs",
+    "build:dev": "MCP_DEV_HOTSWAP=true node scripts/build.mjs && node scripts/package.mjs",
+    "build:watch": "node scripts/dev-watch.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "verify": "node scripts/verify-dist.mjs"

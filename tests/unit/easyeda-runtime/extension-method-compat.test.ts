@@ -22,7 +22,13 @@ import { describe, expect, it } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../../..');
 
-const EXTENSION_SRC = resolve(repoRoot, 'easyeda-bridge-extension/src/index.ts');
+// All EasyEDA API interaction lives in the dispatcher module; the loader
+// (index.ts) keeps only socket lifecycle code but is scanned too in case a
+// runtime path ever creeps back in.
+const EXTENSION_SOURCES = [
+  resolve(repoRoot, 'easyeda-bridge-extension/src/dispatcher.ts'),
+  resolve(repoRoot, 'easyeda-bridge-extension/src/index.ts'),
+];
 const BASELINE = resolve(
   repoRoot,
   'tests/fixtures/runtime-inventory/easyeda-3.2.149-baseline.json',
@@ -39,10 +45,7 @@ const COVERED_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'];
  * and, for real runtime gaps, a tracking issue. Refreshing the baseline may let
  * an entry resolve again — the test flags stale entries so they get removed.
  */
-const KNOWN_UNSUPPORTED: Record<string, string> = {
-  'SCH_Netlist.connectPin | SCH_Netlist.create | sch_Netlist.create':
-    'Intentional fallback. Primary path in connectPinToNetImpl is the SCH_PrimitiveComponent.getAll loop, which resolves.',
-};
+const KNOWN_UNSUPPORTED: Record<string, string> = {};
 
 interface BaselineInventory {
   classes: Array<{ className: string; methods: string[] }>;
@@ -85,7 +88,7 @@ function groupKey(paths: string[]): string {
 
 describe('extension runtime method-path compatibility', () => {
   const baseline = loadBaseline();
-  const source = readFileSync(EXTENSION_SRC, 'utf8');
+  const source = EXTENSION_SOURCES.map((path) => readFileSync(path, 'utf8')).join('\n');
   const groups = extractFallbackGroups(source);
 
   const resolvesInBaseline = (path: string): boolean => {

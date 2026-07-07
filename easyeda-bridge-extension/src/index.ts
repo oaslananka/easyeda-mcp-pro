@@ -1,5 +1,12 @@
+// The loader: socket lifecycle, handshake, heartbeat and menu glue for the
+// MCP bridge extension. Every actual EasyEDA API interaction lives in the
+// dispatcher module (dispatcher.ts), which is baked in here as the fallback
+// and can be hot-swapped over the bridge in dev mode without re-importing
+// the .eext.
 import { RemoteRelayClient, type RemoteRelayMode } from './remote-client.js';
-import { normalizeBinaryResult, type BinaryResultPayload } from './binary-result.js';
+import { createDispatcher } from './dispatcher.js';
+import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
+import { isRecord, log, readPath, type JsonValue } from './utils.js';
 
 declare const eda: EasyedaGlobal | undefined;
 declare const EDA: unknown | undefined;
@@ -10,6 +17,16 @@ declare const SYS_Message: EasyedaMessageApi | undefined;
 
 // Injected at build time via environment variable or build script
 declare const BRIDGE_SESSION_TOKEN: string | undefined;
+// Compile-time hot-swap gate: true only in dev builds (scripts/build.mjs with
+// MCP_DEV_HOTSWAP=true). In marketplace builds the whole hot-swap path is dead
+// code, so a published .eext can never eval a pushed bundle.
+declare const __MCP_DEV_HOTSWAP__: boolean | undefined;
+
+// Single source for the extension version; sync-versions.mjs patches the
+// literal below (first `extensionVersion: '...'` match in this file).
+const EXTENSION_INFO = {
+  extensionVersion: '0.21.0', // x-release-please-version
+};
 
 // Safe accessors for optional EasyEDA Pro runtime globals.
 // Never reference optional globals directly; they may not exist in the eval context.
@@ -31,9 +48,6 @@ function getInfoToastType(): string {
     typeof ESYS_ToastMessageType !== 'undefined' ? ESYS_ToastMessageType.INFO : undefined;
   return typeof info === 'string' ? info : 'info';
 }
-
-type JsonValue =
-  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue | undefined };
 
 type ConnectMode = 'manual' | 'auto';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
@@ -125,18 +139,6 @@ const RECONNECT_MAX_MS = 30000;
 const STORAGE_KEY = 'easyeda-mcp-pro:autoConnect';
 const HEARTBEAT_MS = 15000;
 const SOCKET_ID = 'easyeda-mcp-pro-bridge';
-// Fraction of the server's advertised BRIDGE_MAX_PAYLOAD_SIZE we allow a single
-// binary (Blob/File) result to use, leaving headroom for base64 (~1.33x raw
-// bytes) plus JSON envelope overhead. Exceeding the server's actual limit closes
-// the whole WS connection, not just the offending call — so we self-limit first.
-const PAYLOAD_SAFETY_MARGIN = 0.6;
-const API_CLASS_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'] as const;
-const DENIED_API_METHODS = new Set([
-  'constructor',
-  'prototype',
-  '__defineGetter__',
-  '__defineSetter__',
-]);
 
 let socketHandle: SocketHandle | null = null;
 let connectedPort: number | null = null;
@@ -151,16 +153,386 @@ let externalInteractionWarningShown = false;
 // Updated from the server's `hello` message; matches BRIDGE_MAX_PAYLOAD_SIZE default
 // until the handshake completes.
 let bridgeMaxPayloadSize = 1_048_576;
+// From the server's hello: whether it reassembles chunked frames (A5) and the
+// aggregate cap for one chunked payload. When unset, fall back to single-frame
+// sends limited by bridgeMaxPayloadSize, exactly as before.
+let serverSupportsChunking = false;
+let maxAggregatePayloadSize = 1_048_576;
+// From the server's hello: whether it accepts hot-swap pushes (dev mode only).
+let serverHotSwapEnabled = false;
+
+function getGlobal(): EasyedaGlobal | null {
+  if (typeof eda !== 'undefined' && eda) return eda;
+  return globalThis as unknown as EasyedaGlobal;
+}
+
+function showToast(message: string): void {
+  const safeMessage = String(message);
+  const messageType = getInfoToastType();
+
+  const sysMessage = getSysMessage();
+  if (sysMessage?.showToastMessage) {
+    try {
+      sysMessage.showToastMessage(safeMessage, messageType);
+      return;
+    } catch (error) {
+      log('sysMessage.showToastMessage failed', { message: safeMessage, error: String(error) });
+    }
+  }
+
+  const toastMessage = readPath<EasyedaToastApi>(getGlobal(), 'sys_ToastMessage');
+  if (toastMessage?.showMessage) {
+    try {
+      toastMessage.showMessage(safeMessage, messageType);
+      return;
+    } catch (error) {
+      log('toastMessage.showMessage failed', { message: safeMessage, error: String(error) });
+    }
+  }
+
+  log(safeMessage);
+}
+
+function showExternalInteractionHintOnce(error?: unknown): void {
+  const message =
+    'MCP Bridge needs EasyEDA External Interactions permission. Enable it in Extension Manager for MCP Pro Bridge.';
+  log(message, error);
+  if (externalInteractionWarningShown) return;
+  externalInteractionWarningShown = true;
+  showToast(message);
+}
+
+// ── Dispatcher wiring ────────────────────────────────────────────────────────
+// The toolkit hands the dispatcher everything it needs from the loader. All
+// runtime globals go through it so the identical dispatcher code works baked
+// (extension script scope) and hot-swapped (AsyncFunction eval scope).
+
+const dispatcherToolkit: DispatcherToolkit = {
+  getEda: () => {
+    if (typeof eda !== 'undefined' && eda) return eda;
+    return (globalThis as { eda?: unknown }).eda;
+  },
+  getEDA: () => {
+    if (typeof EDA !== 'undefined' && EDA) return EDA;
+    return (globalThis as { EDA?: unknown }).EDA;
+  },
+  getApi: () => {
+    if (typeof api !== 'undefined' && api) return api;
+    return (globalThis as { api?: unknown }).api;
+  },
+  getGlobal: () => getGlobal(),
+  log,
+  showToast,
+  // With chunked sends (A5) a single logical payload may span many frames, so
+  // the dispatcher's binary self-limit is the aggregate cap, not the frame cap.
+  getBridgeMaxPayloadSize: () =>
+    serverSupportsChunking ? maxAggregatePayloadSize : bridgeMaxPayloadSize,
+  getBridgeVersion: () => BRIDGE_VERSION,
+};
+
+const bakedDispatcher: Dispatcher = createDispatcher(dispatcherToolkit);
+let activeDispatcher: Dispatcher = bakedDispatcher;
+
+function dispatchViaActive(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  return activeDispatcher.dispatch(method, params);
+}
+
+// ── Hot-swap machinery (dev builds only) ─────────────────────────────────────
+// The MCP server (with BRIDGE_HOT_SWAP_ENABLED=true) pushes a freshly built
+// dispatcher bundle as system.hotSwap.begin/chunk/commit; commit verifies the
+// sha256, evals the bundle via AsyncFunction (same mechanism as api.execute),
+// and atomically swaps the active dispatcher. These methods are handled here
+// in the loader — BEFORE the dispatcher — so a broken pushed dispatcher can
+// always be replaced or reverted.
+
+const HOTSWAP_COMPILED = typeof __MCP_DEV_HOTSWAP__ !== 'undefined' && __MCP_DEV_HOTSWAP__ === true;
+
+interface HotSwapBuffer {
+  chunks: Array<string | undefined>;
+  totalChunks: number;
+  byteLength: number;
+  sha256: string;
+  buildId: string;
+  received: number;
+  bytes: number;
+}
+
+let hotSwapBuffer: HotSwapBuffer | null = null;
+// Same algorithm as the server's computeMethodRegistryHash: sha256 of the
+// sorted method list joined by ',', hex, first 16 chars. Sent in the
+// handshake so a stale dispatcher fails loudly server-side.
+let activeMethodListHash = '';
+
+async function sha256Hex(text: string): Promise<string> {
+  const subtle = typeof crypto !== 'undefined' ? crypto.subtle : undefined;
+  if (!subtle) {
+    throw newLoaderError(
+      'EASYEDA_API_ERROR',
+      'crypto.subtle is not available in this runtime',
+      'Hot swap and method-list hashing require a secure context.',
+    );
+  }
+  const digest = await subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function newLoaderError(code: string, message: string, suggestion: string): Error {
+  const error = new Error(message);
+  Object.assign(error, { code, suggestion });
+  return error;
+}
+
+async function refreshMethodListHash(): Promise<void> {
+  try {
+    // Locale-independent ordering: must produce byte-identical input to the
+    // server's computeMethodRegistryHash (do NOT use localeCompare here).
+    const sorted = [...activeDispatcher.methodList].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    activeMethodListHash = (await sha256Hex(sorted.join(','))).slice(0, 16);
+  } catch (error) {
+    log('failed to compute method list hash', String(error));
+    activeMethodListHash = '';
+  }
+}
+
+function loaderStatus(): Record<string, unknown> {
+  return {
+    loaderVersion: EXTENSION_INFO.extensionVersion,
+    bridgeVersion: BRIDGE_VERSION,
+    activeDispatcher: activeDispatcher === bakedDispatcher ? 'baked' : 'pushed',
+    buildId: activeDispatcher.buildId,
+    bakedBuildId: bakedDispatcher.buildId,
+    methodCount: activeDispatcher.methodList.length,
+    methodListHash: activeMethodListHash,
+    hotSwapCompiled: HOTSWAP_COMPILED,
+    hotSwapEnabled: HOTSWAP_COMPILED && serverHotSwapEnabled,
+  };
+}
+
+function assertHotSwapAllowed(): void {
+  if (!HOTSWAP_COMPILED) {
+    throw newLoaderError(
+      'DEV_MODE_REQUIRED',
+      'This extension build does not include hot-swap support.',
+      'Import a dev build of the extension (scripts/build.mjs with MCP_DEV_HOTSWAP=true).',
+    );
+  }
+  if (!serverHotSwapEnabled) {
+    throw newLoaderError(
+      'DEV_MODE_REQUIRED',
+      'The connected MCP server has not enabled hot swap.',
+      'Start the server with BRIDGE_HOT_SWAP_ENABLED=true (non-production only).',
+    );
+  }
+}
+
+async function commitHotSwap(): Promise<unknown> {
+  const buffer = hotSwapBuffer;
+  hotSwapBuffer = null;
+  if (!buffer) {
+    throw newLoaderError(
+      'INVALID_PARAMS',
+      'No hot-swap transfer in progress',
+      'Send system.hotSwap.begin and all chunks before commit.',
+    );
+  }
+  if (buffer.received !== buffer.totalChunks) {
+    throw newLoaderError(
+      'INVALID_PARAMS',
+      `Hot-swap transfer incomplete: ${buffer.received}/${buffer.totalChunks} chunks received`,
+      'Resend the bundle from system.hotSwap.begin.',
+    );
+  }
+  const source = buffer.chunks.join('');
+  const actualByteLength = new TextEncoder().encode(source).byteLength;
+  if (actualByteLength !== buffer.byteLength) {
+    throw newLoaderError(
+      'INVALID_PARAMS',
+      `Hot-swap bundle size mismatch: expected ${buffer.byteLength} bytes, got ${actualByteLength}`,
+      'Resend the bundle from system.hotSwap.begin.',
+    );
+  }
+  const actualSha = await sha256Hex(source);
+  if (actualSha !== buffer.sha256) {
+    throw newLoaderError(
+      'UNAUTHORIZED',
+      'Hot-swap bundle sha256 verification failed',
+      'Resend the bundle from system.hotSwap.begin.',
+    );
+  }
+
+  const globalScope = globalThis as { __mcpDispatcherFactory?: unknown };
+  delete globalScope.__mcpDispatcherFactory;
+  const AsyncFunction = Object.getPrototypeOf(async function () {})
+    .constructor as FunctionConstructor;
+  try {
+    const run = new AsyncFunction(source) as () => Promise<void>;
+    await run();
+  } catch (error) {
+    delete globalScope.__mcpDispatcherFactory;
+    throw newLoaderError(
+      'EASYEDA_API_ERROR',
+      `Hot-swap bundle failed to evaluate: ${String(error)}`,
+      'The previous dispatcher remains active. Fix the bundle and push again.',
+    );
+  }
+  const factory = globalScope.__mcpDispatcherFactory;
+  delete globalScope.__mcpDispatcherFactory;
+  if (typeof factory !== 'function') {
+    throw newLoaderError(
+      'EASYEDA_API_ERROR',
+      'Hot-swap bundle did not register __mcpDispatcherFactory',
+      'Build the bundle from dispatcher-entry.ts (pnpm build in the extension package).',
+    );
+  }
+
+  const candidate = (factory as (toolkit: DispatcherToolkit) => Dispatcher)(dispatcherToolkit);
+  if (
+    !candidate ||
+    typeof candidate.dispatch !== 'function' ||
+    !Array.isArray(candidate.methodList) ||
+    typeof candidate.buildId !== 'string'
+  ) {
+    throw newLoaderError(
+      'EASYEDA_API_ERROR',
+      'Hot-swap factory returned an invalid dispatcher',
+      'The previous dispatcher remains active. Fix the bundle and push again.',
+    );
+  }
+
+  activeDispatcher = candidate;
+  await refreshMethodListHash();
+  log(`hot-swapped dispatcher to build ${candidate.buildId}`);
+  showToast(`MCP Bridge: dispatcher hot-swapped (${candidate.buildId})`);
+  return {
+    swapped: true,
+    buildId: candidate.buildId,
+    methodCount: candidate.methodList.length,
+    methodListHash: activeMethodListHash,
+  };
+}
+
+/**
+ * Loader-level methods, handled before the dispatcher so they keep working
+ * even when a pushed dispatcher is broken. Returns handled:false for every
+ * regular bridge method.
+ */
+async function handleLoaderMethod(
+  method: string,
+  params: Record<string, unknown>,
+): Promise<{ handled: boolean; result?: unknown }> {
+  switch (method) {
+    case 'system.loaderStatus':
+      return { handled: true, result: loaderStatus() };
+    case 'system.hotSwap.begin': {
+      assertHotSwapAllowed();
+      const totalChunks = Number(params.totalChunks);
+      const byteLength = Number(params.byteLength);
+      const sha256 = String(params.sha256 ?? '');
+      const buildId = String(params.buildId ?? '');
+      if (
+        !Number.isInteger(totalChunks) ||
+        totalChunks < 1 ||
+        totalChunks > 4096 ||
+        !Number.isInteger(byteLength) ||
+        byteLength < 1 ||
+        !/^[0-9a-f]{64}$/.test(sha256) ||
+        !buildId
+      ) {
+        throw newLoaderError(
+          'INVALID_PARAMS',
+          'system.hotSwap.begin requires totalChunks, byteLength, sha256 and buildId',
+          'Use the server-side pushDispatcher helper.',
+        );
+      }
+      hotSwapBuffer = {
+        chunks: new Array<string | undefined>(totalChunks),
+        totalChunks,
+        byteLength,
+        sha256,
+        buildId,
+        received: 0,
+        bytes: 0,
+      };
+      return { handled: true, result: { ready: true, buildId } };
+    }
+    case 'system.hotSwap.chunk': {
+      assertHotSwapAllowed();
+      const buffer = hotSwapBuffer;
+      const seq = Number(params.seq);
+      const data = typeof params.data === 'string' ? params.data : undefined;
+      if (!buffer) {
+        throw newLoaderError(
+          'INVALID_PARAMS',
+          'No hot-swap transfer in progress',
+          'Send system.hotSwap.begin first.',
+        );
+      }
+      if (!Number.isInteger(seq) || seq < 0 || seq >= buffer.totalChunks || data === undefined) {
+        throw newLoaderError(
+          'INVALID_PARAMS',
+          'system.hotSwap.chunk requires a valid seq and data',
+          'Use the server-side pushDispatcher helper.',
+        );
+      }
+      if (buffer.chunks[seq] === undefined) {
+        buffer.received += 1;
+        buffer.bytes += data.length;
+      } else {
+        buffer.bytes += data.length - (buffer.chunks[seq]?.length ?? 0);
+      }
+      // Defensive cap: never buffer more than 4x the announced size.
+      if (buffer.bytes > buffer.byteLength * 4) {
+        hotSwapBuffer = null;
+        throw newLoaderError(
+          'INVALID_PARAMS',
+          'Hot-swap transfer exceeded the announced byteLength budget',
+          'Resend the bundle from system.hotSwap.begin.',
+        );
+      }
+      buffer.chunks[seq] = data;
+      return {
+        handled: true,
+        result: { received: buffer.received, totalChunks: buffer.totalChunks },
+      };
+    }
+    case 'system.hotSwap.commit': {
+      assertHotSwapAllowed();
+      return { handled: true, result: await commitHotSwap() };
+    }
+    case 'system.hotSwap.revert': {
+      assertHotSwapAllowed();
+      hotSwapBuffer = null;
+      const wasPushed = activeDispatcher !== bakedDispatcher;
+      activeDispatcher = bakedDispatcher;
+      await refreshMethodListHash();
+      if (wasPushed) {
+        log('reverted to baked dispatcher');
+        showToast('MCP Bridge: reverted to baked dispatcher');
+      }
+      return {
+        handled: true,
+        result: { reverted: wasPushed, buildId: activeDispatcher.buildId },
+      };
+    }
+    default:
+      return { handled: false };
+  }
+}
+
+// ── Remote relay ─────────────────────────────────────────────────────────────
 
 let remoteRelayClient: RemoteRelayClient | null = null;
 
 function getRemoteRelayClient(): RemoteRelayClient {
   remoteRelayClient ??= new RemoteRelayClient({
-    extensionVersion: '0.21.0', // x-release-please-version
+    extensionVersion: EXTENSION_INFO.extensionVersion,
     log,
     showToast,
     readActiveProject: readRemoteActiveProject,
-    executeToolRequest: (toolName, input) => dispatch(toolName, isRecord(input) ? input : {}),
+    executeToolRequest: (toolName, input) =>
+      dispatchViaActive(toolName, isRecord(input) ? input : {}),
   });
   return remoteRelayClient;
 }
@@ -200,1899 +572,7 @@ function showRemoteRelayStatus(): void {
   showToast(`Remote Relay: ${status.mode}/${status.state} | project: ${project}`);
 }
 
-function getGlobal(): EasyedaGlobal | null {
-  if (typeof eda !== 'undefined' && eda) return eda;
-  return globalThis as unknown as EasyedaGlobal;
-}
-
-function log(message: string, data?: unknown): void {
-  const suffix = data === undefined ? '' : ` ${safeStringify(data)}`;
-  console.log(`[easyeda-mcp-pro ${new Date().toISOString()}] ${message}${suffix}`);
-}
-
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value);
-  } catch (error) {
-    logRecoverableError('failed to stringify log payload', error);
-    return String(value);
-  }
-}
-
-function showToast(message: string): void {
-  const safeMessage = String(message);
-  const messageType = getInfoToastType();
-
-  const sysMessage = getSysMessage();
-  if (sysMessage?.showToastMessage) {
-    try {
-      sysMessage.showToastMessage(safeMessage, messageType);
-      return;
-    } catch (error) {
-      log('sysMessage.showToastMessage failed', { message: safeMessage, error: String(error) });
-    }
-  }
-
-  const toastMessage = readPath<EasyedaToastApi>(getGlobal(), 'sys_ToastMessage');
-  if (toastMessage?.showMessage) {
-    try {
-      toastMessage.showMessage(safeMessage, messageType);
-      return;
-    } catch (error) {
-      log('toastMessage.showMessage failed', { message: safeMessage, error: String(error) });
-    }
-  }
-
-  log(safeMessage);
-}
-
-function showExternalInteractionHintOnce(error?: unknown): void {
-  const message =
-    'MCP Bridge needs EasyEDA External Interactions permission. Enable it in Extension Manager for MCP Pro Bridge.';
-  log(message, error);
-  if (externalInteractionWarningShown) return;
-  externalInteractionWarningShown = true;
-  showToast(message);
-}
-
-function readPath<T>(source: unknown, path: string): T | undefined {
-  const parts = path.split('.');
-  let cursor: unknown = source;
-  for (const part of parts) {
-    if (!isRecord(cursor) || !(part in cursor)) return undefined;
-    try {
-      cursor = cursor[part];
-    } catch (error) {
-      logRecoverableError(`failed to read path segment ${part}`, error);
-      return undefined;
-    }
-  }
-  return cursor as T;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function logRecoverableError(context: string, error: unknown): void {
-  // Pass `context` as a plain argument (never interpolated into the first/format
-  // argument) so a value derived from external data can't be read as a printf-style
-  // format specifier by `console.warn`'s format-string handling.
-  console.warn('[easyeda-mcp-pro]', context, error);
-}
-
-async function callFirst(paths: string[], ...args: unknown[]): Promise<unknown> {
-  const candidates: unknown[] = [];
-  if (typeof eda !== 'undefined' && eda) candidates.push(eda);
-  if (typeof EDA !== 'undefined' && EDA) candidates.push(EDA);
-  if (typeof api !== 'undefined' && api) candidates.push(api);
-  candidates.push(globalThis);
-
-  const allPaths = withClassNameVariants(paths);
-
-  for (const candidate of candidates) {
-    for (const path of allPaths) {
-      const fn = readPath<unknown>(candidate, path);
-      if (typeof fn === 'function') {
-        return await fn.apply(readPathParent(candidate, path), args);
-      }
-    }
-  }
-
-  throw newBridgeError(
-    'METHOD_NOT_FOUND',
-    `No EasyEDA API implementation found for ${paths.join(' or ')}`,
-    'Verify the bridge extension supports the installed EasyEDA Pro version.',
-  );
-}
-
-function readPathParent(source: unknown, path: string): unknown {
-  const parentPath = path.split('.').slice(0, -1).join('.');
-  return parentPath ? readPath(source, parentPath) : source;
-}
-
-function readFirstPath<T>(paths: string[]): T | undefined {
-  for (const candidate of getApiCandidates()) {
-    for (const path of withClassNameVariants(paths)) {
-      const value = readPath<T>(candidate.root, path);
-      if (value !== undefined) return value;
-    }
-  }
-  return undefined;
-}
-
-/**
- * Best-effort extraction of a primitive id from a value returned by an EasyEDA
- * Pro create* API. The runtime may return a plain object with primitiveId/uuid,
- * or a primitive wrapper exposing getState_PrimitiveId()/getState().PrimitiveId.
- */
-function extractPrimitiveId(result: unknown): string {
-  if (!result || typeof result !== 'object') return '';
-  const obj = result as Record<string, unknown>;
-  const direct = obj.primitiveId ?? obj.uuid;
-  if (direct) return String(direct);
-  try {
-    const getter = obj.getState_PrimitiveId;
-    if (typeof getter === 'function') {
-      const id = (getter as () => unknown).call(obj);
-      if (id) return String(id);
-    }
-  } catch {
-    /* ignore */
-  }
-  try {
-    const getState = obj.getState;
-    if (typeof getState === 'function') {
-      const state = (getState as () => unknown).call(obj) as Record<string, unknown> | undefined;
-      if (state?.PrimitiveId) return String(state.PrimitiveId);
-    }
-  } catch {
-    /* ignore */
-  }
-  return '';
-}
-
-function isBinaryResultPayload(value: unknown): value is BinaryResultPayload {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    typeof (value as { base64?: unknown }).base64 === 'string' &&
-    typeof (value as { byteLength?: unknown }).byteLength === 'number'
-  );
-}
-
-/**
- * Wraps `normalizeBinaryResult`, additionally rejecting a payload that would
- * exceed the server's advertised BRIDGE_MAX_PAYLOAD_SIZE (see
- * `bridgeMaxPayloadSize`) before it is ever handed to `send()`. Sending an
- * oversized WS frame closes the whole connection (code 4009) rather than just
- * failing this one call, so we throw a normal, small, structured error
- * instead — handleRequest() turns it into an ok:false response.
- */
-async function normalizeBinaryResultSafely(
-  value: unknown,
-  fallbackFileName: string,
-): Promise<unknown> {
-  const normalized = await normalizeBinaryResult(value, fallbackFileName);
-  if (isBinaryResultPayload(normalized)) {
-    const budget = Math.floor(bridgeMaxPayloadSize * PAYLOAD_SAFETY_MARGIN);
-    if (normalized.byteLength > budget) {
-      throw newBridgeError(
-        'PAYLOAD_TOO_LARGE',
-        `"${normalized.fileName}" is ${normalized.byteLength} bytes, which exceeds the safe transport budget (${budget} bytes, derived from the server's BRIDGE_MAX_PAYLOAD_SIZE=${bridgeMaxPayloadSize}).`,
-        'Increase BRIDGE_MAX_PAYLOAD_SIZE in the MCP server environment, or (for canvas captures) zoom to a smaller region.',
-      );
-    }
-  }
-  return normalized;
-}
-
-function getApiCandidates(): Array<{ name: string; root: unknown }> {
-  const candidates: Array<{ name: string; root: unknown }> = [];
-  if (typeof eda !== 'undefined' && eda) candidates.push({ name: 'eda', root: eda });
-  if (typeof EDA !== 'undefined' && EDA) candidates.push({ name: 'EDA', root: EDA });
-  if (typeof api !== 'undefined' && api) candidates.push({ name: 'api', root: api });
-  candidates.push({ name: 'globalThis', root: globalThis });
-  return candidates;
-}
-
-function withClassNameVariants(paths: string[]): string[] {
-  const variants: string[] = [];
-  for (const path of paths) {
-    variants.push(path);
-    const parts = path.split('.');
-    const className = parts[0];
-    if (!className) continue;
-
-    const rest = parts.slice(1).join('.');
-    const suffix = rest ? `.${rest}` : '';
-    const lowerPrefixMatch = className.match(/^([a-z]+)_(.+)$/);
-    const upperPrefixMatch = className.match(/^([A-Z]+)_(.+)$/);
-
-    if (lowerPrefixMatch?.[1] && lowerPrefixMatch[2]) {
-      variants.push(`${lowerPrefixMatch[1].toUpperCase()}_${lowerPrefixMatch[2]}${suffix}`);
-    }
-
-    if (upperPrefixMatch?.[1] && upperPrefixMatch[2]) {
-      variants.push(`${upperPrefixMatch[1].toLowerCase()}_${upperPrefixMatch[2]}${suffix}`);
-    }
-  }
-
-  return [...new Set(variants)];
-}
-
-function normalizeApiClassName(className: string): string {
-  const match = className.match(/^([a-z]+)_(.+)$/);
-  if (!match?.[1] || !match[2]) return className;
-  return `${match[1].toUpperCase()}_${match[2]}`;
-}
-
-function isAllowedApiPath(path: string): boolean {
-  const parts = path.split('.');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
-  const [className, methodName] = parts;
-  if (DENIED_API_METHODS.has(methodName) || methodName.startsWith('__')) return false;
-  if (!/^[A-Za-z]+_[A-Za-z0-9]+$/.test(className)) return false;
-  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(methodName)) return false;
-  return API_CLASS_PREFIXES.some((prefix) => normalizeApiClassName(className).startsWith(prefix));
-}
-
-function getAllPropertyNames(value: unknown): string[] {
-  const names: string[] = [];
-  let cursor = value;
-  let depth = 0;
-  while (isRecord(cursor) && cursor !== Object.prototype && depth < 8) {
-    try {
-      names.push(...Object.getOwnPropertyNames(cursor));
-    } catch (error) {
-      logRecoverableError('failed to read API property names', error);
-      break;
-    }
-    try {
-      cursor = Object.getPrototypeOf(cursor);
-    } catch (error) {
-      logRecoverableError('failed to read API property prototype', error);
-      break;
-    }
-    depth += 1;
-  }
-  return Array.from(new Set(names)).filter(
-    (name) => !['length', 'name', 'prototype', 'constructor'].includes(name),
-  );
-}
-
-function getFunctionNames(value: unknown): string[] {
-  return getAllPropertyNames(value).filter((name) => {
-    const member = readMember(value, name);
-    return typeof member === 'function';
-  });
-}
-
-function readMember(source: unknown, key: string): unknown {
-  if (!isRecord(source) || !(key in source)) return undefined;
-  try {
-    return source[key];
-  } catch (error) {
-    logRecoverableError(`failed to read API member ${key}`, error);
-    return undefined;
-  }
-}
-
-function normalizeValue(value: unknown, depth = 3, seen = new WeakSet<object>()): JsonValue {
-  if (
-    value === null ||
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  ) {
-    return value;
-  }
-  if (value === undefined) return null;
-  if (typeof value === 'function')
-    return `[Function ${(value as { name?: string }).name ?? 'anonymous'}]`;
-  if (typeof value !== 'object') return String(value);
-  if (seen.has(value)) return '[Circular]';
-  if (depth <= 0) return '[MaxDepth]';
-
-  seen.add(value);
-
-  if (Array.isArray(value)) {
-    return value.slice(0, 100).map((item) => normalizeValue(item, depth - 1, seen));
-  }
-
-  const output: Record<string, JsonValue | undefined> = {};
-  const ctorName = (value as { constructor?: { name?: string } }).constructor?.name;
-  if (ctorName && ctorName !== 'Object') output.__class = ctorName;
-
-  const getterNames = getFunctionNames(value)
-    .filter((name) => name.startsWith('getState_'))
-    .slice(0, 80);
-  if (getterNames.length > 0) {
-    const state: Record<string, JsonValue | undefined> = {};
-    for (const getterName of getterNames) {
-      const getter = readMember(value, getterName);
-      if (typeof getter !== 'function') continue;
-      try {
-        state[getterName.replace(/^getState_/, '')] = normalizeValue(
-          getter.call(value),
-          depth - 1,
-          seen,
-        );
-      } catch (error) {
-        state[getterName.replace(/^getState_/, '')] = `ERROR: ${String(error)}`;
-      }
-    }
-    output.state = state;
-  }
-
-  const methodNames = getFunctionNames(value).slice(0, 120);
-  if (methodNames.length > 0) output.__methods = methodNames;
-
-  for (const key of Object.keys(value).slice(0, 80)) {
-    output[key] = normalizeValue((value as Record<string, unknown>)[key], depth - 1, seen);
-  }
-
-  return output;
-}
-
-function normalizeStandalone(value: unknown, depth = 4): JsonValue {
-  return normalizeValue(value, depth, new WeakSet<object>());
-}
-
-function readStateValue(source: unknown, stateName: string, depth = 4): JsonValue | undefined {
-  const getter = readMember(source, `getState_${stateName}`);
-  if (typeof getter !== 'function') return undefined;
-  try {
-    return normalizeStandalone(getter.call(source), depth);
-  } catch (error) {
-    return `ERROR: ${String(error)}`;
-  }
-}
-
-function compactPrimitiveSummary(
-  value: unknown,
-  stateNames: string[],
-): Record<string, JsonValue | undefined> {
-  const state: Record<string, JsonValue | undefined> = {};
-  for (const stateName of stateNames) {
-    state[stateName] = readStateValue(value, stateName, 5);
-  }
-  return state;
-}
-
-function summarizeWirePrimitive(wire: unknown): Record<string, JsonValue | undefined> {
-  const normalized = normalizeStandalone(wire, 4);
-  const output: Record<string, JsonValue | undefined> = isRecord(normalized)
-    ? { ...(normalized as Record<string, JsonValue | undefined>) }
-    : { value: normalized };
-  const state = compactPrimitiveSummary(wire, [
-    'PrimitiveType',
-    'PrimitiveId',
-    'Line',
-    'Net',
-    'Color',
-    'LineWidth',
-    'LineType',
-  ]);
-
-  output.primitiveType = state.PrimitiveType ?? output.primitiveType ?? '';
-  output.primitiveId = state.PrimitiveId ?? output.primitiveId ?? '';
-  output.line = state.Line ?? output.line ?? null;
-  output.net = state.Net ?? output.net ?? '';
-  output.color = state.Color ?? output.color ?? null;
-  output.lineWidth = state.LineWidth ?? output.lineWidth ?? null;
-  output.lineType = state.LineType ?? output.lineType ?? null;
-  output.state = state;
-  return output;
-}
-
-type SchematicPoint = { x: number; y: number };
-type SchematicNetNode = { component: string; pin: string; x?: number; y?: number; source?: string };
-type SchematicNetEntry = { netName: string; nodes: SchematicNetNode[] };
-
-type DisjointSet = {
-  parent: Map<string, string>;
-  find: (key: string) => string;
-  union: (a: string, b: string) => void;
-};
-
-function createDisjointSet(): DisjointSet {
-  const parent = new Map<string, string>();
-  const find = (key: string): string => {
-    if (!parent.has(key)) parent.set(key, key);
-    const currentParent = parent.get(key);
-    if (!currentParent || currentParent === key) return key;
-    const root = find(currentParent);
-    parent.set(key, root);
-    return root;
-  };
-
-  return {
-    parent,
-    find,
-    union: (a: string, b: string): void => {
-      const rootA = find(a);
-      const rootB = find(b);
-      if (rootA !== rootB) parent.set(rootB, rootA);
-    },
-  };
-}
-
-function pointKey(point: SchematicPoint): string {
-  return `${Math.round(point.x * 1000) / 1000},${Math.round(point.y * 1000) / 1000}`;
-}
-
-function parseLinePoints(line: unknown): SchematicPoint[] {
-  if (!Array.isArray(line)) return [];
-
-  if (line.every((item) => typeof item === 'number')) {
-    const points: SchematicPoint[] = [];
-    for (let i = 0; i + 1 < line.length; i += 2) {
-      const x = Number(line[i]);
-      const y = Number(line[i + 1]);
-      if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
-    }
-    return points;
-  }
-
-  const points: SchematicPoint[] = [];
-  for (const item of line) {
-    if (!Array.isArray(item) || item.length < 2) continue;
-    const x = Number(item[0]);
-    const y = Number(item[1]);
-    if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
-  }
-  return points;
-}
-
-function readStringMemberOrState(source: unknown, key: string, stateName: string): string {
-  const stateValue = readStateValue(source, stateName, 2);
-  if (typeof stateValue === 'string' && stateValue) return stateValue;
-  const directValue = readMember(source, key);
-  if (typeof directValue === 'string') return directValue;
-  if (typeof directValue === 'number') return String(directValue);
-  return '';
-}
-
-function readNumberMemberOrState(
-  source: unknown,
-  key: string,
-  stateName: string,
-): number | undefined {
-  const stateValue = readStateValue(source, stateName, 2);
-  if (typeof stateValue === 'number' && Number.isFinite(stateValue)) return stateValue;
-  const directValue = readMember(source, key);
-  if (typeof directValue === 'number' && Number.isFinite(directValue)) return directValue;
-  return undefined;
-}
-
-function ensureNetEntry(
-  netMap: Map<string, SchematicNetNode[]>,
-  netName: string,
-): SchematicNetNode[] {
-  const existing = netMap.get(netName);
-  if (existing) return existing;
-  const nodes: SchematicNetNode[] = [];
-  netMap.set(netName, nodes);
-  return nodes;
-}
-
-function pushUniqueNetNode(
-  netMap: Map<string, SchematicNetNode[]>,
-  netName: string,
-  node: SchematicNetNode,
-): void {
-  if (!netName || !node.component || !node.pin) return;
-  const nodes = ensureNetEntry(netMap, netName);
-  if (nodes.some((item) => item.component === node.component && item.pin === node.pin)) return;
-  nodes.push(node);
-}
-
-function readComponentType(component: unknown): string {
-  return readStringMemberOrState(component, 'componentType', 'ComponentType').toLowerCase();
-}
-
-function readComponentNet(component: unknown): string {
-  const directNet = readStringMemberOrState(component, 'net', 'Net');
-  if (directNet) return directNet;
-  const otherProperty = readMember(component, 'otherProperty');
-  if (isRecord(otherProperty)) {
-    return String(otherProperty.net ?? otherProperty.Net ?? '');
-  }
-  return '';
-}
-
-function readPrimitivePoint(source: unknown): SchematicPoint | undefined {
-  const x = readNumberMemberOrState(source, 'x', 'X');
-  const y = readNumberMemberOrState(source, 'y', 'Y');
-  if (x === undefined || y === undefined) return undefined;
-  return { x, y };
-}
-
-async function addCoordinateFallbackNets(
-  netMap: Map<string, SchematicNetNode[]>,
-  comps: unknown[],
-): Promise<void> {
-  const schWireClass = readFirstPath<any>([
-    'SCH_PrimitiveWire',
-    'SCH_PrimitiveWire3',
-    'sch_PrimitiveWire',
-  ]);
-  if (!schWireClass || typeof schWireClass.getAll !== 'function') return;
-
-  const wires = await schWireClass.getAll();
-  const wireItems = Array.isArray(wires) ? wires : [];
-  if (wireItems.length === 0) return;
-
-  const dsu = createDisjointSet();
-  const rootNetNames = new Map<string, Set<string>>();
-  const addNetLabel = (point: SchematicPoint, netName: string): void => {
-    if (!netName) return;
-    const root = dsu.find(pointKey(point));
-    const names = rootNetNames.get(root) ?? new Set<string>();
-    names.add(netName);
-    rootNetNames.set(root, names);
-    ensureNetEntry(netMap, netName);
-  };
-
-  for (const wire of wireItems) {
-    const wireSummary = summarizeWirePrimitive(wire);
-    const points = parseLinePoints(wireSummary.line);
-    if (points.length === 0) continue;
-
-    for (const point of points) dsu.find(pointKey(point));
-    for (let i = 1; i < points.length; i += 1) {
-      dsu.union(pointKey(points[i - 1]), pointKey(points[i]));
-    }
-
-    const netName = typeof wireSummary.net === 'string' ? wireSummary.net : '';
-    if (netName) addNetLabel(points[0], netName);
-  }
-
-  // Re-normalize root labels after all wire unions are known.
-  for (const [root, names] of Array.from(rootNetNames.entries())) {
-    const normalizedRoot = dsu.find(root);
-    if (normalizedRoot === root) continue;
-    const target = rootNetNames.get(normalizedRoot) ?? new Set<string>();
-    for (const name of names) target.add(name);
-    rootNetNames.set(normalizedRoot, target);
-    rootNetNames.delete(root);
-  }
-
-  for (const component of comps) {
-    if (readComponentType(component) !== 'netflag') continue;
-    const netName = readComponentNet(component);
-    const point = readPrimitivePoint(component);
-    if (!netName || !point) continue;
-    addNetLabel(point, netName);
-  }
-
-  for (const component of comps) {
-    const ref = readStringMemberOrState(component, 'designator', 'Designator');
-    if (!ref || typeof (component as { getAllPins?: unknown }).getAllPins !== 'function') continue;
-
-    try {
-      const pins = await (component as { getAllPins: () => Promise<unknown[]> }).getAllPins();
-      for (const pin of pins || []) {
-        const pinNumber = readStringMemberOrState(pin, 'pinNumber', 'PinNumber');
-        const point = readPrimitivePoint(pin);
-        if (!pinNumber || !point) continue;
-
-        const netNames = rootNetNames.get(dsu.find(pointKey(point)));
-        if (!netNames) continue;
-        for (const netName of netNames) {
-          pushUniqueNetNode(netMap, netName, {
-            component: ref,
-            pin: pinNumber,
-            x: point.x,
-            y: point.y,
-            source: 'coordinate-fallback',
-          });
-        }
-      }
-    } catch (error) {
-      logRecoverableError('failed to inspect schematic component pins for coordinate nets', error);
-    }
-  }
-}
-
-function inspectApiInventory(filter?: string): JsonValue {
-  const normalizedFilter = filter?.toLowerCase().trim();
-  const classMap = new Map<
-    string,
-    {
-      className: string;
-      runtimePaths: string[];
-      methods: string[];
-    }
-  >();
-
-  for (const candidate of getApiCandidates()) {
-    const root = candidate.root;
-    if (!isRecord(root)) continue;
-
-    for (const key of Object.getOwnPropertyNames(root)) {
-      const className = normalizeApiClassName(key);
-      if (!API_CLASS_PREFIXES.some((prefix) => className.startsWith(prefix))) continue;
-      if (normalizedFilter && !className.toLowerCase().includes(normalizedFilter)) continue;
-
-      const value = readMember(root, key);
-      const methods = getFunctionNames(value).sort();
-      const existing = classMap.get(className) ?? {
-        className,
-        runtimePaths: [],
-        methods: [],
-      };
-      existing.runtimePaths.push(`${candidate.name}.${key}`);
-      existing.methods = Array.from(new Set([...existing.methods, ...methods])).sort();
-      classMap.set(className, existing);
-    }
-  }
-
-  const classes = Array.from(classMap.values()).sort((a, b) =>
-    a.className.localeCompare(b.className),
-  );
-  return {
-    classes: classes as unknown as JsonValue,
-    total: classes.length,
-  };
-}
-
-async function callAllowedApi(path: string, args: unknown[]): Promise<unknown> {
-  if (!isAllowedApiPath(path)) {
-    throw newBridgeError(
-      'UNAUTHORIZED',
-      `API path is not allowed: ${path}`,
-      'Use a documented EasyEDA API class method such as SCH_PrimitiveWire.getAll.',
-    );
-  }
-
-  for (const candidate of getApiCandidates()) {
-    for (const candidatePath of withClassNameVariants([path])) {
-      const fn = readPath<unknown>(candidate.root, candidatePath);
-      if (typeof fn !== 'function') continue;
-      const parent = readPathParent(candidate.root, candidatePath);
-      const result = await fn.apply(parent, args);
-      return {
-        path,
-        resolvedPath: `${candidate.name}.${candidatePath}`,
-        result: normalizeValue(result, 5),
-      };
-    }
-  }
-
-  throw newBridgeError(
-    'METHOD_NOT_FOUND',
-    `No EasyEDA API implementation found for ${path}`,
-    'Check easyeda_api_inventory for runtime-supported classes and methods.',
-  );
-}
-
-function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
-  const error = new Error(message);
-  Object.assign(error, { code, suggestion, data });
-  return error;
-}
-
-async function listComponentsApi(): Promise<unknown> {
-  const schCompClass = readFirstPath<any>([
-    'SCH_PrimitiveComponent',
-    'SCH_PrimitiveComponent3',
-    'sch_PrimitiveComponent',
-  ]);
-  const libFpClass = readFirstPath<any>(['LIB_Footprint', 'lib_Footprint']);
-
-  if (!schCompClass) {
-    throw new Error('SCH_PrimitiveComponent class not found in EasyEDA Pro API');
-  }
-
-  const comps = await schCompClass.getAll(undefined, true);
-  const result: any[] = [];
-
-  for (const c of comps || []) {
-    const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
-    const val = typeof c.getState_Name === 'function' ? c.getState_Name() : '';
-    let fp = '';
-
-    if (typeof c.getState_Footprint === 'function') {
-      const fpInfo = c.getState_Footprint();
-      if (fpInfo && fpInfo.uuid && libFpClass) {
-        try {
-          const fpObj = await libFpClass.get(fpInfo.uuid, fpInfo.libraryUuid);
-          if (fpObj) fp = fpObj.name || '';
-        } catch (e) {
-          logRecoverableError('failed to resolve component footprint', e);
-        }
-      }
-    }
-
-    const lcsc = typeof c.getState_SupplierId === 'function' ? c.getState_SupplierId() : '';
-    const mfr = typeof c.getState_Manufacturer === 'function' ? c.getState_Manufacturer() : '';
-    let ds = '';
-
-    if (typeof c.getState_OtherProperty === 'function') {
-      const other = c.getState_OtherProperty();
-      if (other) {
-        if (!fp && (other.Footprint || other.footprint))
-          fp = String(other.Footprint || other.footprint);
-        ds = String(other.Datasheet || other.datasheet || '');
-      }
-    }
-
-    result.push({
-      reference: ref,
-      value: val,
-      footprint: fp,
-      lcsc: lcsc,
-      manufacturer: mfr,
-      datasheet: ds,
-    });
-  }
-  return result;
-}
-
-async function getSchematicSheetInfoApi(): Promise<unknown> {
-  const currentPage = await callFirst([
-    'DMT_Schematic.getCurrentSchematicPageInfo',
-    'dmt_Schematic.getCurrentSchematicPageInfo',
-  ]);
-  let pages: unknown = [];
-  try {
-    pages = await callFirst([
-      'DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo',
-      'DMT_Schematic.getAllSchematicPagesInfo',
-      'dmt_Schematic.getCurrentSchematicAllSchematicPagesInfo',
-      'dmt_Schematic.getAllSchematicPagesInfo',
-    ]);
-  } catch (err) {
-    logRecoverableError('failed to read schematic pages list', err);
-  }
-
-  return {
-    currentPage: normalizeValue(currentPage, 5),
-    pages: normalizeValue(pages, 4),
-  };
-}
-
-async function listNetsApi(): Promise<unknown> {
-  const schCompClass = readFirstPath<any>([
-    'SCH_PrimitiveComponent',
-    'SCH_PrimitiveComponent3',
-    'sch_PrimitiveComponent',
-  ]);
-  const schNetClass = readFirstPath<any>(['SCH_Net', 'sch_Net']);
-
-  if (!schCompClass) {
-    throw new Error('SCH_PrimitiveComponent class not found in EasyEDA Pro API');
-  }
-
-  const comps = await schCompClass.getAll(undefined, true);
-  const netMap = new Map<string, SchematicNetNode[]>();
-
-  for (const c of comps || []) {
-    const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
-    if (!ref || typeof c.getAllPins !== 'function') continue;
-
-    try {
-      const pins = await c.getAllPins();
-      for (const p of pins || []) {
-        if (typeof p.getState_PinNumber !== 'function') continue;
-        const pinNum = p.getState_PinNumber();
-
-        let netName = '';
-        if (typeof p.getState_OtherProperty === 'function') {
-          const other = p.getState_OtherProperty();
-          if (other) {
-            netName = String(other.net || other.Net || '');
-          }
-        }
-
-        if (netName) {
-          pushUniqueNetNode(netMap, netName, { component: ref, pin: pinNum });
-        }
-      }
-    } catch (e) {
-      logRecoverableError('failed to inspect schematic component pins', e);
-    }
-  }
-
-  if (schNetClass && typeof schNetClass.getAllNets === 'function') {
-    try {
-      const allNets = await schNetClass.getAllNets();
-      for (const n of allNets || []) {
-        const netName = n.netName || n.net;
-        if (netName) ensureNetEntry(netMap, String(netName));
-      }
-    } catch (e) {
-      logRecoverableError('failed to inspect schematic nets', e);
-    }
-  }
-
-  try {
-    await addCoordinateFallbackNets(netMap, comps || []);
-  } catch (error) {
-    logRecoverableError('failed to infer schematic nets from wire coordinates', error);
-  }
-
-  const result: SchematicNetEntry[] = [];
-  for (const [netName, nodes] of netMap.entries()) {
-    result.push({
-      netName,
-      nodes,
-    });
-  }
-  return result;
-}
-
-async function inspectComponentsApi(limit = 5): Promise<unknown> {
-  const schCompClass = readFirstPath<any>([
-    'SCH_PrimitiveComponent',
-    'SCH_PrimitiveComponent3',
-    'sch_PrimitiveComponent',
-  ]);
-  if (!schCompClass || typeof schCompClass.getAll !== 'function') {
-    throw new Error('SCH_PrimitiveComponent.getAll is not available in this EasyEDA runtime');
-  }
-
-  const comps = await schCompClass.getAll(undefined, true);
-  const items = Array.isArray(comps) ? comps : [];
-  return {
-    total: items.length,
-    samples: items
-      .slice(0, Math.max(1, Math.min(limit, 25)))
-      .map((item) => normalizeValue(item, 5)),
-  };
-}
-
-async function inspectWiresApi(limit = 10): Promise<unknown> {
-  const schWireClass = readFirstPath<any>([
-    'SCH_PrimitiveWire',
-    'SCH_PrimitiveWire3',
-    'sch_PrimitiveWire',
-  ]);
-  if (!schWireClass || typeof schWireClass.getAll !== 'function') {
-    throw new Error('SCH_PrimitiveWire.getAll is not available in this EasyEDA runtime');
-  }
-
-  const wires = await schWireClass.getAll();
-  const items = Array.isArray(wires) ? wires : [];
-  return {
-    total: items.length,
-    samples: items
-      .slice(0, Math.max(1, Math.min(limit, 50)))
-      .map((item) => summarizeWirePrimitive(item)),
-  };
-}
-
-async function listLayersApi(): Promise<unknown> {
-  const globalObj = getGlobal();
-  const pcbLayerClass = readPath<any>(globalObj, 'pcb_Layer');
-  if (!pcbLayerClass || typeof pcbLayerClass.getAllLayers !== 'function') {
-    throw new Error('pcb_Layer class or getAllLayers method not found');
-  }
-  const layers = await pcbLayerClass.getAllLayers();
-  return (layers || []).map((l: any) => ({
-    name: l.name || '',
-    type: l.type || '',
-    color: l.color || '',
-    visible: l.visible !== false,
-    order: l.order || 0,
-  }));
-}
-
-async function getStackupApi(): Promise<unknown> {
-  const globalObj = getGlobal();
-  const pcbLayerClass = readPath<any>(globalObj, 'pcb_Layer');
-  if (!pcbLayerClass) {
-    throw new Error('pcb_Layer class not found');
-  }
-
-  let totalCopper = 2;
-  if (typeof pcbLayerClass.getTheNumberOfCopperLayers === 'function') {
-    try {
-      totalCopper = await pcbLayerClass.getTheNumberOfCopperLayers();
-    } catch (e) {
-      logRecoverableError('failed to read copper layer count', e);
-    }
-  }
-
-  let physicalStacking: any = null;
-  if (typeof pcbLayerClass.getCurrentPhysicalStackingConfiguration === 'function') {
-    try {
-      physicalStacking = await pcbLayerClass.getCurrentPhysicalStackingConfiguration();
-    } catch (e) {
-      logRecoverableError('failed to read physical stackup', e);
-    }
-  }
-
-  const layers: any[] = [];
-  if (physicalStacking && Array.isArray(physicalStacking.layers)) {
-    for (const l of physicalStacking.layers) {
-      layers.push({
-        name: l.name || '',
-        type: l.type || '',
-        thicknessMm: l.thickness || 0,
-        material: l.material || '',
-        dielectricConstant: l.dielectric || 0,
-        copperWeightOz: l.copperWeight || 0,
-      });
-    }
-  }
-
-  return {
-    totalLayers: totalCopper,
-    boardThicknessMm: physicalStacking?.thickness || 1.6,
-    layers,
-  };
-}
-
-async function getDimensionsApi(): Promise<unknown> {
-  const globalObj = getGlobal();
-  const pcbLineClass = readPath<any>(globalObj, 'pcb_PrimitiveLine');
-  const pcbArcClass = readPath<any>(globalObj, 'pcb_PrimitiveArc');
-  const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
-
-  let minX = Infinity,
-    maxX = -Infinity;
-  let minY = Infinity,
-    maxY = -Infinity;
-
-  const updateBBox = (x: number, y: number) => {
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  };
-
-  if (pcbLineClass && typeof pcbLineClass.getAll === 'function') {
-    try {
-      const lines = await pcbLineClass.getAll();
-      for (const l of lines || []) {
-        if (typeof l.getState_Layer === 'function' && l.getState_Layer() === 11) {
-          const points = typeof l.getState_Points === 'function' ? l.getState_Points() : [];
-          for (const p of points || []) {
-            updateBBox(p.x, p.y);
-          }
-        }
-      }
-    } catch (e) {
-      logRecoverableError('failed to read board outline lines', e);
-    }
-  }
-
-  if (pcbArcClass && typeof pcbArcClass.getAll === 'function') {
-    try {
-      const arcs = await pcbArcClass.getAll();
-      for (const a of arcs || []) {
-        if (typeof a.getState_Layer === 'function' && a.getState_Layer() === 11) {
-          const sx = typeof a.getState_StartX === 'function' ? a.getState_StartX() : 0;
-          const sy = typeof a.getState_StartY === 'function' ? a.getState_StartY() : 0;
-          const ex = typeof a.getState_EndX === 'function' ? a.getState_EndX() : 0;
-          const ey = typeof a.getState_EndY === 'function' ? a.getState_EndY() : 0;
-          updateBBox(sx, sy);
-          updateBBox(ex, ey);
-        }
-      }
-    } catch (e) {
-      logRecoverableError('failed to read board outline arcs', e);
-    }
-  }
-
-  const width = maxX > minX ? maxX - minX : 0;
-  const height = maxY > minY ? maxY - minY : 0;
-
-  let mountingHoles = 0;
-  if (pcbPadClass && typeof pcbPadClass.getAll === 'function') {
-    try {
-      const pads = await pcbPadClass.getAll();
-      for (const p of pads || []) {
-        const hType = typeof p.getState_HoleType === 'function' ? p.getState_HoleType() : '';
-        const hSize = typeof p.getState_HoleSize === 'function' ? p.getState_HoleSize() : 0;
-        if (hType === 'MountingHole' || hSize > 2) {
-          mountingHoles++;
-        }
-      }
-    } catch (e) {
-      logRecoverableError('failed to read mounting-hole pads', e);
-    }
-  }
-
-  return {
-    widthMm: width,
-    heightMm: height,
-    shape: 'custom',
-    mountingHoleCount: mountingHoles,
-    areaMm2: width * height,
-  };
-}
-
-async function getFeaturesApi(): Promise<unknown> {
-  const globalObj = getGlobal();
-  const pcbViaClass = readPath<any>(globalObj, 'pcb_PrimitiveVia');
-  const pcbTrackClass = readPath<any>(globalObj, 'pcb_PrimitiveTrack');
-  const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
-  const pcbPourClass = readPath<any>(globalObj, 'pcb_PrimitivePour');
-  const pcbCompClass = readPath<any>(globalObj, 'pcb_PrimitiveComponent');
-
-  let viasCount = 0;
-  let tracksCount = 0;
-  let padsCount = 0;
-  let zonesCount = 0;
-  let compsCount = 0;
-
-  try {
-    if (pcbViaClass && typeof pcbViaClass.getAll === 'function') {
-      viasCount = (await pcbViaClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count vias', e);
-  }
-
-  try {
-    if (pcbTrackClass && typeof pcbTrackClass.getAll === 'function') {
-      tracksCount = (await pcbTrackClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count tracks', e);
-  }
-
-  try {
-    if (pcbPadClass && typeof pcbPadClass.getAll === 'function') {
-      padsCount = (await pcbPadClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count pads', e);
-  }
-
-  try {
-    if (pcbPourClass && typeof pcbPourClass.getAll === 'function') {
-      zonesCount = (await pcbPourClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count zones', e);
-  }
-
-  try {
-    if (pcbCompClass && typeof pcbCompClass.getAll === 'function') {
-      compsCount = (await pcbCompClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count PCB components', e);
-  }
-
-  return {
-    vias: viasCount,
-    tracks: tracksCount,
-    zones: zonesCount,
-    pads: padsCount,
-    components: compsCount,
-  };
-}
-
-async function generateBomApi(params: any): Promise<unknown> {
-  const comps = (await listComponentsApi()) as any[];
-  const groupBy = params.groupBy || 'value';
-  const groups = new Map<string, any>();
-
-  for (const c of comps) {
-    let key = '';
-    if (groupBy === 'lcsc') {
-      key = c.lcsc || c.value;
-    } else if (groupBy === 'footprint') {
-      key = c.footprint || 'no-footprint';
-    } else {
-      key = c.value || 'no-value';
-    }
-
-    if (!groups.has(key)) {
-      groups.set(key, {
-        references: [],
-        value: c.value,
-        footprint: c.footprint,
-        lcsc: c.lcsc,
-        manufacturer: c.manufacturer,
-        quantity: 0,
-      });
-    }
-    const group = groups.get(key);
-    group.references.push(c.reference);
-    group.quantity += 1;
-  }
-
-  const entries = [];
-  for (const group of groups.values()) {
-    entries.push({
-      reference: group.references.join(', '),
-      value: group.value,
-      footprint: group.footprint,
-      lcsc: group.lcsc,
-      quantity: group.quantity,
-      manufacturer: group.manufacturer,
-    });
-  }
-  return entries;
-}
-
-/**
- * Try to connect a specific component pin to a net by finding the component,
- * locating the pin, and setting its net property. Falls back gracefully when
- * the runtime API does not expose pin-level modification.
- */
-async function connectPinToNetImpl(
-  primitiveId: string,
-  pinNumber: string,
-  netName: string,
-): Promise<void> {
-  const schCompClass = readFirstPath<any>([
-    'SCH_PrimitiveComponent',
-    'SCH_PrimitiveComponent3',
-    'sch_PrimitiveComponent',
-  ]);
-
-  if (!schCompClass || typeof schCompClass.getAll !== 'function') {
-    // Fallback: try SCH_Netlist API
-    try {
-      await callFirst(
-        ['SCH_Netlist.create', 'sch_Netlist.create', 'SCH_Netlist.connectPin'],
-        primitiveId,
-        pinNumber,
-        netName,
-      );
-      return;
-    } catch {
-      // Both paths failed — surface the primary error
-      throw newBridgeError(
-        'EASYEDA_API_ERROR',
-        'No API available to connect pin to net. Ensure SCH_PrimitiveComponent and SCH_Netlist are available.',
-        'Verify the bridge extension supports the installed EasyEDA Pro version.',
-      );
-    }
-  }
-
-  const comps = await schCompClass.getAll(undefined, true);
-
-  // Try to find the component by:
-  // 1. Primitive ID (e.g. "e98") — via getState().PrimitiveId
-  // 2. Designator (e.g. "R1") — via getState_Designator()
-  const target = (comps || []).find((c: any) => {
-    try {
-      // Check primitiveId via getState
-      if (typeof c.getState === 'function') {
-        const st = c.getState();
-        if (st && st.PrimitiveId === primitiveId) return true;
-      }
-    } catch {}
-    try {
-      // Check getState_PrimitiveId directly
-      if (
-        typeof c.getState_PrimitiveId === 'function' &&
-        String(c.getState_PrimitiveId()) === primitiveId
-      )
-        return true;
-    } catch {}
-    try {
-      // Check by designator (legacy)
-      if (typeof c.getState_Designator === 'function' && c.getState_Designator() === primitiveId)
-        return true;
-    } catch {}
-    return false;
-  });
-  if (!target) {
-    throw newBridgeError(
-      'EASYEDA_API_ERROR',
-      `Component with primitiveId "${primitiveId}" not found`,
-      'Verify the primitiveId is correct.',
-    );
-  }
-
-  if (typeof target.getAllPins !== 'function') {
-    throw newBridgeError(
-      'EASYEDA_API_ERROR',
-      `Component "${primitiveId}" does not expose getAllPins`,
-      'Component may not support pin enumeration.',
-    );
-  }
-
-  const pins = await target.getAllPins();
-  const targetPin = (pins || []).find(
-    (p: any) =>
-      typeof p.getState_PinNumber === 'function' &&
-      String(p.getState_PinNumber()) === String(pinNumber),
-  );
-  if (!targetPin) {
-    throw newBridgeError(
-      'EASYEDA_API_ERROR',
-      `Pin "${pinNumber}" not found on component "${primitiveId}"`,
-      'Verify the pin number is correct.',
-    );
-  }
-
-  // Modify the pin's OtherProperty to set the net name
-  // This is the same property read by listNetsApi()
-  const existing =
-    typeof targetPin.getState_OtherProperty === 'function'
-      ? targetPin.getState_OtherProperty()
-      : {};
-  const updated = { ...(existing || {}), net: netName };
-
-  if (typeof targetPin.setState_OtherProperty === 'function') {
-    targetPin.setState_OtherProperty(updated);
-  } else {
-    // Fallback: try explicit modify on the component
-    try {
-      await callFirst(
-        ['SCH_PrimitiveComponent.modify', 'sch_PrimitiveComponent.modify'],
-        primitiveId,
-        { property: { OtherProperty: updated } },
-      );
-    } catch {
-      throw newBridgeError(
-        'EASYEDA_API_ERROR',
-        'Pin found but no API available to modify its net property.',
-        'The EasyEDA Pro runtime may not support programmatic pin net assignment.',
-      );
-    }
-  }
-}
-
-async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
-  switch (method) {
-    case 'project.open':
-      return callFirst(['dmt_Project.openProject', 'project.open'], params.projectId);
-    case 'project.save':
-      return callFirst([
-        'dmt_Workspace.saveAll',
-        'dmt_Workspace.saveActiveDocument',
-        'sch_Document.save',
-        'pcb_Document.save',
-        'pnl_Document.save',
-      ]);
-    case 'project.export':
-      return callFirst(
-        ['PCB_ManufactureData.getManufactureData', 'SCH_ManufactureData.getExportDocumentFile'],
-        params,
-      );
-    case 'schematic.listNets':
-      return listNetsApi();
-    case 'schematic.getNetDetail': {
-      const netName = params.netName as string;
-      const allNets = (await listNetsApi()) as Array<{ netName: string; nodes: unknown[] }>;
-      const match = allNets.find((n) => n.netName === netName);
-      if (!match)
-        throw newBridgeError(
-          'NET_NOT_FOUND',
-          `Net "${netName}" not found`,
-          'Check net name spelling.',
-        );
-      return match;
-    }
-    case 'schematic.listComponents':
-      return listComponentsApi();
-    case 'schematic.getSheetInfo':
-      return getSchematicSheetInfoApi();
-    case 'schematic.searchDevice':
-      return callFirst(
-        ['LIB_Device.search', 'lib_Device.search'],
-        params.key,
-        params.libraryUuid,
-        params.classification,
-        params.symbolType,
-        params.itemsOfPage,
-        params.page,
-      );
-    case 'schematic.placeComponent':
-      // SCH_PrimitiveComponent.create expects (deviceItem, x, y) only.
-      // Extra arguments cause the API to hang or reject.
-      return callFirst(
-        ['SCH_PrimitiveComponent.create', 'sch_PrimitiveComponent.create'],
-        params.deviceItem,
-        params.x,
-        params.y,
-      );
-    case 'schematic.addWire': {
-      const pts = Array.isArray(params.points) ? params.points.flatMap((p: any) => [p.x, p.y]) : [];
-      return callFirst(
-        ['SCH_PrimitiveWire.create', 'sch_PrimitiveWire.create'],
-        pts,
-        params.netName,
-        params.color,
-        params.lineWidth,
-        params.lineType,
-      );
-    }
-    case 'schematic.deletePrimitive':
-      return callFirst(
-        [
-          'SCH_PrimitiveComponent.delete',
-          'SCH_PrimitiveWire.delete',
-          'sch_PrimitiveComponent.delete',
-          'sch_PrimitiveWire.delete',
-        ],
-        params.primitiveIds,
-      );
-    case 'schematic.modifyPrimitive':
-      return callFirst(
-        [
-          'SCH_PrimitiveComponent.modify',
-          'SCH_PrimitiveWire.modify',
-          'sch_PrimitiveComponent.modify',
-          'sch_PrimitiveWire.modify',
-        ],
-        params.primitiveId,
-        params.property,
-      );
-    case 'schematic.createNetFlag': {
-      const nfX = params.x as number;
-      const nfY = params.y as number;
-      const nfName = params.netName as string;
-      const nfRotation = (params.rotation as number) ?? 0;
-      // EasyEDA Pro exposes two distinct primitives here (verified against the
-      // live runtime inventory):
-      //   - SCH_PrimitiveComponent.createNetFlag(identification, net, x, y, rotation, mirror)
-      //     is the power-symbol flag and only accepts the four power
-      //     identifications (Power / Ground / AnalogGround / ProtectGround).
-      //   - SCH_PrimitiveAttribute.createNetLabel(x, y, net) is the generic
-      //     named net label that works for any net name.
-      // Prefer the power flag when a valid identification is supplied,
-      // otherwise fall back to a generic net label.
-      const POWER_IDS = ['Power', 'Ground', 'AnalogGround', 'ProtectGround'];
-      const nfIdentification = params.identification as string | undefined;
-      let nfResult: unknown;
-      if (nfIdentification && POWER_IDS.includes(nfIdentification)) {
-        nfResult = await callFirst(
-          ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
-          nfIdentification,
-          nfName,
-          nfX,
-          nfY,
-          nfRotation,
-        );
-      } else {
-        nfResult = await callFirst(
-          ['SCH_PrimitiveAttribute.createNetLabel', 'sch_PrimitiveAttribute.createNetLabel'],
-          nfX,
-          nfY,
-          nfName,
-        );
-      }
-      const nfPrimitiveId = extractPrimitiveId(nfResult);
-      return {
-        primitiveId: nfPrimitiveId || `netflag_${Date.now()}`,
-        netName: nfName,
-      };
-    }
-    case 'schematic.createNetPort': {
-      const npX = params.x as number;
-      const npY = params.y as number;
-      const npName = params.netName as string;
-      const npRotation = (params.rotation as number) ?? 0;
-      // SCH_PrimitiveComponent.createNetPort(direction, net, x, y, rotation, mirror)
-      // where direction is one of IN / OUT / BI. Map the MCP portType onto it.
-      const portTypeMap: Record<string, 'IN' | 'OUT' | 'BI'> = {
-        input: 'IN',
-        output: 'OUT',
-        bidirectional: 'BI',
-        triState: 'BI',
-        passive: 'BI',
-      };
-      const npDirection = portTypeMap[(params.portType as string) ?? 'passive'] ?? 'BI';
-      const npResult = await callFirst(
-        ['SCH_PrimitiveComponent.createNetPort', 'sch_PrimitiveComponent.createNetPort'],
-        npDirection,
-        npName,
-        npX,
-        npY,
-        npRotation,
-      );
-      const npPrimitiveId = extractPrimitiveId(npResult);
-      return {
-        primitiveId: npPrimitiveId || `netport_${Date.now()}`,
-        netName: npName,
-      };
-    }
-    case 'schematic.connectPinToNet': {
-      await connectPinToNetImpl(
-        params.primitiveId as string,
-        params.pinNumber as string,
-        params.netName as string,
-      );
-      return { connected: true };
-    }
-    case 'schematic.connectPinsByNet': {
-      const pins = params.pins as Array<{ primitiveId: string; pinNumber: string }>;
-      let connectedCount = 0;
-      for (const pin of pins || []) {
-        try {
-          await connectPinToNetImpl(pin.primitiveId, pin.pinNumber, params.netName as string);
-          connectedCount++;
-        } catch (err) {
-          logRecoverableError(
-            `connectPinToNet failed for ${pin.primitiveId}/${pin.pinNumber}`,
-            err,
-          );
-        }
-      }
-      return { count: connectedCount };
-    }
-    case 'schematic.validateNetlist': {
-      const netlistData = (await listNetsApi()) as Array<{
-        netName: string;
-        nodes: Array<{ component: string; pin: string }>;
-      }>;
-      const comps = (await listComponentsApi()) as Array<{
-        reference: string;
-        value: string;
-        footprint: string;
-        lcsc: string;
-      }>;
-      const connectedRefs = new Set<string>();
-      const connectedPins = new Set<string>();
-      const nets = (netlistData || []).map((n) => {
-        const refs = [...new Set((n.nodes || []).map((node) => node.component))];
-        const pins = (n.nodes || []).map((node) => node.pin);
-        refs.forEach((r) => connectedRefs.add(r));
-        pins.forEach((p) => connectedPins.add(p));
-        return {
-          netName: n.netName,
-          refs,
-          pins,
-          hasNetFlag: true,
-        };
-      });
-      // Floating pins: components that exist but aren't in any net's nodes
-      const floatingPins: Array<{ primitiveId: string; pinNumber: string }> = [];
-      const schCompClass = readFirstPath<any>([
-        'SCH_PrimitiveComponent',
-        'SCH_PrimitiveComponent3',
-        'sch_PrimitiveComponent',
-      ]);
-      if (schCompClass && typeof schCompClass.getAll === 'function') {
-        const allComps = await schCompClass.getAll(undefined, true);
-        for (const c of allComps || []) {
-          const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
-          if (ref && typeof c.getAllPins === 'function') {
-            try {
-              const pins = await c.getAllPins();
-              for (const p of pins || []) {
-                if (typeof p.getState_PinNumber !== 'function') continue;
-                let pinNet = '';
-                if (typeof p.getState_OtherProperty === 'function') {
-                  const other = p.getState_OtherProperty();
-                  if (other) pinNet = String(other.net || other.Net || '');
-                }
-                if (!pinNet) {
-                  floatingPins.push({
-                    primitiveId: ref,
-                    pinNumber: String(p.getState_PinNumber()),
-                  });
-                }
-              }
-            } catch {
-              // skip component
-            }
-          }
-        }
-      }
-      const warnings: string[] = [];
-      const totalRefs = comps.length;
-      if (floatingPins.length > 0) {
-        warnings.push(`${floatingPins.length} pin(s) are not connected to any net.`);
-      }
-      if (connectedRefs.size < totalRefs) {
-        warnings.push(`${totalRefs - connectedRefs.size} component(s) have no net connections.`);
-      }
-      return {
-        nets,
-        floatingPins,
-        wiresWithoutNetlist: [],
-        warnings,
-      };
-    }
-    case 'system.apiInventory':
-      return inspectApiInventory(typeof params.filter === 'string' ? params.filter : undefined);
-    case 'system.inspectComponents':
-      return inspectComponentsApi(typeof params.limit === 'number' ? params.limit : 5);
-    case 'system.inspectWires':
-      return inspectWiresApi(typeof params.limit === 'number' ? params.limit : 10);
-    case 'api.call':
-      return callAllowedApi(
-        typeof params.path === 'string' ? params.path : '',
-        Array.isArray(params.args) ? params.args : [],
-      );
-    case 'api.execute': {
-      const code = typeof params.code === 'string' ? params.code : '';
-      if (!code.trim())
-        throw newBridgeError(
-          'INVALID_PARAMS',
-          'code is required',
-          'Provide JavaScript code to execute',
-        );
-      const AsyncFunction = Object.getPrototypeOf(async function () {})
-        .constructor as FunctionConstructor;
-      const edaGlobal = (() => {
-        try {
-          if (typeof eda !== 'undefined' && eda) return eda;
-        } catch {}
-        return (globalThis as any).eda;
-      })();
-      const fn = new AsyncFunction('eda', code) as (eda: unknown) => Promise<unknown>;
-      const result = await fn(edaGlobal);
-      return { result: normalizeValue(result, 5) };
-    }
-    case 'board.listLayers':
-      return listLayersApi();
-    case 'board.getStackup':
-      return getStackupApi();
-    case 'board.getDimensions':
-      return getDimensionsApi();
-    case 'board.getFeatures':
-      return getFeaturesApi();
-    case 'board.exportGerbers':
-      return normalizeBinaryResultSafely(
-        await callFirst(['PCB_ManufactureData.getGerberFile'], params),
-        'gerbers.zip',
-      );
-    case 'pcb.exportRouteContext':
-      return normalizeBinaryResultSafely(
-        await callFirst(
-          ['PCB_ManufactureData.getDsnFile'],
-          typeof params.fileName === 'string' ? params.fileName : undefined,
-        ),
-        'route-context.dsn',
-      );
-    case 'system.getStatus': {
-      const globals: Record<string, unknown> = {};
-      try {
-        globals.typeof_api = typeof (globalThis as any).api;
-        globals.typeof_eda = typeof (globalThis as any).eda;
-        globals.typeof_EDA = typeof (globalThis as any).EDA;
-
-        try {
-          globals.typeof_local_api = typeof api;
-        } catch (e) {
-          globals.typeof_local_api_err = String(e);
-        }
-        try {
-          globals.typeof_local_eda = typeof eda;
-        } catch (e) {
-          globals.typeof_local_eda_err = String(e);
-        }
-        try {
-          globals.typeof_local_EDA = typeof EDA;
-        } catch (e) {
-          globals.typeof_local_EDA_err = String(e);
-        }
-
-        if (typeof eda !== 'undefined' && eda) {
-          try {
-            globals.eda_keys = Object.getOwnPropertyNames(eda);
-          } catch (e) {
-            globals.eda_keys_err = String(e);
-          }
-          try {
-            const edaKeys: string[] = [];
-            for (const key in eda) {
-              edaKeys.push(key);
-            }
-            globals.eda_for_in_keys = edaKeys;
-          } catch (e) {
-            globals.eda_for_in_keys_err = String(e);
-          }
-
-          const getAllPropertyNames = (obj: any): string[] => {
-            let props: string[] = [];
-            let currentObj = obj;
-            while (currentObj && currentObj !== Object.prototype) {
-              try {
-                props = props.concat(Object.getOwnPropertyNames(currentObj));
-              } catch (e) {
-                logRecoverableError('failed to read debug probe property names', e);
-              }
-              try {
-                currentObj = Object.getPrototypeOf(currentObj);
-              } catch (e) {
-                logRecoverableError('failed to read debug probe prototype', e);
-                break;
-              }
-            }
-            return Array.from(new Set(props)).filter(
-              (p) => !['length', 'name', 'prototype', 'constructor'].includes(p),
-            );
-          };
-
-          try {
-            if ((eda as any).sch_PrimitiveComponent) {
-              globals.sch_PrimitiveComponent_all_keys = getAllPropertyNames(
-                (eda as any).sch_PrimitiveComponent,
-              );
-            }
-          } catch (e) {
-            globals.sch_PrimitiveComponent_err = String(e);
-          }
-
-          try {
-            if ((eda as any).sch_Document) {
-              globals.sch_Document_all_keys = getAllPropertyNames((eda as any).sch_Document);
-            }
-          } catch (e) {
-            globals.sch_Document_err = String(e);
-          }
-
-          try {
-            if ((eda as any).pcb_Document) {
-              globals.pcb_Document_all_keys = getAllPropertyNames((eda as any).pcb_Document);
-            }
-          } catch (e) {
-            globals.pcb_Document_err = String(e);
-          }
-
-          try {
-            if ((eda as any).dmt_Schematic) {
-              globals.dmt_Schematic_all_keys = getAllPropertyNames((eda as any).dmt_Schematic);
-            }
-          } catch (e) {
-            globals.dmt_Schematic_err = String(e);
-          }
-
-          try {
-            if ((eda as any).dmt_Project) {
-              globals.dmt_Project_all_keys = getAllPropertyNames((eda as any).dmt_Project);
-            }
-          } catch (e) {
-            globals.dmt_Project_err = String(e);
-          }
-
-          try {
-            if ((eda as any).dmt_Pcb) {
-              globals.dmt_Pcb_all_keys = getAllPropertyNames((eda as any).dmt_Pcb);
-            }
-          } catch (e) {
-            globals.dmt_Pcb_err = String(e);
-          }
-        }
-
-        if (typeof EDA !== 'undefined' && EDA) {
-          try {
-            globals.EDA_keys = Object.getOwnPropertyNames(EDA as object);
-          } catch (e) {
-            globals.EDA_keys_err = String(e);
-          }
-          try {
-            const edaKeys: string[] = [];
-            for (const key in EDA as object) {
-              edaKeys.push(key);
-            }
-            globals.EDA_for_in_keys = edaKeys;
-          } catch (e) {
-            globals.EDA_for_in_keys_err = String(e);
-          }
-        }
-
-        try {
-          const globalKeys = Object.getOwnPropertyNames(globalThis);
-          globals.globalThis_matched_keys = globalKeys.filter((k) => {
-            const kl = k.toLowerCase();
-            return (
-              kl.includes('dmt') ||
-              kl.includes('eda') ||
-              kl.includes('schematic') ||
-              kl.includes('pcb') ||
-              kl.includes('api')
-            );
-          });
-        } catch (e) {
-          globals.globalThis_keys_err = String(e);
-        }
-
-        try {
-          const allGlobalKeys: string[] = [];
-          for (const key in globalThis) {
-            const kl = key.toLowerCase();
-            if (
-              kl.includes('dmt') ||
-              kl.includes('eda') ||
-              kl.includes('schematic') ||
-              kl.includes('pcb') ||
-              kl.includes('api')
-            ) {
-              allGlobalKeys.push(key);
-            }
-          }
-          globals.globalThis_for_in_matched_keys = allGlobalKeys;
-        } catch (e) {
-          globals.globalThis_for_in_err = String(e);
-        }
-      } catch (e) {
-        globals.error = String(e);
-      }
-
-      const hasEdaLocal = typeof eda !== 'undefined';
-      const hasEDALocal = typeof EDA !== 'undefined';
-      const hasDMTLocal = typeof eda !== 'undefined' && eda && 'DMT_Schematic' in (eda as any);
-      const hasDMTEDA = typeof EDA !== 'undefined' && EDA && 'DMT_Schematic' in (EDA as any);
-
-      return {
-        bridgeVersion: BRIDGE_VERSION,
-        capabilities: [
-          'project.open',
-          'project.save',
-          'project.export',
-          'schematic.listNets',
-          'schematic.getNetDetail',
-          'schematic.listComponents',
-          'schematic.searchDevice',
-          'schematic.getSheetInfo',
-          'schematic.placeComponent',
-          'schematic.addWire',
-          'schematic.deletePrimitive',
-          'schematic.modifyPrimitive',
-          'schematic.createNetFlag',
-          'schematic.createNetPort',
-          'schematic.connectPinToNet',
-          'schematic.connectPinsByNet',
-          'schematic.validateNetlist',
-          'system.apiInventory',
-          'system.inspectComponents',
-          'system.inspectWires',
-          'api.call',
-          'api.execute',
-          'board.listLayers',
-          'board.getStackup',
-          'board.getDimensions',
-          'board.getFeatures',
-          'board.exportGerbers',
-          'bom.generate',
-          'bom.validate',
-          'inventory.search',
-          'inventory.getPrice',
-          'design.ruleCheck',
-          'design.erc',
-          'design.drc',
-          'export.pickPlace',
-          'export.pdf',
-          'export.netlist',
-          'pcb.placeComponent',
-          'pcb.addTrack',
-          'pcb.addVia',
-          'pcb.addZone',
-          'pcb.deleteComponent',
-          'pcb.modifyComponent',
-          'canvas.capture',
-          'canvas.captureRegion',
-          'canvas.locate',
-          'library.getDeviceByLcscId',
-        ],
-        devMode: false,
-        globals: globals,
-        hasEda: hasEdaLocal || hasEDALocal,
-        hasDMT: 'DMT_Schematic' in globalThis || !!hasDMTLocal || !!hasDMTEDA,
-      };
-    }
-    case 'bom.generate':
-      return generateBomApi(params);
-    case 'bom.validate': {
-      const comps = (await listComponentsApi()) as any[];
-      return { totalParts: comps.length, missing: [], obsolete: [], alternates: [] };
-    }
-    case 'inventory.search':
-      return [];
-    case 'inventory.getPrice':
-      return null;
-    case 'design.ruleCheck':
-      return callFirst(['PCB_Drc.check', 'SCH_Drc.check'], params);
-    case 'design.erc':
-      return callFirst(['SCH_Drc.check'], params);
-    case 'design.drc':
-      return callFirst(['PCB_Drc.check', 'SCH_Drc.check'], params);
-    case 'export.pickPlace':
-      return normalizeBinaryResultSafely(
-        await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params),
-        `pick-place.${typeof params.format === 'string' ? params.format : 'csv'}`,
-      );
-    case 'export.pdf':
-      return normalizeBinaryResultSafely(
-        await callFirst(
-          ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
-          params.what === 'board' ? params : { ...params, type: 'schematic' },
-        ),
-        'export.pdf',
-      );
-    case 'export.netlist':
-      return normalizeBinaryResultSafely(
-        await callFirst(
-          [
-            'SCH_Netlist.getNetlist',
-            'SCH_ManufactureData.getNetlistFile',
-            'PCB_ManufactureData.getNetlistFile',
-          ],
-          params,
-        ),
-        `netlist.${typeof params.format === 'string' ? params.format : 'txt'}`,
-      );
-    case 'canvas.capture': {
-      const tabId = typeof params.tabId === 'string' ? params.tabId : undefined;
-      const blob = await callFirst(['DMT_EditorControl.getCurrentRenderedAreaImage'], tabId);
-      return normalizeBinaryResultSafely(blob, 'capture.png');
-    }
-    case 'canvas.captureRegion': {
-      const { left, right, top, bottom, tabId } = params as {
-        left: number;
-        right: number;
-        top: number;
-        bottom: number;
-        tabId?: string;
-      };
-      await callFirst(['DMT_EditorControl.zoomToRegion'], left, right, top, bottom, tabId);
-      const blob = await callFirst(['DMT_EditorControl.getCurrentRenderedAreaImage'], tabId);
-      return normalizeBinaryResultSafely(blob, 'capture-region.png');
-    }
-    case 'canvas.locate': {
-      const { x, y, scaleRatio, tabId } = params as {
-        x?: number;
-        y?: number;
-        scaleRatio?: number;
-        tabId?: string;
-      };
-      return callFirst(['DMT_EditorControl.zoomTo'], x, y, scaleRatio, tabId);
-    }
-    case 'library.getDeviceByLcscId': {
-      const lcscId = String(params.lcscId ?? '');
-      const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
-      return callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
-    }
-    case 'pcb.placeComponent':
-      return callFirst(
-        ['PCB_PrimitiveComponent.create', 'pcb_PrimitiveComponent.create'],
-        params.footprint,
-        params.x,
-        params.y,
-        params.rotation,
-        params.layer,
-      );
-    case 'pcb.addTrack':
-      return callFirst(
-        ['PCB_PrimitivePolyline.create', 'PCB_PrimitiveLine.create'],
-        params.points,
-        params.layer,
-        params.width,
-        params.netName,
-      );
-    case 'pcb.addVia':
-      return callFirst(
-        ['PCB_PrimitiveVia.create', 'pcb_PrimitiveVia.create'],
-        params.x,
-        params.y,
-        params.outerDiameter,
-        params.holeSize,
-        params.netName,
-      );
-    case 'pcb.addZone':
-      return callFirst(
-        ['PCB_PrimitivePour.create', 'PCB_ComplexPolygon.create', 'pcb_PrimitivePour.create'],
-        params.points,
-        params.layer,
-        params.netName,
-        params.clearance,
-      );
-    case 'pcb.deleteComponent':
-      return callFirst(
-        ['PCB_PrimitiveComponent.delete', 'pcb_PrimitiveComponent.delete'],
-        params.primitiveIds,
-      );
-    case 'pcb.modifyComponent':
-      return callFirst(
-        ['PCB_PrimitiveComponent.modify', 'pcb_PrimitiveComponent.modify'],
-        params.primitiveId,
-        params.property,
-      );
-    default:
-      throw newBridgeError(
-        'METHOD_NOT_ALLOWED',
-        `Unsupported bridge method: ${method}`,
-        'Update the extension dispatcher or call a supported method.',
-      );
-  }
-}
+// ── Socket lifecycle ─────────────────────────────────────────────────────────
 
 function createSocket(
   id: string,
@@ -2161,8 +641,39 @@ function createSocket(
   return null;
 }
 
+let chunkIdCounter = 0;
+
 function send(data: JsonValue): void {
   const payload = JSON.stringify(data);
+
+  // A5: split payloads that would exceed the server's per-frame cap into
+  // chunk envelopes the server reassembles. An oversized single frame closes
+  // the whole connection (code 4009); chunking turns that into a normal send.
+  // Only used when the server's hello advertised chunk support.
+  if (serverSupportsChunking && payload.length > Math.floor(bridgeMaxPayloadSize / 2)) {
+    // JSON-escaping a payload slice can inflate it (quotes/backslashes), so
+    // budget a quarter of the frame cap per chunk to stay comfortably under.
+    const chunkSize = Math.max(16_384, Math.floor(bridgeMaxPayloadSize / 4));
+    const total = Math.ceil(payload.length / chunkSize);
+    const id = `chk_${Date.now()}_${++chunkIdCounter}`;
+    for (let seq = 0; seq < total; seq += 1) {
+      sendRaw(
+        JSON.stringify({
+          type: 'chunk',
+          id,
+          seq,
+          total,
+          data: payload.slice(seq * chunkSize, (seq + 1) * chunkSize),
+        }),
+      );
+    }
+    return;
+  }
+
+  sendRaw(payload);
+}
+
+function sendRaw(payload: string): void {
   const sysWs = getWsApi();
 
   if (socketHandle?.type === 'easyeda-register' && sysWs?.send) {
@@ -2220,10 +731,16 @@ function sendHandshake(): void {
     protocolVersion: BRIDGE_VERSION,
     contractVersion: BRIDGE_CONTRACT_VERSION,
     clientName: 'easyeda-mcp-pro',
-    extensionVersion: '0.21.0', // x-release-please-version
+    extensionVersion: EXTENSION_INFO.extensionVersion,
     easyedaVersion: getEasyedaVersion(),
     devMode: false,
+    loaderVersion: EXTENSION_INFO.extensionVersion,
   };
+  // Lets the server fail loudly when this extension serves stale dispatch
+  // logic. Computed asynchronously at startup/swap; omitted if not ready yet.
+  if (activeMethodListHash) {
+    handshake.methodListHash = activeMethodListHash;
+  }
   if (sessionToken) {
     handshake.sessionToken = sessionToken;
   }
@@ -2236,7 +753,7 @@ function getEasyedaVersion(): string | undefined {
     try {
       return String(maybeVersion());
     } catch (error) {
-      logRecoverableError('failed to read EasyEDA version', error);
+      log('failed to read EasyEDA version', String(error));
       return undefined;
     }
   }
@@ -2262,7 +779,12 @@ function stopHeartbeat(): void {
 async function handleRequest(message: BridgeRequest): Promise<void> {
   const startedAt = Date.now();
   try {
-    const result = await dispatch(message.method, message.params);
+    // Loader-level methods (hot swap, loader status) are handled before the
+    // dispatcher so a broken pushed dispatcher can always be replaced.
+    const loaderResult = await handleLoaderMethod(message.method, message.params ?? {});
+    const result = loaderResult.handled
+      ? loaderResult.result
+      : await activeDispatcher.dispatch(message.method, message.params);
     send({
       id: message.id,
       type: 'response',
@@ -2316,6 +838,12 @@ function handleMessage(raw: string): InboundMessageType {
     if (typeof record.maxPayloadSize === 'number' && record.maxPayloadSize > 0) {
       bridgeMaxPayloadSize = record.maxPayloadSize;
     }
+    serverSupportsChunking = record.supportsChunking === true;
+    maxAggregatePayloadSize =
+      typeof record.maxAggregatePayloadSize === 'number' && record.maxAggregatePayloadSize > 0
+        ? record.maxAggregatePayloadSize
+        : bridgeMaxPayloadSize;
+    serverHotSwapEnabled = record.hotSwapEnabled === true;
     log('Bridge handshake accepted');
     return 'hello';
   }
@@ -2661,6 +1189,8 @@ function expose(): void {
 
 expose();
 log('Extension script loaded');
+// Compute the method-list hash early so the first handshake can include it.
+void refreshMethodListHash();
 
 // Auto-connect on load (handleActivate is not called by the framework
 // when activationEvents is empty, so we trigger it explicitly).

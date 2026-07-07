@@ -12,7 +12,10 @@ function registerDrcErcTools(
     name: 'easyeda_drc_run',
     title: 'Run design rule check',
     description:
-      'Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints.',
+      'Run the native design rule check (DRC): same as clicking "Check DRC" in EasyEDA Pro, so ' +
+      "the bottom DRC panel opens/refreshes in the user's window as a visible side effect. " +
+      'Returns coarse per-severity counts only — which specific wire/net/component is affected ' +
+      "is shown only in EasyEDA Pro's own DRC panel.",
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -113,7 +116,10 @@ function registerDrcErcTools(
     name: 'easyeda_erc_run',
     title: 'Run electrical rule check',
     description:
-      'Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts.',
+      'Run the native electrical rule check (ERC): same as clicking "Check DRC" in EasyEDA Pro, ' +
+      'so the bottom DRC panel opens/refreshes as a visible side effect. Returns coarse ' +
+      'per-severity counts only — which wire/net/component is affected is shown only in ' +
+      "EasyEDA Pro's own DRC panel.",
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',

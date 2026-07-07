@@ -12,6 +12,7 @@ import { loadFeatureFlags } from '../config/feature-flags.js';
 import { Storage } from '../storage/index.js';
 import { type HttpTransportInstance } from './transports/http.js';
 import { BridgeManager } from '../bridge/manager.js';
+import { startHotSwapWatcher } from '../bridge/hotswap-watcher.js';
 import { registerBuiltinTools } from '../tools/register.js';
 import { registerProjectResourcesAndPrompts } from './resources-prompts.js';
 
@@ -64,6 +65,7 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
 
   const bridge = new BridgeManager(config);
   await bridge.connect();
+  const stopHotSwapWatcher = startHotSwapWatcher(bridge, config);
 
   const registry = new ToolRegistry();
   registry.setProfile(config.TOOL_PROFILE as ToolProfile);
@@ -111,6 +113,15 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
       get extensionVersionMismatch() {
         return bridge.extensionVersionMismatch;
       },
+      get extensionMethodListHash() {
+        return bridge.extensionMethodListHash;
+      },
+      get loaderVersion() {
+        return bridge.loaderVersion;
+      },
+      get registryMismatch() {
+        return bridge.registryMismatch;
+      },
     },
     config: {
       bridgeTimeoutMs: config.BRIDGE_TIMEOUT_MS,
@@ -139,6 +150,7 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
 
   const shutdown = async () => {
     logger.info('server shutting down');
+    stopHotSwapWatcher();
     storage.close();
     bridge.disconnect('server shutdown');
     await server.close();

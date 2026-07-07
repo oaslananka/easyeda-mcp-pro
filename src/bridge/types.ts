@@ -20,6 +20,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'schematic.validateNetlist',
   'system.apiInventory',
   'system.inspectComponents',
+  'system.inspectWires',
   'api.call',
   'board.listLayers',
   'board.getStackup',

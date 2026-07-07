@@ -156,7 +156,10 @@ describe('PCB Write Tools', () => {
     });
 
     expect(bridgeCall).toHaveBeenCalledWith('pcb.addTrack', {
-      points: [0, 0, 10, 0],
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
       layer: 1,
       width: 0.4,
       netName: 'GND',
@@ -191,9 +194,9 @@ describe('PCB Write Tools', () => {
     });
   });
 
-  it('easyeda_pcb_add_track should flatten points and call bridge', async () => {
+  it('easyeda_pcb_add_track should pass structured points and call bridge', async () => {
     const tool = registry.get('easyeda_pcb_add_track');
-    bridgeCall.mockResolvedValue({ result: 'track-5678' });
+    bridgeCall.mockResolvedValue({ primitiveId: 'track-5678', primitiveIds: ['track-5678'] });
 
     const result = await tool?.handler(context, {
       points: [
@@ -207,7 +210,10 @@ describe('PCB Write Tools', () => {
     });
 
     expect(bridgeCall).toHaveBeenCalledWith('pcb.addTrack', {
-      points: [0, 0, 10, 10],
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 10 },
+      ],
       layer: 1,
       width: 0.254,
       netName: 'GND',
@@ -215,6 +221,7 @@ describe('PCB Write Tools', () => {
     expect(result).toEqual({
       success: true,
       primitiveId: 'track-5678',
+      primitiveIds: ['track-5678'],
     });
   });
 

@@ -27,8 +27,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_catalog_verify_device`         | `pro`   | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.                             |
 | `easyeda_component_probe`               | `dev`   | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                                             |
 | `easyeda_design_rules_lookup`           | `core`  | `low`    | Look up generic engineering reference guidance: IPC-2221 trace-width/current-capacity, clearance bands, protocol routing data (USB/RS-485/I2C/SPI/UART/Ethernet), decoupling recipes and bulk capacitance sizing, and a static DFM checklist. Every result cites a source and caveat: these are estimates, not certified values. |
-| `easyeda_drc_run`                       | `core`  | `medium` | Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints.                                                                                                                                                                                                         |
-| `easyeda_erc_run`                       | `core`  | `medium` | Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts.                                                                                                                                                                                                           |
+| `easyeda_drc_run`                       | `core`  | `medium` | Run the native design rule check (DRC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes in the user's window as a visible side effect. Returns coarse per-severity counts only — which specific wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.                |
+| `easyeda_erc_run`                       | `core`  | `medium` | Run the native electrical rule check (ERC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes as a visible side effect. Returns coarse per-severity counts only — which wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.                                          |
 | `easyeda_export_gerbers`                | `core`  | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                           |
 | `easyeda_export_netlist`                | `pro`   | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                          |
 | `easyeda_export_pdf`                    | `pro`   | `low`    | Export the schematic and/or board layout to PDF.                                                                                                                                                                                                                                                                                 |
@@ -41,9 +41,9 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_jlcpcb_quote_workflow`         | `pro`   | `medium` | Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.                                                                                                                                                             |
 | `easyeda_live_smoke_report`             | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                                                  |
 | `easyeda_observability_report`          | `core`  | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                                                 |
-| `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                                              |
-| `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board.                                                                                                                                                                                                                                                                 |
-| `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a specific layer with clearance settings.                                                                                                                                                                                                                                                           |
+| `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace on the PCB board. A multi-point path is written as one line segment per consecutive point pair (all sharing netName, so they form one electrical track — same coordinate/name merge model as schematic wires).                                                                                         |
+| `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.    |
+| `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a layer with clearance settings. CAUTION: the native create() call needs 9 args but this tool sends only 4 (points, layer, netName, clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.                                                                     |
 | `easyeda_pcb_autoroute`                 | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
 | `easyeda_pcb_constraint_check`          | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
 | `easyeda_pcb_constraint_report`         | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                                                  |
@@ -51,7 +51,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_export_route_context`      | `pro`   | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                                  |
 | `easyeda_pcb_floorplan`                 | `full`  | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
 | `easyeda_pcb_modify_component`          | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                                   |
-| `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout.                                                                                                                                                                                                                                                                            |
+| `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout. CAUTION: the native create() call needs 6 args but this tool sends only 5 (footprint, x, y, rotation, layer) — live-confirmed mismatch, not yet resolved. Verify placement visually before trusting it.                                                                    |
 | `easyeda_pcb_place_component_group`     | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
 | `easyeda_pcb_production_review`         | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                   |
 | `easyeda_pcb_route_path_plan`           | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                         |
@@ -60,22 +60,23 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_project_save`                  | `core`  | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                                     |
 | `easyeda_rule_check_summary`            | `core`  | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                                   |
 | `easyeda_run_self_test`                 | `core`  | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                                              |
-| `easyeda_schematic_add_wire`            | `core`  | `medium` | Add a wire segment connecting schematic coordinates/pins.                                                                                                                                                                                                                                                                        |
+| `easyeda_schematic_add_wire`            | `core`  | `medium` | Add a wire connecting schematic coordinates/pins — real native connectivity. Same `netName` connects pins globally: separate stubs sharing one name merge into one net (no label needed). NET_COLLISION guards touching another net's wire, but checks only wires — crossing a pin/flag coordinate still shorts it.              |
 | `easyeda_schematic_component_pins`      | `core`  | `low`    | Get exact pin numbers, names, and coordinates for a schematic component by its primitive ID.                                                                                                                                                                                                                                     |
-| `easyeda_schematic_components`          | `core`  | `low`    | List all components in the schematic with their properties including reference, value, footprint, LCSC part number, manufacturer, and datasheet.                                                                                                                                                                                 |
-| `easyeda_schematic_connect_pin_to_net`  | `core`  | `medium` | Connect a specific component pin to a named net. This creates an actual SCH_Netlist entry associating the pin with the net. If the net does not exist yet, it is created on the fly. This is the core tool for populating the real EasyEDA netlist with pin-to-net connectivity.                                                 |
-| `easyeda_schematic_connect_pins_by_net` | `core`  | `medium` | Connect multiple component pins to a named net in a single operation. All specified pins will be assigned to the same net, creating SCH_Netlist entries. If the net does not exist, it is created. This is the bulk equivalent of connect_pin_to_net.                                                                            |
-| `easyeda_schematic_create_net_flag`     | `core`  | `medium` | Create a named schematic net flag at specified coordinates. This controlled write declares real SCH_Net connectivity in the EasyEDA Pro netlist.                                                                                                                                                                                 |
+| `easyeda_schematic_components`          | `core`  | `low`    | List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem in this project), deviceName, symbolName, lcsc, manufacturerId.                                                                                  |
+| `easyeda_schematic_connect_pin_to_net`  | `core`  | `medium` | Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.                                                                         |
+| `easyeda_schematic_connect_pins_by_net` | `core`  | `medium` | Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with netName, so all listed pins (and anything else already on that net) merge into one net. Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported in failures rather than aborting the batch.               |
+| `easyeda_schematic_create_net_flag`     | `core`  | `medium` | Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/ProtectGround) it places a power-flag symbol binding to a coincident pin (use for VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire stubs sharing one netName.                                               |
 | `easyeda_schematic_create_net_port`     | `core`  | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                                                  |
 | `easyeda_schematic_delete_primitive`    | `core`  | `medium` | Delete components, wires, or other drawing objects from the schematic by their primitive UUIDs.                                                                                                                                                                                                                                  |
-| `easyeda_schematic_modify_primitive`    | `core`  | `medium` | Modify properties (value, reference, attributes, etc.) of a schematic component/object.                                                                                                                                                                                                                                          |
+| `easyeda_schematic_modify_primitive`    | `core`  | `medium` | Modify a schematic component/object: only fields in property change; others are read back and preserved, so partial updates never wipe unrelated data. Also moves net flags/ports — pass x/y, rotation 0/90/180/270, or mirror to shift a VCC/GND flag label off a crowded pin, keeping it over its wire.                        |
 | `easyeda_schematic_net_detail`          | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                                                |
 | `easyeda_schematic_nets`                | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
-| `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet.                                                                                                                                                                                                                                                                  |
+| `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet. The bridge auto-assigns the next free designator ("R?" → "R1", "R2", …); check the returned designator. If annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by designator, so duplicate "R?" merge into one node.             |
 | `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords.                                                                                                                                                                                                                                                         |
 | `easyeda_schematic_sheet_info`          | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
-| `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the EasyEDA Pro schematic netlist for connectivity issues. Reports net names, connected component references and pins, floating pins, graphical wires without netlist connectivity, and mismatches between visual wires and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool.                    |
+| `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the schematic netlist: inferred nets, connected refs/pins, floating pins, plus a cross-check with native ERC (native_erc). `valid` needs BOTH the inference clean AND native ERC 0 errors — inference alone false-positives when pins overlap without a wire.                                                           |
 | `easyeda_schematic_verify_write`        | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                               |
+| `easyeda_schematic_wires`               | `core`  | `low`    | List wire segments: primitiveId, line coordinates, net name, color, style. Page with offset (check total) past the 50-wire-per-call cap. primitiveId is required by delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.                                                                           |
 | `easyeda_semantic_erc_validate`         | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                                           |
 | `easyeda_simulate_operating_point`      | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
 | `easyeda_simulate_transient`            | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
@@ -437,6 +438,8 @@ Returns a JSON object matching the schema:
 {
   methods: object[];
   total: number;
+  source: 'loader_status' | 'server_registry' (optional);
+  dispatcher_build_id: string (optional);
 }
 ```
 
@@ -753,7 +756,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Run design rule check (DRC) on the project to identify rule violations, clearance issues, and manufacturing constraints.
+> Run the native design rule check (DRC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes in the user's window as a visible side effect. Returns coarse per-severity counts only — which specific wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.
 
 ### Input Parameters
 
@@ -784,7 +787,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Run electrical rule check (ERC) on the schematic to detect unconnected nets, short circuits, and electrical conflicts.
+> Run the native electrical rule check (ERC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes as a visible side effect. Returns coarse per-severity counts only — which wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.
 
 ### Input Parameters
 
@@ -1078,6 +1081,7 @@ Returns a JSON object matching the schema:
   easyeda_version: string(optional);
   extension_version: string(optional);
   extension_version_mismatch: boolean;
+  registry_mismatch: boolean;
   keyless_sourcing_enabled: boolean;
   catalog_device_count: number;
   ups: number;
@@ -1195,7 +1199,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Draw a copper track/trace segment on the PCB board.
+> Draw a copper track/trace on the PCB board. A multi-point path is written as one line segment per consecutive point pair (all sharing netName, so they form one electrical track — same coordinate/name merge model as schematic wires).
 
 ### Input Parameters
 
@@ -1214,8 +1218,9 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
-  primitiveId: string(optional);
-  error: string(optional);
+  primitiveId: string (optional);
+  primitiveIds: string[] (optional);
+  error: string (optional);
 }
 ```
 
@@ -1225,7 +1230,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Place a via to connect different copper layers on the PCB board.
+> Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.
 
 ### Input Parameters
 
@@ -1256,7 +1261,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Create a copper pour zone on a specific layer with clearance settings.
+> Create a copper pour zone on a layer with clearance settings. CAUTION: the native create() call needs 9 args but this tool sends only 4 (points, layer, netName, clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.
 
 ### Input Parameters
 
@@ -1523,7 +1528,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Place a component footprint on the active PCB layout.
+> Place a component footprint on the active PCB layout. CAUTION: the native create() call needs 6 args but this tool sends only 5 (footprint, x, y, rotation, layer) — live-confirmed mismatch, not yet resolved. Verify placement visually before trusting it.
 
 ### Input Parameters
 
@@ -1836,7 +1841,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Add a wire segment connecting schematic coordinates/pins.
+> Add a wire connecting schematic coordinates/pins — real native connectivity. Same `netName` connects pins globally: separate stubs sharing one name merge into one net (no label needed). NET_COLLISION guards touching another net's wire, but checks only wires — crossing a pin/flag coordinate still shorts it.
 
 ### Input Parameters
 
@@ -1894,7 +1899,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> List all components in the schematic with their properties including reference, value, footprint, LCSC part number, manufacturer, and datasheet.
+> List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem in this project), deviceName, symbolName, lcsc, manufacturerId.
 
 ### Input Parameters
 
@@ -1924,17 +1929,18 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Connect a specific component pin to a named net. This creates an actual SCH_Netlist entry associating the pin with the net. If the net does not exist yet, it is created on the fly. This is the core tool for populating the real EasyEDA netlist with pin-to-net connectivity.
+> Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.
 
 ### Input Parameters
 
-| Parameter      | Type     | Required | Description                                                          |
-| -------------- | -------- | -------- | -------------------------------------------------------------------- |
-| `projectId`    | `string` | Yes      | The project/schematic ID                                             |
-| `primitiveId`  | `string` | Yes      | The primitive ID of the component                                    |
-| `pinNumber`    | `string` | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND") |
-| `netName`      | `string` | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)            |
-| `confirmWrite` | `'true'` | Yes      |                                                                      |
+| Parameter      | Type                | Required | Description                                                          |
+| -------------- | ------------------- | -------- | -------------------------------------------------------------------- |
+| `projectId`    | `string`            | Yes      | The project/schematic ID                                             |
+| `primitiveId`  | `string`            | Yes      | The primitive ID of the component                                    |
+| `pinNumber`    | `string`            | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND") |
+| `netName`      | `string`            | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)            |
+| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from the pin. Defaults to 10.  |
+| `confirmWrite` | `'true'`            | Yes      |                                                                      |
 
 ### Output Format
 
@@ -1943,6 +1949,9 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
+  real: boolean(optional);
+  created_primitive_id: string(optional);
+  endpoint: object(optional);
   connection: object(optional);
   error: string(optional);
 }
@@ -1954,16 +1963,17 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Connect multiple component pins to a named net in a single operation. All specified pins will be assigned to the same net, creating SCH_Netlist entries. If the net does not exist, it is created. This is the bulk equivalent of connect_pin_to_net.
+> Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with netName, so all listed pins (and anything else already on that net) merge into one net. Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported in failures rather than aborting the batch.
 
 ### Input Parameters
 
-| Parameter      | Type       | Required | Description                                  |
-| -------------- | ---------- | -------- | -------------------------------------------- |
-| `projectId`    | `string`   | Yes      | The project/schematic ID                     |
-| `netName`      | `string`   | Yes      | The net name to assign pins to               |
-| `pins`         | `object[]` | Yes      | List of component pins to connect to the net |
-| `confirmWrite` | `'true'`   | Yes      |                                              |
+| Parameter      | Type                | Required | Description                                                          |
+| -------------- | ------------------- | -------- | -------------------------------------------------------------------- |
+| `projectId`    | `string`            | Yes      | The project/schematic ID                                             |
+| `netName`      | `string`            | Yes      | The net name to assign pins to                                       |
+| `pins`         | `object[]`          | Yes      | List of component pins to connect to the net                         |
+| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from each pin. Defaults to 10. |
+| `confirmWrite` | `'true'`            | Yes      |                                                                      |
 
 ### Output Format
 
@@ -1972,6 +1982,9 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
+  real: boolean (optional);
+  created_primitive_ids: string[] (optional);
+  failures: object[] (optional);
   connections: object[] (optional);
   count: number;
   error: string (optional);
@@ -1984,7 +1997,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Create a named schematic net flag at specified coordinates. This controlled write declares real SCH_Net connectivity in the EasyEDA Pro netlist.
+> Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/ProtectGround) it places a power-flag symbol binding to a coincident pin (use for VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire stubs sharing one netName.
 
 ### Input Parameters
 
@@ -2074,7 +2087,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Modify properties (value, reference, attributes, etc.) of a schematic component/object.
+> Modify a schematic component/object: only fields in property change; others are read back and preserved, so partial updates never wipe unrelated data. Also moves net flags/ports — pass x/y, rotation 0/90/180/270, or mirror to shift a VCC/GND flag label off a crowded pin, keeping it over its wire.
 
 ### Input Parameters
 
@@ -2158,7 +2171,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Place a library component/device on the active schematic sheet.
+> Place a library component/device on the active schematic sheet. The bridge auto-assigns the next free designator ("R?" → "R1", "R2", …); check the returned designator. If annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by designator, so duplicate "R?" merge into one node.
 
 ### Input Parameters
 
@@ -2264,7 +2277,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Validate the EasyEDA Pro schematic netlist for connectivity issues. Reports net names, connected component references and pins, floating pins, graphical wires without netlist connectivity, and mismatches between visual wires and actual SCH_Net/SCH_Netlist entries. This is a read-only diagnostic tool.
+> Validate the schematic netlist: inferred nets, connected refs/pins, floating pins, plus a cross-check with native ERC (native_erc). `valid` needs BOTH the inference clean AND native ERC 0 errors — inference alone false-positives when pins overlap without a wire.
 
 ### Input Parameters
 
@@ -2284,6 +2297,7 @@ Returns a JSON object matching the schema:
   total_nets: number;
   floating_pins: object[];
   wires_without_netlist: object[] (optional);
+  native_erc: object (optional);
   valid: boolean;
   warnings: string[];
   not_available: boolean (optional);
@@ -2324,6 +2338,36 @@ Returns a JSON object matching the schema:
   netlist_available: boolean;
   netlist_validation: any (optional);
   warnings: string[];
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_schematic_wires`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> List wire segments: primitiveId, line coordinates, net name, color, style. Page with offset (check total) past the 50-wire-per-call cap. primitiveId is required by delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `limit`     | `number` | Yes      |             |
+| `offset`    | `number` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  wires: object[];
+  total: number;
+  not_available: boolean (optional);
   error: string (optional);
 }
 ```
