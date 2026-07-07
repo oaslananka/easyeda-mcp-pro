@@ -157,4 +157,163 @@ describe('diagnostics API tools', () => {
     expect(result.raw).toBeUndefined();
     expect(bridgeCall).toHaveBeenCalledTimes(5);
   });
+
+  describe('easyeda_live_write_regression', () => {
+    const testDeviceItem = { uuid: 'dev-uuid', libraryUuid: 'lib-uuid' };
+
+    it('runs the schematic scope end to end and reports every step ok', async () => {
+      const registry = createDevRegistry();
+      const tool = registry.get('easyeda_live_write_regression');
+      expect(tool).toBeDefined();
+      expect(tool?.confirmWrite).toBe(true);
+
+      let capturedNetA = '';
+      const bridgeCall = vi.fn(async (method: string, params?: unknown) => {
+        if (method === 'schematic.placeComponent') {
+          const p = params as { x: number };
+          return { primitiveId: p.x === 900 ? 'compA' : 'compB' };
+        }
+        if (method === 'schematic.connectPinToNet') {
+          const p = params as { primitiveId: string; pinNumber: string; netName: string };
+          if (p.pinNumber === '1') capturedNetA = p.netName;
+          return { primitiveId: `wire-${p.primitiveId}-${p.pinNumber}` };
+        }
+        if (method === 'schematic.listNets') {
+          return [{ netName: capturedNetA, nodes: [{}, {}] }];
+        }
+        if (method === 'api.call') {
+          return {
+            result: [
+              { pinNumber: '1', pinName: '1', x: 10, y: 10, rotation: 0, pinLength: 10 },
+              { pinNumber: '2', pinName: '2', x: 20, y: 10, rotation: 0, pinLength: 10 },
+            ],
+          };
+        }
+        if (method === 'schematic.addWire') {
+          throw new Error('NET_COLLISION: point (20, 10) coincides with an existing pin');
+        }
+        if (method === 'schematic.deletePrimitive') return undefined;
+        return null;
+      });
+
+      const result = (await tool?.handler(createDevContext(bridgeCall), {
+        projectId: 'proj-1',
+        testDeviceItem,
+        scope: 'schematic',
+        confirmWrite: true,
+      })) as {
+        ok: boolean;
+        steps: Array<{ id: string; ok: boolean; error?: string }>;
+        cleanup_performed: boolean;
+      };
+
+      expect(result.ok).toBe(true);
+      const byId = Object.fromEntries(result.steps.map((s) => [s.id, s]));
+      expect(byId['schematic.place_a']?.ok).toBe(true);
+      expect(byId['schematic.place_b']?.ok).toBe(true);
+      expect(byId['schematic.connect_a_pin1']?.ok).toBe(true);
+      expect(byId['schematic.connect_b_pin1_same_net']?.ok).toBe(true);
+      expect(byId['schematic.verify_net_merge']?.ok).toBe(true);
+      expect(byId['schematic.collision_guard_blocks_foreign_net']?.ok).toBe(true);
+      expect(result.cleanup_performed).toBe(true);
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.deletePrimitive', {
+        primitiveIds: expect.arrayContaining(['compA', 'compB']),
+      });
+    });
+
+    it('flags a failed step but still cleans up primitives created before the failure', async () => {
+      const registry = createDevRegistry();
+      const tool = registry.get('easyeda_live_write_regression');
+
+      const bridgeCall = vi.fn(async (method: string, params?: unknown) => {
+        if (method === 'schematic.placeComponent') {
+          const p = params as { x: number };
+          if (p.x === 900) return { primitiveId: 'compA' };
+          throw new Error('place failed');
+        }
+        if (method === 'schematic.deletePrimitive') return undefined;
+        return null;
+      });
+
+      const result = (await tool?.handler(createDevContext(bridgeCall), {
+        projectId: 'proj-1',
+        testDeviceItem,
+        scope: 'schematic',
+        confirmWrite: true,
+      })) as {
+        ok: boolean;
+        steps: Array<{ id: string; ok: boolean; error?: string }>;
+        cleanup_performed: boolean;
+      };
+
+      expect(result.ok).toBe(false);
+      const byId = Object.fromEntries(result.steps.map((s) => [s.id, s]));
+      expect(byId['schematic.place_a']?.ok).toBe(true);
+      expect(byId['schematic.place_b']?.ok).toBe(false);
+      expect(result.cleanup_performed).toBe(true);
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.deletePrimitive', {
+        primitiveIds: ['compA'],
+      });
+    });
+
+    it('runs the pcb scope and verifies delete actually removes the via', async () => {
+      const registry = createDevRegistry();
+      const tool = registry.get('easyeda_live_write_regression');
+
+      let viaDeleted = false;
+      const bridgeCall = vi.fn(async (method: string) => {
+        if (method === 'pcb.addVia') return { primitiveId: 'via1' };
+        if (method === 'pcb.addTrack') return { primitiveIds: ['trk1'] };
+        if (method === 'pcb.listVias') {
+          return { items: viaDeleted ? [] : [{ primitiveId: 'via1' }] };
+        }
+        if (method === 'pcb.deleteComponent') {
+          viaDeleted = true;
+          return { notFound: [] };
+        }
+        return null;
+      });
+
+      const result = (await tool?.handler(createDevContext(bridgeCall), {
+        testDeviceItem,
+        scope: 'pcb',
+        confirmWrite: true,
+      })) as {
+        ok: boolean;
+        steps: Array<{ id: string; ok: boolean; error?: string }>;
+        cleanup_performed: boolean;
+      };
+
+      expect(result.ok).toBe(true);
+      expect(result.cleanup_performed).toBe(false); // pcb scope self-cleans, no schematic primitives
+      const byId = Object.fromEntries(result.steps.map((s) => [s.id, s]));
+      expect(byId['pcb.add_via']?.ok).toBe(true);
+      expect(byId['pcb.add_track']?.ok).toBe(true);
+      expect(byId['pcb.verify_readback']?.ok).toBe(true);
+      expect(byId['pcb.delete_and_verify_gone']?.ok).toBe(true);
+    });
+
+    it('fails the delete_and_verify_gone step when a primitive survives deletion', async () => {
+      const registry = createDevRegistry();
+      const tool = registry.get('easyeda_live_write_regression');
+
+      const bridgeCall = vi.fn(async (method: string) => {
+        if (method === 'pcb.addVia') return { primitiveId: 'via1' };
+        if (method === 'pcb.addTrack') return { primitiveIds: ['trk1'] };
+        if (method === 'pcb.listVias') return { items: [{ primitiveId: 'via1' }] };
+        if (method === 'pcb.deleteComponent') return { notFound: [] }; // reports success but via never actually disappears
+        return null;
+      });
+
+      const result = (await tool?.handler(createDevContext(bridgeCall), {
+        testDeviceItem,
+        scope: 'pcb',
+        confirmWrite: true,
+      })) as { steps: Array<{ id: string; ok: boolean; error?: string }> };
+
+      const byId = Object.fromEntries(result.steps.map((s) => [s.id, s]));
+      expect(byId['pcb.delete_and_verify_gone']?.ok).toBe(false);
+      expect(byId['pcb.delete_and_verify_gone']?.error).toContain('still present');
+    });
+  });
 });

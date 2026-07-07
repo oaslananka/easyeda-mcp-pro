@@ -40,7 +40,10 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_health_check`                  | `core`  | `low`    | Return server health status in one call: runtime version, active profile, bridge state, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.                                                                           |
 | `easyeda_jlcpcb_quote_workflow`         | `pro`   | `medium` | Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.                                                                                                                                                             |
 | `easyeda_live_smoke_report`             | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                                                  |
+| `easyeda_live_write_regression`         | `dev`   | `medium` | Exercise real schematic (and optionally PCB) write paths against the bridge — place, connect, wire, delete — reporting pass/fail per step, then clean up its own scratch primitives. Needs a test device from schematic_search_device and the matching tab focused.                                                              |
 | `easyeda_observability_report`          | `core`  | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                                                 |
+| `easyeda_pcb_add_silkscreen_line`       | `full`  | `medium` | Draw a non-electrical line on the PCB (e.g. Top/Bottom Silkscreen) for section dividers or board art — reuses the same PCB_PrimitiveLine primitive as add_track but with an empty net name, so it never appears in the netlist or ratsnest.                                                                                      |
+| `easyeda_pcb_add_text`                  | `full`  | `medium` | Place a text primitive on a PCB layer (typically Top/Bottom Silkscreen) — reference labels, section titles, assembly notes. Signature recovered from PCB_PrimitiveString: fontFamily must be a name the runtime's font list actually contains — "NotoSansMonoCJKsc-Regular" (the default) is live-verified to work.              |
 | `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace on the PCB board. A multi-point path is written as one line segment per consecutive point pair (all sharing netName, so they form one electrical track — same coordinate/name merge model as schematic wires).                                                                                         |
 | `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.    |
 | `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a layer with clearance settings. CAUTION: the native create() call needs 9 args but this tool sends only 4 (points, layer, netName, clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.                                                                     |
@@ -63,8 +66,12 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_project_save`                  | `core`  | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                                     |
 | `easyeda_rule_check_summary`            | `core`  | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                                   |
 | `easyeda_run_self_test`                 | `core`  | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                                              |
+| `easyeda_schematic_add_circle`          | `core`  | `medium` | Draw a circle on the schematic sheet — decorative marker or custom symbol element. Cosmetic only, no electrical meaning. fillColor "none" leaves it unfilled.                                                                                                                                                                    |
+| `easyeda_schematic_add_polygon`         | `core`  | `medium` | Draw a closed polygon on the schematic sheet from 3+ vertices — custom decorative shapes, callout arrows, or block diagram elements. Cosmetic only, no electrical meaning.                                                                                                                                                       |
+| `easyeda_schematic_add_rectangle`       | `core`  | `medium` | Draw a rectangle on the schematic sheet — section dividers/grouping boxes for organizing a busy schematic into labeled functional blocks (pair with add_text for the title). Cosmetic only. x/y is the top-left corner; fillColor "none" leaves it unfilled.                                                                     |
+| `easyeda_schematic_add_text`            | `core`  | `medium` | Place free-standing text on the schematic sheet (section headers, notes, block labels) — cosmetic/organizational, not a net label. color must be a hex string and fontName a real font (e.g. "Arial") — untyped placeholders create nothing despite returning ok.                                                                |
 | `easyeda_schematic_add_wire`            | `core`  | `medium` | Add a wire connecting schematic coordinates/pins — real native connectivity. Same `netName` connects pins globally: separate stubs sharing one name merge into one net (no label needed). NET_COLLISION guards touched points against a foreign net's wire, pin, or flag/port — not mid-segment crossings.                       |
-| `easyeda_schematic_component_pins`      | `core`  | `low`    | Get exact pin numbers, names, and coordinates for a schematic component by its primitive ID.                                                                                                                                                                                                                                     |
+| `easyeda_schematic_component_pins`      | `core`  | `low`    | Get exact pin numbers, names, coordinates, and native pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.                                                          |
 | `easyeda_schematic_components`          | `core`  | `low`    | List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem in this project), deviceName, symbolName, lcsc, manufacturerId.                                                                                  |
 | `easyeda_schematic_connect_pin_to_net`  | `core`  | `medium` | Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.                                                                         |
 | `easyeda_schematic_connect_pins_by_net` | `core`  | `medium` | Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with netName, so all listed pins (and anything else already on that net) merge into one net. Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported in failures rather than aborting the batch.               |
@@ -76,10 +83,13 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_nets`                | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
 | `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet. The bridge auto-assigns the next free designator ("R?" → "R1", "R2", …); check the returned designator. If annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by designator, so duplicate "R?" merge into one node.             |
 | `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords.                                                                                                                                                                                                                                                         |
+| `easyeda_schematic_set_title_block`     | `core`  | `medium` | Update schematic title block text fields (Company, Version, Drawn, Reviewed, Page Size). Only these 5 are exposed — writing Symbol/Border/Device/etc once corrupted a real title block; those are read-only natively and must be fixed via the EasyEDA Pro UI.                                                                   |
 | `easyeda_schematic_sheet_info`          | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
+| `easyeda_schematic_sync_to_pcb`         | `core`  | `medium` | Request a schematic-to-PCB sync (SCH_Document.importChanges). CAUTION (live-verified): opens a confirmation dialog in EasyEDA Pro's UI a HUMAN must approve — success here only means the request was sent, not that components appeared. Ask the user to approve the dialog, then verify with pcb_components.                   |
 | `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the schematic netlist: inferred nets, connected refs/pins, floating pins, plus a cross-check with native ERC (native_erc). `valid` needs BOTH the inference clean AND native ERC 0 errors — inference alone false-positives when pins overlap without a wire.                                                           |
 | `easyeda_schematic_verify_write`        | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                               |
 | `easyeda_schematic_wires`               | `core`  | `low`    | List wire segments: primitiveId, line coordinates, net name, color, style. Page with offset (check total) past the 50-wire-per-call cap. primitiveId is required by delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.                                                                           |
+| `easyeda_semantic_erc_auto`             | `core`  | `low`    | Extract nets/devices/pins from the LIVE schematic and run semantic ERC — no hand-authored netlist needed. Net/pin electrical types are INFERRED from naming conventions, not verified — treat findings as a first-pass signal, not a substitute for semantic_erc_validate.                                                       |
 | `easyeda_semantic_erc_validate`         | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                                           |
 | `easyeda_simulate_operating_point`      | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
 | `easyeda_simulate_transient`            | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
@@ -1171,6 +1181,37 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_live_write_regression`
+
+**Profile:** `dev` | **Risk Level:** `medium`
+
+> Exercise real schematic (and optionally PCB) write paths against the bridge — place, connect, wire, delete — reporting pass/fail per step, then clean up its own scratch primitives. Needs a test device from schematic_search_device and the matching tab focused.
+
+### Input Parameters
+
+| Parameter        | Type         | Required | Description |
+| ---------------- | ------------ | -------- | ----------- |
+| `projectId`      | `string`     | Yes      |             |
+| `testDeviceItem` | `object`     | Yes      |             |
+| `scope`          | `'schematic' | 'pcb'    | 'both'`     | Yes |     |
+| `confirmWrite`   | `'true'`     | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  ok: boolean;
+  project_id: string;
+  scope: string;
+  steps: object[];
+  cleanup_performed: boolean;
+}
+```
+
+---
+
 ## `easyeda_observability_report`
 
 **Profile:** `core` | **Risk Level:** `low`
@@ -1195,6 +1236,77 @@ Returns a JSON object matching the schema:
   metrics: object;
   retention: object;
   timeout_policy: object;
+}
+```
+
+---
+
+## `easyeda_pcb_add_silkscreen_line`
+
+**Profile:** `full` | **Risk Level:** `medium`
+
+> Draw a non-electrical line on the PCB (e.g. Top/Bottom Silkscreen) for section dividers or board art — reuses the same PCB_PrimitiveLine primitive as add_track but with an empty net name, so it never appears in the netlist or ratsnest.
+
+### Input Parameters
+
+| Parameter      | Type                | Required | Description                                              |
+| -------------- | ------------------- | -------- | -------------------------------------------------------- |
+| `layer`        | `number`            | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen |
+| `startX`       | `number`            | Yes      |                                                          |
+| `startY`       | `number`            | Yes      |                                                          |
+| `endX`         | `number`            | Yes      |                                                          |
+| `endY`         | `number`            | Yes      |                                                          |
+| `lineWidth`    | `number (optional)` | No       |                                                          |
+| `confirmWrite` | `'true'`            | Yes      |                                                          |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  primitiveId: string(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_pcb_add_text`
+
+**Profile:** `full` | **Risk Level:** `medium`
+
+> Place a text primitive on a PCB layer (typically Top/Bottom Silkscreen) — reference labels, section titles, assembly notes. Signature recovered from PCB_PrimitiveString: fontFamily must be a name the runtime's font list actually contains — "NotoSansMonoCJKsc-Regular" (the default) is live-verified to work.
+
+### Input Parameters
+
+| Parameter      | Type                 | Required | Description                                              |
+| -------------- | -------------------- | -------- | -------------------------------------------------------- |
+| `layer`        | `number`             | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen |
+| `x`            | `number`             | Yes      |                                                          |
+| `y`            | `number`             | Yes      |                                                          |
+| `text`         | `string`             | Yes      |                                                          |
+| `fontFamily`   | `string (optional)`  | No       |                                                          |
+| `fontSize`     | `number (optional)`  | No       |                                                          |
+| `lineWidth`    | `number (optional)`  | No       |                                                          |
+| `alignMode`    | `number (optional)`  | No       |                                                          |
+| `rotation`     | `number (optional)`  | No       |                                                          |
+| `reverse`      | `boolean (optional)` | No       |                                                          |
+| `expansion`    | `number (optional)`  | No       |                                                          |
+| `mirror`       | `boolean (optional)` | No       |                                                          |
+| `locked`       | `boolean (optional)` | No       |                                                          |
+| `confirmWrite` | `'true'`             | Yes      |                                                          |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  primitiveId: string(optional);
+  error: string(optional);
 }
 ```
 
@@ -1934,6 +2046,145 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_schematic_add_circle`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Draw a circle on the schematic sheet — decorative marker or custom symbol element. Cosmetic only, no electrical meaning. fillColor "none" leaves it unfilled.
+
+### Input Parameters
+
+| Parameter      | Type                | Required | Description                                    |
+| -------------- | ------------------- | -------- | ---------------------------------------------- |
+| `centerX`      | `number`            | Yes      |                                                |
+| `centerY`      | `number`            | Yes      |                                                |
+| `radius`       | `number`            | Yes      |                                                |
+| `color`        | `string (optional)` | No       |                                                |
+| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled |
+| `lineWidth`    | `number (optional)` | No       |                                                |
+| `lineType`     | `number (optional)` | No       |                                                |
+| `fillStyle`    | `string (optional)` | No       |                                                |
+| `confirmWrite` | `'true'`            | Yes      |                                                |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  circle: any(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_add_polygon`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Draw a closed polygon on the schematic sheet from 3+ vertices — custom decorative shapes, callout arrows, or block diagram elements. Cosmetic only, no electrical meaning.
+
+### Input Parameters
+
+| Parameter      | Type                | Required | Description                                    |
+| -------------- | ------------------- | -------- | ---------------------------------------------- |
+| `points`       | `object[]`          | Yes      |                                                |
+| `color`        | `string (optional)` | No       |                                                |
+| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled |
+| `lineWidth`    | `number (optional)` | No       |                                                |
+| `lineType`     | `number (optional)` | No       |                                                |
+| `confirmWrite` | `'true'`            | Yes      |                                                |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  polygon: any(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_add_rectangle`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Draw a rectangle on the schematic sheet — section dividers/grouping boxes for organizing a busy schematic into labeled functional blocks (pair with add_text for the title). Cosmetic only. x/y is the top-left corner; fillColor "none" leaves it unfilled.
+
+### Input Parameters
+
+| Parameter      | Type                | Required | Description                                    |
+| -------------- | ------------------- | -------- | ---------------------------------------------- |
+| `x`            | `number`            | Yes      | Top-left X coordinate                          |
+| `y`            | `number`            | Yes      | Top-left Y coordinate                          |
+| `width`        | `number`            | Yes      |                                                |
+| `height`       | `number`            | Yes      |                                                |
+| `cornerRadius` | `number (optional)` | No       |                                                |
+| `rotation`     | `number (optional)` | No       |                                                |
+| `color`        | `string (optional)` | No       | Border/line color, hex string (e.g. "#FF0000") |
+| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled |
+| `lineWidth`    | `number (optional)` | No       |                                                |
+| `lineType`     | `number (optional)` | No       |                                                |
+| `fillStyle`    | `string (optional)` | No       |                                                |
+| `confirmWrite` | `'true'`            | Yes      |                                                |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  rectangle: any(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_add_text`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Place free-standing text on the schematic sheet (section headers, notes, block labels) — cosmetic/organizational, not a net label. color must be a hex string and fontName a real font (e.g. "Arial") — untyped placeholders create nothing despite returning ok.
+
+### Input Parameters
+
+| Parameter      | Type                 | Required | Description |
+| -------------- | -------------------- | -------- | ----------- |
+| `x`            | `number`             | Yes      |             |
+| `y`            | `number`             | Yes      |             |
+| `content`      | `string`             | Yes      |             |
+| `rotation`     | `number (optional)`  | No       |             |
+| `color`        | `string (optional)`  | No       |             |
+| `fontName`     | `string (optional)`  | No       |             |
+| `fontSize`     | `number (optional)`  | No       |             |
+| `bold`         | `boolean (optional)` | No       |             |
+| `italic`       | `boolean (optional)` | No       |             |
+| `underline`    | `boolean (optional)` | No       |             |
+| `alignMode`    | `number (optional)`  | No       |             |
+| `confirmWrite` | `'true'`             | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  text: any(optional);
+  error: string(optional);
+}
+```
+
+---
+
 ## `easyeda_schematic_add_wire`
 
 **Profile:** `core` | **Risk Level:** `medium`
@@ -1969,7 +2220,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Get exact pin numbers, names, and coordinates for a schematic component by its primitive ID.
+> Get exact pin numbers, names, coordinates, and native pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.
 
 ### Input Parameters
 
@@ -2338,6 +2589,33 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_schematic_set_title_block`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Update schematic title block text fields (Company, Version, Drawn, Reviewed, Page Size). Only these 5 are exposed — writing Symbol/Border/Device/etc once corrupted a real title block; those are read-only natively and must be fixed via the EasyEDA Pro UI.
+
+### Input Parameters
+
+| Parameter        | Type                     | Required | Description                                                                                                           |
+| ---------------- | ------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `fields`         | `Record<string, object>` | Yes      | Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } } |
+| `showTitleBlock` | `boolean (optional)`     | No       | Show/hide the whole title block                                                                                       |
+| `confirmWrite`   | `'true'`                 | Yes      |                                                                                                                       |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  error: string(optional);
+}
+```
+
+---
+
 ## `easyeda_schematic_sheet_info`
 
 **Profile:** `core` | **Risk Level:** `low`
@@ -2364,6 +2642,34 @@ Returns a JSON object matching the schema:
   grid: any(optional);
   raw: any(optional);
   not_available: boolean(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_sync_to_pcb`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Request a schematic-to-PCB sync (SCH_Document.importChanges). CAUTION (live-verified): opens a confirmation dialog in EasyEDA Pro's UI a HUMAN must approve — success here only means the request was sent, not that components appeared. Ask the user to approve the dialog, then verify with pcb_components.
+
+### Input Parameters
+
+| Parameter      | Type                | Required | Description |
+| -------------- | ------------------- | -------- | ----------- |
+| `projectId`    | `string (optional)` | No       |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  requested: boolean(optional);
+  note: string(optional);
   error: string(optional);
 }
 ```
@@ -2464,6 +2770,40 @@ Returns a JSON object matching the schema:
   project_id: string;
   wires: object[];
   total: number;
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_semantic_erc_auto`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Extract nets/devices/pins from the LIVE schematic and run semantic ERC — no hand-authored netlist needed. Net/pin electrical types are INFERRED from naming conventions, not verified — treat findings as a first-pass signal, not a substitute for semantic_erc_validate.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  passed: boolean;
+  error_count: number;
+  warning_count: number;
+  total_issues: number;
+  errors: object[];
+  warnings: object[];
+  inferred_net_count: number;
+  inferred_device_count: number;
   not_available: boolean (optional);
   error: string (optional);
 }

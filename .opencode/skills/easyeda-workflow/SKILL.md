@@ -30,6 +30,7 @@ Collect:
 - Whether the server is running in `stdio` or `http` transport mode
 - Active `TOOL_PROFILE`: `core`, `pro`, `full`, `dev`, or `experimental`
 - EasyEDA Pro bridge status
+- **Which document tab is focused in EasyEDA Pro** — schematic tools need the schematic tab active, PCB tools need the PCB tab active. A tool called against the wrong tab does not error, it silently returns empty/`not_available` data (e.g. `easyeda_pcb_components` returns `total:0` with no PCB open). If a read tool that should have data returns nothing, check tab focus before assuming the project is empty.
 - Whether the task is read-only or write-enabled
 - Project type: schematic, PCB, BOM, export, sourcing, or production review
 - User approval for any write operation
@@ -65,13 +66,23 @@ Use only after explicit permission and bridge capability confirmation.
 
 - `easyeda_schematic_place_component`
 - `easyeda_schematic_add_wire`
+- `easyeda_schematic_add_text` — free-standing text label (section headers, notes); cosmetic only, not a net label
+- `easyeda_schematic_add_rectangle` — grouping/divider box for organizing a busy schematic into labeled blocks; pair with add_text for the title
+- `easyeda_schematic_add_circle` — decorative circle marker; cosmetic only
+- `easyeda_schematic_add_polygon` — closed custom shape from 3+ vertices (callouts, block-diagram elements); cosmetic only
+- `easyeda_schematic_set_title_block` — edit title block text fields (Company, Version, Drawn, Reviewed, Page Size) only. **Do not attempt to widen this tool to other title-block fields** (Symbol, Border, Device, Name, Description, Width/Height, Region\*, "@"-prefixed, ID): a past attempt to round-trip the full snapshot corrupted a real project's title block (EasyEDA Pro's own Log panel flagged "abnormal data" on the Symbol/Device property) — those fields are read-only through this native API, either silently ignored or throwing a native TypeError, and are only fixable via the EasyEDA Pro UI
 - `easyeda_schematic_create_net_flag`
 - `easyeda_schematic_create_net_port`
 - `easyeda_schematic_connect_pin_to_net`
 - `easyeda_schematic_connect_pins_by_net`
 - `easyeda_schematic_modify_primitive`
 - `easyeda_schematic_delete_primitive`
+- `easyeda_schematic_sync_to_pcb`
 - `easyeda_project_save`
+
+**Connectivity model:** wires/stubs sharing the same `netName` merge into one net regardless of physical location or distance — prefer `connect_pin_to_net`/named stubs over drawing a continuous route when the goal is just correct connectivity, not a hand-routed look. The collision guard (`NET_COLLISION`) only catches a foreign net at an _exact_ touched coordinate (a wire/pin/flag endpoint) — it does not catch a wire whose interior merely crosses a foreign point. EasyEDA also rejects diagonal (non-axis-aligned) wire segments outright; keep routing to horizontal/vertical only.
+
+**`easyeda_schematic_sync_to_pcb` is not fire-and-forget.** It is the only way to get a schematic-placed part (`addIntoPcb: true`) onto the linked PCB — `easyeda_pcb_place_component`'s direct create is confirmed broken (see PCB write workflow note below) — but calling it only _opens a confirmation dialog in EasyEDA Pro's UI_; the tool call itself returns success immediately regardless of what happens next. A human must click through that dialog before the part actually appears on the board. Always verify with `easyeda_pcb_components` after asking the user to approve the dialog — never report a PCB sync as complete based on the tool's return value alone.
 
 ### PCB and board workflow
 
@@ -89,13 +100,19 @@ Use only after explicit permission and bridge capability confirmation.
 
 - `easyeda_pcb_place_component_group`
 - `easyeda_pcb_route_path_plan`
-- `easyeda_pcb_place_component`
+- `easyeda_pcb_place_component` — **confirmed broken**: the native `PCB_PrimitiveComponent.create()` call this wraps never resolves. Do not use it to get a new part onto the board. The real path is schematic-side: place the part with `easyeda_schematic_place_component` (`addIntoPcb: true`, the default), then `easyeda_schematic_sync_to_pcb` (see schematic write workflow above for its human-in-the-loop caveat). Once the part exists on the PCB this way, `easyeda_pcb_modify_component` correctly repositions/rotates it.
 - `easyeda_pcb_add_track`
 - `easyeda_pcb_add_via`
-- `easyeda_pcb_add_zone`
+- `easyeda_pcb_add_zone` — **confirmed broken**: the native `PCB_PrimitivePour.create()` call never resolves. No working alternative exists (unlike component placement, copper pours are not a schematic concept, so there is no sync-based workaround). Report this as an unsupported capability rather than attempting it.
+- `easyeda_pcb_add_text` — silkscreen/label text on a PCB layer (typically Top/Bottom Silkscreen, layer id 3/4); fontFamily must be a name the runtime's font list contains — the default `NotoSansMonoCJKsc-Regular` is live-verified to work
+- `easyeda_pcb_add_silkscreen_line` — non-electrical decorative line (section dividers, board art); reuses the same primitive as add_track but with an empty net name so it never appears in the netlist/ratsnest
 - `easyeda_pcb_modify_component`
 - `easyeda_pcb_delete_component`
 - `easyeda_project_save`
+
+### Diagnostics and regression (dev profile)
+
+- `easyeda_live_write_regression` — exercises real schematic and/or PCB write paths (place/connect/wire/delete, via/track/list/delete) against the connected bridge in one call and reports pass/fail per step, self-cleaning afterward. Useful to sanity-check the bridge/extension itself before trusting a larger write workflow, or to reproduce a suspected regression. Requires `testDeviceItem` (resolve one via `easyeda_schematic_search_device` first) and the matching tab focused per scope.
 
 ### Export and visual workflow
 
@@ -142,7 +159,9 @@ Stop and report clearly when:
 - The active tool profile does not expose the required tool
 - Required write permission is missing
 - A bridge API returns unsupported-method or unavailable-runtime errors
+- A read tool returns an empty/`not_available` result where data was expected — check document tab focus before concluding the project is empty
 - A project cannot be saved or exported
+- `easyeda_pcb_place_component` or `easyeda_pcb_add_zone` is requested directly — redirect to the working alternative (or report no alternative, for zones) instead of attempting the broken call
 - The user requests raw execution or unsafe full-control behavior without explicit enabled gates
 
 ## Output format

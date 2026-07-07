@@ -35,7 +35,7 @@ describe('PCB Write Tools', () => {
     };
   });
 
-  it('should register all 8 PCB write tools', () => {
+  it('should register all 10 PCB write tools', () => {
     expect(registry.get('easyeda_pcb_place_component')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_track')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_via')).toBeDefined();
@@ -44,6 +44,8 @@ describe('PCB Write Tools', () => {
     expect(registry.get('easyeda_pcb_modify_component')).toBeDefined();
     expect(registry.get('easyeda_pcb_place_component_group')).toBeDefined();
     expect(registry.get('easyeda_pcb_route_path_plan')).toBeDefined();
+    expect(registry.get('easyeda_pcb_add_text')).toBeDefined();
+    expect(registry.get('easyeda_pcb_add_silkscreen_line')).toBeDefined();
   });
 
   it('easyeda_pcb_place_component_group should preview without bridge calls', async () => {
@@ -294,6 +296,134 @@ describe('PCB Write Tools', () => {
     });
 
     expect(result).toEqual({ success: false, error: 'not_available' });
+  });
+
+  describe('PCB text and silkscreen write helpers', () => {
+    it('adds PCB text and extracts primitive ids from string and object bridge responses', async () => {
+      const textTool = registry.get('easyeda_pcb_add_text');
+      const lineTool = registry.get('easyeda_pcb_add_silkscreen_line');
+      bridgeCall.mockResolvedValueOnce({ result: 'text-1' }).mockResolvedValueOnce('line-1');
+
+      const textResult = await textTool?.handler(context, {
+        layer: 3,
+        x: 100,
+        y: 200,
+        text: 'REF**',
+        fontFamily: 'NotoSansMonoCJKsc-Regular',
+        fontSize: 1.2,
+        lineWidth: 0.15,
+        alignMode: 1,
+        rotation: 90,
+        reverse: false,
+        expansion: 0,
+        mirror: false,
+        locked: true,
+        confirmWrite: true,
+      });
+      const lineResult = await lineTool?.handler(context, {
+        layer: 3,
+        startX: 0,
+        startY: 0,
+        endX: 10,
+        endY: 0,
+        lineWidth: 0.2,
+        confirmWrite: true,
+      });
+
+      expect(bridgeCall).toHaveBeenNthCalledWith(1, 'pcb.addText', {
+        layer: 3,
+        x: 100,
+        y: 200,
+        text: 'REF**',
+        fontFamily: 'NotoSansMonoCJKsc-Regular',
+        fontSize: 1.2,
+        lineWidth: 0.15,
+        alignMode: 1,
+        rotation: 90,
+        reverse: false,
+        expansion: 0,
+        mirror: false,
+        locked: true,
+      });
+      expect(bridgeCall).toHaveBeenNthCalledWith(2, 'pcb.addSilkscreenLine', {
+        layer: 3,
+        startX: 0,
+        startY: 0,
+        endX: 10,
+        endY: 0,
+        lineWidth: 0.2,
+      });
+      expect(textResult).toEqual({ success: true, primitiveId: 'text-1' });
+      expect(lineResult).toEqual({ success: true, primitiveId: 'line-1' });
+    });
+
+    it('extracts PCB helper primitive ids from primitiveId object responses', async () => {
+      const textTool = registry.get('easyeda_pcb_add_text');
+      const lineTool = registry.get('easyeda_pcb_add_silkscreen_line');
+      bridgeCall.mockResolvedValueOnce({ primitiveId: 'text-primitive' }).mockResolvedValueOnce({
+        result: 'line-result',
+      });
+
+      await expect(
+        textTool?.handler(context, { layer: 3, x: 1, y: 2, text: 'T', confirmWrite: true }),
+      ).resolves.toEqual({ success: true, primitiveId: 'text-primitive' });
+      await expect(
+        lineTool?.handler(context, {
+          layer: 3,
+          startX: 0,
+          startY: 0,
+          endX: 2,
+          endY: 2,
+          confirmWrite: true,
+        }),
+      ).resolves.toEqual({ success: true, primitiveId: 'line-result' });
+    });
+
+    it('reports non-Error bridge failures from PCB text helpers', async () => {
+      const tool = registry.get('easyeda_pcb_add_text');
+      bridgeCall.mockRejectedValue('font missing');
+
+      const result = await tool?.handler(context, {
+        layer: 3,
+        x: 1,
+        y: 2,
+        text: 'BAD',
+        confirmWrite: true,
+      });
+
+      expect(result).toEqual({ success: false, error: 'font missing' });
+    });
+
+    it('returns undefined when a PCB helper response has no primitive id fields', async () => {
+      const tool = registry.get('easyeda_pcb_add_text');
+      bridgeCall.mockResolvedValue({});
+
+      const result = await tool?.handler(context, {
+        layer: 3,
+        x: 1,
+        y: 2,
+        text: 'NOID',
+        confirmWrite: true,
+      });
+
+      expect(result).toEqual({ success: true, primitiveId: undefined });
+    });
+
+    it('reports Error bridge failures from PCB silkscreen helpers', async () => {
+      const tool = registry.get('easyeda_pcb_add_silkscreen_line');
+      bridgeCall.mockRejectedValue(new Error('no pcb tab'));
+
+      const result = await tool?.handler(context, {
+        layer: 3,
+        startX: 0,
+        startY: 0,
+        endX: 1,
+        endY: 1,
+        confirmWrite: true,
+      });
+
+      expect(result).toEqual({ success: false, error: 'no pcb tab' });
+    });
   });
 
   it('easyeda_pcb_delete_component should call bridge delete', async () => {

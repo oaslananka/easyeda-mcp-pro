@@ -7,6 +7,7 @@ import {
   readDispatcherArtifact,
   revertDispatcher,
 } from '../bridge/hotswap.js';
+import { fetchComponentPins } from './schematic-helpers.js';
 
 const apiCallInputSchema = z.object({
   path: z.string().regex(/^[A-Za-z]+_[A-Za-z0-9]+\.[A-Za-z][A-Za-z0-9_]*$/),
@@ -67,6 +68,216 @@ function summarizeApiInventory(payload: unknown): { total?: number; class_names?
     total: typeof data.total === 'number' ? data.total : undefined,
     class_names: classNames,
   };
+}
+
+type RegressionStep = { id: string; ok: boolean; detail?: string; error?: string };
+
+async function runRegressionStep(
+  steps: RegressionStep[],
+  id: string,
+  fn: () => Promise<string | void>,
+): Promise<boolean> {
+  try {
+    const detail = await fn();
+    steps.push({ id, ok: true, detail: detail || undefined });
+    return true;
+  } catch (err) {
+    steps.push({ id, ok: false, error: err instanceof Error ? err.message : String(err) });
+    return false;
+  }
+}
+
+/**
+ * Live-exercise real schematic write paths: place two test components,
+ * connect same-net pins and confirm the netlist merges them, then confirm
+ * the net-collision guard refuses a foreign-net wire onto a connected pin
+ * (regression coverage for the wire/pin/flag collision guard). Returns every
+ * primitive id created, for the caller to clean up regardless of pass/fail.
+ */
+async function runSchematicRegression(
+  ctx: ToolContext,
+  projectId: string,
+  testDeviceItem: { uuid: string; libraryUuid: string },
+  steps: RegressionStep[],
+): Promise<string[]> {
+  const createdIds: string[] = [];
+  const suffix = String(Date.now()).slice(-6);
+  const netA = `MCP_REGR_A_${suffix}`;
+  const netB = `MCP_REGR_B_${suffix}`;
+  const netC = `MCP_REGR_C_${suffix}`;
+  let compA: string | undefined;
+  let compB: string | undefined;
+
+  await runRegressionStep(steps, 'schematic.place_a', async () => {
+    const r = (await ctx.bridge.call('schematic.placeComponent', {
+      deviceItem: testDeviceItem,
+      x: 900,
+      y: 900,
+    })) as { primitiveId?: string };
+    if (!r?.primitiveId) throw new Error('place returned no primitiveId');
+    compA = r.primitiveId;
+    createdIds.push(compA);
+    return compA;
+  });
+
+  await runRegressionStep(steps, 'schematic.place_b', async () => {
+    const r = (await ctx.bridge.call('schematic.placeComponent', {
+      deviceItem: testDeviceItem,
+      x: 1100,
+      y: 1100,
+    })) as { primitiveId?: string };
+    if (!r?.primitiveId) throw new Error('place returned no primitiveId');
+    compB = r.primitiveId;
+    createdIds.push(compB);
+    return compB;
+  });
+
+  if (compA) {
+    await runRegressionStep(steps, 'schematic.connect_a_pin1', async () => {
+      const r = (await ctx.bridge.call('schematic.connectPinToNet', {
+        projectId,
+        primitiveId: compA,
+        pinNumber: '1',
+        netName: netA,
+      })) as { primitiveId?: string };
+      if (r?.primitiveId) createdIds.push(r.primitiveId);
+    });
+  }
+
+  if (compB) {
+    await runRegressionStep(steps, 'schematic.connect_b_pin1_same_net', async () => {
+      const r = (await ctx.bridge.call('schematic.connectPinToNet', {
+        projectId,
+        primitiveId: compB,
+        pinNumber: '1',
+        netName: netA,
+      })) as { primitiveId?: string };
+      if (r?.primitiveId) createdIds.push(r.primitiveId);
+    });
+  }
+
+  await runRegressionStep(steps, 'schematic.verify_net_merge', async () => {
+    const nets = (await ctx.bridge.call('schematic.listNets', { projectId })) as Array<{
+      netName?: string;
+      nodes?: unknown[];
+    }>;
+    const merged = (nets ?? []).find((n) => n.netName === netA);
+    const count = merged?.nodes?.length ?? 0;
+    if (count < 2) {
+      throw new Error(`expected net "${netA}" to have >=2 nodes after merge, got ${count}`);
+    }
+    return `net "${netA}" has ${count} nodes`;
+  });
+
+  if (compA) {
+    await runRegressionStep(steps, 'schematic.connect_a_pin2_other_net', async () => {
+      const r = (await ctx.bridge.call('schematic.connectPinToNet', {
+        projectId,
+        primitiveId: compA,
+        pinNumber: '2',
+        netName: netB,
+      })) as { primitiveId?: string };
+      if (r?.primitiveId) createdIds.push(r.primitiveId);
+    });
+
+    await runRegressionStep(steps, 'schematic.collision_guard_blocks_foreign_net', async () => {
+      const pins = await fetchComponentPins(ctx, compA as string);
+      const pin2 = pins.find((p) => p.pinNumber === '2');
+      if (!pin2) throw new Error('pin 2 not found on test component');
+      let blocked = false;
+      try {
+        await ctx.bridge.call('schematic.addWire', {
+          points: [
+            { x: pin2.x, y: pin2.y },
+            { x: pin2.x, y: pin2.y + 50 },
+          ],
+          netName: netC,
+        });
+      } catch (err) {
+        blocked = err instanceof Error && /NET_COLLISION|coincides with/i.test(err.message);
+        if (!blocked) throw err;
+      }
+      if (!blocked) {
+        throw new Error(
+          'expected the collision guard to refuse a foreign-net wire onto a connected pin, but it succeeded',
+        );
+      }
+      return 'collision guard correctly refused a foreign-net wire onto a connected pin';
+    });
+  }
+
+  return createdIds;
+}
+
+/**
+ * Live-exercise real PCB write paths: add a via and a track, confirm both
+ * appear in the readback tools, delete them, and confirm they're actually
+ * gone — regression coverage for the delete-doesn't-delete bug fixed this
+ * session (PCB_PrimitiveComponent.delete() reported success without deleting
+ * ids it didn't own). Requires a focused PCB tab; each step reports its own
+ * failure rather than aborting the sequence.
+ */
+async function runPcbRegression(ctx: ToolContext, steps: RegressionStep[]): Promise<void> {
+  const suffix = String(Date.now()).slice(-6);
+  const netName = `MCP_REGR_PCB_${suffix}`;
+  let viaId: string | undefined;
+  let trackIds: string[] = [];
+
+  await runRegressionStep(steps, 'pcb.add_via', async () => {
+    const r = (await ctx.bridge.call('pcb.addVia', {
+      netName,
+      x: 5000,
+      y: 5000,
+      holeSize: 0.3,
+      outerDiameter: 0.6,
+    })) as { primitiveId?: string };
+    if (!r?.primitiveId) throw new Error('addVia returned no primitiveId');
+    viaId = r.primitiveId;
+    return viaId;
+  });
+
+  await runRegressionStep(steps, 'pcb.add_track', async () => {
+    const r = (await ctx.bridge.call('pcb.addTrack', {
+      netName,
+      layer: 1,
+      points: [
+        { x: 5000, y: 5000 },
+        { x: 5500, y: 5000 },
+      ],
+      width: 0.2,
+    })) as { primitiveIds?: string[]; primitiveId?: string };
+    trackIds = r?.primitiveIds ?? (r?.primitiveId ? [r.primitiveId] : []);
+    if (trackIds.length === 0) throw new Error('addTrack returned no primitiveIds');
+    return `${trackIds.length} segment(s)`;
+  });
+
+  await runRegressionStep(steps, 'pcb.verify_readback', async () => {
+    const vias = (await ctx.bridge.call('pcb.listVias', { limit: 200, offset: 0 })) as {
+      items?: Array<{ primitiveId?: string }>;
+    };
+    const found = (vias?.items ?? []).some((v) => v.primitiveId === viaId);
+    if (!found) throw new Error(`via ${viaId} not found in pcb.listVias readback`);
+    return 'via found in readback';
+  });
+
+  const idsToDelete = [viaId, ...trackIds].filter((id): id is string => Boolean(id));
+  await runRegressionStep(steps, 'pcb.delete_and_verify_gone', async () => {
+    const del = (await ctx.bridge.call('pcb.deleteComponent', {
+      primitiveIds: idsToDelete,
+    })) as { notFound?: string[] };
+    const notFound = del?.notFound ?? [];
+    if (notFound.length > 0) {
+      throw new Error(
+        `delete left ${notFound.length} primitive(s) unresolved: ${notFound.join(', ')}`,
+      );
+    }
+    const vias = (await ctx.bridge.call('pcb.listVias', { limit: 200, offset: 0 })) as {
+      items?: Array<{ primitiveId?: string }>;
+    };
+    const stillThere = (vias?.items ?? []).some((v) => v.primitiveId === viaId);
+    if (stillThere) throw new Error(`via ${viaId} still present after delete`);
+    return `deleted ${idsToDelete.length} primitive(s), confirmed gone`;
+  });
 }
 
 function registerDiagnosticsApi(
@@ -458,6 +669,84 @@ function registerDiagnosticsApi(
           error: err instanceof Error ? err.message : String(err),
         };
       }
+    },
+  });
+
+  const liveRegressionInputSchema = z.object({
+    projectId: z.string().default(''),
+    testDeviceItem: z.object({ uuid: z.string(), libraryUuid: z.string() }),
+    scope: z.enum(['schematic', 'pcb', 'both']).default('schematic'),
+    confirmWrite: z.literal(true),
+  });
+
+  registry.register({
+    name: 'easyeda_live_write_regression',
+    title: 'Run live write-path regression suite',
+    description:
+      'Exercise real schematic (and optionally PCB) write paths against the bridge — place, ' +
+      'connect, wire, delete — reporting pass/fail per step, then clean up its own scratch ' +
+      'primitives. Needs a test device from schematic_search_device and the matching tab focused.',
+    profile: 'dev',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'diagnostics',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: liveRegressionInputSchema,
+    outputSchema: z.object({
+      ok: z.boolean(),
+      project_id: z.string(),
+      scope: z.string(),
+      steps: z.array(
+        z.object({
+          id: z.string(),
+          ok: z.boolean(),
+          detail: z.string().optional(),
+          error: z.string().optional(),
+        }),
+      ),
+      cleanup_performed: z.boolean(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, testDeviceItem, scope } = liveRegressionInputSchema.parse(params);
+      const steps: RegressionStep[] = [];
+      let createdSchematicIds: string[] = [];
+      let cleanupPerformed = false;
+
+      if (scope === 'schematic' || scope === 'both') {
+        createdSchematicIds = await runSchematicRegression(ctx, projectId, testDeviceItem, steps);
+      }
+      if (scope === 'pcb' || scope === 'both') {
+        await runPcbRegression(ctx, steps);
+      }
+
+      if (createdSchematicIds.length > 0) {
+        try {
+          await ctx.bridge.call('schematic.deletePrimitive', {
+            primitiveIds: createdSchematicIds,
+          });
+          cleanupPerformed = true;
+        } catch (err) {
+          steps.push({
+            id: 'schematic.cleanup',
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      return {
+        ok: steps.every((s) => s.ok),
+        project_id: projectId,
+        scope,
+        steps,
+        cleanup_performed: cleanupPerformed,
+      };
     },
   });
 }
