@@ -13,6 +13,14 @@ export interface BridgeSchematicPin {
   pinType?: string;
 }
 
+/** Stringify only real primitives — avoids `String()` silently producing
+ *  "[object Object]" for a bridge value that turns out not to be one. */
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? String(value)
+    : undefined;
+}
+
 /**
  * Fetch a component's pins via the bridge's generic api.call passthrough to
  * SCH_PrimitiveComponent.getAllPinsByPrimitiveId, normalizing EasyEDA's
@@ -33,13 +41,13 @@ export async function fetchComponentPins(
     const state = p.state as Record<string, unknown> | undefined;
     const pinType = p.pinType ?? state?.pinType ?? state?.PinType;
     return {
-      pinNumber: p.pinNumber !== undefined ? String(p.pinNumber) : String(state?.PinNumber ?? ''),
-      pinName: p.pinName !== undefined ? String(p.pinName) : String(state?.PinName ?? ''),
+      pinNumber: asString(p.pinNumber) ?? asString(state?.PinNumber) ?? '',
+      pinName: asString(p.pinName) ?? asString(state?.PinName) ?? '',
       x: p.x !== undefined ? Number(p.x) : Number(state?.X ?? 0),
       y: p.y !== undefined ? Number(p.y) : Number(state?.Y ?? 0),
       rotation: p.rotation !== undefined ? Number(p.rotation) : Number(state?.Rotation ?? 0),
       pinLength: p.pinLength !== undefined ? Number(p.pinLength) : Number(state?.PinLength ?? 0),
-      pinType: pinType !== undefined ? String(pinType) : undefined,
+      pinType: asString(pinType),
     };
   });
 }

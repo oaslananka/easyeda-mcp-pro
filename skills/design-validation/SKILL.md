@@ -51,7 +51,7 @@ Collect:
 ### Schematic validation
 
 - `easyeda_erc_run` — native ERC is coarse (per-severity aggregate counts only, e.g. "1 warning"); it does not natively report which pin/net/component is affected. This tool supplements it with `inferred_floating_pins`/`detail_source` (best-effort, located via netlist inference) — treat `detail_source: 'native_aggregate_only'` as a signal that no itemized detail is available for that run.
-- `easyeda_semantic_erc_auto` — extracts nets/devices/pins from the *live* schematic and runs semantic ERC without a hand-authored netlist. Electrical types are inferred from pin/net naming conventions, not verified against EasyEDA's own metadata (which is unreliably populated — a passive part's pins can report a native type like "IN"). Prefer this over `easyeda_semantic_erc_validate` when the goal is validating what's actually drawn, not a hypothetical netlist.
+- `easyeda_semantic_erc_auto` — extracts nets/devices/pins from the _live_ schematic and runs semantic ERC without a hand-authored netlist. Electrical types are inferred from pin/net naming conventions, not verified against EasyEDA's own metadata (which is unreliably populated — a passive part's pins can report a native type like "IN"). Prefer this over `easyeda_semantic_erc_validate` when the goal is validating what's actually drawn, not a hypothetical netlist.
 - `easyeda_semantic_erc_validate` — same rule engine as `..._auto`, but takes a fully hand-authored `nets`/`devices` structure. Use when the schematic isn't drawn yet, or when inferred classification isn't trustworthy enough for the check being run.
 - `easyeda_schematic_validate_netlist`
 - `easyeda_schematic_verify_write`
