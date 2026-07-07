@@ -2373,45 +2373,67 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // DMT_Schematic.modifySchematicPageTitleBlock(showTitleBlock,
       // titleBlockData) live-reverse-engineered (2026-07-07): titleBlockData
       // is a flat map of field name -> {showTitle, showValue, value}.
-      // CRITICAL: getCurrentSchematicPageInfo()'s snapshot includes an
-      // "ID": {} entry with none of those sub-fields — round-tripping it
-      // as-is makes the ENTIRE call silently no-op (resolves true, applies
-      // nothing). It must be stripped before writing back. Fields prefixed
-      // "@" (e.g. "@Project Name", "@Page No") are system-computed and did
-      // not accept writes in live testing; only the plain-named fields
-      // (Company, Version, Drawn, Reviewed, Name, Description, ...) did.
+      //
+      // DATA-LOSS INCIDENT (2026-07-07, live-reproduced twice): the first
+      // implementation round-tripped getCurrentSchematicPageInfo()'s FULL
+      // snapshot (minus "ID") back through this call. That silently wiped
+      // Symbol/Border/Title Block/showTitleBlock to empty/"0"/false on a
+      // real project and left EasyEDA Pro's own Log panel reporting "Found
+      // abnormal data, The Symbol/Device property ... is incorrect" for the
+      // title block's internal element — a genuine corruption, not just a
+      // stale read. Root-caused by controlled live tests afterward: sending
+      // a MINIMAL payload containing only the caller's intended field(s)
+      // does NOT corrupt anything (confirmed: showTitleBlock even self-
+      // healed back to true), whereas including the read-only cluster
+      // (Symbol, Device, Name, Description, Border, Width, Height, Region
+      // Start, X/Y Region Count, Blade Width, Color, Title Block Position,
+      // Title Block, all "@"-prefixed fields, ID) triggers server-side
+      // corruption. Individually, that cluster is either a hard native
+      // TypeError (Border: "Cannot set properties of undefined") or a
+      // silent no-op (Symbol) — never a real write. CONCLUSION: never
+      // round-trip the snapshot. Only ever send the caller's explicit
+      // patch, restricted to the confirmed-safe allowlist below.
+      //
       // A read immediately after writing can return a stale snapshot — the
       // change is real but eventually consistent, not synchronous.
+      const SAFE_TITLE_BLOCK_FIELDS = new Set([
+        'Company',
+        'Version',
+        'Drawn',
+        'Reviewed',
+        'Page Size',
+      ]);
+      const fields = (params.fields as Record<string, Record<string, unknown>>) ?? {};
+      const unsafeKeys = Object.keys(fields).filter((key) => !SAFE_TITLE_BLOCK_FIELDS.has(key));
+      if (unsafeKeys.length > 0) {
+        throw newBridgeError(
+          'INVALID_PARAMS',
+          `schematic.setTitleBlock refuses to write field(s): ${unsafeKeys.join(', ')}. ` +
+            'These are read-only through this API (writes either no-op or throw natively) and ' +
+            "a past attempt to round-trip them corrupted a real project's title block.",
+          `Only these fields are writable: ${[...SAFE_TITLE_BLOCK_FIELDS].join(', ')}.`,
+        );
+      }
       const pageInfo = await callFirst([
         'DMT_Schematic.getCurrentSchematicPageInfo',
         'dmt_Schematic.getCurrentSchematicPageInfo',
       ]).catch(() => undefined);
-      const info = pageInfo as
-        { showTitleBlock?: boolean; titleBlockData?: Record<string, unknown> } | undefined;
-      if (!info) {
+      if (!pageInfo) {
         throw newBridgeError(
           'SCHEMATIC_NOT_FOCUSED',
           'schematic.setTitleBlock requires the schematic tab to be the focused/active document.',
           'Click into the schematic document in EasyEDA Pro, then retry.',
         );
       }
-      const merged: Record<string, unknown> = { ...(info.titleBlockData ?? {}) };
-      delete merged.ID;
-      const fields = (params.fields as Record<string, Record<string, unknown>>) ?? {};
-      for (const [key, patch] of Object.entries(fields)) {
-        merged[key] = { ...((merged[key] as Record<string, unknown>) ?? {}), ...patch };
-      }
       const showTitleBlock =
-        typeof params.showTitleBlock === 'boolean'
-          ? params.showTitleBlock
-          : (info.showTitleBlock ?? true);
+        typeof params.showTitleBlock === 'boolean' ? params.showTitleBlock : true;
       const result = await callFirst(
         [
           'DMT_Schematic.modifySchematicPageTitleBlock',
           'dmt_Schematic.modifySchematicPageTitleBlock',
         ],
         showTitleBlock,
-        merged,
+        fields,
       );
       return { success: result === true };
     }

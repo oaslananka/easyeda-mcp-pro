@@ -1009,15 +1009,15 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_set_title_block',
     title: 'Set schematic title block fields',
     description:
-      'Update schematic title block fields (Company, Version, Drawn, Reviewed, Name, ...) — ' +
-      'pass only fields to change, others are preserved. "@"-prefixed fields are system-computed ' +
-      'and did not accept writes in testing. A read right after this call may return stale data.',
+      'Update schematic title block text fields (Company, Version, Drawn, Reviewed, Page Size). ' +
+      'Only these 5 are exposed — writing Symbol/Border/Device/etc once corrupted a real title ' +
+      'block; those are read-only natively and must be fixed via the EasyEDA Pro UI.',
     profile: 'core',
     evidence: ['runtime-probe'],
     risk: 'medium',
     confirmWrite: true,
     group: 'schematic',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: false,
       idempotentHint: false,
@@ -1025,7 +1025,7 @@ function registerSchematicWriteTools(
     inputSchema: z.object({
       fields: z
         .record(
-          z.string(),
+          z.enum(['Company', 'Version', 'Drawn', 'Reviewed', 'Page Size']),
           z.object({
             showTitle: z.boolean().optional(),
             showValue: z.boolean().optional(),

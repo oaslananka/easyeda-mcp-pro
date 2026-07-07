@@ -70,7 +70,7 @@ Use only after explicit permission and bridge capability confirmation.
 - `easyeda_schematic_add_rectangle` — grouping/divider box for organizing a busy schematic into labeled blocks; pair with add_text for the title
 - `easyeda_schematic_add_circle` — decorative circle marker; cosmetic only
 - `easyeda_schematic_add_polygon` — closed custom shape from 3+ vertices (callouts, block-diagram elements); cosmetic only
-- `easyeda_schematic_set_title_block` — edit title block fields (Company, Version, Drawn, ...); the native RPC silently no-ops on the whole call if a malformed `"ID": {}` snapshot entry is round-tripped unmodified, and "@"-prefixed fields (e.g. "@Project Name") rejected writes in live testing
+- `easyeda_schematic_set_title_block` — edit title block text fields (Company, Version, Drawn, Reviewed, Page Size) only. **Do not attempt to widen this tool to other title-block fields** (Symbol, Border, Device, Name, Description, Width/Height, Region\*, "@"-prefixed, ID): a past attempt to round-trip the full snapshot corrupted a real project's title block (EasyEDA Pro's own Log panel flagged "abnormal data" on the Symbol/Device property) — those fields are read-only through this native API, either silently ignored or throwing a native TypeError, and are only fixable via the EasyEDA Pro UI
 - `easyeda_schematic_create_net_flag`
 - `easyeda_schematic_create_net_port`
 - `easyeda_schematic_connect_pin_to_net`

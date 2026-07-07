@@ -152,35 +152,62 @@ describe('createDispatcher', () => {
     expect(create).toHaveBeenCalled();
   });
 
-  // Live-verified (2026-07-07): titleBlockData's "ID": {} entry has none of
-  // the standard {showTitle,showValue,value} sub-fields — round-tripping it
-  // unmodified makes modifySchematicPageTitleBlock silently no-op (resolves
-  // true, applies nothing), so the dispatcher must strip it before writing.
-  it('schematic.setTitleBlock merges field patches and strips the malformed ID entry', async () => {
+  // DATA-LOSS INCIDENT (2026-07-07, live-reproduced on a real project): the
+  // first implementation round-tripped the FULL getCurrentSchematicPageInfo()
+  // snapshot back through modifySchematicPageTitleBlock. That silently wiped
+  // Symbol/Border/Title Block/showTitleBlock and left EasyEDA Pro's own Log
+  // panel reporting "Found abnormal data, The Symbol/Device property ... is
+  // incorrect" for the title block's internal element. Root cause: several
+  // snapshot fields (Symbol, Device, Name, Description, Border, Width,
+  // Height, Region*, Blade Width, Color, Title Block Position, Title Block,
+  // all "@"-prefixed fields, ID) are read-only through this RPC — writing
+  // them individually either no-ops silently (Symbol) or throws a native
+  // TypeError (Border) — and including them in a full round-trip corrupts
+  // the record server-side. Fix: never read/merge the snapshot at all, send
+  // ONLY the caller's explicit patch, and reject any field outside a
+  // confirmed-safe allowlist before it ever reaches the native call.
+  it('schematic.setTitleBlock sends only the caller-supplied fields, never a snapshot round-trip', async () => {
     const modifySchematicPageTitleBlock = vi.fn(async () => true);
+    const getCurrentSchematicPageInfo = vi.fn(async () => ({
+      showTitleBlock: true,
+      titleBlockData: {
+        Company: { showTitle: false, showValue: false, value: 'EasyEDA.com' },
+        Version: { showTitle: false, showValue: false, value: 'V1.0' },
+        Symbol: { showTitle: false, showValue: false, value: 'Drawing-Symbol_A4' },
+        Border: { showTitle: null, showValue: null, value: '1' },
+        ID: {},
+      },
+    }));
     const dispatcher = createDispatcher(
       makeToolkit({
-        DMT_Schematic: {
-          getCurrentSchematicPageInfo: async () => ({
-            showTitleBlock: true,
-            titleBlockData: {
-              Company: { showTitle: false, showValue: false, value: 'EasyEDA.com' },
-              Version: { showTitle: false, showValue: false, value: 'V1.0' },
-              ID: {},
-            },
-          }),
-          modifySchematicPageTitleBlock,
-        },
+        DMT_Schematic: { getCurrentSchematicPageInfo, modifySchematicPageTitleBlock },
       }),
     );
     const result = await dispatcher.dispatch('schematic.setTitleBlock', {
       fields: { Company: { value: 'ACME', showValue: true } },
     });
     expect(modifySchematicPageTitleBlock).toHaveBeenCalledWith(true, {
-      Company: { showTitle: false, showValue: true, value: 'ACME' },
-      Version: { showTitle: false, showValue: false, value: 'V1.0' },
+      Company: { value: 'ACME', showValue: true },
     });
     expect(result).toEqual({ success: true });
+  });
+
+  it('schematic.setTitleBlock rejects fields outside the confirmed-safe allowlist', async () => {
+    const modifySchematicPageTitleBlock = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Schematic: {
+          getCurrentSchematicPageInfo: async () => ({ showTitleBlock: true, titleBlockData: {} }),
+          modifySchematicPageTitleBlock,
+        },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('schematic.setTitleBlock', {
+        fields: { Border: { value: '1' } },
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(modifySchematicPageTitleBlock).not.toHaveBeenCalled();
   });
 
   it('schematic.setTitleBlock refuses when the schematic tab is not focused', async () => {
