@@ -154,10 +154,11 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_place_component',
     title: 'Place schematic component',
     description:
-      'Place a library component/device on the active schematic sheet. Placed parts keep the ' +
-      'designator placeholder ("R?", "U?"); EasyEDA does not auto-annotate via the API. Assign a ' +
-      'unique designator with modify_primitive before trusting the netlist — it keys nodes by ' +
-      'designator, so duplicate "R?" merge into one node.',
+      'Place a library component/device on the active schematic sheet. The bridge auto-assigns ' +
+      'the next free designator (library placeholders like "R?" become "R1", "R2", …) — check ' +
+      'the returned designator. If annotation ever fails the part keeps its placeholder; fix it ' +
+      'with modify_primitive, since the netlist keys nodes by designator and duplicate "R?" ' +
+      'merge into one node.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
