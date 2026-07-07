@@ -34,7 +34,12 @@ const POWER_INPUT_RE =
   /^(GND|VSS|AGND|DGND|PGND|GNDA|GNDD|GNDP|VCC|VDD|VBAT|VIN|AVCC|AVDD|VPP|VDDIO|VDDA|VSSA)\b/i;
 const BIDIRECTIONAL_HINT_RE = /^(SDA|DATA|DQ\d*|IO\d*)\b/i;
 const OUTPUT_RE = /OUT/i;
-const INPUT_RE = /^n?(RST|RESET|EN|ENABLE|CE|CS|SHDN|WAKE|SLEEP)\b|IN/i;
+// Two separate patterns rather than one combined alternation: a named
+// control-signal prefix (anchored) OR "IN" appearing anywhere (unanchored,
+// e.g. real op-amp pins "1IN-"/"1IN+") — kept apart so the anchoring
+// difference between the two isn't buried in ambiguous regex precedence.
+const CONTROL_SIGNAL_RE = /^n?(RST|RESET|EN|ENABLE|CE|CS|SHDN|WAKE|SLEEP)\b/i;
+const INPUT_HINT_RE = /IN/i;
 
 const NATIVE_PIN_TYPE_MAP: Record<string, PinElectricalType> = {
   IN: 'input',
@@ -71,7 +76,7 @@ export function classifyPinElectricalType(
     if (POWER_INPUT_RE.test(name)) return 'power_input';
     if (BIDIRECTIONAL_HINT_RE.test(name)) return 'bidirectional';
     if (OUTPUT_RE.test(name)) return 'output';
-    if (INPUT_RE.test(name)) return 'input';
+    if (CONTROL_SIGNAL_RE.test(name) || INPUT_HINT_RE.test(name)) return 'input';
   }
   const native = (nativePinType ?? '')
     .trim()
