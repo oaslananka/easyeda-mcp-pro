@@ -553,14 +553,17 @@ function registerPcbWriteTools(
 
   registry.register({
     name: 'easyeda_pcb_delete_component',
-    title: 'Delete PCB components',
-    description: 'Delete components from the PCB layout by their primitive IDs.',
+    title: 'Delete PCB primitives',
+    description:
+      'Delete components, tracks, vias, or other PCB primitives by ID. Checks each id against ' +
+      'every deletable PCB class instead of assuming component, since PCB_PrimitiveComponent.' +
+      'delete() reports success for ids it does not own without deleting them.',
     profile: 'full',
-    evidence: ['official-docs'],
+    evidence: ['runtime-probe'],
     risk: 'high',
     confirmWrite: true,
     group: 'pcb-write',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -572,20 +575,24 @@ function registerPcbWriteTools(
     outputSchema: z.object({
       success: z.boolean(),
       deletedCount: z.number().optional(),
+      deleted: z.array(z.string()).optional(),
+      notFound: z.array(z.string()).optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const p = params as { primitiveIds: string[] };
       try {
-        await ctx.bridge.call<Record<string, unknown>, { primitiveId?: string; result?: string }>(
-          'pcb.deleteComponent',
-          {
-            primitiveIds: p.primitiveIds,
-          },
-        );
+        const result = await ctx.bridge.call<
+          Record<string, unknown>,
+          { success?: boolean; deletedCount?: number; deleted?: string[]; notFound?: string[] }
+        >('pcb.deleteComponent', {
+          primitiveIds: p.primitiveIds,
+        });
         return {
-          success: true,
-          deletedCount: p.primitiveIds.length,
+          success: result?.success ?? false,
+          deletedCount: result?.deletedCount,
+          deleted: result?.deleted,
+          notFound: result?.notFound,
         };
       } catch (err) {
         return {

@@ -183,4 +183,190 @@ describe('createDispatcher', () => {
       dispatcher.dispatch('pcb.addTrack', { points: [{ x: 0, y: 0 }], layer: 1, width: 200 }),
     ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
   });
+
+  // PCB readback: field names below are the getState_* getters observed live
+  // on real primitives created via the fixed pcb.addVia/pcb.addTrack and a
+  // manually-placed footprint (2026-07-07), not guessed.
+  it('pcb.listVias maps getState_* fields from PCB_PrimitiveVia.getAll', async () => {
+    const via = {
+      getState_PrimitiveId: () => 'via1',
+      getState_Net: () => 'GND',
+      getState_X: () => 150,
+      getState_Y: () => 150,
+      getState_HoleDiameter: () => 300,
+      getState_Diameter: () => 600,
+      getState_PrimitiveLock: () => false,
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({ PCB_PrimitiveVia: { getAll: async () => [via] } }),
+    );
+    const result = (await dispatcher.dispatch('pcb.listVias', {})) as {
+      total: number;
+      items: Array<Record<string, unknown>>;
+    };
+    expect(result).toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'via1',
+          net: 'GND',
+          x: 150,
+          y: 150,
+          holeDiameter: 300,
+          diameter: 600,
+          locked: false,
+        },
+      ],
+    });
+  });
+
+  it('pcb.listTracks maps getState_* fields from PCB_PrimitiveLine.getAll', async () => {
+    const line = {
+      getState_PrimitiveId: () => 'line1',
+      getState_Net: () => 'GND',
+      getState_Layer: () => 1,
+      getState_StartX: () => 150,
+      getState_StartY: () => 150,
+      getState_EndX: () => 200,
+      getState_EndY: () => 150,
+      getState_LineWidth: () => 200,
+      getState_PrimitiveLock: () => false,
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({ PCB_PrimitiveLine: { getAll: async () => [line] } }),
+    );
+    const result = (await dispatcher.dispatch('pcb.listTracks', {})) as {
+      total: number;
+      items: Array<Record<string, unknown>>;
+    };
+    expect(result).toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'line1',
+          net: 'GND',
+          layer: 1,
+          startX: 150,
+          startY: 150,
+          endX: 200,
+          endY: 150,
+          width: 200,
+          locked: false,
+        },
+      ],
+    });
+  });
+
+  it('pcb.listComponents maps getState_* fields including nested Footprint/Component', async () => {
+    const comp = {
+      getState_PrimitiveId: () => 'comp1',
+      getState_Designator: () => 'R1',
+      getState_Footprint: () => ({
+        uuid: 'fp-uuid',
+        libraryUuid: 'proj-uuid',
+        name: 'R0603',
+      }),
+      getState_Component: () => ({ uuid: 'dev-uuid', libraryUuid: 'proj-uuid', name: 'Res_0603' }),
+      getState_X: () => 11000,
+      getState_Y: () => 6000,
+      getState_Rotation: () => 0,
+      getState_Layer: () => 1,
+      getState_PrimitiveLock: () => false,
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({ PCB_PrimitiveComponent: { getAll: async () => [comp] } }),
+    );
+    const result = (await dispatcher.dispatch('pcb.listComponents', {})) as {
+      total: number;
+      items: Array<Record<string, unknown>>;
+    };
+    expect(result).toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'comp1',
+          designator: 'R1',
+          footprintName: 'R0603',
+          footprintUuid: 'fp-uuid',
+          footprintLibraryUuid: 'proj-uuid',
+          deviceName: 'Res_0603',
+          x: 11000,
+          y: 6000,
+          rotation: 0,
+          layer: 1,
+          locked: false,
+        },
+      ],
+    });
+  });
+
+  it('pcb.listVias/listTracks/listComponents return an empty list when the class is unavailable (no PCB tab focused)', async () => {
+    const dispatcher = createDispatcher(makeToolkit({}));
+    await expect(dispatcher.dispatch('pcb.listVias', {})).resolves.toEqual({
+      total: 0,
+      items: [],
+    });
+    await expect(dispatcher.dispatch('pcb.listTracks', {})).resolves.toEqual({
+      total: 0,
+      items: [],
+    });
+    await expect(dispatcher.dispatch('pcb.listComponents', {})).resolves.toEqual({
+      total: 0,
+      items: [],
+    });
+  });
+
+  // Live-verified (2026-07-07): PCB_PrimitiveComponent.delete() returns true
+  // for ANY id, including a via's id or a completely nonexistent one, without
+  // deleting it — it does not validate ownership. pcb.deleteComponent must
+  // check each class's real getAllPrimitiveId() membership before deleting.
+  it('pcb.deleteComponent routes each id to the PCB class that actually owns it', async () => {
+    const componentDelete = vi.fn(async () => true);
+    const viaDelete = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        PCB_PrimitiveComponent: {
+          getAllPrimitiveId: async () => ['comp1'],
+          delete: componentDelete,
+        },
+        PCB_PrimitiveVia: {
+          getAllPrimitiveId: async () => ['via1'],
+          delete: viaDelete,
+        },
+      }),
+    );
+    const result = await dispatcher.dispatch('pcb.deleteComponent', {
+      primitiveIds: ['comp1', 'via1'],
+    });
+    expect(componentDelete).toHaveBeenCalledWith(['comp1']);
+    expect(viaDelete).toHaveBeenCalledWith(['via1']);
+    expect(result).toEqual({
+      success: true,
+      deletedCount: 2,
+      deleted: ['comp1', 'via1'],
+      notFound: [],
+    });
+  });
+
+  it('pcb.deleteComponent reports ids not owned by any deletable class as notFound, without throwing', async () => {
+    const componentDelete = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        PCB_PrimitiveComponent: {
+          getAllPrimitiveId: async () => ['comp1'],
+          delete: componentDelete,
+        },
+      }),
+    );
+    const result = await dispatcher.dispatch('pcb.deleteComponent', {
+      primitiveIds: ['comp1', 'nonexistent'],
+    });
+    expect(componentDelete).toHaveBeenCalledWith(['comp1']);
+    expect(result).toEqual({
+      success: false,
+      deletedCount: 1,
+      deleted: ['comp1'],
+      notFound: ['nonexistent'],
+    });
+  });
 });

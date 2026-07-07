@@ -45,9 +45,10 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.    |
 | `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a layer with clearance settings. CAUTION: the native create() call needs 9 args but this tool sends only 4 (points, layer, netName, clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.                                                                     |
 | `easyeda_pcb_autoroute`                 | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
+| `easyeda_pcb_components`                | `core`  | `low`    | List components placed on the active PCB layout: primitiveId, designator, footprint identity, position/rotation/layer. Requires a focused PCB tab in EasyEDA Pro — returns an empty list (not an error) if none is active.                                                                                                       |
 | `easyeda_pcb_constraint_check`          | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
 | `easyeda_pcb_constraint_report`         | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                                                  |
-| `easyeda_pcb_delete_component`          | `full`  | `high`   | Delete components from the PCB layout by their primitive IDs.                                                                                                                                                                                                                                                                    |
+| `easyeda_pcb_delete_component`          | `full`  | `high`   | Delete components, tracks, vias, or other PCB primitives by ID. Checks each id against every deletable PCB class instead of assuming component, since PCB_PrimitiveComponent.delete() reports success for ids it does not own without deleting them.                                                                             |
 | `easyeda_pcb_export_route_context`      | `pro`   | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                                  |
 | `easyeda_pcb_floorplan`                 | `full`  | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
 | `easyeda_pcb_modify_component`          | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                                   |
@@ -55,6 +56,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_place_component_group`     | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
 | `easyeda_pcb_production_review`         | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                   |
 | `easyeda_pcb_route_path_plan`           | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                         |
+| `easyeda_pcb_tracks`                    | `core`  | `low`    | List copper track segments on the active PCB layout: primitiveId, net, layer, start/end coordinates, width. A multi-point track drawn by add_track appears as several consecutive segments sharing one net. Returns an empty list (not an error) if no PCB tab is focused.                                                       |
+| `easyeda_pcb_vias`                      | `core`  | `low`    | List vias on the active PCB layout: primitiveId, net, position, hole/outer diameter (native unit, same scale as x/y — not independently verified against a known physical dimension). Requires a focused PCB tab — returns an empty list (not an error) if none is active.                                                       |
 | `easyeda_power_tree_analyze`            | `core`  | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                      |
 | `easyeda_production_qa_artifacts`       | `pro`   | `low`    | Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.                                                                                                                                                                                        |
 | `easyeda_project_save`                  | `core`  | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                                     |
@@ -1329,6 +1332,36 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_pcb_components`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> List components placed on the active PCB layout: primitiveId, designator, footprint identity, position/rotation/layer. Requires a focused PCB tab in EasyEDA Pro — returns an empty list (not an error) if none is active.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `limit`     | `number` | Yes      |             |
+| `offset`    | `number` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  components: object[];
+  total: number;
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
 ## `easyeda_pcb_constraint_check`
 
 **Profile:** `core` | **Risk Level:** `low`
@@ -1392,7 +1425,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Delete components from the PCB layout by their primitive IDs.
+> Delete components, tracks, vias, or other PCB primitives by ID. Checks each id against every deletable PCB class instead of assuming component, since PCB_PrimitiveComponent.delete() reports success for ids it does not own without deleting them.
 
 ### Input Parameters
 
@@ -1408,8 +1441,10 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
-  deletedCount: number(optional);
-  error: string(optional);
+  deletedCount: number (optional);
+  deleted: string[] (optional);
+  notFound: string[] (optional);
+  error: string (optional);
 }
 ```
 
@@ -1676,6 +1711,66 @@ Returns a JSON object matching the schema:
   apply_results: object[] (optional);
   issues: object[];
   summary: string;
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_tracks`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> List copper track segments on the active PCB layout: primitiveId, net, layer, start/end coordinates, width. A multi-point track drawn by add_track appears as several consecutive segments sharing one net. Returns an empty list (not an error) if no PCB tab is focused.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `limit`     | `number` | Yes      |             |
+| `offset`    | `number` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  tracks: object[];
+  total: number;
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_vias`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> List vias on the active PCB layout: primitiveId, net, position, hole/outer diameter (native unit, same scale as x/y — not independently verified against a known physical dimension). Requires a focused PCB tab — returns an empty list (not an error) if none is active.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `limit`     | `number` | Yes      |             |
+| `offset`    | `number` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  vias: object[];
+  total: number;
+  not_available: boolean (optional);
   error: string (optional);
 }
 ```

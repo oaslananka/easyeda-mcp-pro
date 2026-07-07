@@ -9,6 +9,7 @@ import { registerDiagnosticsApi } from './L0_diagnostics_api.js';
 import { registerDrcErcTools } from './L1_drc_erc.js';
 import { registerExportTools } from './L1_export.js';
 import { registerPcbConstraintTools } from './L1_pcb_constraints.js';
+import { registerPcbReadTools } from './L1_pcb_read.js';
 import { registerPcbWriteTools } from './L1_pcb_write.js';
 import { registerSchematicReadTools } from './L1_schematic_read.js';
 import { registerSchematicWriteTools } from './L1_schematic_write.js';
@@ -27,6 +28,7 @@ export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig):
   registerBomSourcingTools(registry, config);
   registerDrcErcTools(registry, config);
   registerBoardTools(registry, config);
+  registerPcbReadTools(registry, config);
   registerPcbConstraintTools(registry, config);
   registerPcbWriteTools(registry, config);
   registerExportTools(registry, config);

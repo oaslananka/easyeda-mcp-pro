@@ -282,7 +282,12 @@ describe('PCB Write Tools', () => {
 
   it('easyeda_pcb_delete_component should call bridge delete', async () => {
     const tool = registry.get('easyeda_pcb_delete_component');
-    bridgeCall.mockResolvedValue(true);
+    bridgeCall.mockResolvedValue({
+      success: true,
+      deletedCount: 2,
+      deleted: ['comp-1', 'comp-2'],
+      notFound: [],
+    });
 
     const result = await tool?.handler(context, {
       primitiveIds: ['comp-1', 'comp-2'],
@@ -295,6 +300,30 @@ describe('PCB Write Tools', () => {
     expect(result).toEqual({
       success: true,
       deletedCount: 2,
+      deleted: ['comp-1', 'comp-2'],
+      notFound: [],
+    });
+  });
+
+  it('easyeda_pcb_delete_component reports notFound ids instead of claiming success', async () => {
+    const tool = registry.get('easyeda_pcb_delete_component');
+    bridgeCall.mockResolvedValue({
+      success: false,
+      deletedCount: 1,
+      deleted: ['comp-1'],
+      notFound: ['bogus-id'],
+    });
+
+    const result = await tool?.handler(context, {
+      primitiveIds: ['comp-1', 'bogus-id'],
+      confirmWrite: true,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      deletedCount: 1,
+      deleted: ['comp-1'],
+      notFound: ['bogus-id'],
     });
   });
 
