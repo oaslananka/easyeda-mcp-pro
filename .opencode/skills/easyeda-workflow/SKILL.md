@@ -66,6 +66,11 @@ Use only after explicit permission and bridge capability confirmation.
 
 - `easyeda_schematic_place_component`
 - `easyeda_schematic_add_wire`
+- `easyeda_schematic_add_text` — free-standing text label (section headers, notes); cosmetic only, not a net label
+- `easyeda_schematic_add_rectangle` — grouping/divider box for organizing a busy schematic into labeled blocks; pair with add_text for the title
+- `easyeda_schematic_add_circle` — decorative circle marker; cosmetic only
+- `easyeda_schematic_add_polygon` — closed custom shape from 3+ vertices (callouts, block-diagram elements); cosmetic only
+- `easyeda_schematic_set_title_block` — edit title block fields (Company, Version, Drawn, ...); the native RPC silently no-ops on the whole call if a malformed `"ID": {}` snapshot entry is round-tripped unmodified, and "@"-prefixed fields (e.g. "@Project Name") rejected writes in live testing
 - `easyeda_schematic_create_net_flag`
 - `easyeda_schematic_create_net_port`
 - `easyeda_schematic_connect_pin_to_net`
@@ -99,6 +104,8 @@ Use only after explicit permission and bridge capability confirmation.
 - `easyeda_pcb_add_track`
 - `easyeda_pcb_add_via`
 - `easyeda_pcb_add_zone` — **confirmed broken**: the native `PCB_PrimitivePour.create()` call never resolves. No working alternative exists (unlike component placement, copper pours are not a schematic concept, so there is no sync-based workaround). Report this as an unsupported capability rather than attempting it.
+- `easyeda_pcb_add_text` — silkscreen/label text on a PCB layer (typically Top/Bottom Silkscreen, layer id 3/4); fontFamily must be a name the runtime's font list contains — the default `NotoSansMonoCJKsc-Regular` is live-verified to work
+- `easyeda_pcb_add_silkscreen_line` — non-electrical decorative line (section dividers, board art); reuses the same primitive as add_track but with an empty net name so it never appears in the netlist/ratsnest
 - `easyeda_pcb_modify_component`
 - `easyeda_pcb_delete_component`
 - `easyeda_project_save`

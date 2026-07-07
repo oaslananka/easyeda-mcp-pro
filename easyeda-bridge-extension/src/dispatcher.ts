@@ -62,6 +62,8 @@ const METHOD_LIST: readonly string[] = [
   'inventory.getPrice',
   'inventory.search',
   'library.getDeviceByLcscId',
+  'pcb.addSilkscreenLine',
+  'pcb.addText',
   'pcb.addTrack',
   'pcb.addVia',
   'pcb.addZone',
@@ -75,6 +77,10 @@ const METHOD_LIST: readonly string[] = [
   'project.export',
   'project.open',
   'project.save',
+  'schematic.addCircle',
+  'schematic.addPolygon',
+  'schematic.addRectangle',
+  'schematic.addText',
   'schematic.addWire',
   'schematic.connectPinToNet',
   'schematic.connectPinsByNet',
@@ -88,6 +94,7 @@ const METHOD_LIST: readonly string[] = [
   'schematic.modifyPrimitive',
   'schematic.placeComponent',
   'schematic.searchDevice',
+  'schematic.setTitleBlock',
   'schematic.syncToPcb',
   'schematic.validateNetlist',
   'system.apiInventory',
@@ -2060,6 +2067,80 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.lineType,
       );
     }
+    case 'schematic.addCircle':
+      // SCH_PrimitiveCircle.create's field order was recovered
+      // (2026-07-07) by reading the minified source of .modify() via
+      // .toString(): create(CenterX, CenterY, Radius, Color, FillColor,
+      // LineWidth, LineType, FillStyle) — 8 args, confirmed live via
+      // readback (first attempt succeeded with typed values).
+      return callFirst(
+        ['SCH_PrimitiveCircle.create', 'sch_PrimitiveCircle.create'],
+        params.centerX,
+        params.centerY,
+        params.radius,
+        params.color ?? '#000000',
+        params.fillColor ?? 'none',
+        params.lineWidth ?? 1,
+        params.lineType ?? 0,
+        params.fillStyle ?? 'none',
+      );
+    case 'schematic.addPolygon':
+      // SCH_PrimitivePolygon.create's field order was recovered
+      // (2026-07-07) by reading the minified source of .modify() via
+      // .toString(): create(Line, Color, FillColor, LineWidth, LineType) —
+      // 5 args. `line` is a flat [x1,y1,x2,y2,...] array of vertices (same
+      // shape as SCH_PrimitiveWire's `line`), confirmed live via readback.
+      return callFirst(
+        ['SCH_PrimitivePolygon.create', 'sch_PrimitivePolygon.create'],
+        (params.points as Array<{ x: number; y: number }>).flatMap((p) => [p.x, p.y]),
+        params.color ?? '#000000',
+        params.fillColor ?? 'none',
+        params.lineWidth ?? 1,
+        params.lineType ?? 0,
+      );
+    case 'schematic.addText':
+      // SCH_PrimitiveText.create signature live-reverse-engineered
+      // (2026-07-07) by inspecting getState_*/setState_* on a created
+      // instance: create(X, Y, Content, Rotation, TextColor, FontName,
+      // FontSize, Bold, Italic, UnderLine, AlignMode) — 11 args. A first
+      // attempt with untyped numeric placeholders returned {ok:true} but
+      // created nothing; correctly-typed values (string content, hex
+      // color, string font name) are required.
+      return callFirst(
+        ['SCH_PrimitiveText.create', 'sch_PrimitiveText.create'],
+        params.x,
+        params.y,
+        params.content,
+        params.rotation ?? 0,
+        params.color ?? '#000000',
+        params.fontName ?? 'Arial',
+        params.fontSize ?? 20,
+        params.bold ?? false,
+        params.italic ?? false,
+        params.underline ?? false,
+        params.alignMode ?? 0,
+      );
+    case 'schematic.addRectangle':
+      // SCH_PrimitiveRectangle.create's field order was recovered
+      // (2026-07-07) by reading the minified source of .modify() via
+      // .toString() — its setState_* call sequence gives the exact
+      // positional order: create(TopLeftX, TopLeftY, Width, Height,
+      // CornerRadius, Rotation, Color, FillColor, LineWidth, LineType,
+      // FillStyle) — 11 args, confirmed live via readback.
+      return callFirst(
+        ['SCH_PrimitiveRectangle.create', 'sch_PrimitiveRectangle.create'],
+        params.x,
+        params.y,
+        params.width,
+        params.height,
+        params.cornerRadius ?? 0,
+        params.rotation ?? 0,
+        params.color ?? '#000000',
+        params.fillColor ?? 'none',
+        params.lineWidth ?? 1,
+        params.lineType ?? 0,
+        params.fillStyle ?? 'none',
+      );
     case 'schematic.deletePrimitive':
       return callFirst(
         [
@@ -2287,6 +2368,52 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         createdPrimitiveIds,
         failures,
       };
+    }
+    case 'schematic.setTitleBlock': {
+      // DMT_Schematic.modifySchematicPageTitleBlock(showTitleBlock,
+      // titleBlockData) live-reverse-engineered (2026-07-07): titleBlockData
+      // is a flat map of field name -> {showTitle, showValue, value}.
+      // CRITICAL: getCurrentSchematicPageInfo()'s snapshot includes an
+      // "ID": {} entry with none of those sub-fields — round-tripping it
+      // as-is makes the ENTIRE call silently no-op (resolves true, applies
+      // nothing). It must be stripped before writing back. Fields prefixed
+      // "@" (e.g. "@Project Name", "@Page No") are system-computed and did
+      // not accept writes in live testing; only the plain-named fields
+      // (Company, Version, Drawn, Reviewed, Name, Description, ...) did.
+      // A read immediately after writing can return a stale snapshot — the
+      // change is real but eventually consistent, not synchronous.
+      const pageInfo = await callFirst([
+        'DMT_Schematic.getCurrentSchematicPageInfo',
+        'dmt_Schematic.getCurrentSchematicPageInfo',
+      ]).catch(() => undefined);
+      const info = pageInfo as
+        { showTitleBlock?: boolean; titleBlockData?: Record<string, unknown> } | undefined;
+      if (!info) {
+        throw newBridgeError(
+          'SCHEMATIC_NOT_FOCUSED',
+          'schematic.setTitleBlock requires the schematic tab to be the focused/active document.',
+          'Click into the schematic document in EasyEDA Pro, then retry.',
+        );
+      }
+      const merged: Record<string, unknown> = { ...(info.titleBlockData ?? {}) };
+      delete merged.ID;
+      const fields = (params.fields as Record<string, Record<string, unknown>>) ?? {};
+      for (const [key, patch] of Object.entries(fields)) {
+        merged[key] = { ...((merged[key] as Record<string, unknown>) ?? {}), ...patch };
+      }
+      const showTitleBlock =
+        typeof params.showTitleBlock === 'boolean'
+          ? params.showTitleBlock
+          : (info.showTitleBlock ?? true);
+      const result = await callFirst(
+        [
+          'DMT_Schematic.modifySchematicPageTitleBlock',
+          'dmt_Schematic.modifySchematicPageTitleBlock',
+        ],
+        showTitleBlock,
+        merged,
+      );
+      return { success: result === true };
     }
     case 'schematic.syncToPcb': {
       // Live-verified (2026-07-07): PCB_PrimitiveComponent.create() never
@@ -2757,6 +2884,50 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       }
       return { primitiveId: createdIds[0], primitiveIds: createdIds };
     }
+    case 'pcb.addText':
+      // PCB_PrimitiveString.create's field order was recovered
+      // (2026-07-07) by reading the minified source of .modify() via
+      // .toString() — its destructured input object gives the exact
+      // positional order: create(Layer, X, Y, Text, FontFamily, FontSize,
+      // LineWidth, AlignMode, Rotation, Reverse, Expansion, Mirror,
+      // PrimitiveLock) — 13 args, confirmed live via readback on the Top
+      // Silkscreen layer. fontFamily must be a name the runtime's font
+      // list actually contains (validated internally); the default below
+      // ("NotoSansMonoCJKsc-Regular") was live-verified to work.
+      return callFirst(
+        ['PCB_PrimitiveString.create', 'pcb_PrimitiveString.create'],
+        params.layer,
+        params.x,
+        params.y,
+        params.text,
+        params.fontFamily ?? 'NotoSansMonoCJKsc-Regular',
+        params.fontSize ?? 1,
+        params.lineWidth ?? 0.15,
+        params.alignMode ?? 0,
+        params.rotation ?? 0,
+        params.reverse ?? false,
+        params.expansion ?? 0,
+        params.mirror ?? false,
+        params.locked ?? false,
+      );
+    case 'pcb.addSilkscreenLine':
+      // Reuses PCB_PrimitiveLine.create (the same primitive pcb.addTrack
+      // draws copper tracks with) but with an empty net name and a
+      // non-copper layer — a purely decorative/organizational line (e.g.
+      // silkscreen section dividers) rather than an electrical connection.
+      // Signature confirmed live (2026-07-07): create(net, layer, startX,
+      // startY, endX, endY, lineWidth, locked).
+      return callFirst(
+        ['PCB_PrimitiveLine.create', 'pcb_PrimitiveLine.create'],
+        '',
+        params.layer,
+        params.startX,
+        params.startY,
+        params.endX,
+        params.endY,
+        params.lineWidth ?? 0.2,
+        false,
+      );
     case 'pcb.addVia':
       // PCB_PrimitiveVia.create's real argument order was resolved live by
       // passing 9 distinguishable values and reading back getState_*:

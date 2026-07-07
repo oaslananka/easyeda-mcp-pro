@@ -135,6 +135,57 @@ const addWireInputSchema = z.object({
   confirmWrite: z.literal(true),
 });
 
+const addTextInputSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  content: z.string().min(1),
+  rotation: z.number().optional(),
+  color: z.string().optional(),
+  fontName: z.string().optional(),
+  fontSize: z.number().positive().optional(),
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+  underline: z.boolean().optional(),
+  alignMode: z.number().int().min(0).max(8).optional(),
+  confirmWrite: z.literal(true),
+});
+
+const addRectangleInputSchema = z.object({
+  x: z.number().describe('Top-left X coordinate'),
+  y: z.number().describe('Top-left Y coordinate'),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  cornerRadius: z.number().nonnegative().optional(),
+  rotation: z.number().optional(),
+  color: z.string().optional().describe('Border/line color, hex string (e.g. "#FF0000")'),
+  fillColor: z.string().optional().describe('Fill color, hex string, or "none" for unfilled'),
+  lineWidth: z.number().positive().optional(),
+  lineType: z.number().int().nonnegative().optional(),
+  fillStyle: z.string().optional(),
+  confirmWrite: z.literal(true),
+});
+
+const addCircleInputSchema = z.object({
+  centerX: z.number(),
+  centerY: z.number(),
+  radius: z.number().positive(),
+  color: z.string().optional(),
+  fillColor: z.string().optional().describe('Fill color, hex string, or "none" for unfilled'),
+  lineWidth: z.number().positive().optional(),
+  lineType: z.number().int().nonnegative().optional(),
+  fillStyle: z.string().optional(),
+  confirmWrite: z.literal(true),
+});
+
+const addPolygonInputSchema = z.object({
+  points: z.array(z.object({ x: z.number(), y: z.number() })).min(3),
+  color: z.string().optional(),
+  fillColor: z.string().optional().describe('Fill color, hex string, or "none" for unfilled'),
+  lineWidth: z.number().positive().optional(),
+  lineType: z.number().int().nonnegative().optional(),
+  confirmWrite: z.literal(true),
+});
+
 const deletePrimitiveInputSchema = z.object({
   primitiveIds: z.array(z.string()),
   confirmWrite: z.literal(true),
@@ -301,6 +352,179 @@ function registerSchematicWriteTools(
           success: false,
           error: err instanceof Error ? err.message : String(err),
         };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_add_text',
+    title: 'Add schematic text label',
+    description:
+      'Place free-standing text on the schematic sheet (section headers, notes, block labels) — ' +
+      'cosmetic/organizational, not a net label. color must be a hex string and fontName a real ' +
+      'font (e.g. "Arial") — untyped placeholders create nothing despite returning ok.',
+    profile: 'core',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: addTextInputSchema,
+    outputSchema: z.object({
+      success: z.boolean(),
+      text: z.unknown().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = addTextInputSchema.parse(params);
+      try {
+        const result = await ctx.bridge.call('schematic.addText', {
+          x: p.x,
+          y: p.y,
+          content: p.content,
+          rotation: p.rotation,
+          color: p.color,
+          fontName: p.fontName,
+          fontSize: p.fontSize,
+          bold: p.bold,
+          italic: p.italic,
+          underline: p.underline,
+          alignMode: p.alignMode,
+        });
+        return { success: true, text: result };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_add_rectangle',
+    title: 'Add schematic rectangle',
+    description:
+      'Draw a rectangle on the schematic sheet — section dividers/grouping boxes for organizing ' +
+      'a busy schematic into labeled functional blocks (pair with add_text for the title). ' +
+      'Cosmetic only. x/y is the top-left corner; fillColor "none" leaves it unfilled.',
+    profile: 'core',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: addRectangleInputSchema,
+    outputSchema: z.object({
+      success: z.boolean(),
+      rectangle: z.unknown().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = addRectangleInputSchema.parse(params);
+      try {
+        const result = await ctx.bridge.call('schematic.addRectangle', {
+          x: p.x,
+          y: p.y,
+          width: p.width,
+          height: p.height,
+          cornerRadius: p.cornerRadius,
+          rotation: p.rotation,
+          color: p.color,
+          fillColor: p.fillColor,
+          lineWidth: p.lineWidth,
+          lineType: p.lineType,
+          fillStyle: p.fillStyle,
+        });
+        return { success: true, rectangle: result };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_add_circle',
+    title: 'Add schematic circle',
+    description:
+      'Draw a circle on the schematic sheet — decorative marker or custom symbol element. ' +
+      'Cosmetic only, no electrical meaning. fillColor "none" leaves it unfilled.',
+    profile: 'core',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: addCircleInputSchema,
+    outputSchema: z.object({
+      success: z.boolean(),
+      circle: z.unknown().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = addCircleInputSchema.parse(params);
+      try {
+        const result = await ctx.bridge.call('schematic.addCircle', {
+          centerX: p.centerX,
+          centerY: p.centerY,
+          radius: p.radius,
+          color: p.color,
+          fillColor: p.fillColor,
+          lineWidth: p.lineWidth,
+          lineType: p.lineType,
+          fillStyle: p.fillStyle,
+        });
+        return { success: true, circle: result };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_add_polygon',
+    title: 'Add schematic polygon',
+    description:
+      'Draw a closed polygon on the schematic sheet from 3+ vertices — custom decorative shapes, ' +
+      'callout arrows, or block diagram elements. Cosmetic only, no electrical meaning.',
+    profile: 'core',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: addPolygonInputSchema,
+    outputSchema: z.object({
+      success: z.boolean(),
+      polygon: z.unknown().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = addPolygonInputSchema.parse(params);
+      try {
+        const result = await ctx.bridge.call('schematic.addPolygon', {
+          points: p.points,
+          color: p.color,
+          fillColor: p.fillColor,
+          lineWidth: p.lineWidth,
+          lineType: p.lineType,
+        });
+        return { success: true, polygon: result };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
       }
     },
   });
@@ -777,6 +1001,64 @@ function registerSchematicWriteTools(
           project_id: projectId,
           error: err instanceof Error ? err.message : String(err),
         };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_set_title_block',
+    title: 'Set schematic title block fields',
+    description:
+      'Update schematic title block fields (Company, Version, Drawn, Reviewed, Name, ...) — ' +
+      'pass only fields to change, others are preserved. "@"-prefixed fields are system-computed ' +
+      'and did not accept writes in testing. A read right after this call may return stale data.',
+    profile: 'core',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: z.object({
+      fields: z
+        .record(
+          z.string(),
+          z.object({
+            showTitle: z.boolean().optional(),
+            showValue: z.boolean().optional(),
+            value: z.union([z.string(), z.number()]).optional(),
+          }),
+        )
+        .describe(
+          'Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } }',
+        ),
+      showTitleBlock: z.boolean().optional().describe('Show/hide the whole title block'),
+      confirmWrite: z.literal(true),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = params as {
+        fields: Record<
+          string,
+          { showTitle?: boolean; showValue?: boolean; value?: string | number }
+        >;
+        showTitleBlock?: boolean;
+      };
+      try {
+        const result = await ctx.bridge.call('schematic.setTitleBlock', {
+          fields: p.fields,
+          showTitleBlock: p.showTitleBlock,
+        });
+        const data = result as { success?: boolean };
+        return { success: data?.success ?? false };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
       }
     },
   });
