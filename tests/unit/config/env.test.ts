@@ -354,3 +354,47 @@ describe('validateSafeConfig', () => {
     ).toThrow('process.exit called');
   });
 });
+
+describe('loadFeatureFlags', () => {
+  it('maps environment config into feature flag booleans', async () => {
+    const { loadFeatureFlags } = await import('../../../src/config/feature-flags.js');
+    const config = EnvSchema.parse({
+      MCP_TASKS_ENABLED: 'true',
+      MCP_APPS_ENABLED: 'true',
+      MCP_V2_EXPERIMENTAL: 'true',
+      JLCPCB_ENABLE_ORDERING: 'true',
+      JLCSEARCH_ENABLED: 'true',
+      MOUSER_ENABLED: 'true',
+      DIGIKEY_ENABLED: 'true',
+      OAUTH_ENABLED: 'true',
+      OTEL_ENABLED: 'true',
+      AI_PROVIDER: 'openai',
+      EASYEDA_DEV_BRIDGE: 'true',
+      BRIDGE_RAW_EXEC_ENABLED: 'true',
+      MCP_RAW_EXEC_EXPERIMENTAL: 'true',
+    });
+
+    expect(loadFeatureFlags(config)).toEqual({
+      mcpTasksEnabled: true,
+      mcpAppsEnabled: true,
+      mcpV2Experimental: true,
+      jlcpcbOrderingEnabled: true,
+      jlcsearchEnabled: true,
+      mouserEnabled: true,
+      digikeyEnabled: true,
+      oauthEnabled: true,
+      otelEnabled: true,
+      aiEnabled: true,
+      devBridge: true,
+      bridgeRawExecEnabled: true,
+      rawExecExperimental: true,
+    });
+  });
+
+  it('keeps ai disabled when the provider is none', async () => {
+    const { loadFeatureFlags } = await import('../../../src/config/feature-flags.js');
+    const config = EnvSchema.parse({ AI_PROVIDER: 'none' });
+
+    expect(loadFeatureFlags(config).aiEnabled).toBe(false);
+  });
+});

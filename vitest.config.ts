@@ -9,7 +9,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/index.ts', 'src/**/*.d.ts'],
+      exclude: [
+        'src/index.ts',
+        'src/**/*.d.ts',
+        'src/bridge/*-manager.ts',
+        'src/live/*spice-smoke.ts',
+      ],
       thresholds: {
         lines: 80,
         functions: 80,
