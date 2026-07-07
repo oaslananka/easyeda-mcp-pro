@@ -12,7 +12,12 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const distDir = join(root, 'dist');
+// Overridable so tests can build into a scratch directory instead of the
+// real dist/ (which the dev-watch loop and a running EasyEDA session may
+// depend on concurrently).
+const distDir = process.env.MCP_BUILD_OUT_DIR
+  ? join(process.env.MCP_BUILD_OUT_DIR)
+  : join(root, 'dist');
 
 const BUILD_ID_PLACEHOLDER = '__MCP_DISPATCHER_BUILD_ID_PLACEHOLDER__';
 
@@ -53,7 +58,11 @@ await build({
   ...commonOptions,
   entryPoints: [join(root, 'src', 'index.ts')],
   outfile: join(distDir, 'index.js'),
+  // Merge onto commonOptions.define rather than replacing it — an object
+  // literal here would silently drop __MCP_DEV_HOTSWAP__ and always compile
+  // hot-swap support out, regardless of MCP_DEV_HOTSWAP.
   define: {
+    ...commonOptions.define,
     __MCP_DISPATCHER_BUILD_ID__: JSON.stringify(buildId),
   },
 });
