@@ -194,7 +194,7 @@ function registerDiagnosticsApi(
         'the .eext. action=status reports the active dispatcher build; push sends the bundle at ' +
         'bundlePath (defaults to BRIDGE_HOT_SWAP_WATCH); revert restores the baked dispatcher. ' +
         'Requires BRIDGE_HOT_SWAP_ENABLED=true (refused in production), a dev extension build, and ' +
-        'confirmWrite=true for push/revert.',
+        'confirmWrite=true on every call (including status).',
       profile: 'dev',
       evidence: ['runtime-probe'],
       risk: 'high',

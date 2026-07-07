@@ -245,7 +245,7 @@ function registerSchematicReadTools(
         const comps = items ?? [];
         return {
           project_id: projectId,
-          components: (comps ?? []).map((c) => ({
+          components: comps.map((c) => ({
             primitiveId: c.primitiveId,
             reference: c.reference ?? '',
             value: c.value ?? '',

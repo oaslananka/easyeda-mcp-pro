@@ -1980,7 +1980,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       }>;
       const connectedRefs = new Set<string>();
       const connectedPins = new Set<string>();
-      const nets = (netlistData || []).map((n) => {
+      const nets = netlistData.map((n) => {
         const refs = [...new Set((n.nodes || []).map((node) => node.component))];
         const pins = (n.nodes || []).map((node) => node.pin);
         refs.forEach((r) => connectedRefs.add(r));
@@ -2000,7 +2000,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // power/ground flag, or net label, so re-reading it misreported every
       // wire/flag/label-connected pin as floating.
       const connectedNodes = new Set<string>();
-      for (const n of netlistData || []) {
+      for (const n of netlistData) {
         for (const node of n.nodes || []) {
           connectedNodes.add(`${node.component} ${node.pin}`);
         }
