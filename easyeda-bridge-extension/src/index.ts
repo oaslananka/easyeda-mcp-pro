@@ -286,7 +286,9 @@ function newLoaderError(code: string, message: string, suggestion: string): Erro
 
 async function refreshMethodListHash(): Promise<void> {
   try {
-    const sorted = [...activeDispatcher.methodList].sort();
+    // Locale-independent ordering: must produce byte-identical input to the
+    // server's computeMethodRegistryHash (do NOT use localeCompare here).
+    const sorted = [...activeDispatcher.methodList].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     activeMethodListHash = (await sha256Hex(sorted.join(','))).slice(0, 16);
   } catch (error) {
     log('failed to compute method list hash', String(error));

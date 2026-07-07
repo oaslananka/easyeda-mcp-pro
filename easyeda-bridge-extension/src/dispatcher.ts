@@ -702,14 +702,16 @@ function inspectApiInventory(filter?: string): JsonValue {
       if (normalizedFilter && !className.toLowerCase().includes(normalizedFilter)) continue;
 
       const value = readMember(root, key);
-      const methods = getFunctionNames(value).sort();
+      const methods = getFunctionNames(value).sort((a, b) => a.localeCompare(b));
       const existing = classMap.get(className) ?? {
         className,
         runtimePaths: [],
         methods: [],
       };
       existing.runtimePaths.push(`${candidate.name}.${key}`);
-      existing.methods = Array.from(new Set([...existing.methods, ...methods])).sort();
+      existing.methods = Array.from(new Set([...existing.methods, ...methods])).sort((a, b) =>
+        a.localeCompare(b),
+      );
       classMap.set(className, existing);
     }
   }

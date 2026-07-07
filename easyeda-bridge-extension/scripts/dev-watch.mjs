@@ -23,8 +23,10 @@ function runBuild() {
   running = true;
   const startedAt = Date.now();
   const env = { ...process.env, MCP_DEV_HOTSWAP: process.env.MCP_DEV_HOTSWAP ?? 'true' };
+  // process.execPath: absolute path to the running node binary — never resolved
+  // through PATH.
   execFile(
-    'node',
+    process.execPath,
     [join(__dirname, 'build.mjs')],
     { cwd: root, env },
     (buildErr, stdout, stderr) => {
@@ -35,7 +37,7 @@ function runBuild() {
       }
       process.stdout.write(stdout);
       execFile(
-        'node',
+        process.execPath,
         [join(__dirname, 'package.mjs')],
         { cwd: root },
         (pkgErr, pkgOut, pkgStderr) => {

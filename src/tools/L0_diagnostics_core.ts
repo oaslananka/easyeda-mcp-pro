@@ -565,7 +565,9 @@ function registerDiagnosticsCore(
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { filter } = z.object({ filter: z.string().optional() }).parse(params);
-      const registryMethods = [...EasyedaApiMethodSchema.options].sort();
+      const registryMethods = [...EasyedaApiMethodSchema.options].sort((a, b) =>
+        a.localeCompare(b),
+      );
 
       // Prefer the live method list from the extension loader (exact for the
       // active dispatcher); fall back to the server registry with availability

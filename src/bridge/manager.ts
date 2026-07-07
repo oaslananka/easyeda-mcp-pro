@@ -155,7 +155,9 @@ export class BridgeManager extends EventEmitter {
   }
 
   private computeMethodRegistryHash(): string {
-    const sorted = [...EasyedaApiMethodSchema.options].sort();
+    // Locale-independent ordering: must produce byte-identical input to the
+    // extension loader's refreshMethodListHash (do NOT use localeCompare here).
+    const sorted = [...EasyedaApiMethodSchema.options].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     return crypto.createHash('sha256').update(sorted.join(',')).digest('hex').slice(0, 16);
   }
 
