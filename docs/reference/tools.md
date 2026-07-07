@@ -63,8 +63,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_add_wire`            | `core`  | `medium` | Add a wire connecting schematic coordinates/pins — real native connectivity. Same `netName` connects pins globally: separate stubs sharing one name merge into one net (no label needed). NET_COLLISION guards touching another net's wire, but checks only wires — crossing a pin/flag coordinate still shorts it.              |
 | `easyeda_schematic_component_pins`      | `core`  | `low`    | Get exact pin numbers, names, and coordinates for a schematic component by its primitive ID.                                                                                                                                                                                                                                     |
 | `easyeda_schematic_components`          | `core`  | `low`    | List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem in this project), deviceName, symbolName, lcsc, manufacturerId.                                                                                  |
-| `easyeda_schematic_connect_pin_to_net`  | `core`  | `medium` | Records a logical pin→net association as a custom pin property only. NOT real EasyEDA netlist/wire connectivity: invisible to ERC, ratsnest, and autorouting. Use easyeda_schematic_add_wire for genuine electrical connectivity; use this only for bookkeeping that need not survive real netlist operations.                   |
-| `easyeda_schematic_connect_pins_by_net` | `core`  | `medium` | Bulk variant of connect_pin_to_net: stamps logical net associations on several pins as custom pin properties in one call. NOT real EasyEDA netlist/wire connectivity — invisible to ERC, ratsnest, and autorouting. Use easyeda_schematic_add_wire for genuine electrical connectivity.                                          |
+| `easyeda_schematic_connect_pin_to_net`  | `core`  | `medium` | Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.                                                                         |
+| `easyeda_schematic_connect_pins_by_net` | `core`  | `medium` | Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with netName, so all listed pins (and anything else already on that net) merge into one net. Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported in failures rather than aborting the batch.               |
 | `easyeda_schematic_create_net_flag`     | `core`  | `medium` | Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/ProtectGround) it places a power-flag symbol binding to a coincident pin (use for VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire stubs sharing one netName.                                               |
 | `easyeda_schematic_create_net_port`     | `core`  | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                                                  |
 | `easyeda_schematic_delete_primitive`    | `core`  | `medium` | Delete components, wires, or other drawing objects from the schematic by their primitive UUIDs.                                                                                                                                                                                                                                  |
@@ -1928,17 +1928,18 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Records a logical pin→net association as a custom pin property only. NOT real EasyEDA netlist/wire connectivity: invisible to ERC, ratsnest, and autorouting. Use easyeda_schematic_add_wire for genuine electrical connectivity; use this only for bookkeeping that need not survive real netlist operations.
+> Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.
 
 ### Input Parameters
 
-| Parameter      | Type     | Required | Description                                                          |
-| -------------- | -------- | -------- | -------------------------------------------------------------------- |
-| `projectId`    | `string` | Yes      | The project/schematic ID                                             |
-| `primitiveId`  | `string` | Yes      | The primitive ID of the component                                    |
-| `pinNumber`    | `string` | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND") |
-| `netName`      | `string` | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)            |
-| `confirmWrite` | `'true'` | Yes      |                                                                      |
+| Parameter      | Type                | Required | Description                                                          |
+| -------------- | ------------------- | -------- | -------------------------------------------------------------------- |
+| `projectId`    | `string`            | Yes      | The project/schematic ID                                             |
+| `primitiveId`  | `string`            | Yes      | The primitive ID of the component                                    |
+| `pinNumber`    | `string`            | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND") |
+| `netName`      | `string`            | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)            |
+| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from the pin. Defaults to 10.  |
+| `confirmWrite` | `'true'`            | Yes      |                                                                      |
 
 ### Output Format
 
@@ -1948,7 +1949,8 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   real: boolean(optional);
-  warning: string(optional);
+  created_primitive_id: string(optional);
+  endpoint: object(optional);
   connection: object(optional);
   error: string(optional);
 }
@@ -1960,16 +1962,17 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Bulk variant of connect_pin_to_net: stamps logical net associations on several pins as custom pin properties in one call. NOT real EasyEDA netlist/wire connectivity — invisible to ERC, ratsnest, and autorouting. Use easyeda_schematic_add_wire for genuine electrical connectivity.
+> Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with netName, so all listed pins (and anything else already on that net) merge into one net. Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported in failures rather than aborting the batch.
 
 ### Input Parameters
 
-| Parameter      | Type       | Required | Description                                  |
-| -------------- | ---------- | -------- | -------------------------------------------- |
-| `projectId`    | `string`   | Yes      | The project/schematic ID                     |
-| `netName`      | `string`   | Yes      | The net name to assign pins to               |
-| `pins`         | `object[]` | Yes      | List of component pins to connect to the net |
-| `confirmWrite` | `'true'`   | Yes      |                                              |
+| Parameter      | Type                | Required | Description                                                          |
+| -------------- | ------------------- | -------- | -------------------------------------------------------------------- |
+| `projectId`    | `string`            | Yes      | The project/schematic ID                                             |
+| `netName`      | `string`            | Yes      | The net name to assign pins to                                       |
+| `pins`         | `object[]`          | Yes      | List of component pins to connect to the net                         |
+| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from each pin. Defaults to 10. |
+| `confirmWrite` | `'true'`            | Yes      |                                                                      |
 
 ### Output Format
 
@@ -1979,7 +1982,8 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   real: boolean (optional);
-  warning: string (optional);
+  created_primitive_ids: string[] (optional);
+  failures: object[] (optional);
   connections: object[] (optional);
   count: number;
   error: string (optional);

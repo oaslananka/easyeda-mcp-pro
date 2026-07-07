@@ -539,18 +539,17 @@ function registerSchematicWriteTools(
 
   registry.register({
     name: 'easyeda_schematic_connect_pin_to_net',
-    title: 'Connect pin to net (logical, non-authoritative)',
+    title: 'Connect pin to net',
     description:
-      'Records a logical pin→net association as a custom pin property only. NOT real EasyEDA ' +
-      'netlist/wire connectivity: invisible to ERC, ratsnest, and autorouting. Use ' +
-      'easyeda_schematic_add_wire for genuine electrical connectivity; use this only for ' +
-      'bookkeeping that need not survive real netlist operations.',
+      'Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact ' +
+      'coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin ' +
+      'to everything else on that net — visible to ERC, ratsnest, and autorouting.',
     profile: 'core',
-    evidence: ['inferred'],
+    evidence: ['runtime-probe'],
     risk: 'medium',
     confirmWrite: true,
     group: 'schematic',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       idempotentHint: false,
@@ -565,12 +564,18 @@ function registerSchematicWriteTools(
         .string()
         .min(1)
         .describe('The net name to connect the pin to (e.g. VCC, GND, DATA0)'),
+      stubLength: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Length of the wire stub drawn outward from the pin. Defaults to 10.'),
       confirmWrite: z.literal(true),
     }),
     outputSchema: z.object({
       success: z.boolean(),
       real: z.boolean().optional(),
-      warning: z.string().optional(),
+      created_primitive_id: z.string().optional(),
+      endpoint: z.object({ x: z.number(), y: z.number() }).optional(),
       connection: z
         .object({
           primitiveId: z.string(),
@@ -586,6 +591,7 @@ function registerSchematicWriteTools(
         primitiveId: string;
         pinNumber: string;
         netName: string;
+        stubLength?: number;
       };
       try {
         const result = await ctx.bridge.call('schematic.connectPinToNet', {
@@ -593,12 +599,19 @@ function registerSchematicWriteTools(
           primitiveId: p.primitiveId,
           pinNumber: p.pinNumber,
           netName: p.netName,
+          stubLength: p.stubLength,
         });
-        const data = result as { connected?: boolean; real?: boolean; warning?: string };
+        const data = result as {
+          connected?: boolean;
+          real?: boolean;
+          primitiveId?: string;
+          endpoint?: { x: number; y: number };
+        };
         return {
           success: data?.connected !== false,
           real: data?.real,
-          warning: data?.warning,
+          created_primitive_id: data?.primitiveId,
+          endpoint: data?.endpoint,
           connection: {
             primitiveId: p.primitiveId,
             pinNumber: p.pinNumber,
@@ -616,18 +629,18 @@ function registerSchematicWriteTools(
 
   registry.register({
     name: 'easyeda_schematic_connect_pins_by_net',
-    title: 'Connect pins by net (logical, non-authoritative)',
+    title: 'Connect pins by net',
     description:
-      'Bulk variant of connect_pin_to_net: stamps logical net associations on several pins as ' +
-      'custom pin properties in one call. NOT real EasyEDA netlist/wire connectivity — ' +
-      'invisible to ERC, ratsnest, and autorouting. Use easyeda_schematic_add_wire for genuine ' +
-      'electrical connectivity.',
+      'Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with ' +
+      'netName, so all listed pins (and anything else already on that net) merge into one net. ' +
+      'Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported ' +
+      'in failures rather than aborting the batch.',
     profile: 'core',
-    evidence: ['inferred'],
+    evidence: ['runtime-probe'],
     risk: 'medium',
     confirmWrite: true,
     group: 'schematic',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       idempotentHint: false,
@@ -645,12 +658,26 @@ function registerSchematicWriteTools(
         .min(1)
         .max(500)
         .describe('List of component pins to connect to the net'),
+      stubLength: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Length of the wire stub drawn outward from each pin. Defaults to 10.'),
       confirmWrite: z.literal(true),
     }),
     outputSchema: z.object({
       success: z.boolean(),
       real: z.boolean().optional(),
-      warning: z.string().optional(),
+      created_primitive_ids: z.array(z.string()).optional(),
+      failures: z
+        .array(
+          z.object({
+            primitiveId: z.string(),
+            pinNumber: z.string(),
+            error: z.string(),
+          }),
+        )
+        .optional(),
       connections: z
         .array(
           z.object({
@@ -668,20 +695,28 @@ function registerSchematicWriteTools(
         projectId: string;
         netName: string;
         pins: Array<{ primitiveId: string; pinNumber: string }>;
+        stubLength?: number;
       };
       try {
         const result = await ctx.bridge.call('schematic.connectPinsByNet', {
           projectId: p.projectId,
           netName: p.netName,
           pins: p.pins,
+          stubLength: p.stubLength,
         });
-        const data = result as { count?: number; real?: boolean; warning?: string };
+        const data = result as {
+          count?: number;
+          real?: boolean;
+          createdPrimitiveIds?: string[];
+          failures?: Array<{ primitiveId: string; pinNumber: string; error: string }>;
+        };
         const count = data?.count ?? p.pins.length;
 
         return {
           success: true,
           real: data?.real,
-          warning: data?.warning,
+          created_primitive_ids: data?.createdPrimitiveIds,
+          failures: data?.failures,
           connections: p.pins.map((pin) => ({
             primitiveId: pin.primitiveId,
             pinNumber: pin.pinNumber,

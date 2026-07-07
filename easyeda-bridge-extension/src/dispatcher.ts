@@ -1396,121 +1396,123 @@ async function generateBomApi(params: any): Promise<unknown> {
  * locating the pin, and setting its net property. Falls back gracefully when
  * the runtime API does not expose pin-level modification.
  */
+/** Default length (schematic units) of the wire stub connect_pin_to_net draws
+ *  outward from a pin when the caller does not specify one. Matches the
+ *  common pin length observed on placed library symbols. */
+const DEFAULT_CONNECT_STUB_LENGTH = 10;
+
+interface PinPoint {
+  x: number;
+  y: number;
+  rotation: number;
+}
+
+function readPinPoint(pin: unknown): Partial<PinPoint> {
+  const state = readMember(pin, 'state');
+  const stateRecord = isRecord(state) ? state : undefined;
+  const x = readMember(pin, 'x') ?? stateRecord?.X;
+  const y = readMember(pin, 'y') ?? stateRecord?.Y;
+  const rotation = readMember(pin, 'rotation') ?? stateRecord?.Rotation;
+  return {
+    x: typeof x === 'number' ? x : undefined,
+    y: typeof y === 'number' ? y : undefined,
+    rotation: typeof rotation === 'number' ? rotation : undefined,
+  };
+}
+
+function readPinNumber(pin: unknown): string {
+  const state = readMember(pin, 'state');
+  const stateRecord = isRecord(state) ? state : undefined;
+  const direct = readMember(pin, 'pinNumber') ?? stateRecord?.PinNumber;
+  return direct !== undefined && direct !== null ? String(direct) : '';
+}
+
+/**
+ * Resolve a pin's exact connection coordinate and outward direction (away
+ * from the component body, along the pin's own axis). Verified live: a wire
+ * endpoint placed at this exact (x, y) — the same coordinate
+ * SCH_PrimitiveComponent.getAllPinsByPrimitiveId reports and the same one
+ * easyeda_schematic_component_pins exposes — registers as connected to the
+ * pin under EasyEDA's native ERC, with no separate "attach" step needed.
+ */
+async function resolvePinEndpoint(
+  primitiveId: string,
+  pinNumber: string,
+): Promise<{ x: number; y: number; dx: number; dy: number }> {
+  const pins = await callFirst(
+    [
+      'SCH_PrimitiveComponent.getAllPinsByPrimitiveId',
+      'sch_PrimitiveComponent.getAllPinsByPrimitiveId',
+    ],
+    primitiveId,
+  );
+  const pinList = Array.isArray(pins) ? pins : [];
+  const target = pinList.find((p) => readPinNumber(p) === String(pinNumber));
+  if (!target) {
+    throw newBridgeError(
+      'EASYEDA_API_ERROR',
+      `Pin "${pinNumber}" not found on component "${primitiveId}"`,
+      'Verify the primitiveId and pin number are correct (see schematic_component_pins).',
+    );
+  }
+  const point = readPinPoint(target);
+  if (point.x === undefined || point.y === undefined) {
+    throw newBridgeError(
+      'EASYEDA_API_ERROR',
+      `Pin "${pinNumber}" on component "${primitiveId}" did not report coordinates`,
+      'The EasyEDA Pro runtime may not expose pin coordinates for this component type.',
+    );
+  }
+  const rotation = point.rotation ?? 0;
+  const rad = (rotation * Math.PI) / 180;
+  // Round to the nearest integer: rotation is conventionally a multiple of
+  // 90 degrees, so cos/sin land on {-1, 0, 1} up to floating-point noise.
+  const dx = Math.round(Math.cos(rad));
+  const dy = Math.round(Math.sin(rad));
+  return { x: point.x, y: point.y, dx, dy };
+}
+
+/**
+ * Create REAL EasyEDA netlist connectivity for a single pin by drawing a
+ * short wire stub from the pin's exact coordinate, tagged with `netName`.
+ * Per the bridge's connectivity model, any wire sharing a net name merges
+ * into that net regardless of physical location — so this stub alone joins
+ * the pin to every other primitive already using `netName`, without needing
+ * to route to a specific existing wire. Runs the same foreign-net collision
+ * guard as schematic.addWire before writing.
+ */
 async function connectPinToNetImpl(
   primitiveId: string,
   pinNumber: string,
   netName: string,
-): Promise<void> {
-  const schCompClass = readFirstPath<any>([
-    'SCH_PrimitiveComponent',
-    'SCH_PrimitiveComponent3',
-    'sch_PrimitiveComponent',
-  ]);
+  stubLength: number = DEFAULT_CONNECT_STUB_LENGTH,
+): Promise<{ primitiveId: string; endpoint: { x: number; y: number } }> {
+  const { x, y, dx, dy } = await resolvePinEndpoint(primitiveId, pinNumber);
+  const endpoint = { x: x + dx * stubLength, y: y + dy * stubLength };
+  const points = [{ x, y }, endpoint];
 
-  if (!schCompClass || typeof schCompClass.getAll !== 'function') {
-    // Fallback: try SCH_Netlist API
-    try {
-      await callFirst(
-        ['SCH_Netlist.create', 'sch_Netlist.create', 'SCH_Netlist.connectPin'],
-        primitiveId,
-        pinNumber,
-        netName,
-      );
-      return;
-    } catch {
-      // Both paths failed — surface the primary error
-      throw newBridgeError(
-        'EASYEDA_API_ERROR',
-        'No API available to connect pin to net. Ensure SCH_PrimitiveComponent and SCH_Netlist are available.',
-        'Verify the bridge extension supports the installed EasyEDA Pro version.',
-      );
-    }
-  }
-
-  const comps = await schCompClass.getAll(undefined, true);
-
-  // Try to find the component by:
-  // 1. Primitive ID (e.g. "e98") — via getState().PrimitiveId
-  // 2. Designator (e.g. "R1") — via getState_Designator()
-  const target = (comps || []).find((c: any) => {
-    try {
-      // Check primitiveId via getState
-      if (typeof c.getState === 'function') {
-        const st = c.getState();
-        if (st && st.PrimitiveId === primitiveId) return true;
-      }
-    } catch {}
-    try {
-      // Check getState_PrimitiveId directly
-      if (
-        typeof c.getState_PrimitiveId === 'function' &&
-        String(c.getState_PrimitiveId()) === primitiveId
-      )
-        return true;
-    } catch {}
-    try {
-      // Check by designator (legacy)
-      if (typeof c.getState_Designator === 'function' && c.getState_Designator() === primitiveId)
-        return true;
-    } catch {}
-    return false;
-  });
-  if (!target) {
+  const collision = await findForeignNetCollision(points, netName);
+  if (collision) {
     throw newBridgeError(
-      'EASYEDA_API_ERROR',
-      `Component with primitiveId "${primitiveId}" not found`,
-      'Verify the primitiveId is correct.',
+      'NET_COLLISION',
+      `Refusing to connect pin "${pinNumber}" on "${primitiveId}" to net "${netName}": point ` +
+        `(${collision.x}, ${collision.y}) coincides with an existing wire on net ` +
+        `"${collision.foreignNet}". EasyEDA Pro auto-merges wires that share a coordinate, ` +
+        'which would silently short these two nets together.',
+      `Retry with a different stubLength, or route this connection manually with schematic.addWire.`,
     );
   }
 
-  if (typeof target.getAllPins !== 'function') {
-    throw newBridgeError(
-      'EASYEDA_API_ERROR',
-      `Component "${primitiveId}" does not expose getAllPins`,
-      'Component may not support pin enumeration.',
-    );
-  }
-
-  const pins = await target.getAllPins();
-  const targetPin = (pins || []).find(
-    (p: any) =>
-      typeof p.getState_PinNumber === 'function' &&
-      String(p.getState_PinNumber()) === String(pinNumber),
+  const created = await callFirst(
+    ['SCH_PrimitiveWire.create', 'sch_PrimitiveWire.create'],
+    [x, y, endpoint.x, endpoint.y],
+    netName,
+    undefined,
+    undefined,
+    undefined,
   );
-  if (!targetPin) {
-    throw newBridgeError(
-      'EASYEDA_API_ERROR',
-      `Pin "${pinNumber}" not found on component "${primitiveId}"`,
-      'Verify the pin number is correct.',
-    );
-  }
-
-  // Modify the pin's OtherProperty to set the net name
-  // This is the same property read by listNetsApi()
-  const existing =
-    typeof targetPin.getState_OtherProperty === 'function'
-      ? targetPin.getState_OtherProperty()
-      : {};
-  const updated = { ...(existing || {}), net: netName };
-
-  if (typeof targetPin.setState_OtherProperty === 'function') {
-    targetPin.setState_OtherProperty(updated);
-  } else {
-    // Fallback: try explicit modify on the component
-    try {
-      await callFirst(
-        ['SCH_PrimitiveComponent.modify', 'sch_PrimitiveComponent.modify'],
-        primitiveId,
-        { property: { OtherProperty: updated } },
-      );
-    } catch {
-      throw newBridgeError(
-        'EASYEDA_API_ERROR',
-        'Pin found but no API available to modify its net property.',
-        'The EasyEDA Pro runtime may not support programmatic pin net assignment.',
-      );
-    }
-  }
+  const createdId = extractPrimitiveId(created);
+  return { primitiveId: createdId, endpoint };
 }
 
 function normalizeDrcSeverity(raw: unknown): 'error' | 'warning' | 'info' {
@@ -1932,45 +1934,52 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       };
     }
     case 'schematic.connectPinToNet': {
-      await connectPinToNetImpl(
+      const stubLength = typeof params.stubLength === 'number' ? params.stubLength : undefined;
+      const result = await connectPinToNetImpl(
         params.primitiveId as string,
         params.pinNumber as string,
         params.netName as string,
+        stubLength,
       );
-      // connectPinToNetImpl stamps a custom pin.OtherProperty.net value; it is
-      // NOT a real SCH_Netlist/SCH_Net entry, so it is invisible to ERC,
-      // ratsnest, and autorouting. Report that honestly rather than implying
-      // this created genuine EasyEDA connectivity.
       return {
         connected: true,
-        real: false,
-        warning:
-          'This records a logical pin/net association as a custom pin property, not real ' +
-          'EasyEDA netlist connectivity. It will NOT appear in ERC, ratsnest, or autorouting. ' +
-          'Use schematic.addWire to create genuine electrical connectivity.',
+        real: true,
+        primitiveId: result.primitiveId,
+        endpoint: result.endpoint,
       };
     }
     case 'schematic.connectPinsByNet': {
       const pins = params.pins as Array<{ primitiveId: string; pinNumber: string }>;
-      let connectedCount = 0;
+      const stubLength = typeof params.stubLength === 'number' ? params.stubLength : undefined;
+      const netName = params.netName as string;
+      const createdPrimitiveIds: string[] = [];
+      const failures: Array<{ primitiveId: string; pinNumber: string; error: string }> = [];
       for (const pin of pins || []) {
         try {
-          await connectPinToNetImpl(pin.primitiveId, pin.pinNumber, params.netName as string);
-          connectedCount++;
+          const result = await connectPinToNetImpl(
+            pin.primitiveId,
+            pin.pinNumber,
+            netName,
+            stubLength,
+          );
+          createdPrimitiveIds.push(result.primitiveId);
         } catch (err) {
           logRecoverableError(
             `connectPinToNet failed for ${pin.primitiveId}/${pin.pinNumber}`,
             err,
           );
+          failures.push({
+            primitiveId: pin.primitiveId,
+            pinNumber: pin.pinNumber,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
       return {
-        count: connectedCount,
-        real: false,
-        warning:
-          'This records logical pin/net associations as custom pin properties, not real ' +
-          'EasyEDA netlist connectivity. It will NOT appear in ERC, ratsnest, or autorouting. ' +
-          'Use schematic.addWire to create genuine electrical connectivity.',
+        count: createdPrimitiveIds.length,
+        real: true,
+        createdPrimitiveIds,
+        failures,
       };
     }
     case 'schematic.validateNetlist': {

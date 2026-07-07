@@ -45,10 +45,7 @@ const COVERED_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'];
  * and, for real runtime gaps, a tracking issue. Refreshing the baseline may let
  * an entry resolve again — the test flags stale entries so they get removed.
  */
-const KNOWN_UNSUPPORTED: Record<string, string> = {
-  'SCH_Netlist.connectPin | SCH_Netlist.create | sch_Netlist.create':
-    'Intentional fallback. Primary path in connectPinToNetImpl is the SCH_PrimitiveComponent.getAll loop, which resolves.',
-};
+const KNOWN_UNSUPPORTED: Record<string, string> = {};
 
 interface BaselineInventory {
   classes: Array<{ className: string; methods: string[] }>;
