@@ -155,10 +155,9 @@ function registerSchematicWriteTools(
     title: 'Place schematic component',
     description:
       'Place a library component/device on the active schematic sheet. The bridge auto-assigns ' +
-      'the next free designator (library placeholders like "R?" become "R1", "R2", …) — check ' +
-      'the returned designator. If annotation ever fails the part keeps its placeholder; fix it ' +
-      'with modify_primitive, since the netlist keys nodes by designator and duplicate "R?" ' +
-      'merge into one node.',
+      'the next free designator ("R?" → "R1", "R2", …); check the returned designator. If ' +
+      'annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by ' +
+      'designator, so duplicate "R?" merge into one node.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
