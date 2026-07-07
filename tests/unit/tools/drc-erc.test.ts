@@ -338,6 +338,84 @@ describe('DRC/ERC Tools', () => {
     ).toEqual([]);
   });
 
+  it('easyeda_semantic_erc_auto extracts a live netlist and finds output contention', async () => {
+    const tool = registry.get('easyeda_semantic_erc_auto');
+    expect(tool).toBeDefined();
+
+    bridgeCall.mockImplementation(async (method: string, params?: unknown) => {
+      if (method === 'schematic.listNets') {
+        return [
+          {
+            netName: 'BUS_DRV',
+            nodes: [
+              { component: 'U1', pin: '1' },
+              { component: 'U2', pin: '7' },
+            ],
+          },
+        ];
+      }
+      if (method === 'schematic.listComponents') {
+        return {
+          items: [
+            { primitiveId: 'u1id', reference: 'U1' },
+            { primitiveId: 'u2id', reference: 'U2' },
+          ],
+        };
+      }
+      if (method === 'api.call') {
+        const p = params as { args: [string] };
+        const primitiveId = p.args[0];
+        // Live-verified LM358-style pin naming: "<channel>OUT" classifies as
+        // an active output driver via the name heuristic.
+        const pinName = primitiveId === 'u1id' ? '1OUT' : '2OUT';
+        const pinNumber = primitiveId === 'u1id' ? '1' : '7';
+        return { result: [{ pinNumber, pinName, x: 0, y: 0, rotation: 0, pinLength: 10 }] };
+      }
+      return null;
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-auto' });
+
+    expect(result?.project_id).toBe('proj-auto');
+    expect(result?.inferred_net_count).toBe(1);
+    expect(result?.inferred_device_count).toBe(2);
+    expect(result?.passed).toBe(false);
+    expect(result?.errors).toContainEqual(
+      expect.objectContaining({ code: 'NET_OUTPUT_CONTENTION', net_name: 'BUS_DRV' }),
+    );
+  });
+
+  it('easyeda_semantic_erc_auto skips a component whose pins fail to load', async () => {
+    const tool = registry.get('easyeda_semantic_erc_auto');
+
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'schematic.listNets') return [];
+      if (method === 'schematic.listComponents') {
+        return { items: [{ primitiveId: 'broken', reference: 'U1' }] };
+      }
+      if (method === 'api.call') throw new Error('pin fetch failed');
+      return null;
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-partial' });
+
+    expect(result?.inferred_device_count).toBe(0);
+    expect(result?.inferred_net_count).toBe(0);
+  });
+
+  it('easyeda_semantic_erc_auto handles bridge failure gracefully', async () => {
+    const tool = registry.get('easyeda_semantic_erc_auto');
+
+    bridgeCall.mockRejectedValue(new Error('Bridge timeout'));
+
+    const result = await tool?.handler(context, { projectId: 'proj-auto' });
+
+    expect(result?.not_available).toBe(true);
+    expect(result?.project_id).toBe('proj-auto');
+    expect(result?.passed).toBe(false);
+    expect(result?.error).toBe('Bridge timeout');
+  });
+
   it('easyeda_rule_check_summary returns combined DRC+ERC summary', async () => {
     const tool = registry.get('easyeda_rule_check_summary');
     expect(tool).toBeDefined();

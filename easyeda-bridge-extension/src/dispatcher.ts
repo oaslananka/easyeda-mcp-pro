@@ -62,6 +62,8 @@ const METHOD_LIST: readonly string[] = [
   'inventory.getPrice',
   'inventory.search',
   'library.getDeviceByLcscId',
+  'pcb.addSilkscreenLine',
+  'pcb.addText',
   'pcb.addTrack',
   'pcb.addVia',
   'pcb.addZone',
@@ -75,6 +77,10 @@ const METHOD_LIST: readonly string[] = [
   'project.export',
   'project.open',
   'project.save',
+  'schematic.addCircle',
+  'schematic.addPolygon',
+  'schematic.addRectangle',
+  'schematic.addText',
   'schematic.addWire',
   'schematic.connectPinToNet',
   'schematic.connectPinsByNet',
@@ -88,6 +94,8 @@ const METHOD_LIST: readonly string[] = [
   'schematic.modifyPrimitive',
   'schematic.placeComponent',
   'schematic.searchDevice',
+  'schematic.setTitleBlock',
+  'schematic.syncToPcb',
   'schematic.validateNetlist',
   'system.apiInventory',
   'system.getStatus',
@@ -2059,6 +2067,80 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.lineType,
       );
     }
+    case 'schematic.addCircle':
+      // SCH_PrimitiveCircle.create's field order was recovered
+      // (2026-07-07) by reading the minified source of .modify() via
+      // .toString(): create(CenterX, CenterY, Radius, Color, FillColor,
+      // LineWidth, LineType, FillStyle) — 8 args, confirmed live via
+      // readback (first attempt succeeded with typed values).
+      return callFirst(
+        ['SCH_PrimitiveCircle.create', 'sch_PrimitiveCircle.create'],
+        params.centerX,
+        params.centerY,
+        params.radius,
+        params.color ?? '#000000',
+        params.fillColor ?? 'none',
+        params.lineWidth ?? 1,
+        params.lineType ?? 0,
+        params.fillStyle ?? 'none',
+      );
+    case 'schematic.addPolygon':
+      // SCH_PrimitivePolygon.create's field order was recovered
+      // (2026-07-07) by reading the minified source of .modify() via
+      // .toString(): create(Line, Color, FillColor, LineWidth, LineType) —
+      // 5 args. `line` is a flat [x1,y1,x2,y2,...] array of vertices (same
+      // shape as SCH_PrimitiveWire's `line`), confirmed live via readback.
+      return callFirst(
+        ['SCH_PrimitivePolygon.create', 'sch_PrimitivePolygon.create'],
+        (params.points as Array<{ x: number; y: number }>).flatMap((p) => [p.x, p.y]),
+        params.color ?? '#000000',
+        params.fillColor ?? 'none',
+        params.lineWidth ?? 1,
+        params.lineType ?? 0,
+      );
+    case 'schematic.addText':
+      // SCH_PrimitiveText.create signature live-reverse-engineered
+      // (2026-07-07) by inspecting getState_*/setState_* on a created
+      // instance: create(X, Y, Content, Rotation, TextColor, FontName,
+      // FontSize, Bold, Italic, UnderLine, AlignMode) — 11 args. A first
+      // attempt with untyped numeric placeholders returned {ok:true} but
+      // created nothing; correctly-typed values (string content, hex
+      // color, string font name) are required.
+      return callFirst(
+        ['SCH_PrimitiveText.create', 'sch_PrimitiveText.create'],
+        params.x,
+        params.y,
+        params.content,
+        params.rotation ?? 0,
+        params.color ?? '#000000',
+        params.fontName ?? 'Arial',
+        params.fontSize ?? 20,
+        params.bold ?? false,
+        params.italic ?? false,
+        params.underline ?? false,
+        params.alignMode ?? 0,
+      );
+    case 'schematic.addRectangle':
+      // SCH_PrimitiveRectangle.create's field order was recovered
+      // (2026-07-07) by reading the minified source of .modify() via
+      // .toString() — its setState_* call sequence gives the exact
+      // positional order: create(TopLeftX, TopLeftY, Width, Height,
+      // CornerRadius, Rotation, Color, FillColor, LineWidth, LineType,
+      // FillStyle) — 11 args, confirmed live via readback.
+      return callFirst(
+        ['SCH_PrimitiveRectangle.create', 'sch_PrimitiveRectangle.create'],
+        params.x,
+        params.y,
+        params.width,
+        params.height,
+        params.cornerRadius ?? 0,
+        params.rotation ?? 0,
+        params.color ?? '#000000',
+        params.fillColor ?? 'none',
+        params.lineWidth ?? 1,
+        params.lineType ?? 0,
+        params.fillStyle ?? 'none',
+      );
     case 'schematic.deletePrimitive':
       return callFirst(
         [
@@ -2286,6 +2368,104 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         createdPrimitiveIds,
         failures,
       };
+    }
+    case 'schematic.setTitleBlock': {
+      // DMT_Schematic.modifySchematicPageTitleBlock(showTitleBlock,
+      // titleBlockData) live-reverse-engineered (2026-07-07): titleBlockData
+      // is a flat map of field name -> {showTitle, showValue, value}.
+      //
+      // DATA-LOSS INCIDENT (2026-07-07, live-reproduced twice): the first
+      // implementation round-tripped getCurrentSchematicPageInfo()'s FULL
+      // snapshot (minus "ID") back through this call. That silently wiped
+      // Symbol/Border/Title Block/showTitleBlock to empty/"0"/false on a
+      // real project and left EasyEDA Pro's own Log panel reporting "Found
+      // abnormal data, The Symbol/Device property ... is incorrect" for the
+      // title block's internal element — a genuine corruption, not just a
+      // stale read. Root-caused by controlled live tests afterward: sending
+      // a MINIMAL payload containing only the caller's intended field(s)
+      // does NOT corrupt anything (confirmed: showTitleBlock even self-
+      // healed back to true), whereas including the read-only cluster
+      // (Symbol, Device, Name, Description, Border, Width, Height, Region
+      // Start, X/Y Region Count, Blade Width, Color, Title Block Position,
+      // Title Block, all "@"-prefixed fields, ID) triggers server-side
+      // corruption. Individually, that cluster is either a hard native
+      // TypeError (Border: "Cannot set properties of undefined") or a
+      // silent no-op (Symbol) — never a real write. CONCLUSION: never
+      // round-trip the snapshot. Only ever send the caller's explicit
+      // patch, restricted to the confirmed-safe allowlist below.
+      //
+      // A read immediately after writing can return a stale snapshot — the
+      // change is real but eventually consistent, not synchronous.
+      const SAFE_TITLE_BLOCK_FIELDS = new Set([
+        'Company',
+        'Version',
+        'Drawn',
+        'Reviewed',
+        'Page Size',
+      ]);
+      const fields = (params.fields as Record<string, Record<string, unknown>>) ?? {};
+      const unsafeKeys = Object.keys(fields).filter((key) => !SAFE_TITLE_BLOCK_FIELDS.has(key));
+      if (unsafeKeys.length > 0) {
+        throw newBridgeError(
+          'INVALID_PARAMS',
+          `schematic.setTitleBlock refuses to write field(s): ${unsafeKeys.join(', ')}. ` +
+            'These are read-only through this API (writes either no-op or throw natively) and ' +
+            "a past attempt to round-trip them corrupted a real project's title block.",
+          `Only these fields are writable: ${[...SAFE_TITLE_BLOCK_FIELDS].join(', ')}.`,
+        );
+      }
+      const pageInfo = await callFirst([
+        'DMT_Schematic.getCurrentSchematicPageInfo',
+        'dmt_Schematic.getCurrentSchematicPageInfo',
+      ]).catch(() => undefined);
+      if (!pageInfo) {
+        throw newBridgeError(
+          'SCHEMATIC_NOT_FOCUSED',
+          'schematic.setTitleBlock requires the schematic tab to be the focused/active document.',
+          'Click into the schematic document in EasyEDA Pro, then retry.',
+        );
+      }
+      const showTitleBlock =
+        typeof params.showTitleBlock === 'boolean' ? params.showTitleBlock : true;
+      const result = await callFirst(
+        [
+          'DMT_Schematic.modifySchematicPageTitleBlock',
+          'dmt_Schematic.modifySchematicPageTitleBlock',
+        ],
+        showTitleBlock,
+        fields,
+      );
+      return { success: result === true };
+    }
+    case 'schematic.syncToPcb': {
+      // Live-verified (2026-07-07): PCB_PrimitiveComponent.create() never
+      // resolves — but that's the wrong call entirely. The real EasyEDA
+      // workflow is schematic -> sync -> PCB: a part placed in the schematic
+      // with addIntoPcb (the default) only reaches pcb.listComponents after
+      // SCH_Document.importChanges() is called WITH THE SCHEMATIC DOCUMENT
+      // FOCUSED. Calling PCB_Document.importChanges() from the PCB side
+      // does NOT do this (tried, returns true, syncs nothing). Once synced,
+      // pcb.modifyComponent correctly repositions/rotates the placed part.
+      //
+      // CAUTION (live-verified): SCH_Document.importChanges() resolves
+      // `true` immediately regardless of outcome — it only OPENS a native
+      // "Confirm Importing changes information" dialog in EasyEDA Pro's UI.
+      // Nothing actually reaches the PCB until a human clicks through that
+      // dialog; there is no known headless/scriptable way to confirm it.
+      // This is NOT a fire-and-forget automation step.
+      const schInfo = await callFirst([
+        'DMT_Schematic.getCurrentSchematicInfo',
+        'dmt_Schematic.getCurrentSchematicInfo',
+      ]).catch(() => undefined);
+      if (!schInfo) {
+        throw newBridgeError(
+          'SCHEMATIC_NOT_FOCUSED',
+          'schematic.syncToPcb requires the schematic tab to be the focused/active document in EasyEDA Pro.',
+          'Click into the schematic document in EasyEDA Pro, then retry.',
+        );
+      }
+      const result = await callFirst(['SCH_Document.importChanges', 'sch_Document.importChanges']);
+      return { synced: result !== false };
     }
     case 'schematic.validateNetlist': {
       const netlistData = (await listNetsApi()) as Array<{
@@ -2726,6 +2906,50 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       }
       return { primitiveId: createdIds[0], primitiveIds: createdIds };
     }
+    case 'pcb.addText':
+      // PCB_PrimitiveString.create's field order was recovered
+      // (2026-07-07) by reading the minified source of .modify() via
+      // .toString() — its destructured input object gives the exact
+      // positional order: create(Layer, X, Y, Text, FontFamily, FontSize,
+      // LineWidth, AlignMode, Rotation, Reverse, Expansion, Mirror,
+      // PrimitiveLock) — 13 args, confirmed live via readback on the Top
+      // Silkscreen layer. fontFamily must be a name the runtime's font
+      // list actually contains (validated internally); the default below
+      // ("NotoSansMonoCJKsc-Regular") was live-verified to work.
+      return callFirst(
+        ['PCB_PrimitiveString.create', 'pcb_PrimitiveString.create'],
+        params.layer,
+        params.x,
+        params.y,
+        params.text,
+        params.fontFamily ?? 'NotoSansMonoCJKsc-Regular',
+        params.fontSize ?? 1,
+        params.lineWidth ?? 0.15,
+        params.alignMode ?? 0,
+        params.rotation ?? 0,
+        params.reverse ?? false,
+        params.expansion ?? 0,
+        params.mirror ?? false,
+        params.locked ?? false,
+      );
+    case 'pcb.addSilkscreenLine':
+      // Reuses PCB_PrimitiveLine.create (the same primitive pcb.addTrack
+      // draws copper tracks with) but with an empty net name and a
+      // non-copper layer — a purely decorative/organizational line (e.g.
+      // silkscreen section dividers) rather than an electrical connection.
+      // Signature confirmed live (2026-07-07): create(net, layer, startX,
+      // startY, endX, endY, lineWidth, locked).
+      return callFirst(
+        ['PCB_PrimitiveLine.create', 'pcb_PrimitiveLine.create'],
+        '',
+        params.layer,
+        params.startX,
+        params.startY,
+        params.endX,
+        params.endY,
+        params.lineWidth ?? 0.2,
+        false,
+      );
     case 'pcb.addVia':
       // PCB_PrimitiveVia.create's real argument order was resolved live by
       // passing 9 distinguishable values and reading back getState_*:

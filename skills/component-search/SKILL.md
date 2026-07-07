@@ -43,6 +43,11 @@ Collect:
 - `easyeda_schematic_net_detail`
 - `easyeda_schematic_nets`
 
+### LCSC catalog verification and caching
+
+- `easyeda_catalog_verify_device` — resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference if already known locally) and cache it locally; use before recommending a generic/unresolved part by its LCSC number
+- `easyeda_catalog_list` — list devices already cached by `easyeda_catalog_verify_device`, filterable by resolved/partial/unresolved status; check this before re-verifying a part that may already be cached
+
 ### BOM generation and validation
 
 - `easyeda_bom_generate`

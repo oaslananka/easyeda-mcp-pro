@@ -2,7 +2,87 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { validateNets } from '../net-validation/validation.js';
+import { type NetValidationIssue } from '../net-validation/errors.js';
+import {
+  type DeviceValidationEntry,
+  type NetValidationEntry,
+  type PinValidationMetadata,
+} from '../net-validation/schema.js';
+import { classifyNetType, classifyPinElectricalType } from '../net-validation/pin-classifier.js';
 import { analyzePowerTree } from '../power-tree/index.js';
+import { fetchComponentPins } from './schematic-helpers.js';
+
+/** Shared error/warning mapper for both the hand-authored and auto-extracted
+ *  semantic ERC tools — same NetValidationIssue shape, same response fields. */
+function mapSemanticIssue(issue: NetValidationIssue) {
+  return {
+    code: issue.code,
+    message: issue.message,
+    severity: issue.severity,
+    path: issue.path,
+    net_name: issue.netName,
+    component_ref: issue.componentRef,
+    pin: issue.pin,
+    remediation_hint: issue.remediationHint,
+    details: issue.details,
+  };
+}
+
+/**
+ * Extract nets + devices from the live schematic (schematic.listNets +
+ * schematic.listComponents + per-component pin fetch) and classify net/pin
+ * electrical types from naming conventions — see pin-classifier.ts for why
+ * EasyEDA's own pinType metadata isn't trusted as the primary source.
+ * Unclassified pins default to 'passive' so they never trigger a false
+ * floating-input/output-contention/missing-power finding.
+ */
+async function extractLiveSemanticNetlist(
+  ctx: ToolContext,
+  projectId: string,
+): Promise<{ nets: NetValidationEntry[]; devices: DeviceValidationEntry[] }> {
+  const netsResult = (await ctx.bridge.call('schematic.listNets', { projectId })) as Array<{
+    netName?: string;
+    nodes?: Array<{ component?: string; pin?: string }>;
+  }>;
+  const compsResult = (await ctx.bridge.call('schematic.listComponents', {
+    projectId,
+    limit: 500,
+    offset: 0,
+  })) as { items?: Array<{ primitiveId?: string; reference?: string }> };
+  const components = compsResult?.items ?? [];
+
+  const devices: DeviceValidationEntry[] = [];
+  for (const c of components) {
+    if (!c.primitiveId || !c.reference) continue;
+    let pins;
+    try {
+      pins = await fetchComponentPins(ctx, c.primitiveId);
+    } catch {
+      continue; // best-effort; skip components whose pins can't be read live
+    }
+    const devicePins: PinValidationMetadata[] = pins.map((p) => ({
+      pin: p.pinNumber,
+      name: p.pinName,
+      electricalType: classifyPinElectricalType(p.pinName, p.pinType) ?? 'passive',
+    }));
+    devices.push({ id: c.reference, ref: c.reference, pins: devicePins });
+  }
+
+  const nets: NetValidationEntry[] = (netsResult ?? []).map((n, i) => {
+    const netName = n.netName ?? `NET_${i}`;
+    return {
+      id: netName,
+      name: netName,
+      type: classifyNetType(netName),
+      nodes: (n.nodes ?? []).map((node) => ({
+        deviceRef: node.component ?? '',
+        pin: node.pin ?? '',
+      })),
+    };
+  });
+
+  return { nets, devices };
+}
 
 function registerDrcErcTools(
   registry: { register: (def: ToolDefinition) => void },
@@ -392,20 +472,8 @@ function registerDrcErcTools(
         interfaces: parsed.interfaces,
       });
 
-      const mapIssue = (issue: (typeof result.errors)[number]) => ({
-        code: issue.code,
-        message: issue.message,
-        severity: issue.severity,
-        path: issue.path,
-        net_name: issue.netName,
-        component_ref: issue.componentRef,
-        pin: issue.pin,
-        remediation_hint: issue.remediationHint,
-        details: issue.details,
-      });
-
-      const errors = result.errors.map(mapIssue);
-      const warnings = result.warnings.map(mapIssue);
+      const errors = result.errors.map(mapSemanticIssue);
+      const warnings = result.warnings.map(mapSemanticIssue);
 
       return {
         project_id: parsed.projectId ?? '',
@@ -416,6 +484,76 @@ function registerDrcErcTools(
         errors,
         warnings,
       };
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_semantic_erc_auto',
+    title: 'Auto-extract netlist and run semantic ERC',
+    description:
+      'Extract nets/devices/pins from the LIVE schematic and run semantic ERC — no hand-authored ' +
+      'netlist needed. Net/pin electrical types are INFERRED from naming conventions, not ' +
+      'verified — treat findings as a first-pass signal, not a substitute for semantic_erc_validate.',
+    profile: 'core',
+    evidence: ['inferred', 'runtime-probe'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'drc-erc',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string(),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      passed: z.boolean(),
+      error_count: z.number().int().nonnegative(),
+      warning_count: z.number().int().nonnegative(),
+      total_issues: z.number().int().nonnegative(),
+      errors: z.array(semanticIssueSchema),
+      warnings: z.array(semanticIssueSchema),
+      inferred_net_count: z.number().int().nonnegative(),
+      inferred_device_count: z.number().int().nonnegative(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId } = params as { projectId: string };
+      try {
+        const { nets, devices } = await extractLiveSemanticNetlist(ctx, projectId);
+        const result = validateNets({ nets, devices });
+        const errors = result.errors.map(mapSemanticIssue);
+        const warnings = result.warnings.map(mapSemanticIssue);
+        return {
+          project_id: projectId,
+          passed: result.valid,
+          error_count: errors.length,
+          warning_count: warnings.length,
+          total_issues: errors.length + warnings.length,
+          errors,
+          warnings,
+          inferred_net_count: nets.length,
+          inferred_device_count: devices.length,
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
+          passed: false,
+          error_count: 0,
+          warning_count: 0,
+          total_issues: 0,
+          errors: [],
+          warnings: [],
+          inferred_net_count: 0,
+          inferred_device_count: 0,
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
     },
   });
 

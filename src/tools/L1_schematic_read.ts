@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
+import { fetchComponentPins } from './schematic-helpers.js';
 
 const searchDeviceInputSchema = z.object({
   key: z.string(),
@@ -688,13 +689,15 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_component_pins',
     title: 'Get component pins',
     description:
-      'Get exact pin numbers, names, and coordinates for a schematic component by its primitive ID.',
+      'Get exact pin numbers, names, coordinates, and native pinType for a schematic component ' +
+      "by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably " +
+      'authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.',
     profile: 'core',
     evidence: ['official-docs', 'runtime-probe'],
     risk: 'low',
     confirmWrite: false,
     group: 'schematic',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       idempotentHint: true,
@@ -712,6 +715,7 @@ function registerSchematicReadTools(
           y: z.number(),
           rotation: z.number(),
           pinLength: z.number(),
+          pinType: z.string().optional(),
         }),
       ),
       success: z.boolean(),
@@ -720,33 +724,8 @@ function registerSchematicReadTools(
     handler: async (ctx: ToolContext, params: unknown) => {
       const { primitiveId } = params as { primitiveId: string };
       try {
-        const result = await ctx.bridge.call<{ path: string; args: unknown[] }, unknown>(
-          'api.call',
-          {
-            path: 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId',
-            args: [primitiveId],
-          },
-        );
-        const resultObj = result as { result?: Array<Record<string, unknown>> } | undefined;
-        const pins = Array.isArray(resultObj?.result) ? resultObj.result : [];
-        return {
-          primitiveId,
-          pins: pins.map((p: Record<string, unknown>) => {
-            const state = p.state as Record<string, unknown> | undefined;
-            return {
-              pinNumber:
-                p.pinNumber !== undefined ? String(p.pinNumber) : String(state?.PinNumber ?? ''),
-              pinName: p.pinName !== undefined ? String(p.pinName) : String(state?.PinName ?? ''),
-              x: p.x !== undefined ? Number(p.x) : Number(state?.X ?? 0),
-              y: p.y !== undefined ? Number(p.y) : Number(state?.Y ?? 0),
-              rotation:
-                p.rotation !== undefined ? Number(p.rotation) : Number(state?.Rotation ?? 0),
-              pinLength:
-                p.pinLength !== undefined ? Number(p.pinLength) : Number(state?.PinLength ?? 0),
-            };
-          }),
-          success: true,
-        };
+        const pins = await fetchComponentPins(ctx, primitiveId);
+        return { primitiveId, pins, success: true };
       } catch (err) {
         return {
           primitiveId,

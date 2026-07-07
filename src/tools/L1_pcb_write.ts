@@ -552,6 +552,162 @@ function registerPcbWriteTools(
   });
 
   registry.register({
+    name: 'easyeda_pcb_add_text',
+    title: 'Add PCB text/silkscreen label',
+    description:
+      'Place a text primitive on a PCB layer (typically Top/Bottom Silkscreen) — reference ' +
+      'labels, section titles, assembly notes. Signature recovered from PCB_PrimitiveString: ' +
+      "fontFamily must be a name the runtime's font list actually contains — " +
+      '"NotoSansMonoCJKsc-Regular" (the default) is live-verified to work.',
+    profile: 'full',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'pcb-write',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
+    inputSchema: z.object({
+      layer: z.number().int().describe('Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen'),
+      x: z.number(),
+      y: z.number(),
+      text: z.string().min(1),
+      fontFamily: z.string().optional(),
+      fontSize: z.number().positive().optional(),
+      lineWidth: z.number().positive().optional(),
+      alignMode: z.number().int().optional(),
+      rotation: z.number().optional(),
+      reverse: z.boolean().optional(),
+      expansion: z.number().optional(),
+      mirror: z.boolean().optional(),
+      locked: z.boolean().optional(),
+      confirmWrite: z.literal(true),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      primitiveId: z.string().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = params as {
+        layer: number;
+        x: number;
+        y: number;
+        text: string;
+        fontFamily?: string;
+        fontSize?: number;
+        lineWidth?: number;
+        alignMode?: number;
+        rotation?: number;
+        reverse?: boolean;
+        expansion?: number;
+        mirror?: boolean;
+        locked?: boolean;
+      };
+      try {
+        const result = await ctx.bridge.call<
+          Record<string, unknown>,
+          { primitiveId?: string; result?: string }
+        >('pcb.addText', {
+          layer: p.layer,
+          x: p.x,
+          y: p.y,
+          text: p.text,
+          fontFamily: p.fontFamily,
+          fontSize: p.fontSize,
+          lineWidth: p.lineWidth,
+          alignMode: p.alignMode,
+          rotation: p.rotation,
+          reverse: p.reverse,
+          expansion: p.expansion,
+          mirror: p.mirror,
+          locked: p.locked,
+        });
+        const data = result as { primitiveId?: string; result?: string } | string;
+        return {
+          success: true,
+          primitiveId:
+            typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined),
+        };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_pcb_add_silkscreen_line',
+    title: 'Add PCB decorative/silkscreen line',
+    description:
+      'Draw a non-electrical line on the PCB (e.g. Top/Bottom Silkscreen) for section dividers ' +
+      'or board art — reuses the same PCB_PrimitiveLine primitive as add_track but with an empty ' +
+      'net name, so it never appears in the netlist or ratsnest.',
+    profile: 'full',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'pcb-write',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
+    inputSchema: z.object({
+      layer: z.number().int().describe('Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen'),
+      startX: z.number(),
+      startY: z.number(),
+      endX: z.number(),
+      endY: z.number(),
+      lineWidth: z.number().positive().optional(),
+      confirmWrite: z.literal(true),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      primitiveId: z.string().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = params as {
+        layer: number;
+        startX: number;
+        startY: number;
+        endX: number;
+        endY: number;
+        lineWidth?: number;
+      };
+      try {
+        const result = await ctx.bridge.call<
+          Record<string, unknown>,
+          { primitiveId?: string; result?: string }
+        >('pcb.addSilkscreenLine', {
+          layer: p.layer,
+          startX: p.startX,
+          startY: p.startY,
+          endX: p.endX,
+          endY: p.endY,
+          lineWidth: p.lineWidth,
+        });
+        const data = result as { primitiveId?: string; result?: string } | string;
+        return {
+          success: true,
+          primitiveId:
+            typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined),
+        };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
     name: 'easyeda_pcb_delete_component',
     title: 'Delete PCB primitives',
     description:

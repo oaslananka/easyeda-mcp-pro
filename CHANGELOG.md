@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.21.0...easyeda-mcp-pro-v0.22.0) (2026-07-07)
+
+
+### Features
+
+* **bridge:** hot-swappable dispatcher + schematic/ERC tool fixes (live-dogfooded) ([#218](https://github.com/oaslananka/easyeda-mcp-pro/issues/218)) ([2022493](https://github.com/oaslananka/easyeda-mcp-pro/commit/2022493c4aceb36c9378bbc91f647fb555d724cb))
+* **pcb:** add PCB readback tools; fix delete_component silently ignoring vias/tracks ([#220](https://github.com/oaslananka/easyeda-mcp-pro/issues/220)) ([fe924c8](https://github.com/oaslananka/easyeda-mcp-pro/commit/fe924c83a07984137b2c62ed5fb6041a74203637))
+
+
+### Bug Fixes
+
+* **security:** pin unpinned dependencies and fix tainted format string ([#216](https://github.com/oaslananka/easyeda-mcp-pro/issues/216)) ([a3673ca](https://github.com/oaslananka/easyeda-mcp-pro/commit/a3673ca00514ca3d7936510fbf5436fccf955083))
+
 ## [0.21.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.20.0...easyeda-mcp-pro-v0.21.0) (2026-07-06)
 
 

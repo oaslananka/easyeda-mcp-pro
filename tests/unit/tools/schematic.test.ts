@@ -576,6 +576,238 @@ describe('Schematic Tools', () => {
     expect(result?.error).toContain('permission denied');
   });
 
+  describe('schematic cosmetic and title-block write tools', () => {
+    it('writes schematic text, rectangles, circles, and polygons through the bridge', async () => {
+      bridgeCall
+        .mockResolvedValueOnce({ primitiveId: 'txt-1' })
+        .mockResolvedValueOnce({ primitiveId: 'rect-1' })
+        .mockResolvedValueOnce({ primitiveId: 'circle-1' })
+        .mockResolvedValueOnce({ primitiveId: 'poly-1' });
+
+      const textTool = registry.get('easyeda_schematic_add_text');
+      const rectTool = registry.get('easyeda_schematic_add_rectangle');
+      const circleTool = registry.get('easyeda_schematic_add_circle');
+      const polyTool = registry.get('easyeda_schematic_add_polygon');
+
+      await expect(
+        textTool?.handler(context, {
+          x: 10,
+          y: 20,
+          content: 'POWER',
+          color: '#FF0000',
+          fontName: 'Arial',
+          fontSize: 16,
+          bold: true,
+          italic: false,
+          underline: true,
+          alignMode: 1,
+          confirmWrite: true,
+        }),
+      ).resolves.toEqual({ success: true, text: { primitiveId: 'txt-1' } });
+
+      await expect(
+        rectTool?.handler(context, {
+          x: 1,
+          y: 2,
+          width: 30,
+          height: 40,
+          cornerRadius: 2,
+          rotation: 0,
+          color: '#00FF00',
+          fillColor: 'none',
+          lineWidth: 2,
+          lineType: 1,
+          fillStyle: 'none',
+          confirmWrite: true,
+        }),
+      ).resolves.toEqual({ success: true, rectangle: { primitiveId: 'rect-1' } });
+
+      await expect(
+        circleTool?.handler(context, {
+          centerX: 50,
+          centerY: 60,
+          radius: 7,
+          color: '#0000FF',
+          fillColor: 'none',
+          lineWidth: 1,
+          lineType: 0,
+          fillStyle: 'none',
+          confirmWrite: true,
+        }),
+      ).resolves.toEqual({ success: true, circle: { primitiveId: 'circle-1' } });
+
+      await expect(
+        polyTool?.handler(context, {
+          points: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+            { x: 0, y: 10 },
+          ],
+          color: '#123456',
+          fillColor: 'none',
+          lineWidth: 1,
+          lineType: 0,
+          confirmWrite: true,
+        }),
+      ).resolves.toEqual({ success: true, polygon: { primitiveId: 'poly-1' } });
+
+      expect(bridgeCall).toHaveBeenNthCalledWith(1, 'schematic.addText', {
+        x: 10,
+        y: 20,
+        content: 'POWER',
+        rotation: undefined,
+        color: '#FF0000',
+        fontName: 'Arial',
+        fontSize: 16,
+        bold: true,
+        italic: false,
+        underline: true,
+        alignMode: 1,
+      });
+      expect(bridgeCall).toHaveBeenNthCalledWith(2, 'schematic.addRectangle', {
+        x: 1,
+        y: 2,
+        width: 30,
+        height: 40,
+        cornerRadius: 2,
+        rotation: 0,
+        color: '#00FF00',
+        fillColor: 'none',
+        lineWidth: 2,
+        lineType: 1,
+        fillStyle: 'none',
+      });
+      expect(bridgeCall).toHaveBeenNthCalledWith(3, 'schematic.addCircle', {
+        centerX: 50,
+        centerY: 60,
+        radius: 7,
+        color: '#0000FF',
+        fillColor: 'none',
+        lineWidth: 1,
+        lineType: 0,
+        fillStyle: 'none',
+      });
+      expect(bridgeCall).toHaveBeenNthCalledWith(4, 'schematic.addPolygon', {
+        points: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+          { x: 0, y: 10 },
+        ],
+        color: '#123456',
+        fillColor: 'none',
+        lineWidth: 1,
+        lineType: 0,
+      });
+    });
+
+    it('reports non-Error bridge failures from schematic cosmetic tools', async () => {
+      const tool = registry.get('easyeda_schematic_add_text');
+      bridgeCall.mockRejectedValue('native refused text');
+
+      const result = await tool?.handler(context, {
+        x: 1,
+        y: 2,
+        content: 'NOTE',
+        confirmWrite: true,
+      });
+
+      expect(result).toEqual({ success: false, error: 'native refused text' });
+    });
+
+    it('updates title block fields and defaults missing success to false', async () => {
+      const tool = registry.get('easyeda_schematic_set_title_block');
+      bridgeCall.mockResolvedValue({});
+
+      const result = await tool?.handler(context, {
+        fields: { Company: { value: 'ACME', showValue: true } },
+        showTitleBlock: true,
+        confirmWrite: true,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.setTitleBlock', {
+        fields: { Company: { value: 'ACME', showValue: true } },
+        showTitleBlock: true,
+      });
+      expect(result).toEqual({ success: false });
+    });
+
+    it('returns title block success when the bridge confirms the write', async () => {
+      const tool = registry.get('easyeda_schematic_set_title_block');
+      bridgeCall.mockResolvedValue({ success: true });
+
+      const result = await tool?.handler(context, {
+        fields: { Drawn: { value: 'Agent' } },
+        confirmWrite: true,
+      });
+
+      expect(result).toEqual({ success: true });
+    });
+
+    it('reports title block bridge errors', async () => {
+      const tool = registry.get('easyeda_schematic_set_title_block');
+      bridgeCall.mockRejectedValue(new Error('unsafe title field'));
+
+      const result = await tool?.handler(context, {
+        fields: { Version: { value: '0.22.0' } },
+        confirmWrite: true,
+      });
+
+      expect(result).toEqual({ success: false, error: 'unsafe title field' });
+    });
+  });
+
+  describe('easyeda_schematic_sync_to_pcb', () => {
+    it('calls schematic.syncToPcb and reports success', async () => {
+      const tool = registry.get('easyeda_schematic_sync_to_pcb');
+      expect(tool).toBeDefined();
+      expect(tool?.confirmWrite).toBe(true);
+
+      bridgeCall.mockResolvedValue({ synced: true });
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-123',
+        confirmWrite: true,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.syncToPcb', { projectId: 'proj-123' });
+      expect(result).toMatchObject({ success: true, requested: true });
+      expect(result?.note).toContain('confirmation dialog');
+    });
+
+    it('defaults sync requested to true when the bridge omits synced', async () => {
+      const tool = registry.get('easyeda_schematic_sync_to_pcb');
+      bridgeCall.mockResolvedValue({});
+
+      const result = await tool?.handler(context, { confirmWrite: true });
+
+      expect(result).toMatchObject({ success: true, requested: true });
+    });
+
+    it('preserves a false sync request result from the bridge', async () => {
+      const tool = registry.get('easyeda_schematic_sync_to_pcb');
+      bridgeCall.mockResolvedValue({ synced: false });
+
+      const result = await tool?.handler(context, { projectId: 'proj-123', confirmWrite: true });
+
+      expect(result).toMatchObject({ success: true, requested: false });
+    });
+
+    it('reports failure when the schematic tab is not focused', async () => {
+      const tool = registry.get('easyeda_schematic_sync_to_pcb');
+
+      bridgeCall.mockRejectedValue(
+        Object.assign(new Error('schematic.syncToPcb requires the schematic tab to be focused.'), {
+          code: 'SCHEMATIC_NOT_FOCUSED',
+        }),
+      );
+
+      const result = await tool?.handler(context, { confirmWrite: true });
+
+      expect(result).toMatchObject({ success: false });
+      expect(result?.error).toContain('requires the schematic tab');
+    });
+  });
+
   describe('easyeda_schematic_nets', () => {
     it('lists nets with node connections', async () => {
       const tool = registry.get('easyeda_schematic_nets');
@@ -772,6 +1004,27 @@ describe('Schematic Tools', () => {
         success: true,
         pins: [{ pinNumber: '1', pinName: 'VCC', x: 10, y: 20, rotation: 0, pinLength: 5 }],
       });
+    });
+
+    it('exposes native pinType when the bridge reports one', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockResolvedValue({
+        result: [
+          {
+            pinNumber: '1',
+            pinName: 'VCC',
+            x: 10,
+            y: 20,
+            rotation: 0,
+            pinLength: 5,
+            pinType: 'IN',
+          },
+        ],
+      });
+
+      const result = await tool?.handler(context, { primitiveId: 'comp-1' });
+
+      expect(result?.pins[0]).toMatchObject({ pinNumber: '1', pinType: 'IN' });
     });
 
     it('falls back to the nested state object when direct fields are absent', async () => {

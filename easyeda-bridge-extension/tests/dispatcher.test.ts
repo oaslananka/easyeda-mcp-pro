@@ -152,6 +152,104 @@ describe('createDispatcher', () => {
     expect(create).toHaveBeenCalled();
   });
 
+  // DATA-LOSS INCIDENT (2026-07-07, live-reproduced on a real project): the
+  // first implementation round-tripped the FULL getCurrentSchematicPageInfo()
+  // snapshot back through modifySchematicPageTitleBlock. That silently wiped
+  // Symbol/Border/Title Block/showTitleBlock and left EasyEDA Pro's own Log
+  // panel reporting "Found abnormal data, The Symbol/Device property ... is
+  // incorrect" for the title block's internal element. Root cause: several
+  // snapshot fields (Symbol, Device, Name, Description, Border, Width,
+  // Height, Region*, Blade Width, Color, Title Block Position, Title Block,
+  // all "@"-prefixed fields, ID) are read-only through this RPC — writing
+  // them individually either no-ops silently (Symbol) or throws a native
+  // TypeError (Border) — and including them in a full round-trip corrupts
+  // the record server-side. Fix: never read/merge the snapshot at all, send
+  // ONLY the caller's explicit patch, and reject any field outside a
+  // confirmed-safe allowlist before it ever reaches the native call.
+  it('schematic.setTitleBlock sends only the caller-supplied fields, never a snapshot round-trip', async () => {
+    const modifySchematicPageTitleBlock = vi.fn(async () => true);
+    const getCurrentSchematicPageInfo = vi.fn(async () => ({
+      showTitleBlock: true,
+      titleBlockData: {
+        Company: { showTitle: false, showValue: false, value: 'EasyEDA.com' },
+        Version: { showTitle: false, showValue: false, value: 'V1.0' },
+        Symbol: { showTitle: false, showValue: false, value: 'Drawing-Symbol_A4' },
+        Border: { showTitle: null, showValue: null, value: '1' },
+        ID: {},
+      },
+    }));
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Schematic: { getCurrentSchematicPageInfo, modifySchematicPageTitleBlock },
+      }),
+    );
+    const result = await dispatcher.dispatch('schematic.setTitleBlock', {
+      fields: { Company: { value: 'ACME', showValue: true } },
+    });
+    expect(modifySchematicPageTitleBlock).toHaveBeenCalledWith(true, {
+      Company: { value: 'ACME', showValue: true },
+    });
+    expect(result).toEqual({ success: true });
+  });
+
+  it('schematic.setTitleBlock rejects fields outside the confirmed-safe allowlist', async () => {
+    const modifySchematicPageTitleBlock = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Schematic: {
+          getCurrentSchematicPageInfo: async () => ({ showTitleBlock: true, titleBlockData: {} }),
+          modifySchematicPageTitleBlock,
+        },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('schematic.setTitleBlock', {
+        fields: { Border: { value: '1' } },
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(modifySchematicPageTitleBlock).not.toHaveBeenCalled();
+  });
+
+  it('schematic.setTitleBlock refuses when the schematic tab is not focused', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({ DMT_Schematic: { getCurrentSchematicPageInfo: async () => null } }),
+    );
+    await expect(
+      dispatcher.dispatch('schematic.setTitleBlock', { fields: {} }),
+    ).rejects.toMatchObject({ code: 'SCHEMATIC_NOT_FOCUSED' });
+  });
+
+  // Live-verified (2026-07-07): PCB_PrimitiveComponent.create() never
+  // resolves, but component placement isn't actually blocked — the real
+  // mechanism is schematic (addIntoPcb) -> SCH_Document.importChanges()
+  // (called with the schematic document focused) -> pcb.listComponents.
+  it('schematic.syncToPcb calls SCH_Document.importChanges when the schematic is focused', async () => {
+    const importChanges = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Schematic: { getCurrentSchematicInfo: async () => ({ uuid: 'sch-1' }) },
+        SCH_Document: { importChanges },
+      }),
+    );
+    const result = await dispatcher.dispatch('schematic.syncToPcb', {});
+    expect(importChanges).toHaveBeenCalled();
+    expect(result).toEqual({ synced: true });
+  });
+
+  it('schematic.syncToPcb refuses when the schematic tab is not focused', async () => {
+    const importChanges = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Schematic: { getCurrentSchematicInfo: async () => null },
+        SCH_Document: { importChanges },
+      }),
+    );
+    await expect(dispatcher.dispatch('schematic.syncToPcb', {})).rejects.toMatchObject({
+      code: 'SCHEMATIC_NOT_FOCUSED',
+    });
+    expect(importChanges).not.toHaveBeenCalled();
+  });
+
   it('rejects api.call paths outside the allowed class prefixes', async () => {
     const dispatcher = createDispatcher(makeToolkit({}));
     await expect(
@@ -293,6 +391,137 @@ describe('createDispatcher', () => {
     await expect(
       dispatcher.dispatch('pcb.addTrack', { points: [{ x: 0, y: 0 }], layer: 1, width: 200 }),
     ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+  });
+
+  // Live-verified (2026-07-07): SCH_PrimitiveCircle's field order was
+  // recovered by reading the minified source of .modify() via .toString():
+  // create(CenterX, CenterY, Radius, Color, FillColor, LineWidth, LineType,
+  // FillStyle).
+  it('schematic.addCircle calls SCH_PrimitiveCircle.create with the recovered argument order', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'circle1' }));
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveCircle: { create } }));
+    await dispatcher.dispatch('schematic.addCircle', {
+      centerX: 500,
+      centerY: 900,
+      radius: 30,
+      color: '#800080',
+    });
+    expect(create).toHaveBeenCalledWith(500, 900, 30, '#800080', 'none', 1, 0, 'none');
+  });
+
+  // Live-verified (2026-07-07): SCH_PrimitivePolygon's field order was
+  // recovered by reading the minified source of .modify() via .toString():
+  // create(Line, Color, FillColor, LineWidth, LineType) — `line` is a flat
+  // [x1,y1,x2,y2,...] array of vertices, same shape as SCH_PrimitiveWire.
+  it('schematic.addPolygon calls SCH_PrimitivePolygon.create with a flattened points array', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'poly1' }));
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitivePolygon: { create } }));
+    await dispatcher.dispatch('schematic.addPolygon', {
+      points: [
+        { x: 400, y: 800 },
+        { x: 450, y: 850 },
+        { x: 400, y: 900 },
+      ],
+      color: '#008000',
+    });
+    expect(create).toHaveBeenCalledWith([400, 800, 450, 850, 400, 900], '#008000', 'none', 1, 0);
+  });
+
+  // Live-verified (2026-07-07): SCH_PrimitiveText.create(X, Y, Content,
+  // Rotation, TextColor, FontName, FontSize, Bold, Italic, UnderLine,
+  // AlignMode) — recovered by reading getState_*/setState_* off a created
+  // instance. Untyped numeric placeholders create nothing despite {ok:true}.
+  it('schematic.addText calls SCH_PrimitiveText.create with the live-verified argument order', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'text1' }));
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveText: { create } }));
+    await dispatcher.dispatch('schematic.addText', {
+      x: 200,
+      y: 600,
+      content: 'SECTION A',
+      color: '#0000FF',
+      fontName: 'Arial',
+      fontSize: 20,
+    });
+    expect(create).toHaveBeenCalledWith(
+      200,
+      600,
+      'SECTION A',
+      0,
+      '#0000FF',
+      'Arial',
+      20,
+      false,
+      false,
+      false,
+      0,
+    );
+  });
+
+  // Live-verified (2026-07-07): SCH_PrimitiveRectangle's field order was
+  // recovered by reading the minified source of .modify() via .toString() —
+  // its setState_* call sequence gives create(TopLeftX, TopLeftY, Width,
+  // Height, CornerRadius, Rotation, Color, FillColor, LineWidth, LineType,
+  // FillStyle).
+  it('schematic.addRectangle calls SCH_PrimitiveRectangle.create with the recovered argument order', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'rect1' }));
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveRectangle: { create } }));
+    await dispatcher.dispatch('schematic.addRectangle', {
+      x: 300,
+      y: 700,
+      width: 200,
+      height: 100,
+      color: '#FF0000',
+      lineWidth: 2,
+    });
+    expect(create).toHaveBeenCalledWith(300, 700, 200, 100, 0, 0, '#FF0000', 'none', 2, 0, 'none');
+  });
+
+  // Live-verified (2026-07-07): PCB_PrimitiveString's field order was
+  // recovered by reading the minified source of .modify() via .toString() —
+  // its destructured input gives create(Layer, X, Y, Text, FontFamily,
+  // FontSize, LineWidth, AlignMode, Rotation, Reverse, Expansion, Mirror,
+  // PrimitiveLock).
+  it('pcb.addText calls PCB_PrimitiveString.create with the recovered argument order', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'str1' }));
+    const dispatcher = createDispatcher(makeToolkit({ PCB_PrimitiveString: { create } }));
+    await dispatcher.dispatch('pcb.addText', {
+      layer: 3,
+      x: 100,
+      y: 5000,
+      text: 'TEST',
+    });
+    expect(create).toHaveBeenCalledWith(
+      3,
+      100,
+      5000,
+      'TEST',
+      'NotoSansMonoCJKsc-Regular',
+      1,
+      0.15,
+      0,
+      0,
+      false,
+      0,
+      false,
+      false,
+    );
+  });
+
+  // pcb.addSilkscreenLine reuses PCB_PrimitiveLine.create (same primitive
+  // pcb.addTrack draws copper with) but always with an empty net name, so it
+  // never appears in the netlist/ratsnest — live-verified on the Top
+  // Silkscreen layer (2026-07-07).
+  it('pcb.addSilkscreenLine calls PCB_PrimitiveLine.create with an empty net name', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'line3' }));
+    const dispatcher = createDispatcher(makeToolkit({ PCB_PrimitiveLine: { create } }));
+    await dispatcher.dispatch('pcb.addSilkscreenLine', {
+      layer: 3,
+      startX: 90,
+      startY: 4990,
+      endX: 110,
+      endY: 4990,
+    });
+    expect(create).toHaveBeenCalledWith('', 3, 90, 4990, 110, 4990, 0.2, false);
   });
 
   // PCB readback: field names below are the getState_* getters observed live
