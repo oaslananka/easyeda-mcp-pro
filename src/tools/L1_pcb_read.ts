@@ -2,6 +2,41 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 
+const pcbListInputSchema = z.object({
+  projectId: z.string(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+/** Shared handler for the three PCB list-* tools: call the bridge, map its
+ *  {total, items} shape onto the caller-provided list key, and degrade to
+ *  an empty (not_available) list instead of throwing — "no PCB tab focused"
+ *  is a normal state for these tools, not an error. */
+function makePcbListHandler(bridgeMethod: string, listKey: string) {
+  return async (ctx: ToolContext, params: unknown) => {
+    const { projectId, limit, offset } = pcbListInputSchema.parse(params);
+    try {
+      const result = await ctx.bridge.call<
+        Record<string, unknown>,
+        { total?: number; items?: Record<string, unknown>[] }
+      >(bridgeMethod, { limit, offset });
+      return {
+        project_id: projectId,
+        [listKey]: result?.items ?? [],
+        total: result?.total ?? result?.items?.length ?? 0,
+      };
+    } catch (err) {
+      return {
+        project_id: projectId,
+        [listKey]: [],
+        total: 0,
+        not_available: true,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  };
+}
+
 function registerPcbReadTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -23,11 +58,7 @@ function registerPcbReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string(),
-      limit: z.coerce.number().int().min(1).max(200).default(100),
-      offset: z.coerce.number().int().min(0).default(0),
-    }),
+    inputSchema: pcbListInputSchema,
     outputSchema: z.object({
       project_id: z.string(),
       components: z.array(
@@ -49,32 +80,7 @@ function registerPcbReadTools(
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
-    handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, limit, offset } = params as {
-        projectId: string;
-        limit: number;
-        offset: number;
-      };
-      try {
-        const result = await ctx.bridge.call<
-          Record<string, unknown>,
-          { total?: number; items?: Record<string, unknown>[] }
-        >('pcb.listComponents', { limit, offset });
-        return {
-          project_id: projectId,
-          components: result?.items ?? [],
-          total: result?.total ?? result?.items?.length ?? 0,
-        };
-      } catch (err) {
-        return {
-          project_id: projectId,
-          components: [],
-          total: 0,
-          not_available: true,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
+    handler: makePcbListHandler('pcb.listComponents', 'components'),
   });
 
   registry.register({
@@ -94,11 +100,7 @@ function registerPcbReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string(),
-      limit: z.coerce.number().int().min(1).max(200).default(100),
-      offset: z.coerce.number().int().min(0).default(0),
-    }),
+    inputSchema: pcbListInputSchema,
     outputSchema: z.object({
       project_id: z.string(),
       tracks: z.array(
@@ -118,32 +120,7 @@ function registerPcbReadTools(
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
-    handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, limit, offset } = params as {
-        projectId: string;
-        limit: number;
-        offset: number;
-      };
-      try {
-        const result = await ctx.bridge.call<
-          Record<string, unknown>,
-          { total?: number; items?: Record<string, unknown>[] }
-        >('pcb.listTracks', { limit, offset });
-        return {
-          project_id: projectId,
-          tracks: result?.items ?? [],
-          total: result?.total ?? result?.items?.length ?? 0,
-        };
-      } catch (err) {
-        return {
-          project_id: projectId,
-          tracks: [],
-          total: 0,
-          not_available: true,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
+    handler: makePcbListHandler('pcb.listTracks', 'tracks'),
   });
 
   registry.register({
@@ -163,11 +140,7 @@ function registerPcbReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string(),
-      limit: z.coerce.number().int().min(1).max(200).default(100),
-      offset: z.coerce.number().int().min(0).default(0),
-    }),
+    inputSchema: pcbListInputSchema,
     outputSchema: z.object({
       project_id: z.string(),
       vias: z.array(
@@ -185,32 +158,7 @@ function registerPcbReadTools(
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
-    handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, limit, offset } = params as {
-        projectId: string;
-        limit: number;
-        offset: number;
-      };
-      try {
-        const result = await ctx.bridge.call<
-          Record<string, unknown>,
-          { total?: number; items?: Record<string, unknown>[] }
-        >('pcb.listVias', { limit, offset });
-        return {
-          project_id: projectId,
-          vias: result?.items ?? [],
-          total: result?.total ?? result?.items?.length ?? 0,
-        };
-      } catch (err) {
-        return {
-          project_id: projectId,
-          vias: [],
-          total: 0,
-          not_available: true,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
+    handler: makePcbListHandler('pcb.listVias', 'vias'),
   });
 }
 
