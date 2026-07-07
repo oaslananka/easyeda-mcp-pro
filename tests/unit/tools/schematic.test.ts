@@ -576,6 +576,39 @@ describe('Schematic Tools', () => {
     expect(result?.error).toContain('permission denied');
   });
 
+  describe('easyeda_schematic_sync_to_pcb', () => {
+    it('calls schematic.syncToPcb and reports success', async () => {
+      const tool = registry.get('easyeda_schematic_sync_to_pcb');
+      expect(tool).toBeDefined();
+      expect(tool?.confirmWrite).toBe(true);
+
+      bridgeCall.mockResolvedValue({ synced: true });
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-123',
+        confirmWrite: true,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.syncToPcb', { projectId: 'proj-123' });
+      expect(result).toEqual({ success: true, synced: true });
+    });
+
+    it('reports failure when the schematic tab is not focused', async () => {
+      const tool = registry.get('easyeda_schematic_sync_to_pcb');
+
+      bridgeCall.mockRejectedValue(
+        Object.assign(new Error('schematic.syncToPcb requires the schematic tab to be focused.'), {
+          code: 'SCHEMATIC_NOT_FOCUSED',
+        }),
+      );
+
+      const result = await tool?.handler(context, { confirmWrite: true });
+
+      expect(result).toMatchObject({ success: false });
+      expect(result?.error).toContain('requires the schematic tab');
+    });
+  });
+
   describe('easyeda_schematic_nets', () => {
     it('lists nets with node connections', async () => {
       const tool = registry.get('easyeda_schematic_nets');

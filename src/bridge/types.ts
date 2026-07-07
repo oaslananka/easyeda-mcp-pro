@@ -18,6 +18,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'schematic.connectPinToNet',
   'schematic.connectPinsByNet',
   'schematic.validateNetlist',
+  'schematic.syncToPcb',
   'system.apiInventory',
   'system.inspectComponents',
   'system.inspectWires',

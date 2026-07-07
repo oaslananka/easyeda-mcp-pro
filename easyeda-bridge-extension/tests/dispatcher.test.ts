@@ -152,6 +152,37 @@ describe('createDispatcher', () => {
     expect(create).toHaveBeenCalled();
   });
 
+  // Live-verified (2026-07-07): PCB_PrimitiveComponent.create() never
+  // resolves, but component placement isn't actually blocked — the real
+  // mechanism is schematic (addIntoPcb) -> SCH_Document.importChanges()
+  // (called with the schematic document focused) -> pcb.listComponents.
+  it('schematic.syncToPcb calls SCH_Document.importChanges when the schematic is focused', async () => {
+    const importChanges = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Schematic: { getCurrentSchematicInfo: async () => ({ uuid: 'sch-1' }) },
+        SCH_Document: { importChanges },
+      }),
+    );
+    const result = await dispatcher.dispatch('schematic.syncToPcb', {});
+    expect(importChanges).toHaveBeenCalled();
+    expect(result).toEqual({ synced: true });
+  });
+
+  it('schematic.syncToPcb refuses when the schematic tab is not focused', async () => {
+    const importChanges = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Schematic: { getCurrentSchematicInfo: async () => null },
+        SCH_Document: { importChanges },
+      }),
+    );
+    await expect(dispatcher.dispatch('schematic.syncToPcb', {})).rejects.toMatchObject({
+      code: 'SCHEMATIC_NOT_FOCUSED',
+    });
+    expect(importChanges).not.toHaveBeenCalled();
+  });
+
   it('rejects api.call paths outside the allowed class prefixes', async () => {
     const dispatcher = createDispatcher(makeToolkit({}));
     await expect(

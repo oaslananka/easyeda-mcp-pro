@@ -780,6 +780,49 @@ function registerSchematicWriteTools(
       }
     },
   });
+
+  registry.register({
+    name: 'easyeda_schematic_sync_to_pcb',
+    title: 'Sync schematic changes to PCB',
+    description:
+      'Push schematic changes (new parts with addIntoPcb) into the linked PCB — the real ' +
+      'mechanism EasyEDA uses to get components onto a board, since PCB_PrimitiveComponent.' +
+      'create() never resolves directly. Requires the SCHEMATIC tab focused. Reposition the ' +
+      'result with pcb_modify_component.',
+    profile: 'core',
+    evidence: ['runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().optional(),
+      confirmWrite: z.literal(true),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      synced: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId } = params as { projectId?: string };
+      try {
+        const result = await ctx.bridge.call('schematic.syncToPcb', { projectId });
+        const data = result as { synced?: boolean };
+        return { success: true, synced: data?.synced ?? true };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
 }
 
 export { registerSchematicWriteTools };

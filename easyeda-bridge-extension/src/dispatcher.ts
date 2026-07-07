@@ -88,6 +88,7 @@ const METHOD_LIST: readonly string[] = [
   'schematic.modifyPrimitive',
   'schematic.placeComponent',
   'schematic.searchDevice',
+  'schematic.syncToPcb',
   'schematic.validateNetlist',
   'system.apiInventory',
   'system.getStatus',
@@ -2286,6 +2287,29 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         createdPrimitiveIds,
         failures,
       };
+    }
+    case 'schematic.syncToPcb': {
+      // Live-verified (2026-07-07): PCB_PrimitiveComponent.create() never
+      // resolves — but that's the wrong call entirely. The real EasyEDA
+      // workflow is schematic -> sync -> PCB: a part placed in the schematic
+      // with addIntoPcb (the default) only reaches pcb.listComponents after
+      // SCH_Document.importChanges() is called WITH THE SCHEMATIC DOCUMENT
+      // FOCUSED. Calling PCB_Document.importChanges() from the PCB side
+      // does NOT do this (tried, returns true, syncs nothing). Once synced,
+      // pcb.modifyComponent correctly repositions/rotates the placed part.
+      const schInfo = await callFirst([
+        'DMT_Schematic.getCurrentSchematicInfo',
+        'dmt_Schematic.getCurrentSchematicInfo',
+      ]).catch(() => undefined);
+      if (!schInfo) {
+        throw newBridgeError(
+          'SCHEMATIC_NOT_FOCUSED',
+          'schematic.syncToPcb requires the schematic tab to be the focused/active document in EasyEDA Pro.',
+          'Click into the schematic document in EasyEDA Pro, then retry.',
+        );
+      }
+      const result = await callFirst(['SCH_Document.importChanges', 'sch_Document.importChanges']);
+      return { synced: result !== false };
     }
     case 'schematic.validateNetlist': {
       const netlistData = (await listNetsApi()) as Array<{

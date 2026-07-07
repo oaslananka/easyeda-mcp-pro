@@ -78,6 +78,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet. The bridge auto-assigns the next free designator ("R?" → "R1", "R2", …); check the returned designator. If annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by designator, so duplicate "R?" merge into one node.             |
 | `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords.                                                                                                                                                                                                                                                         |
 | `easyeda_schematic_sheet_info`          | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
+| `easyeda_schematic_sync_to_pcb`         | `core`  | `medium` | Push schematic changes (new parts with addIntoPcb) into the linked PCB — the real mechanism EasyEDA uses to get components onto a board, since PCB_PrimitiveComponent.create() never resolves directly. Requires the SCHEMATIC tab focused. Reposition the result with pcb_modify_component.                                     |
 | `easyeda_schematic_validate_netlist`    | `core`  | `low`    | Validate the schematic netlist: inferred nets, connected refs/pins, floating pins, plus a cross-check with native ERC (native_erc). `valid` needs BOTH the inference clean AND native ERC 0 errors — inference alone false-positives when pins overlap without a wire.                                                           |
 | `easyeda_schematic_verify_write`        | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                               |
 | `easyeda_schematic_wires`               | `core`  | `low`    | List wire segments: primitiveId, line coordinates, net name, color, style. Page with offset (check total) past the 50-wire-per-call cap. primitiveId is required by delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.                                                                           |
@@ -2397,6 +2398,33 @@ Returns a JSON object matching the schema:
   grid: any(optional);
   raw: any(optional);
   not_available: boolean(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_sync_to_pcb`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Push schematic changes (new parts with addIntoPcb) into the linked PCB — the real mechanism EasyEDA uses to get components onto a board, since PCB_PrimitiveComponent.create() never resolves directly. Requires the SCHEMATIC tab focused. Reposition the result with pcb_modify_component.
+
+### Input Parameters
+
+| Parameter      | Type                | Required | Description |
+| -------------- | ------------------- | -------- | ----------- |
+| `projectId`    | `string (optional)` | No       |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  synced: boolean(optional);
   error: string(optional);
 }
 ```
