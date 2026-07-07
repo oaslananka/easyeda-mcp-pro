@@ -99,6 +99,59 @@ describe('createDispatcher', () => {
     expect(create).toHaveBeenCalledWith([10, 20, 10, 40], 'NET_A', undefined, undefined, undefined);
   });
 
+  // Live-verified (2026-07-07): a generic net label (SCH_PrimitiveAttribute.
+  // createNetLabel) is cosmetic and never appears here, but a power/ground
+  // flag (SCH_PrimitiveComponent.createNetFlag) is a real componentType
+  // 'netflag' instance with its own net/x/y — a wire landing on its
+  // coordinate shorts nets exactly like landing on a foreign wire does, and
+  // the wire-only check above never sees it (no wire object at that point).
+  function fakeNetFlag(net: string, x: number, y: number): Record<string, unknown> {
+    return {
+      getState_ComponentType: () => 'netflag',
+      getState_Net: () => net,
+      getState_X: () => x,
+      getState_Y: () => y,
+    };
+  }
+
+  it('refuses addWire when a point collides with a foreign net flag', async () => {
+    const create = vi.fn();
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: { getAll: async () => [] },
+        SCH_PrimitiveComponent: { getAll: async () => [fakeNetFlag('NET_GND', 400, 400)] },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('schematic.addWire', {
+        netName: 'NET_E',
+        points: [
+          { x: 400, y: 400 },
+          { x: 400, y: 450 },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'NET_COLLISION' });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('allows addWire landing on a net flag that shares the same net', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'w3' }));
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: { getAll: async () => [], create },
+        SCH_PrimitiveComponent: { getAll: async () => [fakeNetFlag('NET_VCC', 500, 500)] },
+      }),
+    );
+    await dispatcher.dispatch('schematic.addWire', {
+      netName: 'NET_VCC',
+      points: [
+        { x: 500, y: 500 },
+        { x: 500, y: 550 },
+      ],
+    });
+    expect(create).toHaveBeenCalled();
+  });
+
   it('rejects api.call paths outside the allowed class prefixes', async () => {
     const dispatcher = createDispatcher(makeToolkit({}));
     await expect(

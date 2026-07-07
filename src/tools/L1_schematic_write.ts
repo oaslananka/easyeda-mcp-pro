@@ -264,8 +264,8 @@ function registerSchematicWriteTools(
     description:
       'Add a wire connecting schematic coordinates/pins — real native connectivity. Same ' +
       '`netName` connects pins globally: separate stubs sharing one name merge into one net (no ' +
-      "label needed). NET_COLLISION guards touching another net's wire, but checks only wires — " +
-      'crossing a pin/flag coordinate still shorts it.',
+      "label needed). NET_COLLISION guards touched points against a foreign net's wire, pin, or " +
+      'flag/port — not mid-segment crossings.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',

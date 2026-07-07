@@ -217,34 +217,99 @@ function normalizeWireLine(line: unknown): Array<{ x: number; y: number }> {
  * overlapping "highway" columns/rows. Returns the first collision found, or
  * null if the runtime doesn't expose wire introspection or none is found.
  */
+/**
+ * Coordinate -> netName for every pin/flag/port this bridge can positively
+ * attribute to a specific net, used to extend the wire-drawing collision
+ * guard beyond wire-vs-wire (see findForeignNetCollision). Two sources:
+ *  - listNetsApi()'s coordinate-fallback nodes, which carry x/y for pins
+ *    connected via a wire touching their coordinate (the primary mechanism
+ *    since connect_pin_to_net started drawing real wire stubs).
+ *  - net flag/port components directly, which aren't in listNetsApi()'s
+ *    per-component node list (they have no designator) but do carry both a
+ *    coordinate and a net name via readComponentType/readComponentNet.
+ * Pins connected only via the legacy stamped OtherProperty.net (no x/y) are
+ * NOT included — there is no coordinate to collide with.
+ */
+async function buildForeignConnectivityMap(): Promise<Map<string, string>> {
+  const coordToNet = new Map<string, string>();
+  try {
+    const netlistData = (await listNetsApi()) as SchematicNetEntry[];
+    for (const net of netlistData) {
+      for (const node of net.nodes) {
+        if (typeof node.x === 'number' && typeof node.y === 'number') {
+          coordToNet.set(pointKey({ x: node.x, y: node.y }), net.netName);
+        }
+      }
+    }
+  } catch (e) {
+    logRecoverableError('failed to build pin coordinate map for net-collision check', e);
+  }
+
+  const schCompClass = readFirstPath<any>([
+    'SCH_PrimitiveComponent',
+    'SCH_PrimitiveComponent3',
+    'sch_PrimitiveComponent',
+  ]);
+  if (schCompClass && typeof schCompClass.getAll === 'function') {
+    try {
+      const allComps = (await schCompClass.getAll(undefined, true)) || [];
+      for (const c of allComps) {
+        const type = readComponentType(c);
+        if (type !== 'netflag' && type !== 'netport') continue;
+        const netName = readComponentNet(c);
+        const point = readPrimitivePoint(c);
+        if (netName && point) coordToNet.set(pointKey(point), netName);
+      }
+    } catch (e) {
+      logRecoverableError('failed to read net flags/ports for net-collision check', e);
+    }
+  }
+
+  return coordToNet;
+}
+
 async function findForeignNetCollision(
   points: Array<{ x: number; y: number }>,
   netName: string,
-): Promise<{ x: number; y: number; foreignNet: string } | null> {
+): Promise<{ x: number; y: number; foreignNet: string; kind: 'wire' | 'pin_or_flag' } | null> {
   if (!netName || points.length === 0) return null;
   const schWireClass = readFirstPath<any>(['SCH_PrimitiveWire', 'sch_PrimitiveWire']);
-  if (!schWireClass || typeof schWireClass.getAll !== 'function') return null;
+  if (schWireClass && typeof schWireClass.getAll === 'function') {
+    let wires: unknown[] = [];
+    try {
+      wires = (await schWireClass.getAll()) || [];
+    } catch (e) {
+      logRecoverableError('failed to read existing wires for net-collision check', e);
+      wires = [];
+    }
 
-  let wires: unknown[] = [];
-  try {
-    wires = (await schWireClass.getAll()) || [];
-  } catch (e) {
-    logRecoverableError('failed to read existing wires for net-collision check', e);
-    return null;
-  }
-
-  for (const wire of wires) {
-    const wireNet = String(safeGetState(wire, 'Net') ?? '');
-    if (!wireNet || wireNet === netName) continue;
-    const wirePts = normalizeWireLine(safeGetState(wire, 'Line'));
-    for (const p of points) {
-      for (const wp of wirePts) {
-        if (wp.x === p.x && wp.y === p.y) {
-          return { x: p.x, y: p.y, foreignNet: wireNet };
+    for (const wire of wires) {
+      const wireNet = String(safeGetState(wire, 'Net') ?? '');
+      if (!wireNet || wireNet === netName) continue;
+      const wirePts = normalizeWireLine(safeGetState(wire, 'Line'));
+      for (const p of points) {
+        for (const wp of wirePts) {
+          if (wp.x === p.x && wp.y === p.y) {
+            return { x: p.x, y: p.y, foreignNet: wireNet, kind: 'wire' };
+          }
         }
       }
     }
   }
+
+  // Wire-vs-wire found nothing; also check pin/net-flag/net-port coordinates
+  // directly, since EasyEDA merges by coordinate regardless of primitive
+  // type — a wire landing exactly on a foreign pin or flag shorts it just
+  // like landing on a foreign wire does, and the check above never saw it
+  // (the foreign pin has no wire of its own at that point).
+  const foreignMap = await buildForeignConnectivityMap();
+  for (const p of points) {
+    const foreignNet = foreignMap.get(pointKey(p));
+    if (foreignNet && foreignNet !== netName) {
+      return { x: p.x, y: p.y, foreignNet, kind: 'pin_or_flag' };
+    }
+  }
+
   return null;
 }
 
@@ -1648,11 +1713,12 @@ async function connectPinToNetImpl(
 
   const collision = await findForeignNetCollision(points, netName);
   if (collision) {
+    const collidedWith = collision.kind === 'wire' ? 'an existing wire' : 'a pin or net flag/port';
     throw newBridgeError(
       'NET_COLLISION',
       `Refusing to connect pin "${pinNumber}" on "${primitiveId}" to net "${netName}": point ` +
-        `(${collision.x}, ${collision.y}) coincides with an existing wire on net ` +
-        `"${collision.foreignNet}". EasyEDA Pro auto-merges wires that share a coordinate, ` +
+        `(${collision.x}, ${collision.y}) coincides with ${collidedWith} on net ` +
+        `"${collision.foreignNet}". EasyEDA Pro auto-merges primitives that share a coordinate, ` +
         'which would silently short these two nets together.',
       `Retry with a different stubLength, or route this connection manually with schematic.addWire.`,
     );
@@ -1945,11 +2011,13 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
 
       const collision = await findForeignNetCollision(rawPoints, netName);
       if (collision) {
+        const collidedWith =
+          collision.kind === 'wire' ? 'an existing wire' : 'a pin or net flag/port';
         throw newBridgeError(
           'NET_COLLISION',
           `Refusing to draw wire for net "${netName}": point (${collision.x}, ${collision.y}) ` +
-            `coincides with an existing wire on net "${collision.foreignNet}". EasyEDA Pro ` +
-            'auto-merges wires that share a coordinate (not just endpoints), which would ' +
+            `coincides with ${collidedWith} on net "${collision.foreignNet}". EasyEDA Pro ` +
+            'auto-merges primitives that share a coordinate (not just endpoints), which would ' +
             'silently short these two nets together.',
           `Route this wire through coordinates not used by net "${collision.foreignNet}", ` +
             'or call schematic_nets afterward to confirm the intended topology.',
