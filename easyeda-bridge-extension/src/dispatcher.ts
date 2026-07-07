@@ -217,20 +217,10 @@ function normalizeWireLine(line: unknown): Array<{ x: number; y: number }> {
  * overlapping "highway" columns/rows. Returns the first collision found, or
  * null if the runtime doesn't expose wire introspection or none is found.
  */
-/**
- * Coordinate -> netName for every pin/flag/port this bridge can positively
- * attribute to a specific net, used to extend the wire-drawing collision
- * guard beyond wire-vs-wire (see findForeignNetCollision). Two sources:
- *  - listNetsApi()'s coordinate-fallback nodes, which carry x/y for pins
- *    connected via a wire touching their coordinate (the primary mechanism
- *    since connect_pin_to_net started drawing real wire stubs).
- *  - net flag/port components directly, which aren't in listNetsApi()'s
- *    per-component node list (they have no designator) but do carry both a
- *    coordinate and a net name via readComponentType/readComponentNet.
- * Pins connected only via the legacy stamped OtherProperty.net (no x/y) are
- * NOT included — there is no coordinate to collide with.
- */
-async function buildForeignConnectivityMap(): Promise<Map<string, string>> {
+/** Pin coordinates from listNetsApi()'s coordinate-fallback nodes, which carry
+ *  x/y for pins connected via a wire touching their coordinate (the primary
+ *  mechanism since connect_pin_to_net started drawing real wire stubs). */
+async function collectPinCoordinateNets(): Promise<Map<string, string>> {
   const coordToNet = new Map<string, string>();
   try {
     const netlistData = (await listNetsApi()) as SchematicNetEntry[];
@@ -244,28 +234,48 @@ async function buildForeignConnectivityMap(): Promise<Map<string, string>> {
   } catch (e) {
     logRecoverableError('failed to build pin coordinate map for net-collision check', e);
   }
+  return coordToNet;
+}
 
+/** Net flag/port coordinates read directly from components — these aren't in
+ *  listNetsApi()'s per-component node list (they have no designator) but do
+ *  carry both a coordinate and a net name via readComponentType/readComponentNet. */
+async function collectFlagPortCoordinateNets(): Promise<Map<string, string>> {
+  const coordToNet = new Map<string, string>();
   const schCompClass = readFirstPath<any>([
     'SCH_PrimitiveComponent',
     'SCH_PrimitiveComponent3',
     'sch_PrimitiveComponent',
   ]);
-  if (schCompClass && typeof schCompClass.getAll === 'function') {
-    try {
-      const allComps = (await schCompClass.getAll(undefined, true)) || [];
-      for (const c of allComps) {
-        const type = readComponentType(c);
-        if (type !== 'netflag' && type !== 'netport') continue;
-        const netName = readComponentNet(c);
-        const point = readPrimitivePoint(c);
-        if (netName && point) coordToNet.set(pointKey(point), netName);
-      }
-    } catch (e) {
-      logRecoverableError('failed to read net flags/ports for net-collision check', e);
+  if (!schCompClass || typeof schCompClass.getAll !== 'function') return coordToNet;
+  try {
+    const allComps = (await schCompClass.getAll(undefined, true)) || [];
+    for (const c of allComps) {
+      const type = readComponentType(c);
+      if (type !== 'netflag' && type !== 'netport') continue;
+      const netName = readComponentNet(c);
+      const point = readPrimitivePoint(c);
+      if (netName && point) coordToNet.set(pointKey(point), netName);
     }
+  } catch (e) {
+    logRecoverableError('failed to read net flags/ports for net-collision check', e);
   }
-
   return coordToNet;
+}
+
+/**
+ * Coordinate -> netName for every pin/flag/port this bridge can positively
+ * attribute to a specific net, used to extend the wire-drawing collision
+ * guard beyond wire-vs-wire (see findForeignNetCollision).
+ * Pins connected only via the legacy stamped OtherProperty.net (no x/y) are
+ * NOT included — there is no coordinate to collide with.
+ */
+async function buildForeignConnectivityMap(): Promise<Map<string, string>> {
+  const [pinCoords, flagCoords] = await Promise.all([
+    collectPinCoordinateNets(),
+    collectFlagPortCoordinateNets(),
+  ]);
+  return new Map([...pinCoords, ...flagCoords]);
 }
 
 async function findForeignNetCollision(
@@ -1873,17 +1883,44 @@ async function runDrcCheck(classPaths: string[]): Promise<{
  * for why connectivity is read from listNetsApi()'s authoritative net data
  * rather than by re-reading each pin's OtherProperty.net.
  */
-async function findFloatingPinsApi(): Promise<{
-  floatingPins: Array<{ primitiveId: string; designator: string; pinNumber: string }>;
-  partRefs: string[];
-}> {
-  const netlistData = (await listNetsApi()) as SchematicNetEntry[];
+function buildConnectedNodeSet(netlistData: SchematicNetEntry[]): Set<string> {
   const connectedNodes = new Set<string>();
   for (const n of netlistData) {
     for (const node of n.nodes || []) {
       connectedNodes.add(`${node.component} ${node.pin}`);
     }
   }
+  return connectedNodes;
+}
+
+async function collectFloatingPinsForComponent(
+  component: any,
+  ref: string,
+  primitiveId: string,
+  connectedNodes: Set<string>,
+): Promise<Array<{ primitiveId: string; designator: string; pinNumber: string }>> {
+  const floating: Array<{ primitiveId: string; designator: string; pinNumber: string }> = [];
+  try {
+    const pins = await component.getAllPins();
+    for (const p of pins || []) {
+      if (typeof p.getState_PinNumber !== 'function') continue;
+      const pinNum = String(p.getState_PinNumber());
+      if (!connectedNodes.has(`${ref} ${pinNum}`)) {
+        floating.push({ primitiveId: primitiveId || ref, designator: ref, pinNumber: pinNum });
+      }
+    }
+  } catch {
+    // skip component
+  }
+  return floating;
+}
+
+async function findFloatingPinsApi(): Promise<{
+  floatingPins: Array<{ primitiveId: string; designator: string; pinNumber: string }>;
+  partRefs: string[];
+}> {
+  const netlistData = (await listNetsApi()) as SchematicNetEntry[];
+  const connectedNodes = buildConnectedNodeSet(netlistData);
   const floatingPins: Array<{ primitiveId: string; designator: string; pinNumber: string }> = [];
   const partRefs = new Set<string>();
   const schCompClass = readFirstPath<any>([
@@ -1891,34 +1928,22 @@ async function findFloatingPinsApi(): Promise<{
     'SCH_PrimitiveComponent3',
     'sch_PrimitiveComponent',
   ]);
-  if (schCompClass && typeof schCompClass.getAll === 'function') {
-    const allComps = await schCompClass.getAll(undefined, true);
-    for (const c of allComps || []) {
-      const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
-      // Skip primitives without a designator (title block, net flags, net
-      // ports, net labels): they are not schematic parts and have no pins
-      // to treat as floating, and counting them inflated the tally.
-      if (!ref || typeof c.getAllPins !== 'function') continue;
-      partRefs.add(ref);
-      const primitiveId =
-        typeof c.getState_PrimitiveId === 'function' ? String(c.getState_PrimitiveId()) : '';
-      try {
-        const pins = await c.getAllPins();
-        for (const p of pins || []) {
-          if (typeof p.getState_PinNumber !== 'function') continue;
-          const pinNum = String(p.getState_PinNumber());
-          if (!connectedNodes.has(`${ref} ${pinNum}`)) {
-            floatingPins.push({
-              primitiveId: primitiveId || ref,
-              designator: ref,
-              pinNumber: pinNum,
-            });
-          }
-        }
-      } catch {
-        // skip component
-      }
-    }
+  if (!schCompClass || typeof schCompClass.getAll !== 'function') {
+    return { floatingPins, partRefs: [] };
+  }
+  const allComps = (await schCompClass.getAll(undefined, true)) || [];
+  for (const c of allComps) {
+    const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
+    // Skip primitives without a designator (title block, net flags, net
+    // ports, net labels): they are not schematic parts and have no pins
+    // to treat as floating, and counting them inflated the tally.
+    if (!ref || typeof c.getAllPins !== 'function') continue;
+    partRefs.add(ref);
+    const primitiveId =
+      typeof c.getState_PrimitiveId === 'function' ? String(c.getState_PrimitiveId()) : '';
+    floatingPins.push(
+      ...(await collectFloatingPinsForComponent(c, ref, primitiveId, connectedNodes)),
+    );
   }
   return { floatingPins, partRefs: [...partRefs] };
 }
