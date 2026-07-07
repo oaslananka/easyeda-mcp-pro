@@ -41,9 +41,9 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_jlcpcb_quote_workflow`         | `pro`   | `medium` | Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.                                                                                                                                                             |
 | `easyeda_live_smoke_report`             | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                                                  |
 | `easyeda_observability_report`          | `core`  | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                                                 |
-| `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace segment on the PCB board.                                                                                                                                                                                                                                                                              |
-| `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board.                                                                                                                                                                                                                                                                 |
-| `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a specific layer with clearance settings.                                                                                                                                                                                                                                                           |
+| `easyeda_pcb_add_track`                 | `full`  | `high`   | Draw a copper track/trace on the PCB board. A multi-point path is written as one line segment per consecutive point pair (all sharing netName, so they form one electrical track — same coordinate/name merge model as schematic wires).                                                                                         |
+| `easyeda_pcb_add_via`                   | `full`  | `high`   | Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.    |
+| `easyeda_pcb_add_zone`                  | `full`  | `high`   | Create a copper pour zone on a layer with clearance settings. CAUTION: the native create() call needs 9 args but this tool sends only 4 (points, layer, netName, clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.                                                                     |
 | `easyeda_pcb_autoroute`                 | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
 | `easyeda_pcb_constraint_check`          | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
 | `easyeda_pcb_constraint_report`         | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                                                  |
@@ -51,7 +51,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_export_route_context`      | `pro`   | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                                  |
 | `easyeda_pcb_floorplan`                 | `full`  | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
 | `easyeda_pcb_modify_component`          | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                                   |
-| `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout.                                                                                                                                                                                                                                                                            |
+| `easyeda_pcb_place_component`           | `full`  | `high`   | Place a component footprint on the active PCB layout. CAUTION: the native create() call needs 6 args but this tool sends only 5 (footprint, x, y, rotation, layer) — live-confirmed mismatch, not yet resolved. Verify placement visually before trusting it.                                                                    |
 | `easyeda_pcb_place_component_group`     | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
 | `easyeda_pcb_production_review`         | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                   |
 | `easyeda_pcb_route_path_plan`           | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                         |
@@ -1199,7 +1199,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Draw a copper track/trace segment on the PCB board.
+> Draw a copper track/trace on the PCB board. A multi-point path is written as one line segment per consecutive point pair (all sharing netName, so they form one electrical track — same coordinate/name merge model as schematic wires).
 
 ### Input Parameters
 
@@ -1218,8 +1218,9 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
-  primitiveId: string(optional);
-  error: string(optional);
+  primitiveId: string (optional);
+  primitiveIds: string[] (optional);
+  error: string (optional);
 }
 ```
 
@@ -1229,7 +1230,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Place a via to connect different copper layers on the PCB board.
+> Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.
 
 ### Input Parameters
 
@@ -1260,7 +1261,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Create a copper pour zone on a specific layer with clearance settings.
+> Create a copper pour zone on a layer with clearance settings. CAUTION: the native create() call needs 9 args but this tool sends only 4 (points, layer, netName, clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.
 
 ### Input Parameters
 
@@ -1527,7 +1528,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Place a component footprint on the active PCB layout.
+> Place a component footprint on the active PCB layout. CAUTION: the native create() call needs 6 args but this tool sends only 5 (footprint, x, y, rotation, layer) — live-confirmed mismatch, not yet resolved. Verify placement visually before trusting it.
 
 ### Input Parameters
 

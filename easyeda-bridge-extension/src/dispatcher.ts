@@ -2395,22 +2395,73 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.rotation,
         params.layer,
       );
-    case 'pcb.addTrack':
-      return callFirst(
-        ['PCB_PrimitivePolyline.create', 'PCB_PrimitiveLine.create'],
-        params.points,
-        params.layer,
-        params.width,
-        params.netName,
-      );
+    case 'pcb.addTrack': {
+      // PCB_PrimitivePolyline.create's real argument order could not be
+      // determined live (every points/layer/width/net permutation tried
+      // against the runtime rejected with a generic "cannot create polygon
+      // primitive" error). PCB_PrimitiveLine.create's signature WAS resolved
+      // live by passing 8 distinguishable values and reading back
+      // getState_*: create(net, layer, startX, startY, endX, endY,
+      // lineWidth, locked) — note net comes FIRST, unlike the previous
+      // (points, layer, width, net) call this replaces. A multi-point track
+      // is drawn as one PCB_PrimitiveLine segment per consecutive point
+      // pair, all sharing netName so they merge into one electrical track
+      // (same coordinate-driven merge model as schematic wires).
+      const rawPoints: Array<{ x: number; y: number }> = Array.isArray(params.points)
+        ? params.points
+        : [];
+      if (rawPoints.length < 2) {
+        throw newBridgeError(
+          'INVALID_PARAMS',
+          'pcb.addTrack requires at least 2 points',
+          'Provide a points array with at least a start and end coordinate.',
+        );
+      }
+      const netName = params.netName as string | undefined;
+      const layer = params.layer;
+      const width = params.width;
+      const createdIds: string[] = [];
+      for (let i = 1; i < rawPoints.length; i += 1) {
+        const start = rawPoints[i - 1];
+        const end = rawPoints[i];
+        const created = await callFirst(
+          ['PCB_PrimitiveLine.create', 'pcb_PrimitiveLine.create'],
+          netName,
+          layer,
+          start.x,
+          start.y,
+          end.x,
+          end.y,
+          width,
+          false,
+        );
+        createdIds.push(extractPrimitiveId(created));
+      }
+      return { primitiveId: createdIds[0], primitiveIds: createdIds };
+    }
     case 'pcb.addVia':
+      // PCB_PrimitiveVia.create's real argument order was resolved live by
+      // passing 9 distinguishable values and reading back getState_*:
+      // create(net, x, y, holeDiameter, diameter, viaType,
+      // designRuleBlindViaName, locked, solderMaskExpansion) — note net
+      // comes FIRST and hole/outer diameter are SWAPPED relative to the
+      // previous (x, y, outerDiameter, holeSize, net) call this replaces,
+      // which silently wrote garbage (net into X, diameter into Y, etc.)
+      // while still reporting success. holeDiameter/diameter are passed
+      // through in whatever native unit the caller supplies (unconverted,
+      // same as x/y) — the exact real-world unit was not independently
+      // cross-checked against a known physical dimension.
       return callFirst(
         ['PCB_PrimitiveVia.create', 'pcb_PrimitiveVia.create'],
+        params.netName,
         params.x,
         params.y,
-        params.outerDiameter,
         params.holeSize,
-        params.netName,
+        params.outerDiameter,
+        0,
+        '',
+        false,
+        undefined,
       );
     case 'pcb.addZone':
       return callFirst(

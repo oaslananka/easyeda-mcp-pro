@@ -325,12 +325,11 @@ export function planRoutePath(input: RoutePathInput): RoutePathPlan {
     }
   }
 
-  const flatPoints = input.waypoints.flatMap((point) => [point.x, point.y]);
   const operations = [
     {
       method: 'pcb.addTrack',
       params: {
-        points: flatPoints,
+        points: input.waypoints,
         layer: input.layer,
         width: input.widthMm,
         netName: input.netName,
