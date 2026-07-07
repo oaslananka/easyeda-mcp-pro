@@ -783,18 +783,18 @@ function registerSchematicWriteTools(
 
   registry.register({
     name: 'easyeda_schematic_sync_to_pcb',
-    title: 'Sync schematic changes to PCB',
+    title: 'Request schematic-to-PCB sync (needs human approval)',
     description:
-      'Push schematic changes (new parts with addIntoPcb) into the linked PCB — the real ' +
-      'mechanism EasyEDA uses to get components onto a board, since PCB_PrimitiveComponent.' +
-      'create() never resolves directly. Requires the SCHEMATIC tab focused. Reposition the ' +
-      'result with pcb_modify_component.',
+      'Request a schematic-to-PCB sync (SCH_Document.importChanges). CAUTION (live-verified): ' +
+      "opens a confirmation dialog in EasyEDA Pro's UI a HUMAN must approve — success here only " +
+      'means the request was sent, not that components appeared. Ask the user to approve the ' +
+      'dialog, then verify with pcb_components.',
     profile: 'core',
     evidence: ['runtime-probe'],
     risk: 'medium',
     confirmWrite: true,
     group: 'schematic',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -806,7 +806,8 @@ function registerSchematicWriteTools(
     }),
     outputSchema: z.object({
       success: z.boolean(),
-      synced: z.boolean().optional(),
+      requested: z.boolean().optional(),
+      note: z.string().optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -814,7 +815,11 @@ function registerSchematicWriteTools(
       try {
         const result = await ctx.bridge.call('schematic.syncToPcb', { projectId });
         const data = result as { synced?: boolean };
-        return { success: true, synced: data?.synced ?? true };
+        return {
+          success: true,
+          requested: data?.synced ?? true,
+          note: 'EasyEDA opened a confirmation dialog in its UI — ask the user to approve it, then verify with pcb_components before assuming the sync completed.',
+        };
       } catch (err) {
         return {
           success: false,

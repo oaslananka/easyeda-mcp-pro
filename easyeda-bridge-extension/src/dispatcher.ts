@@ -2297,6 +2297,13 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // FOCUSED. Calling PCB_Document.importChanges() from the PCB side
       // does NOT do this (tried, returns true, syncs nothing). Once synced,
       // pcb.modifyComponent correctly repositions/rotates the placed part.
+      //
+      // CAUTION (live-verified): SCH_Document.importChanges() resolves
+      // `true` immediately regardless of outcome — it only OPENS a native
+      // "Confirm Importing changes information" dialog in EasyEDA Pro's UI.
+      // Nothing actually reaches the PCB until a human clicks through that
+      // dialog; there is no known headless/scriptable way to confirm it.
+      // This is NOT a fire-and-forget automation step.
       const schInfo = await callFirst([
         'DMT_Schematic.getCurrentSchematicInfo',
         'dmt_Schematic.getCurrentSchematicInfo',

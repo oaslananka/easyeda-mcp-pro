@@ -590,7 +590,8 @@ describe('Schematic Tools', () => {
       });
 
       expect(bridgeCall).toHaveBeenCalledWith('schematic.syncToPcb', { projectId: 'proj-123' });
-      expect(result).toEqual({ success: true, synced: true });
+      expect(result).toMatchObject({ success: true, requested: true });
+      expect(result?.note).toContain('confirmation dialog');
     });
 
     it('reports failure when the schematic tab is not focused', async () => {
