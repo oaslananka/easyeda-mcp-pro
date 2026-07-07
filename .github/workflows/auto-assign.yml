@@ -1,0 +1,36 @@
+name: Auto assign incoming issues and PRs
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    if: github.actor != 'oaslananka'
+
+    steps:
+      - name: Assign to oaslananka
+        uses: actions/github-script@v7
+        continue-on-error: true
+        with:
+          script: |
+            const number = context.payload.issue?.number ?? context.payload.pull_request?.number;
+
+            if (!Number.isInteger(number)) {
+              core.notice('No issue or pull request number was found in this event payload.');
+              return;
+            }
+
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              assignees: ['oaslananka'],
+            });
