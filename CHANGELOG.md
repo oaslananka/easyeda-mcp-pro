@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.23.0...easyeda-mcp-pro-v0.24.0) (2026-07-07)
+
+
+### Features
+
+* add CDP bridge backend for EasyEDA debug mode ([f3e7990](https://github.com/oaslananka/easyeda-mcp-pro/commit/f3e7990dcfd9bbdefeff3a5a3973b4f1967bdaf4))
+
 ## [0.23.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.22.0...easyeda-mcp-pro-v0.23.0) (2026-07-07)
 
 
