@@ -541,12 +541,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_connect_pin_to_net',
     title: 'Connect pin to net (logical, non-authoritative)',
     description:
-      'Records a logical association between a component pin and a net name as a custom pin ' +
-      'property. This does NOT create real EasyEDA netlist/wire connectivity — it is invisible ' +
-      'to ERC, ratsnest, and autorouting, and only self-consistent with schematic_nets/' +
-      'validate_netlist (which read the same custom property). To create genuine electrical ' +
-      'connectivity, use easyeda_schematic_add_wire instead. Use this tool only for bookkeeping ' +
-      'that does not need to survive real netlist operations.',
+      'Records a logical pin→net association as a custom pin property only. NOT real EasyEDA ' +
+      'netlist/wire connectivity: invisible to ERC, ratsnest, and autorouting. Use ' +
+      'easyeda_schematic_add_wire for genuine electrical connectivity; use this only for ' +
+      'bookkeeping that need not survive real netlist operations.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
@@ -620,11 +618,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_connect_pins_by_net',
     title: 'Connect pins by net (logical, non-authoritative)',
     description:
-      'Records logical pin/net associations as custom pin properties for multiple pins in one ' +
-      'call. Like connect_pin_to_net, this does NOT create real EasyEDA netlist/wire ' +
-      'connectivity — it is invisible to ERC, ratsnest, and autorouting. To create genuine ' +
-      'electrical connectivity, use easyeda_schematic_add_wire instead. This is the bulk ' +
-      'equivalent of connect_pin_to_net, with the same non-authoritative caveat.',
+      'Bulk variant of connect_pin_to_net: stamps logical net associations on several pins as ' +
+      'custom pin properties in one call. NOT real EasyEDA netlist/wire connectivity — ' +
+      'invisible to ERC, ratsnest, and autorouting. Use easyeda_schematic_add_wire for genuine ' +
+      'electrical connectivity.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
