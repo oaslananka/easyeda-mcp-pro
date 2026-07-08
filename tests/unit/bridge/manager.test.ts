@@ -583,6 +583,39 @@ describe('BridgeManager - call() round trip', () => {
     manager.disconnect('test complete');
   });
 
+  it('preserves the dispatcher error code/suggestion/data on the rejected Error', async () => {
+    const { manager, socket } = await setupSecureConnection();
+
+    socket.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as { id: string; type: string };
+      if (msg.type === 'request') {
+        socket.send(
+          JSON.stringify({
+            id: msg.id,
+            type: 'response',
+            ok: false,
+            error: {
+              code: 'NOT_IMPLEMENTED',
+              message: 'subPartName is not supported',
+              suggestion: 'Omit subPartName.',
+              data: { subPartName: 'X.2' },
+            },
+          }),
+        );
+      }
+    });
+
+    await expect(manager.call('schematic.placeComponent', {})).rejects.toMatchObject({
+      message: 'subPartName is not supported',
+      code: 'NOT_IMPLEMENTED',
+      suggestion: 'Omit subPartName.',
+      data: { subPartName: 'X.2' },
+    });
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
   it('rejects pending calls when the bridge disconnects before a response arrives', async () => {
     const { manager, socket } = await setupSecureConnection();
 

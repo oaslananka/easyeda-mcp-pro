@@ -118,6 +118,20 @@ function hasRequiredToolScopes(
 /**
  * Build a structured error content block for MCP responses.
  */
+/** Shallow-copies `value` without `fields` — used to drop large duplicate
+ *  payloads (e.g. a base64 image) from structuredContent/text once they've
+ *  already been extracted into a dedicated content block. See
+ *  `ToolDefinition.imageContentOmitFields`. */
+function omitFields(value: unknown, fields: string[]): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+  const omit = new Set(fields);
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    if (!omit.has(key)) result[key] = val;
+  }
+  return result;
+}
+
 function structuredErrorResponse(error: StructuredError) {
   return {
     isError: true,
@@ -302,15 +316,19 @@ export class ToolRegistry {
               });
             }
 
-            const structuredContent =
-              typeof output.data === 'object' && output.data !== null
-                ? (output.data as Record<string, unknown>)
-                : { value: output.data };
             const images = tool.imageContent?.(output.data) ?? [];
+            const responseData =
+              images.length > 0 && tool.imageContentOmitFields?.length
+                ? omitFields(output.data, tool.imageContentOmitFields)
+                : output.data;
+            const structuredContent =
+              typeof responseData === 'object' && responseData !== null
+                ? (responseData as Record<string, unknown>)
+                : { value: responseData };
             return {
               structuredContent,
               content: [
-                { type: 'text' as const, text: JSON.stringify(output.data, null, 2) },
+                { type: 'text' as const, text: JSON.stringify(responseData, null, 2) },
                 ...images.map((image) => ({
                   type: 'image' as const,
                   data: image.data,

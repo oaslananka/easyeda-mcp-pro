@@ -344,4 +344,275 @@ describe('Workflow Tools', () => {
       expect(result.error).toMatch(/confirmWrite=true is required/);
     });
   });
+
+  describe('collision reconcile', () => {
+    it('nudges a newly-placed component clear of a pin-coordinate collision and still applies', async () => {
+      let placed1Pos = { x: 0, y: 0 };
+      let modifyCalls = 0;
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.placeComponent') return { primitiveId: 'placed-1' };
+        if (method === 'schematic.listComponents') {
+          return {
+            total: 2,
+            items: [{ primitiveId: 'placed-1' }, { primitiveId: 'EXISTING-1' }],
+          };
+        }
+        if (
+          method === 'api.call' &&
+          params?.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId'
+        ) {
+          const id = params.args?.[0];
+          if (id === 'placed-1') {
+            return { result: [{ pinNumber: '1', pinName: 'P1', x: placed1Pos.x, y: placed1Pos.y }] };
+          }
+          if (id === 'EXISTING-1') {
+            return { result: [{ pinNumber: '1', pinName: 'P1', x: 0, y: 0 }] };
+          }
+          return { result: [] };
+        }
+        if (method === 'schematic.modifyPrimitive') {
+          modifyCalls += 1;
+          placed1Pos = { x: (params.property as any).x, y: (params.property as any).y };
+          return { success: true };
+        }
+        return {};
+      });
+
+      const tool = registry.get('easyeda_workflow_place_block');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        mode: 'apply',
+        confirmWrite: true,
+        anchor: { x: 0, y: 0 },
+        components: [{ ref: 'C1', role: 'decoupling-capacitor', deviceItem, pinConnections: [] }],
+        existingComponents: [],
+        netPorts: [],
+      })) as any;
+
+      expect(result.applied).toBe(true);
+      expect(modifyCalls).toBe(1);
+      expect(placed1Pos).not.toEqual({ x: 0, y: 0 });
+      expect(result.issues.some((i: any) => i.code === 'WORKFLOW_PIN_COLLISION')).toBe(false);
+    });
+
+    it('blocks and rolls back when a pin-coordinate collision cannot be resolved by nudging', async () => {
+      let placed1Pos = { x: 0, y: 0 };
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.placeComponent') return { primitiveId: 'placed-1' };
+        if (method === 'schematic.listComponents') {
+          return {
+            total: 2,
+            items: [{ primitiveId: 'placed-1' }, { primitiveId: 'EXISTING-1' }],
+          };
+        }
+        if (
+          method === 'api.call' &&
+          params?.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId'
+        ) {
+          const id = params.args?.[0];
+          // EXISTING-1 mirrors placed-1's position, so no amount of nudging escapes it.
+          if (id === 'placed-1' || id === 'EXISTING-1') {
+            return { result: [{ pinNumber: '1', pinName: 'P1', x: placed1Pos.x, y: placed1Pos.y }] };
+          }
+          return { result: [] };
+        }
+        if (method === 'schematic.modifyPrimitive') {
+          placed1Pos = { x: (params.property as any).x, y: (params.property as any).y };
+          return { success: true };
+        }
+        if (method === 'schematic.deletePrimitive') return { success: true };
+        return {};
+      });
+
+      const tool = registry.get('easyeda_workflow_place_block');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        mode: 'apply',
+        confirmWrite: true,
+        anchor: { x: 0, y: 0 },
+        components: [{ ref: 'C1', role: 'decoupling-capacitor', deviceItem, pinConnections: [] }],
+        existingComponents: [],
+        netPorts: [],
+      })) as any;
+
+      expect(result.applied).toBe(false);
+      expect(result.rolled_back).toBe(true);
+      expect(result.issues.some((i: any) => i.code === 'WORKFLOW_PIN_COLLISION')).toBe(true);
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.deletePrimitive', {
+        primitiveIds: ['placed-1'],
+      });
+    });
+  });
+
+  describe('easyeda_workflow_layout_section', () => {
+    function mockLayoutBridge(
+      pinsByPrimitiveId: Record<string, Array<Record<string, unknown>>>,
+      overrides: Record<string, (params: any) => any> = {},
+    ) {
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (overrides[method]) return overrides[method](params);
+        if (
+          method === 'api.call' &&
+          params?.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId'
+        ) {
+          const id = params.args?.[0];
+          return { result: pinsByPrimitiveId[id] ?? [] };
+        }
+        if (method === 'schematic.listRectangles') return { total: 0, items: [] };
+        if (method === 'schematic.getSheetInfo') return {};
+        return {};
+      });
+    }
+
+    const baseInput = (overrides: Record<string, unknown> = {}) => ({
+      projectId: 'proj-1',
+      componentPrimitiveIds: ['C1'],
+      title: 'DECOUPLING',
+      margin: 20,
+      componentPadding: 15,
+      titleGap: 15,
+      titleFontSize: 20,
+      color: '#000000',
+      ...overrides,
+    });
+
+    it('preview mode computes bounds from component pin extents without writing anything', async () => {
+      mockLayoutBridge({
+        C1: [
+          { pinNumber: '1', pinName: 'P1', x: 100, y: 100 },
+          { pinNumber: '2', pinName: 'P2', x: 100, y: 120 },
+        ],
+        C2: [{ pinNumber: '1', pinName: 'P1', x: 200, y: 100 }],
+      });
+      const tool = registry.get('easyeda_workflow_layout_section');
+      const result = (await tool?.handler(
+        context,
+        baseInput({ mode: 'preview', componentPrimitiveIds: ['C1', 'C2'] }),
+      )) as any;
+
+      expect(result.success).toBe(true);
+      expect(result.applied).toBe(false);
+      expect(result.bounds).toEqual({ x: 65, y: 65, width: 170, height: 90 });
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.addRectangle', expect.anything());
+    });
+
+    it('apply mode creates a rectangle and title sized to the computed bounds', async () => {
+      mockLayoutBridge(
+        { C1: [{ pinNumber: '1', pinName: 'P1', x: 0, y: 0 }] },
+        {
+          'schematic.addRectangle': () => ({ primitiveId: 'rect-1' }),
+          'schematic.addText': () => ({ primitiveId: 'text-1' }),
+        },
+      );
+      const tool = registry.get('easyeda_workflow_layout_section');
+      const result = (await tool?.handler(
+        context,
+        baseInput({ mode: 'apply', confirmWrite: true, title: 'MCU CORE' }),
+      )) as any;
+
+      expect(result.applied).toBe(true);
+      expect(result.rectangle_primitive_id).toBe('rect-1');
+      expect(result.title_primitive_id).toBe('text-1');
+      expect(bridgeCall).toHaveBeenCalledWith(
+        'schematic.addRectangle',
+        expect.objectContaining({ x: -35, y: -35, width: 70, height: 70 }),
+      );
+      expect(bridgeCall).toHaveBeenCalledWith(
+        'schematic.addText',
+        expect.objectContaining({ content: 'MCU CORE', x: -35, y: -50 }),
+      );
+    });
+
+    it('blocks apply when confirmWrite is not true', async () => {
+      mockLayoutBridge({ C1: [{ pinNumber: '1', pinName: 'P1', x: 0, y: 0 }] });
+      const tool = registry.get('easyeda_workflow_layout_section');
+      const result = (await tool?.handler(context, baseInput({ mode: 'apply' }))) as any;
+
+      expect(result.applied).toBe(false);
+      expect(result.error).toMatch(/confirmWrite=true is required/);
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.addRectangle', expect.anything());
+    });
+
+    it('replace mode deletes the old rectangle/title before creating the resized ones', async () => {
+      const deletedIds: string[] = [];
+      mockLayoutBridge(
+        { C1: [{ pinNumber: '1', pinName: 'P1', x: 0, y: 0 }] },
+        {
+          'schematic.deletePrimitive': (params: any) => {
+            deletedIds.push(...(params.primitiveIds ?? []));
+            return { success: true };
+          },
+          'schematic.addRectangle': () => ({ primitiveId: 'rect-new' }),
+          'schematic.addText': () => ({ primitiveId: 'text-new' }),
+        },
+      );
+      const tool = registry.get('easyeda_workflow_layout_section');
+      const result = (await tool?.handler(
+        context,
+        baseInput({
+          mode: 'apply',
+          confirmWrite: true,
+          title: 'BOOT0 CONFIG',
+          replaceRectanglePrimitiveId: 'rect-old',
+          replaceTitlePrimitiveId: 'text-old',
+        }),
+      )) as any;
+
+      expect(deletedIds).toEqual(['rect-old', 'text-old']);
+      expect(result.deleted_primitive_ids).toEqual(['rect-old', 'text-old']);
+      expect(result.rectangle_primitive_id).toBe('rect-new');
+    });
+
+    it('reports overlapping rectangles as an advisory warning without blocking', async () => {
+      mockLayoutBridge(
+        { C1: [{ pinNumber: '1', pinName: 'P1', x: 0, y: 0 }] },
+        {
+          'schematic.listRectangles': () => ({
+            total: 1,
+            items: [{ primitiveId: 'other-rect', x: -50, y: -50, width: 100, height: 100 }],
+          }),
+        },
+      );
+      const tool = registry.get('easyeda_workflow_layout_section');
+      const result = (await tool?.handler(
+        context,
+        baseInput({ mode: 'preview', title: 'SPI FLASH' }),
+      )) as any;
+
+      expect(result.success).toBe(true);
+      expect(result.overlapping_rectangles).toEqual([
+        { primitiveId: 'other-rect', x: -50, y: -50, width: 100, height: 100 },
+      ]);
+    });
+
+    it('warns (without attempting a write) when the section would extend past the reported page size', async () => {
+      mockLayoutBridge(
+        { C1: [{ pinNumber: '1', pinName: 'P1', x: 900, y: 900 }] },
+        { 'schematic.getSheetInfo': () => ({ width: 800, height: 800 }) },
+      );
+      const tool = registry.get('easyeda_workflow_layout_section');
+      const result = (await tool?.handler(
+        context,
+        baseInput({ mode: 'preview', title: 'USB TYPE-C' }),
+      )) as any;
+
+      expect(result.page_frame_warning).toMatch(/extend past the reported page size/);
+      expect(bridgeCall).not.toHaveBeenCalledWith(
+        'schematic.setTitleBlock',
+        expect.anything(),
+      );
+    });
+
+    it('returns a clear error when no pin coordinates can be found for the given components', async () => {
+      mockLayoutBridge({});
+      const tool = registry.get('easyeda_workflow_layout_section');
+      const result = (await tool?.handler(
+        context,
+        baseInput({ mode: 'preview', componentPrimitiveIds: ['ghost'] }),
+      )) as any;
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/Could not determine pin coordinates/);
+    });
+  });
 });

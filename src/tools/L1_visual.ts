@@ -14,6 +14,10 @@ const captureOutputSchema = z.object({
   mime_type: z.string().optional(),
   file_name: z.string().optional(),
   byte_length: z.number().int().nonnegative().optional(),
+  /** Present in the raw handler result so `imageContentFromCapture` can build the
+   *  response's dedicated `image` content block — but omitted from
+   *  structuredContent/the JSON text block by `imageContentOmitFields` below, so
+   *  a successful capture doesn't send the same base64 payload three times. */
   image_base64: z.string().optional(),
   not_available: z.boolean().optional(),
   error: z.string().optional(),
@@ -59,8 +63,8 @@ function registerVisualTools(
     description:
       'Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the ' +
       'caller can visually verify the result of a draw/place/route action. Captures the ' +
-      'given tab (or the last-focused one) as-is; use easyeda_canvas_capture_region first ' +
-      'to frame a specific area.',
+      'given tab (or last-focused); use easyeda_canvas_capture_region first to frame a ' +
+      'specific area. Image is delivered once, as its own content block.',
     profile: 'core',
     evidence: ['pro-api-types'],
     risk: 'low',
@@ -76,6 +80,7 @@ function registerVisualTools(
     }),
     outputSchema: captureOutputSchema,
     imageContent: imageContentFromCapture,
+    imageContentOmitFields: ['image_base64'],
     handler: async (ctx: ToolContext, params: unknown) => {
       const { tabId } = params as { tabId?: string };
       try {
@@ -97,7 +102,8 @@ function registerVisualTools(
     description:
       'Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and ' +
       'capture it as a PNG, so the caller can visually verify a specific area. This moves ' +
-      "the user's visible viewport — EasyEDA Pro has no offscreen rendering API.",
+      "the user's visible viewport — EasyEDA Pro has no offscreen rendering API. The image " +
+      'is delivered once, as its own content block.',
     profile: 'core',
     evidence: ['pro-api-types'],
     risk: 'low',
@@ -117,6 +123,7 @@ function registerVisualTools(
     }),
     outputSchema: captureOutputSchema,
     imageContent: imageContentFromCapture,
+    imageContentOmitFields: ['image_base64'],
     handler: async (ctx: ToolContext, params: unknown) => {
       const { left, right, top, bottom, tabId } = params as {
         left: number;

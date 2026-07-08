@@ -28,6 +28,32 @@ function fakeWire(id: string, net: string, line: number[]): Record<string, unkno
   };
 }
 
+/** Minimal component primitive exposing the getState_* getters modifyPrimitive snapshots. */
+function fakeComponent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const state: Record<string, unknown> = {
+    X: 100,
+    Y: 100,
+    Rotation: 0,
+    Mirror: false,
+    AddIntoBom: true,
+    AddIntoPcb: true,
+    Designator: 'C1',
+    Name: 'CAP',
+    UniqueId: 'uid1',
+    Manufacturer: '',
+    ManufacturerId: '',
+    Supplier: '',
+    SupplierId: '',
+    OtherProperty: {},
+    ...overrides,
+  };
+  const obj: Record<string, unknown> = {};
+  for (const key of Object.keys(state)) {
+    obj[`getState_${key}`] = () => state[key];
+  }
+  return obj;
+}
+
 describe('createDispatcher', () => {
   it('returns a dispatcher with a sorted, non-empty method list and a build id', () => {
     const dispatcher = createDispatcher(makeToolkit({}));
@@ -707,6 +733,192 @@ describe('createDispatcher', () => {
       deletedCount: 1,
       deleted: ['comp1'],
       notFound: ['nonexistent'],
+    });
+  });
+
+  describe('schematic.modifyPrimitive wire-following', () => {
+    it('translates a wire endpoint that was touching the moved component\'s old pin coordinate', async () => {
+      const modify = vi.fn(async () => true);
+      const get = vi.fn(async () => fakeComponent({ X: 100, Y: 100 }));
+      const getAllPinsByPrimitiveId = vi.fn(async () => [
+        { pinNumber: '1', pinName: 'P1', x: 100, y: 100, rotation: 0 },
+      ]);
+      const wire = fakeWire('w1', 'NET_A', [100, 100, 150, 100]);
+      const wireModify = vi.fn(async () => true);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveComponent: { get, modify, getAllPinsByPrimitiveId },
+          SCH_PrimitiveWire: { getAll: async () => [wire], modify: wireModify },
+        }),
+      );
+
+      const result = (await dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'comp1',
+        property: { x: 300, y: 300 },
+      })) as { followedWireIds: string[]; wireFollowFailures: string[] };
+
+      expect(modify).toHaveBeenCalledWith(
+        'comp1',
+        expect.objectContaining({ x: 300, y: 300 }),
+      );
+      // Only the endpoint that was at the pin's old coordinate (100,100) moves;
+      // the wire's other endpoint (150,100), which wasn't touching this pin, stays put.
+      expect(wireModify).toHaveBeenCalledWith(
+        'w1',
+        expect.objectContaining({ line: [300, 300, 150, 100], net: 'NET_A' }),
+      );
+      expect(result.followedWireIds).toEqual(['w1']);
+      expect(result.wireFollowFailures).toEqual([]);
+    });
+
+    it('does not touch wires when the modify does not change x/y', async () => {
+      const modify = vi.fn(async () => true);
+      const get = vi.fn(async () => fakeComponent({ X: 100, Y: 100, Designator: 'C1' }));
+      const getAllPinsByPrimitiveId = vi.fn(async () => [
+        { pinNumber: '1', pinName: 'P1', x: 100, y: 100, rotation: 0 },
+      ]);
+      const wireModify = vi.fn(async () => true);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveComponent: { get, modify, getAllPinsByPrimitiveId },
+          SCH_PrimitiveWire: { getAll: async () => [fakeWire('w1', 'NET_A', [100, 100, 150, 100])], modify: wireModify },
+        }),
+      );
+
+      await dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'comp1',
+        property: { designator: 'C2' },
+      });
+
+      expect(getAllPinsByPrimitiveId).not.toHaveBeenCalled();
+      expect(wireModify).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('schematic.modifyPrimitive on text primitives', () => {
+    it('snapshots and merges a text primitive instead of falling through to the component/wire fallback', async () => {
+      const textModify = vi.fn(async () => true);
+      const textGet = vi.fn(async () => ({
+        getState_X: () => 200,
+        getState_Y: () => 600,
+        getState_Content: () => 'OLD TITLE',
+        getState_Rotation: () => 0,
+        getState_TextColor: () => '#0000FF',
+        getState_FontName: () => 'Arial',
+        getState_FontSize: () => 20,
+        getState_Bold: () => false,
+        getState_Italic: () => false,
+        getState_UnderLine: () => false,
+        getState_AlignMode: () => 0,
+      }));
+      // No SCH_PrimitiveComponent/SCH_PrimitiveWire registered — proves the text
+      // branch handles this, not the generic component/wire fallback.
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveText: { get: textGet, modify: textModify } }),
+      );
+
+      await dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'text1',
+        property: { content: 'NEW TITLE' },
+      });
+
+      expect(textModify).toHaveBeenCalledWith(
+        'text1',
+        expect.objectContaining({
+          x: 200,
+          y: 600,
+          content: 'NEW TITLE',
+          fontName: 'Arial',
+          fontSize: 20,
+        }),
+      );
+    });
+  });
+
+  describe('schematic.listRectangles', () => {
+    it('lists rectangles with their coordinates via the live-confirmed TopLeftX/TopLeftY keys', async () => {
+      const getAll = vi.fn(async () => [
+        {
+          getState_PrimitiveId: () => 'rect1',
+          getState_TopLeftX: () => 100,
+          getState_TopLeftY: () => 200,
+          getState_Width: () => 300,
+          getState_Height: () => 150,
+          getState_Rotation: () => 0,
+        },
+      ]);
+      const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveRectangle: { getAll } }));
+
+      const result = await dispatcher.dispatch('schematic.listRectangles', {});
+
+      expect(result).toEqual({
+        total: 1,
+        items: [{ primitiveId: 'rect1', x: 100, y: 200, width: 300, height: 150, rotation: 0 }],
+      });
+    });
+
+    it('falls back to X/Y if TopLeftX/TopLeftY are not exposed', async () => {
+      const getAll = vi.fn(async () => [
+        {
+          getState_PrimitiveId: () => 'rect1',
+          getState_X: () => 100,
+          getState_Y: () => 200,
+          getState_Width: () => 300,
+          getState_Height: () => 150,
+          getState_Rotation: () => 0,
+        },
+      ]);
+      const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveRectangle: { getAll } }));
+
+      const result = await dispatcher.dispatch('schematic.listRectangles', {});
+
+      expect(result).toEqual({
+        total: 1,
+        items: [{ primitiveId: 'rect1', x: 100, y: 200, width: 300, height: 150, rotation: 0 }],
+      });
+    });
+
+    it('degrades to an empty list when SCH_PrimitiveRectangle is not available', async () => {
+      const dispatcher = createDispatcher(makeToolkit({}));
+
+      const result = await dispatcher.dispatch('schematic.listRectangles', {});
+
+      expect(result).toEqual({ total: 0, items: [] });
+    });
+  });
+
+  describe('schematic.placeComponent subPartName', () => {
+    it('rejects a subPartName request with NOT_IMPLEMENTED instead of silently dropping it', async () => {
+      const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveComponent: { create } }),
+      );
+
+      await expect(
+        dispatcher.dispatch('schematic.placeComponent', {
+          deviceItem: { uuid: 'dev-1', libraryUuid: 'lib-1' },
+          x: 0,
+          y: 0,
+          subPartName: 'STM32F401CCU6.2',
+        }),
+      ).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('places normally when subPartName is omitted', async () => {
+      const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveComponent: { create } }),
+      );
+
+      const result = await dispatcher.dispatch('schematic.placeComponent', {
+        deviceItem: { uuid: 'dev-1', libraryUuid: 'lib-1' },
+        x: 10,
+        y: 20,
+      });
+
+      expect(create).toHaveBeenCalledWith({ uuid: 'dev-1', libraryUuid: 'lib-1' }, 10, 20);
+      expect(result).toMatchObject({ primitiveId: 'comp1' });
     });
   });
 });

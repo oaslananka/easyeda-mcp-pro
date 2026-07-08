@@ -91,6 +91,7 @@ const METHOD_LIST: readonly string[] = [
   'schematic.getSheetInfo',
   'schematic.listComponents',
   'schematic.listNets',
+  'schematic.listRectangles',
   'schematic.modifyPrimitive',
   'schematic.placeComponent',
   'schematic.searchDevice',
@@ -1710,6 +1711,128 @@ async function resolvePinEndpoint(
   return { x: point.x, y: point.y, dx, dy };
 }
 
+/** Every pin coordinate for a placed component, used to snapshot "what did this
+ *  component's pins touch" before a move so `followConnectedWires` can find
+ *  wires that need to follow. Silently omits pins the runtime doesn't report
+ *  coordinates for (same tolerance as resolvePinEndpoint). */
+async function getComponentPinCoordinates(primitiveId: string): Promise<SchematicPoint[]> {
+  let pins: unknown;
+  try {
+    pins = await callFirst(
+      ['SCH_PrimitiveComponent.getAllPinsByPrimitiveId', 'sch_PrimitiveComponent.getAllPinsByPrimitiveId'],
+      primitiveId,
+    );
+  } catch (e) {
+    logRecoverableError(`failed to read pins for ${primitiveId}`, e);
+    return [];
+  }
+  const pinList = Array.isArray(pins) ? pins : [];
+  const points: SchematicPoint[] = [];
+  for (const pin of pinList) {
+    const point = readPinPoint(pin);
+    if (typeof point.x === 'number' && typeof point.y === 'number') {
+      points.push({ x: point.x, y: point.y });
+    }
+  }
+  return points;
+}
+
+/**
+ * Given a wire's raw `Line` state (flat number[] or [x,y][] pairs — see
+ * normalizeWireLine), translate only the points matching `targetKeys` by
+ * (dx, dy), preserving the original shape. Returns null if nothing matched
+ * (so callers can skip writing wires that weren't touched by the move).
+ */
+function shiftWireLine(
+  rawLine: unknown,
+  targetKeys: Set<string>,
+  dx: number,
+  dy: number,
+): { line: unknown } | null {
+  if (!Array.isArray(rawLine) || rawLine.length === 0) return null;
+  let changed = false;
+  if (Array.isArray(rawLine[0])) {
+    const updated = (rawLine as number[][]).map((pair) => {
+      if (!Array.isArray(pair) || pair.length < 2) return pair;
+      const [x, y, ...rest] = pair;
+      if (!targetKeys.has(pointKey({ x, y }))) return pair;
+      changed = true;
+      return [x + dx, y + dy, ...rest];
+    });
+    return changed ? { line: updated } : null;
+  }
+  const flat = (rawLine as number[]).slice();
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    if (!targetKeys.has(pointKey({ x: flat[i], y: flat[i + 1] }))) continue;
+    flat[i] += dx;
+    flat[i + 1] += dy;
+    changed = true;
+  }
+  return changed ? { line: flat } : null;
+}
+
+/**
+ * After a component has been moved by (dx, dy), find every wire with an
+ * endpoint that was touching one of the component's *old* pin coordinates
+ * (`oldPinPoints`, captured before the move) and translate that endpoint by
+ * the same delta — so the wire keeps following the pin instead of being left
+ * behind at its old absolute coordinate (which orphans it, and risks a new
+ * silent short if the component's new pin position happens to land on
+ * another unrelated primitive). Preserves each wire's net/color/width/style
+ * by re-merging its full current state before writing, matching the
+ * modify-resets-omitted-fields behavior documented on schematic.modifyPrimitive.
+ */
+async function followConnectedWires(
+  oldPinPoints: SchematicPoint[],
+  dx: number,
+  dy: number,
+): Promise<{ movedWireIds: string[]; failedWireIds: string[] }> {
+  const outcome = { movedWireIds: [] as string[], failedWireIds: [] as string[] };
+  if (oldPinPoints.length === 0 || (dx === 0 && dy === 0)) return outcome;
+
+  const schWireClass = readFirstPath<any>(['SCH_PrimitiveWire', 'sch_PrimitiveWire']);
+  if (
+    !schWireClass ||
+    typeof schWireClass.getAll !== 'function' ||
+    typeof schWireClass.modify !== 'function'
+  ) {
+    return outcome;
+  }
+
+  const targetKeys = new Set(oldPinPoints.map((p) => pointKey(p)));
+  let wires: unknown[] = [];
+  try {
+    wires = (await schWireClass.getAll()) || [];
+  } catch (e) {
+    logRecoverableError('failed to read wires while following a component move', e);
+    return outcome;
+  }
+
+  for (const wire of wires) {
+    const shifted = shiftWireLine(safeGetState(wire, 'Line'), targetKeys, dx, dy);
+    if (!shifted) continue;
+    const wireId = extractPrimitiveId(wire);
+    if (!wireId) {
+      outcome.failedWireIds.push('<unknown>');
+      continue;
+    }
+    try {
+      await schWireClass.modify(wireId, {
+        line: shifted.line,
+        net: safeGetState(wire, 'Net'),
+        color: safeGetState(wire, 'Color'),
+        lineWidth: safeGetState(wire, 'LineWidth'),
+        lineType: safeGetState(wire, 'LineType'),
+      });
+      outcome.movedWireIds.push(wireId);
+    } catch (e) {
+      logRecoverableError(`failed to follow wire ${wireId} after component move`, e);
+      outcome.failedWireIds.push(wireId);
+    }
+  }
+  return outcome;
+}
+
 /**
  * Create REAL EasyEDA netlist connectivity for a single pin by drawing a
  * short wire stub from the pin's exact coordinate, tagged with `netName`.
@@ -2005,6 +2128,29 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.page,
       );
     case 'schematic.placeComponent': {
+      // subPartName is meant to select a specific sub-part/gate of a multi-part
+      // device (e.g. adding a second power-pin sub-part to an existing
+      // multi-gate symbol reference). SCH_PrimitiveComponent.create only
+      // accepts (deviceItem, x, y) — passing extra arguments causes it to hang
+      // or reject (see below) — and no sub-part-selecting follow-up call is
+      // known to exist on this runtime surface (SCH_PrimitiveComponent.modify's
+      // reverse-engineered field set has no subPart-like property either). This
+      // parameter previously reached here and was silently dropped, so every
+      // placement request created an independent full component on the
+      // default sub-part regardless of what was asked for. Reject up front —
+      // before creating anything — rather than placing a component and then
+      // reporting an error, which would leave an orphaned, unrequested part
+      // behind for a caller who just saw "failed" and might retry.
+      if (typeof params.subPartName === 'string' && params.subPartName.length > 0) {
+        throw newBridgeError(
+          'NOT_IMPLEMENTED',
+          `subPartName ("${params.subPartName}") is not supported: this runtime has no way to ` +
+            'select a specific sub-part when placing a component — every placement creates an ' +
+            'independent component on the default sub-part.',
+          'Omit subPartName. If a specific sub-part/gate is needed, place the device as its own ' +
+            'component and wire it manually instead of relying on sub-part selection.',
+        );
+      }
       // SCH_PrimitiveComponent.create expects (deviceItem, x, y) only.
       // Extra arguments cause the API to hang or reject.
       const createdComp = await callFirst(
@@ -2141,6 +2287,37 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.lineType ?? 0,
         params.fillStyle ?? 'none',
       );
+    case 'schematic.listRectangles': {
+      // Best-effort enumeration for the section-layout overlap check
+      // (src/workflows/section-layout.ts). Live-verified (2026-07-09): the
+      // plain 'X'/'Y' guess used by SCH_PrimitiveComponent/SCH_PrimitiveText
+      // does NOT hold here — a live readback returned width/height/rotation
+      // correctly but x/y were undefined. SCH_PrimitiveRectangle.create()'s
+      // own positional args are named TopLeftX/TopLeftY (see addRectangle
+      // above), and that's the key that actually resolves; X/Y kept as a
+      // fallback in case a future runtime version differs. Still degrades to
+      // "no overlap data" (not a crash) if both guesses are wrong.
+      const schRectClass = readFirstPath<any>(['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle']);
+      if (!schRectClass || typeof schRectClass.getAll !== 'function') {
+        return { total: 0, items: [] };
+      }
+      let all: unknown[] = [];
+      try {
+        all = (await schRectClass.getAll()) || [];
+      } catch (e) {
+        logRecoverableError('failed to list rectangles', e);
+        all = [];
+      }
+      const items = all.map((r) => ({
+        primitiveId: extractPrimitiveId(r) || String(safeGetState(r, 'PrimitiveId') ?? ''),
+        x: safeGetState(r, 'TopLeftX') ?? safeGetState(r, 'X'),
+        y: safeGetState(r, 'TopLeftY') ?? safeGetState(r, 'Y'),
+        width: safeGetState(r, 'Width'),
+        height: safeGetState(r, 'Height'),
+        rotation: safeGetState(r, 'Rotation'),
+      }));
+      return { total: items.length, items };
+    }
     case 'schematic.deletePrimitive':
       return callFirst(
         [
@@ -2188,9 +2365,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
           const existingOther =
             (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
           const incomingOther = property.otherProperty as Record<string, unknown> | undefined;
+          const oldX = safeGetState(current, 'X');
+          const oldY = safeGetState(current, 'Y');
           const merged: Record<string, unknown> = {
-            x: safeGetState(current, 'X'),
-            y: safeGetState(current, 'Y'),
+            x: oldX,
+            y: oldY,
             rotation: safeGetState(current, 'Rotation'),
             mirror: safeGetState(current, 'Mirror'),
             addIntoBom: safeGetState(current, 'AddIntoBom'),
@@ -2205,7 +2384,33 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
             ...property,
             otherProperty: incomingOther ? { ...existingOther, ...incomingOther } : existingOther,
           };
-          return schCompClass.modify(primitiveId, merged);
+
+          // A position change leaves this component's wires behind at their old
+          // absolute coordinates unless we explicitly move them too — capture
+          // the pins' pre-move coordinates now, before the underlying primitive
+          // moves out from under them.
+          const movingPosition =
+            typeof oldX === 'number' &&
+            typeof oldY === 'number' &&
+            (typeof property.x === 'number' || typeof property.y === 'number') &&
+            (property.x !== oldX || property.y !== oldY);
+          const oldPinPoints = movingPosition ? await getComponentPinCoordinates(primitiveId) : [];
+
+          const modifyResult = await schCompClass.modify(primitiveId, merged);
+
+          let followedWireIds: string[] = [];
+          let wireFollowFailures: string[] = [];
+          if (movingPosition && oldPinPoints.length > 0) {
+            const newX = typeof merged.x === 'number' ? merged.x : (oldX as number);
+            const newY = typeof merged.y === 'number' ? merged.y : (oldY as number);
+            const dx = newX - (oldX as number);
+            const dy = newY - (oldY as number);
+            const followed = await followConnectedWires(oldPinPoints, dx, dy);
+            followedWireIds = followed.movedWireIds;
+            wireFollowFailures = followed.failedWireIds;
+          }
+
+          return { result: modifyResult, followedWireIds, wireFollowFailures };
         }
       }
 
@@ -2231,6 +2436,43 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
             ...property,
           };
           return schWireClass.modify(primitiveId, merged);
+        }
+      }
+
+      // Text primitives previously fell through to the generic fallback below,
+      // which blindly tries SCH_PrimitiveComponent.modify()/SCH_PrimitiveWire.modify()
+      // on a text primitiveId neither class recognizes — surfacing as an
+      // upstream API error (or a silent no-op) instead of actually editing the
+      // text. Field names (Content, TextColor, FontName, ...) mirror
+      // schematic.addText's create() argument order above.
+      const schTextClass = readFirstPath<any>(['SCH_PrimitiveText', 'sch_PrimitiveText']);
+      if (
+        schTextClass &&
+        typeof schTextClass.get === 'function' &&
+        typeof schTextClass.modify === 'function'
+      ) {
+        let current: unknown;
+        try {
+          current = await schTextClass.get(primitiveId);
+        } catch (e) {
+          logRecoverableError(`SCH_PrimitiveText.get(${primitiveId}) failed`, e);
+        }
+        if (current) {
+          const merged: Record<string, unknown> = {
+            x: safeGetState(current, 'X'),
+            y: safeGetState(current, 'Y'),
+            content: safeGetState(current, 'Content'),
+            rotation: safeGetState(current, 'Rotation'),
+            color: safeGetState(current, 'TextColor') ?? safeGetState(current, 'Color'),
+            fontName: safeGetState(current, 'FontName'),
+            fontSize: safeGetState(current, 'FontSize'),
+            bold: safeGetState(current, 'Bold'),
+            italic: safeGetState(current, 'Italic'),
+            underline: safeGetState(current, 'UnderLine'),
+            alignMode: safeGetState(current, 'AlignMode'),
+            ...property,
+          };
+          return schTextClass.modify(primitiveId, merged);
         }
       }
 

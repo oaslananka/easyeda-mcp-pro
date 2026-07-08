@@ -924,6 +924,35 @@ describe('Schematic Tools', () => {
         error: 'search timeout',
       });
     });
+
+    it('minimal:true strips full library metadata down to uuid/libraryUuid/name/pin_count/symbol_type', async () => {
+      const tool = registry.get('easyeda_schematic_search_device');
+      bridgeCall.mockResolvedValue([
+        {
+          libraryUuid: 'lib-1',
+          uuid: 'dev-1',
+          name: 'USB2.0-TYPE-C-16P',
+          jlcpcbPartClass: 'Connectors',
+          description: 'A very long vendor description nobody asked for',
+          pins: [{ pinNumber: '1' }, { pinNumber: '2' }],
+        },
+      ]);
+
+      const result = (await tool?.handler(context, { key: 'usb-c', minimal: true })) as any;
+
+      expect(result.devices).toEqual([
+        { uuid: 'dev-1', libraryUuid: 'lib-1', name: 'USB2.0-TYPE-C-16P', pin_count: 2 },
+      ]);
+    });
+
+    it('omits minimal fields that are absent rather than emitting them as undefined', async () => {
+      const tool = registry.get('easyeda_schematic_search_device');
+      bridgeCall.mockResolvedValue([{ libraryUuid: 'lib-1', uuid: 'dev-1' }]);
+
+      const result = (await tool?.handler(context, { key: 'resistor', minimal: true })) as any;
+
+      expect(result.devices).toEqual([{ uuid: 'dev-1', libraryUuid: 'lib-1' }]);
+    });
   });
 
   it('easyeda_schematic_verify_write returns component delta and netlist readback', async () => {
@@ -1063,6 +1092,62 @@ describe('Schematic Tools', () => {
         success: false,
         error: 'not found',
       });
+    });
+  });
+
+  describe('easyeda_schematic_check_collisions', () => {
+    function mockPinsByComponent(pinsByPrimitiveId: Record<string, Array<Record<string, unknown>>>) {
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.listComponents') {
+          const ids = Object.keys(pinsByPrimitiveId);
+          return { total: ids.length, items: ids.map((primitiveId) => ({ primitiveId })) };
+        }
+        if (method === 'api.call' && params?.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId') {
+          const primitiveId = params.args?.[0];
+          return { result: pinsByPrimitiveId[primitiveId] ?? [] };
+        }
+        return {};
+      });
+    }
+
+    it('reports a collision when two different components share a pin coordinate', async () => {
+      const tool = registry.get('easyeda_schematic_check_collisions');
+      mockPinsByComponent({
+        A: [{ pinNumber: '1', pinName: 'VCC', x: 10, y: 10 }],
+        B: [{ pinNumber: '2', pinName: 'GND', x: 10, y: 10 }],
+        C: [{ pinNumber: '1', pinName: 'OUT', x: 50, y: 50 }],
+      });
+
+      const result = (await tool?.handler(context, { projectId: 'proj-1' })) as any;
+
+      expect(result.success).toBe(true);
+      expect(result.collision_count).toBe(1);
+      expect(result.collisions[0]).toMatchObject({ x: 10, y: 10 });
+      const primitiveIds = result.collisions[0].pins.map((p: any) => p.primitiveId).sort();
+      expect(primitiveIds).toEqual(['A', 'B']);
+    });
+
+    it('reports no collisions when every pin coordinate is unique', async () => {
+      const tool = registry.get('easyeda_schematic_check_collisions');
+      mockPinsByComponent({
+        A: [{ pinNumber: '1', pinName: 'VCC', x: 10, y: 10 }],
+        B: [{ pinNumber: '2', pinName: 'GND', x: 20, y: 20 }],
+      });
+
+      const result = (await tool?.handler(context, { projectId: 'proj-1' })) as any;
+
+      expect(result.success).toBe(true);
+      expect(result.collision_count).toBe(0);
+      expect(result.collisions).toEqual([]);
+    });
+
+    it('returns success=false on bridge error', async () => {
+      const tool = registry.get('easyeda_schematic_check_collisions');
+      bridgeCall.mockRejectedValue(new Error('bridge down'));
+
+      const result = (await tool?.handler(context, { projectId: 'proj-1' })) as any;
+
+      expect(result).toMatchObject({ success: false, collision_count: 0, error: 'bridge down' });
     });
   });
 });

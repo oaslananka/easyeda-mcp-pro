@@ -676,7 +676,7 @@ function registerDiagnosticsApi(
     projectId: z.string().default(''),
     testDeviceItem: z.object({ uuid: z.string(), libraryUuid: z.string() }),
     scope: z.enum(['schematic', 'pcb', 'both']).default('schematic'),
-    confirmWrite: z.literal(true),
+    confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
   });
 
   registry.register({

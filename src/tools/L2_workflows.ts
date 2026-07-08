@@ -2,6 +2,13 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { planWorkflowBlock } from '../workflows/planner.js';
+import { reconcilePlacementCollisions } from '../workflows/collision.js';
+import {
+  computeSectionBounds,
+  findOverlappingRectangles,
+  checkAgainstPageFrame,
+  type SectionBounds,
+} from '../workflows/section-layout.js';
 import type {
   WorkflowBlockInput,
   WorkflowIssue,
@@ -149,6 +156,7 @@ interface ApplyOutcome {
   }>;
   failed: boolean;
   rolledBack: boolean;
+  collisionIssues: WorkflowIssue[];
 }
 
 /**
@@ -165,6 +173,13 @@ interface OperationOutcome {
   error?: string;
 }
 
+/** A create* bridge call may return a bare primitiveId string, or an object
+ *  carrying it under `primitiveId`/`result` — normalize either shape. */
+function extractResultPrimitiveId(result: unknown): string | undefined {
+  const data = result as { primitiveId?: string; result?: string } | string | undefined;
+  return typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined);
+}
+
 /** Apply one operation, resolving `$ref:` placeholders against already-applied refs. */
 async function applySingleOperation(
   ctx: ToolContext,
@@ -174,9 +189,7 @@ async function applySingleOperation(
   try {
     const params = resolveOperationParams(op.params, refToPrimitiveId);
     const result = await ctx.bridge.call<Record<string, unknown>, unknown>(op.method, params);
-    const data = result as { primitiveId?: string; result?: string } | string | undefined;
-    const primitiveId =
-      typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined);
+    const primitiveId = extractResultPrimitiveId(result);
 
     if (op.kind === 'placeComponent' && primitiveId) {
       refToPrimitiveId.set(op.ref, primitiveId);
@@ -200,18 +213,82 @@ async function applySingleOperation(
   }
 }
 
-async function applyWorkflowPlan(ctx: ToolContext, plan: WorkflowPlan): Promise<ApplyOutcome> {
-  const refToPrimitiveId = new Map<string, string>();
-  const appliedNewPrimitiveIds: string[] = [];
+/**
+ * Apply a set of operations in order, stopping at the first failure. Shared by the
+ * placement pass and the post-reconcile pass in `applyWorkflowPlan` below.
+ */
+async function applyOperations(
+  ctx: ToolContext,
+  ops: WorkflowOperation[],
+  refToPrimitiveId: Map<string, string>,
+): Promise<{
+  applyResults: ApplyOutcome['applyResults'];
+  appliedNewPrimitiveIds: string[];
+  failed: boolean;
+}> {
   const applyResults: ApplyOutcome['applyResults'] = [];
+  const appliedNewPrimitiveIds: string[] = [];
   let failed = false;
-
-  for (const op of plan.operations) {
+  for (const op of ops) {
     if (failed) break;
     const { outcome, newPrimitiveId } = await applySingleOperation(ctx, op, refToPrimitiveId);
     applyResults.push(outcome);
     if (newPrimitiveId) appliedNewPrimitiveIds.push(newPrimitiveId);
     if (!outcome.success) failed = true;
+  }
+  return { applyResults, appliedNewPrimitiveIds, failed };
+}
+
+async function applyWorkflowPlan(ctx: ToolContext, plan: WorkflowPlan): Promise<ApplyOutcome> {
+  const refToPrimitiveId = new Map<string, string>();
+  const appliedNewPrimitiveIds: string[] = [];
+  const applyResults: ApplyOutcome['applyResults'] = [];
+  let collisionIssues: WorkflowIssue[] = [];
+
+  const placementOps = plan.operations.filter((op) => op.kind === 'placeComponent');
+  const remainingOps = plan.operations.filter((op) => op.kind !== 'placeComponent');
+
+  const placementPass = await applyOperations(ctx, placementOps, refToPrimitiveId);
+  applyResults.push(...placementPass.applyResults);
+  appliedNewPrimitiveIds.push(...placementPass.appliedNewPrimitiveIds);
+  let failed = placementPass.failed;
+
+  // Reconcile pin-coordinate collisions while nothing is wired yet — see collision.ts.
+  // Newly-placed primitives with no attached wires can be safely repositioned here.
+  if (!failed && refToPrimitiveId.size > 0) {
+    const candidatePositions = new Map<string, { x: number; y: number }>();
+    for (const placement of plan.placements) {
+      const primitiveId = refToPrimitiveId.get(placement.ref);
+      if (primitiveId) candidatePositions.set(primitiveId, { x: placement.x, y: placement.y });
+    }
+    const reconcile = await reconcilePlacementCollisions(
+      ctx,
+      plan.projectId,
+      [...candidatePositions.keys()],
+      candidatePositions,
+    );
+    if (reconcile.unresolvedCollisions.length > 0) {
+      failed = true;
+      collisionIssues = reconcile.unresolvedCollisions.map((collision) => ({
+        code: 'WORKFLOW_PIN_COLLISION',
+        severity: 'error',
+        message:
+          `Pin-coordinate collision at (${collision.x}, ${collision.y}) between ` +
+          `${[...new Set(collision.pins.map((p) => p.primitiveId))].join(', ')} — could not be ` +
+          'resolved automatically after repositioning attempts.',
+        remediationHint:
+          'Choose a different anchor/spacing for this block, or manually reposition one of the ' +
+          'colliding components after reviewing schematic_nets for accidental shorts.',
+        details: { x: collision.x, y: collision.y, pins: collision.pins },
+      }));
+    }
+  }
+
+  if (!failed) {
+    const remainingPass = await applyOperations(ctx, remainingOps, refToPrimitiveId);
+    applyResults.push(...remainingPass.applyResults);
+    appliedNewPrimitiveIds.push(...remainingPass.appliedNewPrimitiveIds);
+    failed = remainingPass.failed;
   }
 
   let rolledBack = false;
@@ -224,7 +301,7 @@ async function applyWorkflowPlan(ctx: ToolContext, plan: WorkflowPlan): Promise<
     }
   }
 
-  return { applyResults, failed, rolledBack };
+  return { applyResults, failed, rolledBack, collisionIssues };
 }
 
 function pushIssue(plan: WorkflowPlan, issue: WorkflowIssue): void {
@@ -377,15 +454,17 @@ async function runWorkflow(
   }
 
   const outcome = await applyWorkflowPlan(ctx, plan);
+  const collisionError = outcome.collisionIssues[0]?.message;
   return {
     ...base,
+    issues: [...base.issues, ...mapIssues(outcome.collisionIssues)],
     success: !outcome.failed,
     applied: !outcome.failed,
     blocked: false,
     rolled_back: outcome.rolledBack,
     apply_results: outcome.applyResults,
     summary: applyOutcomeSummary(outcome.failed, outcome.rolledBack, outcome.applyResults.length),
-    error: outcome.applyResults.find((entry) => !entry.success)?.error,
+    error: outcome.applyResults.find((entry) => !entry.success)?.error ?? collisionError,
   };
 }
 
@@ -690,6 +769,206 @@ function registerWorkflowTools(
         })),
       };
       return runWorkflow(ctx, input, 'wf_connector_breakout', p.confirmWrite);
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_workflow_layout_section',
+    title: 'Auto-size a section box around already-placed components',
+    description:
+      'Compute and create a section rectangle + title sized from the real pin extents of the ' +
+      'given already-placed components (or replace an existing rectangle/title pair). Reports ' +
+      'overlap with other rectangles and page-size overflow as warnings; never resizes the page.',
+    profile: 'pro',
+    evidence: ['inferred'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'workflows',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: z.object({
+      projectId: z.string().min(1),
+      mode: z.enum(['preview', 'apply']).default('preview'),
+      componentPrimitiveIds: z
+        .array(z.string().min(1))
+        .min(1)
+        .describe('Components belonging to this section — their pin extents define the box.'),
+      title: z.string().min(1),
+      margin: z
+        .number()
+        .positive()
+        .default(20)
+        .describe('Padding between the component cluster and the box edge.'),
+      componentPadding: z
+        .number()
+        .nonnegative()
+        .default(15)
+        .describe('Per-component padding around its pins, approximating body extent beyond them.'),
+      titleGap: z.number().nonnegative().default(15).describe('Gap between the title and the box top edge.'),
+      titleFontSize: z.number().positive().default(20),
+      color: z.string().default('#000000'),
+      replaceRectanglePrimitiveId: z
+        .string()
+        .optional()
+        .describe('An existing section rectangle to delete and replace with the newly-sized one.'),
+      replaceTitlePrimitiveId: z
+        .string()
+        .optional()
+        .describe('An existing section title to delete and replace with the repositioned one.'),
+      confirmWrite: z.boolean().optional(),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      applied: z.boolean(),
+      bounds: z
+        .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
+        .optional(),
+      overlapping_rectangles: z.array(z.object({ primitiveId: z.string() }).passthrough()),
+      page_frame_warning: z.string().optional(),
+      rectangle_primitive_id: z.string().optional(),
+      title_primitive_id: z.string().optional(),
+      deleted_primitive_ids: z.array(z.string()),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = params as {
+        projectId: string;
+        mode: 'preview' | 'apply';
+        componentPrimitiveIds: string[];
+        title: string;
+        margin: number;
+        componentPadding: number;
+        titleGap: number;
+        titleFontSize: number;
+        color: string;
+        replaceRectanglePrimitiveId?: string;
+        replaceTitlePrimitiveId?: string;
+        confirmWrite?: boolean;
+      };
+
+      const bounds: SectionBounds | null = await computeSectionBounds(
+        ctx,
+        p.componentPrimitiveIds,
+        p.componentPadding,
+        p.margin,
+      );
+      if (!bounds) {
+        return {
+          success: false,
+          applied: false,
+          overlapping_rectangles: [],
+          deleted_primitive_ids: [],
+          error:
+            'Could not determine pin coordinates for any of the given componentPrimitiveIds — ' +
+            'verify they are real, currently-placed primitiveIds.',
+        };
+      }
+
+      const replaceIds = [p.replaceRectanglePrimitiveId, p.replaceTitlePrimitiveId].filter(
+        (id): id is string => typeof id === 'string' && id.length > 0,
+      );
+      const overlapping = await findOverlappingRectangles(ctx, bounds, replaceIds);
+      const pageFrameWarning = (await checkAgainstPageFrame(ctx, p.projectId, bounds)) ?? undefined;
+
+      if (p.mode !== 'apply') {
+        return {
+          success: true,
+          applied: false,
+          bounds,
+          overlapping_rectangles: overlapping,
+          page_frame_warning: pageFrameWarning,
+          deleted_primitive_ids: [],
+        };
+      }
+
+      if (p.confirmWrite !== true) {
+        return {
+          success: false,
+          applied: false,
+          bounds,
+          overlapping_rectangles: overlapping,
+          page_frame_warning: pageFrameWarning,
+          deleted_primitive_ids: [],
+          error: 'confirmWrite=true is required to apply this layout.',
+        };
+      }
+
+      const deletedIds: string[] = [];
+      for (const id of replaceIds) {
+        try {
+          await ctx.bridge.call('schematic.deletePrimitive', { primitiveIds: [id] });
+          deletedIds.push(id);
+        } catch (err) {
+          return {
+            success: false,
+            applied: false,
+            bounds,
+            overlapping_rectangles: overlapping,
+            page_frame_warning: pageFrameWarning,
+            deleted_primitive_ids: deletedIds,
+            error: `Failed to delete existing primitive "${id}" before replacing it: ${err instanceof Error ? err.message : String(err)}`,
+          };
+        }
+      }
+
+      try {
+        const rectResult = await ctx.bridge.call<Record<string, unknown>, unknown>(
+          'schematic.addRectangle',
+          {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            rotation: 0,
+            color: p.color,
+            fillColor: 'none',
+            lineWidth: 1,
+            lineType: 0,
+            fillStyle: 'none',
+          },
+        );
+        const titleResult = await ctx.bridge.call<Record<string, unknown>, unknown>(
+          'schematic.addText',
+          {
+            x: bounds.x,
+            y: bounds.y - p.titleGap,
+            content: p.title,
+            rotation: 0,
+            color: p.color,
+            fontName: 'Arial',
+            fontSize: p.titleFontSize,
+            bold: false,
+            italic: false,
+            underline: false,
+            alignMode: 0,
+          },
+        );
+
+        return {
+          success: true,
+          applied: true,
+          bounds,
+          overlapping_rectangles: overlapping,
+          page_frame_warning: pageFrameWarning,
+          rectangle_primitive_id: extractResultPrimitiveId(rectResult),
+          title_primitive_id: extractResultPrimitiveId(titleResult),
+          deleted_primitive_ids: deletedIds,
+        };
+      } catch (err) {
+        return {
+          success: false,
+          applied: false,
+          bounds,
+          overlapping_rectangles: overlapping,
+          page_frame_warning: pageFrameWarning,
+          deleted_primitive_ids: deletedIds,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
     },
   });
 }

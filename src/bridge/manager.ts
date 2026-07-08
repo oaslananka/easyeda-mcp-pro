@@ -695,6 +695,17 @@ export class BridgeManager extends EventEmitter {
       entry.resolve(data.result);
     } else {
       const error = new Error(data.error?.message ?? `Bridge method "${entry.method}" failed`);
+      // Preserve the dispatcher's structured error fields (code/suggestion/data) across
+      // the wire — without this, every caller checking `err.code` (e.g. to distinguish
+      // NOT_IMPLEMENTED from a timeout, or NET_COLLISION from a generic failure) always
+      // sees `undefined`, regardless of what the dispatcher actually reported.
+      if (data.error) {
+        Object.assign(error, {
+          code: data.error.code,
+          suggestion: data.error.suggestion,
+          data: data.error.data,
+        });
+      }
       entry.reject(error);
     }
   }

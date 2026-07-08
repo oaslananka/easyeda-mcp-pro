@@ -94,15 +94,56 @@ async function readSchematicComponentsForVerification(
   ctx: ToolContext,
 ): Promise<SchematicComponentSnapshot[] | undefined> {
   try {
-    const result = await ctx.bridge.call('schematic.listComponents', {
+    const result = await ctx.bridge.call<
+      { projectId: string; limit: number; offset: number },
+      { total?: number; items?: SchematicComponentSnapshot[] } | SchematicComponentSnapshot[]
+    >('schematic.listComponents', {
       projectId: 'active',
       limit: 500,
       offset: 0,
     });
-    return Array.isArray(result) ? (result as SchematicComponentSnapshot[]) : undefined;
+    // The bridge returns { total, items }, not a bare array — accept both
+    // shapes defensively (a bare-array response previously made this always
+    // return undefined, silently disabling the collision guard and the
+    // before/after component-count diff in verifyAfterWrite).
+    if (Array.isArray(result)) return result;
+    if (result && Array.isArray(result.items)) return result.items;
+    return undefined;
   } catch {
     return undefined;
   }
+}
+
+/** Loose match for "was this placement attempted right before the bridge call failed" —
+ *  used only to decide whether a timeout/error is worth reconciling against real state. */
+function looksLikeTimeoutOrUnconfirmed(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /timed out|timeout/i.test(err.message);
+}
+
+/**
+ * After a placeComponent call errors (typically a timeout), check whether the
+ * write actually landed anyway before reporting failure — the EasyEDA-side
+ * operation can complete after the bridge's own timeout fires, and blindly
+ * reporting failure invites the caller to retry, creating a duplicate
+ * component under a second designator (see easyeda-workflow skill's
+ * "known write-safety caveats"). Matches on device identity + placement
+ * coordinates within `collisionRadius` against the current component list.
+ */
+function findMatchingPlacedComponent(
+  components: SchematicComponentSnapshot[] | undefined,
+  deviceItem: { uuid: string; libraryUuid: string },
+  x: number,
+  y: number,
+  toleranceRadius: number,
+): SchematicComponentSnapshot | undefined {
+  for (const component of components ?? []) {
+    if (component.deviceUuid !== deviceItem.uuid) continue;
+    const point = schematicWriteComponentPoint(component);
+    if (!point) continue;
+    if (Math.hypot(point.x - x, point.y - y) <= toleranceRadius) return component;
+  }
+  return undefined;
 }
 
 const placeComponentInputSchema = z.object({
@@ -118,7 +159,7 @@ const placeComponentInputSchema = z.object({
   verifyAfterWrite: z.boolean().optional(),
   checkPlacementCollision: z.boolean().optional(),
   collisionRadius: z.number().positive().optional(),
-  confirmWrite: z.literal(true),
+  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addWireInputSchema = z.object({
@@ -132,7 +173,7 @@ const addWireInputSchema = z.object({
   color: z.string().optional(),
   lineWidth: z.number().optional(),
   lineType: z.string().optional(),
-  confirmWrite: z.literal(true),
+  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addTextInputSchema = z.object({
@@ -147,7 +188,7 @@ const addTextInputSchema = z.object({
   italic: z.boolean().optional(),
   underline: z.boolean().optional(),
   alignMode: z.number().int().min(0).max(8).optional(),
-  confirmWrite: z.literal(true),
+  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addRectangleInputSchema = z.object({
@@ -162,7 +203,7 @@ const addRectangleInputSchema = z.object({
   lineWidth: z.number().positive().optional(),
   lineType: z.number().int().nonnegative().optional(),
   fillStyle: z.string().optional(),
-  confirmWrite: z.literal(true),
+  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addCircleInputSchema = z.object({
@@ -174,7 +215,7 @@ const addCircleInputSchema = z.object({
   lineWidth: z.number().positive().optional(),
   lineType: z.number().int().nonnegative().optional(),
   fillStyle: z.string().optional(),
-  confirmWrite: z.literal(true),
+  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addPolygonInputSchema = z.object({
@@ -183,18 +224,18 @@ const addPolygonInputSchema = z.object({
   fillColor: z.string().optional().describe('Fill color, hex string, or "none" for unfilled'),
   lineWidth: z.number().positive().optional(),
   lineType: z.number().int().nonnegative().optional(),
-  confirmWrite: z.literal(true),
+  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const deletePrimitiveInputSchema = z.object({
   primitiveIds: z.array(z.string()),
-  confirmWrite: z.literal(true),
+  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const modifyPrimitiveInputSchema = z.object({
   primitiveId: z.string(),
   property: z.record(z.string(), z.unknown()),
-  confirmWrite: z.literal(true),
+  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 function registerSchematicWriteTools(
@@ -205,10 +246,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_place_component',
     title: 'Place schematic component',
     description:
-      'Place a library component/device on the active schematic sheet. The bridge auto-assigns ' +
-      'the next free designator ("R?" → "R1", "R2", …); check the returned designator. If ' +
-      'annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by ' +
-      'designator, so duplicate "R?" merge into one node.',
+      'Place a library component/device on the active schematic sheet. Auto-assigns the next ' +
+      'free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one ' +
+      'node. On a timeout error, auto-reconciles against the sheet before reporting failure (see ' +
+      'reconciled/unconfirmed) — do not blindly retry.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -226,6 +267,13 @@ function registerSchematicWriteTools(
       dry_run: z.boolean().optional(),
       placement_guard: z.unknown().optional(),
       verification: z.unknown().optional(),
+      /** True when a bridge error (typically a timeout) was reconciled by finding a matching
+       *  component already on the sheet — the placement likely succeeded despite the error. */
+      reconciled: z.boolean().optional(),
+      /** True when an error looked like a timeout but no matching component was found on
+       *  re-check — genuinely unknown whether the write landed; do not assume either way. */
+      unconfirmed: z.boolean().optional(),
+      warning: z.string().optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -301,6 +349,37 @@ function registerSchematicWriteTools(
             : undefined,
         };
       } catch (err) {
+        if (looksLikeTimeoutOrUnconfirmed(err)) {
+          const afterComponents = await readSchematicComponentsForVerification(ctx);
+          const match = findMatchingPlacedComponent(
+            afterComponents,
+            p.deviceItem,
+            p.x,
+            p.y,
+            p.collisionRadius ?? 25,
+          );
+          if (match) {
+            return {
+              success: true,
+              component: match,
+              reconciled: true,
+              warning:
+                `Bridge call errored ("${err instanceof Error ? err.message : String(err)}") but ` +
+                `a matching component (primitiveId "${String(match.primitiveId ?? '')}") was found ` +
+                'on the sheet afterward — the placement likely succeeded despite the error. Do not retry this placement.',
+            };
+          }
+          return {
+            success: false,
+            unconfirmed: true,
+            error: err instanceof Error ? err.message : String(err),
+            warning:
+              'This looks like a timeout, not a confirmed failure. No matching component was ' +
+              'found on re-check, but the write may still be landing. Verify with ' +
+              'schematic_components/schematic_nets before retrying — retrying an unconfirmed ' +
+              'placement risks creating a duplicate.',
+          };
+        }
         return {
           success: false,
           error: err instanceof Error ? err.message : String(err),
@@ -640,7 +719,7 @@ function registerSchematicWriteTools(
           'Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. ' +
             'When omitted, places a generic named net label instead.',
         ),
-      confirmWrite: z.literal(true),
+      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -714,7 +793,7 @@ function registerSchematicWriteTools(
         .optional()
         .describe('Electrical type of the port'),
       rotation: z.number().optional().describe('Rotation in degrees (0, 90, 180, 270)'),
-      confirmWrite: z.literal(true),
+      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -793,7 +872,7 @@ function registerSchematicWriteTools(
         .positive()
         .optional()
         .describe('Length of the wire stub drawn outward from the pin. Defaults to 10.'),
-      confirmWrite: z.literal(true),
+      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -887,7 +966,7 @@ function registerSchematicWriteTools(
         .positive()
         .optional()
         .describe('Length of the wire stub drawn outward from each pin. Defaults to 10.'),
-      confirmWrite: z.literal(true),
+      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -977,7 +1056,7 @@ function registerSchematicWriteTools(
     },
     inputSchema: z.object({
       projectId: z.string().describe('The project/schematic ID to save'),
-      confirmWrite: z.literal(true),
+      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -1036,7 +1115,7 @@ function registerSchematicWriteTools(
           'Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } }',
         ),
       showTitleBlock: z.boolean().optional().describe('Show/hide the whole title block'),
-      confirmWrite: z.literal(true),
+      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -1084,7 +1163,7 @@ function registerSchematicWriteTools(
     },
     inputSchema: z.object({
       projectId: z.string().optional(),
-      confirmWrite: z.literal(true),
+      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),

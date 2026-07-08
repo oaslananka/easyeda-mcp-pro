@@ -20,8 +20,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_bom_validate`                  | `core`  | `medium` | Validate the project BOM against LCSC inventory to identify missing, obsolete, or alternate parts.                                                                                                                                                                                                                               |
 | `easyeda_bridge_probe_methods`          | `dev`   | `medium` | Query the EasyEDA Pro bridge for available API methods. Requires bridge connection. (dev/pro only)                                                                                                                                                                                                                               |
 | `easyeda_bridge_status`                 | `core`  | `low`    | Check EasyEDA Pro bridge connection status, version, and capabilities.                                                                                                                                                                                                                                                           |
-| `easyeda_canvas_capture`                | `core`  | `low`    | Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or the last-focused one) as-is; use easyeda_canvas_capture_region first to frame a specific area.                                                  |
-| `easyeda_canvas_capture_region`         | `core`  | `low`    | Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API.                                                                                   |
+| `easyeda_canvas_capture`                | `core`  | `low`    | Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or last-focused); use easyeda_canvas_capture_region first to frame a specific area. Image is delivered once, as its own content block.             |
+| `easyeda_canvas_capture_region`         | `core`  | `low`    | Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API. The image is delivered once, as its own content block.                            |
 | `easyeda_canvas_locate`                 | `core`  | `low`    | Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.                                                                     |
 | `easyeda_catalog_list`                  | `pro`   | `low`    | List devices cached by easyeda_catalog_verify_device, with their validation status and provenance. Optionally filter by status (resolved/partial/unresolved). This is a local cache only — never redistributed.                                                                                                                  |
 | `easyeda_catalog_verify_device`         | `pro`   | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.                             |
@@ -71,6 +71,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_add_rectangle`       | `core`  | `medium` | Draw a rectangle on the schematic sheet — section dividers/grouping boxes for organizing a busy schematic into labeled functional blocks (pair with add_text for the title). Cosmetic only. x/y is the top-left corner; fillColor "none" leaves it unfilled.                                                                     |
 | `easyeda_schematic_add_text`            | `core`  | `medium` | Place free-standing text on the schematic sheet (section headers, notes, block labels) — cosmetic/organizational, not a net label. color must be a hex string and fontName a real font (e.g. "Arial") — untyped placeholders create nothing despite returning ok.                                                                |
 | `easyeda_schematic_add_wire`            | `core`  | `medium` | Add a wire connecting schematic coordinates/pins — real native connectivity. Same `netName` connects pins globally: separate stubs sharing one name merge into one net (no label needed). NET_COLLISION guards touched points against a foreign net's wire, pin, or flag/port — not mid-segment crossings.                       |
+| `easyeda_schematic_check_collisions`    | `core`  | `low`    | Scan every component's real pin coordinates and report any (x,y) shared by two or more components — a silent-short risk the native NET_COLLISION guard misses for never-wired pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this automatically).                                            |
 | `easyeda_schematic_component_pins`      | `core`  | `low`    | Get exact pin numbers, names, coordinates, and native pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.                                                          |
 | `easyeda_schematic_components`          | `core`  | `low`    | List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem in this project), deviceName, symbolName, lcsc, manufacturerId.                                                                                  |
 | `easyeda_schematic_connect_pin_to_net`  | `core`  | `medium` | Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.                                                                         |
@@ -81,8 +82,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_modify_primitive`    | `core`  | `medium` | Modify a schematic component/object: only fields in property change; others are read back and preserved, so partial updates never wipe unrelated data. Also moves net flags/ports — pass x/y, rotation 0/90/180/270, or mirror to shift a VCC/GND flag label off a crowded pin, keeping it over its wire.                        |
 | `easyeda_schematic_net_detail`          | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                                                |
 | `easyeda_schematic_nets`                | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
-| `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet. The bridge auto-assigns the next free designator ("R?" → "R1", "R2", …); check the returned designator. If annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by designator, so duplicate "R?" merge into one node.             |
-| `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords.                                                                                                                                                                                                                                                         |
+| `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet. Auto-assigns the next free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one node. On a timeout error, auto-reconciles against the sheet before reporting failure (see reconciled/unconfirmed) — do not blindly retry.          |
+| `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords. Full results carry the library's complete metadata object per device; pass minimal:true to get back only uuid/libraryUuid/name/pin_count/symbol_type when that is all you need.                                                                         |
 | `easyeda_schematic_set_title_block`     | `core`  | `medium` | Update schematic title block text fields (Company, Version, Drawn, Reviewed, Page Size). Only these 5 are exposed — writing Symbol/Border/Device/etc once corrupted a real title block; those are read-only natively and must be fixed via the EasyEDA Pro UI.                                                                   |
 | `easyeda_schematic_sheet_info`          | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
 | `easyeda_schematic_sync_to_pcb`         | `core`  | `medium` | Request a schematic-to-PCB sync (SCH_Document.importChanges). CAUTION (live-verified): opens a confirmation dialog in EasyEDA Pro's UI a HUMAN must approve — success here only means the request was sent, not that components appeared. Ask the user to approve the dialog, then verify with pcb_components.                   |
@@ -96,6 +97,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_wire_probe`                    | `dev`   | `low`    | Inspect live schematic wire objects, including line coordinates, net names, methods, and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                              |
 | `easyeda_workflow_connector_breakout`   | `pro`   | `medium` | Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).                                                                                                                                   |
 | `easyeda_workflow_decouple_ic`          | `pro`   | `medium` | Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).                                                                   |
+| `easyeda_workflow_layout_section`       | `pro`   | `medium` | Compute and create a section rectangle + title sized from the real pin extents of the given already-placed components (or replace an existing rectangle/title pair). Reports overlap with other rectangles and page-size overflow as warnings; never resizes the page.                                                           |
 | `easyeda_workflow_place_block`          | `pro`   | `medium` | Place a group of components, wire their pin-to-net connections (new and/or pre-existing components), and create net ports for block-external nets — all as a single atomic transaction with rollback on partial failure (confirmWrite required).                                                                                 |
 | `easyeda_workflow_power_rail`           | `pro`   | `medium` | Place a regulator and its supporting passives and wire them to input/output/ground nets in a single atomic transaction, instead of one primitive call per component. Caller supplies already-resolved device items and pin connections; this tool does not select parts (confirmWrite required).                                 |
 
@@ -492,7 +494,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or the last-focused one) as-is; use easyeda_canvas_capture_region first to frame a specific area.
+> Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or last-focused); use easyeda_canvas_capture_region first to frame a specific area. Image is delivered once, as its own content block.
 
 ### Input Parameters
 
@@ -522,7 +524,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API.
+> Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API. The image is delivered once, as its own content block.
 
 ### Input Parameters
 
@@ -1189,12 +1191,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type         | Required | Description |
-| ---------------- | ------------ | -------- | ----------- |
-| `projectId`      | `string`     | Yes      |             |
-| `testDeviceItem` | `object`     | Yes      |             |
-| `scope`          | `'schematic' | 'pcb'    | 'both'`     | Yes |     |
-| `confirmWrite`   | `'true'`     | Yes      |             |
+| Parameter        | Type         | Required | Description                                                                   |
+| ---------------- | ------------ | -------- | ----------------------------------------------------------------------------- |
+| `projectId`      | `string`     | Yes      |                                                                               |
+| `testDeviceItem` | `object`     | Yes      |                                                                               |
+| `scope`          | `'schematic' | 'pcb'    | 'both'`                                                                       | Yes |     |
+| `confirmWrite`   | `'true'`     | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1249,15 +1251,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                              |
-| -------------- | ------------------- | -------- | -------------------------------------------------------- |
-| `layer`        | `number`            | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen |
-| `startX`       | `number`            | Yes      |                                                          |
-| `startY`       | `number`            | Yes      |                                                          |
-| `endX`         | `number`            | Yes      |                                                          |
-| `endY`         | `number`            | Yes      |                                                          |
-| `lineWidth`    | `number (optional)` | No       |                                                          |
-| `confirmWrite` | `'true'`            | Yes      |                                                          |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `layer`        | `number`            | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen                      |
+| `startX`       | `number`            | Yes      |                                                                               |
+| `startY`       | `number`            | Yes      |                                                                               |
+| `endX`         | `number`            | Yes      |                                                                               |
+| `endY`         | `number`            | Yes      |                                                                               |
+| `lineWidth`    | `number (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1281,22 +1283,22 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                 | Required | Description                                              |
-| -------------- | -------------------- | -------- | -------------------------------------------------------- |
-| `layer`        | `number`             | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen |
-| `x`            | `number`             | Yes      |                                                          |
-| `y`            | `number`             | Yes      |                                                          |
-| `text`         | `string`             | Yes      |                                                          |
-| `fontFamily`   | `string (optional)`  | No       |                                                          |
-| `fontSize`     | `number (optional)`  | No       |                                                          |
-| `lineWidth`    | `number (optional)`  | No       |                                                          |
-| `alignMode`    | `number (optional)`  | No       |                                                          |
-| `rotation`     | `number (optional)`  | No       |                                                          |
-| `reverse`      | `boolean (optional)` | No       |                                                          |
-| `expansion`    | `number (optional)`  | No       |                                                          |
-| `mirror`       | `boolean (optional)` | No       |                                                          |
-| `locked`       | `boolean (optional)` | No       |                                                          |
-| `confirmWrite` | `'true'`             | Yes      |                                                          |
+| Parameter      | Type                 | Required | Description                                                                   |
+| -------------- | -------------------- | -------- | ----------------------------------------------------------------------------- |
+| `layer`        | `number`             | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen                      |
+| `x`            | `number`             | Yes      |                                                                               |
+| `y`            | `number`             | Yes      |                                                                               |
+| `text`         | `string`             | Yes      |                                                                               |
+| `fontFamily`   | `string (optional)`  | No       |                                                                               |
+| `fontSize`     | `number (optional)`  | No       |                                                                               |
+| `lineWidth`    | `number (optional)`  | No       |                                                                               |
+| `alignMode`    | `number (optional)`  | No       |                                                                               |
+| `rotation`     | `number (optional)`  | No       |                                                                               |
+| `reverse`      | `boolean (optional)` | No       |                                                                               |
+| `expansion`    | `number (optional)`  | No       |                                                                               |
+| `mirror`       | `boolean (optional)` | No       |                                                                               |
+| `locked`       | `boolean (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1320,13 +1322,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description |
-| -------------- | ------------------- | -------- | ----------- |
-| `points`       | `object[]`          | Yes      |             |
-| `layer`        | `number`            | Yes      |             |
-| `width`        | `number`            | Yes      |             |
-| `netName`      | `string (optional)` | No       |             |
-| `confirmWrite` | `'true'`            | Yes      |             |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `points`       | `object[]`          | Yes      |                                                                               |
+| `layer`        | `number`            | Yes      |                                                                               |
+| `width`        | `number`            | Yes      |                                                                               |
+| `netName`      | `string (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1351,14 +1353,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                | Required | Description |
-| --------------- | ------------------- | -------- | ----------- |
-| `x`             | `number`            | Yes      |             |
-| `y`             | `number`            | Yes      |             |
-| `outerDiameter` | `number`            | Yes      |             |
-| `holeSize`      | `number`            | Yes      |             |
-| `netName`       | `string (optional)` | No       |             |
-| `confirmWrite`  | `'true'`            | Yes      |             |
+| Parameter       | Type                | Required | Description                                                                   |
+| --------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `x`             | `number`            | Yes      |                                                                               |
+| `y`             | `number`            | Yes      |                                                                               |
+| `outerDiameter` | `number`            | Yes      |                                                                               |
+| `holeSize`      | `number`            | Yes      |                                                                               |
+| `netName`       | `string (optional)` | No       |                                                                               |
+| `confirmWrite`  | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1382,13 +1384,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description |
-| -------------- | ------------------- | -------- | ----------- |
-| `points`       | `object[]`          | Yes      |             |
-| `layer`        | `number`            | Yes      |             |
-| `netName`      | `string (optional)` | No       |             |
-| `clearance`    | `number (optional)` | No       |             |
-| `confirmWrite` | `'true'`            | Yes      |             |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `points`       | `object[]`          | Yes      |                                                                               |
+| `layer`        | `number`            | Yes      |                                                                               |
+| `netName`      | `string (optional)` | No       |                                                                               |
+| `clearance`    | `number (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1543,10 +1545,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type       | Required | Description |
-| -------------- | ---------- | -------- | ----------- |
-| `primitiveIds` | `string[]` | Yes      |             |
-| `confirmWrite` | `'true'`   | Yes      |             |
+| Parameter      | Type       | Required | Description                                                                   |
+| -------------- | ---------- | -------- | ----------------------------------------------------------------------------- |
+| `primitiveIds` | `string[]` | Yes      |                                                                               |
+| `confirmWrite` | `'true'`   | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1654,11 +1656,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                  | Required | Description |
-| -------------- | --------------------- | -------- | ----------- |
-| `primitiveId`  | `string`              | Yes      |             |
-| `property`     | `Record<string, any>` | Yes      |             |
-| `confirmWrite` | `'true'`              | Yes      |             |
+| Parameter      | Type                  | Required | Description                                                                   |
+| -------------- | --------------------- | -------- | ----------------------------------------------------------------------------- |
+| `primitiveId`  | `string`              | Yes      |                                                                               |
+| `property`     | `Record<string, any>` | Yes      |                                                                               |
+| `confirmWrite` | `'true'`              | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1681,14 +1683,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type     | Required | Description |
-| -------------- | -------- | -------- | ----------- |
-| `footprint`    | `string` | Yes      |             |
-| `x`            | `number` | Yes      |             |
-| `y`            | `number` | Yes      |             |
-| `rotation`     | `number` | Yes      |             |
-| `layer`        | `number` | Yes      |             |
-| `confirmWrite` | `'true'` | Yes      |             |
+| Parameter      | Type     | Required | Description                                                                   |
+| -------------- | -------- | -------- | ----------------------------------------------------------------------------- |
+| `footprint`    | `string` | Yes      |                                                                               |
+| `x`            | `number` | Yes      |                                                                               |
+| `y`            | `number` | Yes      |                                                                               |
+| `rotation`     | `number` | Yes      |                                                                               |
+| `layer`        | `number` | Yes      |                                                                               |
+| `confirmWrite` | `'true'` | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1975,10 +1977,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type     | Required | Description                      |
-| -------------- | -------- | -------- | -------------------------------- |
-| `projectId`    | `string` | Yes      | The project/schematic ID to save |
-| `confirmWrite` | `'true'` | Yes      |                                  |
+| Parameter      | Type     | Required | Description                                                                   |
+| -------------- | -------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`    | `string` | Yes      | The project/schematic ID to save                                              |
+| `confirmWrite` | `'true'` | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2054,17 +2056,17 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                    |
-| -------------- | ------------------- | -------- | ---------------------------------------------- |
-| `centerX`      | `number`            | Yes      |                                                |
-| `centerY`      | `number`            | Yes      |                                                |
-| `radius`       | `number`            | Yes      |                                                |
-| `color`        | `string (optional)` | No       |                                                |
-| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled |
-| `lineWidth`    | `number (optional)` | No       |                                                |
-| `lineType`     | `number (optional)` | No       |                                                |
-| `fillStyle`    | `string (optional)` | No       |                                                |
-| `confirmWrite` | `'true'`            | Yes      |                                                |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `centerX`      | `number`            | Yes      |                                                                               |
+| `centerY`      | `number`            | Yes      |                                                                               |
+| `radius`       | `number`            | Yes      |                                                                               |
+| `color`        | `string (optional)` | No       |                                                                               |
+| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                |
+| `lineWidth`    | `number (optional)` | No       |                                                                               |
+| `lineType`     | `number (optional)` | No       |                                                                               |
+| `fillStyle`    | `string (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2088,14 +2090,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                    |
-| -------------- | ------------------- | -------- | ---------------------------------------------- |
-| `points`       | `object[]`          | Yes      |                                                |
-| `color`        | `string (optional)` | No       |                                                |
-| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled |
-| `lineWidth`    | `number (optional)` | No       |                                                |
-| `lineType`     | `number (optional)` | No       |                                                |
-| `confirmWrite` | `'true'`            | Yes      |                                                |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `points`       | `object[]`          | Yes      |                                                                               |
+| `color`        | `string (optional)` | No       |                                                                               |
+| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                |
+| `lineWidth`    | `number (optional)` | No       |                                                                               |
+| `lineType`     | `number (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2119,20 +2121,20 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                    |
-| -------------- | ------------------- | -------- | ---------------------------------------------- |
-| `x`            | `number`            | Yes      | Top-left X coordinate                          |
-| `y`            | `number`            | Yes      | Top-left Y coordinate                          |
-| `width`        | `number`            | Yes      |                                                |
-| `height`       | `number`            | Yes      |                                                |
-| `cornerRadius` | `number (optional)` | No       |                                                |
-| `rotation`     | `number (optional)` | No       |                                                |
-| `color`        | `string (optional)` | No       | Border/line color, hex string (e.g. "#FF0000") |
-| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled |
-| `lineWidth`    | `number (optional)` | No       |                                                |
-| `lineType`     | `number (optional)` | No       |                                                |
-| `fillStyle`    | `string (optional)` | No       |                                                |
-| `confirmWrite` | `'true'`            | Yes      |                                                |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `x`            | `number`            | Yes      | Top-left X coordinate                                                         |
+| `y`            | `number`            | Yes      | Top-left Y coordinate                                                         |
+| `width`        | `number`            | Yes      |                                                                               |
+| `height`       | `number`            | Yes      |                                                                               |
+| `cornerRadius` | `number (optional)` | No       |                                                                               |
+| `rotation`     | `number (optional)` | No       |                                                                               |
+| `color`        | `string (optional)` | No       | Border/line color, hex string (e.g. "#FF0000")                                |
+| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                |
+| `lineWidth`    | `number (optional)` | No       |                                                                               |
+| `lineType`     | `number (optional)` | No       |                                                                               |
+| `fillStyle`    | `string (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2156,20 +2158,20 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                 | Required | Description |
-| -------------- | -------------------- | -------- | ----------- |
-| `x`            | `number`             | Yes      |             |
-| `y`            | `number`             | Yes      |             |
-| `content`      | `string`             | Yes      |             |
-| `rotation`     | `number (optional)`  | No       |             |
-| `color`        | `string (optional)`  | No       |             |
-| `fontName`     | `string (optional)`  | No       |             |
-| `fontSize`     | `number (optional)`  | No       |             |
-| `bold`         | `boolean (optional)` | No       |             |
-| `italic`       | `boolean (optional)` | No       |             |
-| `underline`    | `boolean (optional)` | No       |             |
-| `alignMode`    | `number (optional)`  | No       |             |
-| `confirmWrite` | `'true'`             | Yes      |             |
+| Parameter      | Type                 | Required | Description                                                                   |
+| -------------- | -------------------- | -------- | ----------------------------------------------------------------------------- |
+| `x`            | `number`             | Yes      |                                                                               |
+| `y`            | `number`             | Yes      |                                                                               |
+| `content`      | `string`             | Yes      |                                                                               |
+| `rotation`     | `number (optional)`  | No       |                                                                               |
+| `color`        | `string (optional)`  | No       |                                                                               |
+| `fontName`     | `string (optional)`  | No       |                                                                               |
+| `fontSize`     | `number (optional)`  | No       |                                                                               |
+| `bold`         | `boolean (optional)` | No       |                                                                               |
+| `italic`       | `boolean (optional)` | No       |                                                                               |
+| `underline`    | `boolean (optional)` | No       |                                                                               |
+| `alignMode`    | `number (optional)`  | No       |                                                                               |
+| `confirmWrite` | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2193,14 +2195,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description |
-| -------------- | ------------------- | -------- | ----------- |
-| `points`       | `object[]`          | Yes      |             |
-| `netName`      | `string (optional)` | No       |             |
-| `color`        | `string (optional)` | No       |             |
-| `lineWidth`    | `number (optional)` | No       |             |
-| `lineType`     | `string (optional)` | No       |             |
-| `confirmWrite` | `'true'`            | Yes      |             |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `points`       | `object[]`          | Yes      |                                                                               |
+| `netName`      | `string (optional)` | No       |                                                                               |
+| `color`        | `string (optional)` | No       |                                                                               |
+| `lineWidth`    | `number (optional)` | No       |                                                                               |
+| `lineType`     | `string (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2211,6 +2213,34 @@ Returns a JSON object matching the schema:
   success: boolean;
   wire: any(optional);
   error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_check_collisions`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Scan every component's real pin coordinates and report any (x,y) shared by two or more components — a silent-short risk the native NET_COLLISION guard misses for never-wired pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this automatically).
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description              |
+| ----------- | -------- | -------- | ------------------------ |
+| `projectId` | `string` | Yes      | The project/schematic ID |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  collisions: object[];
+  collision_count: number;
+  success: boolean;
+  error: string (optional);
 }
 ```
 
@@ -2251,11 +2281,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `limit`     | `number` | Yes      |             |
-| `offset`    | `number` | Yes      |             |
+| Parameter   | Type     | Required | Description              |
+| ----------- | -------- | -------- | ------------------------ |
+| `projectId` | `string` | Yes      | The project/schematic ID |
+| `limit`     | `number` | Yes      |                          |
+| `offset`    | `number` | Yes      |                          |
 
 ### Output Format
 
@@ -2281,14 +2311,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                          |
-| -------------- | ------------------- | -------- | -------------------------------------------------------------------- |
-| `projectId`    | `string`            | Yes      | The project/schematic ID                                             |
-| `primitiveId`  | `string`            | Yes      | The primitive ID of the component                                    |
-| `pinNumber`    | `string`            | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND") |
-| `netName`      | `string`            | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)            |
-| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from the pin. Defaults to 10.  |
-| `confirmWrite` | `'true'`            | Yes      |                                                                      |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`    | `string`            | Yes      | The project/schematic ID                                                      |
+| `primitiveId`  | `string`            | Yes      | The primitive ID of the component                                             |
+| `pinNumber`    | `string`            | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND")          |
+| `netName`      | `string`            | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)                     |
+| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from the pin. Defaults to 10.           |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2315,13 +2345,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                          |
-| -------------- | ------------------- | -------- | -------------------------------------------------------------------- |
-| `projectId`    | `string`            | Yes      | The project/schematic ID                                             |
-| `netName`      | `string`            | Yes      | The net name to assign pins to                                       |
-| `pins`         | `object[]`          | Yes      | List of component pins to connect to the net                         |
-| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from each pin. Defaults to 10. |
-| `confirmWrite` | `'true'`            | Yes      |                                                                      |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`    | `string`            | Yes      | The project/schematic ID                                                      |
+| `netName`      | `string`            | Yes      | The net name to assign pins to                                                |
+| `pins`         | `object[]`          | Yes      | List of component pins to connect to the net                                  |
+| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from each pin. Defaults to 10.          |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2349,15 +2379,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type                | Required | Description                                      |
-| ---------------- | ------------------- | -------- | ------------------------------------------------ |
-| `projectId`      | `string`            | Yes      | The project/schematic ID                         |
-| `netName`        | `string`            | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET) |
-| `x`              | `number`            | Yes      | X coordinate on the schematic canvas             |
-| `y`              | `number`            | Yes      | Y coordinate on the schematic canvas             |
-| `rotation`       | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)            |
-| `identification` | `'Power'            | 'Ground' | 'AnalogGround'                                   | 'ProtectGround' (optional)` | No  | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
-| `confirmWrite`   | `'true'`            | Yes      |                                                  |
+| Parameter        | Type                | Required | Description                                                                   |
+| ---------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`      | `string`            | Yes      | The project/schematic ID                                                      |
+| `netName`        | `string`            | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET)                              |
+| `x`              | `number`            | Yes      | X coordinate on the schematic canvas                                          |
+| `y`              | `number`            | Yes      | Y coordinate on the schematic canvas                                          |
+| `rotation`       | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)                                         |
+| `identification` | `'Power'            | 'Ground' | 'AnalogGround'                                                                | 'ProtectGround' (optional)` | No  | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
+| `confirmWrite`   | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2381,15 +2411,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                         |
-| -------------- | ------------------- | -------- | --------------------------------------------------- |
-| `projectId`    | `string`            | Yes      | The project/schematic ID                            |
-| `netName`      | `string`            | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS) |
-| `x`            | `number`            | Yes      | X coordinate on the schematic canvas                |
-| `y`            | `number`            | Yes      | Y coordinate on the schematic canvas                |
-| `portType`     | `'input'            | 'output' | 'bidirectional'                                     | 'triState' | 'passive' (optional)` | No  | Electrical type of the port |
-| `rotation`     | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)               |
-| `confirmWrite` | `'true'`            | Yes      |                                                     |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`    | `string`            | Yes      | The project/schematic ID                                                      |
+| `netName`      | `string`            | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS)                           |
+| `x`            | `number`            | Yes      | X coordinate on the schematic canvas                                          |
+| `y`            | `number`            | Yes      | Y coordinate on the schematic canvas                                          |
+| `portType`     | `'input'            | 'output' | 'bidirectional'                                                               | 'triState' | 'passive' (optional)` | No  | Electrical type of the port |
+| `rotation`     | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)                                         |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2413,10 +2443,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type       | Required | Description |
-| -------------- | ---------- | -------- | ----------- |
-| `primitiveIds` | `string[]` | Yes      |             |
-| `confirmWrite` | `'true'`   | Yes      |             |
+| Parameter      | Type       | Required | Description                                                                   |
+| -------------- | ---------- | -------- | ----------------------------------------------------------------------------- |
+| `primitiveIds` | `string[]` | Yes      |                                                                               |
+| `confirmWrite` | `'true'`   | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2439,11 +2469,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                  | Required | Description |
-| -------------- | --------------------- | -------- | ----------- |
-| `primitiveId`  | `string`              | Yes      |             |
-| `property`     | `Record<string, any>` | Yes      |             |
-| `confirmWrite` | `'true'`              | Yes      |             |
+| Parameter      | Type                  | Required | Description                                                                   |
+| -------------- | --------------------- | -------- | ----------------------------------------------------------------------------- |
+| `primitiveId`  | `string`              | Yes      |                                                                               |
+| `property`     | `Record<string, any>` | Yes      |                                                                               |
+| `confirmWrite` | `'true'`              | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2467,10 +2497,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `netName`   | `string` | Yes      |             |
+| Parameter   | Type     | Required | Description              |
+| ----------- | -------- | -------- | ------------------------ |
+| `projectId` | `string` | Yes      | The project/schematic ID |
+| `netName`   | `string` | Yes      |                          |
 
 ### Output Format
 
@@ -2496,9 +2526,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
+| Parameter   | Type     | Required | Description              |
+| ----------- | -------- | -------- | ------------------------ |
+| `projectId` | `string` | Yes      | The project/schematic ID |
 
 ### Output Format
 
@@ -2519,25 +2549,25 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Place a library component/device on the active schematic sheet. The bridge auto-assigns the next free designator ("R?" → "R1", "R2", …); check the returned designator. If annotation fails, fix the placeholder via modify_primitive — the netlist keys nodes by designator, so duplicate "R?" merge into one node.
+> Place a library component/device on the active schematic sheet. Auto-assigns the next free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one node. On a timeout error, auto-reconciles against the sheet before reporting failure (see reconciled/unconfirmed) — do not blindly retry.
 
 ### Input Parameters
 
-| Parameter                 | Type                 | Required | Description |
-| ------------------------- | -------------------- | -------- | ----------- |
-| `deviceItem`              | `object`             | Yes      |             |
-| `x`                       | `number`             | Yes      |             |
-| `y`                       | `number`             | Yes      |             |
-| `subPartName`             | `string (optional)`  | No       |             |
-| `rotation`                | `number (optional)`  | No       |             |
-| `mirror`                  | `boolean (optional)` | No       |             |
-| `addIntoBom`              | `boolean (optional)` | No       |             |
-| `addIntoPcb`              | `boolean (optional)` | No       |             |
-| `dryRun`                  | `boolean (optional)` | No       |             |
-| `verifyAfterWrite`        | `boolean (optional)` | No       |             |
-| `checkPlacementCollision` | `boolean (optional)` | No       |             |
-| `collisionRadius`         | `number (optional)`  | No       |             |
-| `confirmWrite`            | `'true'`             | Yes      |             |
+| Parameter                 | Type                 | Required | Description                                                                   |
+| ------------------------- | -------------------- | -------- | ----------------------------------------------------------------------------- |
+| `deviceItem`              | `object`             | Yes      |                                                                               |
+| `x`                       | `number`             | Yes      |                                                                               |
+| `y`                       | `number`             | Yes      |                                                                               |
+| `subPartName`             | `string (optional)`  | No       |                                                                               |
+| `rotation`                | `number (optional)`  | No       |                                                                               |
+| `mirror`                  | `boolean (optional)` | No       |                                                                               |
+| `addIntoBom`              | `boolean (optional)` | No       |                                                                               |
+| `addIntoPcb`              | `boolean (optional)` | No       |                                                                               |
+| `dryRun`                  | `boolean (optional)` | No       |                                                                               |
+| `verifyAfterWrite`        | `boolean (optional)` | No       |                                                                               |
+| `checkPlacementCollision` | `boolean (optional)` | No       |                                                                               |
+| `collisionRadius`         | `number (optional)`  | No       |                                                                               |
+| `confirmWrite`            | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2550,6 +2580,9 @@ Returns a JSON object matching the schema:
   dry_run: boolean(optional);
   placement_guard: any(optional);
   verification: any(optional);
+  reconciled: boolean(optional);
+  unconfirmed: boolean(optional);
+  warning: string(optional);
   error: string(optional);
 }
 ```
@@ -2560,18 +2593,19 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Search for schematic symbols/devices in the EasyEDA library by keywords.
+> Search for schematic symbols/devices in the EasyEDA library by keywords. Full results carry the library's complete metadata object per device; pass minimal:true to get back only uuid/libraryUuid/name/pin_count/symbol_type when that is all you need.
 
 ### Input Parameters
 
-| Parameter        | Type                | Required             | Description |
-| ---------------- | ------------------- | -------------------- | ----------- |
-| `key`            | `string`            | Yes                  |             |
-| `libraryUuid`    | `string (optional)` | No                   |             |
-| `classification` | `string             | string[] (optional)` | No          |     |
-| `symbolType`     | `string (optional)` | No                   |             |
-| `itemsOfPage`    | `number`            | Yes                  |             |
-| `page`           | `number`            | Yes                  |             |
+| Parameter        | Type                 | Required             | Description                                                                                                                                                                                                                                        |
+| ---------------- | -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`            | `string`             | Yes                  | Search keyword(s), matched against device name/description in the library                                                                                                                                                                          |
+| `libraryUuid`    | `string (optional)`  | No                   |                                                                                                                                                                                                                                                    |
+| `classification` | `string              | string[] (optional)` | No                                                                                                                                                                                                                                                 |     |
+| `symbolType`     | `string (optional)`  | No                   |                                                                                                                                                                                                                                                    |
+| `itemsOfPage`    | `number`             | Yes                  |                                                                                                                                                                                                                                                    |
+| `page`           | `number`             | Yes                  |                                                                                                                                                                                                                                                    |
+| `minimal`        | `boolean (optional)` | No                   | When true, return only uuid/libraryUuid/name/pin_count/symbol_type per device instead of the full library metadata object — use this when the goal is just picking a deviceItem for place_component, to avoid paying for fields you will not read. |
 
 ### Output Format
 
@@ -2601,7 +2635,7 @@ Returns a JSON object matching the schema:
 | ---------------- | ------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
 | `fields`         | `Record<string, object>` | Yes      | Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } } |
 | `showTitleBlock` | `boolean (optional)`     | No       | Show/hide the whole title block                                                                                       |
-| `confirmWrite`   | `'true'`                 | Yes      |                                                                                                                       |
+| `confirmWrite`   | `'true'`                 | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                         |
 
 ### Output Format
 
@@ -2656,10 +2690,10 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description |
-| -------------- | ------------------- | -------- | ----------- |
-| `projectId`    | `string (optional)` | No       |             |
-| `confirmWrite` | `'true'`            | Yes      |             |
+| Parameter      | Type                | Required | Description                                                                   |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`    | `string (optional)` | No       |                                                                               |
+| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2755,11 +2789,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `limit`     | `number` | Yes      |             |
-| `offset`    | `number` | Yes      |             |
+| Parameter   | Type     | Required | Description              |
+| ----------- | -------- | -------- | ------------------------ |
+| `projectId` | `string` | Yes      | The project/schematic ID |
+| `limit`     | `number` | Yes      |                          |
+| `offset`    | `number` | Yes      |                          |
 
 ### Output Format
 
@@ -3025,6 +3059,49 @@ Returns a JSON object matching the schema:
   rollback_notes: string[];
   error: string (optional);
   decoupling_guidance: object (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_layout_section`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Compute and create a section rectangle + title sized from the real pin extents of the given already-placed components (or replace an existing rectangle/title pair). Reports overlap with other rectangles and page-size overflow as warnings; never resizes the page.
+
+### Input Parameters
+
+| Parameter                     | Type                 | Required | Description                                                                   |
+| ----------------------------- | -------------------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`                   | `string`             | Yes      |                                                                               |
+| `mode`                        | `'preview'           | 'apply'` | Yes                                                                           |     |
+| `componentPrimitiveIds`       | `string[]`           | Yes      | Components belonging to this section — their pin extents define the box.      |
+| `title`                       | `string`             | Yes      |                                                                               |
+| `margin`                      | `number`             | Yes      | Padding between the component cluster and the box edge.                       |
+| `componentPadding`            | `number`             | Yes      | Per-component padding around its pins, approximating body extent beyond them. |
+| `titleGap`                    | `number`             | Yes      | Gap between the title and the box top edge.                                   |
+| `titleFontSize`               | `number`             | Yes      |                                                                               |
+| `color`                       | `string`             | Yes      |                                                                               |
+| `replaceRectanglePrimitiveId` | `string (optional)`  | No       | An existing section rectangle to delete and replace with the newly-sized one. |
+| `replaceTitlePrimitiveId`     | `string (optional)`  | No       | An existing section title to delete and replace with the repositioned one.    |
+| `confirmWrite`                | `boolean (optional)` | No       |                                                                               |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  applied: boolean;
+  bounds: object (optional);
+  overlapping_rectangles: object[];
+  page_frame_warning: string (optional);
+  rectangle_primitive_id: string (optional);
+  title_primitive_id: string (optional);
+  deleted_primitive_ids: string[];
+  error: string (optional);
 }
 ```
 

@@ -2,14 +2,23 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { fetchComponentPins } from './schematic-helpers.js';
+import { scanSheetForPinCollisions } from '../workflows/collision.js';
 
 const searchDeviceInputSchema = z.object({
-  key: z.string(),
+  key: z.string().describe('Search keyword(s), matched against device name/description in the library'),
   libraryUuid: z.string().optional(),
   classification: z.union([z.string(), z.array(z.string())]).optional(),
   symbolType: z.string().optional(),
   itemsOfPage: z.number().int().default(20),
   page: z.number().int().default(1),
+  minimal: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, return only uuid/libraryUuid/name/pin_count/symbol_type per device instead of ' +
+        'the full library metadata object — use this when the goal is just picking a deviceItem ' +
+        'for place_component, to avoid paying for fields you will not read.',
+    ),
 });
 
 const _deviceItemSchema = z
@@ -79,6 +88,8 @@ function searchDeviceArrayLengthMetadata(
   return undefined;
 }
 
+const searchDeviceNameKeys = ['name', 'title', 'deviceName', 'symbolName', 'className'] as const;
+
 function normalizeSearchDeviceItem(item: unknown): SearchDeviceItem {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return { raw: item };
 
@@ -92,6 +103,19 @@ function normalizeSearchDeviceItem(item: unknown): SearchDeviceItem {
   if (symbolType) normalized.symbol_type = symbolType;
 
   return normalized;
+}
+
+/** Projects a normalized device item down to just enough to pick a deviceItem for
+ *  place_component — see the `minimal` input flag. */
+function minimalSearchDeviceItem(item: SearchDeviceItem): SearchDeviceItem {
+  const minimal: SearchDeviceItem = {};
+  if (typeof item.uuid === 'string') minimal.uuid = item.uuid;
+  if (typeof item.libraryUuid === 'string') minimal.libraryUuid = item.libraryUuid;
+  const name = searchDeviceStringMetadata(item, searchDeviceNameKeys);
+  if (name) minimal.name = name;
+  if (item.pin_count !== undefined) minimal.pin_count = item.pin_count;
+  if (item.symbol_type !== undefined) minimal.symbol_type = item.symbol_type;
+  return minimal;
 }
 
 function registerSchematicReadTools(
@@ -113,7 +137,7 @@ function registerSchematicReadTools(
       idempotentHint: true,
     },
     inputSchema: z.object({
-      projectId: z.string(),
+      projectId: z.string().describe('The project/schematic ID'),
     }),
     outputSchema: z.object({
       project_id: z.string(),
@@ -182,7 +206,7 @@ function registerSchematicReadTools(
       idempotentHint: true,
     },
     inputSchema: z.object({
-      projectId: z.string(),
+      projectId: z.string().describe('The project/schematic ID'),
       limit: z.coerce.number().int().min(1).max(500).default(100),
       offset: z.coerce.number().int().min(0).default(0),
     }),
@@ -295,7 +319,7 @@ function registerSchematicReadTools(
       idempotentHint: true,
     },
     inputSchema: z.object({
-      projectId: z.string(),
+      projectId: z.string().describe('The project/schematic ID'),
       limit: z.coerce.number().int().min(1).max(50).default(50),
       offset: z.coerce.number().int().min(0).default(0),
     }),
@@ -374,7 +398,7 @@ function registerSchematicReadTools(
       idempotentHint: true,
     },
     inputSchema: z.object({
-      projectId: z.string(),
+      projectId: z.string().describe('The project/schematic ID'),
       netName: z.string(),
     }),
     outputSchema: z.object({
@@ -431,7 +455,10 @@ function registerSchematicReadTools(
   registry.register({
     name: 'easyeda_schematic_search_device',
     title: 'Search library device',
-    description: 'Search for schematic symbols/devices in the EasyEDA library by keywords.',
+    description:
+      'Search for schematic symbols/devices in the EasyEDA library by keywords. Full results ' +
+      'carry the library\'s complete metadata object per device; pass minimal:true to get back ' +
+      'only uuid/libraryUuid/name/pin_count/symbol_type when that is all you need.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -460,7 +487,7 @@ function registerSchematicReadTools(
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { key, libraryUuid, classification, symbolType, itemsOfPage, page } =
+      const { key, libraryUuid, classification, symbolType, itemsOfPage, page, minimal } =
         searchDeviceInputSchema.parse(params);
       try {
         const result = await ctx.bridge.call('schematic.searchDevice', {
@@ -471,7 +498,8 @@ function registerSchematicReadTools(
           itemsOfPage,
           page,
         });
-        const devices = Array.isArray(result) ? result.map(normalizeSearchDeviceItem) : [];
+        const normalized = Array.isArray(result) ? result.map(normalizeSearchDeviceItem) : [];
+        const devices = minimal ? normalized.map(minimalSearchDeviceItem) : normalized;
         return {
           devices,
           total: devices.length,
@@ -730,6 +758,68 @@ function registerSchematicReadTools(
         return {
           primitiveId,
           pins: [],
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_check_collisions',
+    title: 'Check for pin-coordinate collisions across the sheet',
+    description:
+      'Scan every component\'s real pin coordinates and report any (x,y) shared by two or more ' +
+      'components — a silent-short risk the native NET_COLLISION guard misses for never-wired ' +
+      'pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this ' +
+      'automatically).',
+    profile: 'core',
+    evidence: ['inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().describe('The project/schematic ID'),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      collisions: z.array(
+        z.object({
+          x: z.number(),
+          y: z.number(),
+          pins: z.array(
+            z.object({
+              primitiveId: z.string(),
+              pinNumber: z.string(),
+              pinName: z.string(),
+            }),
+          ),
+        }),
+      ),
+      collision_count: z.number().int().nonnegative(),
+      success: z.boolean(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId } = params as { projectId: string };
+      try {
+        const collisions = await scanSheetForPinCollisions(ctx, projectId);
+        return {
+          project_id: projectId,
+          collisions,
+          collision_count: collisions.length,
+          success: true,
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
+          collisions: [],
+          collision_count: 0,
           success: false,
           error: err instanceof Error ? err.message : String(err),
         };

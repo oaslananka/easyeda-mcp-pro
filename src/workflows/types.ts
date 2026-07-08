@@ -7,7 +7,8 @@ export type WorkflowIssueCode =
   | 'WORKFLOW_EMPTY_PIN_CONNECTIONS'
   | 'WORKFLOW_NO_COMPONENTS'
   | 'WORKFLOW_MISSING_ROLE'
-  | 'WORKFLOW_DUPLICATE_NET_PORT';
+  | 'WORKFLOW_DUPLICATE_NET_PORT'
+  | 'WORKFLOW_PIN_COLLISION';
 
 export interface WorkflowIssue {
   code: WorkflowIssueCode;

@@ -355,6 +355,38 @@ describe('ToolRegistry', () => {
       });
     });
 
+    it('omits imageContentOmitFields from structuredContent and the text block once an image block exists', async () => {
+      const tool = createMockTool('deduped_image_tool', 'core', {
+        outputSchema: z.object({
+          ok: z.boolean(),
+          image_base64: z.string().optional(),
+          other: z.string(),
+        }),
+        handler: async () => ({ ok: true, image_base64: 'ZmFrZS1wbmctYnl0ZXM=', other: 'kept' }),
+        imageContent: (output) =>
+          output.image_base64 ? [{ data: output.image_base64, mimeType: 'image/png' }] : [],
+        imageContentOmitFields: ['image_base64'],
+      });
+      registry.register(tool);
+
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+
+      const response = await handlers.get('deduped_image_tool')!({});
+
+      // The image is still delivered exactly once, as its own content block...
+      expect(response.content).toHaveLength(2);
+      expect(response.content[1]).toEqual({
+        type: 'image',
+        data: 'ZmFrZS1wbmctYnl0ZXM=',
+        mimeType: 'image/png',
+      });
+      // ...but is no longer duplicated into structuredContent or the JSON text block.
+      expect(response.structuredContent).toEqual({ ok: true, other: 'kept' });
+      expect(response.content[0].text).not.toContain('ZmFrZS1wbmctYnl0ZXM=');
+      expect(response.content[0].text).toContain('kept');
+    });
+
     it('does not add an image block when imageContent returns an empty array', async () => {
       const tool = createMockTool('no_image_tool', 'core', {
         outputSchema: z.object({ ok: z.boolean() }),

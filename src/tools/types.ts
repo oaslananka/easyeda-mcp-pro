@@ -55,6 +55,16 @@ export interface ToolDefinition<
    * block. Most tools omit this.
    */
   imageContent?: (output: z.infer<TOutput>) => Array<{ data: string; mimeType: string }>;
+  /**
+   * Output field names to drop from `structuredContent` and the JSON text
+   * content block when `imageContent` successfully produced at least one
+   * image block — the same payload would otherwise be sent three times over
+   * the wire (once as raw JSON text, once in structuredContent, once as a
+   * proper image content block). The field is NOT removed from what
+   * `imageContent` itself receives, only from the response's other two
+   * copies. Most tools omit this.
+   */
+  imageContentOmitFields?: string[];
 }
 
 export interface BridgeDiagnosticsSnapshot {
