@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.24.0...easyeda-mcp-pro-v0.24.1) (2026-07-08)
+
+
+### Bug Fixes
+
+* **bridge:** safe write-loop + collision/wire-follow fixes for schematic MCP tools ([#227](https://github.com/oaslananka/easyeda-mcp-pro/issues/227)) ([dd61d51](https://github.com/oaslananka/easyeda-mcp-pro/commit/dd61d5160df639e9f547f296f855e21262afb7c9))
+
 ## [0.24.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.23.0...easyeda-mcp-pro-v0.24.0) (2026-07-07)
 
 
