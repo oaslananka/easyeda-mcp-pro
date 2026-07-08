@@ -159,7 +159,9 @@ const placeComponentInputSchema = z.object({
   verifyAfterWrite: z.boolean().optional(),
   checkPlacementCollision: z.boolean().optional(),
   collisionRadius: z.number().positive().optional(),
-  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addWireInputSchema = z.object({
@@ -173,7 +175,9 @@ const addWireInputSchema = z.object({
   color: z.string().optional(),
   lineWidth: z.number().optional(),
   lineType: z.string().optional(),
-  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addTextInputSchema = z.object({
@@ -188,7 +192,9 @@ const addTextInputSchema = z.object({
   italic: z.boolean().optional(),
   underline: z.boolean().optional(),
   alignMode: z.number().int().min(0).max(8).optional(),
-  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addRectangleInputSchema = z.object({
@@ -203,7 +209,9 @@ const addRectangleInputSchema = z.object({
   lineWidth: z.number().positive().optional(),
   lineType: z.number().int().nonnegative().optional(),
   fillStyle: z.string().optional(),
-  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addCircleInputSchema = z.object({
@@ -215,7 +223,9 @@ const addCircleInputSchema = z.object({
   lineWidth: z.number().positive().optional(),
   lineType: z.number().int().nonnegative().optional(),
   fillStyle: z.string().optional(),
-  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const addPolygonInputSchema = z.object({
@@ -224,18 +234,24 @@ const addPolygonInputSchema = z.object({
   fillColor: z.string().optional().describe('Fill color, hex string, or "none" for unfilled'),
   lineWidth: z.number().positive().optional(),
   lineType: z.number().int().nonnegative().optional(),
-  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const deletePrimitiveInputSchema = z.object({
   primitiveIds: z.array(z.string()),
-  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 const modifyPrimitiveInputSchema = z.object({
   primitiveId: z.string(),
   property: z.record(z.string(), z.unknown()),
-  confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
 function registerSchematicWriteTools(
@@ -719,7 +735,9 @@ function registerSchematicWriteTools(
           'Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. ' +
             'When omitted, places a generic named net label instead.',
         ),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -793,7 +811,9 @@ function registerSchematicWriteTools(
         .optional()
         .describe('Electrical type of the port'),
       rotation: z.number().optional().describe('Rotation in degrees (0, 90, 180, 270)'),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -872,7 +892,9 @@ function registerSchematicWriteTools(
         .positive()
         .optional()
         .describe('Length of the wire stub drawn outward from the pin. Defaults to 10.'),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -966,7 +988,9 @@ function registerSchematicWriteTools(
         .positive()
         .optional()
         .describe('Length of the wire stub drawn outward from each pin. Defaults to 10.'),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -1056,7 +1080,9 @@ function registerSchematicWriteTools(
     },
     inputSchema: z.object({
       projectId: z.string().describe('The project/schematic ID to save'),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -1115,7 +1141,9 @@ function registerSchematicWriteTools(
           'Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } }',
         ),
       showTitleBlock: z.boolean().optional().describe('Show/hide the whole title block'),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -1163,7 +1191,9 @@ function registerSchematicWriteTools(
     },
     inputSchema: z.object({
       projectId: z.string().optional(),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),

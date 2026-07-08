@@ -1719,7 +1719,10 @@ async function getComponentPinCoordinates(primitiveId: string): Promise<Schemati
   let pins: unknown;
   try {
     pins = await callFirst(
-      ['SCH_PrimitiveComponent.getAllPinsByPrimitiveId', 'sch_PrimitiveComponent.getAllPinsByPrimitiveId'],
+      [
+        'SCH_PrimitiveComponent.getAllPinsByPrimitiveId',
+        'sch_PrimitiveComponent.getAllPinsByPrimitiveId',
+      ],
       primitiveId,
     );
   } catch (e) {

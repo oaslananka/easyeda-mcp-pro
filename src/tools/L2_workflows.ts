@@ -808,7 +808,11 @@ function registerWorkflowTools(
         .nonnegative()
         .default(15)
         .describe('Per-component padding around its pins, approximating body extent beyond them.'),
-      titleGap: z.number().nonnegative().default(15).describe('Gap between the title and the box top edge.'),
+      titleGap: z
+        .number()
+        .nonnegative()
+        .default(15)
+        .describe('Gap between the title and the box top edge.'),
       titleFontSize: z.number().positive().default(20),
       color: z.string().default('#000000'),
       replaceRectanglePrimitiveId: z

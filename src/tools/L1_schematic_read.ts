@@ -5,7 +5,9 @@ import { fetchComponentPins } from './schematic-helpers.js';
 import { scanSheetForPinCollisions } from '../workflows/collision.js';
 
 const searchDeviceInputSchema = z.object({
-  key: z.string().describe('Search keyword(s), matched against device name/description in the library'),
+  key: z
+    .string()
+    .describe('Search keyword(s), matched against device name/description in the library'),
   libraryUuid: z.string().optional(),
   classification: z.union([z.string(), z.array(z.string())]).optional(),
   symbolType: z.string().optional(),
@@ -457,7 +459,7 @@ function registerSchematicReadTools(
     title: 'Search library device',
     description:
       'Search for schematic symbols/devices in the EasyEDA library by keywords. Full results ' +
-      'carry the library\'s complete metadata object per device; pass minimal:true to get back ' +
+      "carry the library's complete metadata object per device; pass minimal:true to get back " +
       'only uuid/libraryUuid/name/pin_count/symbol_type when that is all you need.',
     profile: 'core',
     evidence: ['official-docs'],
@@ -769,7 +771,7 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_check_collisions',
     title: 'Check for pin-coordinate collisions across the sheet',
     description:
-      'Scan every component\'s real pin coordinates and report any (x,y) shared by two or more ' +
+      "Scan every component's real pin coordinates and report any (x,y) shared by two or more " +
       'components — a silent-short risk the native NET_COLLISION guard misses for never-wired ' +
       'pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this ' +
       'automatically).',

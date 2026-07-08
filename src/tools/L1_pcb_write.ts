@@ -322,7 +322,9 @@ function registerPcbWriteTools(
       y: z.number(),
       rotation: z.number().default(0),
       layer: z.number().default(1),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -385,7 +387,9 @@ function registerPcbWriteTools(
       layer: z.number(),
       width: z.number(),
       netName: z.string().optional(),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -448,7 +452,9 @@ function registerPcbWriteTools(
       outerDiameter: z.number(),
       holeSize: z.number(),
       netName: z.string().optional(),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -511,7 +517,9 @@ function registerPcbWriteTools(
       layer: z.number(),
       netName: z.string().optional(),
       clearance: z.number().optional(),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -583,7 +591,9 @@ function registerPcbWriteTools(
       expansion: z.number().optional(),
       mirror: z.boolean().optional(),
       locked: z.boolean().optional(),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -664,7 +674,9 @@ function registerPcbWriteTools(
       endX: z.number(),
       endY: z.number(),
       lineWidth: z.number().positive().optional(),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -726,7 +738,9 @@ function registerPcbWriteTools(
     },
     inputSchema: z.object({
       primitiveIds: z.array(z.string()),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -776,7 +790,9 @@ function registerPcbWriteTools(
     inputSchema: z.object({
       primitiveId: z.string(),
       property: z.record(z.string(), z.unknown()),
-      confirmWrite: z.literal(true).describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+      confirmWrite: z
+        .literal(true)
+        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),

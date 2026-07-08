@@ -363,7 +363,9 @@ describe('Workflow Tools', () => {
         ) {
           const id = params.args?.[0];
           if (id === 'placed-1') {
-            return { result: [{ pinNumber: '1', pinName: 'P1', x: placed1Pos.x, y: placed1Pos.y }] };
+            return {
+              result: [{ pinNumber: '1', pinName: 'P1', x: placed1Pos.x, y: placed1Pos.y }],
+            };
           }
           if (id === 'EXISTING-1') {
             return { result: [{ pinNumber: '1', pinName: 'P1', x: 0, y: 0 }] };
@@ -412,7 +414,9 @@ describe('Workflow Tools', () => {
           const id = params.args?.[0];
           // EXISTING-1 mirrors placed-1's position, so no amount of nudging escapes it.
           if (id === 'placed-1' || id === 'EXISTING-1') {
-            return { result: [{ pinNumber: '1', pinName: 'P1', x: placed1Pos.x, y: placed1Pos.y }] };
+            return {
+              result: [{ pinNumber: '1', pinName: 'P1', x: placed1Pos.x, y: placed1Pos.y }],
+            };
           }
           return { result: [] };
         }
@@ -597,10 +601,7 @@ describe('Workflow Tools', () => {
       )) as any;
 
       expect(result.page_frame_warning).toMatch(/extend past the reported page size/);
-      expect(bridgeCall).not.toHaveBeenCalledWith(
-        'schematic.setTitleBlock',
-        expect.anything(),
-      );
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.setTitleBlock', expect.anything());
     });
 
     it('returns a clear error when no pin coordinates can be found for the given components', async () => {

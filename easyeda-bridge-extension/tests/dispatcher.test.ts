@@ -737,7 +737,7 @@ describe('createDispatcher', () => {
   });
 
   describe('schematic.modifyPrimitive wire-following', () => {
-    it('translates a wire endpoint that was touching the moved component\'s old pin coordinate', async () => {
+    it("translates a wire endpoint that was touching the moved component's old pin coordinate", async () => {
       const modify = vi.fn(async () => true);
       const get = vi.fn(async () => fakeComponent({ X: 100, Y: 100 }));
       const getAllPinsByPrimitiveId = vi.fn(async () => [
@@ -757,10 +757,7 @@ describe('createDispatcher', () => {
         property: { x: 300, y: 300 },
       })) as { followedWireIds: string[]; wireFollowFailures: string[] };
 
-      expect(modify).toHaveBeenCalledWith(
-        'comp1',
-        expect.objectContaining({ x: 300, y: 300 }),
-      );
+      expect(modify).toHaveBeenCalledWith('comp1', expect.objectContaining({ x: 300, y: 300 }));
       // Only the endpoint that was at the pin's old coordinate (100,100) moves;
       // the wire's other endpoint (150,100), which wasn't touching this pin, stays put.
       expect(wireModify).toHaveBeenCalledWith(
@@ -781,7 +778,10 @@ describe('createDispatcher', () => {
       const dispatcher = createDispatcher(
         makeToolkit({
           SCH_PrimitiveComponent: { get, modify, getAllPinsByPrimitiveId },
-          SCH_PrimitiveWire: { getAll: async () => [fakeWire('w1', 'NET_A', [100, 100, 150, 100])], modify: wireModify },
+          SCH_PrimitiveWire: {
+            getAll: async () => [fakeWire('w1', 'NET_A', [100, 100, 150, 100])],
+            modify: wireModify,
+          },
         }),
       );
 
@@ -890,9 +890,7 @@ describe('createDispatcher', () => {
   describe('schematic.placeComponent subPartName', () => {
     it('rejects a subPartName request with NOT_IMPLEMENTED instead of silently dropping it', async () => {
       const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
-      const dispatcher = createDispatcher(
-        makeToolkit({ SCH_PrimitiveComponent: { create } }),
-      );
+      const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveComponent: { create } }));
 
       await expect(
         dispatcher.dispatch('schematic.placeComponent', {
@@ -907,9 +905,7 @@ describe('createDispatcher', () => {
 
     it('places normally when subPartName is omitted', async () => {
       const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
-      const dispatcher = createDispatcher(
-        makeToolkit({ SCH_PrimitiveComponent: { create } }),
-      );
+      const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveComponent: { create } }));
 
       const result = await dispatcher.dispatch('schematic.placeComponent', {
         deviceItem: { uuid: 'dev-1', libraryUuid: 'lib-1' },

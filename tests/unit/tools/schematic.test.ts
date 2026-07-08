@@ -1096,13 +1096,18 @@ describe('Schematic Tools', () => {
   });
 
   describe('easyeda_schematic_check_collisions', () => {
-    function mockPinsByComponent(pinsByPrimitiveId: Record<string, Array<Record<string, unknown>>>) {
+    function mockPinsByComponent(
+      pinsByPrimitiveId: Record<string, Array<Record<string, unknown>>>,
+    ) {
       bridgeCall.mockImplementation(async (method: string, params: any) => {
         if (method === 'schematic.listComponents') {
           const ids = Object.keys(pinsByPrimitiveId);
           return { total: ids.length, items: ids.map((primitiveId) => ({ primitiveId })) };
         }
-        if (method === 'api.call' && params?.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId') {
+        if (
+          method === 'api.call' &&
+          params?.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId'
+        ) {
           const primitiveId = params.args?.[0];
           return { result: pinsByPrimitiveId[primitiveId] ?? [] };
         }
