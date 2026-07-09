@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.27.0...easyeda-mcp-pro-v0.28.0) (2026-07-09)
+
+
+### Features
+
+* **schematic:** add post-write QA classifier ([1a555f3](https://github.com/oaslananka/easyeda-mcp-pro/commit/1a555f396d0f5f5bdb8516a0b59aab65aeb6bc09))
+
 ## [0.27.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.26.0...easyeda-mcp-pro-v0.27.0) (2026-07-09)
 
 
