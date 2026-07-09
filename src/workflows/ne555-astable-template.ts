@@ -3,6 +3,7 @@ import {
   type SchematicRegionPreference,
 } from './schematic-safe-region.js';
 import type { WorkflowBlockInput, WorkflowDeviceItem } from './types.js';
+import { buildNe555VisibleWireStubs } from './ne555-wire-stubs.js';
 
 export interface TwoPinMap {
   p1: string;
@@ -81,6 +82,7 @@ export interface Ne555AstableTemplateInput {
   preferredRegion?: SchematicRegionPreference;
   margin?: number;
   createNetPorts?: boolean;
+  createWireStubs?: boolean;
   refs?: Partial<Ne555AstableRefs>;
   nets?: Partial<Ne555AstableNets>;
   values?: Partial<Ne555AstableValues>;
@@ -307,12 +309,16 @@ export function buildNe555AstableTemplate(
     },
   ];
 
+  const wires =
+    input.createWireStubs === false ? [] : buildNe555VisibleWireStubs(anchor, refs, nets);
+
   const workflowInput: WorkflowBlockInput = {
     projectId: input.projectId,
     mode: input.mode ?? 'preview',
     anchor,
     spacing: 70,
     components,
+    wires,
     netPortAnchor: input.createNetPorts ? { x: anchor.x, y: anchor.y - 20 } : undefined,
     netPorts: input.createNetPorts
       ? [
@@ -340,6 +346,7 @@ export function buildNe555AstableTemplate(
       'Pin 2 TRIG and pin 6 THRESH are tied to the timing node; pin 7 DISCH is between R1 and R2.',
       'Pin 4 RESET is tied to VCC; pin 5 CTRL is bypassed to GND; C3 is a local VCC/GND decoupling capacitor.',
       'Detached external netports are disabled by default; local pin-to-net labels avoid disconnected netport DRC info.',
+      'Visible wire stubs are drawn from each known pin by default so the generated schematic reads less like isolated net labels.',
       'Use post-write QA with circuit policy after apply; duplicate net names, free wire-only nets, disconnected netports, and floating pins are blocking failures.',
     ],
   };

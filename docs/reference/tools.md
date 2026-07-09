@@ -3209,6 +3209,7 @@ Returns a JSON object matching the schema:
 | `preferredRegion` | `'upper-left'        | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
 | `margin`          | `number (optional)`  | No             |               |
 | `createNetPorts`  | `boolean`            | Yes            |               |
+| `createWireStubs` | `boolean`            | Yes            |               |
 | `refs`            | `object (optional)`  | No             |               |
 | `nets`            | `object (optional)`  | No             |               |
 | `values`          | `object (optional)`  | No             |               |
@@ -3263,6 +3264,7 @@ Returns a JSON object matching the schema:
 | `existingComponents` | `object[]`           | Yes      |             |
 | `netPorts`           | `object[]`           | Yes      |             |
 | `netPortAnchor`      | `object (optional)`  | No       |             |
+| `wires`              | `object[]`           | Yes      |             |
 | `confirmWrite`       | `boolean (optional)` | No       |             |
 
 ### Output Format

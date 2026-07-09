@@ -66,6 +66,14 @@ const netPortInputSchema = z.object({
 
 const pointSchema = z.object({ x: z.number(), y: z.number() });
 
+const wireInputSchema = z.object({
+  ref: z.string().optional(),
+  role: z.string().min(1),
+  netName: z.string().min(1).optional(),
+  points: z.array(pointSchema).min(2),
+  lineWidth: z.number().positive().optional(),
+});
+
 /** Fields every `easyeda_workflow_*` tool accepts, regardless of its own domain-specific input. */
 const workflowIdentitySchema = z.object({
   projectId: z.string().min(1),
@@ -204,7 +212,8 @@ async function applySingleOperation(
       refToPrimitiveId.set(op.ref, primitiveId);
     }
     const createsNewPrimitive =
-      (op.kind === 'placeComponent' || op.kind === 'createNetPort') && Boolean(primitiveId);
+      (op.kind === 'placeComponent' || op.kind === 'createNetPort' || op.kind === 'addWire') &&
+      Boolean(primitiveId);
 
     return {
       outcome: { method: op.method, ref: operationRef(op), success: true, primitiveId },
@@ -425,6 +434,7 @@ const ne555InputSchema = z.object({
   preferredRegion: schematicRegionPreferenceSchema.default('upper-left'),
   margin: z.number().positive().optional(),
   createNetPorts: z.boolean().default(false),
+  createWireStubs: z.boolean().default(true),
   refs: ne555RefsSchema,
   nets: ne555NetsSchema,
   values: ne555ValuesSchema,
@@ -939,6 +949,7 @@ function registerWorkflowTools(
       existingComponents: z.array(existingComponentInputSchema).default([]),
       netPorts: z.array(netPortInputSchema).default([]),
       netPortAnchor: pointSchema.optional(),
+      wires: z.array(wireInputSchema).default([]),
       confirmWrite: z.boolean().optional(),
     }),
     outputSchema: workflowOutputSchema,
@@ -953,6 +964,7 @@ function registerWorkflowTools(
         existingComponents: p.existingComponents,
         netPorts: p.netPorts,
         netPortAnchor: p.netPortAnchor,
+        wires: p.wires,
       };
       return runWorkflow(ctx, input, 'wf_place_block', p.confirmWrite);
     },

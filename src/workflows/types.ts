@@ -61,6 +61,14 @@ export interface WorkflowNetPortInput {
   rotation?: number;
 }
 
+export interface WorkflowWireInput {
+  ref?: string;
+  role: string;
+  netName?: string;
+  points: Array<{ x: number; y: number }>;
+  lineWidth?: number;
+}
+
 export interface WorkflowBlockInput {
   projectId: string;
   mode?: WorkflowExecutionMode;
@@ -72,6 +80,7 @@ export interface WorkflowBlockInput {
   existingComponents?: WorkflowExistingComponentInput[];
   netPorts?: WorkflowNetPortInput[];
   netPortAnchor?: { x: number; y: number };
+  wires?: WorkflowWireInput[];
 }
 
 export type WorkflowOperation =
@@ -93,6 +102,14 @@ export type WorkflowOperation =
       kind: 'createNetPort';
       netName: string;
       method: 'schematic.createNetPort';
+      params: Record<string, unknown>;
+    }
+  | {
+      kind: 'addWire';
+      ref?: string;
+      role: string;
+      netName?: string;
+      method: 'schematic.addWire';
       params: Record<string, unknown>;
     };
 

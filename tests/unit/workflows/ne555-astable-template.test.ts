@@ -38,11 +38,22 @@ describe('NE555 astable template', () => {
     expect(result.workflowInput.anchor.y).toBeGreaterThan(700);
     expect(result.workflowInput.components).toHaveLength(8);
     expect(result.workflowInput.netPorts).toHaveLength(0);
+    expect(result.workflowInput.wires).toHaveLength(22);
 
     const byRef = new Map(result.workflowInput.components?.map((c) => [c.ref, c]));
     expect(byRef.get('U1')?.placementOffset).toEqual({ dx: 280, dy: -150 });
     expect(byRef.get('R1')?.placementOffset).toEqual({ dx: 120, dy: -70 });
     expect(byRef.get('D1')?.placementOffset).toEqual({ dx: 560, dy: -150 });
+  });
+
+  it('allows wire stubs to be disabled for pure connectivity fixtures', () => {
+    const result = buildNe555AstableTemplate({
+      projectId: 'proj-555',
+      devices,
+      createWireStubs: false,
+    });
+
+    expect(result.workflowInput.wires).toHaveLength(0);
   });
 
   it('wires NE555 pins to the correct astable nets', () => {

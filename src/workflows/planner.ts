@@ -23,6 +23,7 @@ import type {
   WorkflowIssue,
   WorkflowNetPortInput,
   WorkflowOperation,
+  WorkflowWireInput,
   WorkflowPlan,
   WorkflowPlannedComponent,
 } from './types.js';
@@ -134,6 +135,7 @@ function workflowPlanSummary(
   components: WorkflowComponentInput[],
   existingComponents: WorkflowExistingComponentInput[],
   netPorts: WorkflowNetPortInput[],
+  wires: WorkflowWireInput[],
   operations: WorkflowOperation[],
 ): string {
   if (blocked) {
@@ -142,8 +144,8 @@ function workflowPlanSummary(
   }
   const verb = mode === 'apply' ? 'Applying' : 'Planned';
   return (
-    `${verb} ${components.length} new component(s), ${existingComponents.length} ` +
-    `existing-component wiring, and ${netPorts.length} net port(s) across ${operations.length} operation(s).`
+    `${verb} ${components.length} new component(s), ${existingComponents.length} existing-component wiring, ` +
+    `${netPorts.length} net port(s), and ${wires.length} wire(s) across ${operations.length} operation(s).`
   );
 }
 
@@ -155,6 +157,7 @@ export function planWorkflowBlock(
   const components = input.components ?? [];
   const existingComponents = input.existingComponents ?? [];
   const netPorts = input.netPorts ?? [];
+  const wires = input.wires ?? [];
   const spacing = input.spacing ?? 10;
   const issues = validateWorkflowInputs(components, existingComponents, netPorts);
   const blocked = issues.some((entry) => entry.severity === 'error');
@@ -247,8 +250,24 @@ export function planWorkflowBlock(
     });
   });
 
+  for (const wire of wires) {
+    operations.push({
+      kind: 'addWire',
+      ref: wire.ref,
+      role: wire.role,
+      netName: wire.netName,
+      method: 'schematic.addWire',
+      params: {
+        projectId: input.projectId,
+        points: wire.points,
+        netName: wire.netName,
+        lineWidth: wire.lineWidth,
+      },
+    });
+  }
+
   const rollbackNotes = [
-    'Newly-placed components (and any net ports created in this transaction) are deleted on rollback.',
+    'Newly-created primitives (placed components, net ports, and wires created in this transaction) are deleted on rollback.',
   ];
   if (existingComponents.some((component) => component.pinConnections.length > 0)) {
     rollbackNotes.push(
@@ -265,6 +284,7 @@ export function planWorkflowBlock(
     components,
     existingComponents,
     netPorts,
+    wires,
     operations,
   );
 
