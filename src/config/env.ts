@@ -17,6 +17,8 @@ export const EnvSchema = z.object({
   TOOL_PROFILE: z.enum(['core', 'pro', 'full', 'dev', 'experimental']).default('core'),
   TOOL_SCOPES: z.string().default(''),
   MCP_PROTOCOL_VERSION: z.string().default('2025-11-25'),
+  MCP_BRIDGE_BACKEND: z.enum(['local_bridge', 'remote_relay']).default('local_bridge'),
+  MCP_REMOTE_SESSION_ID: z.string().default(''),
 
   TRANSPORT: z.enum(['stdio', 'http']).default('stdio'),
   HTTP_HOST: z.string().default('127.0.0.1'),

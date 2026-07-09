@@ -6,6 +6,7 @@ import { type JlcpcbClient } from '../vendors/jlcpcb/client.js';
 import { type MouserClient } from '../vendors/mouser/client.js';
 import { type DigiKeyClient } from '../vendors/digikey/client.js';
 import { type Storage } from '../storage/index.js';
+import { type RemoteGateway } from '../remote/gateway.js';
 
 export interface ToolDefinition<
   TInput extends z.ZodType = z.ZodType,
@@ -107,6 +108,9 @@ export interface ToolContext {
     bridgePort: number;
     keylessSourcingEnabled?: boolean;
     [key: string]: unknown;
+  };
+  remote?: {
+    gateway: RemoteGateway;
   };
   vendors: {
     lcsc: LcscClient | null;

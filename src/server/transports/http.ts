@@ -3,6 +3,7 @@ import { type Express, type Request, type Response, type NextFunction } from 'ex
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { type EnvConfig } from '../../config/env.js';
 import { SERVER_VERSION } from '../../config/version.js';
 import { getLogger } from '../../utils/logger.js';
@@ -116,6 +117,8 @@ function extractTokenScopes(payload: Record<string, unknown>): Set<string> {
   return scopes;
 }
 
+type AuthenticatedExpressRequest = Request & { auth?: AuthInfo };
+
 function validateOAuthToken(config: EnvConfig) {
   if (!config.OAUTH_ENABLED || config.HTTP_AUTH_DISABLED) {
     return (_req: Request, _res: Response, next: NextFunction): void => next();
@@ -156,8 +159,8 @@ function validateOAuthToken(config: EnvConfig) {
           return;
         }
 
+        const tokenScopes = extractTokenScopes(payload as Record<string, unknown>);
         if (requiredScopes.length > 0) {
-          const tokenScopes = extractTokenScopes(payload as Record<string, unknown>);
           const normalizedTokenScopes = new Set([...tokenScopes].map(normalizeOAuthScope));
           const missingScopes = requiredScopes.filter(
             (_scope, idx) => !normalizedTokenScopes.has(normalizedRequiredScopes[idx] ?? ''),
@@ -173,6 +176,17 @@ function validateOAuthToken(config: EnvConfig) {
           }
         }
 
+        const claims = payload as Record<string, unknown>;
+        const subject = typeof claims.sub === 'string' ? claims.sub : undefined;
+        const clientId =
+          typeof claims.client_id === 'string' ? claims.client_id : (subject ?? 'oauth-client');
+        (req as AuthenticatedExpressRequest).auth = {
+          token,
+          clientId,
+          scopes: [...tokenScopes],
+          expiresAt: typeof claims.exp === 'number' ? claims.exp : undefined,
+          extra: claims,
+        };
         res.locals.claims = payload;
         next();
       })

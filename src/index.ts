@@ -13,6 +13,7 @@ import type { SetupOptions } from './cli/client-definitions.js';
 import { loadEnvConfig } from './config/env.js';
 import { createServer } from './server/factory.js';
 import { createHttpTransport } from './server/transports/http.js';
+import { RemoteGateway } from './remote/gateway.js';
 
 async function main() {
   const cli = parseCliArgs(process.argv.slice(2));
@@ -57,10 +58,12 @@ async function main() {
   }
 
   const config = loadEnvConfig();
-  const instance = await createServer(config);
+  const remoteGateway =
+    config.MCP_BRIDGE_BACKEND === 'remote_relay' ? new RemoteGateway() : undefined;
+  const instance = await createServer(config, { remoteGateway });
 
   if (config.TRANSPORT === 'http') {
-    const httpTransport = createHttpTransport(config);
+    const httpTransport = createHttpTransport(config, { gateway: remoteGateway });
     instance.httpTransport = httpTransport;
     instance.transport = httpTransport.transport;
     await instance.server.connect(httpTransport.transport);
