@@ -290,6 +290,37 @@ async function buildForeignConnectivityMap(): Promise<Map<string, string>> {
   return new Map([...pinCoords, ...flagCoords]);
 }
 
+async function shouldSuppressDuplicateWireNetName(
+  points: Array<{ x: number; y: number }>,
+  netName: string | undefined,
+): Promise<boolean> {
+  if (!netName || points.length === 0) return false;
+
+  const pointKeys = new Set(points.map(pointKey));
+  const schWireClass = readFirstPath<any>(['SCH_PrimitiveWire', 'sch_PrimitiveWire']);
+  if (schWireClass && typeof schWireClass.getAll === 'function') {
+    try {
+      const wires = ((await schWireClass.getAll()) || []) as unknown[];
+      for (const wire of wires) {
+        const wireNet = String(safeGetState(wire, 'Net') ?? '');
+        if (wireNet !== netName) continue;
+        for (const point of normalizeWireLine(safeGetState(wire, 'Line'))) {
+          if (pointKeys.has(pointKey(point))) return true;
+        }
+      }
+    } catch (e) {
+      logRecoverableError('failed to read existing wires for duplicate-net-label suppression', e);
+    }
+  }
+
+  const connectivityMap = await buildForeignConnectivityMap();
+  for (const point of points) {
+    if (connectivityMap.get(pointKey(point)) === netName) return true;
+  }
+
+  return false;
+}
+
 async function findForeignNetCollision(
   points: Array<{ x: number; y: number }>,
   netName: string,
@@ -2210,10 +2241,13 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       }
 
       const pts = rawPoints.flatMap((p) => [p.x, p.y]);
+      const wireNetName = (await shouldSuppressDuplicateWireNetName(rawPoints, netName))
+        ? undefined
+        : netName;
       return callFirst(
         ['SCH_PrimitiveWire.create', 'sch_PrimitiveWire.create'],
         pts,
-        netName,
+        wireNetName,
         params.color,
         params.lineWidth,
         params.lineType,

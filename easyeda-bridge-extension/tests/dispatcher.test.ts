@@ -122,7 +122,61 @@ describe('createDispatcher', () => {
         { x: 10, y: 40 },
       ],
     });
-    expect(create).toHaveBeenCalledWith([10, 20, 10, 40], 'NET_A', undefined, undefined, undefined);
+    expect(create).toHaveBeenCalledWith(
+      [10, 20, 10, 40],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+  });
+
+  it('suppresses duplicate net names when addWire lands on a same-net flag', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'w3' }));
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: { getAll: async () => [], create },
+        SCH_PrimitiveComponent: { getAll: async () => [fakeNetFlag('NET_VCC', 500, 500)] },
+      }),
+    );
+    await dispatcher.dispatch('schematic.addWire', {
+      netName: 'NET_VCC',
+      points: [
+        { x: 500, y: 500 },
+        { x: 500, y: 550 },
+      ],
+    });
+    expect(create).toHaveBeenCalledWith(
+      [500, 500, 500, 550],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+  });
+
+  it('keeps the net name for a disconnected new named wire seed', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'w4' }));
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: { getAll: async () => [], create },
+        SCH_PrimitiveComponent: { getAll: async () => [] },
+      }),
+    );
+    await dispatcher.dispatch('schematic.addWire', {
+      netName: 'NET_NEW',
+      points: [
+        { x: 700, y: 700 },
+        { x: 700, y: 760 },
+      ],
+    });
+    expect(create).toHaveBeenCalledWith(
+      [700, 700, 700, 760],
+      'NET_NEW',
+      undefined,
+      undefined,
+      undefined,
+    );
   });
 
   // Live-verified (2026-07-07): a generic net label (SCH_PrimitiveAttribute.
