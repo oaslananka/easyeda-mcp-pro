@@ -61,7 +61,32 @@ Verify that your credentials are set in the `.env` file at the directory where y
 
 ---
 
-## 4. HTTP Transport Blocked by OAuth Safety Check
+## 4. Remote Relay Misconfiguration
+
+### Symptom:
+
+You set `MCP_BRIDGE_BACKEND=remote_relay`, but remote tool calls fail before reaching EasyEDA Pro or report that no relay session is available.
+
+### Checklist:
+
+Run:
+
+```bash
+npx easyeda-mcp-pro doctor --fix
+```
+
+The doctor output includes a `Remote backend:` line. For Remote Relay mode it checks whether:
+
+- `TRANSPORT=http` is configured, so `/remote/*` relay endpoints are mounted.
+- `MCP_REMOTE_SESSION_ID` is configured, or each MCP request is expected to pass `remoteSessionId`.
+- `OAUTH_ENABLED=true` is set for production identity propagation.
+- `HTTP_AUTH_DISABLED=true` is not accidentally used outside loopback-only development.
+
+`remote_relay` remains experimental. Use the default `MCP_BRIDGE_BACKEND=local_bridge` unless you are explicitly testing a paired Remote Relay session.
+
+---
+
+## 5. HTTP Transport Blocked by OAuth Safety Check
 
 ### Symptom:
 
@@ -75,7 +100,7 @@ To bypass this locally, bind to `127.0.0.1`. For production deployments, configu
 
 ---
 
-## 5. Stale MCP Client Config
+## 6. Stale MCP Client Config
 
 ### Symptom:
 
@@ -93,7 +118,7 @@ further action is needed — restart the client to pick up the corrected config.
 
 ---
 
-## 6. Release Pipeline / NPM Token Failures
+## 7. Release Pipeline / NPM Token Failures
 
 ### Symptom:
 

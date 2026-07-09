@@ -130,12 +130,23 @@ describe('local setup CLI helpers', () => {
           credentialStatus: 'optional-missing',
         },
       },
+      remoteBackend: {
+        backend: 'local_bridge',
+        transport: 'stdio',
+        remoteSessionConfigured: false,
+        oauthEnabled: false,
+        httpAuthDisabled: false,
+        warnings: [],
+      },
     };
 
     expect(formatDoctorReport(report)).toContain('Bridge server: OK reachable on 127.0.0.1:18601');
     expect(formatDoctorReport(report)).toContain('EasyEDA extension package: MISSING');
     expect(formatDoctorReport(report)).toContain(
       'LCSC: enabled / configured / optional-missing / public-jlcsearch',
+    );
+    expect(formatDoctorReport(report)).toContain(
+      'Remote backend: local_bridge / transport=stdio / session=per-request / oauth=disabled',
     );
     expect(formatDoctorReport(report)).not.toContain('Suggested fixes:');
   });
@@ -166,6 +177,17 @@ describe('local setup CLI helpers', () => {
       vendorDiagnostics: {
         MOUSER: { enabled: true, configured: false, mode: 'api', credentialStatus: 'missing' },
       },
+      remoteBackend: {
+        backend: 'remote_relay',
+        transport: 'stdio',
+        remoteSessionConfigured: false,
+        oauthEnabled: false,
+        httpAuthDisabled: false,
+        warnings: [
+          'remote_relay backend needs TRANSPORT=http so /remote/* relay endpoints are mounted.',
+          'No MCP_REMOTE_SESSION_ID configured; MCP clients must pass remoteSessionId per tool call.',
+        ],
+      },
     };
 
     const output = formatDoctorReport(report, { fix: true });
@@ -178,6 +200,9 @@ describe('local setup CLI helpers', () => {
     expect(output).toContain('pnpm build:extension');
     expect(output).toContain('Extension Manager and confirm the bridge extension is imported');
     expect(output).toContain('MOUSER is enabled but missing required credentials');
+    expect(output).toContain('Remote Relay readiness warnings:');
+    expect(output).toContain('remote_relay backend needs TRANSPORT=http');
+    expect(output).toContain('Remote warning: remote_relay backend needs TRANSPORT=http');
   });
 
   it('doctor --fix reports a fallback port and no issues when everything is healthy', () => {
@@ -201,6 +226,14 @@ describe('local setup CLI helpers', () => {
       toolCounts: { profile: 'core', enabled: 10, total: 20 },
       vendorsConfigured: {},
       vendorDiagnostics: {},
+      remoteBackend: {
+        backend: 'local_bridge',
+        transport: 'stdio',
+        remoteSessionConfigured: false,
+        oauthEnabled: false,
+        httpAuthDisabled: false,
+        warnings: [],
+      },
     };
 
     expect(formatDoctorReport(healthyReport, { fix: true })).toContain(
@@ -269,6 +302,63 @@ describe('local setup CLI helpers', () => {
       } finally {
         server.close();
       }
+    });
+
+    it('reports Remote Relay readiness warnings from environment configuration', async () => {
+      await withEnv(
+        {
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+          TRANSPORT: 'stdio',
+          MCP_REMOTE_SESSION_ID: '',
+          OAUTH_ENABLED: 'false',
+          BRIDGE_PORT_SCAN: '1',
+        },
+        async () => {
+          const report = await createDoctorReport();
+
+          expect(report.remoteBackend).toMatchObject({
+            backend: 'remote_relay',
+            transport: 'stdio',
+            remoteSessionConfigured: false,
+            oauthEnabled: false,
+          });
+          expect(report.remoteBackend?.warnings).toContain(
+            'remote_relay backend needs TRANSPORT=http so /remote/* relay endpoints are mounted.',
+          );
+          expect(report.remoteBackend?.warnings).toContain(
+            'No MCP_REMOTE_SESSION_ID configured; MCP clients must pass remoteSessionId per tool call.',
+          );
+          expect(formatDoctorReport(report)).toContain('Remote backend: remote_relay');
+          expect(formatDoctorReport(report)).toContain('warnings=3');
+        },
+      );
+    });
+
+    it('reports Remote Relay as ready when http, OAuth, and fixed session are configured', async () => {
+      await withEnv(
+        {
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+          TRANSPORT: 'http',
+          MCP_REMOTE_SESSION_ID: 'sess_fixed',
+          OAUTH_ENABLED: 'true',
+          OAUTH_JWKS_URI: 'https://auth.example.test/.well-known/jwks.json',
+          BRIDGE_PORT_SCAN: '1',
+        },
+        async () => {
+          const report = await createDoctorReport();
+
+          expect(report.remoteBackend).toMatchObject({
+            backend: 'remote_relay',
+            transport: 'http',
+            remoteSessionConfigured: true,
+            oauthEnabled: true,
+            warnings: [],
+          });
+          expect(formatDoctorReport(report)).toContain(
+            'Remote backend: remote_relay / transport=http / session=configured / oauth=enabled',
+          );
+        },
+      );
     });
 
     it('reports an unreachable bridge port when nothing is listening', async () => {
