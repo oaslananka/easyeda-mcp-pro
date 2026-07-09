@@ -38,6 +38,23 @@ npm pack --dry-run
 
 The release PR and release workflow must pass the required GitHub status checks before release artifacts are considered valid.
 
+### Docker smoke check
+
+The CI `quality` job is the source of truth for Docker release readiness. It builds the Docker image, starts the container, and checks `/healthz` before the release is considered valid.
+
+Maintainers with Docker installed can repeat the same smoke locally:
+
+```bash
+docker build -t easyeda-mcp-pro:release-smoke .
+cid=$(docker run -d easyeda-mcp-pro:release-smoke)
+trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+sleep 3
+docker logs "$cid"
+docker exec "$cid" node -e "const r = await fetch('http://127.0.0.1:3000/healthz'); if (!r.ok) process.exit(1); console.log(await r.text());"
+```
+
+If the maintainer workstation or VPS does not have Docker installed, record that the local Docker smoke was skipped and link to the passing CI `quality` job. Do not treat a Docker-less local host as a release blocker when the CI Docker smoke has passed.
+
 ## User verification steps
 
 Users can verify a release by checking:

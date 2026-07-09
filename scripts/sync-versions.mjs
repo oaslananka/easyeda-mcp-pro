@@ -38,7 +38,16 @@ if (fs.existsSync(extensionJsonPath)) {
   console.log(`- Synced: ${extensionJsonPath}`);
 }
 
-// 4. Update server.json
+// 4. Update .claude-plugin/plugin.json
+const claudePluginJsonPath = path.join(root, '.claude-plugin', 'plugin.json');
+if (fs.existsSync(claudePluginJsonPath)) {
+  const pluginJson = JSON.parse(fs.readFileSync(claudePluginJsonPath, 'utf8'));
+  pluginJson.version = version;
+  fs.writeFileSync(claudePluginJsonPath, JSON.stringify(pluginJson, null, 2) + '\n');
+  console.log(`- Synced: ${claudePluginJsonPath}`);
+}
+
+// 5. Update server.json
 const serverJsonPath = path.join(root, 'server.json');
 if (fs.existsSync(serverJsonPath)) {
   const serverJson = JSON.parse(fs.readFileSync(serverJsonPath, 'utf8'));
@@ -50,9 +59,11 @@ if (fs.existsSync(serverJsonPath)) {
   console.log(`- Synced: ${serverJsonPath}`);
 }
 
-// 5. Format all synced files with Prettier to ensure consistent style
+// 6. Format all synced files with Prettier to ensure consistent style
 try {
-  const prettierFiles = [extensionJsonPath, serverJsonPath].filter((f) => fs.existsSync(f));
+  const prettierFiles = [extensionJsonPath, serverJsonPath, claudePluginJsonPath].filter((f) =>
+    fs.existsSync(f),
+  );
   if (prettierFiles.length > 0) {
     execFileSync('npx', ['prettier', '--write', ...prettierFiles], {
       cwd: root,

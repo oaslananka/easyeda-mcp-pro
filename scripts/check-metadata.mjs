@@ -42,6 +42,10 @@ const extJsonPath = path.join(root, 'easyeda-bridge-extension', 'extension.json'
 const extJson = fs.existsSync(extJsonPath)
   ? JSON.parse(fs.readFileSync(extJsonPath, 'utf8'))
   : null;
+const claudePluginJsonPath = path.join(root, '.claude-plugin', 'plugin.json');
+const claudePluginJson = fs.existsSync(claudePluginJsonPath)
+  ? JSON.parse(fs.readFileSync(claudePluginJsonPath, 'utf8'))
+  : null;
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 
 // ── 2. Version consistency ──────────────────────────────────────────────────
@@ -78,6 +82,15 @@ if (extJson) {
   if (extJson.version !== expectedVersion) {
     error(
       `easyeda-bridge-extension/extension.json version "${extJson.version}" !== package.json "${expectedVersion}"`,
+    );
+  }
+}
+
+// .claude-plugin/plugin.json version (if present)
+if (claudePluginJson) {
+  if (claudePluginJson.version !== expectedVersion) {
+    error(
+      `.claude-plugin/plugin.json version "${claudePluginJson.version}" !== package.json "${expectedVersion}"`,
     );
   }
 }

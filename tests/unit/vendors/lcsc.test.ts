@@ -301,7 +301,7 @@ describe('LcscClient', () => {
     it('rethrows when jlcsearch fails and no LCSC_API_KEY is configured', async () => {
       vi.useFakeTimers();
       try {
-        requestMock.mockResolvedValue(textResponse(500, 'boom'));
+        requestMock.mockImplementation(() => Promise.resolve(textResponse(500, 'boom')));
 
         const client = new LcscClient(createTestConfig());
         const pending = client.searchParts('capacitor');
@@ -355,7 +355,7 @@ describe('LcscClient', () => {
     });
 
     it('throws when jlcsearch is entirely unreachable and no LCSC_API_KEY is configured', async () => {
-      requestMock.mockResolvedValue(textResponse(500, 'boom'));
+      requestMock.mockImplementation(() => Promise.resolve(textResponse(500, 'boom')));
 
       const client = new LcscClient(createTestConfig());
       await expect(client.getPartDetail('C1')).rejects.toMatchObject({
@@ -389,7 +389,7 @@ describe('LcscClient', () => {
     });
 
     it('throws when the LCSC official API returns a non-2xx status for a non-numeric code', async () => {
-      requestMock.mockResolvedValue(textResponse(503, 'unavailable'));
+      requestMock.mockImplementation(() => Promise.resolve(textResponse(503, 'unavailable')));
 
       const client = new LcscClient(createTestConfigWithApiKey());
       await expect(client.getPartDetail('not-a-numeric-code')).rejects.toMatchObject({

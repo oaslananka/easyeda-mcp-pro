@@ -23,6 +23,10 @@ const logger = {
   info: vi.fn(),
 } as any;
 
+function okResponse() {
+  return { statusCode: 200, body: Readable.from(['{}']) };
+}
+
 describe('base http client observability', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -30,10 +34,7 @@ describe('base http client observability', () => {
   });
 
   it('records vendor request timing on success', async () => {
-    requestMock.mockResolvedValueOnce({
-      statusCode: 200,
-      body: Readable.from(['{}']),
-    });
+    requestMock.mockResolvedValueOnce(okResponse());
 
     const result = await httpRequestWithRetry('https://vendor.example/api', {}, logger, 0);
     const snapshot = getGlobalMetricsCollector().snapshot();
@@ -72,7 +73,7 @@ describe('vendor rate limiting', () => {
   });
 
   it('does not delay requests when rate limiting is disabled (default)', async () => {
-    requestMock.mockResolvedValue({ statusCode: 200, body: Readable.from(['{}']) });
+    requestMock.mockImplementation(() => Promise.resolve(okResponse()));
 
     const start = Date.now();
     await httpRequestWithRetry('https://vendor.example/a', {}, logger, 0);
@@ -84,7 +85,7 @@ describe('vendor rate limiting', () => {
     vi.useFakeTimers();
     try {
       configureVendorRateLimit(200);
-      requestMock.mockResolvedValue({ statusCode: 200, body: Readable.from(['{}']) });
+      requestMock.mockImplementation(() => Promise.resolve(okResponse()));
 
       const first = httpRequestWithRetry('https://vendor.example/a', {}, logger, 0);
       await vi.runAllTimersAsync();
@@ -112,7 +113,7 @@ describe('vendor rate limiting', () => {
     vi.useFakeTimers();
     try {
       configureVendorRateLimit(5000);
-      requestMock.mockResolvedValue({ statusCode: 200, body: Readable.from(['{}']) });
+      requestMock.mockImplementation(() => Promise.resolve(okResponse()));
 
       await httpRequestWithRetry('https://vendor-a.example/x', {}, logger, 0);
       const second = httpRequestWithRetry('https://vendor-b.example/y', {}, logger, 0);

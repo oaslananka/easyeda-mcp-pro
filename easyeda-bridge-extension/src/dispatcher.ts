@@ -241,7 +241,10 @@ async function collectPinCoordinateNets(): Promise<Map<string, string>> {
       }
     }
   } catch (e) {
-    logRecoverableError('failed to build pin coordinate map for net-collision check', e);
+    const message = e instanceof Error ? e.message : String(e);
+    if (!message.includes('SCH_PrimitiveComponent class not found')) {
+      logRecoverableError('failed to build pin coordinate map for net-collision check', e);
+    }
   }
   return coordToNet;
 }
