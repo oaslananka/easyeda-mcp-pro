@@ -4,6 +4,11 @@ import { type EnvConfig } from '../config/env.js';
 import { planWorkflowBlock } from '../workflows/planner.js';
 import { reconcilePlacementCollisions } from '../workflows/collision.js';
 import {
+  classifyPostWriteQa,
+  collectNativeRuleRunsForPostWriteQa,
+} from '../workflows/schematic-post-write-qa.js';
+import { buildNe555AstableTemplate } from '../workflows/ne555-astable-template.js';
+import {
   computeSectionBounds,
   findOverlappingRectangles,
   checkAgainstPageFrame,
@@ -39,6 +44,10 @@ const componentInputSchema = z.object({
   rotation: z.number().optional(),
   mirror: z.boolean().optional(),
   subPartName: z.string().optional(),
+  placementOffset: z
+    .object({ dx: z.number(), dy: z.number() })
+    .optional()
+    .describe('Optional offset from workflow anchor for grid/layout-aware templates.'),
   pinConnections: z.array(pinConnectionSchema).default([]),
 });
 
@@ -319,6 +328,158 @@ const verifyRailInputSchema = z.object({
 
 type VerifyRailInput = z.infer<typeof verifyRailInputSchema>;
 
+const schematicRegionPreferenceSchema = z.enum([
+  'upper-left',
+  'upper-center',
+  'upper-right',
+  'center-left',
+  'center',
+  'center-right',
+  'lower-left',
+  'lower-center',
+  'lower-right',
+]);
+
+const ne555DevicesSchema = z.object({
+  timer: deviceItemSchema,
+  resistor: deviceItemSchema,
+  timingCapacitor: deviceItemSchema,
+  bypassCapacitor: deviceItemSchema,
+  led: deviceItemSchema,
+});
+
+const ne555RefsSchema = z
+  .object({
+    timer: z.string().min(1).optional(),
+    r1: z.string().min(1).optional(),
+    r2: z.string().min(1).optional(),
+    cTiming: z.string().min(1).optional(),
+    cCtrl: z.string().min(1).optional(),
+    cDecouple: z.string().min(1).optional(),
+    rLed: z.string().min(1).optional(),
+    led: z.string().min(1).optional(),
+  })
+  .optional();
+
+const ne555NetsSchema = z
+  .object({
+    vcc: z.string().min(1).optional(),
+    gnd: z.string().min(1).optional(),
+    timing: z.string().min(1).optional(),
+    discharge: z.string().min(1).optional(),
+    control: z.string().min(1).optional(),
+    output: z.string().min(1).optional(),
+    ledAnode: z.string().min(1).optional(),
+  })
+  .optional();
+
+const ne555ValuesSchema = z
+  .object({
+    supplyVoltage: z.number().positive().optional(),
+    r1Ohms: z.number().positive().optional(),
+    r2Ohms: z.number().positive().optional(),
+    timingCapacitanceUf: z.number().positive().optional(),
+    controlCapacitanceNf: z.number().positive().optional(),
+    decouplingCapacitanceNf: z.number().positive().optional(),
+    ledSeriesOhms: z.number().positive().optional(),
+  })
+  .optional();
+
+const ne555PinMapsSchema = z
+  .object({
+    timer: z
+      .object({
+        gnd: z.string().min(1).optional(),
+        trig: z.string().min(1).optional(),
+        out: z.string().min(1).optional(),
+        reset: z.string().min(1).optional(),
+        ctrl: z.string().min(1).optional(),
+        thresh: z.string().min(1).optional(),
+        disch: z.string().min(1).optional(),
+        vcc: z.string().min(1).optional(),
+      })
+      .optional(),
+    resistor: z
+      .object({ p1: z.string().min(1).optional(), p2: z.string().min(1).optional() })
+      .optional(),
+    capacitor: z
+      .object({ p1: z.string().min(1).optional(), p2: z.string().min(1).optional() })
+      .optional(),
+    led: z
+      .object({ anode: z.string().min(1).optional(), cathode: z.string().min(1).optional() })
+      .optional(),
+  })
+  .optional();
+
+const ne555InputSchema = z.object({
+  projectId: z.string().min(1),
+  mode: z.enum(['preview', 'apply']).default('preview'),
+  devices: ne555DevicesSchema,
+  anchor: pointSchema.optional(),
+  preferredRegion: schematicRegionPreferenceSchema.default('upper-left'),
+  margin: z.number().positive().optional(),
+  refs: ne555RefsSchema,
+  nets: ne555NetsSchema,
+  values: ne555ValuesSchema,
+  pinMaps: ne555PinMapsSchema,
+  runPostWriteQa: z.boolean().default(true),
+  confirmWrite: z.boolean().optional(),
+});
+
+const safeRegionOutputSchema = z.object({
+  blocked: z.boolean(),
+  preferred_region: z.string(),
+  sheet: z.object({
+    width: z.number(),
+    height: z.number(),
+    unit: z.string(),
+    origin: z.string(),
+    source: z.string(),
+  }),
+  bounds: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }),
+  anchor: z.object({ x: z.number(), y: z.number() }),
+  warnings: z.array(z.string()),
+  issues: z.array(z.object({ code: z.string(), message: z.string() })),
+});
+
+const postWriteQaOutputSchema = z.object({
+  project_id: z.string(),
+  status: z.enum(['pass', 'fail', 'inconclusive']),
+  passed: z.boolean(),
+  policy: z.string(),
+  issue_count: z.number().int().nonnegative(),
+  fatal_count: z.number().int().nonnegative(),
+  warning_count: z.number().int().nonnegative(),
+  inconclusive_count: z.number().int().nonnegative(),
+  categories: z.record(z.string(), z.number().int().nonnegative()),
+  issues: z.array(z.record(z.string(), z.unknown())),
+  summary: z.string(),
+});
+
+const ne555OutputSchema = workflowOutputSchema.extend({
+  safe_region: safeRegionOutputSchema,
+  design: z.object({
+    refs: z.record(z.string(), z.string()),
+    nets: z.record(z.string(), z.string()),
+    values: z.record(z.string(), z.number()),
+    calculated: z.object({
+      frequency_hz: z.number(),
+      period_seconds: z.number(),
+      high_time_seconds: z.number(),
+      low_time_seconds: z.number(),
+      duty_cycle_percent: z.number(),
+    }),
+    component_count: z.number().int().positive(),
+    notes: z.array(z.string()),
+  }),
+  post_write_qa: postWriteQaOutputSchema.optional(),
+});
+
+async function runPostWriteQa(ctx: ToolContext, projectId: string) {
+  const { drc, erc } = await collectNativeRuleRunsForPostWriteQa(ctx.bridge, projectId);
+  return classifyPostWriteQa({ projectId, policy: 'circuit', drc, erc });
+}
+
 const railVerificationOutputSchema = z.object({
   available: z.boolean(),
   ngspice_version: z.string().optional(),
@@ -472,6 +633,103 @@ function registerWorkflowTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
 ) {
+  registry.register({
+    name: 'easyeda_workflow_ne555_astable',
+    title: 'Plan or apply a professional NE555 astable LED flasher template',
+    description:
+      'Create a deterministic NE555 astable LED flasher workflow using safe sheet-region planning, ' +
+      'component-level layout offsets, explicit pin-to-net connectivity, and optional post-write QA. ' +
+      'Caller supplies already-resolved EasyEDA device items; this tool does not guess catalog parts (confirmWrite required).',
+    profile: 'pro',
+    evidence: ['inferred', 'runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'workflows',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: ne555InputSchema,
+    outputSchema: ne555OutputSchema,
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = ne555InputSchema.parse(params ?? {});
+      let sheetInfo: unknown;
+      try {
+        sheetInfo = await ctx.bridge.call('schematic.getSheetInfo', { projectId: p.projectId });
+      } catch {
+        sheetInfo = undefined;
+      }
+
+      const template = buildNe555AstableTemplate({ ...p, sheetInfo });
+      const result = (await runWorkflow(
+        ctx,
+        template.workflowInput,
+        'wf_ne555_astable',
+        p.confirmWrite,
+        (plan) => {
+          for (const warning of template.safeRegion.warnings) {
+            pushIssue(plan, {
+              code: 'WORKFLOW_SAFE_REGION',
+              severity: 'warning',
+              message: warning,
+              remediationHint:
+                'Review the returned safe_region bounds and use its anchor before applying the template.',
+            });
+          }
+          for (const issue of template.safeRegion.issues) {
+            pushIssue(plan, {
+              code: 'WORKFLOW_SAFE_REGION',
+              severity: 'error',
+              message: `${issue.code}: ${issue.message}`,
+              remediationHint:
+                'Reduce content size, choose another preferredRegion, increase the sheet size manually, or provide a safe anchor.',
+            });
+          }
+        },
+      )) as Record<string, unknown>;
+
+      let postWriteQa;
+      if (result.applied === true && p.runPostWriteQa) {
+        postWriteQa = await runPostWriteQa(ctx, p.projectId);
+      }
+
+      const qaFailed = Boolean(postWriteQa && postWriteQa.status !== 'pass');
+      return {
+        ...result,
+        success: Boolean(result.success) && !qaFailed,
+        summary: qaFailed
+          ? `${String(result.summary)} Post-write QA ${postWriteQa?.status}: ${postWriteQa?.summary}`
+          : result.summary,
+        safe_region: {
+          blocked: template.safeRegion.blocked,
+          preferred_region: template.safeRegion.preferredRegion,
+          sheet: template.safeRegion.sheet,
+          bounds: template.safeRegion.bounds,
+          anchor: template.workflowInput.anchor,
+          warnings: template.safeRegion.warnings,
+          issues: template.safeRegion.issues,
+        },
+        design: {
+          refs: template.refs,
+          nets: template.nets,
+          values: template.values,
+          calculated: {
+            frequency_hz: template.calculated.frequencyHz,
+            period_seconds: template.calculated.periodSeconds,
+            high_time_seconds: template.calculated.highTimeSeconds,
+            low_time_seconds: template.calculated.lowTimeSeconds,
+            duty_cycle_percent: template.calculated.dutyCyclePercent,
+          },
+          component_count: template.componentCount,
+          notes: template.designNotes,
+        },
+        post_write_qa: postWriteQa,
+      };
+    },
+  });
+
   registry.register({
     name: 'easyeda_workflow_power_rail',
     title: 'Plan or apply a power rail (regulator + passives) as one transaction',

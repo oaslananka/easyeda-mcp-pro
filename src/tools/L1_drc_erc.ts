@@ -10,7 +10,10 @@ import {
 } from '../net-validation/schema.js';
 import { classifyNetType, classifyPinElectricalType } from '../net-validation/pin-classifier.js';
 import { analyzePowerTree } from '../power-tree/index.js';
-import { classifyPostWriteQa } from '../workflows/schematic-post-write-qa.js';
+import {
+  classifyPostWriteQa,
+  collectNativeRuleRunsForPostWriteQa,
+} from '../workflows/schematic-post-write-qa.js';
 import { fetchComponentPins } from './schematic-helpers.js';
 
 /** Shared error/warning mapper for both the hand-authored and auto-extracted
@@ -876,73 +879,13 @@ function registerDrcErcTools(
       let nativeUsed = false;
 
       if (p.useNativeChecks) {
-        if (!drc) {
-          try {
-            const result = (await ctx.bridge.call('design.drc', { projectId: p.projectId })) as {
-              violations?: Array<{
-                rule?: string;
-                description?: string;
-                severity?: string;
-                net?: string;
-                component?: string;
-              }>;
-              totalViolations?: number;
-              errorCount?: number;
-              warningCount?: number;
-            };
-            drc = {
-              violations: result.violations?.map((v) => ({
-                ...v,
-                severity:
-                  v.severity === 'error' || v.severity === 'warning' || v.severity === 'info'
-                    ? v.severity
-                    : undefined,
-              })),
-              total_violations: result.totalViolations,
-              error_count: result.errorCount,
-              warning_count: result.warningCount,
-            };
-            nativeUsed = true;
-          } catch (err) {
-            drc = { not_available: true, error: err instanceof Error ? err.message : String(err) };
-          }
-        }
-        if (!erc) {
-          try {
-            const result = (await ctx.bridge.call('design.erc', { projectId: p.projectId })) as {
-              violations?: Array<{
-                description?: string;
-                severity?: string;
-                net?: string;
-                component?: string;
-              }>;
-              totalViolations?: number;
-              errorCount?: number;
-              warningCount?: number;
-              inferredFloatingPins?: Array<{
-                primitiveId?: string;
-                designator?: string;
-                pinNumber?: string;
-              }>;
-            };
-            erc = {
-              violations: result.violations?.map((v) => ({
-                ...v,
-                severity:
-                  v.severity === 'error' || v.severity === 'warning' || v.severity === 'info'
-                    ? v.severity
-                    : undefined,
-              })),
-              total_violations: result.totalViolations,
-              error_count: result.errorCount,
-              warning_count: result.warningCount,
-              inferred_floating_pins: result.inferredFloatingPins,
-            };
-            nativeUsed = true;
-          } catch (err) {
-            erc = { not_available: true, error: err instanceof Error ? err.message : String(err) };
-          }
-        }
+        const native = await collectNativeRuleRunsForPostWriteQa(ctx.bridge, p.projectId, {
+          drc: !drc,
+          erc: !erc,
+        });
+        if (!drc) drc = native.drc;
+        if (!erc) erc = native.erc;
+        nativeUsed = Boolean(native.drc || native.erc);
       }
 
       const summary = classifyPostWriteQa({ projectId: p.projectId, policy: p.policy, drc, erc });

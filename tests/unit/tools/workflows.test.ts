@@ -36,6 +36,107 @@ describe('Workflow Tools', () => {
     };
   });
 
+  describe('easyeda_workflow_ne555_astable', () => {
+    const devices = {
+      timer: deviceItem,
+      resistor: deviceItem,
+      timingCapacitor: deviceItem,
+      bypassCapacitor: deviceItem,
+      led: deviceItem,
+    };
+
+    it('previews a safe NE555 astable plan without write operations', async () => {
+      bridgeCall.mockResolvedValueOnce({ currentPage: { width: 1189, height: 841 } });
+      const tool = registry.get('easyeda_workflow_ne555_astable');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-555',
+        mode: 'preview',
+        devices,
+      })) as any;
+
+      expect(result.applied).toBe(false);
+      expect(result.blocked).toBe(false);
+      expect(result.safe_region.blocked).toBe(false);
+      expect(result.design.calculated.frequency_hz).toBeCloseTo(1.053, 3);
+      expect(result.placements).toHaveLength(8);
+      expect(result.operations.filter((op: any) => op.kind === 'connectPinToNet')).toHaveLength(22);
+      expect(bridgeCall).toHaveBeenCalledTimes(1);
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', { projectId: 'proj-555' });
+    });
+
+    it('runs post-write QA after a successful apply and keeps success true when QA passes', async () => {
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'schematic.getSheetInfo')
+          return { currentPage: { width: 1189, height: 841 } };
+        if (method === 'schematic.placeComponent')
+          return { primitiveId: `id-${bridgeCall.mock.calls.length}` };
+        if (method === 'schematic.connectPinToNet') return { success: true };
+        if (method === 'schematic.createNetPort')
+          return { primitiveId: `net-${bridgeCall.mock.calls.length}` };
+        if (method === 'schematic.listComponents') return { total: 8, items: [] };
+        if (method === 'design.drc' || method === 'design.erc') {
+          return { violations: [], totalViolations: 0, errorCount: 0, warningCount: 0 };
+        }
+        return { result: [] };
+      });
+
+      const tool = registry.get('easyeda_workflow_ne555_astable');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-555',
+        mode: 'apply',
+        confirmWrite: true,
+        devices,
+      })) as any;
+
+      expect(result.applied).toBe(true);
+      expect(result.success).toBe(true);
+      expect(result.post_write_qa.status).toBe('pass');
+      expect(bridgeCall).toHaveBeenCalledWith('design.drc', { projectId: 'proj-555' });
+      expect(bridgeCall).toHaveBeenCalledWith('design.erc', { projectId: 'proj-555' });
+    });
+
+    it('gates successful writes as failed when post-write QA fails', async () => {
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'schematic.getSheetInfo')
+          return { currentPage: { width: 1189, height: 841 } };
+        if (method === 'schematic.placeComponent')
+          return { primitiveId: `id-${bridgeCall.mock.calls.length}` };
+        if (method === 'schematic.connectPinToNet') return { success: true };
+        if (method === 'schematic.createNetPort')
+          return { primitiveId: `net-${bridgeCall.mock.calls.length}` };
+        if (method === 'schematic.listComponents') return { total: 8, items: [] };
+        if (method === 'design.drc') {
+          return {
+            violations: [
+              {
+                description: 'Wire $1N4 has multiple net names: +5V +5V',
+                severity: 'warning',
+                net: '+5V',
+              },
+            ],
+            totalViolations: 1,
+            warningCount: 1,
+          };
+        }
+        if (method === 'design.erc') return { violations: [], totalViolations: 0, errorCount: 0 };
+        return { result: [] };
+      });
+
+      const tool = registry.get('easyeda_workflow_ne555_astable');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-555',
+        mode: 'apply',
+        confirmWrite: true,
+        devices,
+      })) as any;
+
+      expect(result.applied).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.post_write_qa.status).toBe('fail');
+      expect(result.post_write_qa.categories.duplicate_net_names).toBe(1);
+    });
+  });
+
   describe('easyeda_workflow_power_rail', () => {
     const basePowerRailInput = () => ({
       projectId: 'proj-1',
