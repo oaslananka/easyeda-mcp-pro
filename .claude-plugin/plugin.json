@@ -1,11 +1,15 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "easyeda-pro",
-  "version": "0.28.0",
+  "version": "0.29.0",
   "description": "EasyEDA MCP Pro plugin for EasyEDA Pro project workflow automation, schematic/PCB inspection, BOM and sourcing, DRC/ERC validation, and manufacturing exports.",
   "author": {
     "name": "oaslananka",
     "url": "https://github.com/oaslananka"
   },
-  "skills": ["./skills/easyeda-workflow", "./skills/component-search", "./skills/design-validation"]
+  "skills": [
+    "./skills/easyeda-workflow",
+    "./skills/component-search",
+    "./skills/design-validation"
+  ]
 }
