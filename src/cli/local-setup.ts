@@ -50,6 +50,15 @@ export interface VendorDoctorStatus {
     'not-required' | 'optional-present' | 'optional-missing' | 'present' | 'missing';
 }
 
+export interface RemoteBackendDoctorStatus {
+  backend: 'local_bridge' | 'remote_relay' | 'unknown';
+  transport: string;
+  remoteSessionConfigured: boolean;
+  oauthEnabled: boolean;
+  httpAuthDisabled: boolean;
+  warnings: string[];
+}
+
 export interface DoctorReport {
   setup: LocalSetupInfo;
   nodeVersion: string;
@@ -62,6 +71,42 @@ export interface DoctorReport {
   toolCounts?: { profile: string; enabled: number; total: number };
   vendorsConfigured: Record<string, boolean>;
   vendorDiagnostics?: Record<string, VendorDoctorStatus>;
+  remoteBackend?: RemoteBackendDoctorStatus;
+}
+
+function remoteBackendStatusFromConfig(
+  config: EnvConfig | undefined,
+): RemoteBackendDoctorStatus | undefined {
+  if (!config) return undefined;
+  const warnings: string[] = [];
+  const backend = config.MCP_BRIDGE_BACKEND;
+  const transport = config.TRANSPORT;
+  const remoteSessionConfigured = config.MCP_REMOTE_SESSION_ID.trim().length > 0;
+  const oauthEnabled = config.OAUTH_ENABLED;
+  const httpAuthDisabled = config.HTTP_AUTH_DISABLED;
+
+  if (backend === 'remote_relay') {
+    if (transport !== 'http') {
+      warnings.push(
+        'remote_relay backend needs TRANSPORT=http so /remote/* relay endpoints are mounted.',
+      );
+    }
+    if (!remoteSessionConfigured) {
+      warnings.push(
+        'No MCP_REMOTE_SESSION_ID configured; MCP clients must pass remoteSessionId per tool call.',
+      );
+    }
+    if (!oauthEnabled) {
+      warnings.push(
+        'OAUTH_ENABLED=false; production remote relay should use OAuth for user identity.',
+      );
+    }
+    if (httpAuthDisabled) {
+      warnings.push('HTTP_AUTH_DISABLED=true is only appropriate for loopback/local development.');
+    }
+  }
+
+  return { backend, transport, remoteSessionConfigured, oauthEnabled, httpAuthDisabled, warnings };
 }
 
 function vendorStatusFromConfig(config: EnvConfig | undefined): Record<string, VendorDoctorStatus> {
@@ -255,6 +300,7 @@ export async function createDoctorReport(
   }
 
   const vendorDiagnostics = vendorStatusFromConfig(env.config);
+  const remoteBackend = remoteBackendStatusFromConfig(env.config);
   const vendorsConfigured: Record<string, boolean> = Object.fromEntries(
     Object.entries(vendorDiagnostics).map(([name, status]) => [name, status.configured]),
   );
@@ -271,6 +317,7 @@ export async function createDoctorReport(
     toolCounts,
     vendorsConfigured,
     vendorDiagnostics,
+    remoteBackend,
   };
 }
 
@@ -330,6 +377,13 @@ function buildSuggestedFixes(report: DoctorReport): string[] {
     );
   }
 
+  if (report.remoteBackend?.warnings.length) {
+    fixes.push('Remote Relay readiness warnings:');
+    for (const warning of report.remoteBackend.warnings) {
+      fixes.push(`  Fix: ${warning}`);
+    }
+  }
+
   if (report.vendorDiagnostics) {
     for (const [name, vendor] of Object.entries(report.vendorDiagnostics)) {
       if (vendor.credentialStatus === 'missing') {
@@ -369,6 +423,10 @@ export function formatDoctorReport(report: DoctorReport, options?: { fix?: boole
     ? `Profile '${report.toolCounts.profile}' with ${report.toolCounts.enabled} / ${report.toolCounts.total} tools enabled`
     : 'Unknown tool configuration';
 
+  const remoteBackendStr = report.remoteBackend
+    ? `${report.remoteBackend.backend} / transport=${report.remoteBackend.transport} / session=${report.remoteBackend.remoteSessionConfigured ? 'configured' : 'per-request'} / oauth=${report.remoteBackend.oauthEnabled ? 'enabled' : 'disabled'}${report.remoteBackend.warnings.length ? ` / warnings=${report.remoteBackend.warnings.length}` : ''}`
+    : 'Unknown remote backend configuration';
+
   const lines = [
     'easyeda-mcp-pro doctor',
     '',
@@ -378,6 +436,10 @@ export function formatDoctorReport(report: DoctorReport, options?: { fix?: boole
     `MCP server entry: ${status(report.setup.serverEntryExists)} ${report.setup.serverEntryPath}`,
     `EasyEDA extension package: ${status(report.setup.extensionPackageExists)} ${report.setup.extensionPackagePath}`,
     `Bridge server: ${reachable ? 'OK' : 'INFO'} ${bridgeStatus}`,
+    `Remote backend: ${remoteBackendStr}`,
+    ...(report.remoteBackend?.warnings.length
+      ? report.remoteBackend.warnings.map((warning) => `Remote warning: ${warning}`)
+      : []),
     `Tools: ${toolsStr}`,
     `Vendors: ${vendors}`,
     '',

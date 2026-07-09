@@ -447,6 +447,8 @@ Copy `.env.example` to `.env` and edit. All variables have safe defaults — onl
 | `MCP_REMOTE_SESSION_ID` | empty          | Optional fixed Remote Relay session id for `remote_relay` backend            |
 | `TRANSPORT`             | `stdio`        | Server transport: `stdio` (default) or `http`                                |
 
+For Remote Relay experiments, run `npx easyeda-mcp-pro doctor --fix` after setting `MCP_BRIDGE_BACKEND=remote_relay`; the doctor output validates HTTP transport, session selection, OAuth, and loopback-only development auth settings.
+
 ### Bridge (EasyEDA Pro connection)
 
 | Variable                        | Default       | Description                                                              |
