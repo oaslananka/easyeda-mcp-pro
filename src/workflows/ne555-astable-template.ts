@@ -26,6 +26,12 @@ export interface Ne555AstableDevices {
   timingCapacitor: WorkflowDeviceItem;
   bypassCapacitor: WorkflowDeviceItem;
   led: WorkflowDeviceItem;
+  r1?: WorkflowDeviceItem;
+  r2?: WorkflowDeviceItem;
+  rLed?: WorkflowDeviceItem;
+  cTiming?: WorkflowDeviceItem;
+  cCtrl?: WorkflowDeviceItem;
+  cDecouple?: WorkflowDeviceItem;
 }
 
 export interface Ne555AstableRefs {
@@ -74,6 +80,7 @@ export interface Ne555AstableTemplateInput {
   sheetInfo?: unknown;
   preferredRegion?: SchematicRegionPreference;
   margin?: number;
+  createNetPorts?: boolean;
   refs?: Partial<Ne555AstableRefs>;
   nets?: Partial<Ne555AstableNets>;
   values?: Partial<Ne555AstableValues>;
@@ -204,6 +211,12 @@ export function buildNe555AstableTemplate(
     margin: input.margin,
   });
   const anchor = input.anchor ?? safeRegion.anchor;
+  const r1Device = input.devices.r1 ?? input.devices.resistor;
+  const r2Device = input.devices.r2 ?? input.devices.resistor;
+  const rLedDevice = input.devices.rLed ?? input.devices.resistor;
+  const cTimingDevice = input.devices.cTiming ?? input.devices.timingCapacitor;
+  const cCtrlDevice = input.devices.cCtrl ?? input.devices.bypassCapacitor;
+  const cDecoupleDevice = input.devices.cDecouple ?? input.devices.bypassCapacitor;
 
   const components: NonNullable<WorkflowBlockInput['components']> = [
     {
@@ -225,7 +238,7 @@ export function buildNe555AstableTemplate(
     {
       ref: refs.r1,
       role: `timing-resistor-r1-${values.r1Ohms}ohm`,
-      deviceItem: input.devices.resistor,
+      deviceItem: r1Device,
       placementOffset: { dx: 120, dy: -70 },
       pinConnections: [
         { pin: pinMaps.resistor.p1, netName: nets.vcc },
@@ -235,7 +248,7 @@ export function buildNe555AstableTemplate(
     {
       ref: refs.r2,
       role: `timing-resistor-r2-${values.r2Ohms}ohm`,
-      deviceItem: input.devices.resistor,
+      deviceItem: r2Device,
       placementOffset: { dx: 120, dy: -155 },
       pinConnections: [
         { pin: pinMaps.resistor.p1, netName: nets.discharge },
@@ -245,7 +258,7 @@ export function buildNe555AstableTemplate(
     {
       ref: refs.cTiming,
       role: `timing-capacitor-${values.timingCapacitanceUf}uf`,
-      deviceItem: input.devices.timingCapacitor,
+      deviceItem: cTimingDevice,
       placementOffset: { dx: 120, dy: -250 },
       pinConnections: [
         { pin: pinMaps.capacitor.p1, netName: nets.timing },
@@ -255,7 +268,7 @@ export function buildNe555AstableTemplate(
     {
       ref: refs.cCtrl,
       role: `control-bypass-${values.controlCapacitanceNf}nf`,
-      deviceItem: input.devices.bypassCapacitor,
+      deviceItem: cCtrlDevice,
       placementOffset: { dx: 390, dy: -245 },
       pinConnections: [
         { pin: pinMaps.capacitor.p1, netName: nets.control },
@@ -265,7 +278,7 @@ export function buildNe555AstableTemplate(
     {
       ref: refs.cDecouple,
       role: `supply-decoupling-${values.decouplingCapacitanceNf}nf`,
-      deviceItem: input.devices.bypassCapacitor,
+      deviceItem: cDecoupleDevice,
       placementOffset: { dx: 390, dy: -65 },
       pinConnections: [
         { pin: pinMaps.capacitor.p1, netName: nets.vcc },
@@ -275,7 +288,7 @@ export function buildNe555AstableTemplate(
     {
       ref: refs.rLed,
       role: `led-series-resistor-${values.ledSeriesOhms}ohm`,
-      deviceItem: input.devices.resistor,
+      deviceItem: rLedDevice,
       placementOffset: { dx: 470, dy: -150 },
       pinConnections: [
         { pin: pinMaps.resistor.p1, netName: nets.output },
@@ -300,15 +313,17 @@ export function buildNe555AstableTemplate(
     anchor,
     spacing: 70,
     components,
-    netPortAnchor: { x: anchor.x, y: anchor.y - 20 },
-    netPorts: [
-      { netName: nets.vcc, portType: 'input' },
-      { netName: nets.gnd, portType: 'passive' },
-      { netName: nets.output, portType: 'output' },
-      { netName: nets.timing, portType: 'passive' },
-      { netName: nets.discharge, portType: 'passive' },
-      { netName: nets.control, portType: 'passive' },
-    ],
+    netPortAnchor: input.createNetPorts ? { x: anchor.x, y: anchor.y - 20 } : undefined,
+    netPorts: input.createNetPorts
+      ? [
+          { netName: nets.vcc, portType: 'input' },
+          { netName: nets.gnd, portType: 'passive' },
+          { netName: nets.output, portType: 'output' },
+          { netName: nets.timing, portType: 'passive' },
+          { netName: nets.discharge, portType: 'passive' },
+          { netName: nets.control, portType: 'passive' },
+        ]
+      : [],
   };
 
   return {
@@ -324,7 +339,8 @@ export function buildNe555AstableTemplate(
       'NE555 astable LED flasher: U1 is centered, timing network is left, decoupling/control bypass are near U1, and output LED chain is right.',
       'Pin 2 TRIG and pin 6 THRESH are tied to the timing node; pin 7 DISCH is between R1 and R2.',
       'Pin 4 RESET is tied to VCC; pin 5 CTRL is bypassed to GND; C3 is a local VCC/GND decoupling capacitor.',
-      'Use post-write QA with circuit policy after apply; duplicate net names, free wire-only nets, and floating pins are blocking failures.',
+      'Detached external netports are disabled by default; local pin-to-net labels avoid disconnected netport DRC info.',
+      'Use post-write QA with circuit policy after apply; duplicate net names, free wire-only nets, disconnected netports, and floating pins are blocking failures.',
     ],
   };
 }

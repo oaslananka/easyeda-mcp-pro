@@ -60,6 +60,7 @@ describe('Workflow Tools', () => {
       expect(result.design.calculated.frequency_hz).toBeCloseTo(1.053, 3);
       expect(result.placements).toHaveLength(8);
       expect(result.operations.filter((op: any) => op.kind === 'connectPinToNet')).toHaveLength(22);
+      expect(result.operations.filter((op: any) => op.kind === 'createNetPort')).toHaveLength(0);
       expect(bridgeCall).toHaveBeenCalledTimes(1);
       expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', { projectId: 'proj-555' });
     });

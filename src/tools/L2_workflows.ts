@@ -346,6 +346,12 @@ const ne555DevicesSchema = z.object({
   timingCapacitor: deviceItemSchema,
   bypassCapacitor: deviceItemSchema,
   led: deviceItemSchema,
+  r1: deviceItemSchema.optional(),
+  r2: deviceItemSchema.optional(),
+  rLed: deviceItemSchema.optional(),
+  cTiming: deviceItemSchema.optional(),
+  cCtrl: deviceItemSchema.optional(),
+  cDecouple: deviceItemSchema.optional(),
 });
 
 const ne555RefsSchema = z
@@ -418,6 +424,7 @@ const ne555InputSchema = z.object({
   anchor: pointSchema.optional(),
   preferredRegion: schematicRegionPreferenceSchema.default('upper-left'),
   margin: z.number().positive().optional(),
+  createNetPorts: z.boolean().default(false),
   refs: ne555RefsSchema,
   nets: ne555NetsSchema,
   values: ne555ValuesSchema,

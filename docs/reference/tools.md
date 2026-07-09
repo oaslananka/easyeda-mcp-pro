@@ -3208,6 +3208,7 @@ Returns a JSON object matching the schema:
 | `anchor`          | `object (optional)`  | No             |               |
 | `preferredRegion` | `'upper-left'        | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
 | `margin`          | `number (optional)`  | No             |               |
+| `createNetPorts`  | `boolean`            | Yes            |               |
 | `refs`            | `object (optional)`  | No             |               |
 | `nets`            | `object (optional)`  | No             |               |
 | `values`          | `object (optional)`  | No             |               |
