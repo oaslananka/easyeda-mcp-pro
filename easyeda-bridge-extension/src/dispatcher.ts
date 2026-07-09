@@ -2300,6 +2300,16 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // above), and that's the key that actually resolves; X/Y kept as a
       // fallback in case a future runtime version differs. Still degrades to
       // "no overlap data" (not a crash) if both guesses are wrong.
+      //
+      // Y-sign note (live-verified 2026-07-09): a rectangle created with
+      // `y: 5000` reads back TopLeftY: -5000 — an exact sign flip, also
+      // observed on SCH_PrimitiveText the same way (created y:6000 -> read
+      // back y:-6000). SCH_PrimitiveComponent (pins) and SCH_PrimitiveWire
+      // (Line) showed no such flip across multiple live checks — this
+      // appears specific to these two annotation-layer primitive types, not
+      // a general coordinate-system quirk. Negate on the way out so callers
+      // (e.g. findOverlappingRectangles, which compares against pin-derived
+      // Y coordinates) see the same sign convention as everything else.
       const schRectClass = readFirstPath<any>(['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle']);
       if (!schRectClass || typeof schRectClass.getAll !== 'function') {
         return { total: 0, items: [] };
@@ -2311,14 +2321,17 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         logRecoverableError('failed to list rectangles', e);
         all = [];
       }
-      const items = all.map((r) => ({
-        primitiveId: extractPrimitiveId(r) || String(safeGetState(r, 'PrimitiveId') ?? ''),
-        x: safeGetState(r, 'TopLeftX') ?? safeGetState(r, 'X'),
-        y: safeGetState(r, 'TopLeftY') ?? safeGetState(r, 'Y'),
-        width: safeGetState(r, 'Width'),
-        height: safeGetState(r, 'Height'),
-        rotation: safeGetState(r, 'Rotation'),
-      }));
+      const items = all.map((r) => {
+        const rawY = safeGetState(r, 'TopLeftY') ?? safeGetState(r, 'Y');
+        return {
+          primitiveId: extractPrimitiveId(r) || String(safeGetState(r, 'PrimitiveId') ?? ''),
+          x: safeGetState(r, 'TopLeftX') ?? safeGetState(r, 'X'),
+          y: typeof rawY === 'number' ? -rawY : rawY,
+          width: safeGetState(r, 'Width'),
+          height: safeGetState(r, 'Height'),
+          rotation: safeGetState(r, 'Rotation'),
+        };
+      });
       return { total: items.length, items };
     }
     case 'schematic.deletePrimitive':
@@ -2476,6 +2489,64 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
             ...property,
           };
           return schTextClass.modify(primitiveId, merged);
+        }
+      }
+
+      // Circle/Polygon had the same fall-through-to-wrong-handler gap as Text
+      // above. Field names mirror their respective create() argument order
+      // (schematic.addCircle/addPolygon), which was itself recovered by
+      // reading .modify()'s minified source via .toString() — see the
+      // comments on those create() cases.
+      const schCircleClass = readFirstPath<any>(['SCH_PrimitiveCircle', 'sch_PrimitiveCircle']);
+      if (
+        schCircleClass &&
+        typeof schCircleClass.get === 'function' &&
+        typeof schCircleClass.modify === 'function'
+      ) {
+        let current: unknown;
+        try {
+          current = await schCircleClass.get(primitiveId);
+        } catch (e) {
+          logRecoverableError(`SCH_PrimitiveCircle.get(${primitiveId}) failed`, e);
+        }
+        if (current) {
+          const merged: Record<string, unknown> = {
+            centerX: safeGetState(current, 'CenterX'),
+            centerY: safeGetState(current, 'CenterY'),
+            radius: safeGetState(current, 'Radius'),
+            color: safeGetState(current, 'Color'),
+            fillColor: safeGetState(current, 'FillColor'),
+            lineWidth: safeGetState(current, 'LineWidth'),
+            lineType: safeGetState(current, 'LineType'),
+            fillStyle: safeGetState(current, 'FillStyle'),
+            ...property,
+          };
+          return schCircleClass.modify(primitiveId, merged);
+        }
+      }
+
+      const schPolygonClass = readFirstPath<any>(['SCH_PrimitivePolygon', 'sch_PrimitivePolygon']);
+      if (
+        schPolygonClass &&
+        typeof schPolygonClass.get === 'function' &&
+        typeof schPolygonClass.modify === 'function'
+      ) {
+        let current: unknown;
+        try {
+          current = await schPolygonClass.get(primitiveId);
+        } catch (e) {
+          logRecoverableError(`SCH_PrimitivePolygon.get(${primitiveId}) failed`, e);
+        }
+        if (current) {
+          const merged: Record<string, unknown> = {
+            line: safeGetState(current, 'Line'),
+            color: safeGetState(current, 'Color'),
+            fillColor: safeGetState(current, 'FillColor'),
+            lineWidth: safeGetState(current, 'LineWidth'),
+            lineType: safeGetState(current, 'LineType'),
+            ...property,
+          };
+          return schPolygonClass.modify(primitiveId, merged);
         }
       }
 
