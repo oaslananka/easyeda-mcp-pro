@@ -83,6 +83,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_net_detail`          | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                                                |
 | `easyeda_schematic_nets`                | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
 | `easyeda_schematic_place_component`     | `core`  | `medium` | Place a library component/device on the active schematic sheet. Auto-assigns the next free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one node. On a timeout error, auto-reconciles against the sheet before reporting failure (see reconciled/unconfirmed) — do not blindly retry.          |
+| `easyeda_schematic_plan_safe_region`    | `core`  | `low`    | Compute a safe schematic drawing region before placing components. Uses live sheet info when available, assumes EasyEDA bottom-left coordinates, reserves the default lower-right title-block keep-out, and returns an anchor/bounds plan that avoids title-block overlap.                                                       |
 | `easyeda_schematic_search_device`       | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords. Full results carry the library's complete metadata object per device; pass minimal:true to get back only uuid/libraryUuid/name/pin_count/symbol_type when that is all you need.                                                                         |
 | `easyeda_schematic_set_title_block`     | `core`  | `medium` | Update schematic title block text fields (Company, Version, Drawn, Reviewed, Page Size). Only these 5 are exposed — writing Symbol/Border/Device/etc once corrupted a real title block; those are read-only natively and must be fixed via the EasyEDA Pro UI.                                                                   |
 | `easyeda_schematic_sheet_info`          | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
@@ -2584,6 +2585,47 @@ Returns a JSON object matching the schema:
   unconfirmed: boolean(optional);
   warning: string(optional);
   error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_plan_safe_region`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Compute a safe schematic drawing region before placing components. Uses live sheet info when available, assumes EasyEDA bottom-left coordinates, reserves the default lower-right title-block keep-out, and returns an anchor/bounds plan that avoids title-block overlap.
+
+### Input Parameters
+
+| Parameter           | Type                | Required       | Description                                                                       |
+| ------------------- | ------------------- | -------------- | --------------------------------------------------------------------------------- |
+| `projectId`         | `string (optional)` | No             |                                                                                   |
+| `contentWidth`      | `number`            | Yes            | Estimated width of the planned circuit block in EasyEDA coordinates               |
+| `contentHeight`     | `number`            | Yes            | Estimated height of the planned circuit block in EasyEDA coordinates              |
+| `preferredRegion`   | `'upper-left'       | 'upper-center' | 'upper-right'                                                                     | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
+| `margin`            | `number (optional)` | No             |                                                                                   |
+| `titleBlockKeepout` | `object (optional)` | No             | Optional explicit title-block keep-out rectangle when the sheet template is known |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string (optional);
+  blocked: boolean;
+  preferred_region: string;
+  sheet: object;
+  usable_bounds: object;
+  requested_bounds: object;
+  bounds: object;
+  anchor: object;
+  keepouts: object[];
+  warnings: string[];
+  issues: object[];
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 

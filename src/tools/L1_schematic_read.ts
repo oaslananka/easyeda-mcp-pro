@@ -3,6 +3,19 @@ import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { fetchComponentPins } from './schematic-helpers.js';
 import { scanSheetForPinCollisions } from '../workflows/collision.js';
+import { planSafeSchematicRegion } from '../workflows/schematic-safe-region.js';
+
+const schematicRegionPreferenceSchema = z.enum([
+  'upper-left',
+  'upper-center',
+  'upper-right',
+  'center-left',
+  'center',
+  'center-right',
+  'lower-left',
+  'lower-center',
+  'lower-right',
+]);
 
 const searchDeviceInputSchema = z.object({
   key: z
@@ -605,6 +618,134 @@ function registerSchematicReadTools(
           error: err instanceof Error ? err.message : String(err),
         };
       }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_plan_safe_region',
+    title: 'Plan safe schematic drawing region',
+    description:
+      'Compute a safe schematic drawing region before placing components. Uses live sheet info when available, assumes EasyEDA bottom-left coordinates, reserves the default lower-right title-block keep-out, and returns an anchor/bounds plan that avoids title-block overlap.',
+    profile: 'core',
+    evidence: ['runtime-probe', 'inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().optional(),
+      contentWidth: z
+        .number()
+        .positive()
+        .describe('Estimated width of the planned circuit block in EasyEDA coordinates'),
+      contentHeight: z
+        .number()
+        .positive()
+        .describe('Estimated height of the planned circuit block in EasyEDA coordinates'),
+      preferredRegion: schematicRegionPreferenceSchema.default('upper-left'),
+      margin: z.number().positive().optional(),
+      titleBlockKeepout: z
+        .object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number().positive(),
+          height: z.number().positive(),
+        })
+        .optional()
+        .describe(
+          'Optional explicit title-block keep-out rectangle when the sheet template is known',
+        ),
+    }),
+    outputSchema: z.object({
+      project_id: z.string().optional(),
+      blocked: z.boolean(),
+      preferred_region: z.string(),
+      sheet: z.object({
+        width: z.number(),
+        height: z.number(),
+        unit: z.string(),
+        origin: z.string(),
+        source: z.string(),
+      }),
+      usable_bounds: z.object({
+        x: z.number(),
+        y: z.number(),
+        width: z.number(),
+        height: z.number(),
+      }),
+      requested_bounds: z.object({
+        x: z.number(),
+        y: z.number(),
+        width: z.number(),
+        height: z.number(),
+      }),
+      bounds: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }),
+      anchor: z.object({ x: z.number(), y: z.number() }),
+      keepouts: z.array(
+        z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number(),
+          height: z.number(),
+          kind: z.string(),
+        }),
+      ),
+      warnings: z.array(z.string()),
+      issues: z.array(z.object({ code: z.string(), message: z.string() })),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = z
+        .object({
+          projectId: z.string().optional(),
+          contentWidth: z.number().positive(),
+          contentHeight: z.number().positive(),
+          preferredRegion: schematicRegionPreferenceSchema.default('upper-left'),
+          margin: z.number().positive().optional(),
+          titleBlockKeepout: z
+            .object({
+              x: z.number(),
+              y: z.number(),
+              width: z.number().positive(),
+              height: z.number().positive(),
+            })
+            .optional(),
+        })
+        .parse(params ?? {});
+      let sheetInfo: unknown;
+      try {
+        sheetInfo = await ctx.bridge.call('schematic.getSheetInfo', { projectId: p.projectId });
+      } catch {
+        // Degrade to the conservative A4 default rather than blocking preview
+        // planning, because this tool is often used before a live sheet is fully ready.
+        sheetInfo = undefined;
+      }
+      const plan = planSafeSchematicRegion({
+        sheetInfo,
+        contentWidth: p.contentWidth,
+        contentHeight: p.contentHeight,
+        preferredRegion: p.preferredRegion,
+        margin: p.margin,
+        titleBlockKeepout: p.titleBlockKeepout,
+      });
+      return {
+        project_id: p.projectId,
+        blocked: plan.blocked,
+        preferred_region: plan.preferredRegion,
+        sheet: plan.sheet,
+        usable_bounds: plan.usableBounds,
+        requested_bounds: plan.requestedBounds,
+        bounds: plan.bounds,
+        anchor: plan.anchor,
+        keepouts: plan.keepouts,
+        warnings: plan.warnings,
+        issues: plan.issues,
+      };
     },
   });
 
