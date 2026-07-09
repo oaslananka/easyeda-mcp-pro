@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.29.1...easyeda-mcp-pro-v0.30.0) (2026-07-09)
+
+
+### Features
+
+* **workflows:** add NE555 visible wire stubs ([#256](https://github.com/oaslananka/easyeda-mcp-pro/issues/256)) ([bbb7483](https://github.com/oaslananka/easyeda-mcp-pro/commit/bbb74833bec7586fba2efc35304e3b53572eedc5))
+
 ## [0.29.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.29.0...easyeda-mcp-pro-v0.29.1) (2026-07-09)
 
 
