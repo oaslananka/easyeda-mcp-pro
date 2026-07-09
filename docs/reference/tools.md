@@ -100,6 +100,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_workflow_connector_breakout`   | `pro`   | `medium` | Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).                                                                                                                                   |
 | `easyeda_workflow_decouple_ic`          | `pro`   | `medium` | Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).                                                                   |
 | `easyeda_workflow_layout_section`       | `pro`   | `medium` | Compute and create a section rectangle + title sized from the real pin extents of the given already-placed components (or replace an existing rectangle/title pair). Reports overlap with other rectangles and page-size overflow as warnings; never resizes the page.                                                           |
+| `easyeda_workflow_ne555_astable`        | `pro`   | `medium` | Create a deterministic NE555 astable LED flasher workflow using safe sheet-region planning, component-level layout offsets, explicit pin-to-net connectivity, and optional post-write QA. Caller supplies already-resolved EasyEDA device items; this tool does not guess catalog parts (confirmWrite required).                 |
 | `easyeda_workflow_place_block`          | `pro`   | `medium` | Place a group of components, wire their pin-to-net connections (new and/or pre-existing components), and create net ports for block-external nets — all as a single atomic transaction with rollback on partial failure (confirmWrite required).                                                                                 |
 | `easyeda_workflow_power_rail`           | `pro`   | `medium` | Place a regulator and its supporting passives and wire them to input/output/ground nets in a single atomic transaction, instead of one primitive call per component. Caller supplies already-resolved device items and pin connections; this tool does not select parts (confirmWrite required).                                 |
 
@@ -3186,6 +3187,57 @@ Returns a JSON object matching the schema:
   title_primitive_id: string (optional);
   deleted_primitive_ids: string[];
   error: string (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_ne555_astable`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Create a deterministic NE555 astable LED flasher workflow using safe sheet-region planning, component-level layout offsets, explicit pin-to-net connectivity, and optional post-write QA. Caller supplies already-resolved EasyEDA device items; this tool does not guess catalog parts (confirmWrite required).
+
+### Input Parameters
+
+| Parameter         | Type                 | Required       | Description   |
+| ----------------- | -------------------- | -------------- | ------------- |
+| `projectId`       | `string`             | Yes            |               |
+| `mode`            | `'preview'           | 'apply'`       | Yes           |               |
+| `devices`         | `object`             | Yes            |               |
+| `anchor`          | `object (optional)`  | No             |               |
+| `preferredRegion` | `'upper-left'        | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
+| `margin`          | `number (optional)`  | No             |               |
+| `refs`            | `object (optional)`  | No             |               |
+| `nets`            | `object (optional)`  | No             |               |
+| `values`          | `object (optional)`  | No             |               |
+| `pinMaps`         | `object (optional)`  | No             |               |
+| `runPostWriteQa`  | `boolean`            | Yes            |               |
+| `confirmWrite`    | `boolean (optional)` | No             |               |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+  safe_region: object;
+  design: object;
+  post_write_qa: object (optional);
 }
 ```
 

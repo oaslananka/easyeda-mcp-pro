@@ -19,7 +19,7 @@ export interface NativeRuleViolationInput {
   rule?: string;
   description?: string;
   message?: string;
-  severity?: string;
+  severity?: QaSeverity;
   net?: string;
   component?: string;
 }
@@ -222,6 +222,91 @@ function classifyNativeRun(
   }
 
   return issues;
+}
+
+export interface NativeQaBridge {
+  call<TParams = Record<string, unknown>, TResult = unknown>(
+    method: string,
+    params?: TParams,
+  ): Promise<TResult>;
+}
+
+function normalizeRuleSeverity(severity: string | undefined): QaSeverity | undefined {
+  return severity === 'error' || severity === 'warning' || severity === 'info'
+    ? severity
+    : undefined;
+}
+
+export async function collectNativeRuleRunsForPostWriteQa(
+  bridge: NativeQaBridge,
+  projectId: string,
+  options: { drc?: boolean; erc?: boolean } = { drc: true, erc: true },
+): Promise<{ drc?: NativeRuleRunInput; erc?: NativeRuleRunInput }> {
+  let drc: NativeRuleRunInput | undefined;
+  let erc: NativeRuleRunInput | undefined;
+
+  if (options.drc ?? true) {
+    try {
+      const result = (await bridge.call('design.drc', { projectId })) as {
+        violations?: Array<{
+          rule?: string;
+          description?: string;
+          severity?: string;
+          net?: string;
+          component?: string;
+        }>;
+        totalViolations?: number;
+        errorCount?: number;
+        warningCount?: number;
+      };
+      drc = {
+        violations: result.violations?.map((v) => ({
+          ...v,
+          severity: normalizeRuleSeverity(v.severity),
+        })),
+        total_violations: result.totalViolations,
+        error_count: result.errorCount,
+        warning_count: result.warningCount,
+      };
+    } catch (err) {
+      drc = { not_available: true, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  if (options.erc ?? true) {
+    try {
+      const result = (await bridge.call('design.erc', { projectId })) as {
+        violations?: Array<{
+          description?: string;
+          severity?: string;
+          net?: string;
+          component?: string;
+        }>;
+        totalViolations?: number;
+        errorCount?: number;
+        warningCount?: number;
+        inferredFloatingPins?: Array<{
+          primitiveId?: string;
+          designator?: string;
+          pinNumber?: string;
+        }>;
+      };
+      erc = {
+        violations: result.violations?.map((v) => ({
+          ...v,
+          severity: normalizeRuleSeverity(v.severity),
+        })),
+        total_violations: result.totalViolations,
+        error_count: result.errorCount,
+        warning_count: result.warningCount,
+        inferred_floating_pins: result.inferredFloatingPins,
+      };
+    } catch (err) {
+      erc = { not_available: true, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  return { drc, erc };
 }
 
 export function classifyPostWriteQa(input: PostWriteQaInput): PostWriteQaSummary {

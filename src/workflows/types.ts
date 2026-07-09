@@ -8,7 +8,9 @@ export type WorkflowIssueCode =
   | 'WORKFLOW_NO_COMPONENTS'
   | 'WORKFLOW_MISSING_ROLE'
   | 'WORKFLOW_DUPLICATE_NET_PORT'
-  | 'WORKFLOW_PIN_COLLISION';
+  | 'WORKFLOW_PIN_COLLISION'
+  | 'WORKFLOW_SAFE_REGION'
+  | 'WORKFLOW_POST_WRITE_QA';
 
 export interface WorkflowIssue {
   code: WorkflowIssueCode;
@@ -40,6 +42,8 @@ export interface WorkflowComponentInput {
   rotation?: number;
   mirror?: boolean;
   subPartName?: string;
+  /** Optional placement offset from the workflow anchor. If omitted, the legacy horizontal spacing planner is used. */
+  placementOffset?: { dx: number; dy: number };
   pinConnections: WorkflowPinConnection[];
 }
 

@@ -162,8 +162,14 @@ export function planWorkflowBlock(
   const placements: WorkflowPlannedComponent[] = components.map((component, index) => ({
     ref: component.ref,
     role: component.role,
-    x: input.anchor.x + index * spacing,
-    y: input.anchor.y,
+    x:
+      component.placementOffset !== undefined
+        ? input.anchor.x + component.placementOffset.dx
+        : input.anchor.x + index * spacing,
+    y:
+      component.placementOffset !== undefined
+        ? input.anchor.y + component.placementOffset.dy
+        : input.anchor.y,
   }));
 
   const operations: WorkflowOperation[] = [];
