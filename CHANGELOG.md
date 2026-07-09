@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.25.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.24.2...easyeda-mcp-pro-v0.25.0) (2026-07-09)
+
+
+### Features
+
+* **extension:** harden remote relay reconnects ([#235](https://github.com/oaslananka/easyeda-mcp-pro/issues/235)) ([da9201a](https://github.com/oaslananka/easyeda-mcp-pro/commit/da9201a234f48b2e9dd643caf9486de8d1e44fc3))
+* **remote:** add MCP relay backend foundation ([#238](https://github.com/oaslananka/easyeda-mcp-pro/issues/238)) ([5c73c80](https://github.com/oaslananka/easyeda-mcp-pro/commit/5c73c80a3aab1b28e11afc37337654796f17340e))
+
+
+### Bug Fixes
+
+* **vendors:** use locale-aware cache key sorting ([b875c94](https://github.com/oaslananka/easyeda-mcp-pro/commit/b875c946797988e6b4f06d7ada0aa6621c119cf0))
+
 ## [0.24.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.24.1...easyeda-mcp-pro-v0.24.2) (2026-07-09)
 
 
