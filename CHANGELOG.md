@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.25.0...easyeda-mcp-pro-v0.26.0) (2026-07-09)
+
+
+### Features
+
+* **remote:** add relay readiness doctor checks ([fd1463e](https://github.com/oaslananka/easyeda-mcp-pro/commit/fd1463e12bffaa532a5c38b6c70e98b361b8b628))
+
+
+### Bug Fixes
+
+* **bridge:** include list rectangles in method registry ([10e6806](https://github.com/oaslananka/easyeda-mcp-pro/commit/10e6806b0f281933963ff3a6f91e53ec91707767))
+* **dispatcher:** avoid duplicate same-net wire labels ([0f5cdff](https://github.com/oaslananka/easyeda-mcp-pro/commit/0f5cdffac9b23f0bb20499197c4c2121b3b46e2b))
+
 ## [0.25.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.24.2...easyeda-mcp-pro-v0.25.0) (2026-07-09)
 
 
