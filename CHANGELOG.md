@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.24.1...easyeda-mcp-pro-v0.24.2) (2026-07-09)
+
+
+### Bug Fixes
+
+* **dispatcher:** modify Circle/Polygon primitives correctly; fix Rectangle Y-sign ([#229](https://github.com/oaslananka/easyeda-mcp-pro/issues/229)) ([627c082](https://github.com/oaslananka/easyeda-mcp-pro/commit/627c0822bc5f2193d3053028313ad2f7a1e4a110))
+
 ## [0.24.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.24.0...easyeda-mcp-pro-v0.24.1) (2026-07-08)
 
 
