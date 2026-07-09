@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.28.0...easyeda-mcp-pro-v0.29.0) (2026-07-09)
+
+
+### Features
+
+* **workflows:** add NE555 astable template ([bed3cc7](https://github.com/oaslananka/easyeda-mcp-pro/commit/bed3cc7fa13fdc28a6406adaea6cae1d7d57a57a))
+
 ## [0.28.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.27.0...easyeda-mcp-pro-v0.28.0) (2026-07-09)
 
 
