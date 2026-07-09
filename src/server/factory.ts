@@ -16,6 +16,7 @@ import { CdpBridgeManager } from '../bridge/cdp-manager.js';
 import { startHotSwapWatcher } from '../bridge/hotswap-watcher.js';
 import { registerBuiltinTools } from '../tools/register.js';
 import { registerProjectResourcesAndPrompts } from './resources-prompts.js';
+import { RemoteGateway } from '../remote/gateway.js';
 
 import { LcscClient } from '../vendors/lcsc/client.js';
 import { JlcpcbClient } from '../vendors/jlcpcb/client.js';
@@ -23,6 +24,10 @@ import { MouserClient } from '../vendors/mouser/client.js';
 import { DigiKeyClient } from '../vendors/digikey/client.js';
 import { createFileVendorCache } from '../vendors/cache.js';
 import { configureVendorRateLimit } from '../vendors/base-http-client.js';
+
+export interface CreateServerOptions {
+  remoteGateway?: RemoteGateway;
+}
 
 export interface McpServerInstance {
   server: McpServer;
@@ -35,9 +40,15 @@ export interface McpServerInstance {
   shutdown: () => Promise<void>;
 }
 
-export async function createServer(config: EnvConfig): Promise<McpServerInstance> {
+export async function createServer(
+  config: EnvConfig,
+  options: CreateServerOptions = {},
+): Promise<McpServerInstance> {
   const logger = createLogger(config);
   const flags = loadFeatureFlags(config);
+  const remoteGateway =
+    options.remoteGateway ??
+    (config.MCP_BRIDGE_BACKEND === 'remote_relay' ? new RemoteGateway() : undefined);
 
   logger.info(
     {
@@ -133,7 +144,11 @@ export async function createServer(config: EnvConfig): Promise<McpServerInstance
       bridgeHost: config.BRIDGE_HOST,
       bridgePort: bridge.activePort || config.BRIDGE_PORT,
       keylessSourcingEnabled: config.KEYLESS_SOURCING_ENABLED,
+      TOOL_SCOPES: config.TOOL_SCOPES,
+      MCP_BRIDGE_BACKEND: config.MCP_BRIDGE_BACKEND,
+      MCP_REMOTE_SESSION_ID: config.MCP_REMOTE_SESSION_ID,
     },
+    remote: remoteGateway ? { gateway: remoteGateway } : undefined,
     vendors: {
       lcsc: lcscClient,
       jlcpcb: jlcClient,

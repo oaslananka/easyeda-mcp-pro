@@ -730,3 +730,320 @@ describe('registered output schema compatibility', () => {
     expect(writePlanOutputSchema.safeParse({ success: true, transaction: {} }).success).toBe(false);
   });
 });
+
+describe('ToolRegistry remote relay backend', () => {
+  it('routes bridge calls through RemoteGateway when MCP_BRIDGE_BACKEND=remote_relay', async () => {
+    const routeToolRequest = vi.fn(async () => ({
+      ok: true as const,
+      sessionId: 'sess_1',
+      toolName: 'schematic.listComponents',
+      result: { ok: true },
+      durationMs: 4,
+    }));
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_read_tool', 'core', {
+        inputSchema: z.object({ remoteSessionId: z.string().optional() }),
+        handler: async (ctx) =>
+          await ctx.bridge.call(
+            'schematic.listComponents',
+            { includeHidden: false },
+            { timeoutMs: 123 },
+          ),
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+        },
+        remote: { gateway: { routeToolRequest } as any },
+      }),
+    );
+
+    const headers = new Map<string, string>([
+      ['x-remote-user-id', 'user-a'],
+      ['x-remote-scopes', 'easyeda.read'],
+    ]);
+    const response = await handlers.get('remote_read_tool')!(
+      { remoteSessionId: 'sess_1' },
+      { requestInfo: { headers } },
+    );
+
+    expect(response.isError).toBeFalsy();
+    expect(routeToolRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'sess_1',
+        toolName: 'schematic.listComponents',
+        riskLevel: 'read',
+        input: { includeHidden: false },
+        deadlineMs: 123,
+      }),
+    );
+    expect(routeToolRequest.mock.calls[0]?.[0].identity).toMatchObject({
+      userId: 'user-a',
+      scopes: ['easyeda.read'],
+    });
+  });
+
+  it('passes remote approval controls for write/export remote bridge calls', async () => {
+    const routeToolRequest = vi.fn(async () => ({
+      ok: true as const,
+      sessionId: 'sess_2',
+      toolName: 'board.exportGerbers',
+      result: { ok: true },
+      durationMs: 7,
+    }));
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_export_tool', 'core', {
+        group: 'export',
+        risk: 'high',
+        confirmWrite: true,
+        inputSchema: z.object({
+          confirmWrite: z.boolean(),
+          remoteSessionId: z.string().optional(),
+          remoteApprovalId: z.string().optional(),
+        }),
+        handler: async (ctx) => await ctx.bridge.call('board.exportGerbers', { format: 'zip' }),
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+        },
+        remote: { gateway: { routeToolRequest } as any },
+      }),
+    );
+
+    const response = await handlers.get('remote_export_tool')!(
+      {
+        confirmWrite: true,
+        remoteSessionId: 'sess_2',
+        remoteApprovalId: 'appr_1',
+      },
+      {
+        authInfo: {
+          clientId: 'client-a',
+          scopes: ['easyeda:export'],
+          extra: { sub: 'user-a' },
+        },
+      },
+    );
+
+    expect(response.isError).toBeFalsy();
+    expect(routeToolRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'sess_2',
+        toolName: 'board.exportGerbers',
+        riskLevel: 'export',
+        input: { format: 'zip' },
+        approvalId: 'appr_1',
+      }),
+    );
+    expect(routeToolRequest.mock.calls[0]?.[0].identity).toMatchObject({
+      userId: 'user-a',
+      scopes: ['easyeda.export'],
+    });
+  });
+
+  it('uses the configured Remote Relay session id when request input omits one', async () => {
+    const routeToolRequest = vi.fn(async () => ({
+      ok: true as const,
+      sessionId: 'sess_configured',
+      toolName: 'schematic.getDocument',
+      result: { ok: true },
+      durationMs: 2,
+    }));
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_configured_session_tool', 'core', {
+        handler: async (ctx) => await ctx.bridge.call('schematic.getDocument'),
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+          MCP_REMOTE_SESSION_ID: 'sess_configured',
+        },
+        remote: { gateway: { routeToolRequest } as any },
+      }),
+    );
+
+    const response = await handlers.get('remote_configured_session_tool')!({}, {});
+
+    expect(response.isError).toBeFalsy();
+    expect(routeToolRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'sess_configured' }),
+    );
+  });
+
+  it('surfaces Remote Relay routing failures as structured tool errors', async () => {
+    const routeToolRequest = vi.fn(async () => ({
+      ok: false as const,
+      code: 'REMOTE_SESSION_NOT_FOUND',
+      message: 'No paired session matched the request.',
+      suggestion: 'Pair an extension session first.',
+    }));
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_failure_tool', 'core', {
+        inputSchema: z.object({ remoteSessionId: z.string().optional() }),
+        handler: async (ctx) => await ctx.bridge.call('schematic.getDocument'),
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+        },
+        remote: { gateway: { routeToolRequest } as any },
+      }),
+    );
+
+    const response = await handlers.get('remote_failure_tool')!({ remoteSessionId: 'missing' });
+
+    expect(response.isError).toBe(true);
+    expect(response.structuredContent).toMatchObject({
+      errorCode: ErrorCodes.TOOL_EXECUTION,
+      details: { toolName: 'remote_failure_tool' },
+    });
+    expect(response.content[0].text).toContain('REMOTE_SESSION_NOT_FOUND');
+  });
+
+  it('surfaces a missing RemoteGateway when remote backend is enabled', async () => {
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_missing_gateway_tool', 'core', {
+        handler: async (ctx) => await ctx.bridge.call('schematic.getDocument'),
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+        },
+      }),
+    );
+
+    const response = await handlers.get('remote_missing_gateway_tool')!({});
+
+    expect(response.isError).toBe(true);
+    expect(response.content[0].text).toContain('no RemoteGateway is configured');
+  });
+
+  it('accepts Remote Relay identity from OAuth client id when no subject claim exists', async () => {
+    const routeToolRequest = vi.fn(async () => ({
+      ok: true as const,
+      sessionId: 'sess_client',
+      toolName: 'schematic.getDocument',
+      result: { ok: true },
+      durationMs: 2,
+    }));
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_client_identity_tool', 'core', {
+        handler: async (ctx) => await ctx.bridge.call('schematic.getDocument'),
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+          MCP_REMOTE_SESSION_ID: 'sess_client',
+        },
+        remote: { gateway: { routeToolRequest } as any },
+      }),
+    );
+
+    await handlers.get('remote_client_identity_tool')!(
+      {},
+      {
+        authInfo: { clientId: 'client-only', scopes: ['easyeda:read'], extra: {} },
+      },
+    );
+
+    expect(routeToolRequest.mock.calls[0]?.[0].identity).toMatchObject({
+      userId: 'client-only',
+      scopes: ['easyeda.read'],
+    });
+  });
+
+  it('ignores non-scalar debug identity headers instead of stringifying objects', async () => {
+    const routeToolRequest = vi.fn(async () => ({
+      ok: true as const,
+      sessionId: 'sess_headers',
+      toolName: 'schematic.getDocument',
+      result: { ok: true },
+      durationMs: 2,
+    }));
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_non_scalar_headers_tool', 'core', {
+        handler: async (ctx) => await ctx.bridge.call('schematic.getDocument'),
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+          MCP_REMOTE_SESSION_ID: 'sess_headers',
+        },
+        remote: { gateway: { routeToolRequest } as any },
+      }),
+    );
+
+    await handlers.get('remote_non_scalar_headers_tool')!(
+      {},
+      {
+        requestInfo: { headers: { 'x-remote-user-id': { bad: 'object' } } },
+      },
+    );
+
+    expect(routeToolRequest.mock.calls[0]?.[0].identity).toBeUndefined();
+  });
+});

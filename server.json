@@ -41,6 +41,18 @@
           "default": "2025-11-25"
         },
         {
+          "name": "MCP_BRIDGE_BACKEND",
+          "description": "Bridge backend: local_bridge or experimental remote_relay",
+          "isRequired": false,
+          "default": "local_bridge"
+        },
+        {
+          "name": "MCP_REMOTE_SESSION_ID",
+          "description": "Optional fixed Remote Relay session id for the remote_relay backend",
+          "isRequired": false,
+          "default": ""
+        },
+        {
           "name": "TRANSPORT",
           "description": "Server transport mode (stdio or http)",
           "isRequired": false,

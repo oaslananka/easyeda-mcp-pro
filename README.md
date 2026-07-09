@@ -436,14 +436,16 @@ Copy `.env.example` to `.env` and edit. All variables have safe defaults — onl
 
 ### Essential
 
-| Variable               | Default       | Description                                                                  |
-| ---------------------- | ------------- | ---------------------------------------------------------------------------- |
-| `NODE_ENV`             | `development` | Set to `production` in production                                            |
-| `LOG_LEVEL`            | `info`        | Pino log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent` |
-| `TOOL_PROFILE`         | `core`        | Tool set: `core`, `pro`, `full`, `dev`, `experimental`                       |
-| `TOOL_SCOPES`          | empty         | Optional capability allowlist such as `schematic:read,bom:read`              |
-| `MCP_PROTOCOL_VERSION` | `2025-11-25`  | MCP protocol version string                                                  |
-| `TRANSPORT`            | `stdio`       | Server transport: `stdio` (default) or `http`                                |
+| Variable                | Default        | Description                                                                  |
+| ----------------------- | -------------- | ---------------------------------------------------------------------------- |
+| `NODE_ENV`              | `development`  | Set to `production` in production                                            |
+| `LOG_LEVEL`             | `info`         | Pino log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent` |
+| `TOOL_PROFILE`          | `core`         | Tool set: `core`, `pro`, `full`, `dev`, `experimental`                       |
+| `TOOL_SCOPES`           | empty          | Optional capability allowlist such as `schematic:read,bom:read`              |
+| `MCP_PROTOCOL_VERSION`  | `2025-11-25`   | MCP protocol version string                                                  |
+| `MCP_BRIDGE_BACKEND`    | `local_bridge` | Bridge backend: `local_bridge` or experimental `remote_relay`                |
+| `MCP_REMOTE_SESSION_ID` | empty          | Optional fixed Remote Relay session id for `remote_relay` backend            |
+| `TRANSPORT`             | `stdio`        | Server transport: `stdio` (default) or `http`                                |
 
 ### Bridge (EasyEDA Pro connection)
 

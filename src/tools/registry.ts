@@ -6,11 +6,14 @@ import {
   parseWriteMode,
   omitWriteControls,
   writePlanResponse,
+  type WriteMode,
 } from './transaction.js';
 import { type ToolProfile, getEnabledProfiles } from '../config/profiles.js';
 import { ZodError, type z } from 'zod';
 import { SERVER_VERSION } from '../config/version.js';
 import { getGlobalMetricsCollector, type ObservabilityCategory } from '../observability/index.js';
+import { type RemoteIdentity } from '../remote/scope.js';
+import { type RemoteRiskLevel } from '../remote/protocol.js';
 
 // ── Structured error codes ────────────────────────────────────────────────
 
@@ -22,6 +25,7 @@ export const ErrorCodes = {
   INVALID_INPUT: 'ERR_INVALID_INPUT',
   TOOL_OUTPUT_INVALID: 'ERR_TOOL_OUTPUT_INVALID',
   FORBIDDEN_SCOPE: 'ERR_FORBIDDEN_SCOPE',
+  REMOTE_RELAY: 'ERR_REMOTE_RELAY',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
@@ -167,6 +171,308 @@ function bridgeDisconnectedResponse(
   });
 }
 
+type McpHandlerExtra = {
+  authInfo?: {
+    clientId?: string;
+    scopes?: string[];
+    expiresAt?: number;
+    extra?: Record<string, unknown>;
+  };
+  requestInfo?: { headers?: unknown };
+};
+
+function readHeader(headers: unknown, name: string): string | undefined {
+  const lower = name.toLowerCase();
+  if (headers && typeof headers === 'object' && 'get' in headers) {
+    const value = (headers as { get: (key: string) => string | null | undefined }).get(name);
+    return value ?? undefined;
+  }
+  if (headers && typeof headers === 'object') {
+    const record = headers as Record<string, unknown>;
+    const value = record[name] ?? record[lower];
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    if (typeof firstValue === 'string') return firstValue;
+    if (typeof firstValue === 'number' || typeof firstValue === 'boolean')
+      return String(firstValue);
+  }
+  return undefined;
+}
+
+function normalizeRemoteScope(scope: string): string {
+  return scope
+    .trim()
+    .replace(/^easyeda:/, 'easyeda.')
+    .replace('project-admin', 'project_admin');
+}
+
+function parseRemoteScopes(value: unknown): RemoteIdentity['scopes'] {
+  if (typeof value !== 'string') return [];
+  return value
+    .split(/[\s,]+/)
+    .map(normalizeRemoteScope)
+    .filter(Boolean) as RemoteIdentity['scopes'];
+}
+
+function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
+  const handlerExtra = extra as McpHandlerExtra | undefined;
+  const auth = handlerExtra?.authInfo;
+  if (auth) {
+    const claims = auth.extra ?? {};
+    let userId = auth.clientId;
+    if (typeof claims.userId === 'string') userId = claims.userId;
+    if (typeof claims.sub === 'string') userId = claims.sub;
+    if (!userId) return undefined;
+    return {
+      userId,
+      scopes: (auth.scopes ?? []).map(normalizeRemoteScope) as RemoteIdentity['scopes'],
+      expiresAt: auth.expiresAt ? new Date(auth.expiresAt * 1000) : undefined,
+    };
+  }
+
+  const headers = handlerExtra?.requestInfo?.headers;
+  const userId = readHeader(headers, 'x-remote-user-id');
+  if (!userId) return undefined;
+  const expiresAtHeader = readHeader(headers, 'x-remote-expires-at');
+  return {
+    userId,
+    scopes: parseRemoteScopes(readHeader(headers, 'x-remote-scopes') ?? 'easyeda.read'),
+    expiresAt: expiresAtHeader ? new Date(expiresAtHeader) : undefined,
+  };
+}
+
+function rawRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function remoteRiskForTool(tool: ToolDefinition): RemoteRiskLevel {
+  if (tool.name === 'easyeda_execute') return 'destructive';
+  if (tool.group === 'export') return 'export';
+  if (tool.confirmWrite || tool.risk === 'medium') return 'write';
+  if (tool.risk === 'high') return 'destructive';
+  return 'read';
+}
+
+function contextForRemoteRelay(
+  context: ToolContext,
+  tool: ToolDefinition,
+  raw: unknown,
+  extra: unknown,
+): ToolContext {
+  if (context.config.MCP_BRIDGE_BACKEND !== 'remote_relay') return context;
+  const gateway = context.remote?.gateway;
+  const controls = rawRecord(raw);
+  const configuredSessionId =
+    typeof context.config.MCP_REMOTE_SESSION_ID === 'string'
+      ? context.config.MCP_REMOTE_SESSION_ID
+      : '';
+  const sessionId =
+    typeof controls.remoteSessionId === 'string'
+      ? controls.remoteSessionId
+      : configuredSessionId || undefined;
+  const approvalId =
+    typeof controls.remoteApprovalId === 'string' ? controls.remoteApprovalId : undefined;
+  const identity = remoteIdentityFromExtra(extra);
+  const riskLevel = remoteRiskForTool(tool);
+
+  return {
+    ...context,
+    bridge: {
+      ...context.bridge,
+      get connected() {
+        return true;
+      },
+      call: async <TParams, TResult>(
+        method: string,
+        params?: TParams,
+        opts?: { timeoutMs?: number; traceparent?: string },
+      ): Promise<TResult> => {
+        if (!gateway) {
+          throw new Error('Remote relay backend requested but no RemoteGateway is configured.');
+        }
+        const result = await gateway.routeToolRequest({
+          identity,
+          sessionId,
+          toolName: method,
+          riskLevel,
+          input: params,
+          approvalId,
+          deadlineMs: opts?.timeoutMs,
+        });
+        if (!result.ok) {
+          throw new Error(`Remote relay ${result.code}: ${result.message}`);
+        }
+        return result.result as TResult;
+      },
+    },
+  };
+}
+
+function invalidWriteModeResponse(tool: ToolDefinition, error: ZodError) {
+  return structuredErrorResponse({
+    errorCode: ErrorCodes.INVALID_INPUT,
+    message: `Invalid writeMode for "${tool.name}": ${error.message}`,
+    details: { toolName: tool.name, issues: error.issues },
+  });
+}
+
+function forbiddenScopeResponse(
+  context: ToolContext,
+  tool: ToolDefinition,
+  requiredScopes: string[],
+) {
+  const allowedScopes = parseToolScopes(context.config.TOOL_SCOPES);
+  if (hasRequiredToolScopes(allowedScopes, requiredScopes)) return undefined;
+  return structuredErrorResponse({
+    errorCode: ErrorCodes.FORBIDDEN_SCOPE,
+    message: `Tool "${tool.name}" requires one of: ${requiredScopes.join(', ')}.`,
+    details: {
+      toolName: tool.name,
+      requiredScopes,
+      configuredScopes: allowedScopes ? Array.from(allowedScopes) : ['*'],
+    },
+  });
+}
+
+function writePlanningResponse(
+  tool: ToolDefinition,
+  raw: Record<string, unknown>,
+  writeMode: WriteMode,
+  requiredScopes: string[],
+) {
+  if (!tool.confirmWrite || writeMode === 'apply') return undefined;
+  const parsedPlan = tool.inputSchema.safeParse({ ...raw, confirmWrite: true });
+  if (!parsedPlan.success) {
+    return structuredErrorResponse({
+      errorCode: ErrorCodes.INVALID_INPUT,
+      message: `Invalid input for "${tool.name}": ${parsedPlan.error.message}`,
+      details: { toolName: tool.name, issues: parsedPlan.error.issues },
+    });
+  }
+  return writePlanResponse(tool, writeMode, omitWriteControls(parsedPlan.data), requiredScopes);
+}
+
+function confirmWriteResponse(tool: ToolDefinition, raw: Record<string, unknown>) {
+  if (!tool.confirmWrite || raw.confirmWrite === true) return undefined;
+  return structuredErrorResponse({
+    errorCode: ErrorCodes.CONFIRM_WRITE_REQUIRED,
+    message: `Tool "${tool.name}" can mutate design state and requires confirmWrite=true.`,
+    details: { toolName: tool.name, toolGroup: tool.group, risk: tool.risk },
+  });
+}
+
+async function executeToolWithMetrics(
+  context: ToolContext,
+  tool: ToolDefinition,
+  raw: Record<string, unknown>,
+  extra: unknown,
+  parsed: unknown,
+): Promise<unknown> {
+  const startedAt = Date.now();
+  try {
+    const executionContext = contextForRemoteRelay(context, tool, raw, extra);
+    const result = await tool.handler(executionContext, parsed);
+    getGlobalMetricsCollector().recordTimed({
+      category: categoryForTool(tool),
+      name: tool.name,
+      durationMs: Date.now() - startedAt,
+      ok: true,
+    });
+    return result;
+  } catch (err) {
+    getGlobalMetricsCollector().recordTimed({
+      category: categoryForTool(tool),
+      name: tool.name,
+      durationMs: Date.now() - startedAt,
+      ok: false,
+    });
+    throw err;
+  }
+}
+
+function formatToolSuccess(tool: ToolDefinition, result: unknown) {
+  const output = tool.outputSchema.safeParse(result);
+  if (!output.success) {
+    return structuredErrorResponse({
+      errorCode: ErrorCodes.TOOL_OUTPUT_INVALID,
+      message: `Tool "${tool.name}" returned output that does not match its declared outputSchema.`,
+      details: { toolName: tool.name, issues: output.error.issues },
+    });
+  }
+
+  const images = tool.imageContent?.(output.data) ?? [];
+  const responseData =
+    images.length > 0 && tool.imageContentOmitFields?.length
+      ? omitFields(output.data, tool.imageContentOmitFields)
+      : output.data;
+  const structuredContent =
+    typeof responseData === 'object' && responseData !== null
+      ? (responseData as Record<string, unknown>)
+      : { value: responseData };
+  return {
+    structuredContent,
+    content: [
+      { type: 'text' as const, text: JSON.stringify(responseData, null, 2) },
+      ...images.map((image) => ({
+        type: 'image' as const,
+        data: image.data,
+        mimeType: image.mimeType,
+      })),
+    ],
+  };
+}
+
+function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: unknown) {
+  if (err instanceof ZodError) {
+    return structuredErrorResponse({
+      errorCode: ErrorCodes.INVALID_INPUT,
+      message: `Invalid input for "${tool.name}": ${err.message}`,
+      details: { toolName: tool.name, issues: err.issues },
+    });
+  }
+
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('Bridge not connected') || msg.includes('Bridge disconnected')) {
+    return bridgeDisconnectedResponse(context.config.bridgeHost, String(context.config.bridgePort));
+  }
+
+  return structuredErrorResponse({
+    errorCode: ErrorCodes.TOOL_EXECUTION,
+    message: `Tool "${tool.name}" failed: ${msg}`,
+    details: { toolName: tool.name },
+  });
+}
+
+async function handleRegisteredToolCall(
+  tool: ToolDefinition,
+  context: ToolContext,
+  input: unknown,
+  extra: unknown,
+) {
+  try {
+    const raw = getRawInput(input);
+    const writeMode = parseWriteMode(raw);
+    if (writeMode instanceof ZodError) return invalidWriteModeResponse(tool, writeMode);
+
+    const requiredScopes = getRequiredToolScopes(tool);
+    const scopeError = forbiddenScopeResponse(context, tool, requiredScopes);
+    if (scopeError) return scopeError;
+
+    const planned = writePlanningResponse(tool, raw, writeMode, requiredScopes);
+    if (planned) return planned;
+
+    const confirmError = confirmWriteResponse(tool, raw);
+    if (confirmError) return confirmError;
+
+    const parsed = tool.inputSchema.parse(input ?? {});
+    const result = await executeToolWithMetrics(context, tool, raw, extra, parsed);
+    return formatToolSuccess(tool, result);
+  } catch (err) {
+    return toolFailureResponse(tool, context, err);
+  }
+}
+
 // ── Tool metadata snapshot ────────────────────────────────────────────────
 
 export interface ToolMetadata {
@@ -231,138 +537,8 @@ export class ToolRegistry {
           outputSchema: registeredOutputSchema(tool),
           annotations: tool.annotations,
         },
-        async (input: unknown) => {
-          try {
-            const raw = getRawInput(input);
-            const writeMode = parseWriteMode(raw);
-            if (writeMode instanceof ZodError) {
-              return structuredErrorResponse({
-                errorCode: ErrorCodes.INVALID_INPUT,
-                message: `Invalid writeMode for "${tool.name}": ${writeMode.message}`,
-                details: { toolName: tool.name, issues: writeMode.issues },
-              });
-            }
-
-            // ── Capability scope gate ────────────────────────────
-            const allowedScopes = parseToolScopes(context.config.TOOL_SCOPES);
-            const requiredScopes = getRequiredToolScopes(tool);
-            if (!hasRequiredToolScopes(allowedScopes, requiredScopes)) {
-              return structuredErrorResponse({
-                errorCode: ErrorCodes.FORBIDDEN_SCOPE,
-                message: `Tool "${tool.name}" requires one of: ${requiredScopes.join(', ')}.`,
-                details: {
-                  toolName: tool.name,
-                  requiredScopes,
-                  configuredScopes: allowedScopes ? Array.from(allowedScopes) : ['*'],
-                },
-              });
-            }
-
-            // ── Write transaction planning / preview / verification ─────
-            if (tool.confirmWrite && writeMode !== 'apply') {
-              const parsedPlan = tool.inputSchema.safeParse({ ...raw, confirmWrite: true });
-              if (!parsedPlan.success) {
-                return structuredErrorResponse({
-                  errorCode: ErrorCodes.INVALID_INPUT,
-                  message: `Invalid input for "${tool.name}": ${parsedPlan.error.message}`,
-                  details: { toolName: tool.name, issues: parsedPlan.error.issues },
-                });
-              }
-              return writePlanResponse(
-                tool,
-                writeMode,
-                omitWriteControls(parsedPlan.data),
-                requiredScopes,
-              );
-            }
-
-            // ── confirmWrite gate for apply ─────────────────────────────
-            if (tool.confirmWrite && raw.confirmWrite !== true) {
-              return structuredErrorResponse({
-                errorCode: ErrorCodes.CONFIRM_WRITE_REQUIRED,
-                message: `Tool "${tool.name}" can mutate design state and requires confirmWrite=true.`,
-                details: { toolName: tool.name, toolGroup: tool.group, risk: tool.risk },
-              });
-            }
-
-            // ── Parse & execute ───────────────────────────────────────
-            const parsed = tool.inputSchema.parse(input ?? {});
-            const startedAt = Date.now();
-            let result: unknown;
-            try {
-              result = await tool.handler(context, parsed);
-              getGlobalMetricsCollector().recordTimed({
-                category: categoryForTool(tool),
-                name: tool.name,
-                durationMs: Date.now() - startedAt,
-                ok: true,
-              });
-            } catch (err) {
-              getGlobalMetricsCollector().recordTimed({
-                category: categoryForTool(tool),
-                name: tool.name,
-                durationMs: Date.now() - startedAt,
-                ok: false,
-              });
-              throw err;
-            }
-            const output = tool.outputSchema.safeParse(result);
-
-            if (!output.success) {
-              return structuredErrorResponse({
-                errorCode: ErrorCodes.TOOL_OUTPUT_INVALID,
-                message: `Tool "${tool.name}" returned output that does not match its declared outputSchema.`,
-                details: { toolName: tool.name, issues: output.error.issues },
-              });
-            }
-
-            const images = tool.imageContent?.(output.data) ?? [];
-            const responseData =
-              images.length > 0 && tool.imageContentOmitFields?.length
-                ? omitFields(output.data, tool.imageContentOmitFields)
-                : output.data;
-            const structuredContent =
-              typeof responseData === 'object' && responseData !== null
-                ? (responseData as Record<string, unknown>)
-                : { value: responseData };
-            return {
-              structuredContent,
-              content: [
-                { type: 'text' as const, text: JSON.stringify(responseData, null, 2) },
-                ...images.map((image) => ({
-                  type: 'image' as const,
-                  data: image.data,
-                  mimeType: image.mimeType,
-                })),
-              ],
-            };
-          } catch (err) {
-            // ── Zod validation errors ─────────────────────────────────
-            if (err instanceof ZodError) {
-              return structuredErrorResponse({
-                errorCode: ErrorCodes.INVALID_INPUT,
-                message: `Invalid input for "${tool.name}": ${err.message}`,
-                details: { toolName: tool.name, issues: err.issues },
-              });
-            }
-
-            // ── Bridge-disconnected interception ──────────────────────
-            const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes('Bridge not connected') || msg.includes('Bridge disconnected')) {
-              return bridgeDisconnectedResponse(
-                context.config.bridgeHost,
-                String(context.config.bridgePort),
-              );
-            }
-
-            // ── Generic execution error ───────────────────────────────
-            return structuredErrorResponse({
-              errorCode: ErrorCodes.TOOL_EXECUTION,
-              message: `Tool "${tool.name}" failed: ${msg}`,
-              details: { toolName: tool.name },
-            });
-          }
-        },
+        async (input: unknown, extra: unknown) =>
+          handleRegisteredToolCall(tool, context, input, extra),
       );
     }
   }
