@@ -835,13 +835,69 @@ describe('createDispatcher', () => {
     });
   });
 
+  describe('schematic.modifyPrimitive on circle/polygon primitives', () => {
+    it('snapshots and merges a circle primitive instead of falling through to the wrong handler', async () => {
+      const circleModify = vi.fn(async () => true);
+      const circleGet = vi.fn(async () => ({
+        getState_CenterX: () => 300,
+        getState_CenterY: () => 700,
+        getState_Radius: () => 50,
+        getState_Color: () => '#000000',
+        getState_FillColor: () => 'none',
+        getState_LineWidth: () => 1,
+        getState_LineType: () => 0,
+        getState_FillStyle: () => 'none',
+      }));
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveCircle: { get: circleGet, modify: circleModify } }),
+      );
+
+      await dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'circle1',
+        property: { radius: 75 },
+      });
+
+      expect(circleModify).toHaveBeenCalledWith(
+        'circle1',
+        expect.objectContaining({ centerX: 300, centerY: 700, radius: 75, color: '#000000' }),
+      );
+    });
+
+    it('snapshots and merges a polygon primitive instead of falling through to the wrong handler', async () => {
+      const polygonModify = vi.fn(async () => true);
+      const polygonGet = vi.fn(async () => ({
+        getState_Line: () => [0, 0, 10, 0, 5, 10],
+        getState_Color: () => '#FF0000',
+        getState_FillColor: () => 'none',
+        getState_LineWidth: () => 1,
+        getState_LineType: () => 0,
+      }));
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitivePolygon: { get: polygonGet, modify: polygonModify } }),
+      );
+
+      await dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'poly1',
+        property: { color: '#00FF00' },
+      });
+
+      expect(polygonModify).toHaveBeenCalledWith(
+        'poly1',
+        expect.objectContaining({ line: [0, 0, 10, 0, 5, 10], color: '#00FF00' }),
+      );
+    });
+  });
+
   describe('schematic.listRectangles', () => {
-    it('lists rectangles with their coordinates via the live-confirmed TopLeftX/TopLeftY keys', async () => {
+    it('lists rectangles with their coordinates via the live-confirmed TopLeftX/TopLeftY keys, negating the live-verified Y sign flip', async () => {
       const getAll = vi.fn(async () => [
         {
           getState_PrimitiveId: () => 'rect1',
           getState_TopLeftX: () => 100,
-          getState_TopLeftY: () => 200,
+          // Live-verified (2026-07-09): SCH_PrimitiveRectangle reports TopLeftY
+          // sign-flipped relative to what create() was given — raw -200 here
+          // means the box was actually created at y:200.
+          getState_TopLeftY: () => -200,
           getState_Width: () => 300,
           getState_Height: () => 150,
           getState_Rotation: () => 0,
@@ -857,12 +913,12 @@ describe('createDispatcher', () => {
       });
     });
 
-    it('falls back to X/Y if TopLeftX/TopLeftY are not exposed', async () => {
+    it('falls back to X/Y if TopLeftX/TopLeftY are not exposed, still negating Y', async () => {
       const getAll = vi.fn(async () => [
         {
           getState_PrimitiveId: () => 'rect1',
           getState_X: () => 100,
-          getState_Y: () => 200,
+          getState_Y: () => -200,
           getState_Width: () => 300,
           getState_Height: () => 150,
           getState_Rotation: () => 0,
