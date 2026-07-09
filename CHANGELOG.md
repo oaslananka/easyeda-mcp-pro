@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.29.0...easyeda-mcp-pro-v0.29.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* **workflows:** reduce NE555 detached netports ([a686353](https://github.com/oaslananka/easyeda-mcp-pro/commit/a686353bbae9ab45a3b684a9373eb14e1fc02b2f))
+
 ## [0.29.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.28.0...easyeda-mcp-pro-v0.29.0) (2026-07-09)
 
 
