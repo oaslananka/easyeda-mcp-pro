@@ -8,6 +8,7 @@ import {
   collectNativeRuleRunsForPostWriteQa,
 } from '../workflows/schematic-post-write-qa.js';
 import { buildNe555AstableTemplate } from '../workflows/ne555-astable-template.js';
+import { buildRp2040ServoModuleScaffold } from '../workflows/rp2040-servo-module-scaffold.js';
 import {
   computeSectionBounds,
   findOverlappingRectangles,
@@ -473,6 +474,65 @@ const postWriteQaOutputSchema = z.object({
   summary: z.string(),
 });
 
+const rp2040ServoDevicesSchema = z.object({
+  resistor0402: deviceItemSchema,
+  capacitor0402: deviceItemSchema,
+  capacitor0603: deviceItemSchema,
+  capacitorPolarized: deviceItemSchema,
+  rp2040: deviceItemSchema,
+  drv8244: deviceItemSchema,
+  w25q16: deviceItemSchema,
+  txs0102: deviceItemSchema,
+  regulator3v3: deviceItemSchema,
+  usbC: deviceItemSchema,
+  ws2812b: deviceItemSchema,
+  conn01x10: deviceItemSchema,
+  conn01x06: deviceItemSchema,
+  conn01x03: deviceItemSchema,
+  crystal: deviceItemSchema,
+  switchSmd: deviceItemSchema,
+  fuse: deviceItemSchema,
+  diode: deviceItemSchema,
+});
+
+const rp2040ServoInputSchema = z.object({
+  projectId: z.string().min(1),
+  mode: z.enum(['preview', 'apply']).default('preview'),
+  devices: rp2040ServoDevicesSchema,
+  anchor: pointSchema.optional(),
+  preferredRegion: schematicRegionPreferenceSchema.default('upper-left'),
+  margin: z.number().positive().optional(),
+  confirmWrite: z.boolean().optional(),
+});
+
+const rp2040ServoOutputSchema = workflowOutputSchema.extend({
+  safe_region: safeRegionOutputSchema,
+  scaffold: z.object({
+    blocks: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        origin: pointSchema,
+        size: z.object({ width: z.number(), height: z.number() }),
+        refs: z.array(z.string()),
+      }),
+    ),
+    bom: z.object({
+      expectedRefs: z.array(z.string()),
+      referenceCount: z.number().int().nonnegative(),
+      symbolGroups: z.array(
+        z.object({
+          symbol: z.string(),
+          refs: z.array(z.string()),
+          count: z.number().int().nonnegative(),
+        }),
+      ),
+    }),
+    warnings: z.array(z.string()),
+    notes: z.array(z.string()),
+  }),
+});
+
 const ne555OutputSchema = workflowOutputSchema.extend({
   safe_region: safeRegionOutputSchema,
   design: z.object({
@@ -650,6 +710,93 @@ function registerWorkflowTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
 ) {
+  registry.register({
+    name: 'easyeda_workflow_rp2040_servo_module',
+    title: 'Plan or apply an RP2040 servo-module complex schematic scaffold',
+    description:
+      'Create a deterministic functional-block scaffold for the RP2040 servo-module reference design. ' +
+      'This first milestone places BOM components by block and returns explicit missing-netlist warnings; ' +
+      'it does not infer exact pin-to-net wiring from screenshot+BOM alone (confirmWrite required).',
+    profile: 'pro',
+    evidence: ['inferred', 'runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'workflows',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: rp2040ServoInputSchema,
+    outputSchema: rp2040ServoOutputSchema,
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = rp2040ServoInputSchema.parse(params ?? {});
+      let sheetInfo: unknown;
+      try {
+        sheetInfo = await ctx.bridge.call('schematic.getSheetInfo', { projectId: p.projectId });
+      } catch {
+        sheetInfo = undefined;
+      }
+
+      const scaffold = buildRp2040ServoModuleScaffold({ ...p, sheetInfo });
+      const result = (await runWorkflow(
+        ctx,
+        scaffold.workflowInput,
+        'wf_rp2040_servo_module',
+        p.confirmWrite,
+        (plan) => {
+          for (const warning of scaffold.safeRegion.warnings) {
+            pushIssue(plan, {
+              code: 'WORKFLOW_SAFE_REGION',
+              severity: 'warning',
+              message: warning,
+              remediationHint:
+                'Review the returned safe_region bounds and choose a larger sheet or explicit anchor if needed.',
+            });
+          }
+          for (const issue of scaffold.safeRegion.issues) {
+            pushIssue(plan, {
+              code: 'WORKFLOW_SAFE_REGION',
+              severity: 'error',
+              message: `${issue.code}: ${issue.message}`,
+              remediationHint:
+                'Reduce scaffold size, choose another preferredRegion, or provide an explicit anchor.',
+            });
+          }
+          for (const warning of scaffold.warnings) {
+            pushIssue(plan, {
+              code: 'WORKFLOW_EMPTY_PIN_CONNECTIONS',
+              severity: 'warning',
+              message: warning,
+              remediationHint:
+                'Add block-level netlist workflows before treating apply output as an electrically complete schematic.',
+            });
+          }
+        },
+      )) as Record<string, unknown>;
+
+      return {
+        ...result,
+        scaffold: {
+          blocks: scaffold.blocks,
+          bom: scaffold.bom,
+          warnings: scaffold.warnings,
+          notes: scaffold.notes,
+        },
+        safe_region: {
+          blocked: scaffold.safeRegion.blocked,
+          preferred_region: scaffold.safeRegion.preferredRegion,
+          sheet: scaffold.safeRegion.sheet,
+          bounds: scaffold.safeRegion.bounds,
+          anchor: scaffold.workflowInput.anchor,
+          warnings: scaffold.safeRegion.warnings,
+          issues: scaffold.safeRegion.issues,
+        },
+      };
+    },
+  });
+
   registry.register({
     name: 'easyeda_workflow_ne555_astable',
     title: 'Plan or apply a professional NE555 astable LED flasher template',

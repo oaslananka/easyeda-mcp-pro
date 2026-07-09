@@ -103,6 +103,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_workflow_ne555_astable`        | `pro`   | `medium` | Create a deterministic NE555 astable LED flasher workflow using safe sheet-region planning, component-level layout offsets, explicit pin-to-net connectivity, and optional post-write QA. Caller supplies already-resolved EasyEDA device items; this tool does not guess catalog parts (confirmWrite required).                 |
 | `easyeda_workflow_place_block`          | `pro`   | `medium` | Place a group of components, wire their pin-to-net connections (new and/or pre-existing components), and create net ports for block-external nets — all as a single atomic transaction with rollback on partial failure (confirmWrite required).                                                                                 |
 | `easyeda_workflow_power_rail`           | `pro`   | `medium` | Place a regulator and its supporting passives and wire them to input/output/ground nets in a single atomic transaction, instead of one primitive call per component. Caller supplies already-resolved device items and pin connections; this tool does not select parts (confirmWrite required).                                 |
+| `easyeda_workflow_rp2040_servo_module`  | `pro`   | `medium` | Create a deterministic functional-block scaffold for the RP2040 servo-module reference design. This first milestone places BOM components by block and returns explicit missing-netlist warnings; it does not infer exact pin-to-net wiring from screenshot+BOM alone (confirmWrite required).                                   |
 
 ---
 
@@ -3334,6 +3335,51 @@ Returns a JSON object matching the schema:
   rollback_notes: string[];
   error: string (optional);
   verification: object (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_rp2040_servo_module`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Create a deterministic functional-block scaffold for the RP2040 servo-module reference design. This first milestone places BOM components by block and returns explicit missing-netlist warnings; it does not infer exact pin-to-net wiring from screenshot+BOM alone (confirmWrite required).
+
+### Input Parameters
+
+| Parameter         | Type                 | Required       | Description   |
+| ----------------- | -------------------- | -------------- | ------------- |
+| `projectId`       | `string`             | Yes            |               |
+| `mode`            | `'preview'           | 'apply'`       | Yes           |               |
+| `devices`         | `object`             | Yes            |               |
+| `anchor`          | `object (optional)`  | No             |               |
+| `preferredRegion` | `'upper-left'        | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
+| `margin`          | `number (optional)`  | No             |               |
+| `confirmWrite`    | `boolean (optional)` | No             |               |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+  safe_region: object;
+  scaffold: object;
 }
 ```
 

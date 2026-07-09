@@ -73,6 +73,11 @@ const DEFAULT_A4_LANDSCAPE = {
   unit: 'easyeda-coordinate',
 } as const;
 
+const TITLE_BLOCK_PAGE_SIZES = {
+  A4: { width: 1189, height: 841 },
+  A3: { width: 1682, height: 1189 },
+} as const;
+
 const DEFAULT_MARGIN = 80;
 
 const REGION_ROWS: Record<SchematicRegionPreference, 'upper' | 'center' | 'lower'> = {
@@ -125,6 +130,20 @@ function readString(record: Record<string, unknown>, keys: readonly string[]): s
   return undefined;
 }
 
+function readTitleBlockPageSize(
+  root: Record<string, unknown>,
+  currentOrRoot: Record<string, unknown>,
+) {
+  const titleBlock = readRecord(currentOrRoot.titleBlockData ?? root.titleBlockData);
+  const sizeRecord = readRecord(titleBlock.Size);
+  const sizeValue = String(sizeRecord.value ?? '')
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase();
+  if (sizeValue === 'A3') return TITLE_BLOCK_PAGE_SIZES.A3;
+  if (sizeValue === 'A4') return TITLE_BLOCK_PAGE_SIZES.A4;
+  return undefined;
+}
+
 export function inferSchematicSheetGeometry(sheetInfo: unknown): SchematicSheetGeometry {
   const root = readRecord(sheetInfo);
   const current = readRecord(root.currentPage);
@@ -148,6 +167,17 @@ export function inferSchematicSheetGeometry(sheetInfo: unknown): SchematicSheetG
 
   if (width !== undefined && height !== undefined) {
     return { width, height, unit, origin: 'bottom-left', source: 'sheet-info' };
+  }
+
+  const titleBlockSize = readTitleBlockPageSize(root, currentOrRoot);
+  if (titleBlockSize !== undefined) {
+    return {
+      width: titleBlockSize.width,
+      height: titleBlockSize.height,
+      unit,
+      origin: 'bottom-left',
+      source: 'sheet-info',
+    };
   }
 
   return {

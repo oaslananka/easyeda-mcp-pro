@@ -143,6 +143,54 @@ describe('Workflow Tools', () => {
     });
   });
 
+  describe('easyeda_workflow_rp2040_servo_module', () => {
+    const servoDevices = {
+      resistor0402: deviceItem,
+      capacitor0402: deviceItem,
+      capacitor0603: deviceItem,
+      capacitorPolarized: deviceItem,
+      rp2040: deviceItem,
+      drv8244: deviceItem,
+      w25q16: deviceItem,
+      txs0102: deviceItem,
+      regulator3v3: deviceItem,
+      usbC: deviceItem,
+      ws2812b: deviceItem,
+      conn01x10: deviceItem,
+      conn01x06: deviceItem,
+      conn01x03: deviceItem,
+      crystal: deviceItem,
+      switchSmd: deviceItem,
+      fuse: deviceItem,
+      diode: deviceItem,
+    };
+
+    it('previews the RP2040 servo-module scaffold without writing to EasyEDA', async () => {
+      bridgeCall.mockResolvedValueOnce({ currentPage: { width: 1682, height: 1189 } });
+      const tool = registry.get('easyeda_workflow_rp2040_servo_module');
+      const result = (await tool?.handler(context, {
+        projectId: 'servo',
+        mode: 'preview',
+        devices: servoDevices,
+      })) as any;
+
+      expect(result.applied).toBe(false);
+      expect(result.blocked).toBe(false);
+      expect(result.placements).toHaveLength(56);
+      expect(result.operations).toHaveLength(56);
+      expect(result.operations.every((op: any) => op.kind === 'placeComponent')).toBe(true);
+      expect(result.scaffold.bom.referenceCount).toBe(56);
+      expect(result.scaffold.blocks).toHaveLength(7);
+      expect(result.scaffold.warnings.join('\n')).toContain(
+        'exact pin-to-net wiring is not inferred',
+      );
+      expect(
+        result.issues.some((issue: any) => issue.code === 'WORKFLOW_EMPTY_PIN_CONNECTIONS'),
+      ).toBe(true);
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', { projectId: 'servo' });
+    });
+  });
+
   describe('easyeda_workflow_power_rail', () => {
     const basePowerRailInput = () => ({
       projectId: 'proj-1',
