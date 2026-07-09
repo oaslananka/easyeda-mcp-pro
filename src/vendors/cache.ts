@@ -29,7 +29,7 @@ export function cacheKey(parts: Array<string | number | Record<string, unknown>>
 }
 
 function stableStringify(obj: Record<string, unknown>): string {
-  const sortedKeys = Object.keys(obj).sort();
+  const sortedKeys = Object.keys(obj).sort((a, b) => a.localeCompare(b, 'en'));
   const sorted: Record<string, unknown> = {};
   for (const key of sortedKeys) sorted[key] = obj[key];
   return JSON.stringify(sorted);
