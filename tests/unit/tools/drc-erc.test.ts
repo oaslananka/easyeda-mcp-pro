@@ -489,6 +489,75 @@ describe('DRC/ERC Tools', () => {
     expect(result?.overall_passed).toBe(true);
   });
 
+  it('easyeda_post_write_qa classifies manual DRC log lines without bridge calls', async () => {
+    const tool = registry.get('easyeda_post_write_qa');
+    expect(tool).toBeDefined();
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-qa',
+      useNativeChecks: false,
+      policy: 'circuit',
+      manualDrcMessages: ['Wire $1N4 has multiple net names: VCC VCC VCC'],
+    });
+
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(result?.status).toBe('fail');
+    expect(result?.passed).toBe(false);
+    expect(result?.detail_source).toBe('manual');
+    expect(result?.categories.duplicate_net_names).toBe(1);
+  });
+
+  it('easyeda_post_write_qa uses native DRC/ERC and fails free networks for circuit policy', async () => {
+    const tool = registry.get('easyeda_post_write_qa');
+    expect(tool).toBeDefined();
+
+    bridgeCall
+      .mockResolvedValueOnce({
+        violations: [
+          {
+            description: 'The wire VCC $1N4 is a free network with no pins attached.',
+            severity: 'warning',
+            net: 'VCC',
+          },
+        ],
+        totalViolations: 1,
+        warningCount: 1,
+      })
+      .mockResolvedValueOnce({
+        violations: [],
+        totalViolations: 0,
+        errorCount: 0,
+        warningCount: 0,
+      });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-qa',
+      policy: 'circuit',
+    });
+
+    expect(bridgeCall).toHaveBeenNthCalledWith(1, 'design.drc', { projectId: 'proj-qa' });
+    expect(bridgeCall).toHaveBeenNthCalledWith(2, 'design.erc', { projectId: 'proj-qa' });
+    expect(result?.status).toBe('fail');
+    expect(result?.detail_source).toBe('native');
+    expect(result?.categories.free_network_no_pins).toBe(1);
+    expect(result?.issues[0].fatal).toBe(true);
+  });
+
+  it('easyeda_post_write_qa reports inconclusive when native checks are unavailable', async () => {
+    const tool = registry.get('easyeda_post_write_qa');
+    expect(tool).toBeDefined();
+
+    bridgeCall.mockRejectedValue(new Error('native unavailable'));
+
+    const result = await tool?.handler(context, { projectId: 'proj-qa' });
+
+    expect(result?.status).toBe('inconclusive');
+    expect(result?.passed).toBe(false);
+    expect(result?.categories.native_drc_unavailable).toBe(1);
+    expect(result?.categories.native_erc_unavailable).toBe(1);
+    expect(result?.inconclusive_count).toBe(2);
+  });
+
   it('easyeda_drc_run handles bridge failure gracefully', async () => {
     const tool = registry.get('easyeda_drc_run');
     expect(tool).toBeDefined();

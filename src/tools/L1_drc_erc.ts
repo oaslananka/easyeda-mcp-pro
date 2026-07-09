@@ -10,6 +10,7 @@ import {
 } from '../net-validation/schema.js';
 import { classifyNetType, classifyPinElectricalType } from '../net-validation/pin-classifier.js';
 import { analyzePowerTree } from '../power-tree/index.js';
+import { classifyPostWriteQa } from '../workflows/schematic-post-write-qa.js';
 import { fetchComponentPins } from './schematic-helpers.js';
 
 /** Shared error/warning mapper for both the hand-authored and auto-extracted
@@ -746,6 +747,219 @@ function registerDrcErcTools(
         regulators: report.regulators,
         issues: report.issues,
         summary: report.summary,
+      };
+    },
+  });
+
+  const qaViolationSchema = z.object({
+    rule: z.string().optional(),
+    description: z.string().optional(),
+    message: z.string().optional(),
+    severity: z.enum(['error', 'warning', 'info']).optional(),
+    net: z.string().optional(),
+    component: z.string().optional(),
+  });
+
+  const qaRunOverrideSchema = z.object({
+    not_available: z.boolean().optional(),
+    error: z.string().optional(),
+    violations: z.array(qaViolationSchema).optional(),
+    total_violations: z.number().int().nonnegative().optional(),
+    error_count: z.number().int().nonnegative().optional(),
+    warning_count: z.number().int().nonnegative().optional(),
+    passed: z.boolean().optional(),
+    inferred_floating_pins: z
+      .array(
+        z.object({
+          primitiveId: z.string().optional(),
+          designator: z.string().optional(),
+          pinNumber: z.string().optional(),
+        }),
+      )
+      .optional(),
+  });
+
+  registry.register({
+    name: 'easyeda_post_write_qa',
+    title: 'Classify post-write schematic QA results',
+    description:
+      'Run and classify post-write schematic QA after generated edits. Combines native DRC/ERC results ' +
+      'with policy-aware classification so duplicate net names, free networks, and unconnected pins are ' +
+      'reported as pass/fail/inconclusive instead of raw warning counts.',
+    profile: 'core',
+    evidence: ['runtime-probe', 'inferred'],
+    risk: 'medium',
+    confirmWrite: false,
+    group: 'drc-erc',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string(),
+      policy: z.enum(['circuit', 'diagnostic-fixture']).default('circuit'),
+      useNativeChecks: z.boolean().default(true),
+      manualDrcMessages: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Optional user-copied EasyEDA DRC log lines for classification when native details are unavailable',
+        ),
+      manualErcMessages: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Optional user-copied EasyEDA ERC log lines for classification when native details are unavailable',
+        ),
+      drc: qaRunOverrideSchema
+        .optional()
+        .describe('Optional explicit DRC result override for tests or log ingestion'),
+      erc: qaRunOverrideSchema
+        .optional()
+        .describe('Optional explicit ERC result override for tests or log ingestion'),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      status: z.enum(['pass', 'fail', 'inconclusive']),
+      passed: z.boolean(),
+      policy: z.enum(['circuit', 'diagnostic-fixture']),
+      issue_count: z.number().int().nonnegative(),
+      fatal_count: z.number().int().nonnegative(),
+      warning_count: z.number().int().nonnegative(),
+      inconclusive_count: z.number().int().nonnegative(),
+      categories: z.record(z.string(), z.number().int().nonnegative()),
+      issues: z.array(
+        z.object({
+          source: z.enum(['drc', 'erc', 'layout', 'manual-log']),
+          category: z.string(),
+          severity: z.enum(['error', 'warning', 'info']),
+          fatal: z.boolean(),
+          message: z.string(),
+          rule: z.string().optional(),
+          net: z.string().optional(),
+          component: z.string().optional(),
+          remediation_hint: z.string(),
+        }),
+      ),
+      summary: z.string(),
+      detail_source: z.enum(['native', 'manual', 'override', 'mixed']).optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = z
+        .object({
+          projectId: z.string(),
+          policy: z.enum(['circuit', 'diagnostic-fixture']).default('circuit'),
+          useNativeChecks: z.boolean().default(true),
+          manualDrcMessages: z.array(z.string()).optional(),
+          manualErcMessages: z.array(z.string()).optional(),
+          drc: qaRunOverrideSchema.optional(),
+          erc: qaRunOverrideSchema.optional(),
+        })
+        .parse(params ?? {});
+
+      const manualDrc = p.manualDrcMessages?.map((description) => ({
+        description,
+        severity: 'warning' as const,
+      }));
+      const manualErc = p.manualErcMessages?.map((description) => ({
+        description,
+        severity: 'warning' as const,
+      }));
+      let drc =
+        p.drc ??
+        (manualDrc ? { violations: manualDrc, total_violations: manualDrc.length } : undefined);
+      let erc =
+        p.erc ??
+        (manualErc ? { violations: manualErc, total_violations: manualErc.length } : undefined);
+      let nativeUsed = false;
+
+      if (p.useNativeChecks) {
+        if (!drc) {
+          try {
+            const result = (await ctx.bridge.call('design.drc', { projectId: p.projectId })) as {
+              violations?: Array<{
+                rule?: string;
+                description?: string;
+                severity?: string;
+                net?: string;
+                component?: string;
+              }>;
+              totalViolations?: number;
+              errorCount?: number;
+              warningCount?: number;
+            };
+            drc = {
+              violations: result.violations?.map((v) => ({
+                ...v,
+                severity:
+                  v.severity === 'error' || v.severity === 'warning' || v.severity === 'info'
+                    ? v.severity
+                    : undefined,
+              })),
+              total_violations: result.totalViolations,
+              error_count: result.errorCount,
+              warning_count: result.warningCount,
+            };
+            nativeUsed = true;
+          } catch (err) {
+            drc = { not_available: true, error: err instanceof Error ? err.message : String(err) };
+          }
+        }
+        if (!erc) {
+          try {
+            const result = (await ctx.bridge.call('design.erc', { projectId: p.projectId })) as {
+              violations?: Array<{
+                description?: string;
+                severity?: string;
+                net?: string;
+                component?: string;
+              }>;
+              totalViolations?: number;
+              errorCount?: number;
+              warningCount?: number;
+              inferredFloatingPins?: Array<{
+                primitiveId?: string;
+                designator?: string;
+                pinNumber?: string;
+              }>;
+            };
+            erc = {
+              violations: result.violations?.map((v) => ({
+                ...v,
+                severity:
+                  v.severity === 'error' || v.severity === 'warning' || v.severity === 'info'
+                    ? v.severity
+                    : undefined,
+              })),
+              total_violations: result.totalViolations,
+              error_count: result.errorCount,
+              warning_count: result.warningCount,
+              inferred_floating_pins: result.inferredFloatingPins,
+            };
+            nativeUsed = true;
+          } catch (err) {
+            erc = { not_available: true, error: err instanceof Error ? err.message : String(err) };
+          }
+        }
+      }
+
+      const summary = classifyPostWriteQa({ projectId: p.projectId, policy: p.policy, drc, erc });
+      const hasManual = Boolean(p.manualDrcMessages?.length || p.manualErcMessages?.length);
+      const hasOverride = Boolean(p.drc || p.erc);
+      return {
+        ...summary,
+        detail_source:
+          [nativeUsed, hasManual, hasOverride].filter(Boolean).length > 1
+            ? 'mixed'
+            : nativeUsed
+              ? 'native'
+              : hasManual
+                ? 'manual'
+                : hasOverride
+                  ? 'override'
+                  : undefined,
       };
     },
   });
