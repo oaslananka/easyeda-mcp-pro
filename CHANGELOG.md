@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.30.0...easyeda-mcp-pro-v0.31.0) (2026-07-09)
+
+
+### Features
+
+* **workflows:** add RP2040 servo-module scaffold ([#259](https://github.com/oaslananka/easyeda-mcp-pro/issues/259)) ([563abdb](https://github.com/oaslananka/easyeda-mcp-pro/commit/563abdb0b5845f90e958e14cbdf1d0bae7254fbc))
+
 ## [0.30.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.29.1...easyeda-mcp-pro-v0.30.0) (2026-07-09)
 
 
