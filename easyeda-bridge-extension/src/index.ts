@@ -569,7 +569,18 @@ function disconnectRemoteRelay(): void {
 function showRemoteRelayStatus(): void {
   const status = getRemoteRelayClient().getStatus();
   const project = status.activeProject?.projectName ?? 'no active project detected';
-  showToast(`Remote Relay: ${status.mode}/${status.state} | project: ${project}`);
+  const retry =
+    status.nextReconnectDelayMs !== undefined
+      ? ` | retry: ${Math.ceil(status.nextReconnectDelayMs / 1000)}s`
+      : '';
+  const attempts =
+    status.reconnectAttempts && status.reconnectAttempts > 0
+      ? ` | attempts: ${status.reconnectAttempts}`
+      : '';
+  const error = status.lastError ? ` | last error: ${status.lastError}` : '';
+  showToast(
+    `Remote Relay: ${status.mode}/${status.state} | project: ${project}${attempts}${retry}${error}`,
+  );
 }
 
 // ── Socket lifecycle ─────────────────────────────────────────────────────────

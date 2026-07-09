@@ -16,6 +16,10 @@ export interface RemoteRelayStatus {
   pairingCode?: string;
   activeProject?: RemoteActiveProject;
   lastError?: string;
+  lastConnectedAt?: string;
+  lastHeartbeatAt?: string;
+  reconnectAttempts?: number;
+  nextReconnectDelayMs?: number;
 }
 
 interface RemoteRelayClientOptions {
@@ -24,6 +28,12 @@ interface RemoteRelayClientOptions {
   showToast: (message: string) => void;
   readActiveProject: () => RemoteActiveProject | undefined;
   executeToolRequest?: (toolName: string, input: unknown) => Promise<unknown>;
+}
+
+interface RemoteRelayConnectInput {
+  mode: Exclude<RemoteRelayMode, 'disabled'>;
+  relayUrl?: string;
+  pairingCode?: string;
 }
 
 interface RemoteEnvelope {
@@ -37,6 +47,10 @@ interface RemoteEnvelope {
 
 const PROTOCOL_VERSION = '2026-07-remote-relay-v1';
 const DEFAULT_HOSTED_RELAY_URL = 'wss://relay.easyeda-mcp-pro.local/session';
+const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
+const HEARTBEAT_LIVENESS_MS = 45_000;
+const HEARTBEAT_SWEEP_MS = 15_000;
 
 function makeMessageId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -64,51 +78,56 @@ function errorToRelayError(error: unknown): { code: string; message: string; sug
   };
 }
 
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
 export class RemoteRelayClient {
   private socket: WebSocket | null = null;
   private status: RemoteRelayStatus = { mode: 'disabled', state: 'disconnected' };
+  private desiredConnection: RemoteRelayConnectInput | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly options: RemoteRelayClientOptions) {}
 
-  connect(input: {
-    mode: Exclude<RemoteRelayMode, 'disabled'>;
-    relayUrl?: string;
-    pairingCode?: string;
-  }): void {
+  connect(input: RemoteRelayConnectInput): void {
     this.disconnect('replaced');
     const relayUrl = input.relayUrl ?? DEFAULT_HOSTED_RELAY_URL;
+    this.desiredConnection = { ...input, relayUrl };
     this.status = {
       mode: input.mode,
       state: 'connecting',
       relayUrl,
       pairingCode: input.pairingCode,
       activeProject: this.options.readActiveProject(),
+      reconnectAttempts: 0,
     };
     this.options.showToast(`Remote Relay connecting: ${input.mode}`);
-
-    try {
-      const socket = new WebSocket(relayUrl);
-      this.socket = socket;
-      socket.onopen = () => this.handleOpen(input.pairingCode);
-      socket.onmessage = (event) => this.handleMessage(event.data);
-      socket.onerror = () => this.handleError('Remote Relay socket error');
-      socket.onclose = () => this.handleClose();
-    } catch (error) {
-      this.handleError(`Remote Relay failed to start: ${String(error)}`);
-    }
+    this.openSocket(this.desiredConnection);
   }
 
   disconnect(reason: 'user_disabled' | 'replaced' | 'disconnected' = 'user_disabled'): void {
-    if (this.socket) {
+    this.desiredConnection = null;
+    this.clearReconnectTimer();
+    this.clearHeartbeatTimer();
+
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) {
       try {
-        this.send({ type: 'session_closed', reason });
-        this.socket.close();
+        this.sendOnSocket(socket, { type: 'session_closed', reason });
+        socket.close();
       } catch (error) {
         this.options.log('Remote Relay close failed', error);
       }
     }
-    this.socket = null;
-    this.status = { ...this.status, state: 'disconnected', sessionId: undefined };
+    this.status = {
+      ...this.status,
+      state: 'disconnected',
+      sessionId: undefined,
+      nextReconnectDelayMs: undefined,
+    };
   }
 
   getStatus(): RemoteRelayStatus {
@@ -118,8 +137,35 @@ export class RemoteRelayClient {
     };
   }
 
-  private handleOpen(pairingCode?: string): void {
-    this.status = { ...this.status, state: pairingCode ? 'paired' : 'connected' };
+  private openSocket(input: RemoteRelayConnectInput): void {
+    if (!input.relayUrl) return;
+    this.clearReconnectTimer();
+
+    try {
+      const socket = new WebSocket(input.relayUrl);
+      this.socket = socket;
+      socket.onopen = () => this.handleOpen(socket, input.pairingCode);
+      socket.onmessage = (event) => this.handleMessage(socket, event.data);
+      socket.onerror = () => this.handleSocketError(socket, 'Remote Relay socket error');
+      socket.onclose = () => this.handleClose(socket);
+    } catch (error) {
+      this.socket = null;
+      this.scheduleReconnect(`Remote Relay failed to start: ${String(error)}`);
+    }
+  }
+
+  private handleOpen(socket: WebSocket, pairingCode?: string): void {
+    if (socket !== this.socket) return;
+    const timestamp = nowIso();
+    this.status = {
+      ...this.status,
+      state: pairingCode ? 'paired' : 'connected',
+      lastConnectedAt: timestamp,
+      lastHeartbeatAt: timestamp,
+      nextReconnectDelayMs: undefined,
+      lastError: undefined,
+    };
+    this.startHeartbeatTimer();
     this.send({
       type: 'register_session',
       extensionVersion: this.options.extensionVersion,
@@ -133,7 +179,8 @@ export class RemoteRelayClient {
     );
   }
 
-  private handleMessage(data: unknown): void {
+  private handleMessage(socket: WebSocket, data: unknown): void {
+    if (socket !== this.socket) return;
     const text = typeof data === 'string' ? data : '';
     let message: RemoteEnvelope | undefined;
     try {
@@ -160,6 +207,7 @@ export class RemoteRelayClient {
       return;
     }
     if (message.type === 'heartbeat') {
+      this.status = { ...this.status, lastHeartbeatAt: nowIso() };
       this.send({ type: 'heartbeat' });
       return;
     }
@@ -226,22 +274,88 @@ export class RemoteRelayClient {
     }
   }
 
-  private handleError(message: string): void {
-    this.status = { ...this.status, state: 'disconnected', lastError: message };
+  private handleSocketError(socket: WebSocket, message: string): void {
+    if (socket !== this.socket) return;
+    this.status = { ...this.status, lastError: message };
     this.options.log(message);
-    this.options.showToast(message);
   }
 
-  private handleClose(): void {
+  private handleClose(socket: WebSocket): void {
+    if (socket !== this.socket) return;
     this.socket = null;
-    if (this.status.state !== 'disconnected') {
-      this.status = { ...this.status, state: 'disconnected' };
-      this.options.showToast('Remote Relay disconnected');
+    this.clearHeartbeatTimer();
+    if (!this.desiredConnection) {
+      if (this.status.state !== 'disconnected') {
+        this.status = { ...this.status, state: 'disconnected', sessionId: undefined };
+        this.options.showToast('Remote Relay disconnected');
+      }
+      return;
+    }
+    this.scheduleReconnect('Remote Relay disconnected');
+  }
+
+  private scheduleReconnect(message: string): void {
+    const desired = this.desiredConnection;
+    if (!desired) return;
+    this.clearHeartbeatTimer();
+    this.clearReconnectTimer();
+    const nextAttempt = (this.status.reconnectAttempts ?? 0) + 1;
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** (nextAttempt - 1), RECONNECT_MAX_MS);
+    this.status = {
+      ...this.status,
+      state: 'connecting',
+      sessionId: undefined,
+      lastError: message,
+      reconnectAttempts: nextAttempt,
+      nextReconnectDelayMs: delay,
+    };
+    this.options.log('Remote Relay reconnect scheduled', { attempt: nextAttempt, delayMs: delay });
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.desiredConnection) this.openSocket(desired);
+    }, delay);
+  }
+
+  private startHeartbeatTimer(): void {
+    this.clearHeartbeatTimer();
+    this.heartbeatTimer = setInterval(() => this.checkHeartbeatLiveness(), HEARTBEAT_SWEEP_MS);
+  }
+
+  private checkHeartbeatLiveness(): void {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    const lastHeartbeat = this.status.lastHeartbeatAt
+      ? Date.parse(this.status.lastHeartbeatAt)
+      : undefined;
+    if (lastHeartbeat === undefined || Number.isNaN(lastHeartbeat)) return;
+    if (Date.now() - lastHeartbeat <= HEARTBEAT_LIVENESS_MS) return;
+    this.options.log('Remote Relay heartbeat stale; closing socket to reconnect');
+    try {
+      this.socket.close();
+    } catch (error) {
+      this.options.log('Remote Relay stale socket close failed', error);
+      this.scheduleReconnect('Remote Relay heartbeat stale');
     }
   }
 
+  private clearReconnectTimer(): void {
+    if (!this.reconnectTimer) return;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  private clearHeartbeatTimer(): void {
+    if (!this.heartbeatTimer) return;
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
+  }
+
   private send(payload: Record<string, unknown>): void {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    if (!this.socket) return;
+    this.sendOnSocket(this.socket, payload);
+  }
+
+  private sendOnSocket(socket: WebSocket, payload: Record<string, unknown>): void {
+    if (socket.readyState !== WebSocket.OPEN) return;
     const envelope = {
       protocolVersion: PROTOCOL_VERSION,
       messageId: makeMessageId(),
@@ -249,6 +363,6 @@ export class RemoteRelayClient {
       timestamp: new Date().toISOString(),
       ...payload,
     } as RemoteEnvelope;
-    this.socket.send(JSON.stringify(envelope));
+    socket.send(JSON.stringify(envelope));
   }
 }
