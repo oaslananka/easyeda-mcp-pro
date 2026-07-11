@@ -10,8 +10,9 @@ extension session.
 https://mcp.example.com/mcp
 ```
 
-The endpoint should use the project's HTTP transport and remain separate from local-only stdio
-workflows.
+The endpoint uses the project's HTTP transport and remains separate from local-only stdio
+workflows. In `remote_relay` mode the process deliberately does not open the local EasyEDA
+bridge listener; `local_bridge` remains the independent fallback and default.
 
 OAuth protected-resource discovery is available at:
 
@@ -28,9 +29,11 @@ document.
 > `MCP_BRIDGE_BACKEND=local_bridge`, `/mcp` tool calls continue to use the local
 > `BridgeManager`. With `MCP_BRIDGE_BACKEND=remote_relay`, the ToolRegistry replaces the
 > per-request bridge call path with `RemoteGateway.routeToolRequest(...)`, so existing MCP
-> tool handlers route through the paired extension session without being rewritten. The
-> routing foundation is CI-tested, but production identity/session UX, approval creation,
-> and live hosted relay dogfood are still required before Beta status.
+> tool handlers route through the paired extension session without being rewritten. Risky
+> MCP invocations request a decision through the extension's EasyEDA confirmation dialog and
+> use a private invocation grant after approval. Real Streamable HTTP read/write routing is
+> CI-tested with a paired fake extension. The HTTP transport maintains a separate MCP server/transport per `Mcp-Session-Id`, and calls targeting one EasyEDA extension session are serialized before dispatch. Production account linking, polished session/project
+> UX, hosted deployment, and live EasyEDA relay dogfood remain required before Beta status.
 
 ```text
 remote MCP request
@@ -83,9 +86,17 @@ OAUTH_ENABLED=true
 ```
 
 `MCP_REMOTE_SESSION_ID` is optional when the MCP request supplies `remoteSessionId`.
-Write/export/destructive bridge calls require a valid `remoteApprovalId` that matches the
-user, session, method, and input hash. The `/remote/*` pairing, approval, audit, and relay
-endpoints are mounted by the HTTP transport.
+For write/export/destructive tools, the first call returns `APPROVAL_REQUIRED` plus an
+approval ID and asks the paired extension to show an EasyEDA confirmation dialog. The
+client retries the same MCP tool and effective input with `remoteApprovalId`; approved
+invocations receive a private, short-lived server-side grant that is revoked after the
+handler completes. Rejection, timeout, mismatch, and replay fail closed.
+
+The HTTP MCP endpoint multiplexes independent client sessions by `Mcp-Session-Id`. Closing one Claude/MCP client session does not close other clients or the paired EasyEDA extension session.
+
+The HTTP transport mounts pairing, direct tool-request, audit, and WebSocket relay surfaces
+under `/remote/*`. Approval requests and decisions travel over the versioned relay WebSocket;
+there is no anonymous public endpoint that can self-approve a tool call.
 
 ## Route responsibilities
 

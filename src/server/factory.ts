@@ -37,6 +37,7 @@ export interface McpServerInstance {
   context: ToolContext;
   storage?: Storage;
   bridge: BridgeManager | CdpBridgeManager;
+  createSessionServer: () => McpServer;
   shutdown: () => Promise<void>;
 }
 
@@ -50,37 +51,30 @@ export async function createServer(
     options.remoteGateway ??
     (config.MCP_BRIDGE_BACKEND === 'remote_relay' ? new RemoteGateway() : undefined);
 
+  const localBridgeEnabled = config.MCP_BRIDGE_BACKEND !== 'remote_relay';
+
   logger.info(
     {
       profile: config.TOOL_PROFILE,
       transport: config.TRANSPORT,
       nodeVersion: process.version,
       flags: redactObject(flags),
-      bridgeMode: process.env.EASYEDA_BRIDGE === 'cdp' ? 'cdp' : 'extension',
+      bridgeMode: localBridgeEnabled
+        ? process.env.EASYEDA_BRIDGE === 'cdp'
+          ? 'cdp'
+          : 'extension'
+        : 'remote_relay',
     },
     'server initializing',
   );
 
-  const server = new McpServer(
-    {
-      name: 'easyeda-mcp-pro',
-      version: SERVER_VERSION,
-    },
-    {
-      capabilities: {
-        tools: {},
-        resources: {},
-        prompts: {},
-        ...(flags.mcpTasksEnabled ? {} : undefined),
-      },
-    },
-  );
-
   const bridge =
     process.env.EASYEDA_BRIDGE === 'cdp' ? new CdpBridgeManager(config) : new BridgeManager(config);
-  await bridge.connect();
+  if (localBridgeEnabled) await bridge.connect();
   const stopHotSwapWatcher =
-    bridge instanceof BridgeManager ? startHotSwapWatcher(bridge, config) : undefined;
+    localBridgeEnabled && bridge instanceof BridgeManager
+      ? startHotSwapWatcher(bridge, config)
+      : undefined;
 
   const registry = new ToolRegistry();
   registry.setProfile(config.TOOL_PROFILE as ToolProfile);
@@ -158,22 +152,49 @@ export async function createServer(
     storage,
   };
 
-  registry.registerAllOnServer(server, context);
-  registerProjectResourcesAndPrompts(server, context);
+  const createSessionServer = (): McpServer => {
+    const sessionServer = new McpServer(
+      {
+        name: 'easyeda-mcp-pro',
+        version: SERVER_VERSION,
+      },
+      {
+        capabilities: {
+          tools: {},
+          resources: {},
+          prompts: {},
+          ...(flags.mcpTasksEnabled ? {} : undefined),
+        },
+      },
+    );
 
-  server.server.onerror = (error) => {
-    logger.error({ err: error }, 'server error');
+    registry.registerAllOnServer(sessionServer, context);
+    registerProjectResourcesAndPrompts(sessionServer, context);
+    sessionServer.server.onerror = (error) => {
+      logger.error({ err: error }, 'server error');
+    };
+    return sessionServer;
   };
 
+  const server = createSessionServer();
   const transport = new StdioServerTransport();
 
   const shutdown = async () => {
     logger.info('server shutting down');
     stopHotSwapWatcher?.();
     storage.close();
-    bridge.disconnect('server shutdown');
+    if (localBridgeEnabled) bridge.disconnect('server shutdown');
     await server.close();
   };
 
-  return { server, registry, transport, context, storage, bridge, shutdown };
+  return {
+    server,
+    registry,
+    transport,
+    context,
+    storage,
+    bridge,
+    createSessionServer,
+    shutdown,
+  };
 }

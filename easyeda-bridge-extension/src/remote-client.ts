@@ -22,12 +22,25 @@ export interface RemoteRelayStatus {
   nextReconnectDelayMs?: number;
 }
 
+export type RemoteApprovalDecision = 'approved' | 'rejected' | 'timeout';
+
+export interface RemoteApprovalPrompt {
+  approvalId: string;
+  toolName: string;
+  riskLevel: string;
+  actionSummary: string;
+  inputHash: string;
+  activeProject?: RemoteActiveProject;
+  expiresAt: string;
+}
+
 interface RemoteRelayClientOptions {
   extensionVersion: string;
   log: (message: string, data?: unknown) => void;
   showToast: (message: string) => void;
   readActiveProject: () => RemoteActiveProject | undefined;
   executeToolRequest?: (toolName: string, input: unknown) => Promise<unknown>;
+  requestApproval?: (request: RemoteApprovalPrompt) => Promise<RemoteApprovalDecision>;
 }
 
 interface RemoteRelayConnectInput {
@@ -88,6 +101,7 @@ export class RemoteRelayClient {
   private desiredConnection: RemoteRelayConnectInput | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly pendingApprovalIds = new Set<string>();
 
   constructor(private readonly options: RemoteRelayClientOptions) {}
 
@@ -212,14 +226,55 @@ export class RemoteRelayClient {
       return;
     }
     if (message.type === 'approval_request') {
-      this.options.showToast(
-        `Remote approval requested: ${String(message.toolName ?? 'tool action')}`,
-      );
+      void this.handleApprovalRequest(message);
       return;
     }
     if (message.type === 'tool_request') {
       void this.handleToolRequest(message);
     }
+  }
+
+  private async handleApprovalRequest(message: RemoteEnvelope): Promise<void> {
+    const approvalId = typeof message.approvalId === 'string' ? message.approvalId : '';
+    const toolName = typeof message.toolName === 'string' ? message.toolName : '';
+    const actionSummary =
+      typeof message.actionSummary === 'string'
+        ? message.actionSummary
+        : toolName || 'Remote action';
+    const expiresAt = typeof message.expiresAt === 'string' ? message.expiresAt : nowIso();
+    if (!approvalId || !toolName || this.pendingApprovalIds.has(approvalId)) return;
+
+    this.pendingApprovalIds.add(approvalId);
+    let result: RemoteApprovalDecision = 'rejected';
+    try {
+      const requestApproval = this.options.requestApproval;
+      if (requestApproval) {
+        result = await requestApproval({
+          approvalId,
+          toolName,
+          riskLevel: typeof message.riskLevel === 'string' ? message.riskLevel : 'write',
+          actionSummary,
+          inputHash: typeof message.inputHash === 'string' ? message.inputHash : '',
+          activeProject: isRecord(message.activeProject)
+            ? (message.activeProject as unknown as RemoteActiveProject)
+            : undefined,
+          expiresAt,
+        });
+      } else {
+        this.options.showToast('Remote approval UI is unavailable; request rejected.');
+      }
+    } catch (error) {
+      this.options.log('Remote approval prompt failed', error);
+      result = 'rejected';
+    } finally {
+      this.pendingApprovalIds.delete(approvalId);
+    }
+
+    this.send({
+      type: 'approval_result',
+      approvalId,
+      result,
+    });
   }
 
   private async handleToolRequest(message: RemoteEnvelope): Promise<void> {

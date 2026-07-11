@@ -1,13 +1,12 @@
 # ChatGPT app integration plan
 
-**Current status: Planned.** Nothing in this document is implemented yet. The hosted
-gateway has no live deployment, and the pairing/session-router/relay subsystem it would
-depend on (`src/remote/`) is not wired to real MCP tool calls — see
-`docs/REMOTE_RELEASE_READINESS.md` for the tracked gap. This remains a target
-architecture and requirements list, not a usable integration path today. The self-hosted
-tunnel path in `docs/SELF_HOSTED_REMOTE_MCP.md` works with any MCP client that supports
-an arbitrary remote MCP URL, including ChatGPT's developer/custom-connector paths, and
-does not require anything described below.
+**Current status: Planned app, experimental runtime.** There is no live hosted gateway or
+published ChatGPT app. The underlying pairing/session-router/relay path is implemented behind
+`MCP_BRIDGE_BACKEND=remote_relay`; real Streamable HTTP MCP read/write calls and fail-closed
+approval behavior are CI-tested with a paired fake extension. Production account linking,
+app distribution, multi-session UX, hosted deployment, and live EasyEDA/ChatGPT validation
+remain open. The established self-hosted tunnel path in `docs/SELF_HOSTED_REMOTE_MCP.md`
+continues to work for clients that support an arbitrary remote MCP URL.
 
 ChatGPT integration should use the hosted Remote MCP architecture as the primary app path. Self-hosted endpoints remain an advanced/developer path for clients that can connect to arbitrary remote MCP URLs.
 
@@ -60,6 +59,6 @@ Self-hosted remote endpoints can be documented for developer workflows and MCP c
 
 - Final app distribution and review requirements.
 - Exact production auth provider and account-linking model.
-- UI surface for showing active EasyEDA project and approvals.
+- Polished UI for selecting the active EasyEDA session/project and reviewing approval history.
 - Handling multiple simultaneous EasyEDA tabs or projects.
 - Long-running export/manufacturing operations.

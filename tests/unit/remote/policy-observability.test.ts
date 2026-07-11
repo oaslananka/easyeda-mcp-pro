@@ -46,6 +46,97 @@ describe('remote approval policy', () => {
       }),
     ).toBe(true);
   });
+
+  it('accepts only the first decision and treats the exact expiry instant as timeout', () => {
+    const store = new ApprovalStore();
+    store.request({
+      approvalId: 'approval_first_decision',
+      userId: 'user_1',
+      sessionId: 'sess_1',
+      toolName: 'easyeda_schematic_add_text',
+      riskLevel: 'write',
+      inputHash: 'hash_1',
+      actionSummary: 'Add text',
+      expiresAt: new Date('2026-07-03T00:01:00.000Z'),
+    });
+
+    expect(
+      store.resolve('approval_first_decision', 'approved', new Date('2026-07-03T00:01:00.000Z')),
+    ).toMatchObject({ decision: 'timeout' });
+    expect(
+      store.resolve('approval_first_decision', 'approved', new Date('2026-07-03T00:01:01.000Z')),
+    ).toBeUndefined();
+    expect(store.get('approval_first_decision')).toMatchObject({ decision: 'timeout' });
+  });
+
+  it('reuses only an exact unexpired pending approval and removes expired records', () => {
+    const store = new ApprovalStore();
+    store.request({
+      approvalId: 'pending_exact',
+      userId: 'user_1',
+      sessionId: 'sess_1',
+      toolName: 'easyeda_schematic_add_text',
+      riskLevel: 'write',
+      inputHash: 'hash_exact',
+      actionSummary: 'Add text',
+      expiresAt: new Date('2026-07-03T00:02:00.000Z'),
+    });
+    store.request({
+      approvalId: 'pending_expired',
+      userId: 'user_1',
+      sessionId: 'sess_1',
+      toolName: 'easyeda_schematic_add_text',
+      riskLevel: 'write',
+      inputHash: 'hash_expired',
+      actionSummary: 'Add old text',
+      expiresAt: new Date('2026-07-03T00:00:30.000Z'),
+    });
+
+    expect(
+      store.findPending({
+        userId: 'user_1',
+        sessionId: 'sess_1',
+        toolName: 'easyeda_schematic_add_text',
+        inputHash: 'hash_exact',
+        now: new Date('2026-07-03T00:01:00.000Z'),
+      }),
+    ).toMatchObject({ approvalId: 'pending_exact' });
+    expect(
+      store.findPending({
+        userId: 'user_1',
+        sessionId: 'sess_1',
+        toolName: 'easyeda_schematic_add_text',
+        inputHash: 'hash_expired',
+        now: new Date('2026-07-03T00:01:00.000Z'),
+      }),
+    ).toBeUndefined();
+    expect(store.get('pending_expired')).toBeUndefined();
+  });
+
+  it('deletes all approval records for a disconnected session only', () => {
+    const store = new ApprovalStore();
+    for (const [approvalId, sessionId] of [
+      ['approval_a', 'sess_1'],
+      ['approval_b', 'sess_1'],
+      ['approval_c', 'sess_2'],
+    ] as const) {
+      store.request({
+        approvalId,
+        userId: 'user_1',
+        sessionId,
+        toolName: 'easyeda_schematic_add_text',
+        riskLevel: 'write',
+        inputHash: approvalId,
+        actionSummary: 'Add text',
+        expiresAt: new Date('2026-07-03T00:02:00.000Z'),
+      });
+    }
+
+    expect(store.deleteForSession('sess_1')).toBe(2);
+    expect(store.get('approval_a')).toBeUndefined();
+    expect(store.get('approval_b')).toBeUndefined();
+    expect(store.get('approval_c')).toBeDefined();
+  });
 });
 
 describe('remote scope checks', () => {

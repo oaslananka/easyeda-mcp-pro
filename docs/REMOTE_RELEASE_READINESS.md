@@ -19,30 +19,39 @@ unit/HTTP-tested in isolation, and its REST/WebSocket surface (`/remote/pairing-
 `/remote/pairings`, `/remote/tool-requests`, `/remote/audit`, `/remote/relay`) is mounted
 and reachable whenever `TRANSPORT=http` — no separate flag gates it.
 
-The MCP tool path now has an explicit backend selector. With the default
-`MCP_BRIDGE_BACKEND=local_bridge`, every real tool invocation keeps using the existing
-local-loopback `BridgeManager` WebSocket. With `MCP_BRIDGE_BACKEND=remote_relay`, the
-ToolRegistry creates a per-request bridge context that routes `ctx.bridge.call(...)`
-through `RemoteGateway.routeToolRequest(...)`, preserving the existing tool handlers
-without rewriting every tool. This is an integration foundation, not beta-ready remote
-support yet. This means:
+The MCP tool path has an explicit backend selector. With the default
+`MCP_BRIDGE_BACKEND=local_bridge`, tool invocations use the existing local-loopback
+`BridgeManager` WebSocket. With `MCP_BRIDGE_BACKEND=remote_relay`, the server does not
+open a local bridge listener; ToolRegistry routes bridge calls through the selected paired
+Remote Relay session instead. Existing tool handlers remain unchanged. This is a tested
+experimental path, not beta-ready remote support. In particular:
 
-- A read-only tool whose handler calls `ctx.bridge.call(...)` can route through a paired
-  Remote Relay session when the MCP request carries a remote identity and either
-  `remoteSessionId` or `MCP_REMOTE_SESSION_ID` identifies the session.
-- Write/export calls can pass `remoteApprovalId` into the gateway and fail closed if the
-  approval is absent, rejected, expired, or mismatched.
-- Remote dispatch enforces the bridge-call deadline for every dispatcher and reports
-  unsupported extension methods separately from generic extension failures.
-- The extension's `RemoteRelayClient` (Remote Relay Mode) genuinely connects to a relay
-  URL, includes reconnect/backoff and heartbeat liveness, and can execute real EasyEDA
-  API calls when driven directly.
-- Remaining gap: production identity propagation, UX/session selection, approval request
-  creation from MCP clients, and live EasyEDA relay dogfood still need end-to-end
-  validation before this should be described as Beta.
+- A read-only MCP tool can route through a paired Remote Relay session when the request
+  carries a remote identity and either `remoteSessionId` or `MCP_REMOTE_SESSION_ID`
+  identifies the session.
+- Remote-only MCP input schemas advertise `remoteSessionId` and `remoteApprovalId`; local
+  mode keeps the original public schemas unchanged.
+- A risky MCP tool invocation first returns a structured `APPROVAL_REQUIRED` result with
+  an approval ID and sends an `approval_request` to the paired extension. The extension
+  presents an EasyEDA confirmation dialog and returns approved, rejected, or timeout.
+- Approval is bound to the user, session, MCP tool, and effective parsed input. An approved
+  retry receives a private server-side invocation grant, allowing all bridge calls made by
+  that one handler; the grant is revoked when the handler completes. Rejection, timeout,
+  mismatch, and approval-ID replay fail closed before dispatch.
+- Remote dispatch enforces deadlines and reports unsupported extension methods separately
+  from generic extension failures.
+- The HTTP transport creates an isolated MCP server/transport for each `Mcp-Session-Id`; two simultaneous clients can route through the same paired extension, and closing one client leaves the other operational. Calls targeting one EasyEDA extension session are serialized before dispatch.
+- A real Streamable HTTP MCP client integration test covers one built-in read tool and one
+  approval-gated built-in write tool through a paired fake extension, including rejection,
+  timeout, and one-time approval behavior.
+- The extension's `RemoteRelayClient` connects to a relay URL, includes reconnect/backoff
+  and heartbeat liveness, and can execute EasyEDA API bridge methods.
+- Remaining Beta gates include production account linking and identity-provider validation,
+  polished project selection UX and hosted multi-client load validation, a deployed hosted broker, and live EasyEDA
+  relay dogfood against a disposable project.
 
 Given the status vocabulary above, the pairing/relay/approval-routing feature described
-in `REMOTE_GATEWAY_DESIGN.md`, `SELF_HOSTED_REMOTE_MCP.md`'s "Planned relay controls",
+in `REMOTE_GATEWAY_DESIGN.md`, `SELF_HOSTED_REMOTE_MCP.md`,
 `docs/CLAUDE_WEB_CONNECTOR.md`, and `docs/CHATGPT_APP_INTEGRATION.md` is **Experimental**
 behind explicit configuration, not Beta.
 
@@ -78,6 +87,8 @@ CI-safe integration tests should run without live EasyEDA credentials and prove 
 - Write and export requests wait for approval before dispatch.
 - Rejection, timeout, mismatched input hash, and disconnect cases fail closed.
 - User A cannot route a request to user B's session.
+- Two MCP clients receive distinct HTTP session IDs and one client can disconnect without affecting the other.
+- Concurrent calls to one extension session never overlap in the extension dispatcher.
 
 ## Live EasyEDA compatibility evidence
 

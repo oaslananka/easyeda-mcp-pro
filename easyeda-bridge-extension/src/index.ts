@@ -12,7 +12,12 @@ import {
   reconnectDelayMs,
   shouldReconnectAfterSocketFailure,
 } from './connection-policy.js';
-import { RemoteRelayClient, type RemoteRelayMode } from './remote-client.js';
+import {
+  RemoteRelayClient,
+  type RemoteApprovalDecision,
+  type RemoteApprovalPrompt,
+  type RemoteRelayMode,
+} from './remote-client.js';
 import { createDispatcher } from './dispatcher.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, readPath, type JsonValue } from './utils.js';
@@ -94,6 +99,16 @@ interface EasyedaWebSocketApi {
 
 interface EasyedaMessageApi {
   showToastMessage?: (message: string, messageType?: string) => void;
+}
+
+interface EasyedaDialogApi {
+  showConfirmationMessage?: (
+    content: string,
+    title?: string,
+    mainButtonTitle?: string,
+    buttonTitle?: string,
+    callbackFn?: (mainButtonClicked: boolean) => void,
+  ) => void;
 }
 
 interface EasyedaToastApi {
@@ -537,6 +552,53 @@ async function handleLoaderMethod(
 
 let remoteRelayClient: RemoteRelayClient | null = null;
 
+function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteApprovalDecision> {
+  const dialog = readPath<EasyedaDialogApi>(getGlobal(), 'sys_Dialog');
+  const expiresAtMs = Date.parse(prompt.expiresAt);
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+    return Promise.resolve('timeout');
+  }
+  const showConfirmationMessage = dialog?.showConfirmationMessage?.bind(dialog);
+  if (!showConfirmationMessage) {
+    log('Remote approval dialog unavailable', { toolName: prompt.toolName });
+    showToast('Remote approval dialog is unavailable; request rejected.');
+    return Promise.resolve('rejected');
+  }
+
+  return new Promise<RemoteApprovalDecision>((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (decision: RemoteApprovalDecision): void => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve(decision);
+    };
+    timer = setTimeout(() => finish('timeout'), Math.max(0, expiresAtMs - Date.now()));
+
+    const project = prompt.activeProject?.projectName ?? 'current EasyEDA project';
+    const summary = [
+      prompt.actionSummary,
+      `Method: ${prompt.toolName}`,
+      `Risk: ${prompt.riskLevel}`,
+      `Project: ${project}`,
+      `Input hash: ${prompt.inputHash.slice(0, 12)}`,
+    ].join('\n');
+    try {
+      showConfirmationMessage(
+        summary,
+        'Remote MCP Approval',
+        'Approve',
+        'Reject',
+        (mainButtonClicked) => finish(mainButtonClicked ? 'approved' : 'rejected'),
+      );
+    } catch (error) {
+      log('Remote approval dialog failed', error);
+      finish('rejected');
+    }
+  });
+}
+
 function getRemoteRelayClient(): RemoteRelayClient {
   remoteRelayClient ??= new RemoteRelayClient({
     extensionVersion: EXTENSION_INFO.extensionVersion,
@@ -545,6 +607,7 @@ function getRemoteRelayClient(): RemoteRelayClient {
     readActiveProject: readRemoteActiveProject,
     executeToolRequest: (toolName, input) =>
       dispatchViaActive(toolName, isRecord(input) ? input : {}),
+    requestApproval: requestRemoteApproval,
   });
   return remoteRelayClient;
 }

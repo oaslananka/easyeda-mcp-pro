@@ -9,3 +9,7 @@ node_modules/
 CHANGELOG.md
 easyeda-bridge-extension/extension.json
 proje-ymlenmesi/
+
+# Local code-analysis metadata
+.serena/
+.codebase-memory/

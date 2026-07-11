@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { type Express, type Request, type Response, type NextFunction } from 'express';
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
+import { type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { type EnvConfig } from '../../config/env.js';
@@ -16,6 +18,7 @@ import { RemoteGateway } from '../../remote/gateway.js';
 export interface HttpTransportInstance {
   app: Express;
   transport: StreamableHTTPServerTransport;
+  readonly activeSessionCount: number;
   start: () => Promise<void>;
   close: () => Promise<void>;
   gateway: RemoteGateway;
@@ -23,11 +26,18 @@ export interface HttpTransportInstance {
 
 export interface HttpTransportOptions {
   gateway?: RemoteGateway;
+  serverFactory?: () => McpServer;
 }
 
 interface RateLimitEntry {
   count: number;
   resetAt: number;
+}
+
+interface McpHttpSession {
+  server: McpServer;
+  transport: StreamableHTTPServerTransport;
+  closing: boolean;
 }
 
 function createRateLimiter(windowMs: number, maxRequests: number) {
@@ -367,10 +377,10 @@ export function handleCorsPreflight(req: Request, res: Response, next: NextFunct
   if (req.method === 'OPTIONS') {
     // Vary: Origin tells caches that the response varies by the Origin header.
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, MCP-Protocol-Version',
+      'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID',
     );
     res.setHeader('Access-Control-Max-Age', '86400');
     res.status(204).end();
@@ -422,13 +432,29 @@ function addSecurityHeaders(_req: Request, res: Response, next: NextFunction): v
   next();
 }
 
+function getMcpSessionId(req: Request): string | undefined {
+  const header = req.headers['mcp-session-id'];
+  return Array.isArray(header) ? header[0] : header;
+}
+
+function mcpSessionError(res: Response, status: number, message: string): void {
+  res.status(status).json({
+    jsonrpc: '2.0',
+    error: { code: -32000, message },
+    id: null,
+  });
+}
+
 export function createHttpTransport(
   config: EnvConfig,
   options: HttpTransportOptions = {},
 ): HttpTransportInstance {
   const logger = getLogger();
   const gateway = options.gateway ?? new RemoteGateway();
+  const sessions = new Map<string, McpHttpSession>();
 
+  // Retained for compatibility with callers that explicitly attach one MCP
+  // server. Production HTTP uses serverFactory and the session map below.
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
   });
@@ -456,12 +482,125 @@ export function createHttpTransport(
 
   app.use(validateOAuthToken(config));
 
-  app.post('/mcp', (req, res) => {
-    transport.handleRequest(req, res, req.body);
+  const forgetMcpSession = (session: McpHttpSession): void => {
+    const sessionId = session.transport.sessionId;
+    if (sessionId && sessions.get(sessionId) === session) {
+      sessions.delete(sessionId);
+      logger.debug({ sessionId, activeSessions: sessions.size }, 'MCP HTTP session closed');
+    }
+  };
+
+  const closeMcpSession = async (session: McpHttpSession): Promise<void> => {
+    if (session.closing) return;
+    session.closing = true;
+    forgetMcpSession(session);
+    await session.server.close();
+  };
+
+  const sessionForRequest = (req: Request, res: Response): McpHttpSession | undefined => {
+    const sessionId = getMcpSessionId(req);
+    if (!sessionId) {
+      mcpSessionError(res, 400, 'Bad Request: Missing MCP session ID');
+      return undefined;
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      mcpSessionError(res, 404, 'Session not found or expired');
+      return undefined;
+    }
+    return session;
+  };
+
+  const createMcpSession = async (req: Request, res: Response): Promise<void> => {
+    const serverFactory = options.serverFactory;
+    if (!serverFactory) {
+      await transport.handleRequest(req, res, req.body);
+      return;
+    }
+
+    const sessionTransport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sessionId) => {
+        sessions.set(sessionId, session);
+        logger.debug({ sessionId, activeSessions: sessions.size }, 'MCP HTTP session initialized');
+      },
+    });
+    const sessionServer = serverFactory();
+    const session: McpHttpSession = {
+      server: sessionServer,
+      transport: sessionTransport,
+      closing: false,
+    };
+
+    sessionTransport.onclose = () => {
+      forgetMcpSession(session);
+      if (!session.closing) {
+        void closeMcpSession(session).catch((error: unknown) => {
+          logger.error(
+            { err: error instanceof Error ? error.message : String(error) },
+            'MCP HTTP session server close failed',
+          );
+        });
+      }
+    };
+
+    try {
+      await sessionServer.connect(sessionTransport);
+      await sessionTransport.handleRequest(req, res, req.body);
+      if (!sessionTransport.sessionId) {
+        await closeMcpSession(session);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error({ err: message }, 'MCP HTTP session initialization failed');
+      await closeMcpSession(session).catch(() => undefined);
+      if (!res.headersSent) {
+        mcpSessionError(res, 500, 'Internal server error while initializing MCP session');
+      }
+    }
+  };
+
+  app.post('/mcp', async (req, res) => {
+    if (!options.serverFactory) {
+      await transport.handleRequest(req, res, req.body);
+      return;
+    }
+
+    const sessionId = getMcpSessionId(req);
+    if (sessionId) {
+      const session = sessions.get(sessionId);
+      if (!session) {
+        mcpSessionError(res, 404, 'Session not found or expired');
+        return;
+      }
+      await session.transport.handleRequest(req, res, req.body);
+      return;
+    }
+
+    if (!isInitializeRequest(req.body)) {
+      mcpSessionError(res, 400, 'Bad Request: No valid MCP session ID provided');
+      return;
+    }
+
+    await createMcpSession(req, res);
   });
 
-  app.get('/mcp', (req, res) => {
-    transport.handleRequest(req, res);
+  app.get('/mcp', async (req, res) => {
+    if (!options.serverFactory) {
+      await transport.handleRequest(req, res);
+      return;
+    }
+    const session = sessionForRequest(req, res);
+    if (session) await session.transport.handleRequest(req, res);
+  });
+
+  app.delete('/mcp', async (req, res) => {
+    if (!options.serverFactory) {
+      await transport.handleRequest(req, res);
+      return;
+    }
+    const session = sessionForRequest(req, res);
+    if (session) await session.transport.handleRequest(req, res);
   });
 
   app.get('/healthz', (_req, res) => {
@@ -488,6 +627,8 @@ export function createHttpTransport(
 
   const close = async () => {
     logger.info('HTTP transport closing');
+    const activeSessions = [...sessions.values()];
+    await Promise.allSettled(activeSessions.map(closeMcpSession));
     await transport.close();
     const s = server;
     if (s) {
@@ -495,5 +636,14 @@ export function createHttpTransport(
     }
   };
 
-  return { app, transport, start, close, gateway };
+  return {
+    app,
+    transport,
+    get activeSessionCount() {
+      return sessions.size;
+    },
+    start,
+    close,
+    gateway,
+  };
 }
