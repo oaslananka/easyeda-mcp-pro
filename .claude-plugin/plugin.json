@@ -7,9 +7,5 @@
     "name": "oaslananka",
     "url": "https://github.com/oaslananka"
   },
-  "skills": [
-    "./skills/easyeda-workflow",
-    "./skills/component-search",
-    "./skills/design-validation"
-  ]
+  "skills": ["./skills/easyeda-workflow", "./skills/component-search", "./skills/design-validation"]
 }
