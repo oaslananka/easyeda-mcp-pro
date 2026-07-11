@@ -61,6 +61,8 @@ describe('createDispatcher', () => {
     expect(dispatcher.methodList).toEqual([...dispatcher.methodList].sort());
     expect(dispatcher.buildId).toBeTruthy();
     expect(dispatcher.methodList).toContain('schematic.addWire');
+    expect(dispatcher.methodList).toContain('schematic.getPrimitiveSnapshot');
+    expect(dispatcher.methodList).toContain('schematic.restorePrimitiveSnapshot');
     expect(dispatcher.methodList).toContain('system.inspectWires');
   });
 
@@ -533,8 +535,23 @@ describe('createDispatcher', () => {
       false,
       false,
       false,
-      0,
+      undefined,
     );
+  });
+
+  it('rejects schematic text alignMode values outside the documented 1..9 enum', async () => {
+    const create = vi.fn();
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveText: { create } }));
+
+    await expect(
+      dispatcher.dispatch('schematic.addText', {
+        x: 10,
+        y: 20,
+        content: 'INVALID ALIGN',
+        alignMode: 0,
+      }),
+    ).rejects.toThrow('alignMode must be an integer from 1 through 9');
+    expect(create).not.toHaveBeenCalled();
   });
 
   // Live-verified (2026-07-07): SCH_PrimitiveRectangle's field order was
@@ -790,6 +807,549 @@ describe('createDispatcher', () => {
     });
   });
 
+  describe('schematic primitive transaction snapshots', () => {
+    it('captures a complete component property snapshot', async () => {
+      const component = fakeComponent({
+        ComponentType: 'part',
+        X: 120,
+        Y: 240,
+        Designator: 'R7',
+        Name: '10k',
+        OtherProperty: { Footprint: 'R0603' },
+      });
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveComponent: { get: async () => component } }),
+      );
+
+      const snapshot = (await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'r7-id',
+      })) as Record<string, any>;
+
+      expect(snapshot).toMatchObject({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'r7-id',
+        primitiveKind: 'component',
+        componentType: 'part',
+        property: {
+          x: 120,
+          y: 240,
+          designator: 'R7',
+          name: '10k',
+          otherProperty: { Footprint: 'R0603' },
+        },
+      });
+    });
+
+    it('captures a wire snapshot after component lookup misses', async () => {
+      const wire = fakeWire('w1', 'NET_A', [0, 0, 20, 0]);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveComponent: { get: async () => undefined },
+          SCH_PrimitiveWire: { get: async () => wire },
+        }),
+      );
+
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'w1',
+      });
+
+      expect(snapshot).toEqual({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'w1',
+        primitiveKind: 'wire',
+        property: {
+          line: [0, 0, 20, 0],
+          net: 'NET_A',
+          color: '#000000',
+          lineWidth: 1,
+          lineType: 0,
+        },
+      });
+    });
+
+    it('restores an exact snapshot through the normal safe modify path', async () => {
+      const modify = vi.fn(async () => true);
+      const component = fakeComponent({
+        ComponentType: 'part',
+        X: 100,
+        Y: 200,
+        Designator: 'R1',
+        Name: '1k',
+      });
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveComponent: {
+            get: async () => component,
+            modify,
+            getAllPinsByPrimitiveId: async () => [],
+          },
+        }),
+      );
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'r1-id',
+      });
+
+      const result = (await dispatcher.dispatch('schematic.restorePrimitiveSnapshot', {
+        snapshot,
+      })) as Record<string, any>;
+
+      expect(modify).toHaveBeenCalledWith(
+        'r1-id',
+        expect.objectContaining({ x: 100, y: 200, designator: 'R1', name: '1k' }),
+      );
+      expect(result).toMatchObject({
+        restored: true,
+        snapshot: {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'r1-id',
+          primitiveKind: 'component',
+        },
+      });
+    });
+
+    it('rejects invented or malformed restore payloads', async () => {
+      const dispatcher = createDispatcher(makeToolkit({}));
+      await expect(
+        dispatcher.dispatch('schematic.restorePrimitiveSnapshot', {
+          snapshot: { schemaVersion: 'wrong', primitiveId: 'p1', property: {} },
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    });
+  });
+
+  describe('schematic batch primitive support', () => {
+    it('captures rectangle state in a transaction-safe snapshot', async () => {
+      const rectangle = {
+        getState_PrimitiveId: () => 'rect1',
+        getState_TopLeftX: () => 100,
+        getState_TopLeftY: () => -200,
+        getState_Width: () => 300,
+        getState_Height: () => 150,
+        getState_CornerRadius: () => 5,
+        getState_Rotation: () => 0,
+        getState_Color: () => '#000000',
+        getState_FillColor: () => 'none',
+        getState_LineWidth: () => 1,
+        getState_LineType: () => 0,
+        getState_FillStyle: () => 'none',
+      };
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveRectangle: { get: async () => rectangle } }),
+      );
+
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'rect1',
+      });
+
+      expect(snapshot).toEqual({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'rect1',
+        primitiveKind: 'rectangle',
+        property: {
+          x: 100,
+          y: -200,
+          width: 300,
+          height: 150,
+          cornerRadius: 5,
+          rotation: 0,
+          color: '#000000',
+          fillColor: 'none',
+          lineWidth: 1,
+          lineType: 0,
+          fillStyle: 'none',
+        },
+      });
+    });
+
+    it('captures state exposed as direct lower-camel properties after a native modify', async () => {
+      const text = {
+        primitiveId: 'text1',
+        x: 100,
+        y: 200,
+        content: 'TITLE',
+        rotation: 0,
+        textColor: '#000000',
+        fontName: 'Arial',
+        fontSize: 12,
+        bold: false,
+        italic: false,
+        underLine: false,
+        alignMode: 3,
+      };
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveText: { get: async () => text } }),
+      );
+
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'text1',
+      });
+
+      expect(snapshot).toMatchObject({
+        primitiveKind: 'text',
+        property: {
+          x: 100,
+          y: 200,
+          content: 'TITLE',
+          color: '#000000',
+          underline: false,
+          alignMode: 3,
+        },
+      });
+    });
+
+    it('falls back when a retained getState getter returns undefined after modify', async () => {
+      const text = {
+        getState_PrimitiveId: () => 'text-fallback',
+        getState_X: () => 100,
+        getState_Y: () => 200,
+        getState_Content: () => 'TITLE',
+        getState_Rotation: () => 0,
+        getState_TextColor: () => '#000000',
+        getState_FontName: () => 'Arial',
+        getState_FontSize: () => 12,
+        getState_Bold: () => false,
+        getState_Italic: () => false,
+        getState_UnderLine: () => false,
+        getState_AlignMode: () => undefined,
+        alignMode: 3,
+      };
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveText: { get: async () => text } }),
+      );
+
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'text-fallback',
+      });
+
+      expect(snapshot).toMatchObject({
+        primitiveKind: 'text',
+        property: { alignMode: 3 },
+      });
+    });
+
+    it('keeps the public get() alignment while using getAll() only for missing fields', async () => {
+      const publicText = {
+        getState_PrimitiveId: () => 'text-persistent',
+        getState_X: () => 100,
+        getState_Y: () => 200,
+        getState_Content: () => undefined,
+        getState_Rotation: () => 0,
+        getState_TextColor: () => '#000000',
+        getState_FontName: () => 'Arial',
+        getState_FontSize: () => 12,
+        getState_Bold: () => false,
+        getState_Italic: () => false,
+        getState_UnderLine: () => false,
+        getState_AlignMode: () => 3,
+      };
+      const persistent = {
+        ...publicText,
+        getState_Content: () => 'TITLE FROM DOCUMENT STATE',
+        getState_AlignMode: () => 11,
+      };
+      const get = vi.fn(async () => publicText);
+      const getAll = vi.fn(async () => [persistent]);
+      const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveText: { get, getAll } }));
+
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'text-persistent',
+      });
+
+      expect(get).toHaveBeenCalledWith('text-persistent');
+      expect(getAll).toHaveBeenCalledOnce();
+      expect(snapshot).toMatchObject({
+        primitiveKind: 'text',
+        property: {
+          content: 'TITLE FROM DOCUMENT STATE',
+          alignMode: 3,
+        },
+      });
+    });
+
+    it('ignores an unrelated text wrapper returned for a rectangle ID', async () => {
+      const unrelatedText = {
+        getState_PrimitiveId: () => 'different-text',
+        getState_AlignMode: () => 3,
+      };
+      const rectangle = {
+        getState_PrimitiveId: () => 'rect-target',
+        getState_TopLeftX: () => 100,
+        getState_TopLeftY: () => -200,
+        getState_Width: () => 300,
+        getState_Height: () => 150,
+        getState_CornerRadius: () => 0,
+        getState_Rotation: () => 0,
+        getState_Color: () => '#000000',
+        getState_FillColor: () => 'none',
+        getState_LineWidth: () => 1,
+        getState_LineType: () => 0,
+        getState_FillStyle: () => 'none',
+      };
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveText: {
+            get: async () => unrelatedText,
+            getAll: async () => [],
+          },
+          SCH_PrimitiveRectangle: {
+            get: async (id: string) => (id === 'rect-target' ? rectangle : undefined),
+          },
+        }),
+      );
+
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'rect-target',
+      });
+
+      expect(snapshot).toMatchObject({
+        primitiveId: 'rect-target',
+        primitiveKind: 'rectangle',
+        property: { x: 100, y: -200, width: 300, height: 150 },
+      });
+    });
+
+    it('continues past a same-ID text wrapper without public alignment and finds the rectangle', async () => {
+      const misleadingText = {
+        getState_PrimitiveId: () => 'rect-same-id',
+        getState_AlignMode: () => undefined,
+      };
+      const rectangle = {
+        getState_PrimitiveId: () => 'rect-same-id',
+        getState_TopLeftX: () => 100,
+        getState_TopLeftY: () => -200,
+        getState_Width: () => 300,
+        getState_Height: () => 150,
+        getState_CornerRadius: () => 0,
+        getState_Rotation: () => 0,
+        getState_Color: () => '#000000',
+        getState_FillColor: () => 'none',
+        getState_LineWidth: () => 1,
+        getState_LineType: () => 0,
+        getState_FillStyle: () => 'none',
+      };
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveText: {
+            get: async () => misleadingText,
+            getAll: async () => [],
+          },
+          SCH_PrimitiveRectangle: {
+            get: async (id: string) => (id === 'rect-same-id' ? rectangle : undefined),
+          },
+        }),
+      );
+
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'rect-same-id',
+      });
+
+      expect(snapshot).toMatchObject({
+        primitiveId: 'rect-same-id',
+        primitiveKind: 'rectangle',
+        property: { x: 100, y: -200, width: 300, height: 150 },
+      });
+    });
+
+    it('uses expectedPrimitiveKind to bypass a misleading text wrapper with the same ID', async () => {
+      const misleadingText = {
+        getState_PrimitiveId: () => 'rect-target',
+        getState_Content: () => 'NOT A REAL TEXT',
+        getState_AlignMode: () => undefined,
+      };
+      const rectangle = {
+        getState_PrimitiveId: () => 'rect-target',
+        getState_TopLeftX: () => 100,
+        getState_TopLeftY: () => -200,
+        getState_Width: () => 300,
+        getState_Height: () => 150,
+        getState_CornerRadius: () => 0,
+        getState_Rotation: () => 0,
+        getState_Color: () => '#000000',
+        getState_FillColor: () => 'none',
+        getState_LineWidth: () => 1,
+        getState_LineType: () => 0,
+        getState_FillStyle: () => 'none',
+      };
+      const textGet = vi.fn(async () => misleadingText);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveText: { get: textGet, getAll: async () => [] },
+          SCH_PrimitiveRectangle: { get: async () => rectangle },
+        }),
+      );
+
+      const snapshot = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'rect-target',
+        expectedPrimitiveKind: 'rectangle',
+      });
+
+      expect(textGet).not.toHaveBeenCalled();
+      expect(snapshot).toMatchObject({
+        primitiveId: 'rect-target',
+        primitiveKind: 'rectangle',
+        property: { x: 100, y: -200, width: 300, height: 150 },
+      });
+    });
+
+    it('lists addressable primitive IDs by kind', async () => {
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveText: {
+            getAll: async () => [
+              { getState_PrimitiveId: () => 'text2' },
+              { getState_PrimitiveId: () => 'text1' },
+            ],
+          },
+        }),
+      );
+
+      await expect(
+        dispatcher.dispatch('schematic.listPrimitiveIds', { primitiveKind: 'text' }),
+      ).resolves.toEqual({ primitiveKind: 'text', primitiveIds: ['text1', 'text2'] });
+    });
+
+    it('routes deletion to the primitive class that owns the ID', async () => {
+      const componentDelete = vi.fn();
+      const textDelete = vi.fn(async () => true);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveComponent: { get: async () => undefined, delete: componentDelete },
+          SCH_PrimitiveText: {
+            get: async (id: string) =>
+              id === 'text1' ? { getState_PrimitiveId: () => id } : undefined,
+            delete: textDelete,
+          },
+        }),
+      );
+
+      const result = await dispatcher.dispatch('schematic.deletePrimitive', {
+        primitiveIds: ['text1', 'missing'],
+      });
+
+      expect(componentDelete).not.toHaveBeenCalled();
+      expect(textDelete).toHaveBeenCalledWith(['text1']);
+      expect(result).toEqual({
+        success: false,
+        deleted: ['text1'],
+        notFound: ['missing'],
+      });
+    });
+
+    it('recreates a wire snapshot and returns the new addressable snapshot', async () => {
+      const wires: Array<Record<string, unknown>> = [];
+      const create = vi.fn(async (line: number[], net: string) => {
+        const wire = fakeWire('wire-new', net, line);
+        wires.push(wire);
+        return wire;
+      });
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveWire: {
+            create,
+            getAll: async () => wires,
+            get: async (id: string) => wires.find((wire) => wire.getState_PrimitiveId?.() === id),
+          },
+        }),
+      );
+
+      const result = await dispatcher.dispatch('schematic.recreatePrimitiveSnapshot', {
+        snapshot: {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'wire-old',
+          primitiveKind: 'wire',
+          property: {
+            line: [0, 0, 10, 0],
+            net: 'NET_A',
+            color: '#000000',
+            lineWidth: 1,
+            lineType: 0,
+          },
+        },
+      });
+
+      expect(create).toHaveBeenCalledWith([0, 0, 10, 0], 'NET_A', '#000000', 1, 0);
+      expect(result).toMatchObject({
+        primitiveId: 'wire-new',
+        snapshot: {
+          primitiveId: 'wire-new',
+          primitiveKind: 'wire',
+          property: { line: [0, 0, 10, 0], net: 'NET_A' },
+        },
+      });
+    });
+
+    it('recreates annotation Y coordinates using the live text sign convention', async () => {
+      const texts: Array<Record<string, unknown>> = [];
+      const create = vi.fn(async (x: number, createY: number, content: string) => {
+        const text = {
+          getState_PrimitiveId: () => 'text-new',
+          getState_X: () => x,
+          getState_Y: () => -createY,
+          getState_Content: () => content,
+          getState_Rotation: () => 0,
+          getState_TextColor: () => '#000000',
+          getState_FontName: () => 'Arial',
+          getState_FontSize: () => 20,
+          getState_Bold: () => false,
+          getState_Italic: () => false,
+          getState_UnderLine: () => false,
+          getState_AlignMode: () => 3,
+        };
+        texts.push(text);
+        return text;
+      });
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveText: {
+            create,
+            getAll: async () => texts,
+            get: async (id: string) => texts.find((text) => text.getState_PrimitiveId?.() === id),
+          },
+        }),
+      );
+
+      const result = await dispatcher.dispatch('schematic.recreatePrimitiveSnapshot', {
+        snapshot: {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'text-old',
+          primitiveKind: 'text',
+          property: { x: 100, y: -600, content: 'TITLE', alignMode: 3 },
+        },
+      });
+
+      expect(create).toHaveBeenCalledWith(
+        100,
+        600,
+        'TITLE',
+        0,
+        '#000000',
+        'Arial',
+        20,
+        false,
+        false,
+        false,
+        3,
+      );
+      expect(result).toMatchObject({
+        snapshot: { primitiveId: 'text-new', property: { x: 100, y: -600, content: 'TITLE' } },
+      });
+    });
+
+    it('rejects component recreation without a complete library device descriptor', async () => {
+      const dispatcher = createDispatcher(makeToolkit({}));
+      await expect(
+        dispatcher.dispatch('schematic.recreatePrimitiveSnapshot', {
+          snapshot: {
+            schemaVersion: 'schematic-primitive-snapshot/v1',
+            primitiveId: 'u1',
+            primitiveKind: 'component',
+            property: { designator: 'U1' },
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    });
+  });
+
   describe('schematic.modifyPrimitive wire-following', () => {
     it("translates a wire endpoint that was touching the moved component's old pin coordinate", async () => {
       const modify = vi.fn(async () => true);
@@ -850,9 +1410,9 @@ describe('createDispatcher', () => {
   });
 
   describe('schematic.modifyPrimitive on text primitives', () => {
-    it('snapshots and merges a text primitive instead of falling through to the component/wire fallback', async () => {
-      const textModify = vi.fn(async () => true);
-      const textGet = vi.fn(async () => ({
+    it('preserves the public alignment instead of replaying getAll internal state', async () => {
+      const publicText = {
+        getState_PrimitiveId: () => 'text1',
         getState_X: () => 200,
         getState_Y: () => 600,
         getState_Content: () => 'OLD TITLE',
@@ -863,29 +1423,75 @@ describe('createDispatcher', () => {
         getState_Bold: () => false,
         getState_Italic: () => false,
         getState_UnderLine: () => false,
-        getState_AlignMode: () => 0,
-      }));
-      // No SCH_PrimitiveComponent/SCH_PrimitiveWire registered — proves the text
-      // branch handles this, not the generic component/wire fallback.
+        getState_AlignMode: () => 3,
+      };
+      const lossyText = {
+        ...publicText,
+        getState_AlignMode: () => undefined,
+      };
+      const persistentText = {
+        ...publicText,
+        getState_AlignMode: () => 11,
+      };
+      const textGet = vi.fn().mockResolvedValueOnce(publicText).mockResolvedValue(lossyText);
+      const textGetAll = vi.fn(async () => [persistentText]);
+      const textModify = vi.fn(async () => publicText);
       const dispatcher = createDispatcher(
-        makeToolkit({ SCH_PrimitiveText: { get: textGet, modify: textModify } }),
+        makeToolkit({
+          SCH_PrimitiveText: { get: textGet, getAll: textGetAll, modify: textModify },
+        }),
       );
 
+      const before = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'text1',
+      });
       await dispatcher.dispatch('schematic.modifyPrimitive', {
         primitiveId: 'text1',
-        property: { content: 'NEW TITLE' },
+        property: { content: 'NEW TITLE', color: '#FF0000', underline: true },
+      });
+      const after = await dispatcher.dispatch('schematic.getPrimitiveSnapshot', {
+        primitiveId: 'text1',
       });
 
+      expect(before).toMatchObject({ property: { alignMode: 3 } });
+      expect(after).toMatchObject({ property: { alignMode: 3 } });
+      expect(textGet).toHaveBeenCalled();
+      expect(textGetAll).toHaveBeenCalled();
       expect(textModify).toHaveBeenCalledWith(
         'text1',
         expect.objectContaining({
           x: 200,
           y: 600,
           content: 'NEW TITLE',
+          textColor: '#FF0000',
+          underLine: true,
+          alignMode: 3,
           fontName: 'Arial',
           fontSize: 20,
         }),
       );
+      const nativeProperty = textModify.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(nativeProperty).not.toHaveProperty('color');
+      expect(nativeProperty).not.toHaveProperty('underline');
+    });
+
+    it('rejects internal or out-of-range alignment values on modify', async () => {
+      const textModify = vi.fn();
+      const text = {
+        getState_PrimitiveId: () => 'text-invalid-align',
+        getState_AlignMode: () => 3,
+      };
+      const dispatcher = createDispatcher(
+        makeToolkit({ SCH_PrimitiveText: { get: async () => text, modify: textModify } }),
+      );
+
+      await expect(
+        dispatcher.dispatch('schematic.modifyPrimitive', {
+          primitiveId: 'text-invalid-align',
+          property: { alignMode: 11 },
+        }),
+      ).rejects.toThrow('alignMode must be an integer from 1 through 9');
+      expect(textModify).not.toHaveBeenCalled();
     });
   });
 

@@ -132,6 +132,7 @@ export const BridgeResponseSchema = z.object({
 export const BridgeHeartbeatSchema = z.object({
   type: z.literal('heartbeat'),
   timestamp: z.number(),
+  source: z.enum(['server', 'extension']).optional(),
 });
 
 /** Inferred TypeScript type for a hello message. */

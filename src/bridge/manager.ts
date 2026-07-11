@@ -736,7 +736,9 @@ export class BridgeManager extends EventEmitter {
       }
 
       try {
-        this.ws.send(JSON.stringify({ type: 'heartbeat', timestamp: Date.now() }));
+        this.ws.send(
+          JSON.stringify({ type: 'heartbeat', timestamp: Date.now(), source: 'server' }),
+        );
       } catch {
         getLogger().warn('bridge heartbeat send failed, disconnecting');
         this.disconnect('heartbeat failed');

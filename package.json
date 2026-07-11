@@ -78,7 +78,8 @@
     "inventory:diff": "tsx scripts/diff-runtime-inventory.mts",
     "eval:golden": "tsx scripts/run-evals.mts",
     "eval:golden:update": "tsx scripts/run-evals.mts --update-baseline",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm test:extension && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build"
+    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm test:extension && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build",
+    "smoke:schematic-transactions": "tsx scripts/live-schematic-transaction-smoke.mts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -91,7 +92,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@jlceda/pro-api-types": "^0.2.66",
+    "@jlceda/pro-api-types": "^0.3.5",
     "@types/express": "^5.0.6",
     "@types/node": "^24.13.2",
     "@types/ws": "^8.18.1",

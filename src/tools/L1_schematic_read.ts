@@ -4,6 +4,15 @@ import { type EnvConfig } from '../config/env.js';
 import { fetchComponentPins } from './schematic-helpers.js';
 import { scanSheetForPinCollisions } from '../workflows/collision.js';
 import { planSafeSchematicRegion } from '../workflows/schematic-safe-region.js';
+import {
+  auditImportedDesign,
+  buildCanonicalSchematicModel,
+  ImportedNormalizationPlanSchema,
+  NormalizationComponentOverrideSchema,
+  normalizeNetName,
+  normalizeSchematicComponent,
+  previewImportedNormalization,
+} from '../schematic-model/index.js';
 
 const schematicRegionPreferenceSchema = z.enum([
   'upper-left',
@@ -16,6 +25,29 @@ const schematicRegionPreferenceSchema = z.enum([
   'lower-center',
   'lower-right',
 ]);
+
+const importedNormalizationPreviewInputSchema = z
+  .object({
+    projectId: z.string().describe('The project/schematic ID to preview'),
+    componentLimit: z.coerce.number().int().min(1).max(500).default(500),
+    normalizeNetNames: z.boolean().default(true),
+    annotateReferences: z.boolean().default(true),
+    resolveMetadataExpressions: z.boolean().default(true),
+    componentOverrides: z.array(NormalizationComponentOverrideSchema).max(500).default([]),
+  })
+  .superRefine((value, ctx) => {
+    const seen = new Set<string>();
+    value.componentOverrides.forEach((override, index) => {
+      if (seen.has(override.componentId)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Duplicate component override for ${override.componentId}`,
+          path: ['componentOverrides', index, 'componentId'],
+        });
+      }
+      seen.add(override.componentId);
+    });
+  });
 
 const searchDeviceInputSchema = z.object({
   key: z
@@ -159,6 +191,11 @@ function registerSchematicReadTools(
       nets: z.array(
         z.object({
           net_name: z.string(),
+          raw_net_name: z.string(),
+          canonical_net_name: z.string(),
+          net_kind: z.enum(['signal', 'power', 'ground', 'power-flag', 'unnamed']),
+          normalization_rules: z.array(z.string()),
+          imported_alias: z.boolean(),
           node_count: z.number().int().nonnegative(),
           nodes: z.array(
             z.object({
@@ -181,14 +218,22 @@ function registerSchematicReadTools(
         }>;
         return {
           project_id: projectId,
-          nets: (nets ?? []).map((n) => ({
-            net_name: n.netName ?? '',
-            node_count: n.nodes?.length ?? 0,
-            nodes: (n.nodes ?? []).map((nd) => ({
-              component_ref: nd.component ?? '',
-              pin: nd.pin ?? '',
-            })),
-          })),
+          nets: (nets ?? []).map((n) => {
+            const normalized = normalizeNetName(n.netName ?? '');
+            return {
+              net_name: n.netName ?? '',
+              raw_net_name: normalized.rawNetName,
+              canonical_net_name: normalized.canonicalNetName,
+              net_kind: normalized.kind,
+              normalization_rules: normalized.rules,
+              imported_alias: normalized.imported,
+              node_count: n.nodes?.length ?? 0,
+              nodes: (n.nodes ?? []).map((nd) => ({
+                component_ref: nd.component ?? '',
+                pin: nd.pin ?? '',
+              })),
+            };
+          }),
           total: nets?.length ?? 0,
         };
       } catch (err) {
@@ -244,6 +289,23 @@ function registerSchematicReadTools(
           x: z.number().optional(),
           y: z.number().optional(),
           rotation: z.number().optional(),
+          component_kind: z.enum([
+            'part',
+            'power-symbol',
+            'power-flag',
+            'net-label',
+            'net-port',
+            'sheet-frame',
+            'annotation',
+            'helper',
+            'unknown',
+          ]),
+          bom_eligible: z.boolean(),
+          electrical_eligible: z.boolean(),
+          annotated: z.boolean(),
+          symbol_source: z.enum(['native', 'imported', 'unknown']),
+          raw_value: z.string(),
+          raw_footprint: z.string(),
         }),
       ),
       total: z.number().int().nonnegative(),
@@ -285,23 +347,33 @@ function registerSchematicReadTools(
         const comps = items ?? [];
         return {
           project_id: projectId,
-          components: comps.map((c) => ({
-            primitiveId: c.primitiveId,
-            reference: c.reference ?? '',
-            value: c.value ?? '',
-            footprint: c.footprint ?? '',
-            lcsc: c.lcsc,
-            manufacturer: c.manufacturer,
-            manufacturerId: c.manufacturerId,
-            datasheet: c.datasheet,
-            deviceUuid: c.deviceUuid,
-            deviceLibraryUuid: c.deviceLibraryUuid,
-            deviceName: c.deviceName,
-            symbolName: c.symbolName,
-            x: c.x,
-            y: c.y,
-            rotation: c.rotation,
-          })),
+          components: comps.map((c, index) => {
+            const normalized = normalizeSchematicComponent(c, index);
+            return {
+              primitiveId: c.primitiveId,
+              reference: normalized.reference,
+              value: normalized.value,
+              footprint: normalized.footprint,
+              lcsc: normalized.lcsc,
+              manufacturer: normalized.manufacturer,
+              manufacturerId: normalized.manufacturerPart,
+              datasheet: normalized.datasheet,
+              deviceUuid: c.deviceUuid,
+              deviceLibraryUuid: c.deviceLibraryUuid,
+              deviceName: normalized.deviceName,
+              symbolName: normalized.symbolName,
+              x: normalized.x,
+              y: normalized.y,
+              rotation: normalized.rotation,
+              component_kind: normalized.componentKind,
+              bom_eligible: normalized.bomEligible,
+              electrical_eligible: normalized.electricalEligible,
+              annotated: normalized.annotated,
+              symbol_source: normalized.symbolSource,
+              raw_value: normalized.rawValue,
+              raw_footprint: normalized.rawFootprint,
+            };
+          }),
           total: bridgeTotal ?? comps.length,
         };
       } catch (err) {
@@ -1096,6 +1168,362 @@ function registerSchematicReadTools(
           floating_pins: [],
           valid: false,
           warnings: [],
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_audit_imported_design',
+    title: 'Audit imported schematic design',
+    description:
+      'Read the live schematic without modifying it, build a canonical model, and report imported ' +
+      'net aliases, duplicate or missing references, unresolved metadata expressions, missing ' +
+      'values/footprints, and ambiguous BOM classification. Includes a preview only; it never ' +
+      'renames nets or changes components.',
+    profile: 'core',
+    evidence: ['runtime-probe', 'inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().describe('The project/schematic ID to audit'),
+      includeInfo: z
+        .boolean()
+        .default(true)
+        .describe('Include informational imported-alias and power-flag findings'),
+      componentLimit: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .default(500)
+        .describe('Maximum number of component records to read from the live bridge'),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      audit_schema_version: z.literal('imported-design-audit/v1'),
+      status: z.enum(['clean', 'review', 'blocked']),
+      read_only: z.literal(true),
+      safe_to_normalize: z.boolean(),
+      source: z.object({
+        component_total: z.number().int().nonnegative(),
+        component_items_read: z.number().int().nonnegative(),
+        net_items_read: z.number().int().nonnegative(),
+        source_truncated: z.boolean(),
+      }),
+      model_summary: z.object({
+        component_count: z.number().int().nonnegative(),
+        bom_component_count: z.number().int().nonnegative(),
+        electrical_component_count: z.number().int().nonnegative(),
+        net_count: z.number().int().nonnegative(),
+        imported_component_count: z.number().int().nonnegative(),
+      }),
+      summary: z.object({
+        finding_count: z.number().int().nonnegative(),
+        error_count: z.number().int().nonnegative(),
+        warning_count: z.number().int().nonnegative(),
+        info_count: z.number().int().nonnegative(),
+        imported_net_count: z.number().int().nonnegative(),
+        aliased_net_count: z.number().int().nonnegative(),
+        unannotated_component_count: z.number().int().nonnegative(),
+        missing_footprint_count: z.number().int().nonnegative(),
+        missing_value_count: z.number().int().nonnegative(),
+        duplicate_reference_count: z.number().int().nonnegative(),
+        ambiguous_bom_count: z.number().int().nonnegative(),
+        unresolved_expression_count: z.number().int().nonnegative(),
+      }),
+      findings: z.array(
+        z.object({
+          code: z.string(),
+          severity: z.enum(['info', 'warning', 'error']),
+          message: z.string(),
+          component_id: z.string().optional(),
+          component_ref: z.string().optional(),
+          net_name: z.string().optional(),
+          raw_net_names: z.array(z.string()).optional(),
+          evidence: z.record(z.string(), z.unknown()).optional(),
+          suggested_action: z.string(),
+          confidence: z.enum(['high', 'medium', 'low']),
+        }),
+      ),
+      normalization_preview: z.object({
+        net_aliases: z.array(
+          z.object({
+            canonical_net_name: z.string(),
+            raw_net_names: z.array(z.string()),
+            kind: z.enum(['signal', 'power', 'ground', 'power-flag', 'unnamed']),
+            rules: z.array(z.string()),
+          }),
+        ),
+        component_repairs: z.array(
+          z.object({
+            component_id: z.string(),
+            reference: z.string(),
+            actions: z.array(
+              z.enum([
+                'annotate-reference',
+                'assign-footprint',
+                'assign-value',
+                'resolve-value-expression',
+                'resolve-footprint-expression',
+                'review-bom-classification',
+              ]),
+            ),
+          }),
+        ),
+      }),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, includeInfo, componentLimit } = params as {
+        projectId: string;
+        includeInfo: boolean;
+        componentLimit: number;
+      };
+      try {
+        const [componentResult, netResult] = await Promise.all([
+          ctx.bridge.call('schematic.listComponents', {
+            projectId,
+            limit: componentLimit,
+            offset: 0,
+          }),
+          ctx.bridge.call('schematic.listNets', { projectId }),
+        ]);
+        const componentData = componentResult as {
+          total?: number;
+          items?: Array<Record<string, unknown>>;
+        };
+        const components = componentData.items ?? [];
+        const nets = Array.isArray(netResult) ? (netResult as Array<Record<string, unknown>>) : [];
+        const componentTotal = componentData.total ?? components.length;
+        const model = buildCanonicalSchematicModel({
+          document: { projectId },
+          components,
+          nets,
+        });
+        const sourceTruncated = componentTotal > components.length;
+        const audit = auditImportedDesign(model, { includeInfo, sourceTruncated });
+
+        return {
+          project_id: projectId,
+          audit_schema_version: audit.schemaVersion,
+          status: audit.status,
+          read_only: true as const,
+          safe_to_normalize: audit.safeToNormalize,
+          source: {
+            component_total: componentTotal,
+            component_items_read: components.length,
+            net_items_read: nets.length,
+            source_truncated: sourceTruncated,
+          },
+          model_summary: {
+            component_count: audit.modelSummary.componentCount,
+            bom_component_count: audit.modelSummary.bomComponentCount,
+            electrical_component_count: audit.modelSummary.electricalComponentCount,
+            net_count: audit.modelSummary.netCount,
+            imported_component_count: audit.modelSummary.importedComponentCount,
+          },
+          summary: {
+            finding_count: audit.summary.findingCount,
+            error_count: audit.summary.errorCount,
+            warning_count: audit.summary.warningCount,
+            info_count: audit.summary.infoCount,
+            imported_net_count: audit.summary.importedNetCount,
+            aliased_net_count: audit.summary.aliasedNetCount,
+            unannotated_component_count: audit.summary.unannotatedComponentCount,
+            missing_footprint_count: audit.summary.missingFootprintCount,
+            missing_value_count: audit.summary.missingValueCount,
+            duplicate_reference_count: audit.summary.duplicateReferenceCount,
+            ambiguous_bom_count: audit.summary.ambiguousBomCount,
+            unresolved_expression_count: audit.summary.unresolvedExpressionCount,
+          },
+          findings: audit.findings.map((finding) => ({
+            code: finding.code,
+            severity: finding.severity,
+            message: finding.message,
+            component_id: finding.componentId,
+            component_ref: finding.componentRef,
+            net_name: finding.netName,
+            raw_net_names: finding.rawNetNames,
+            evidence: finding.evidence,
+            suggested_action: finding.suggestedAction,
+            confidence: finding.confidence,
+          })),
+          normalization_preview: {
+            net_aliases: audit.normalizationPreview.netAliases.map((alias) => ({
+              canonical_net_name: alias.canonicalNetName,
+              raw_net_names: alias.rawNetNames,
+              kind: alias.kind,
+              rules: alias.rules,
+            })),
+            component_repairs: audit.normalizationPreview.componentRepairs.map((repair) => ({
+              component_id: repair.componentId,
+              reference: repair.reference,
+              actions: repair.actions,
+            })),
+          },
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
+          audit_schema_version: 'imported-design-audit/v1' as const,
+          status: 'blocked' as const,
+          read_only: true as const,
+          safe_to_normalize: false,
+          source: {
+            component_total: 0,
+            component_items_read: 0,
+            net_items_read: 0,
+            source_truncated: true,
+          },
+          model_summary: {
+            component_count: 0,
+            bom_component_count: 0,
+            electrical_component_count: 0,
+            net_count: 0,
+            imported_component_count: 0,
+          },
+          summary: {
+            finding_count: 0,
+            error_count: 0,
+            warning_count: 0,
+            info_count: 0,
+            imported_net_count: 0,
+            aliased_net_count: 0,
+            unannotated_component_count: 0,
+            missing_footprint_count: 0,
+            missing_value_count: 0,
+            duplicate_reference_count: 0,
+            ambiguous_bom_count: 0,
+            unresolved_expression_count: 0,
+          },
+          findings: [],
+          normalization_preview: { net_aliases: [], component_repairs: [] },
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_preview_imported_normalization',
+    title: 'Preview imported schematic normalization',
+    description:
+      'Read the live schematic and produce a deterministic, read-only normalization plan with a ' +
+      'stable plan ID, model hash, proposed net-name/reference/metadata operations, validation ' +
+      'gates, warnings, and blockers. This tool never writes to EasyEDA.',
+    profile: 'core',
+    evidence: ['runtime-probe', 'inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: importedNormalizationPreviewInputSchema,
+    outputSchema: z.object({
+      project_id: z.string(),
+      source: z.object({
+        component_total: z.number().int().nonnegative(),
+        component_items_read: z.number().int().nonnegative(),
+        net_items_read: z.number().int().nonnegative(),
+        source_truncated: z.boolean(),
+      }),
+      plan: ImportedNormalizationPlanSchema,
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const {
+        projectId,
+        componentLimit,
+        normalizeNetNames,
+        annotateReferences,
+        resolveMetadataExpressions,
+        componentOverrides,
+      } = params as z.infer<typeof importedNormalizationPreviewInputSchema>;
+      const planOptions = {
+        normalizeNetNames,
+        annotateReferences,
+        resolveMetadataExpressions,
+        componentOverrides,
+      };
+
+      try {
+        const [componentResult, netResult] = await Promise.all([
+          ctx.bridge.call('schematic.listComponents', {
+            projectId,
+            limit: componentLimit,
+            offset: 0,
+          }),
+          ctx.bridge.call('schematic.listNets', { projectId }),
+        ]);
+        const componentData = Array.isArray(componentResult)
+          ? {
+              total: componentResult.length,
+              items: componentResult as Array<Record<string, unknown>>,
+            }
+          : (componentResult as {
+              total?: number;
+              items?: Array<Record<string, unknown>>;
+            });
+        const components = componentData.items ?? [];
+        const netData = Array.isArray(netResult)
+          ? (netResult as Array<Record<string, unknown>>)
+          : ((netResult as { items?: Array<Record<string, unknown>> } | null)?.items ?? []);
+        const componentTotal = componentData.total ?? components.length;
+        const sourceTruncated = componentTotal > components.length;
+        const model = buildCanonicalSchematicModel({
+          document: { projectId },
+          components,
+          nets: netData,
+        });
+        const plan = previewImportedNormalization(model, {
+          ...planOptions,
+          sourceTruncated,
+        });
+
+        return {
+          project_id: projectId,
+          source: {
+            component_total: componentTotal,
+            component_items_read: components.length,
+            net_items_read: netData.length,
+            source_truncated: sourceTruncated,
+          },
+          plan,
+        };
+      } catch (err) {
+        const plan = previewImportedNormalization(
+          buildCanonicalSchematicModel({ document: { projectId } }),
+          {
+            ...planOptions,
+            sourceTruncated: true,
+          },
+        );
+        return {
+          project_id: projectId,
+          source: {
+            component_total: 0,
+            component_items_read: 0,
+            net_items_read: 0,
+            source_truncated: true,
+          },
+          plan,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
         };

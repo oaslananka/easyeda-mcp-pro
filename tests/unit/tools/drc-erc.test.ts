@@ -385,6 +385,28 @@ describe('DRC/ERC Tools', () => {
     );
   });
 
+  it('easyeda_semantic_erc_auto merges imported and native power aliases', async () => {
+    const tool = registry.get('easyeda_semantic_erc_auto');
+    expect(tool).toBeDefined();
+
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'schematic.listNets') {
+        return [
+          { netName: 'SYMBOLS_GND', nodes: [{ component: 'U1', pin: '1' }] },
+          { netName: 'GND', nodes: [{ component: 'C1', pin: '2' }] },
+          { netName: 'SYMBOLS_+3V3', nodes: [{ component: 'U1', pin: '2' }] },
+        ];
+      }
+      if (method === 'schematic.listComponents') return { items: [] };
+      return null;
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-imported' });
+
+    expect(result?.inferred_net_count).toBe(2);
+    expect(result?.not_available).toBeUndefined();
+  });
+
   it('easyeda_semantic_erc_auto skips a component whose pins fail to load', async () => {
     const tool = registry.get('easyeda_semantic_erc_auto');
 

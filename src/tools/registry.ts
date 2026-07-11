@@ -96,6 +96,8 @@ export function getRequiredToolScopes(tool: ToolDefinition): string[] {
       return ['schematic:write'];
     case 'simulation':
       return ['simulation:read'];
+    case 'project':
+      return [tool.confirmWrite ? 'project:write' : 'project:read'];
     default:
       return [tool.confirmWrite ? WRITE_ALL_SCOPE : READ_ALL_SCOPE];
   }

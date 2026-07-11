@@ -4,6 +4,7 @@ import { type ToolContext } from '../../../src/tools/types.js';
 import { registerSchematicReadTools } from '../../../src/tools/L1_schematic_read.js';
 import { registerSchematicWriteTools } from '../../../src/tools/L1_schematic_write.js';
 import { EnvSchema } from '../../../src/config/env.js';
+import { resetGlobalTransactionManagerForTests } from '../../../src/transactions/index.js';
 
 describe('Schematic Tools', () => {
   let registry: ToolRegistry;
@@ -11,6 +12,7 @@ describe('Schematic Tools', () => {
   let bridgeCall: any;
 
   beforeEach(() => {
+    resetGlobalTransactionManagerForTests();
     registry = new ToolRegistry();
     const config = EnvSchema.parse({ NODE_ENV: 'test' });
     registerSchematicReadTools(registry, config);
@@ -260,6 +262,122 @@ describe('Schematic Tools', () => {
       success: true,
       result: true,
     });
+  });
+
+  it('easyeda_schematic_modify_primitive records a snapshot-backed transaction operation', async () => {
+    const tool = registry.get('easyeda_schematic_modify_primitive');
+    const manager = resetGlobalTransactionManagerForTests();
+    const transaction = manager.begin({ documentId: 'proj-1' });
+    let snapshotRead = 0;
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        snapshotRead += 1;
+        return {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'prim-1',
+          primitiveKind: 'component',
+          property: { value: snapshotRead === 1 ? '1k' : '10k' },
+        };
+      }
+      if (method === 'schematic.modifyPrimitive') return { result: true };
+      throw new Error(`unexpected ${method}`);
+    });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-1',
+      transactionId: transaction.id,
+      primitiveId: 'prim-1',
+      property: { value: '10k' },
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall.mock.calls.map((call: any[]) => call[0])).toEqual([
+      'schematic.getPrimitiveSnapshot',
+      'schematic.modifyPrimitive',
+      'schematic.getPrimitiveSnapshot',
+    ]);
+    expect(result).toMatchObject({
+      success: true,
+      transaction: {
+        id: transaction.id,
+        operation_state: 'applied',
+        before_hash: expect.any(String),
+        after_hash: expect.any(String),
+      },
+    });
+    expect(manager.get(transaction.id).operations).toHaveLength(1);
+  });
+
+  it('easyeda_schematic_modify_primitive compensates when post-write snapshot read fails', async () => {
+    const tool = registry.get('easyeda_schematic_modify_primitive');
+    const manager = resetGlobalTransactionManagerForTests();
+    const transaction = manager.begin({ documentId: 'proj-1' });
+    const before = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'prim-1',
+      primitiveKind: 'component',
+      property: { value: '1k' },
+    };
+    let current = structuredClone(before);
+    let snapshotCalls = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        snapshotCalls += 1;
+        if (snapshotCalls === 2) throw new Error('post-write read failed');
+        return structuredClone(current);
+      }
+      if (method === 'schematic.modifyPrimitive') {
+        current = { ...before, property: { value: '10k' } };
+        return true;
+      }
+      if (method === 'schematic.restorePrimitiveSnapshot') {
+        current = structuredClone(params.snapshot);
+        return { restored: true, snapshot: current };
+      }
+      throw new Error(`unexpected ${method}`);
+    });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-1',
+      transactionId: transaction.id,
+      primitiveId: 'prim-1',
+      property: { value: '10k' },
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error_code: 'TRANSACTION_OPERATION_FAILED',
+      details: { compensation: 'restored' },
+    });
+    expect(current).toEqual(before);
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.restorePrimitiveSnapshot', {
+      snapshot: before,
+    });
+    expect(manager.get(transaction.id)).toMatchObject({
+      state: 'active',
+      operations: [expect.objectContaining({ state: 'cancelled', compensation: 'restored' })],
+    });
+  });
+
+  it('easyeda_schematic_modify_primitive rejects a transaction bound to another project', async () => {
+    const tool = registry.get('easyeda_schematic_modify_primitive');
+    const manager = resetGlobalTransactionManagerForTests();
+    const transaction = manager.begin({ documentId: 'proj-A' });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-B',
+      transactionId: transaction.id,
+      primitiveId: 'prim-1',
+      property: { value: '10k' },
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error_code: 'TRANSACTION_INVALID_STATE',
+    });
+    expect(bridgeCall).not.toHaveBeenCalled();
   });
 
   // ── Real schematic net creation tools ─────────────────────────────
@@ -577,6 +695,21 @@ describe('Schematic Tools', () => {
   });
 
   describe('schematic cosmetic and title-block write tools', () => {
+    it('rejects schematic text alignment outside the documented 1..9 enum', async () => {
+      const textTool = registry.get('easyeda_schematic_add_text');
+
+      await expect(
+        textTool?.handler(context, {
+          x: 10,
+          y: 20,
+          content: 'INVALID ALIGN',
+          alignMode: 0,
+          confirmWrite: true,
+        }),
+      ).rejects.toThrow();
+      expect(bridgeCall).not.toHaveBeenCalled();
+    });
+
     it('writes schematic text, rectangles, circles, and polygons through the bridge', async () => {
       bridgeCall
         .mockResolvedValueOnce({ primitiveId: 'txt-1' })
@@ -820,8 +953,39 @@ describe('Schematic Tools', () => {
       expect(result).toMatchObject({
         project_id: 'proj-123',
         total: 1,
-        nets: [{ net_name: 'GND', node_count: 1, nodes: [{ component_ref: 'R1', pin: '2' }] }],
+        nets: [
+          {
+            net_name: 'GND',
+            raw_net_name: 'GND',
+            canonical_net_name: 'GND',
+            net_kind: 'ground',
+            normalization_rules: [],
+            imported_alias: false,
+            node_count: 1,
+            nodes: [{ component_ref: 'R1', pin: '2' }],
+          },
+        ],
       });
+    });
+
+    it('exposes canonical imported power names without hiding the raw name', async () => {
+      const tool = registry.get('easyeda_schematic_nets');
+      bridgeCall.mockResolvedValue([
+        { netName: 'SYMBOLS_+3V3', nodes: [{ component: 'U1', pin: '1' }] },
+      ]);
+
+      const result = await tool?.handler(context, { projectId: 'proj-imported' });
+
+      expect(result?.nets).toEqual([
+        expect.objectContaining({
+          net_name: 'SYMBOLS_+3V3',
+          raw_net_name: 'SYMBOLS_+3V3',
+          canonical_net_name: '+3V3',
+          net_kind: 'power',
+          imported_alias: true,
+          normalization_rules: ['strip-imported-symbols-power-prefix'],
+        }),
+      ]);
     });
 
     it('returns not_available on bridge error', async () => {
@@ -1153,6 +1317,305 @@ describe('Schematic Tools', () => {
       const result = (await tool?.handler(context, { projectId: 'proj-1' })) as any;
 
       expect(result).toMatchObject({ success: false, collision_count: 0, error: 'bridge down' });
+    });
+  });
+
+  describe('easyeda_schematic_audit_imported_design', () => {
+    it('builds a read-only imported-design audit with normalization preview', async () => {
+      const tool = registry.get('easyeda_schematic_audit_imported_design');
+      expect(tool).toBeDefined();
+      expect(tool?.confirmWrite).toBe(false);
+      expect(tool?.annotations.readOnlyHint).toBe(true);
+
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'schematic.listComponents') {
+          return {
+            total: 501,
+            items: [
+              {
+                primitiveId: 'u1',
+                componentType: 'part',
+                reference: 'U?',
+                value: 'RP2040',
+                footprint: '',
+                symbolSource: 'KiCad imported',
+              },
+              {
+                primitiveId: 'r1a',
+                componentType: 'part',
+                reference: 'R1',
+                value: '10k',
+                footprint: 'R_0603',
+              },
+              {
+                primitiveId: 'r1b',
+                componentType: 'part',
+                reference: 'R1',
+                value: '1k',
+                footprint: 'R_0603',
+              },
+            ],
+          };
+        }
+        if (method === 'schematic.listNets') {
+          return [
+            { netName: 'SYMBOLS_GND', nodes: [{ component: 'U?', pin: '1' }] },
+            { netName: 'GND', nodes: [{ component: 'R1', pin: '2' }] },
+            { netName: 'SYMBOLS_+3V3', nodes: [{ component: 'U?', pin: '2' }] },
+          ];
+        }
+        return null;
+      });
+
+      const result = await tool?.handler(context, {
+        projectId: 'servo-module',
+        includeInfo: true,
+        componentLimit: 500,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.listComponents', {
+        projectId: 'servo-module',
+        limit: 500,
+        offset: 0,
+      });
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.listNets', {
+        projectId: 'servo-module',
+      });
+      expect(result).toMatchObject({
+        project_id: 'servo-module',
+        audit_schema_version: 'imported-design-audit/v1',
+        status: 'blocked',
+        read_only: true,
+        safe_to_normalize: false,
+        source: {
+          component_total: 501,
+          component_items_read: 3,
+          net_items_read: 3,
+          source_truncated: true,
+        },
+        summary: {
+          duplicate_reference_count: 1,
+          unannotated_component_count: 1,
+          missing_footprint_count: 1,
+          imported_net_count: 2,
+          aliased_net_count: 1,
+        },
+      });
+      expect(result?.findings).toContainEqual(
+        expect.objectContaining({
+          code: 'DUPLICATE_COMPONENT_REFERENCE',
+          severity: 'error',
+          component_ref: 'R1',
+        }),
+      );
+      expect(result?.normalization_preview.net_aliases).toContainEqual(
+        expect.objectContaining({
+          canonical_net_name: 'GND',
+          raw_net_names: ['GND', 'SYMBOLS_GND'],
+        }),
+      );
+    });
+
+    it('returns a structured unavailable result when live readback fails', async () => {
+      const tool = registry.get('easyeda_schematic_audit_imported_design');
+      bridgeCall.mockRejectedValue(new Error('bridge unavailable'));
+
+      const result = await tool?.handler(context, {
+        projectId: 'servo-module',
+        includeInfo: true,
+        componentLimit: 500,
+      });
+
+      expect(result).toMatchObject({
+        project_id: 'servo-module',
+        status: 'blocked',
+        read_only: true,
+        safe_to_normalize: false,
+        findings: [],
+        not_available: true,
+        error: 'bridge unavailable',
+      });
+    });
+  });
+
+  describe('easyeda_schematic_preview_imported_normalization', () => {
+    it('returns a deterministic read-only plan using only component and net readback', async () => {
+      const tool = registry.get('easyeda_schematic_preview_imported_normalization');
+      expect(tool).toBeDefined();
+      expect(tool?.confirmWrite).toBe(false);
+      expect(tool?.annotations.readOnlyHint).toBe(true);
+
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'schematic.listComponents') {
+          return {
+            total: 2,
+            items: [
+              {
+                primitiveId: 'u1',
+                componentType: 'part',
+                reference: 'U1',
+                value: 'NE555',
+                footprint: 'DIP-8',
+              },
+              {
+                primitiveId: 'u-imported',
+                componentType: 'part',
+                reference: 'U?',
+                value: '={Value}',
+                footprint: '={Footprint}',
+                attributes: { Value: 'RP2040', Footprint: 'QFN-56' },
+              },
+            ],
+          };
+        }
+        if (method === 'schematic.listNets') {
+          return [
+            { netName: 'SYMBOLS_+3V3', nodes: [{ component: 'U?', pin: '1' }] },
+            { netName: 'SYMBOLS_GND', nodes: [{ component: 'U?', pin: '2' }] },
+          ];
+        }
+        throw new Error(`unexpected bridge method: ${method}`);
+      });
+
+      const input = {
+        projectId: 'servo-module',
+        componentLimit: 500,
+        normalizeNetNames: true,
+        annotateReferences: true,
+        resolveMetadataExpressions: true,
+        componentOverrides: [],
+      };
+      const first = await tool?.handler(context, input);
+      const second = await tool?.handler(context, input);
+
+      expect(bridgeCall).toHaveBeenCalledTimes(4);
+      expect(new Set(bridgeCall.mock.calls.map((call: any[]) => call[0]))).toEqual(
+        new Set(['schematic.listComponents', 'schematic.listNets']),
+      );
+      expect(first?.plan).toEqual(second?.plan);
+      expect(first).toMatchObject({
+        project_id: 'servo-module',
+        source: {
+          component_total: 2,
+          component_items_read: 2,
+          net_items_read: 2,
+          source_truncated: false,
+        },
+        plan: {
+          schemaVersion: 'imported-normalization-plan/v1',
+          readOnly: true,
+          status: 'ready',
+          applicationReady: true,
+          safeToAutoApply: true,
+          summary: {
+            operationCount: 5,
+            netRenameCount: 2,
+            referenceAnnotationCount: 1,
+            valueUpdateCount: 1,
+            footprintUpdateCount: 1,
+            blockerCount: 0,
+          },
+        },
+      });
+      expect(first?.plan.operations).toContainEqual(
+        expect.objectContaining({
+          kind: 'annotate-reference',
+          targetId: 'u-imported',
+          after: { reference: 'U2' },
+        }),
+      );
+    });
+
+    it('uses explicit overrides and marks the resulting plan for confirmation', async () => {
+      const tool = registry.get('easyeda_schematic_preview_imported_normalization');
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'schematic.listComponents') {
+          return {
+            total: 1,
+            items: [
+              {
+                primitiveId: 'c1',
+                componentType: 'part',
+                reference: 'C1',
+                value: '',
+                footprint: '',
+              },
+            ],
+          };
+        }
+        if (method === 'schematic.listNets') return [];
+        return null;
+      });
+
+      const result = await tool?.handler(context, {
+        projectId: 'servo-module',
+        componentLimit: 500,
+        normalizeNetNames: true,
+        annotateReferences: true,
+        resolveMetadataExpressions: true,
+        componentOverrides: [{ componentId: 'c1', value: '100nF', footprint: 'C_0603' }],
+      });
+
+      expect(result?.plan).toMatchObject({
+        status: 'review',
+        applicationReady: true,
+        safeToAutoApply: false,
+        requiresConfirmation: true,
+        summary: {
+          operationCount: 2,
+          confirmationOperationCount: 2,
+          valueUpdateCount: 1,
+          footprintUpdateCount: 1,
+        },
+      });
+    });
+
+    it('rejects duplicate overrides in the public input schema', () => {
+      const tool = registry.get('easyeda_schematic_preview_imported_normalization');
+      const parsed = tool?.inputSchema.safeParse({
+        projectId: 'servo-module',
+        componentOverrides: [
+          { componentId: 'c1', value: '1nF' },
+          { componentId: 'c1', value: '10nF' },
+        ],
+      });
+
+      expect(parsed?.success).toBe(false);
+    });
+
+    it('returns a blocked truncated plan when live readback fails', async () => {
+      const tool = registry.get('easyeda_schematic_preview_imported_normalization');
+      bridgeCall.mockRejectedValue(new Error('bridge unavailable'));
+
+      const result = await tool?.handler(context, {
+        projectId: 'servo-module',
+        componentLimit: 500,
+        normalizeNetNames: true,
+        annotateReferences: true,
+        resolveMetadataExpressions: true,
+        componentOverrides: [],
+      });
+
+      expect(result).toMatchObject({
+        project_id: 'servo-module',
+        source: {
+          component_total: 0,
+          component_items_read: 0,
+          net_items_read: 0,
+          source_truncated: true,
+        },
+        plan: {
+          status: 'blocked',
+          applicationReady: false,
+          safeToAutoApply: false,
+          summary: { blockerCount: 1 },
+        },
+        not_available: true,
+        error: 'bridge unavailable',
+      });
+      expect(result?.plan.blockers).toContainEqual(
+        expect.objectContaining({ code: 'SOURCE_COMPONENTS_TRUNCATED' }),
+      );
     });
   });
 });
