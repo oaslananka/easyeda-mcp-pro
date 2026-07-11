@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.31.0...easyeda-mcp-pro-v0.32.0) (2026-07-11)
+
+
+### Features
+
+* **schematic:** add transactional normalization engine ([#261](https://github.com/oaslananka/easyeda-mcp-pro/issues/261)) ([eb1b9b8](https://github.com/oaslananka/easyeda-mcp-pro/commit/eb1b9b85155cce7e883d26f53cc8d67c70f4850c))
+
 ## [0.31.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.30.0...easyeda-mcp-pro-v0.31.0) (2026-07-09)
 
 
