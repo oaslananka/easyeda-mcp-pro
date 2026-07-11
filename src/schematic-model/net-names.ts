@@ -67,7 +67,10 @@ function isNamedPowerName(name: string): boolean {
   const upper = name.toUpperCase();
   const prefix = NAMED_POWER_PREFIXES.find((candidate) => upper.startsWith(candidate));
   if (!prefix) return false;
-  return [...upper.slice(prefix.length)].every(isPowerSuffixChar);
+  for (const char of upper.slice(prefix.length)) {
+    if (!isPowerSuffixChar(char)) return false;
+  }
+  return true;
 }
 
 function isGroundName(name: string): boolean {

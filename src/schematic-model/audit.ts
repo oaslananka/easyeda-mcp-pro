@@ -308,10 +308,12 @@ export function auditImportedDesign(
 ): ImportedDesignAudit {
   const includeInfo = options.includeInfo ?? true;
   const sourceTruncated = options.sourceTruncated ?? false;
-  const findings = model.components.flatMap(componentFindings);
-  findings.push(...duplicateReferenceFindings(model.components));
-  findings.push(...model.nets.flatMap((net) => netFindings(net, includeInfo)));
-  if (sourceTruncated) findings.push(sourceTruncatedFinding());
+  const findings = [
+    ...model.components.flatMap(componentFindings),
+    ...duplicateReferenceFindings(model.components),
+    ...model.nets.flatMap((net) => netFindings(net, includeInfo)),
+    ...(sourceTruncated ? [sourceTruncatedFinding()] : []),
+  ];
   findings.sort(findingSort);
 
   const errorCount = findings.filter((finding) => finding.severity === 'error').length;

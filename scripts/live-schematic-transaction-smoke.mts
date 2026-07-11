@@ -622,7 +622,7 @@ try {
   console.log(JSON.stringify({ ok: true, results }, null, 2));
 } catch (error) {
   const cleanupErrors: string[] = [];
-  for (const id of [...cleanupIds]) {
+  for (const id of cleanupIds) {
     try {
       await deletePrimitive(id);
     } catch (cleanupError) {

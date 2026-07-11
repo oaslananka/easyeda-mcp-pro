@@ -404,42 +404,47 @@ function addDuplicateReferenceBlockers(
   }
 }
 
+function netRenameOperation(
+  net: SchematicModel['nets'][number],
+  rawNetName: string,
+): NormalizationOperation {
+  const aliasesMerged = net.rawNetNames.length > 1;
+  return createOperation({
+    kind: 'normalize-net-name',
+    targetType: 'net',
+    targetId: `net:${rawNetName}`,
+    selector: { rawNetName },
+    before: { netName: rawNetName },
+    after: { netName: net.canonicalNetName },
+    automatic: true,
+    requiresConfirmation: aliasesMerged,
+    confidence: aliasesMerged ? 'medium' : 'high',
+    risk: aliasesMerged ? 'medium' : 'low',
+    reason: aliasesMerged
+      ? 'This imported alias resolves to a canonical net that also has other raw names.'
+      : 'This is a recognized imported power or ground alias.',
+    validationGates: [
+      'canonical-net-membership-unchanged',
+      'connected-pin-set-unchanged',
+      'native-erc-no-new-errors',
+    ],
+  });
+}
+
+function netRenameOperations(net: SchematicModel['nets'][number]): NormalizationOperation[] {
+  if (!net.imported || net.kind === 'power-flag') return [];
+  return net.rawNetNames
+    .filter((rawNetName) => rawNetName !== net.canonicalNetName)
+    .map((rawNetName) => netRenameOperation(net, rawNetName));
+}
+
 function addNetRenameOperations(
   model: SchematicModel,
   options: ParsedNormalizationPlanOptions,
   operations: NormalizationOperation[],
 ): void {
   if (!options.normalizeNetNames) return;
-  for (const net of model.nets) {
-    if (!net.imported || net.kind === 'power-flag') continue;
-    const aliasesMerged = net.rawNetNames.length > 1;
-    const reason = aliasesMerged
-      ? 'This imported alias resolves to a canonical net that also has other raw names.'
-      : 'This is a recognized imported power or ground alias.';
-    for (const rawNetName of net.rawNetNames) {
-      if (rawNetName === net.canonicalNetName) continue;
-      operations.push(
-        createOperation({
-          kind: 'normalize-net-name',
-          targetType: 'net',
-          targetId: `net:${rawNetName}`,
-          selector: { rawNetName },
-          before: { netName: rawNetName },
-          after: { netName: net.canonicalNetName },
-          automatic: true,
-          requiresConfirmation: aliasesMerged,
-          confidence: aliasesMerged ? 'medium' : 'high',
-          risk: aliasesMerged ? 'medium' : 'low',
-          reason,
-          validationGates: [
-            'canonical-net-membership-unchanged',
-            'connected-pin-set-unchanged',
-            'native-erc-no-new-errors',
-          ],
-        }),
-      );
-    }
-  }
+  operations.push(...model.nets.flatMap(netRenameOperations));
 }
 
 function componentSelector(component: CanonicalComponent): Record<string, string> {
