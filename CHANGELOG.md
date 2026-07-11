@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.33.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.32.0...easyeda-mcp-pro-v0.33.0) (2026-07-11)
+
+
+### Features
+
+* **remote:** productionize durable relay routing ([#267](https://github.com/oaslananka/easyeda-mcp-pro/issues/267)) ([9d1d426](https://github.com/oaslananka/easyeda-mcp-pro/commit/9d1d426c178712ae3f141d0fe1ee07635e56dfe6))
+
+
+### Bug Fixes
+
+* **config:** anchor default storage paths to user home ([#266](https://github.com/oaslananka/easyeda-mcp-pro/issues/266)) ([33bd280](https://github.com/oaslananka/easyeda-mcp-pro/commit/33bd280c35df86470bf6e51be1217a50eaab37ed))
+* **remote:** distinguish relay dispatch failures ([#263](https://github.com/oaslananka/easyeda-mcp-pro/issues/263)) ([91a1bca](https://github.com/oaslananka/easyeda-mcp-pro/commit/91a1bca250d69b10ef2ef1ccd30f093d6b230152))
+
 ## [0.32.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.31.0...easyeda-mcp-pro-v0.32.0) (2026-07-11)
 
 
