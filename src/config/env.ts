@@ -1,4 +1,11 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { z } from 'zod';
+
+const DEFAULT_DATA_DIR = join(homedir(), '.easyeda-mcp-pro');
+const DEFAULT_SQLITE_PATH = join(DEFAULT_DATA_DIR, 'easyeda-mcp-pro.sqlite');
+const DEFAULT_ARTIFACT_DIR = join(DEFAULT_DATA_DIR, 'artifacts');
+const DEFAULT_CACHE_DIR = join(DEFAULT_DATA_DIR, 'cache');
 
 function envBoolean() {
   return z.preprocess((val) => {
@@ -52,10 +59,10 @@ export const EnvSchema = z.object({
   BRIDGE_HOT_SWAP_WATCH: z.string().default(''),
   BRIDGE_HOT_SWAP_CHUNK_BYTES: z.coerce.number().int().min(4096).max(1048576).default(65536),
 
-  DATA_DIR: z.string().default('.easyeda-mcp-pro'),
-  SQLITE_PATH: z.string().default('.easyeda-mcp-pro/easyeda-mcp-pro.sqlite'),
-  ARTIFACT_DIR: z.string().default('.easyeda-mcp-pro/artifacts'),
-  CACHE_DIR: z.string().default('.easyeda-mcp-pro/cache'),
+  DATA_DIR: z.string().default(DEFAULT_DATA_DIR),
+  SQLITE_PATH: z.string().default(DEFAULT_SQLITE_PATH),
+  ARTIFACT_DIR: z.string().default(DEFAULT_ARTIFACT_DIR),
+  CACHE_DIR: z.string().default(DEFAULT_CACHE_DIR),
 
   AI_PROVIDER: z.enum(['none', 'anthropic', 'openai', 'openrouter', 'local']).default('none'),
   AI_MODEL: z.string().default(''),

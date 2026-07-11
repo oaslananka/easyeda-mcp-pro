@@ -467,12 +467,14 @@ For Remote Relay experiments, run `npx easyeda-mcp-pro doctor --fix` after setti
 
 ### Storage
 
-| Variable       | Default                                   | Description                                 |
-| -------------- | ----------------------------------------- | ------------------------------------------- |
-| `DATA_DIR`     | `.easyeda-mcp-pro`                        | Data directory (cache, database, artifacts) |
-| `SQLITE_PATH`  | `.easyeda-mcp-pro/easyeda-mcp-pro.sqlite` | SQLite database path                        |
-| `ARTIFACT_DIR` | `.easyeda-mcp-pro/artifacts`              | Artifact export directory                   |
-| `CACHE_DIR`    | `.easyeda-mcp-pro/cache`                  | Cache directory                             |
+| Variable       | Default                                     | Description                                 |
+| -------------- | ------------------------------------------- | ------------------------------------------- |
+| `DATA_DIR`     | `~/.easyeda-mcp-pro`                        | Data directory (cache, database, artifacts) |
+| `SQLITE_PATH`  | `~/.easyeda-mcp-pro/easyeda-mcp-pro.sqlite` | SQLite database path                        |
+| `ARTIFACT_DIR` | `~/.easyeda-mcp-pro/artifacts`              | Artifact export directory                   |
+| `CACHE_DIR`    | `~/.easyeda-mcp-pro/cache`                  | Cache directory                             |
+
+These defaults are resolved with the operating system user home directory, not the MCP process working directory. Explicitly configured paths keep their supplied absolute or relative semantics.
 
 ### Supplier integration
 

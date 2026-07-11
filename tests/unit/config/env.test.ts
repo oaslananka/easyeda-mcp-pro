@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EnvSchema, detectUnknownEnvVars, validateSafeConfig } from '../../../src/config/env.js';
 
@@ -13,6 +15,38 @@ describe('EnvSchema', () => {
     expect(result.JLCPCB_MODE).toBe('disabled');
     expect(result.JLCPCB_ENABLE_ORDERING).toBe(false);
     expect(result.AI_PROVIDER).toBe('none');
+  });
+
+  it('should anchor default writable paths in the user home directory', () => {
+    const result = EnvSchema.parse({});
+    const dataDir = join(homedir(), '.easyeda-mcp-pro');
+
+    expect(result.DATA_DIR).toBe(dataDir);
+    expect(result.SQLITE_PATH).toBe(join(dataDir, 'easyeda-mcp-pro.sqlite'));
+    expect(result.ARTIFACT_DIR).toBe(join(dataDir, 'artifacts'));
+    expect(result.CACHE_DIR).toBe(join(dataDir, 'cache'));
+    for (const path of [
+      result.DATA_DIR,
+      result.SQLITE_PATH,
+      result.ARTIFACT_DIR,
+      result.CACHE_DIR,
+    ]) {
+      expect(isAbsolute(path)).toBe(true);
+    }
+  });
+
+  it('should preserve explicitly configured relative paths', () => {
+    const result = EnvSchema.parse({
+      DATA_DIR: './custom-data',
+      SQLITE_PATH: './custom-data/database.sqlite',
+      ARTIFACT_DIR: './custom-artifacts',
+      CACHE_DIR: './custom-cache',
+    });
+
+    expect(result.DATA_DIR).toBe('./custom-data');
+    expect(result.SQLITE_PATH).toBe('./custom-data/database.sqlite');
+    expect(result.ARTIFACT_DIR).toBe('./custom-artifacts');
+    expect(result.CACHE_DIR).toBe('./custom-cache');
   });
 
   it('should parse production config', () => {
