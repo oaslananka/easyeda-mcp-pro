@@ -4,11 +4,12 @@ import type { Express, Request, Response } from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { z } from 'zod';
 import { type EnvConfig } from '../config/env.js';
-import { ApprovalStore, requiresApproval } from './approval-policy.js';
+import { ApprovalStore, requiresApproval, type ApprovalDecision } from './approval-policy.js';
 import { RemoteAuditLog } from './observability.js';
 import {
   REMOTE_RELAY_PROTOCOL_VERSION,
   RemoteRiskLevelSchema,
+  type ApprovalRequestMessage,
   type RemoteDeploymentMode,
   type RemoteRiskLevel,
   type ToolRequestMessage,
@@ -18,6 +19,7 @@ import {
 } from './protocol.js';
 import { type RemoteIdentity, checkRemoteScope } from './scope.js';
 import { type ExtensionSession, RemoteSessionRouter } from './session-router.js';
+import { SessionDispatchQueue } from './session-dispatch-queue.js';
 
 const RouteToolRequestSchema = z.object({
   sessionId: z.string().min(1).optional(),
@@ -50,9 +52,19 @@ export type RemoteGatewayErrorCode =
   | 'PROJECT_INACTIVE'
   | 'APPROVAL_REQUIRED'
   | 'APPROVAL_NOT_APPROVED'
+  | 'APPROVAL_UI_UNAVAILABLE'
   | 'REMOTE_EXTENSION_ERROR'
   | 'REMOTE_TOOL_UNSUPPORTED'
   | 'REMOTE_EXTENSION_TIMEOUT';
+
+export type RemoteGatewayFailure = {
+  ok: false;
+  status: number;
+  code: RemoteGatewayErrorCode;
+  message: string;
+  approvalId?: string;
+  approvalExpiresAt?: string;
+};
 
 export type RemoteGatewayToolResult =
   | {
@@ -62,19 +74,43 @@ export type RemoteGatewayToolResult =
       result: unknown;
       durationMs: number;
     }
+  | RemoteGatewayFailure;
+
+export type RemoteGatewayAuthorizationResult =
   | {
-      ok: false;
-      status: number;
-      code: RemoteGatewayErrorCode;
-      message: string;
-    };
+      ok: true;
+      sessionId: string;
+      grantId: string;
+    }
+  | RemoteGatewayFailure;
 
 export type RemoteToolDispatcher = (request: ToolRequestMessage) => Promise<ToolResponseMessage>;
+export type RemoteApprovalRequester = (request: ApprovalRequestMessage) => Promise<void> | void;
 
 interface RegisteredConnection {
   sessionId: string;
   dispatch: RemoteToolDispatcher;
+  requestApproval?: RemoteApprovalRequester;
+  closeConnection?: () => void;
 }
+
+interface RemoteInvocationGrantRecord {
+  grantId: string;
+  userId: string;
+  sessionId: string;
+  toolName: string;
+  riskLevel: RemoteRiskLevel;
+  inputHash: string;
+  expiresAt: Date;
+}
+
+type ResolvedRemoteConnection =
+  | {
+      ok: true;
+      session: ExtensionSession;
+      connection: RegisteredConnection;
+    }
+  | RemoteGatewayFailure;
 
 export interface RemoteGatewayOptions {
   router?: RemoteSessionRouter;
@@ -83,6 +119,8 @@ export interface RemoteGatewayOptions {
   now?: () => Date;
   makeId?: () => string;
   hashInput?: (value: unknown) => string;
+  approvalTtlMs?: number;
+  invocationGrantTtlMs?: number;
 }
 
 function stableStringify(value: unknown): string {
@@ -106,14 +144,22 @@ function gatewayError(
   status: number,
   code: RemoteGatewayErrorCode,
   message: string,
-): RemoteGatewayToolResult {
-  return { ok: false, status, code, message };
+  details: { approvalId?: string; approvalExpiresAt?: string } = {},
+): RemoteGatewayFailure {
+  return { ok: false, status, code, message, ...details };
 }
 
 class RemoteDispatchTimeoutError extends Error {
   constructor(readonly timeoutMs: number) {
     super(`Remote extension did not respond within ${timeoutMs}ms.`);
     this.name = 'RemoteDispatchTimeoutError';
+  }
+}
+
+class RemoteSessionUnavailableError extends Error {
+  constructor(readonly sessionId: string) {
+    super(`Remote extension session ${sessionId} disconnected before dispatch.`);
+    this.name = 'RemoteSessionUnavailableError';
   }
 }
 
@@ -199,15 +245,168 @@ export class RemoteGateway {
   private readonly now: () => Date;
   private readonly makeId: () => string;
   private readonly hashInput: (value: unknown) => string;
+  private readonly approvalTtlMs: number;
+  private readonly invocationGrantTtlMs: number;
+  private readonly invocationGrants = new Map<string, RemoteInvocationGrantRecord>();
+  private readonly dispatchQueue = new SessionDispatchQueue();
   private wsAttached = false;
 
   constructor(options: RemoteGatewayOptions = {}) {
     this.now = options.now ?? (() => new Date());
     this.makeId = options.makeId ?? (() => randomUUID());
     this.hashInput = options.hashInput ?? defaultHashInput;
+    this.approvalTtlMs = options.approvalTtlMs ?? 60_000;
+    this.invocationGrantTtlMs = options.invocationGrantTtlMs ?? 300_000;
     this.router = options.router ?? new RemoteSessionRouter(this.now, this.makeId);
     this.approvals = options.approvals ?? new ApprovalStore();
     this.audit = options.audit ?? new RemoteAuditLog();
+  }
+
+  private resolveConnection(input: {
+    identity: RemoteIdentity;
+    sessionId?: string;
+    riskLevel: RemoteRiskLevel;
+  }): ResolvedRemoteConnection {
+    const route = this.router.resolve({
+      userId: input.identity.userId,
+      riskLevel: input.riskLevel,
+      sessionId: input.sessionId,
+    });
+    if (!route.ok) {
+      const status =
+        route.code === 'SESSION_AMBIGUOUS' ? 409 : route.code === 'SESSION_EXPIRED' ? 410 : 404;
+      return gatewayError(status, route.code, route.message);
+    }
+
+    const connection = this.connections.get(route.session.sessionId);
+    if (!connection) {
+      this.router.disconnect(route.session.sessionId);
+      this.approvals.deleteForSession(route.session.sessionId);
+      return gatewayError(424, 'SESSION_DISCONNECTED', 'Paired EasyEDA extension is disconnected.');
+    }
+    return { ok: true, session: route.session, connection };
+  }
+
+  private async requestRemoteApproval(input: {
+    identity: RemoteIdentity;
+    session: ExtensionSession;
+    connection: RegisteredConnection;
+    toolName: string;
+    riskLevel: RemoteRiskLevel;
+    inputHash: string;
+    now: Date;
+    actionLabel: string;
+    retryMessage: string;
+  }): Promise<RemoteGatewayFailure> {
+    if (!input.connection.requestApproval) {
+      return gatewayError(
+        424,
+        'APPROVAL_UI_UNAVAILABLE',
+        'The paired EasyEDA extension does not expose an approval UI.',
+      );
+    }
+
+    const existing = this.approvals.findPending({
+      userId: input.identity.userId,
+      sessionId: input.session.sessionId,
+      toolName: input.toolName,
+      inputHash: input.inputHash,
+      now: input.now,
+    });
+    const approvalId = existing?.approvalId ?? `appr_${this.makeId()}`;
+    const expiresAt = existing?.expiresAt ?? new Date(input.now.getTime() + this.approvalTtlMs);
+
+    if (!existing) {
+      const actionSummary = `${input.riskLevel} ${input.actionLabel} ${input.toolName}${
+        input.session.activeProject?.projectName
+          ? ` on ${input.session.activeProject.projectName}`
+          : ''
+      }`;
+      this.approvals.request({
+        approvalId,
+        userId: input.identity.userId,
+        sessionId: input.session.sessionId,
+        toolName: input.toolName,
+        riskLevel: input.riskLevel,
+        inputHash: input.inputHash,
+        actionSummary,
+        activeProject: input.session.activeProject,
+        expiresAt,
+      });
+      const approvalRequest: ApprovalRequestMessage = {
+        protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+        type: 'approval_request',
+        messageId: `msg_${this.makeId()}`,
+        sessionId: input.session.sessionId,
+        timestamp: input.now.toISOString(),
+        approvalId,
+        toolName: input.toolName,
+        riskLevel: input.riskLevel,
+        actionSummary,
+        inputHash: input.inputHash,
+        activeProject: input.session.activeProject,
+        expiresAt: expiresAt.toISOString(),
+      };
+      try {
+        await input.connection.requestApproval(approvalRequest);
+      } catch (error) {
+        this.approvals.delete(approvalId);
+        return gatewayError(
+          502,
+          'REMOTE_EXTENSION_ERROR',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      this.audit.record({
+        event: 'remote.approval.requested',
+        mode: input.session.mode,
+        userId: input.identity.userId,
+        sessionId: input.session.sessionId,
+        toolName: input.toolName,
+        riskLevel: input.riskLevel,
+        inputHash: input.inputHash,
+      });
+    }
+
+    return gatewayError(403, 'APPROVAL_REQUIRED', input.retryMessage, {
+      approvalId,
+      approvalExpiresAt: expiresAt.toISOString(),
+    });
+  }
+
+  private consumeRemoteApproval(input: {
+    approvalId: string;
+    identity: RemoteIdentity;
+    session: ExtensionSession;
+    toolName: string;
+    inputHash: string;
+    now: Date;
+    mismatchTarget: string;
+  }): RemoteGatewayFailure | undefined {
+    const record = this.approvals.get(input.approvalId);
+    const approved = this.approvals.consumeApproved({
+      approvalId: input.approvalId,
+      userId: input.identity.userId,
+      sessionId: input.session.sessionId,
+      toolName: input.toolName,
+      inputHash: input.inputHash,
+      now: input.now,
+    });
+    if (approved) return undefined;
+
+    const message = !record
+      ? 'Remote approval is missing or invalid.'
+      : record.expiresAt.getTime() <= input.now.getTime() || record.decision === 'timeout'
+        ? 'Remote approval expired.'
+        : record.decision === 'rejected'
+          ? 'Remote approval was rejected by the user.'
+          : record.decision === undefined
+            ? 'Remote approval is still pending user action.'
+            : `Remote approval does not match this user, session, ${input.mismatchTarget}, or input.`;
+    return gatewayError(403, 'APPROVAL_NOT_APPROVED', message, {
+      approvalId: input.approvalId,
+      approvalExpiresAt: record?.expiresAt.toISOString(),
+    });
   }
 
   registerExtension(input: {
@@ -217,12 +416,16 @@ export class RemoteGateway {
     activeProject?: ExtensionSession['activeProject'];
     ttlMs?: number;
     dispatch: RemoteToolDispatcher;
+    requestApproval?: RemoteApprovalRequester;
+    closeConnection?: () => void;
     pairingCode?: string;
   }): ExtensionSession {
     const session = this.router.registerSession(input);
     this.connections.set(session.sessionId, {
       sessionId: session.sessionId,
       dispatch: input.dispatch,
+      requestApproval: input.requestApproval,
+      closeConnection: input.closeConnection,
     });
     if (input.pairingCode) this.router.completePairingByCode(input.pairingCode, session.sessionId);
     this.audit.record({
@@ -276,6 +479,10 @@ export class RemoteGateway {
     const session = this.router.getSession(sessionId);
     this.router.disconnect(sessionId);
     this.connections.delete(sessionId);
+    this.approvals.deleteForSession(sessionId);
+    for (const [grantId, grant] of this.invocationGrants) {
+      if (grant.sessionId === sessionId) this.invocationGrants.delete(grantId);
+    }
     if (session) {
       this.audit.record({
         event: 'remote.session.disconnected',
@@ -286,6 +493,112 @@ export class RemoteGateway {
     }
   }
 
+  private quarantineSession(sessionId: string): void {
+    const closeConnection = this.connections.get(sessionId)?.closeConnection;
+    this.disconnect(sessionId);
+    try {
+      closeConnection?.();
+    } catch {
+      // The route is already removed. A socket-close failure must not make the
+      // quarantined session routable again.
+    }
+  }
+
+  resolveApprovalFromExtension(input: {
+    sessionId: string;
+    approvalId: string;
+    result: ApprovalDecision;
+  }): boolean {
+    const record = this.approvals.get(input.approvalId);
+    const session = this.router.getSession(input.sessionId);
+    if (!record || !session || record.sessionId !== input.sessionId) return false;
+    const resolved = this.approvals.resolve(input.approvalId, input.result, this.now());
+    if (!resolved) return false;
+    this.audit.record({
+      event: 'remote.approval.resolved',
+      mode: session.mode,
+      userId: record.userId,
+      sessionId: input.sessionId,
+      toolName: record.toolName,
+      riskLevel: record.riskLevel,
+      inputHash: record.inputHash,
+      status:
+        resolved.decision === 'approved'
+          ? 'ok'
+          : resolved.decision === 'timeout'
+            ? 'timeout'
+            : 'rejected',
+    });
+    return true;
+  }
+
+  async authorizeToolInvocation(input: {
+    identity?: RemoteIdentity;
+    sessionId?: string;
+    toolName: string;
+    riskLevel: Exclude<RemoteRiskLevel, 'read'>;
+    input?: unknown;
+    approvalId?: string;
+  }): Promise<RemoteGatewayAuthorizationResult> {
+    const scope = checkRemoteScope(input.identity, input.riskLevel, this.now());
+    if (!scope.ok) {
+      return gatewayError(scope.code === 'SCOPE_MISSING' ? 403 : 401, scope.code, scope.message);
+    }
+    const identity = input.identity;
+    if (!identity) return gatewayError(401, 'IDENTITY_MISSING', 'Remote identity is required.');
+
+    const route = this.resolveConnection({
+      identity,
+      riskLevel: input.riskLevel,
+      sessionId: input.sessionId,
+    });
+    if (!route.ok) return route;
+
+    const now = this.now();
+    const inputHash = this.hashInput(input.input);
+    if (!input.approvalId) {
+      return await this.requestRemoteApproval({
+        identity,
+        session: route.session,
+        connection: route.connection,
+        toolName: input.toolName,
+        riskLevel: input.riskLevel,
+        inputHash,
+        now,
+        actionLabel: 'MCP tool',
+        retryMessage:
+          'Approval was requested in EasyEDA. Retry the same MCP tool call with remoteApprovalId after the user decides.',
+      });
+    }
+
+    const approvalFailure = this.consumeRemoteApproval({
+      approvalId: input.approvalId,
+      identity,
+      session: route.session,
+      toolName: input.toolName,
+      inputHash,
+      now,
+      mismatchTarget: 'MCP tool',
+    });
+    if (approvalFailure) return approvalFailure;
+
+    const grantId = `grant_${this.makeId()}`;
+    this.invocationGrants.set(grantId, {
+      grantId,
+      userId: identity.userId,
+      sessionId: route.session.sessionId,
+      toolName: input.toolName,
+      riskLevel: input.riskLevel,
+      inputHash,
+      expiresAt: new Date(now.getTime() + this.invocationGrantTtlMs),
+    });
+    return { ok: true, sessionId: route.session.sessionId, grantId };
+  }
+
+  revokeInvocationGrant(grantId: string): boolean {
+    return this.invocationGrants.delete(grantId);
+  }
+
   async routeToolRequest(input: {
     identity?: RemoteIdentity;
     sessionId?: string;
@@ -293,6 +606,7 @@ export class RemoteGateway {
     riskLevel: RemoteRiskLevel;
     input?: unknown;
     approvalId?: string;
+    grantId?: string;
     deadlineMs?: number;
   }): Promise<RemoteGatewayToolResult> {
     const scope = checkRemoteScope(input.identity, input.riskLevel, this.now());
@@ -315,39 +629,66 @@ export class RemoteGateway {
       return gatewayError(401, 'IDENTITY_MISSING', 'Remote identity is required.');
     }
 
-    const route = this.router.resolve({
-      userId: identity.userId,
+    const route = this.resolveConnection({
+      identity,
       riskLevel: input.riskLevel,
       sessionId: input.sessionId,
     });
-    if (!route.ok) {
-      const status =
-        route.code === 'SESSION_AMBIGUOUS' ? 409 : route.code === 'SESSION_EXPIRED' ? 410 : 404;
-      return gatewayError(status, route.code, route.message);
-    }
+    if (!route.ok) return route;
+    const connection = route.connection;
 
+    const now = this.now();
     const inputHash = this.hashInput(input.input);
     if (requiresApproval(input.riskLevel)) {
-      if (!input.approvalId) {
-        return gatewayError(403, 'APPROVAL_REQUIRED', 'Remote tool request requires approval.');
+      if (input.grantId) {
+        const grant = this.invocationGrants.get(input.grantId);
+        const validGrant =
+          grant &&
+          grant.expiresAt.getTime() > now.getTime() &&
+          grant.userId === identity.userId &&
+          grant.sessionId === route.session.sessionId &&
+          grant.riskLevel === input.riskLevel;
+        if (!validGrant) {
+          if (grant && grant.expiresAt.getTime() <= now.getTime()) {
+            this.invocationGrants.delete(input.grantId);
+          }
+          return gatewayError(
+            403,
+            'APPROVAL_NOT_APPROVED',
+            'Remote invocation grant is missing, expired, or does not match this session.',
+          );
+        }
+      } else if (!input.approvalId) {
+        return await this.requestRemoteApproval({
+          identity,
+          session: route.session,
+          connection,
+          toolName: input.toolName,
+          riskLevel: input.riskLevel,
+          inputHash,
+          now,
+          actionLabel: 'action',
+          retryMessage:
+            'Approval was requested in EasyEDA. Retry with remoteApprovalId after the user decides.',
+        });
       }
-      const approved = this.approvals.consumeApproved({
-        approvalId: input.approvalId,
-        userId: identity.userId,
-        sessionId: route.session.sessionId,
-        toolName: input.toolName,
-        inputHash,
-        now: this.now(),
-      });
-      if (!approved) {
-        return gatewayError(403, 'APPROVAL_NOT_APPROVED', 'Remote approval is missing or invalid.');
-      }
-    }
 
-    const connection = this.connections.get(route.session.sessionId);
-    if (!connection) {
-      this.router.disconnect(route.session.sessionId);
-      return gatewayError(424, 'SESSION_DISCONNECTED', 'Paired EasyEDA extension is disconnected.');
+      if (!input.grantId) {
+        const approvalId = input.approvalId;
+        if (!approvalId) {
+          return gatewayError(403, 'APPROVAL_NOT_APPROVED', 'Remote approval id is required.');
+        }
+        const approvalFailure = this.consumeRemoteApproval({
+          approvalId,
+          identity,
+          session: route.session,
+          toolName: input.toolName,
+          inputHash,
+          now,
+          mismatchTarget: 'method',
+        });
+        if (approvalFailure) return approvalFailure;
+      }
     }
 
     const request: ToolRequestMessage = {
@@ -377,17 +718,32 @@ export class RemoteGateway {
 
     const startedAt = Date.now();
     try {
-      this.audit.record({
-        event: 'remote.tool.dispatched',
-        mode: route.session.mode,
-        userId: identity.userId,
-        sessionId: route.session.sessionId,
-        toolName: input.toolName,
-        riskLevel: input.riskLevel,
-        inputHash,
-      });
       const response = ToolResponseMessageSchema.parse(
-        await dispatchWithDeadline(connection.dispatch, request),
+        await this.dispatchQueue.run(route.session.sessionId, async () => {
+          if (this.connections.get(route.session.sessionId) !== connection) {
+            throw new RemoteSessionUnavailableError(route.session.sessionId);
+          }
+          this.audit.record({
+            event: 'remote.tool.dispatched',
+            mode: route.session.mode,
+            userId: identity.userId,
+            sessionId: route.session.sessionId,
+            toolName: input.toolName,
+            riskLevel: input.riskLevel,
+            inputHash,
+          });
+          try {
+            return await dispatchWithDeadline(connection.dispatch, request);
+          } catch (error) {
+            if (error instanceof RemoteDispatchTimeoutError) {
+              // The extension may still be executing after the caller's deadline. Quarantine
+              // this session before releasing the per-session queue so no later request can
+              // overlap with an operation whose final state is unknown.
+              this.quarantineSession(route.session.sessionId);
+            }
+            throw error;
+          }
+        }),
       );
       if (!response.ok) {
         this.audit.record({
@@ -436,9 +792,12 @@ export class RemoteGateway {
       };
     } catch (error) {
       const timedOut = error instanceof RemoteDispatchTimeoutError;
-      const errorCode: RemoteGatewayErrorCode = timedOut
-        ? 'REMOTE_EXTENSION_TIMEOUT'
-        : 'REMOTE_EXTENSION_ERROR';
+      const sessionUnavailable = error instanceof RemoteSessionUnavailableError;
+      const errorCode: RemoteGatewayErrorCode = sessionUnavailable
+        ? 'SESSION_DISCONNECTED'
+        : timedOut
+          ? 'REMOTE_EXTENSION_TIMEOUT'
+          : 'REMOTE_EXTENSION_ERROR';
       this.audit.record({
         event: 'remote.tool.failed',
         mode: route.session.mode,
@@ -452,7 +811,7 @@ export class RemoteGateway {
         durationMs: Date.now() - startedAt,
       });
       return gatewayError(
-        timedOut ? 504 : 502,
+        sessionUnavailable ? 424 : timedOut ? 504 : 502,
         errorCode,
         error instanceof Error ? error.message : String(error),
       );
@@ -604,6 +963,13 @@ export class RemoteGateway {
           extensionVersion: message.data.extensionVersion,
           activeProject: message.data.activeProject,
           dispatch,
+          requestApproval: async (request) => {
+            if (ws.readyState !== ws.OPEN) throw new Error('Remote relay socket is closed.');
+            ws.send(JSON.stringify(request));
+          },
+          closeConnection: () => {
+            if (ws.readyState === ws.OPEN) ws.close(1011, 'remote_dispatch_timeout');
+          },
           pairingCode: typeof record.pairingCode === 'string' ? record.pairingCode : undefined,
         });
         sessionId = session.sessionId;
@@ -627,6 +993,22 @@ export class RemoteGateway {
       if (message.data.type === 'heartbeat') {
         this.router.heartbeat(sessionId);
         send({ type: 'heartbeat' });
+        return;
+      }
+
+      if (message.data.type === 'approval_result') {
+        const resolved = this.resolveApprovalFromExtension({
+          sessionId,
+          approvalId: message.data.approvalId,
+          result: message.data.result,
+        });
+        if (!resolved) {
+          send({
+            type: 'error',
+            code: 'APPROVAL_NOT_FOUND',
+            message: 'Approval result did not match this relay session.',
+          });
+        }
         return;
       }
 

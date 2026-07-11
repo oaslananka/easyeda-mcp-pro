@@ -24,7 +24,9 @@ EasyEDA bridge extension
 Open EasyEDA Web project
 ```
 
-This mode must keep safe local defaults. It should bind to localhost unless the operator explicitly enables a public remote mode.
+This mode keeps safe local defaults and binds the EasyEDA bridge listener to loopback unless
+the operator explicitly configures otherwise. It is the default fallback and is not started
+when `MCP_BRIDGE_BACKEND=remote_relay` is selected.
 
 ## Hosted Remote Mode
 
@@ -76,7 +78,9 @@ Tunnels provide reachability only. They do not replace authentication, pairing, 
 4. The user pairs the extension session with the remote MCP client or hosted account.
 5. Remote tool calls route to the paired EasyEDA project.
 6. Read operations can run after auth and pairing.
-7. Write/export/destructive operations follow the approval policy.
+7. A write/export/destructive call first requests approval in an EasyEDA confirmation dialog.
+8. After approval, the client retries the identical MCP invocation with the returned
+   `remoteApprovalId`; rejection, timeout, changed input, and replay fail closed.
 
 ## Security responsibilities
 

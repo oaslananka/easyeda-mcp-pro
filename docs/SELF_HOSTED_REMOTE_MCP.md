@@ -4,14 +4,12 @@ Self-hosted Remote MCP lets an operator expose EasyEDA MCP Pro through their own
 VPS, or reverse proxy. This mode is for power users and private deployments that need a public MCP
 endpoint without using the hosted gateway.
 
-**Current status:** the setup below — tunneling the OAuth-protected HTTP transport out from a
-single always-on machine that also runs EasyEDA Pro and the bridge extension — works today with
-the existing HTTP/OAuth implementation. The bridge extension always connects to the MCP server
-over local loopback regardless of where the calling MCP client sits on the network, so this
-flow does not depend on the pairing/relay/approval subsystem described in "Planned relay
-controls" below. That subsystem exists and is tested in isolation but is not yet wired to real
-tool calls — see `docs/REMOTE_RELEASE_READINESS.md` for the tracked gap. Skip the "Planned relay
-controls" section and the pairing-related rows of the operator checklist until that lands.
+**Current status:** two distinct self-hosted paths exist. The established path tunnels the
+OAuth-protected HTTP transport from the same always-on machine that runs EasyEDA Pro and uses
+the local loopback bridge. The experimental relay path selects
+`MCP_BRIDGE_BACKEND=remote_relay`, pairs an outbound extension session, and does not start a
+local bridge listener. The relay path is covered by real Streamable HTTP MCP tests with a fake
+extension, including approval-gated writes, but still requires live EasyEDA dogfood before Beta.
 
 ## Architecture
 
@@ -54,17 +52,22 @@ https://mcp.user-domain.example/.well-known/oauth-protected-resource/mcp
 The local server should bind to localhost behind the tunnel or reverse proxy. Do not bind to all
 interfaces unless the host firewall, TLS, auth, and origin policy are explicitly configured.
 
-## Planned relay controls
+## Experimental relay configuration
 
-The following settings are remote-relay design targets and should remain documented as planned until
-the relay runtime is implemented:
+Use the explicit backend selector when testing the paired outbound relay path:
 
 ```env
-REMOTE_MODE=self_hosted
-PAIRING_REQUIRED=true
-REQUIRE_APPROVAL_FOR_WRITE=true
-REQUIRE_APPROVAL_FOR_EXPORT=true
+TRANSPORT=http
+MCP_BRIDGE_BACKEND=remote_relay
+MCP_REMOTE_SESSION_ID=
+OAUTH_ENABLED=true
 ```
+
+`MCP_REMOTE_SESSION_ID` may identify one fixed session, or the MCP request can provide
+`remoteSessionId`. Pairing is mandatory before routing. Risky MCP tools automatically request
+approval in the paired EasyEDA extension; the MCP client then retries the same call with the
+returned `remoteApprovalId`. Do not advertise this path as Beta until live EasyEDA relay
+validation and the remaining release-readiness gates are complete.
 
 ## Cloudflare Tunnel example
 
@@ -91,8 +94,9 @@ Before exposing a self-hosted endpoint:
 
 - [ ] TLS is enabled at the public endpoint.
 - [ ] Auth is enabled.
-- [ ] Pairing is required before write/export once relay mode is enabled.
-- [ ] Write/export approvals are enabled before relay write/export is advertised.
+- [ ] Pairing is required before any relay tool routing.
+- [ ] The approval dialog, rejected decision, timeout, changed-input rejection, and replay
+      rejection have been verified before relay write/export is advertised.
 - [ ] The local MCP server is not anonymously exposed.
 - [ ] The extension shows the active project before approving changes.
 - [ ] Logs are redacted and stored safely.

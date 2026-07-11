@@ -134,4 +134,61 @@ describe('HTTP remote gateway endpoints', () => {
       await expect(unpaired.json()).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
     });
   });
+
+  it('does not accept a caller-supplied private invocation grant over public HTTP', async () => {
+    await withRemoteServer(3933, async (baseUrl, transport) => {
+      let dispatchCount = 0;
+      const approvalIds: string[] = [];
+      const session = transport.gateway.registerExtension({
+        connectionId: 'conn-private-grant',
+        mode: 'hosted',
+        extensionVersion: '0.32.0',
+        activeProject: { projectName: 'Demo', documentType: 'schematic' },
+        requestApproval: (request) => {
+          approvalIds.push(request.approvalId);
+        },
+        dispatch: async (request) => {
+          dispatchCount += 1;
+          return {
+            protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+            type: 'tool_response' as const,
+            messageId: `response-${request.messageId}`,
+            sessionId: request.sessionId,
+            requestMessageId: request.messageId,
+            timestamp: new Date('2026-07-04T00:00:00.000Z').toISOString(),
+            ok: true,
+            result: {},
+            durationMs: 1,
+          };
+        },
+      });
+
+      const identity = { userId: 'user-a', scopes: ['easyeda.write'] as const };
+      const code = transport.gateway.createPairingCode({ identity, sessionId: session.sessionId });
+      expect(
+        transport.gateway.completePairing({ identity, code, sessionId: session.sessionId }),
+      ).toBe(true);
+
+      const response = await fetch(`${baseUrl}/remote/tool-requests`, {
+        method: 'POST',
+        headers: headers('easyeda.write'),
+        body: JSON.stringify({
+          sessionId: session.sessionId,
+          toolName: 'schematic.addText',
+          riskLevel: 'write',
+          input: { content: 'must not dispatch' },
+          grantId: 'caller-supplied-value',
+        }),
+      });
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        code: 'APPROVAL_REQUIRED',
+        approvalId: expect.stringMatching(/^appr_/),
+      });
+      expect(approvalIds).toHaveLength(1);
+      expect(dispatchCount).toBe(0);
+    });
+  });
 });

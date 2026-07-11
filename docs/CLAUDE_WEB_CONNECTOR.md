@@ -2,14 +2,12 @@
 
 Claude Web can use EasyEDA MCP Pro through a public Remote MCP endpoint.
 
-**Current status:** there is no hosted gateway deployment today, and the pairing/relay
-flow described below as "target design" is not yet wired to real MCP tool calls — see
-`docs/REMOTE_RELEASE_READINESS.md` for the tracked gap. The setup that works today is
-the self-hosted tunnel path: run the MCP server and EasyEDA Pro on the same always-on
-machine, expose only the OAuth-protected HTTP transport through a tunnel/reverse proxy,
-and add that URL as a Claude Web connector. The bridge extension always talks to the MCP
-server over local loopback, so it does not need "pairing" in that setup — it just needs
-to be connected to the same EasyEDA Pro instance the server's bridge is listening for.
+**Current status:** there is no hosted gateway deployment today. The pairing/relay path is
+implemented behind `MCP_BRIDGE_BACKEND=remote_relay` and real Streamable HTTP MCP read/write
+routing is CI-tested with a paired fake extension, including two simultaneous MCP clients sharing one paired extension session, but live EasyEDA and Claude Web dogfood
+remain release gates. The established setup today is still the self-hosted tunnel path: run
+the MCP server and EasyEDA Pro on the same always-on machine, expose only the OAuth-protected
+HTTP transport, and use the local loopback bridge.
 
 ## Self-hosted mode (works today)
 
@@ -38,7 +36,7 @@ User flow:
    there is no separate "active project" pairing step — whatever project is open in
    EasyEDA Pro on that machine is what tools operate on.
 
-## Hosted mode (target design, not usable yet)
+## Hosted mode (experimental runtime, no public deployment)
 
 ```text
 Claude Web
@@ -47,13 +45,13 @@ https://mcp.example.com/mcp
   ↓
 Hosted Remote MCP Gateway
   ↓
-Paired EasyEDA extension session   ← not wired to real tool calls yet
+Paired EasyEDA extension session
 ```
 
-There is no hosted gateway deployment to connect to today. The pairing/session-router/
-approval-policy subsystem this diagram depends on exists in `src/remote/` and is
-unit/HTTP-tested in isolation, but no code path routes an actual `/mcp` tool call
-through it yet. Once that integration lands, the intended user flow is:
+There is no hosted gateway deployment to connect to today. The runtime path is implemented:
+`/mcp` can select a paired session, route read calls, and request an EasyEDA confirmation
+dialog before risky calls. The remaining work is deployment, production account linking,
+session/project UX, hosted multi-client load validation, and live EasyEDA/Claude Web validation. The intended user flow is:
 
 1. Install and activate the EasyEDA bridge extension.
 2. Open EasyEDA Web and the target project.

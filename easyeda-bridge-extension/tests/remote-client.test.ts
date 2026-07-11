@@ -45,7 +45,7 @@ class FakeWebSocket {
   }
 }
 
-function makeClient() {
+function makeClient(requestApproval = vi.fn(async () => 'approved' as const)) {
   const log = vi.fn();
   const showToast = vi.fn();
   const executeToolRequest = vi.fn(async () => ({ ok: true }));
@@ -55,8 +55,9 @@ function makeClient() {
     showToast,
     readActiveProject: () => ({ projectName: 'Fixture', documentType: 'schematic' }),
     executeToolRequest,
+    requestApproval,
   });
-  return { client, log, showToast, executeToolRequest };
+  return { client, log, showToast, executeToolRequest, requestApproval };
 }
 
 function relayMessage(type: string, extra: Record<string, unknown> = {}) {
@@ -165,5 +166,79 @@ describe('RemoteRelayClient resilience', () => {
       sessionId: 'sess_1',
       pairingCode: '123456',
     });
+  });
+
+  it('returns the explicit user approval decision to the relay', async () => {
+    const { client, requestApproval } = makeClient();
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    socket.receive(
+      relayMessage('approval_request', {
+        approvalId: 'appr_1',
+        toolName: 'schematic.addText',
+        riskLevel: 'write',
+        actionSummary: 'Add a schematic note',
+        inputHash: '1234567890abcdef',
+        activeProject: { projectName: 'Fixture', documentType: 'schematic' },
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(requestApproval).toHaveBeenCalledWith({
+      approvalId: 'appr_1',
+      toolName: 'schematic.addText',
+      riskLevel: 'write',
+      actionSummary: 'Add a schematic note',
+      inputHash: '1234567890abcdef',
+      activeProject: { projectName: 'Fixture', documentType: 'schematic' },
+      expiresAt: expect.any(String),
+    });
+    const approvalResult = socket.sent
+      .map((data) => JSON.parse(data) as Record<string, unknown>)
+      .find((message) => message.type === 'approval_result');
+    expect(approvalResult).toMatchObject({
+      type: 'approval_result',
+      approvalId: 'appr_1',
+      result: 'approved',
+    });
+  });
+
+  it('does not open duplicate approval prompts for the same approval id', async () => {
+    let resolveDecision: ((decision: 'rejected') => void) | undefined;
+    const requestApproval = vi.fn(
+      async () =>
+        await new Promise<'rejected'>((resolve) => {
+          resolveDecision = resolve;
+        }),
+    );
+    const { client } = makeClient(requestApproval);
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    const request = relayMessage('approval_request', {
+      approvalId: 'appr_duplicate',
+      toolName: 'schematic.addText',
+      riskLevel: 'write',
+      actionSummary: 'Add a schematic note',
+      inputHash: 'hash',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+
+    socket.receive(request);
+    socket.receive(request);
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+
+    resolveDecision?.('rejected');
+    await Promise.resolve();
+    await Promise.resolve();
+    const decisions = socket.sent
+      .map((data) => JSON.parse(data) as Record<string, unknown>)
+      .filter((message) => message.type === 'approval_result');
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({ approvalId: 'appr_duplicate', result: 'rejected' });
   });
 });

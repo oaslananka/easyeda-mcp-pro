@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   registerAll: vi.fn(),
   registerTools: vi.fn(),
   registerResources: vi.fn(),
+  startHotSwapWatcher: vi.fn(() => vi.fn()),
   vendor: vi.fn(),
 }));
 
@@ -56,6 +57,9 @@ vi.mock('../../../src/bridge/manager.js', () => ({
     extensionVersion = '0.20.0';
     extensionVersionMismatch = true;
   },
+}));
+vi.mock('../../../src/bridge/hotswap-watcher.js', () => ({
+  startHotSwapWatcher: mocks.startHotSwapWatcher,
 }));
 vi.mock('../../../src/tools/registry.js', () => ({
   ToolRegistry: class MockToolRegistry {
@@ -114,6 +118,21 @@ describe('createServer', () => {
 
     expect(mocks.storageClose).toHaveBeenCalledTimes(1);
     expect(mocks.disconnect).toHaveBeenCalledWith('server shutdown');
+    expect(mocks.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not open the local bridge or hot-swap watcher in Remote Relay mode', async () => {
+    const instance = await createServer(
+      config({ TRANSPORT: 'http', MCP_BRIDGE_BACKEND: 'remote_relay' }),
+    );
+
+    expect(mocks.connect).not.toHaveBeenCalled();
+    expect(mocks.startHotSwapWatcher).not.toHaveBeenCalled();
+    expect(instance.context.remote?.gateway).toBeDefined();
+
+    await instance.shutdown();
+
+    expect(mocks.disconnect).not.toHaveBeenCalled();
     expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 

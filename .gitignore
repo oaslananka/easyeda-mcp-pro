@@ -17,3 +17,7 @@ easyeda-bridge-extension.eext
 
 # Extension release artifacts
 easyeda-bridge-extension.checksums.json
+
+# Local code-analysis metadata
+.serena/
+.codebase-memory/

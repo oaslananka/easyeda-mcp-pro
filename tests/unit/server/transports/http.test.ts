@@ -241,9 +241,9 @@ describe('createHttpTransport', () => {
     try {
       const res = await fetch('http://127.0.0.1:3897/healthz', { method: 'OPTIONS' });
       expect(res.status).toBe(204);
-      expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST, OPTIONS');
+      expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST, DELETE, OPTIONS');
       expect(res.headers.get('access-control-allow-headers')).toBe(
-        'Content-Type, Authorization, MCP-Protocol-Version',
+        'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID',
       );
       expect(res.headers.get('access-control-max-age')).toBe('86400');
       expect(res.headers.get('vary')).toBe('Origin');
@@ -583,11 +583,11 @@ describe('handleCorsPreflight', () => {
     expect(res.setHeader).toHaveBeenCalledWith('Vary', 'Origin');
     expect(res.setHeader).toHaveBeenCalledWith(
       'Access-Control-Allow-Methods',
-      'GET, POST, OPTIONS',
+      'GET, POST, DELETE, OPTIONS',
     );
     expect(res.setHeader).toHaveBeenCalledWith(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, MCP-Protocol-Version',
+      'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID',
     );
     expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Max-Age', '86400');
     expect(res.end).toHaveBeenCalled();
@@ -649,7 +649,7 @@ describe('createHttpTransport — OAuth/JWKS validation', () => {
       });
       expect(res.status).toBe(204);
       expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
-      expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST, OPTIONS');
+      expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST, DELETE, OPTIONS');
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

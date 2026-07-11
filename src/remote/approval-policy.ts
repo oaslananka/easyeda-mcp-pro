@@ -42,8 +42,8 @@ export class ApprovalStore {
     now = new Date(),
   ): ApprovalRecord | undefined {
     const record = this.approvals.get(approvalId);
-    if (!record) return undefined;
-    record.decision = now.getTime() > record.expiresAt.getTime() ? 'timeout' : decision;
+    if (!record || record.decision !== undefined) return undefined;
+    record.decision = now.getTime() >= record.expiresAt.getTime() ? 'timeout' : decision;
     record.decidedAt = now;
     return record;
   }
@@ -72,5 +72,43 @@ export class ApprovalStore {
 
   get(approvalId: string): ApprovalRecord | undefined {
     return this.approvals.get(approvalId);
+  }
+
+  findPending(input: {
+    userId: string;
+    sessionId: string;
+    toolName: string;
+    inputHash: string;
+    now?: Date;
+  }): ApprovalRecord | undefined {
+    const now = input.now ?? new Date();
+    for (const [approvalId, record] of this.approvals) {
+      if (record.expiresAt.getTime() <= now.getTime()) {
+        this.approvals.delete(approvalId);
+        continue;
+      }
+      if (
+        record.userId === input.userId &&
+        record.sessionId === input.sessionId &&
+        record.toolName === input.toolName &&
+        record.inputHash === input.inputHash &&
+        record.decision === undefined
+      ) {
+        return record;
+      }
+    }
+    return undefined;
+  }
+
+  delete(approvalId: string): boolean {
+    return this.approvals.delete(approvalId);
+  }
+
+  deleteForSession(sessionId: string): number {
+    let deleted = 0;
+    for (const [approvalId, record] of this.approvals) {
+      if (record.sessionId === sessionId && this.approvals.delete(approvalId)) deleted += 1;
+    }
+    return deleted;
   }
 }

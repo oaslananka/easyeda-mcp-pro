@@ -733,6 +733,110 @@ describe('registered output schema compatibility', () => {
 });
 
 describe('ToolRegistry remote relay backend', () => {
+  it('advertises relay session and approval controls in remote MCP tool schemas', async () => {
+    const routeToolRequest = vi.fn(async () => ({
+      ok: true as const,
+      sessionId: 'sess_schema',
+      toolName: 'schematic.getDocument',
+      result: { ok: true },
+      durationMs: 1,
+    }));
+    const domainHandler = vi.fn(async (ctx: ToolContext, input: { query: string }) => {
+      await ctx.bridge.call('schematic.getDocument', input);
+      return { ok: true };
+    });
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_schema_tool', 'core', {
+        inputSchema: z.object({ query: z.string() }),
+        handler: domainHandler as ToolDefinition['handler'],
+      }),
+    );
+
+    let registeredDefinition: { inputSchema: z.ZodType } | undefined;
+    let registeredHandler:
+      ((input: unknown, extra: unknown) => Promise<Record<string, unknown>>) | undefined;
+    registry.registerAllOnServer(
+      {
+        registerTool: (
+          _name: string,
+          definition: { inputSchema: z.ZodType },
+          handler: (input: unknown, extra: unknown) => Promise<Record<string, unknown>>,
+        ) => {
+          registeredDefinition = definition;
+          registeredHandler = handler;
+        },
+      } as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+        },
+        remote: { gateway: { routeToolRequest } as any },
+      }),
+    );
+
+    const parsed = registeredDefinition?.inputSchema.parse({
+      query: 'current',
+      remoteSessionId: 'sess_schema',
+      remoteApprovalId: 'appr_schema',
+    }) as Record<string, unknown>;
+    expect(parsed).toEqual({
+      query: 'current',
+      remoteSessionId: 'sess_schema',
+      remoteApprovalId: 'appr_schema',
+    });
+
+    await registeredHandler?.(parsed, {
+      authInfo: {
+        clientId: 'client-schema',
+        scopes: ['easyeda:read'],
+        extra: { sub: 'user-schema' },
+      },
+    });
+
+    expect(domainHandler).toHaveBeenCalledWith(expect.any(Object), { query: 'current' });
+    expect(routeToolRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'sess_schema',
+        input: { query: 'current' },
+      }),
+    );
+    expect(routeToolRequest.mock.calls[0]?.[0]).not.toHaveProperty('approvalId');
+  });
+
+  it('does not advertise Remote Relay controls in local bridge mode', () => {
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('local_schema_tool', 'core', {
+        inputSchema: z.object({ query: z.string() }),
+      }),
+    );
+    let registeredInput: z.ZodType | undefined;
+    registry.registerAllOnServer(
+      {
+        registerTool: (_name: string, definition: { inputSchema: z.ZodType }) => {
+          registeredInput = definition.inputSchema;
+        },
+      } as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'local_bridge',
+        },
+      }),
+    );
+
+    expect(registeredInput).toBeInstanceOf(z.ZodObject);
+    expect((registeredInput as z.ZodObject).shape).not.toHaveProperty('remoteSessionId');
+    expect((registeredInput as z.ZodObject).shape).not.toHaveProperty('remoteApprovalId');
+  });
   it('routes bridge calls through RemoteGateway when MCP_BRIDGE_BACKEND=remote_relay', async () => {
     const routeToolRequest = vi.fn(async () => ({
       ok: true as const,
@@ -793,26 +897,32 @@ describe('ToolRegistry remote relay backend', () => {
     });
   });
 
-  it('passes remote approval controls for write/export remote bridge calls', async () => {
-    const routeToolRequest = vi.fn(async () => ({
+  it('authorizes a risky MCP invocation once and reuses its private grant for every bridge call', async () => {
+    const authorizeToolInvocation = vi.fn(async () => ({
       ok: true as const,
       sessionId: 'sess_2',
-      toolName: 'board.exportGerbers',
+      grantId: 'grant_1',
+    }));
+    const routeToolRequest = vi.fn(async (input: { toolName: string }) => ({
+      ok: true as const,
+      sessionId: 'sess_2',
+      toolName: input.toolName,
       result: { ok: true },
       durationMs: 7,
     }));
+    const revokeInvocationGrant = vi.fn(() => true);
     const registry = new ToolRegistry();
     registry.register(
       createMockTool('remote_export_tool', 'core', {
         group: 'export',
         risk: 'high',
         confirmWrite: true,
-        inputSchema: z.object({
-          confirmWrite: z.boolean(),
-          remoteSessionId: z.string().optional(),
-          remoteApprovalId: z.string().optional(),
-        }),
-        handler: async (ctx) => await ctx.bridge.call('board.exportGerbers', { format: 'zip' }),
+        inputSchema: z.object({ confirmWrite: z.boolean() }),
+        handler: async (ctx) => {
+          await ctx.bridge.call('board.prepareExport', { format: 'zip' });
+          await ctx.bridge.call('board.exportGerbers', { format: 'zip' });
+          return { ok: true };
+        },
       }),
     );
     const { server, handlers } = mockMcpServer();
@@ -826,7 +936,13 @@ describe('ToolRegistry remote relay backend', () => {
           bridgePort: 49620,
           MCP_BRIDGE_BACKEND: 'remote_relay',
         },
-        remote: { gateway: { routeToolRequest } as any },
+        remote: {
+          gateway: {
+            authorizeToolInvocation,
+            routeToolRequest,
+            revokeInvocationGrant,
+          } as any,
+        },
       }),
     );
 
@@ -846,15 +962,35 @@ describe('ToolRegistry remote relay backend', () => {
     );
 
     expect(response.isError).toBeFalsy();
-    expect(routeToolRequest).toHaveBeenCalledWith(
+    expect(authorizeToolInvocation).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'sess_2',
-        toolName: 'board.exportGerbers',
+        toolName: 'remote_export_tool',
         riskLevel: 'export',
-        input: { format: 'zip' },
+        input: { confirmWrite: true },
         approvalId: 'appr_1',
       }),
     );
+    expect(routeToolRequest).toHaveBeenCalledTimes(2);
+    expect(routeToolRequest).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        sessionId: 'sess_2',
+        toolName: 'board.prepareExport',
+        riskLevel: 'export',
+        input: { format: 'zip' },
+        grantId: 'grant_1',
+      }),
+    );
+    expect(routeToolRequest).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        sessionId: 'sess_2',
+        toolName: 'board.exportGerbers',
+        grantId: 'grant_1',
+      }),
+    );
+    expect(revokeInvocationGrant).toHaveBeenCalledWith('grant_1');
     expect(routeToolRequest.mock.calls[0]?.[0].identity).toMatchObject({
       userId: 'user-a',
       scopes: ['easyeda.export'],
@@ -902,9 +1038,9 @@ describe('ToolRegistry remote relay backend', () => {
   it('surfaces Remote Relay routing failures as structured tool errors', async () => {
     const routeToolRequest = vi.fn(async () => ({
       ok: false as const,
-      code: 'REMOTE_SESSION_NOT_FOUND',
-      message: 'No paired session matched the request.',
-      suggestion: 'Pair an extension session first.',
+      status: 424,
+      code: 'SESSION_DISCONNECTED' as const,
+      message: 'Paired EasyEDA extension is disconnected.',
     }));
     const registry = new ToolRegistry();
     registry.register(
@@ -932,10 +1068,14 @@ describe('ToolRegistry remote relay backend', () => {
 
     expect(response.isError).toBe(true);
     expect(response.structuredContent).toMatchObject({
-      errorCode: ErrorCodes.TOOL_EXECUTION,
-      details: { toolName: 'remote_failure_tool' },
+      errorCode: ErrorCodes.REMOTE_RELAY,
+      details: {
+        toolName: 'remote_failure_tool',
+        remoteCode: 'SESSION_DISCONNECTED',
+        status: 424,
+      },
     });
-    expect(response.content[0].text).toContain('REMOTE_SESSION_NOT_FOUND');
+    expect(response.content[0].text).toContain('SESSION_DISCONNECTED');
   });
 
   it('surfaces a missing RemoteGateway when remote backend is enabled', async () => {

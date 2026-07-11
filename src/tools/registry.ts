@@ -9,11 +9,12 @@ import {
   type WriteMode,
 } from './transaction.js';
 import { type ToolProfile, getEnabledProfiles } from '../config/profiles.js';
-import { ZodError, type z } from 'zod';
+import { z, ZodError } from 'zod';
 import { SERVER_VERSION } from '../config/version.js';
 import { getGlobalMetricsCollector, type ObservabilityCategory } from '../observability/index.js';
 import { type RemoteIdentity } from '../remote/scope.js';
 import { type RemoteRiskLevel } from '../remote/protocol.js';
+import { type RemoteGatewayToolResult } from '../remote/gateway.js';
 
 // ── Structured error codes ────────────────────────────────────────────────
 
@@ -39,6 +40,36 @@ export interface StructuredError {
 
 const READ_ALL_SCOPE = 'easyeda:read';
 const WRITE_ALL_SCOPE = 'easyeda:write';
+
+const REMOTE_RELAY_CONTROL_SHAPE = {
+  remoteSessionId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Paired Remote Relay session id. Optional when MCP_REMOTE_SESSION_ID is configured.'),
+  remoteApprovalId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Approved Remote Relay action id required for write, export, and destructive calls.'),
+};
+
+function registeredInputSchema(tool: ToolDefinition, context: ToolContext): z.ZodType {
+  if (context.config.MCP_BRIDGE_BACKEND !== 'remote_relay') return tool.inputSchema;
+  if (tool.inputSchema instanceof z.ZodObject) {
+    return tool.inputSchema.safeExtend(REMOTE_RELAY_CONTROL_SHAPE);
+  }
+  return z.intersection(tool.inputSchema, z.object(REMOTE_RELAY_CONTROL_SHAPE));
+}
+
+type RemoteGatewayFailure = Extract<RemoteGatewayToolResult, { ok: false }>;
+
+class RemoteRelayRouteError extends Error {
+  constructor(readonly failure: RemoteGatewayFailure) {
+    super(`Remote relay ${failure.code}: ${failure.message}`);
+    this.name = 'RemoteRelayRouteError';
+  }
+}
 
 function categoryForTool(tool: ToolDefinition): ObservabilityCategory {
   if (tool.group === 'diagnostics') return 'diagnostics';
@@ -252,20 +283,30 @@ function remoteRiskForTool(tool: ToolDefinition): RemoteRiskLevel {
   return 'read';
 }
 
-function contextForRemoteRelay(
+interface PreparedToolContext {
+  context: ToolContext;
+  release?: () => void;
+}
+
+async function contextForRemoteRelay(
   context: ToolContext,
   tool: ToolDefinition,
   raw: unknown,
   extra: unknown,
-): ToolContext {
-  if (context.config.MCP_BRIDGE_BACKEND !== 'remote_relay') return context;
+  parsed: unknown,
+): Promise<PreparedToolContext> {
+  if (context.config.MCP_BRIDGE_BACKEND !== 'remote_relay') return { context };
   const gateway = context.remote?.gateway;
+  if (!gateway) {
+    throw new Error('Remote relay backend requested but no RemoteGateway is configured.');
+  }
+
   const controls = rawRecord(raw);
   const configuredSessionId =
     typeof context.config.MCP_REMOTE_SESSION_ID === 'string'
       ? context.config.MCP_REMOTE_SESSION_ID
       : '';
-  const sessionId =
+  let sessionId =
     typeof controls.remoteSessionId === 'string'
       ? controls.remoteSessionId
       : configuredSessionId || undefined;
@@ -273,37 +314,50 @@ function contextForRemoteRelay(
     typeof controls.remoteApprovalId === 'string' ? controls.remoteApprovalId : undefined;
   const identity = remoteIdentityFromExtra(extra);
   const riskLevel = remoteRiskForTool(tool);
+  let grantId: string | undefined;
+
+  if (riskLevel !== 'read') {
+    const authorization = await gateway.authorizeToolInvocation({
+      identity,
+      sessionId,
+      toolName: tool.name,
+      riskLevel,
+      input: parsed,
+      approvalId,
+    });
+    if (!authorization.ok) throw new RemoteRelayRouteError(authorization);
+    sessionId = authorization.sessionId;
+    grantId = authorization.grantId;
+  }
 
   return {
-    ...context,
-    bridge: {
-      ...context.bridge,
-      get connected() {
-        return true;
-      },
-      call: async <TParams, TResult>(
-        method: string,
-        params?: TParams,
-        opts?: { timeoutMs?: number; traceparent?: string },
-      ): Promise<TResult> => {
-        if (!gateway) {
-          throw new Error('Remote relay backend requested but no RemoteGateway is configured.');
-        }
-        const result = await gateway.routeToolRequest({
-          identity,
-          sessionId,
-          toolName: method,
-          riskLevel,
-          input: params,
-          approvalId,
-          deadlineMs: opts?.timeoutMs,
-        });
-        if (!result.ok) {
-          throw new Error(`Remote relay ${result.code}: ${result.message}`);
-        }
-        return result.result as TResult;
+    context: {
+      ...context,
+      bridge: {
+        ...context.bridge,
+        get connected() {
+          return true;
+        },
+        call: async <TParams, TResult>(
+          method: string,
+          params?: TParams,
+          opts?: { timeoutMs?: number; traceparent?: string },
+        ): Promise<TResult> => {
+          const result = await gateway.routeToolRequest({
+            identity,
+            sessionId,
+            toolName: method,
+            riskLevel,
+            input: params,
+            grantId,
+            deadlineMs: opts?.timeoutMs,
+          });
+          if (!result.ok) throw new RemoteRelayRouteError(result);
+          return result.result as TResult;
+        },
       },
     },
+    release: grantId ? () => void gateway.revokeInvocationGrant(grantId) : undefined,
   };
 }
 
@@ -368,9 +422,10 @@ async function executeToolWithMetrics(
   parsed: unknown,
 ): Promise<unknown> {
   const startedAt = Date.now();
+  let prepared: PreparedToolContext | undefined;
   try {
-    const executionContext = contextForRemoteRelay(context, tool, raw, extra);
-    const result = await tool.handler(executionContext, parsed);
+    prepared = await contextForRemoteRelay(context, tool, raw, extra, parsed);
+    const result = await tool.handler(prepared.context, parsed);
     getGlobalMetricsCollector().recordTimed({
       category: categoryForTool(tool),
       name: tool.name,
@@ -386,6 +441,8 @@ async function executeToolWithMetrics(
       ok: false,
     });
     throw err;
+  } finally {
+    prepared?.release?.();
   }
 }
 
@@ -427,6 +484,20 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
       errorCode: ErrorCodes.INVALID_INPUT,
       message: `Invalid input for "${tool.name}": ${err.message}`,
       details: { toolName: tool.name, issues: err.issues },
+    });
+  }
+
+  if (err instanceof RemoteRelayRouteError) {
+    return structuredErrorResponse({
+      errorCode: ErrorCodes.REMOTE_RELAY,
+      message: err.message,
+      details: {
+        toolName: tool.name,
+        remoteCode: err.failure.code,
+        status: err.failure.status,
+        approvalId: err.failure.approvalId,
+        approvalExpiresAt: err.failure.approvalExpiresAt,
+      },
     });
   }
 
@@ -531,7 +602,7 @@ export class ToolRegistry {
         {
           title: tool.title,
           description: tool.description,
-          inputSchema: tool.inputSchema,
+          inputSchema: registeredInputSchema(tool, context),
           outputSchema: registeredOutputSchema(tool),
           annotations: tool.annotations,
         },

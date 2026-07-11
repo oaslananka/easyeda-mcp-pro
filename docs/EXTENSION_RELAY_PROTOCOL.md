@@ -1,13 +1,13 @@
 # Extension relay protocol
 
 **Current status:** the wire protocol and envelope shapes below are implemented
-(`src/remote/protocol.ts`, `easyeda-bridge-extension/src/remote-client.ts`) and unit
-tested. `RemoteRelayClient` genuinely connects and can execute real EasyEDA API calls
-when driven directly. What is missing is upstream of this protocol: no real MCP tool
-call (`/mcp`) currently produces a `tool_request` on this relay — see
-`docs/REMOTE_RELEASE_READINESS.md` for the tracked gap. `RemoteRelayClient` now includes
-client-side reconnect/backoff, heartbeat liveness tracking, and status diagnostics, but
-that resilience only helps once a relay URL is actually driving the extension.
+(`src/remote/protocol.ts`, `easyeda-bridge-extension/src/remote-client.ts`) and covered by
+unit and real Streamable HTTP MCP integration tests. In `remote_relay` mode, an `/mcp`
+tool call can produce `approval_request` and `tool_request` messages for a paired fake
+extension without starting the local bridge listener. `RemoteRelayClient` includes
+reconnect/backoff, heartbeat liveness, status diagnostics, EasyEDA bridge dispatch, and
+an explicit confirmation-dialog callback for approval decisions. Live EasyEDA relay
+dogfood and hosted deployment remain Beta gates.
 
 The relay protocol carries authenticated gateway requests to an opted-in EasyEDA bridge extension session. The extension uses an outbound connection and does not expose a local listener to the public internet.
 
@@ -62,6 +62,24 @@ Every relay message should include:
 | `session_closed`     | Both                        | Close a session intentionally.                                |
 | `error`              | Both                        | Return protocol, routing, or execution errors.                |
 
+## Approval handshake
+
+Risky operations are approved at the complete MCP tool-invocation boundary, not separately
+for each internal bridge call:
+
+1. The first MCP call omits `remoteApprovalId`.
+2. The gateway binds a pending approval to the authenticated user, paired session, MCP tool,
+   and hash of the effective parsed input.
+3. The gateway sends `approval_request`; the extension displays an EasyEDA confirmation
+   dialog and replies with `approval_result` (`approved`, `rejected`, or `timeout`).
+4. The MCP response remains fail-closed and includes the approval ID.
+5. The client retries the same MCP call with `remoteApprovalId`.
+6. An approved retry receives a private server-side grant for that handler invocation. The
+   grant is never accepted from public HTTP input and is revoked when the handler finishes.
+
+Changed input, wrong user/session, pending/rejected/timed-out decisions, replay, disconnect,
+or a missing approval UI must fail before any risky bridge dispatch.
+
 ## Tool request fields
 
 A `tool_request` should include:
@@ -81,7 +99,9 @@ The extension and gateway must reject:
 - unsupported protocol versions,
 - messages for unknown sessions,
 - tool requests before pairing,
-- approval-required actions without approval,
+- approval-required actions without a matching invocation grant or legacy direct approval,
+- rejected, timed-out, mismatched, or replayed approval IDs,
+- risky sessions whose extension exposes no approval UI,
 - messages with malformed envelopes,
 - requests after user disables Remote Relay Mode.
 

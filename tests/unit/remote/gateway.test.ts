@@ -37,6 +37,7 @@ function registerFakeExtension(gateway: RemoteGateway, dispatches: ToolRequestMe
     mode: 'hosted',
     extensionVersion: '0.19.0',
     activeProject: { projectName: 'Demo', documentType: 'schematic' },
+    requestApproval: () => undefined,
     dispatch: async (request) => {
       dispatches.push(request);
       return {
@@ -329,5 +330,301 @@ describe('RemoteGateway', () => {
       code: 'REMOTE_EXTENSION_ERROR',
       message: 'Remote relay socket closed unexpectedly.',
     });
+  });
+
+  it('authorizes a whole MCP invocation and rejects its private grant after revocation', async () => {
+    const { gateway } = makeGateway();
+    const approvalRequests: Array<{ approvalId: string }> = [];
+    const dispatches: ToolRequestMessage[] = [];
+    const session = gateway.registerExtension({
+      connectionId: 'conn-invocation-grant',
+      mode: 'hosted',
+      extensionVersion: '0.32.0',
+      activeProject: { projectName: 'Demo', documentType: 'schematic' },
+      requestApproval: (request) => {
+        approvalRequests.push(request);
+      },
+      dispatch: async (request) => {
+        dispatches.push(request);
+        return {
+          protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+          type: 'tool_response',
+          messageId: `response-${request.messageId}`,
+          sessionId: request.sessionId,
+          requestMessageId: request.messageId,
+          timestamp: new Date('2026-07-04T00:00:00.000Z').toISOString(),
+          ok: true,
+          result: { method: request.toolName },
+          durationMs: 1,
+        };
+      },
+    });
+    const code = gateway.createPairingCode({
+      identity: writeIdentity,
+      sessionId: session.sessionId,
+    });
+    gateway.completePairing({ identity: writeIdentity, code, sessionId: session.sessionId });
+
+    const invocation = {
+      identity: writeIdentity,
+      sessionId: session.sessionId,
+      toolName: 'easyeda_schematic_batch',
+      riskLevel: 'write' as const,
+      input: { operations: [{ kind: 'text' }, { kind: 'rectangle' }] },
+    };
+    const pending = await gateway.authorizeToolInvocation(invocation);
+    expect(pending).toMatchObject({
+      ok: false,
+      code: 'APPROVAL_REQUIRED',
+      approvalId: expect.stringMatching(/^appr_/),
+    });
+    if (pending.ok || !pending.approvalId) throw new Error('Expected an approval id.');
+    expect(approvalRequests).toHaveLength(1);
+    expect(approvalRequests[0]).toMatchObject({
+      toolName: 'easyeda_schematic_batch',
+      riskLevel: 'write',
+    });
+
+    expect(
+      gateway.resolveApprovalFromExtension({
+        sessionId: session.sessionId,
+        approvalId: pending.approvalId,
+        result: 'approved',
+      }),
+    ).toBe(true);
+    const authorized = await gateway.authorizeToolInvocation({
+      ...invocation,
+      approvalId: pending.approvalId,
+    });
+    expect(authorized).toMatchObject({
+      ok: true,
+      sessionId: session.sessionId,
+      grantId: expect.stringMatching(/^grant_/),
+    });
+    if (!authorized.ok) throw new Error('Expected an invocation grant.');
+
+    await expect(
+      gateway.routeToolRequest({
+        identity: writeIdentity,
+        sessionId: session.sessionId,
+        toolName: 'schematic.addText',
+        riskLevel: 'write',
+        input: { content: 'one' },
+        grantId: authorized.grantId,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      gateway.routeToolRequest({
+        identity: writeIdentity,
+        sessionId: session.sessionId,
+        toolName: 'schematic.addRectangle',
+        riskLevel: 'write',
+        input: { width: 10, height: 5 },
+        grantId: authorized.grantId,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(dispatches).toHaveLength(2);
+
+    expect(gateway.revokeInvocationGrant(authorized.grantId)).toBe(true);
+    await expect(
+      gateway.routeToolRequest({
+        identity: writeIdentity,
+        sessionId: session.sessionId,
+        toolName: 'schematic.addText',
+        riskLevel: 'write',
+        input: { content: 'late' },
+        grantId: authorized.grantId,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_NOT_APPROVED' });
+    expect(dispatches).toHaveLength(2);
+  });
+
+  it('fails closed when a risky connection has no approval UI', async () => {
+    const { gateway } = makeGateway();
+    const session = gateway.registerExtension({
+      connectionId: 'conn-no-approval-ui',
+      mode: 'hosted',
+      extensionVersion: '0.32.0',
+      activeProject: { projectName: 'Demo', documentType: 'schematic' },
+      dispatch: async () => {
+        throw new Error('dispatch must not run');
+      },
+    });
+    const code = gateway.createPairingCode({
+      identity: writeIdentity,
+      sessionId: session.sessionId,
+    });
+    gateway.completePairing({ identity: writeIdentity, code, sessionId: session.sessionId });
+
+    await expect(
+      gateway.authorizeToolInvocation({
+        identity: writeIdentity,
+        sessionId: session.sessionId,
+        toolName: 'easyeda_schematic_add_text',
+        riskLevel: 'write',
+        input: { content: 'blocked' },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      status: 424,
+      code: 'APPROVAL_UI_UNAVAILABLE',
+    });
+  });
+
+  it('requests approval once, binds the decision to the session, and consumes it once', async () => {
+    const { gateway } = makeGateway();
+    const approvalRequests: Array<{ approvalId: string }> = [];
+    const dispatches: ToolRequestMessage[] = [];
+    const session = gateway.registerExtension({
+      connectionId: 'conn-approval',
+      mode: 'hosted',
+      extensionVersion: '0.32.0',
+      activeProject: { projectName: 'Demo', documentType: 'schematic' },
+      requestApproval: (request) => {
+        approvalRequests.push(request);
+      },
+      dispatch: async (request) => {
+        dispatches.push(request);
+        return {
+          protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+          type: 'tool_response',
+          messageId: `response-${request.messageId}`,
+          sessionId: request.sessionId,
+          requestMessageId: request.messageId,
+          timestamp: new Date('2026-07-04T00:00:00.000Z').toISOString(),
+          ok: true,
+          result: { primitiveId: 'text-1' },
+          durationMs: 1,
+        };
+      },
+    });
+    const code = gateway.createPairingCode({
+      identity: writeIdentity,
+      sessionId: session.sessionId,
+    });
+    expect(
+      gateway.completePairing({ identity: writeIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    const request = {
+      identity: writeIdentity,
+      sessionId: session.sessionId,
+      toolName: 'schematic.addText',
+      riskLevel: 'write' as const,
+      input: { x: 10, y: 20, content: 'Remote note' },
+    };
+    const first = await gateway.routeToolRequest(request);
+    expect(first).toMatchObject({
+      ok: false,
+      code: 'APPROVAL_REQUIRED',
+      approvalId: expect.stringMatching(/^appr_/),
+      approvalExpiresAt: expect.any(String),
+    });
+    if (first.ok || !first.approvalId) throw new Error('Expected an approval id.');
+
+    const duplicate = await gateway.routeToolRequest(request);
+    expect(duplicate).toMatchObject({ approvalId: first.approvalId });
+    expect(approvalRequests).toHaveLength(1);
+    expect(approvalRequests[0]).toMatchObject({
+      approvalId: first.approvalId,
+      sessionId: session.sessionId,
+      toolName: 'schematic.addText',
+      riskLevel: 'write',
+    });
+
+    expect(
+      gateway.resolveApprovalFromExtension({
+        sessionId: 'different-session',
+        approvalId: first.approvalId,
+        result: 'approved',
+      }),
+    ).toBe(false);
+    expect(
+      gateway.resolveApprovalFromExtension({
+        sessionId: session.sessionId,
+        approvalId: first.approvalId,
+        result: 'approved',
+      }),
+    ).toBe(true);
+
+    await expect(
+      gateway.routeToolRequest({ ...request, approvalId: first.approvalId }),
+    ).resolves.toMatchObject({ ok: true, result: { primitiveId: 'text-1' } });
+    expect(dispatches).toHaveLength(1);
+
+    await expect(
+      gateway.routeToolRequest({ ...request, approvalId: first.approvalId }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_NOT_APPROVED' });
+    expect(dispatches).toHaveLength(1);
+  });
+
+  it('reports rejected and expired approvals and clears pending records on disconnect', async () => {
+    const harness = makeGateway();
+    const session = harness.gateway.registerExtension({
+      connectionId: 'conn-approval-state',
+      mode: 'hosted',
+      extensionVersion: '0.32.0',
+      activeProject: { projectName: 'Demo', documentType: 'schematic' },
+      requestApproval: () => undefined,
+      dispatch: async () => {
+        throw new Error('Dispatch must not run without approval.');
+      },
+    });
+    const code = harness.gateway.createPairingCode({
+      identity: writeIdentity,
+      sessionId: session.sessionId,
+    });
+    harness.gateway.completePairing({
+      identity: writeIdentity,
+      code,
+      sessionId: session.sessionId,
+    });
+
+    const base = {
+      identity: writeIdentity,
+      sessionId: session.sessionId,
+      toolName: 'schematic.addText',
+      riskLevel: 'write' as const,
+    };
+    const rejected = await harness.gateway.routeToolRequest({
+      ...base,
+      input: { content: 'reject-me' },
+    });
+    if (rejected.ok || !rejected.approvalId) throw new Error('Expected rejected approval id.');
+    harness.gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: rejected.approvalId,
+      result: 'rejected',
+    });
+    await expect(
+      harness.gateway.routeToolRequest({
+        ...base,
+        input: { content: 'reject-me' },
+        approvalId: rejected.approvalId,
+      }),
+    ).resolves.toMatchObject({ message: 'Remote approval was rejected by the user.' });
+
+    const expiring = await harness.gateway.routeToolRequest({
+      ...base,
+      input: { content: 'expire-me' },
+    });
+    if (expiring.ok || !expiring.approvalId) throw new Error('Expected expiring approval id.');
+    harness.advance(60_001);
+    await expect(
+      harness.gateway.routeToolRequest({
+        ...base,
+        input: { content: 'expire-me' },
+        approvalId: expiring.approvalId,
+      }),
+    ).resolves.toMatchObject({ message: 'Remote approval expired.' });
+
+    const pending = await harness.gateway.routeToolRequest({
+      ...base,
+      input: { content: 'disconnect-me' },
+    });
+    if (pending.ok || !pending.approvalId) throw new Error('Expected pending approval id.');
+    expect(harness.gateway.approvals.get(pending.approvalId)).toBeDefined();
+    harness.gateway.disconnect(session.sessionId);
+    expect(harness.gateway.approvals.get(pending.approvalId)).toBeUndefined();
   });
 });

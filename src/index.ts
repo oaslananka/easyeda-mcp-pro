@@ -63,10 +63,11 @@ async function main() {
   const instance = await createServer(config, { remoteGateway });
 
   if (config.TRANSPORT === 'http') {
-    const httpTransport = createHttpTransport(config, { gateway: remoteGateway });
+    const httpTransport = createHttpTransport(config, {
+      gateway: remoteGateway,
+      serverFactory: instance.createSessionServer,
+    });
     instance.httpTransport = httpTransport;
-    instance.transport = httpTransport.transport;
-    await instance.server.connect(httpTransport.transport);
     await httpTransport.start();
   } else {
     await instance.server.connect(instance.transport);
