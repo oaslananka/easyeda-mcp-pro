@@ -51,6 +51,7 @@ export type RemoteGatewayErrorCode =
   | 'APPROVAL_REQUIRED'
   | 'APPROVAL_NOT_APPROVED'
   | 'REMOTE_EXTENSION_ERROR'
+  | 'REMOTE_TOOL_UNSUPPORTED'
   | 'REMOTE_EXTENSION_TIMEOUT';
 
 export type RemoteGatewayToolResult =
@@ -107,6 +108,39 @@ function gatewayError(
   message: string,
 ): RemoteGatewayToolResult {
   return { ok: false, status, code, message };
+}
+
+class RemoteDispatchTimeoutError extends Error {
+  constructor(readonly timeoutMs: number) {
+    super(`Remote extension did not respond within ${timeoutMs}ms.`);
+    this.name = 'RemoteDispatchTimeoutError';
+  }
+}
+
+async function dispatchWithDeadline(
+  dispatch: RemoteToolDispatcher,
+  request: ToolRequestMessage,
+): Promise<ToolResponseMessage> {
+  const timeoutMs = request.deadlineMs ?? 30_000;
+  return await new Promise<ToolResponseMessage>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new RemoteDispatchTimeoutError(timeoutMs)), timeoutMs);
+    void Promise.resolve()
+      .then(() => dispatch(request))
+      .then(
+        (response) => {
+          clearTimeout(timeout);
+          resolve(response);
+        },
+        (error: unknown) => {
+          clearTimeout(timeout);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        },
+      );
+  });
+}
+
+function isUnsupportedRemoteMethod(code: string | undefined): boolean {
+  return code === 'METHOD_NOT_ALLOWED' || code === 'METHOD_NOT_FOUND';
 }
 
 function scopeStringToList(value: unknown): string[] {
@@ -352,7 +386,9 @@ export class RemoteGateway {
         riskLevel: input.riskLevel,
         inputHash,
       });
-      const response = ToolResponseMessageSchema.parse(await connection.dispatch(request));
+      const response = ToolResponseMessageSchema.parse(
+        await dispatchWithDeadline(connection.dispatch, request),
+      );
       if (!response.ok) {
         this.audit.record({
           event: 'remote.tool.failed',
@@ -366,6 +402,14 @@ export class RemoteGateway {
           errorCode: response.error?.code ?? 'REMOTE_EXTENSION_ERROR',
           durationMs: Date.now() - startedAt,
         });
+        const extensionCode = response.error?.code;
+        if (isUnsupportedRemoteMethod(extensionCode)) {
+          return gatewayError(
+            422,
+            'REMOTE_TOOL_UNSUPPORTED',
+            `${extensionCode}: ${response.error?.message ?? 'Remote extension does not support this method.'}`,
+          );
+        }
         return gatewayError(
           502,
           'REMOTE_EXTENSION_ERROR',
@@ -391,6 +435,10 @@ export class RemoteGateway {
         durationMs: response.durationMs,
       };
     } catch (error) {
+      const timedOut = error instanceof RemoteDispatchTimeoutError;
+      const errorCode: RemoteGatewayErrorCode = timedOut
+        ? 'REMOTE_EXTENSION_TIMEOUT'
+        : 'REMOTE_EXTENSION_ERROR';
       this.audit.record({
         event: 'remote.tool.failed',
         mode: route.session.mode,
@@ -400,12 +448,12 @@ export class RemoteGateway {
         riskLevel: input.riskLevel,
         inputHash,
         status: 'error',
-        errorCode: 'REMOTE_EXTENSION_TIMEOUT',
+        errorCode,
         durationMs: Date.now() - startedAt,
       });
       return gatewayError(
-        504,
-        'REMOTE_EXTENSION_TIMEOUT',
+        timedOut ? 504 : 502,
+        errorCode,
         error instanceof Error ? error.message : String(error),
       );
     }

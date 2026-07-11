@@ -15,9 +15,9 @@ Remote MCP tests should validate security boundaries before implementation is co
 
 ## Integration smoke tests
 
-The integration smoke suite should be able to run without live EasyEDA credentials by using a fake extension relay fixture.
+The integration smoke suite runs without live EasyEDA credentials by using a fake extension relay fixture. Coverage is implemented in `tests/unit/remote/fake-extension-integration.test.ts`, `tests/unit/remote/gateway.test.ts`, and `tests/unit/tools/registry.test.ts`.
 
-Recommended scenarios:
+Required scenarios:
 
 1. User pairs fake extension session.
 2. Remote read tool routes and returns a fixture response.
@@ -28,10 +28,9 @@ Recommended scenarios:
 
 ## Manual validation
 
-**Not yet achievable:** every scenario below assumes a real MCP tool call can be routed
-through the pairing/session-router/relay subsystem. That integration does not exist yet
-(see `docs/REMOTE_RELEASE_READINESS.md`), so none of these can currently be executed
-end-to-end. Keep this section as the target validation checklist for when that lands.
+The CI-safe `/mcp`-to-relay routing foundation is implemented. The remaining manual
+validation is a live hosted end-to-end run with a real EasyEDA extension, production identity,
+session selection, and approval UX. Keep the checklist below as the Beta gate.
 
 Before public beta:
 

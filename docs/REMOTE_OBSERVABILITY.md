@@ -48,18 +48,22 @@ Prefer hashes, counts, sizes, and structured status codes.
 
 ## Error taxonomy
 
-| Code                        | Meaning                                       |
-| --------------------------- | --------------------------------------------- |
-| `AUTH_MISSING`              | No valid remote auth context.                 |
-| `AUTH_INSUFFICIENT_SCOPE`   | Token lacks the required scope.               |
-| `SESSION_UNPAIRED`          | User has no paired extension session.         |
-| `SESSION_DISCONNECTED`      | Extension session is not connected.           |
-| `PROJECT_INACTIVE`          | EasyEDA project cannot be detected.           |
-| `APPROVAL_REQUIRED`         | Action requires approval.                     |
-| `APPROVAL_REJECTED`         | User rejected the action.                     |
-| `APPROVAL_TIMEOUT`          | Approval window expired.                      |
-| `RELAY_VERSION_UNSUPPORTED` | Relay protocol version mismatch.              |
-| `BRIDGE_EXECUTION_FAILED`   | EasyEDA bridge returned an execution failure. |
+| Code                        | Meaning                                                    |
+| --------------------------- | ---------------------------------------------------------- |
+| `IDENTITY_MISSING`          | No valid remote identity was propagated.                   |
+| `IDENTITY_EXPIRED`          | Remote identity is expired.                                |
+| `SCOPE_MISSING`             | Identity lacks the scope required by the risk level.       |
+| `SESSION_UNPAIRED`          | User has no matching paired extension session.             |
+| `SESSION_DISCONNECTED`      | Paired extension session is no longer connected.           |
+| `SESSION_EXPIRED`           | Paired extension session exceeded its TTL.                 |
+| `SESSION_AMBIGUOUS`         | Multiple sessions match and no explicit session was given. |
+| `PROJECT_INACTIVE`          | A risky call has no confirmed active EasyEDA project.      |
+| `APPROVAL_REQUIRED`         | Action requires an explicit approval id.                   |
+| `APPROVAL_NOT_APPROVED`     | Approval is absent, invalid, expired, or already consumed. |
+| `REMOTE_TOOL_UNSUPPORTED`   | Extension rejected the requested method as unsupported.    |
+| `REMOTE_EXTENSION_TIMEOUT`  | Extension did not answer before the request deadline.      |
+| `REMOTE_EXTENSION_ERROR`    | Extension or relay failed for a non-timeout reason.        |
+| `RELAY_VERSION_UNSUPPORTED` | Relay protocol version mismatch.                           |
 
 ## Acceptance baseline
 

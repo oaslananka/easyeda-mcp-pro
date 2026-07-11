@@ -24,14 +24,13 @@ document.
 
 ## Request flow
 
-> **Status: target design, not yet wired.** The steps below describe the intended flow
-> once tool execution is bridged to the relay. Today, a real `POST /mcp` tool call never
-> reaches the session router, policy/approval gate, or relay dispatch — it always
-> dispatches through the local-loopback `BridgeManager` WebSocket instead (see
-> `docs/REMOTE_RELEASE_READINESS.md` for the current-status writeup). The session
-> router, approval policy, and relay dispatch steps below exist and are tested only via
-> the separate `/remote/*` REST/WebSocket surface, which nothing in the `/mcp` tool-call
-> path currently calls.
+> **Status: experimental and wired behind explicit configuration.** With the default
+> `MCP_BRIDGE_BACKEND=local_bridge`, `/mcp` tool calls continue to use the local
+> `BridgeManager`. With `MCP_BRIDGE_BACKEND=remote_relay`, the ToolRegistry replaces the
+> per-request bridge call path with `RemoteGateway.routeToolRequest(...)`, so existing MCP
+> tool handlers route through the paired extension session without being rewritten. The
+> routing foundation is CI-tested, but production identity/session UX, approval creation,
+> and live hosted relay dogfood are still required before Beta status.
 
 ```text
 remote MCP request
@@ -72,17 +71,21 @@ OAUTH_REQUIRED_SCOPES=easyeda.read
 The existing safe production guardrails should remain active. Public binding must require OAuth and
 an explicit origin allowlist.
 
-## Planned remote relay configuration
+## Experimental remote relay configuration
 
-These variables are design targets for the hosted relay runtime and must not be documented as
-production-ready until the relay runtime is implemented:
+The routed MCP path is enabled explicitly. Local bridge mode remains the default.
 
 ```env
-REMOTE_MODE=hosted
-PAIRING_REQUIRED=true
-REQUIRE_APPROVAL_FOR_WRITE=true
-REQUIRE_APPROVAL_FOR_EXPORT=true
+TRANSPORT=http
+MCP_BRIDGE_BACKEND=remote_relay
+MCP_REMOTE_SESSION_ID=session-id-if-fixed
+OAUTH_ENABLED=true
 ```
+
+`MCP_REMOTE_SESSION_ID` is optional when the MCP request supplies `remoteSessionId`.
+Write/export/destructive bridge calls require a valid `remoteApprovalId` that matches the
+user, session, method, and input hash. The `/remote/*` pairing, approval, audit, and relay
+endpoints are mounted by the HTTP transport.
 
 ## Route responsibilities
 
@@ -108,6 +111,8 @@ The gateway must return safe, actionable errors for:
 - missing active project,
 - approval required,
 - approval rejected or timed out,
+- unsupported extension method,
+- remote extension deadline timeout,
 - unsupported relay protocol version.
 
 ## Non-goals for MVP

@@ -217,4 +217,117 @@ describe('RemoteGateway', () => {
       }),
     ).resolves.toMatchObject({ ok: true });
   });
+
+  it('distinguishes unsupported extension methods from generic extension failures', async () => {
+    const { gateway } = makeGateway();
+    const session = gateway.registerExtension({
+      connectionId: 'conn-unsupported',
+      mode: 'hosted',
+      extensionVersion: '0.32.0',
+      activeProject: { projectName: 'Demo', documentType: 'schematic' },
+      dispatch: async (request) => ({
+        protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+        type: 'tool_response',
+        messageId: 'response-unsupported',
+        sessionId: request.sessionId,
+        requestMessageId: request.messageId,
+        timestamp: new Date('2026-07-04T00:00:00.000Z').toISOString(),
+        ok: false,
+        error: {
+          code: 'METHOD_NOT_ALLOWED',
+          message: 'Method is not in the extension allowlist.',
+        },
+        durationMs: 1,
+      }),
+    });
+    const code = gateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: session.sessionId,
+    });
+    expect(
+      gateway.completePairing({ identity: readIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    await expect(
+      gateway.routeToolRequest({
+        identity: readIdentity,
+        sessionId: session.sessionId,
+        toolName: 'schematic.unsupportedMethod',
+        riskLevel: 'read',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      status: 422,
+      code: 'REMOTE_TOOL_UNSUPPORTED',
+      message: expect.stringContaining('METHOD_NOT_ALLOWED'),
+    });
+  });
+
+  it('enforces the request deadline for every dispatcher', async () => {
+    const { gateway } = makeGateway();
+    const session = gateway.registerExtension({
+      connectionId: 'conn-timeout',
+      mode: 'hosted',
+      extensionVersion: '0.32.0',
+      activeProject: { projectName: 'Demo', documentType: 'schematic' },
+      dispatch: async () => await new Promise(() => undefined),
+    });
+    const code = gateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: session.sessionId,
+    });
+    expect(
+      gateway.completePairing({ identity: readIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    await expect(
+      gateway.routeToolRequest({
+        identity: readIdentity,
+        sessionId: session.sessionId,
+        toolName: 'schematic.getDocument',
+        riskLevel: 'read',
+        deadlineMs: 5,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      status: 504,
+      code: 'REMOTE_EXTENSION_TIMEOUT',
+      message: expect.stringContaining('5ms'),
+    });
+  });
+
+  it('keeps non-timeout dispatcher failures in the extension error category', async () => {
+    const { gateway } = makeGateway();
+    const session = gateway.registerExtension({
+      connectionId: 'conn-error',
+      mode: 'hosted',
+      extensionVersion: '0.32.0',
+      activeProject: { projectName: 'Demo', documentType: 'schematic' },
+      dispatch: () => {
+        throw new Error('Remote relay socket closed unexpectedly.');
+      },
+    });
+    const code = gateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: session.sessionId,
+    });
+    expect(
+      gateway.completePairing({ identity: readIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    await expect(
+      gateway.routeToolRequest({
+        identity: readIdentity,
+        sessionId: session.sessionId,
+        toolName: 'schematic.getDocument',
+        riskLevel: 'read',
+        deadlineMs: 100,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      status: 502,
+      code: 'REMOTE_EXTENSION_ERROR',
+      message: 'Remote relay socket closed unexpectedly.',
+    });
+  });
 });

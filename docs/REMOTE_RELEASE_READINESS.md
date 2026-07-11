@@ -32,6 +32,8 @@ support yet. This means:
   `remoteSessionId` or `MCP_REMOTE_SESSION_ID` identifies the session.
 - Write/export calls can pass `remoteApprovalId` into the gateway and fail closed if the
   approval is absent, rejected, expired, or mismatched.
+- Remote dispatch enforces the bridge-call deadline for every dispatcher and reports
+  unsupported extension methods separately from generic extension failures.
 - The extension's `RemoteRelayClient` (Remote Relay Mode) genuinely connects to a relay
   URL, includes reconnect/backoff and heartbeat liveness, and can execute real EasyEDA
   API calls when driven directly.
