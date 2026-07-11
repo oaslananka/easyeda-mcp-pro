@@ -3,6 +3,15 @@
 // dispatcher module (dispatcher.ts), which is baked in here as the fallback
 // and can be hot-swapped over the bridge in dev mode without re-importing
 // the .eext.
+import {
+  BRIDGE_PORT,
+  getLocalBridgeConnectionAttempts,
+  hasHeartbeatTimedOut,
+  HEARTBEAT_INTERVAL_MS,
+  isServerActivityMessage,
+  reconnectDelayMs,
+  shouldReconnectAfterSocketFailure,
+} from './connection-policy.js';
 import { RemoteRelayClient, type RemoteRelayMode } from './remote-client.js';
 import { createDispatcher } from './dispatcher.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
@@ -60,6 +69,8 @@ interface EasyedaGlobal {
   connect?: (mode?: ConnectMode) => Promise<void>;
   disconnect?: () => void;
   showStatus?: () => void;
+  enableAutoConnect?: () => Promise<void>;
+  disableAutoConnect?: () => Promise<void>;
   connectRemoteRelay?: (
     mode?: Exclude<RemoteRelayMode, 'disabled'>,
     relayUrl?: string,
@@ -129,19 +140,14 @@ interface SocketHandle {
 const BRIDGE_PROTOCOL = 'easyeda-mcp-pro.bridge';
 const BRIDGE_VERSION = '1.0.0';
 const BRIDGE_CONTRACT_VERSION = 1;
-const BRIDGE_PORT = 49620;
-const PORT_SCAN_COUNT = 10;
 const LOOPBACK_HOST = ['127', '0', '0', '1'].join('.');
-const CONNECT_TIMEOUT_MS = 8000;
 const EASYEDA_REGISTER_OPEN_FALLBACK_MS = 600;
-const RECONNECT_BASE_MS = 1000;
-const RECONNECT_MAX_MS = 30000;
 const STORAGE_KEY = 'easyeda-mcp-pro:autoConnect';
-const HEARTBEAT_MS = 15000;
 const SOCKET_ID = 'easyeda-mcp-pro-bridge';
 
 let socketHandle: SocketHandle | null = null;
 let connectedPort: number | null = null;
+let preferredPort = BRIDGE_PORT;
 let connectionState: ConnectionState = 'disconnected';
 let activeConnectPromise: Promise<void> | null = null;
 let reconnectAttempts = 0;
@@ -149,6 +155,7 @@ let connectRunId = 0;
 let manualDisconnectRequested = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let lastServerActivityMs = 0;
 let externalInteractionWarningShown = false;
 // Updated from the server's `hello` message; matches BRIDGE_MAX_PAYLOAD_SIZE default
 // until the handshake completes.
@@ -284,11 +291,16 @@ function newLoaderError(code: string, message: string, suggestion: string): Erro
   return error;
 }
 
+function compareCodeUnits(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 async function refreshMethodListHash(): Promise<void> {
   try {
     // Locale-independent ordering: must produce byte-identical input to the
     // server's computeMethodRegistryHash (do NOT use localeCompare here).
-    const sorted = [...activeDispatcher.methodList].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const sorted = [...activeDispatcher.methodList].sort(compareCodeUnits);
     activeMethodListHash = (await sha256Hex(sorted.join(','))).slice(0, 16);
   } catch (error) {
     log('failed to compute method list hash', String(error));
@@ -553,7 +565,7 @@ function readRemoteActiveProject():
   return { projectName, documentType, url: href };
 }
 
-function connectRemoteRelay(
+function connectRemoteRelayInternal(
   mode: Exclude<RemoteRelayMode, 'disabled'> = 'hosted',
   relayUrl?: string,
   pairingCode?: string,
@@ -561,12 +573,12 @@ function connectRemoteRelay(
   getRemoteRelayClient().connect({ mode, relayUrl, pairingCode });
 }
 
-function disconnectRemoteRelay(): void {
+function disconnectRemoteRelayInternal(): void {
   getRemoteRelayClient().disconnect('user_disabled');
   showToast('Remote Relay disabled');
 }
 
-function showRemoteRelayStatus(): void {
+function showRemoteRelayStatusInternal(): void {
   const status = getRemoteRelayClient().getStatus();
   const project = status.activeProject?.projectName ?? 'no active project detected';
   const retry =
@@ -692,8 +704,7 @@ function sendRaw(payload: string): void {
       sysWs.send(socketHandle.id ?? SOCKET_ID, payload);
       return;
     } catch (err) {
-      log('sysWs.send threw exception', err);
-      closeSocket();
+      handleLocalSocketFailure('sysWs.send threw exception', err);
     }
     return;
   }
@@ -701,7 +712,7 @@ function sendRaw(payload: string): void {
   try {
     socketHandle?.raw?.send?.(payload);
   } catch (err) {
-    log('socket raw send threw exception', err);
+    handleLocalSocketFailure('socket raw send threw exception', err);
   }
 }
 
@@ -731,6 +742,22 @@ function closeSocket(): void {
   socketHandle = null;
   connectedPort = null;
   connectionState = 'disconnected';
+}
+
+function handleLocalSocketFailure(context: string, error: unknown): void {
+  const wasConnected = connectionState === 'connected';
+  log(context, error);
+  stopHeartbeat();
+  closeSocket();
+  if (
+    shouldReconnectAfterSocketFailure({
+      wasConnected,
+      manualDisconnectRequested,
+      autoConnectEnabled,
+    })
+  ) {
+    scheduleReconnect();
+  }
 }
 
 function sendHandshake(): void {
@@ -773,11 +800,20 @@ function getEasyedaVersion(): string | undefined {
 
 function startHeartbeat(): void {
   stopHeartbeat();
+  lastServerActivityMs = Date.now();
   heartbeatTimer = setInterval(() => {
-    if (connectedPort !== null) {
-      send({ type: 'heartbeat', timestamp: Date.now() });
+    if (connectedPort === null) return;
+    const nowMs = Date.now();
+    if (hasHeartbeatTimedOut(lastServerActivityMs, nowMs)) {
+      handleLocalSocketFailure('Bridge heartbeat timeout', {
+        lastServerActivityMs,
+        nowMs,
+        silenceMs: nowMs - lastServerActivityMs,
+      });
+      return;
     }
-  }, HEARTBEAT_MS);
+    send({ type: 'heartbeat', timestamp: nowMs, source: 'extension' });
+  }, HEARTBEAT_INTERVAL_MS);
 }
 
 function stopHeartbeat(): void {
@@ -785,6 +821,13 @@ function stopHeartbeat(): void {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
+  lastServerActivityMs = 0;
+}
+
+function bridgeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === 'string') return error.message;
+  return String(error);
 }
 
 async function handleRequest(message: BridgeRequest): Promise<void> {
@@ -811,12 +854,7 @@ async function handleRequest(message: BridgeRequest): Promise<void> {
       ok: false,
       error: {
         code: String(record.code ?? 'EASYEDA_API_ERROR'),
-        message:
-          error instanceof Error
-            ? error.message
-            : isRecord(error) && typeof error.message === 'string'
-              ? error.message
-              : String(error),
+        message: bridgeErrorMessage(error),
         suggestion: String(record.suggestion ?? 'Check EasyEDA Pro and extension logs.'),
         data: record.data,
       },
@@ -826,56 +864,64 @@ async function handleRequest(message: BridgeRequest): Promise<void> {
   }
 }
 
+function applyHelloPayload(record: Record<string, unknown>): void {
+  if (record.contractVersion !== BRIDGE_CONTRACT_VERSION) {
+    log('Bridge hello contract version mismatch', {
+      expected: BRIDGE_CONTRACT_VERSION,
+      actual: record.contractVersion,
+    });
+  }
+  const supportedVersions = Array.isArray(record.supportedProtocolVersions)
+    ? record.supportedProtocolVersions
+    : [];
+  if (!supportedVersions.includes(BRIDGE_VERSION)) {
+    log('Bridge hello does not include this extension protocol version', {
+      protocolVersion: BRIDGE_VERSION,
+      supportedProtocolVersions: supportedVersions,
+    });
+  }
+  if (typeof record.maxPayloadSize === 'number' && record.maxPayloadSize > 0) {
+    bridgeMaxPayloadSize = record.maxPayloadSize;
+  }
+  serverSupportsChunking = record.supportsChunking === true;
+  maxAggregatePayloadSize = bridgeMaxPayloadSize;
+  if (typeof record.maxAggregatePayloadSize === 'number' && record.maxAggregatePayloadSize > 0) {
+    maxAggregatePayloadSize = record.maxAggregatePayloadSize;
+  }
+  serverHotSwapEnabled = record.hotSwapEnabled === true;
+  log('Bridge handshake accepted');
+}
+
+function handleHeartbeatMessage(source: 'server' | 'extension' | undefined): void {
+  if (source === 'extension') return;
+  send({ type: 'heartbeat', timestamp: Date.now(), source: 'extension' });
+}
+
 function handleMessage(raw: string): InboundMessageType {
-  const message = JSON.parse(raw) as { type?: string };
-
-  if (message.type === 'hello') {
-    const record = message as Record<string, unknown>;
-    if (record.contractVersion !== BRIDGE_CONTRACT_VERSION) {
-      log('Bridge hello contract version mismatch', {
-        expected: BRIDGE_CONTRACT_VERSION,
-        actual: record.contractVersion,
-      });
-    }
-    const supportedVersions = Array.isArray(record.supportedProtocolVersions)
-      ? record.supportedProtocolVersions
-      : [];
-    if (!supportedVersions.includes(BRIDGE_VERSION)) {
-      log('Bridge hello does not include this extension protocol version', {
-        protocolVersion: BRIDGE_VERSION,
-        supportedProtocolVersions: supportedVersions,
-      });
-    }
-    if (typeof record.maxPayloadSize === 'number' && record.maxPayloadSize > 0) {
-      bridgeMaxPayloadSize = record.maxPayloadSize;
-    }
-    serverSupportsChunking = record.supportsChunking === true;
-    maxAggregatePayloadSize =
-      typeof record.maxAggregatePayloadSize === 'number' && record.maxAggregatePayloadSize > 0
-        ? record.maxAggregatePayloadSize
-        : bridgeMaxPayloadSize;
-    serverHotSwapEnabled = record.hotSwapEnabled === true;
-    log('Bridge handshake accepted');
-    return 'hello';
+  const message = JSON.parse(raw) as { type?: string; source?: 'server' | 'extension' };
+  if (isServerActivityMessage(message.type, message.source)) {
+    lastServerActivityMs = Date.now();
   }
-
-  if (message.type === 'heartbeat') {
-    send({ type: 'heartbeat', timestamp: Date.now() });
-    return 'heartbeat';
+  switch (message.type) {
+    case 'hello':
+      applyHelloPayload(message as Record<string, unknown>);
+      return 'hello';
+    case 'heartbeat':
+      handleHeartbeatMessage(message.source);
+      return 'heartbeat';
+    case 'request':
+      void handleRequest(message as BridgeRequest);
+      return 'request';
+    default:
+      return 'ignored';
   }
-
-  if (message.type === 'request') {
-    void handleRequest(message as BridgeRequest);
-    return 'request';
-  }
-
-  return 'ignored';
 }
 
 async function connectToPort(
   port: number,
   runId: number,
   showSuccessToast: boolean,
+  timeoutMs: number,
 ): Promise<boolean> {
   const url = `ws://${LOOPBACK_HOST}:${port}`;
   const socketId = `${SOCKET_ID}-${runId}-${port}`;
@@ -896,7 +942,7 @@ async function connectToPort(
       }
       closeHandle(handle);
       finish(false);
-    }, CONNECT_TIMEOUT_MS);
+    }, timeoutMs);
 
     try {
       handle = createSocket(
@@ -966,7 +1012,7 @@ async function connectToPort(
   });
 }
 
-async function connect(mode: ConnectMode = 'manual'): Promise<void> {
+async function connectInternal(mode: ConnectMode = 'manual'): Promise<void> {
   const manual = mode === 'manual';
 
   if (connectionState === 'connected' && connectedPort !== null) {
@@ -998,11 +1044,14 @@ async function connect(mode: ConnectMode = 'manual'): Promise<void> {
 
   activeConnectPromise = (async () => {
     try {
-      for (let offset = 0; offset < PORT_SCAN_COUNT; offset += 1) {
+      for (const attempt of getLocalBridgeConnectionAttempts(preferredPort)) {
         if (runId !== connectRunId || manualDisconnectRequested) return;
-        // Always show success toast so user knows auto-connect worked
-        const connected = await connectToPort(BRIDGE_PORT + offset, runId, true);
-        if (connected) return;
+        // Always show success toast so the user knows auto-connect worked.
+        const connected = await connectToPort(attempt.port, runId, true, attempt.timeoutMs);
+        if (connected) {
+          preferredPort = attempt.port;
+          return;
+        }
       }
     } catch (error) {
       log('connect() threw unexpectedly', error);
@@ -1031,8 +1080,8 @@ async function connect(mode: ConnectMode = 'manual'): Promise<void> {
   return activeConnectPromise;
 }
 
-function disconnect(): void {
-  void updateMenuTitle();
+function disconnectInternal(notifyUser: boolean): void {
+  if (notifyUser) void updateMenuTitle();
   const wasDisconnected = connectionState === 'disconnected' && !socketHandle;
   const wasConnecting = connectionState === 'connecting';
 
@@ -1047,6 +1096,7 @@ function disconnect(): void {
   stopHeartbeat();
   closeSocket();
 
+  if (!notifyUser) return;
   if (wasDisconnected) {
     showToast('MCP Bridge already disconnected');
   } else if (wasConnecting) {
@@ -1056,7 +1106,12 @@ function disconnect(): void {
   }
 }
 
-function showStatus(): void {
+function disconnectCommandInternal(): void {
+  disconnectInternal(true);
+}
+
+function showStatusInternal(): void {
+  autoConnectEnabled = loadAutoConnectSetting();
   const autoLabel = autoConnectEnabled ? 'Auto-Connect: ON' : 'Auto-Connect: OFF';
 
   if (connectionState === 'connected' && connectedPort !== null) {
@@ -1083,11 +1138,11 @@ function showStatus(): void {
 function scheduleReconnect(): void {
   if (manualDisconnectRequested || reconnectTimer) return;
   reconnectAttempts += 1;
-  const delay = Math.min(RECONNECT_BASE_MS * 2 ** (reconnectAttempts - 1), RECONNECT_MAX_MS);
+  const delay = reconnectDelayMs(reconnectAttempts);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     if (connectionState === 'disconnected') {
-      void connect('auto');
+      void connectInternal('auto');
     }
   }, delay);
 }
@@ -1118,11 +1173,14 @@ function loadAutoConnectSetting(): boolean {
   return true;
 }
 
-function saveAutoConnectSetting(value: boolean): void {
+async function saveAutoConnectSetting(value: boolean): Promise<void> {
   try {
     const storage = getStorage();
     if (storage && typeof storage.setExtensionUserConfig === 'function') {
-      storage.setExtensionUserConfig('autoConnect', value);
+      const saved = await storage.setExtensionUserConfig('autoConnect', value);
+      if (saved === false) {
+        log('sys_Storage.setExtensionUserConfig returned false');
+      }
     }
   } catch (e) {
     log('sys_Storage.setExtensionUserConfig unavailable', e);
@@ -1140,15 +1198,17 @@ async function updateMenuTitle(): Promise<void> {
   log(`menu state: Auto-Connect=${autoConnectEnabled}`);
 }
 
-async function toggleAutoConnect(): Promise<void> {
-  autoConnectEnabled = !autoConnectEnabled;
-  saveAutoConnectSetting(autoConnectEnabled);
+async function setAutoConnectInternal(enabled: boolean): Promise<void> {
+  // EasyEDA may evaluate or invoke a menu callback more than once. Setting an
+  // explicit target state is idempotent; a duplicate Enable call remains ON.
+  autoConnectEnabled = enabled;
+  await saveAutoConnectSetting(enabled);
   await updateMenuTitle();
-  if (autoConnectEnabled) {
+  if (enabled) {
     manualDisconnectRequested = false;
     reconnectAttempts = 0;
     if (connectionState === 'disconnected') {
-      void connect('auto');
+      await connectInternal('auto');
     }
   } else {
     manualDisconnectRequested = true;
@@ -1158,20 +1218,144 @@ async function toggleAutoConnect(): Promise<void> {
     }
   }
   showToast(
-    autoConnectEnabled
+    enabled
       ? 'Auto-Connect: ON — will reconnect automatically'
       : 'Auto-Connect: OFF — use Connect button to connect',
   );
 }
 
+async function enableAutoConnectInternal(): Promise<void> {
+  await setAutoConnectInternal(true);
+}
+
+async function disableAutoConnectInternal(): Promise<void> {
+  await setAutoConnectInternal(false);
+}
+
+async function toggleAutoConnectInternal(): Promise<void> {
+  await setAutoConnectInternal(!loadAutoConnectSetting());
+}
+
+let activationStarted = false;
+
 async function handleActivate(): Promise<void> {
   autoConnectEnabled = loadAutoConnectSetting();
+  if (activationStarted) {
+    if (autoConnectEnabled && connectionState === 'disconnected' && !activeConnectPromise) {
+      void connectInternal('auto');
+    }
+    return;
+  }
+
+  activationStarted = true;
   if (autoConnectEnabled) {
     showToast(`MCP Bridge: Auto-Connect ON — scanning local server`);
-    void connect('auto');
+    void connectInternal('auto');
   } else {
     showToast('MCP Bridge: Auto-Connect OFF — click Connect to connect');
   }
+}
+
+async function activateInternal(_status?: 'onStartupFinished', _arg?: string): Promise<void> {
+  await handleActivate();
+}
+
+function deactivateInternal(): void {
+  activationStarted = false;
+  disconnectInternal(false);
+  const globalScope = globalThis as any;
+  const existing = globalScope[PERSISTENT_RUNTIME_KEY] as PersistentRuntime | undefined;
+  if (existing?.deactivate === deactivateInternal) {
+    delete globalScope[PERSISTENT_RUNTIME_KEY];
+  }
+}
+
+interface PersistentRuntime {
+  activate: typeof activateInternal;
+  deactivate: typeof deactivateInternal;
+  connect: typeof connectInternal;
+  disconnect: typeof disconnectCommandInternal;
+  showStatus: typeof showStatusInternal;
+  enableAutoConnect: typeof enableAutoConnectInternal;
+  disableAutoConnect: typeof disableAutoConnectInternal;
+  toggleAutoConnect: typeof toggleAutoConnectInternal;
+  connectRemoteRelay: typeof connectRemoteRelayInternal;
+  disconnectRemoteRelay: typeof disconnectRemoteRelayInternal;
+  showRemoteRelayStatus: typeof showRemoteRelayStatusInternal;
+}
+
+const PERSISTENT_RUNTIME_KEY = '__easyedaMcpProBridgeRuntime_v8__';
+
+function getPersistentRuntime(): PersistentRuntime {
+  const globalScope = globalThis as any;
+  const existing = globalScope[PERSISTENT_RUNTIME_KEY] as PersistentRuntime | undefined;
+  if (existing) return existing;
+
+  const runtime: PersistentRuntime = {
+    activate: activateInternal,
+    deactivate: deactivateInternal,
+    connect: connectInternal,
+    disconnect: disconnectCommandInternal,
+    showStatus: showStatusInternal,
+    enableAutoConnect: enableAutoConnectInternal,
+    disableAutoConnect: disableAutoConnectInternal,
+    toggleAutoConnect: toggleAutoConnectInternal,
+    connectRemoteRelay: connectRemoteRelayInternal,
+    disconnectRemoteRelay: disconnectRemoteRelayInternal,
+    showRemoteRelayStatus: showRemoteRelayStatusInternal,
+  };
+  globalScope[PERSISTENT_RUNTIME_KEY] = runtime;
+  return runtime;
+}
+
+const persistentRuntime = getPersistentRuntime();
+
+export async function activate(status?: 'onStartupFinished', arg?: string): Promise<void> {
+  await persistentRuntime.activate(status, arg);
+}
+
+export function deactivate(): void {
+  persistentRuntime.deactivate();
+}
+
+export async function connect(mode: ConnectMode = 'manual'): Promise<void> {
+  await persistentRuntime.connect(mode);
+}
+
+export function disconnect(): void {
+  persistentRuntime.disconnect();
+}
+
+export function showStatus(): void {
+  persistentRuntime.showStatus();
+}
+
+export async function enableAutoConnect(): Promise<void> {
+  await persistentRuntime.enableAutoConnect();
+}
+
+export async function disableAutoConnect(): Promise<void> {
+  await persistentRuntime.disableAutoConnect();
+}
+
+export async function toggleAutoConnect(): Promise<void> {
+  await persistentRuntime.toggleAutoConnect();
+}
+
+export function connectRemoteRelay(
+  mode: Exclude<RemoteRelayMode, 'disabled'> = 'hosted',
+  relayUrl?: string,
+  pairingCode?: string,
+): void {
+  persistentRuntime.connectRemoteRelay(mode, relayUrl, pairingCode);
+}
+
+export function disconnectRemoteRelay(): void {
+  persistentRuntime.disconnectRemoteRelay();
+}
+
+export function showRemoteRelayStatus(): void {
+  persistentRuntime.showRemoteRelayStatus();
 }
 
 function expose(): void {
@@ -1183,9 +1367,11 @@ function expose(): void {
     api.connectRemoteRelay = connectRemoteRelay;
     api.disconnectRemoteRelay = disconnectRemoteRelay;
     api.showRemoteRelayStatus = showRemoteRelayStatus;
+    api.enableAutoConnect = enableAutoConnect;
+    api.disableAutoConnect = disableAutoConnect;
     (api as any).toggleAutoConnect = toggleAutoConnect;
-    api.activate = handleActivate;
-    api.deactivate = disconnect;
+    api.activate = activate;
+    api.deactivate = deactivate;
   }
 
   const globalScope = globalThis as any;
@@ -1195,7 +1381,11 @@ function expose(): void {
   globalScope.connectRemoteRelay = connectRemoteRelay;
   globalScope.disconnectRemoteRelay = disconnectRemoteRelay;
   globalScope.showRemoteRelayStatus = showRemoteRelayStatus;
+  globalScope.enableAutoConnect = enableAutoConnect;
+  globalScope.disableAutoConnect = disableAutoConnect;
   globalScope.toggleAutoConnect = toggleAutoConnect;
+  globalScope.activate = activate;
+  globalScope.deactivate = deactivate;
 }
 
 expose();
@@ -1203,6 +1393,4 @@ log('Extension script loaded');
 // Compute the method-list hash early so the first handshake can include it.
 void refreshMethodListHash();
 
-// Auto-connect on load (handleActivate is not called by the framework
-// when activationEvents is empty, so we trigger it explicitly).
-handleActivate();
+// EasyEDA calls the exported activate('onStartupFinished') lifecycle hook.

@@ -15,6 +15,7 @@ import {
   collectNativeRuleRunsForPostWriteQa,
 } from '../workflows/schematic-post-write-qa.js';
 import { fetchComponentPins } from './schematic-helpers.js';
+import { normalizeSchematicNets } from '../schematic-model/index.js';
 
 /** Shared error/warning mapper for both the hand-authored and auto-extracted
  *  semantic ERC tools — same NetValidationIssue shape, same response fields. */
@@ -72,18 +73,15 @@ async function extractLiveSemanticNetlist(
     devices.push({ id: c.reference, ref: c.reference, pins: devicePins });
   }
 
-  const nets: NetValidationEntry[] = (netsResult ?? []).map((n, i) => {
-    const netName = n.netName ?? `NET_${i}`;
-    return {
-      id: netName,
-      name: netName,
-      type: classifyNetType(netName),
-      nodes: (n.nodes ?? []).map((node) => ({
-        deviceRef: node.component ?? '',
-        pin: node.pin ?? '',
-      })),
-    };
-  });
+  const nets: NetValidationEntry[] = normalizeSchematicNets(netsResult ?? []).map((net) => ({
+    id: net.id,
+    name: net.canonicalNetName,
+    type: classifyNetType(net.canonicalNetName),
+    nodes: net.nodes.map((node) => ({
+      deviceRef: node.componentRef,
+      pin: node.pin,
+    })),
+  }));
 
   return { nets, devices };
 }

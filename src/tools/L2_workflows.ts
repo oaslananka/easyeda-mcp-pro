@@ -1372,7 +1372,7 @@ function registerWorkflowTools(
             bold: false,
             italic: false,
             underline: false,
-            alignMode: 0,
+            alignMode: 1,
           },
         );
 

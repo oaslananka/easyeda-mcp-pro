@@ -6,7 +6,7 @@
   "version": "0.31.0",
   "publisher": "oaslananka",
   "engines": {
-    "eda": "^2.0.0"
+    "eda": "^3.0.0"
   },
   "license": "MIT",
   "categories": "Other",
@@ -25,7 +25,9 @@
   "images": {
     "logo": "./images/logo.png"
   },
-  "activationEvents": {},
+  "activationEvents": {
+    "onStartupFinished": true
+  },
   "entry": "./dist/index",
   "allowExternalInteraction": true,
   "dependentExtensions": {},
@@ -46,9 +48,14 @@
             "registerFn": "disconnect"
           },
           {
-            "id": "ToggleAutoConnect",
-            "title": "Auto-Connect: ON/OFF",
-            "registerFn": "toggleAutoConnect"
+            "id": "EnableAutoConnect",
+            "title": "Enable Auto-Connect",
+            "registerFn": "enableAutoConnect"
+          },
+          {
+            "id": "DisableAutoConnect",
+            "title": "Disable Auto-Connect",
+            "registerFn": "disableAutoConnect"
           },
           {
             "id": "Status",

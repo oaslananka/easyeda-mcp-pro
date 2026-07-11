@@ -1,0 +1,48 @@
+{
+  "workflow": [
+    {
+      "tool": "easyeda_project_begin_transaction",
+      "input": {
+        "projectId": "active",
+        "label": "Normalize imported component metadata",
+        "maxOperations": 25,
+        "ttlSeconds": 1800
+      }
+    },
+    {
+      "tool": "easyeda_schematic_modify_primitive",
+      "input": {
+        "projectId": "active",
+        "transactionId": "<transaction.id>",
+        "primitiveId": "<component primitive id>",
+        "property": {
+          "designator": "U2"
+        },
+        "confirmWrite": true
+      }
+    },
+    {
+      "tool": "easyeda_project_validate_transaction",
+      "input": {
+        "transactionId": "<transaction.id>",
+        "expectedOperationCount": 1,
+        "requireAppliedOperations": true,
+        "requireBridgeConnected": true
+      }
+    },
+    {
+      "tool": "easyeda_project_commit_transaction",
+      "input": {
+        "transactionId": "<transaction.id>",
+        "confirmWrite": true
+      }
+    }
+  ],
+  "rollbackInsteadOfCommit": {
+    "tool": "easyeda_project_rollback_transaction",
+    "input": {
+      "transactionId": "<transaction.id>",
+      "confirmWrite": true
+    }
+  }
+}

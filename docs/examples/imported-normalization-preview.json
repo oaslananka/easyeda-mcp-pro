@@ -1,0 +1,33 @@
+{
+  "tool": "easyeda_schematic_preview_imported_normalization",
+  "arguments": {
+    "projectId": "active",
+    "componentLimit": 500,
+    "normalizeNetNames": true,
+    "annotateReferences": true,
+    "resolveMetadataExpressions": true,
+    "componentOverrides": [
+      {
+        "componentId": "primitive-u-imported",
+        "reference": "U12",
+        "value": "RP2040",
+        "footprint": "QFN-56"
+      },
+      {
+        "componentId": "primitive-helper-1",
+        "bomEligible": false
+      }
+    ]
+  },
+  "review": {
+    "requireMatchingModelHashBeforeApply": true,
+    "requireApplicationReady": true,
+    "allowSafeToAutoApplyOnly": false,
+    "expectedValidationGates": [
+      "canonical-net-membership-unchanged",
+      "connected-pin-set-unchanged",
+      "component-reference-unique",
+      "native-erc-no-new-errors"
+    ]
+  }
+}

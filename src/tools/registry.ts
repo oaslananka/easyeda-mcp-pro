@@ -63,42 +63,40 @@ function parseToolScopes(value: unknown): Set<string> | null {
   );
 }
 
-export function getRequiredToolScopes(tool: ToolDefinition): string[] {
+const STATIC_GROUP_SCOPES: Partial<Record<ToolDefinition['group'], string[]>> = {
+  diagnostics: ['diagnostics:read'],
+  'drc-erc': ['checks:read'],
+  board: ['pcb:read'],
+  'pcb-constraints': ['pcb:read'],
+  'pcb-write': ['pcb:write'],
+  export: ['export:write'],
+  visual: ['schematic:read', 'pcb:read'],
+  'design-rules': ['design-rules:read'],
+  workflows: ['schematic:write'],
+  simulation: ['simulation:read'],
+};
+
+function specialToolScopes(tool: ToolDefinition): string[] | undefined {
   if (tool.name === 'easyeda_execute') return ['bridge:execute'];
   if (tool.name === 'easyeda_api_call') return [tool.confirmWrite ? 'api:write' : 'api:read'];
   if (tool.name === 'easyeda_api_inventory' || tool.name === 'easyeda_component_probe') {
     return ['api:read'];
   }
+  return undefined;
+}
 
-  switch (tool.group) {
-    case 'diagnostics':
-      return ['diagnostics:read'];
-    case 'schematic':
-      return [tool.confirmWrite ? 'schematic:write' : 'schematic:read'];
-    case 'bom':
-      return [tool.name.includes('sourcing') ? 'bom:source' : 'bom:read'];
-    case 'drc-erc':
-      return ['checks:read'];
-    case 'board':
-    case 'pcb-constraints':
-      return ['pcb:read'];
-    case 'pcb-write':
-      return ['pcb:write'];
-    case 'export':
-      return ['export:write'];
-    case 'visual':
-      return ['schematic:read', 'pcb:read'];
-    case 'catalog':
-      return [tool.confirmWrite ? 'catalog:write' : 'catalog:read'];
-    case 'design-rules':
-      return ['design-rules:read'];
-    case 'workflows':
-      return ['schematic:write'];
-    case 'simulation':
-      return ['simulation:read'];
-    default:
-      return [tool.confirmWrite ? WRITE_ALL_SCOPE : READ_ALL_SCOPE];
+export function getRequiredToolScopes(tool: ToolDefinition): string[] {
+  const special = specialToolScopes(tool);
+  if (special) return special;
+  const staticScopes = STATIC_GROUP_SCOPES[tool.group];
+  if (staticScopes) return staticScopes;
+  if (tool.group === 'schematic') {
+    return [tool.confirmWrite ? 'schematic:write' : 'schematic:read'];
   }
+  if (tool.group === 'bom') return [tool.name.includes('sourcing') ? 'bom:source' : 'bom:read'];
+  if (tool.group === 'catalog') return [tool.confirmWrite ? 'catalog:write' : 'catalog:read'];
+  if (tool.group === 'project') return [tool.confirmWrite ? 'project:write' : 'project:read'];
+  return [tool.confirmWrite ? WRITE_ALL_SCOPE : READ_ALL_SCOPE];
 }
 
 function hasRequiredToolScopes(

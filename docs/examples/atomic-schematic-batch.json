@@ -1,0 +1,41 @@
+{
+  "tool": "easyeda_schematic_batch_write",
+  "input": {
+    "projectId": "active",
+    "atomic": true,
+    "dryRun": false,
+    "confirmWrite": true,
+    "operations": [
+      {
+        "operationId": "add-output-wire",
+        "action": "create",
+        "primitiveKind": "wire",
+        "points": [
+          { "x": 300, "y": 500 },
+          { "x": 340, "y": 500 }
+        ],
+        "netName": "OUT"
+      },
+      {
+        "operationId": "move-output-label",
+        "action": "modify",
+        "primitiveId": "existing-text-primitive-id",
+        "property": {
+          "x": 350,
+          "y": 480
+        }
+      },
+      {
+        "operationId": "remove-old-callout",
+        "action": "delete",
+        "primitiveId": "existing-rectangle-primitive-id"
+      }
+    ]
+  },
+  "notes": [
+    "All operations are validated before the first write.",
+    "Any failure rolls the entire transaction back in reverse order.",
+    "Delete supports wire, text, rectangle, circle, and polygon primitives.",
+    "Use dryRun=true to validate the batch without modifying EasyEDA."
+  ]
+}

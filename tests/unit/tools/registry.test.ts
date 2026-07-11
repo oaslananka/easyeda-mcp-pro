@@ -597,6 +597,7 @@ describe('ToolRegistry', () => {
           'design-rules',
           'workflows',
           'simulation',
+          'project',
         ]).toContain(tool.group);
 
         // profile must be valid

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
+import { getGlobalTransactionManager, TransactionError } from '../transactions/index.js';
 
 const deviceItemSchema = z
   .object({
@@ -180,6 +181,8 @@ const addWireInputSchema = z.object({
     .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
+const textAlignModeSchema = z.number().int().min(1).max(9);
+
 const addTextInputSchema = z.object({
   x: z.number(),
   y: z.number(),
@@ -191,7 +194,7 @@ const addTextInputSchema = z.object({
   bold: z.boolean().optional(),
   italic: z.boolean().optional(),
   underline: z.boolean().optional(),
-  alignMode: z.number().int().min(0).max(8).optional(),
+  alignMode: textAlignModeSchema.optional(),
   confirmWrite: z
     .literal(true)
     .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
@@ -246,13 +249,43 @@ const deletePrimitiveInputSchema = z.object({
     .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
-const modifyPrimitiveInputSchema = z.object({
-  primitiveId: z.string(),
-  property: z.record(z.string(), z.unknown()),
-  confirmWrite: z
-    .literal(true)
-    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
-});
+const modifyPrimitiveInputSchema = z
+  .object({
+    primitiveId: z.string(),
+    property: z.record(z.string(), z.unknown()),
+    projectId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Required when transactionId is supplied; must match the transaction document.'),
+    transactionId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Optional snapshot-backed project transaction ID.'),
+    confirmWrite: z
+      .literal(true)
+      .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  })
+  .superRefine((value, context) => {
+    if (value.transactionId && !value.projectId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['projectId'],
+        message: 'projectId is required when transactionId is supplied',
+      });
+    }
+    if (
+      Object.hasOwn(value.property, 'alignMode') &&
+      !textAlignModeSchema.safeParse(value.property.alignMode).success
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['property', 'alignMode'],
+        message: 'alignMode must be an integer from 1 through 9',
+      });
+    }
+  });
 
 function registerSchematicWriteTools(
   registry: { register: (def: ToolDefinition) => void },
@@ -664,10 +697,9 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_modify_primitive',
     title: 'Modify schematic primitive',
     description:
-      'Modify a schematic component/object: only fields in property change; others are read back ' +
-      'and preserved, so partial updates never wipe unrelated data. Also moves net flags/ports — ' +
-      'pass x/y, rotation 0/90/180/270, or mirror to shift a VCC/GND flag label off a crowded ' +
-      'pin, keeping it over its wire.',
+      'Safely modify a schematic primitive while preserving omitted fields. With transactionId and ' +
+      'projectId, capture before/after snapshots and automatically restore the prior state if the ' +
+      'write or post-write read fails. Component moves keep connected wires attached.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -682,23 +714,68 @@ function registerSchematicWriteTools(
     outputSchema: z.object({
       success: z.boolean(),
       result: z.unknown().optional(),
+      transaction: z
+        .object({
+          id: z.string(),
+          operation_id: z.string(),
+          operation_state: z.enum(['pending', 'applied', 'rolled-back', 'cancelled', 'failed']),
+          before_hash: z.string(),
+          after_hash: z.string().optional(),
+        })
+        .optional(),
+      error_code: z.string().optional(),
       error: z.string().optional(),
+      details: z.record(z.string(), z.unknown()).optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { primitiveId, property } = modifyPrimitiveInputSchema.parse(params);
+      const { primitiveId, property, projectId, transactionId } =
+        modifyPrimitiveInputSchema.parse(params);
       try {
-        const result = await ctx.bridge.call('schematic.modifyPrimitive', {
-          primitiveId,
-          property,
+        if (!transactionId) {
+          const result = await ctx.bridge.call('schematic.modifyPrimitive', {
+            primitiveId,
+            property,
+          });
+          return { success: true, result };
+        }
+
+        const manager = getGlobalTransactionManager();
+        const transaction = manager.get(transactionId);
+        if (transaction.documentId !== projectId) {
+          throw new TransactionError(
+            'TRANSACTION_INVALID_STATE',
+            `Transaction ${transactionId} belongs to ${transaction.documentId}, not ${projectId}`,
+            { transactionDocumentId: transaction.documentId, requestedProjectId: projectId },
+          );
+        }
+        const applied = await manager.runModify(transactionId, primitiveId, {
+          getSnapshot: async () =>
+            ctx.bridge.call('schematic.getPrimitiveSnapshot', { primitiveId }),
+          apply: async () =>
+            ctx.bridge.call('schematic.modifyPrimitive', {
+              primitiveId,
+              property,
+            }),
+          restore: async (snapshot) =>
+            ctx.bridge.call('schematic.restorePrimitiveSnapshot', { snapshot }),
         });
         return {
           success: true,
-          result,
+          result: applied.result,
+          transaction: {
+            id: transactionId,
+            operation_id: applied.operation.id,
+            operation_state: applied.operation.state,
+            before_hash: applied.operation.beforeHash,
+            after_hash: applied.operation.afterHash,
+          },
         };
       } catch (err) {
         return {
           success: false,
+          error_code: err instanceof TransactionError ? err.code : undefined,
           error: err instanceof Error ? err.message : String(err),
+          details: err instanceof TransactionError ? err.details : undefined,
         };
       }
     },
