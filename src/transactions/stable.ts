@@ -17,9 +17,6 @@ function canonicalize(value: unknown, seen: WeakSet<object>): unknown {
   if (typeof value === 'function' || typeof value === 'symbol') {
     throw new TypeError(`Unsupported snapshot value type: ${typeof value}`);
   }
-  if (typeof value !== 'object') {
-    throw new TypeError(`Unsupported snapshot value type: ${typeof value}`);
-  }
   if (seen.has(value)) throw new TypeError('Circular snapshot values are not supported');
   seen.add(value);
   try {

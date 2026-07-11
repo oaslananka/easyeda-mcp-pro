@@ -79,8 +79,8 @@ export interface AuditImportedDesignOptions {
   sourceTruncated?: boolean;
 }
 
-function unresolvedExpression(value: string): boolean {
-  return /^=\{[^{}]+\}$/.test(value.trim());
+function unresolvedExpression(value: unknown): boolean {
+  return typeof value === 'string' && /^=\{[^{}]+\}$/.test(value.trim());
 }
 
 function componentRepairActions(component: CanonicalComponent) {
