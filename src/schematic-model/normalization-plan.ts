@@ -12,13 +12,49 @@ export const NormalizationOperationKindSchema = z.enum([
 ]);
 export type NormalizationOperationKind = z.infer<typeof NormalizationOperationKindSchema>;
 
+function isAsciiLetter(char: string): boolean {
+  return (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z');
+}
+
+function isAsciiDigit(char: string): boolean {
+  return char >= '0' && char <= '9';
+}
+
+function isAsciiAlphaNumeric(char: string): boolean {
+  return isAsciiLetter(char) || isAsciiDigit(char);
+}
+
+function trailingDigitStart(value: string): number {
+  let index = value.length;
+  while (index > 0 && isAsciiDigit(value.charAt(index - 1))) index -= 1;
+  return index;
+}
+
+function isValidReference(value: string): boolean {
+  const digitStart = trailingDigitStart(value);
+  if (digitStart === value.length || digitStart === 0 || !isAsciiLetter(value.charAt(0)))
+    return false;
+  for (let index = 1; index < digitStart; index += 1) {
+    if (!isAsciiAlphaNumeric(value.charAt(index))) return false;
+  }
+  return true;
+}
+
+function splitReference(value: string): { prefix: string; number: number } | undefined {
+  const digitStart = trailingDigitStart(value);
+  if (digitStart === value.length) return undefined;
+  const prefix = value.slice(0, digitStart);
+  if (!isValidReference(value)) return undefined;
+  return { prefix, number: Number(value.slice(digitStart)) };
+}
+
 export const NormalizationComponentOverrideSchema = z
   .object({
     componentId: z.string().min(1),
     reference: z
       .string()
       .trim()
-      .regex(/^[A-Za-z][A-Za-z0-9]*\d+$/, 'Reference must end in a numeric designator')
+      .refine(isValidReference, { message: 'Reference must end in a numeric designator' })
       .optional(),
     value: z.string().trim().min(1).optional(),
     footprint: z.string().trim().min(1).optional(),
@@ -147,29 +183,103 @@ function createOperation(
   });
 }
 
+function placeholderReferencePrefix(rawReference: string): string | undefined {
+  const value = rawReference.trim();
+  if (!value.endsWith('?')) return undefined;
+  const prefix = value.slice(0, -1);
+  if (!prefix || !isAsciiLetter(prefix.charAt(0))) return undefined;
+  for (let index = 1; index < prefix.length; index += 1) {
+    if (!isAsciiAlphaNumeric(prefix.charAt(index))) return undefined;
+  }
+  return prefix.toUpperCase();
+}
+
+function isReferenceTokenCharacter(char: string): boolean {
+  return (
+    isAsciiAlphaNumeric(char) ||
+    char === '.' ||
+    char === '_' ||
+    char === '+' ||
+    char === '-' ||
+    char === 'Μ' ||
+    char === 'Ω'
+  );
+}
+
+function referenceTokens(text: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  for (const char of text) {
+    if (isReferenceTokenCharacter(char)) {
+      current += char;
+      continue;
+    }
+    if (current) tokens.push(current);
+    current = '';
+  }
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function containsAnyToken(tokens: ReadonlySet<string>, candidates: readonly string[]): boolean {
+  return candidates.some((candidate) => tokens.has(candidate));
+}
+
+function numericSuffix(token: string): string | undefined {
+  const normalized = token.replaceAll('Ω', '');
+  let index = normalized.startsWith('+') || normalized.startsWith('-') ? 1 : 0;
+  const numberStart = index;
+  while (isAsciiDigit(normalized.charAt(index))) index += 1;
+  if (normalized.charAt(index) === '.') {
+    index += 1;
+    while (isAsciiDigit(normalized.charAt(index))) index += 1;
+  }
+  if (index === numberStart) return undefined;
+  return normalized.slice(index);
+}
+
+function passiveValuePrefix(tokens: string[]): string | undefined {
+  for (const token of tokens) {
+    const suffix = numericSuffix(token);
+    if (suffix === undefined) continue;
+    if (['PF', 'NF', 'UF', 'ΜF'].includes(suffix)) return 'C';
+    if (['', 'K', 'M', 'R'].includes(suffix)) return 'R';
+  }
+  return undefined;
+}
+
 function inferReferencePrefix(component: CanonicalComponent): string | undefined {
-  const explicit = /^([A-Za-z][A-Za-z0-9]*)\?$/.exec(component.rawReference.trim());
-  if (explicit?.[1]) return explicit[1].toUpperCase();
+  const explicit = placeholderReferencePrefix(component.rawReference);
+  if (explicit) return explicit;
 
   const text = [component.deviceName, component.symbolName, component.value]
     .filter((value): value is string => Boolean(value))
     .join(' ')
     .toUpperCase();
-  const rules: Array<[RegExp, string]> = [
-    [/\b(?:LED|WS2812|SK6812)\b/, 'LED'],
-    [/\b(?:RESISTOR|RES\b|\d+(?:\.\d+)?\s*[KMR]?Ω?)\b/, 'R'],
-    [/\b(?:CAPACITOR|CAP\b|\d+(?:\.\d+)?\s*(?:PF|NF|UF|ΜF))\b/, 'C'],
-    [/\b(?:INDUCTOR|CHOKE)\b/, 'L'],
-    [/\b(?:DIODE|TVS|ZENER)\b/, 'D'],
-    [/\b(?:TRANSISTOR|MOSFET|BJT)\b/, 'Q'],
-    [/\b(?:CONNECTOR|HEADER|SOCKET|USB-C|USB_C)\b/, 'J'],
-    [/\b(?:SWITCH|BUTTON)\b/, 'SW'],
-    [/\b(?:FUSE|POLYFUSE)\b/, 'F'],
-    [/\b(?:CRYSTAL|OSCILLATOR|XTAL)\b/, 'Y'],
-    [/\b(?:TESTPOINT|TEST POINT)\b/, 'TP'],
-    [/\b(?:IC|MCU|CPU|RP2040|STM32|ESP32|REGULATOR|DRIVER|OPAMP|FLASH)\b/, 'U'],
+  const tokens = referenceTokens(text);
+  const tokenSet = new Set(tokens);
+  const rules: Array<[readonly string[], string]> = [
+    [['LED', 'WS2812', 'SK6812'], 'LED'],
+    [['RESISTOR', 'RES'], 'R'],
+    [['CAPACITOR', 'CAP'], 'C'],
+    [['INDUCTOR', 'CHOKE'], 'L'],
+    [['DIODE', 'TVS', 'ZENER'], 'D'],
+    [['TRANSISTOR', 'MOSFET', 'BJT'], 'Q'],
+    [['CONNECTOR', 'HEADER', 'SOCKET', 'USB-C', 'USB_C'], 'J'],
+    [['SWITCH', 'BUTTON'], 'SW'],
+    [['FUSE', 'POLYFUSE'], 'F'],
+    [['CRYSTAL', 'OSCILLATOR', 'XTAL'], 'Y'],
+    [['TESTPOINT'], 'TP'],
+    [
+      ['IC', 'MCU', 'CPU', 'RP2040', 'STM32', 'ESP32', 'REGULATOR', 'DRIVER', 'OPAMP', 'FLASH'],
+      'U',
+    ],
   ];
-  return rules.find(([pattern]) => pattern.test(text))?.[1];
+  for (const [keywords, prefix] of rules) {
+    if (containsAnyToken(tokenSet, keywords)) return prefix;
+  }
+  if (text.includes('TEST POINT')) return 'TP';
+  return passiveValuePrefix(tokens);
 }
 
 function referenceState(components: CanonicalComponent[]) {
@@ -179,10 +289,12 @@ function referenceState(components: CanonicalComponent[]) {
     if (!component.annotated || component.componentKind !== 'part') continue;
     const reference = component.reference.toUpperCase();
     used.add(reference);
-    const match = /^([A-Z][A-Z0-9]*?)(\d+)$/.exec(reference);
-    if (!match?.[1] || !match[2]) continue;
-    const number = Number(match[2]);
-    nextByPrefix.set(match[1], Math.max(nextByPrefix.get(match[1]) ?? 1, number + 1));
+    const parsed = splitReference(reference);
+    if (!parsed) continue;
+    nextByPrefix.set(
+      parsed.prefix,
+      Math.max(nextByPrefix.get(parsed.prefix) ?? 1, parsed.number + 1),
+    );
   }
   return { used, nextByPrefix };
 }
@@ -217,282 +329,370 @@ function operationSort(a: NormalizationOperation, b: NormalizationOperation): nu
   );
 }
 
-export function previewImportedNormalization(
-  model: SchematicModel,
-  inputOptions: NormalizationPlanOptions = {},
-): ImportedNormalizationPlan {
-  const parsedOptions = NormalizationPlanOptionsSchema.parse(inputOptions);
-  const options: ParsedNormalizationPlanOptions = {
-    ...parsedOptions,
-    componentOverrides: [...parsedOptions.componentOverrides].sort((a, b) =>
+type ComponentOverride = ParsedNormalizationPlanOptions['componentOverrides'][number];
+
+interface PlanCollections {
+  operations: NormalizationOperation[];
+  blockers: NormalizationPlanDiagnostic[];
+  warnings: NormalizationPlanDiagnostic[];
+}
+
+function parsePlanOptions(inputOptions: NormalizationPlanOptions): ParsedNormalizationPlanOptions {
+  const parsed = NormalizationPlanOptionsSchema.parse(inputOptions);
+  return {
+    ...parsed,
+    componentOverrides: [...parsed.componentOverrides].sort((a, b) =>
       a.componentId.localeCompare(b.componentId),
     ),
   };
+}
+
+function addSourceTruncationBlocker(
+  options: ParsedNormalizationPlanOptions,
+  blockers: NormalizationPlanDiagnostic[],
+): void {
+  if (!options.sourceTruncated) return;
+  blockers.push({
+    code: 'SOURCE_COMPONENTS_TRUNCATED',
+    severity: 'error',
+    message: 'A complete normalization plan cannot be produced from a truncated component list.',
+    suggestedAction: 'Repeat the preview with a complete live component inventory.',
+    confidence: 'high',
+  });
+}
+
+function addOverrideTargetBlockers(
+  model: SchematicModel,
+  options: ParsedNormalizationPlanOptions,
+  blockers: NormalizationPlanDiagnostic[],
+): void {
+  const knownComponentIds = new Set(
+    model.components.map((component) => component.canonicalComponentId),
+  );
+  for (const override of options.componentOverrides) {
+    if (knownComponentIds.has(override.componentId)) continue;
+    blockers.push({
+      code: 'OVERRIDE_COMPONENT_NOT_FOUND',
+      severity: 'error',
+      message: `Override target ${override.componentId} is not present in the canonical model.`,
+      componentId: override.componentId,
+      suggestedAction: 'Refresh the audit and use a current canonical component ID.',
+      confidence: 'high',
+    });
+  }
+}
+
+function addDuplicateReferenceBlockers(
+  model: SchematicModel,
+  options: ParsedNormalizationPlanOptions,
+  blockers: NormalizationPlanDiagnostic[],
+): void {
   const audit = auditImportedDesign(model, {
     includeInfo: true,
     sourceTruncated: options.sourceTruncated,
   });
-  const operations: NormalizationOperation[] = [];
-  const blockers: NormalizationPlanDiagnostic[] = [];
-  const warnings: NormalizationPlanDiagnostic[] = [];
+  for (const finding of audit.findings) {
+    if (finding.code !== 'DUPLICATE_COMPONENT_REFERENCE') continue;
+    blockers.push({
+      code: 'DUPLICATE_COMPONENT_REFERENCE',
+      severity: 'error',
+      message: finding.message,
+      componentRef: finding.componentRef,
+      suggestedAction: finding.suggestedAction,
+      confidence: finding.confidence,
+    });
+  }
+}
+
+function addNetRenameOperations(
+  model: SchematicModel,
+  options: ParsedNormalizationPlanOptions,
+  operations: NormalizationOperation[],
+): void {
+  if (!options.normalizeNetNames) return;
+  for (const net of model.nets) {
+    if (!net.imported || net.kind === 'power-flag') continue;
+    const aliasesMerged = net.rawNetNames.length > 1;
+    const reason = aliasesMerged
+      ? 'This imported alias resolves to a canonical net that also has other raw names.'
+      : 'This is a recognized imported power or ground alias.';
+    for (const rawNetName of net.rawNetNames) {
+      if (rawNetName === net.canonicalNetName) continue;
+      operations.push(
+        createOperation({
+          kind: 'normalize-net-name',
+          targetType: 'net',
+          targetId: `net:${rawNetName}`,
+          selector: { rawNetName },
+          before: { netName: rawNetName },
+          after: { netName: net.canonicalNetName },
+          automatic: true,
+          requiresConfirmation: aliasesMerged,
+          confidence: aliasesMerged ? 'medium' : 'high',
+          risk: aliasesMerged ? 'medium' : 'low',
+          reason,
+          validationGates: [
+            'canonical-net-membership-unchanged',
+            'connected-pin-set-unchanged',
+            'native-erc-no-new-errors',
+          ],
+        }),
+      );
+    }
+  }
+}
+
+function componentSelector(component: CanonicalComponent): Record<string, string> {
+  const selector: Record<string, string> = { componentId: component.canonicalComponentId };
+  if (component.runtimePrimitiveId) selector.runtimePrimitiveId = component.runtimePrimitiveId;
+  return selector;
+}
+
+function addReferencePlan(
+  component: CanonicalComponent,
+  override: ComponentOverride | undefined,
+  options: ParsedNormalizationPlanOptions,
+  state: ReturnType<typeof referenceState>,
+  collections: PlanCollections,
+): void {
+  if (component.componentKind !== 'part' || component.annotated || !options.annotateReferences) {
+    return;
+  }
+
+  const proposedReference = override?.reference;
+  const prefix = proposedReference ? undefined : inferReferencePrefix(component);
+  let reference = proposedReference;
+  if (!reference && prefix) reference = allocateReference(prefix, state);
+
+  if (!reference) {
+    collections.blockers.push({
+      code: 'REFERENCE_PREFIX_UNRESOLVED',
+      severity: 'error',
+      message: 'A deterministic reference prefix could not be inferred for this component.',
+      componentId: component.canonicalComponentId,
+      componentRef: component.reference,
+      suggestedAction: 'Provide a component override with an explicit unique reference.',
+      confidence: 'high',
+    });
+    return;
+  }
+  if (proposedReference && state.used.has(reference.toUpperCase())) {
+    collections.blockers.push({
+      code: 'REFERENCE_OVERRIDE_CONFLICT',
+      severity: 'error',
+      message: `Reference override ${reference} conflicts with an existing or proposed reference.`,
+      componentId: component.canonicalComponentId,
+      componentRef: component.reference,
+      suggestedAction: 'Choose a unique reference designator.',
+      confidence: 'high',
+    });
+    return;
+  }
+
+  if (proposedReference) state.used.add(proposedReference.toUpperCase());
+  const reason = proposedReference
+    ? 'The user supplied an explicit reference override.'
+    : `The ${prefix} prefix was inferred and the next unused reference was allocated.`;
+  collections.operations.push(
+    createOperation({
+      kind: 'annotate-reference',
+      targetType: 'component',
+      targetId: component.canonicalComponentId,
+      selector: componentSelector(component),
+      before: { reference: component.rawReference },
+      after: { reference },
+      automatic: !proposedReference,
+      requiresConfirmation: Boolean(proposedReference),
+      confidence: proposedReference ? 'high' : 'medium',
+      risk: 'medium',
+      reason,
+      validationGates: [
+        'component-reference-unique',
+        'component-connectivity-unchanged',
+        'native-erc-no-new-errors',
+      ],
+    }),
+  );
+}
+
+function resolvedMetadataAvailable(
+  rawValue: string,
+  resolvedValue: string,
+  options: ParsedNormalizationPlanOptions,
+): boolean {
+  return (
+    options.resolveMetadataExpressions &&
+    unresolvedExpression(rawValue) &&
+    !unresolvedExpression(resolvedValue) &&
+    resolvedValue.length > 0
+  );
+}
+
+function addValuePlan(
+  component: CanonicalComponent,
+  override: ComponentOverride | undefined,
+  options: ParsedNormalizationPlanOptions,
+  collections: PlanCollections,
+): void {
+  if (component.componentKind !== 'part') return;
+  const valueOverride = override?.value;
+  const overrideChangesState = valueOverride !== undefined && valueOverride !== component.rawValue;
+  const resolvedAvailable = resolvedMetadataAvailable(component.rawValue, component.value, options);
+
+  if (overrideChangesState || resolvedAvailable) {
+    const value = valueOverride ?? component.value;
+    collections.operations.push(
+      createOperation({
+        kind: 'set-component-value',
+        targetType: 'component',
+        targetId: component.canonicalComponentId,
+        selector: { componentId: component.canonicalComponentId },
+        before: { value: component.rawValue },
+        after: { value },
+        automatic: !valueOverride,
+        requiresConfirmation: Boolean(valueOverride),
+        confidence: 'high',
+        risk: 'low',
+        reason: valueOverride
+          ? 'The user supplied an explicit value override.'
+          : 'The imported value expression resolves to concrete metadata.',
+        validationGates: ['component-identity-unchanged', 'bom-value-resolved'],
+      }),
+    );
+    return;
+  }
+
+  if (component.value && !unresolvedExpression(component.value)) return;
+  collections.blockers.push({
+    code: 'COMPONENT_VALUE_REQUIRES_INPUT',
+    severity: 'error',
+    message: 'The component value cannot be normalized without explicit metadata.',
+    componentId: component.canonicalComponentId,
+    componentRef: component.reference,
+    suggestedAction: 'Provide a component override with the intended value.',
+    confidence: 'high',
+  });
+}
+
+function addFootprintPlan(
+  component: CanonicalComponent,
+  override: ComponentOverride | undefined,
+  options: ParsedNormalizationPlanOptions,
+  collections: PlanCollections,
+): void {
+  if (component.componentKind !== 'part') return;
+  const footprintOverride = override?.footprint;
+  const overrideChangesState =
+    footprintOverride !== undefined && footprintOverride !== component.rawFootprint;
+  const resolvedAvailable = resolvedMetadataAvailable(
+    component.rawFootprint,
+    component.footprint,
+    options,
+  );
+
+  if (overrideChangesState || resolvedAvailable) {
+    const footprint = footprintOverride ?? component.footprint;
+    collections.operations.push(
+      createOperation({
+        kind: 'set-component-footprint',
+        targetType: 'component',
+        targetId: component.canonicalComponentId,
+        selector: { componentId: component.canonicalComponentId },
+        before: { footprint: component.rawFootprint },
+        after: { footprint },
+        automatic: !footprintOverride,
+        requiresConfirmation: Boolean(footprintOverride),
+        confidence: 'high',
+        risk: 'medium',
+        reason: footprintOverride
+          ? 'The user supplied an explicit footprint override.'
+          : 'The imported footprint expression resolves to concrete metadata.',
+        validationGates: [
+          'component-identity-unchanged',
+          'footprint-resolved',
+          'pcb-linkage-reviewed',
+        ],
+      }),
+    );
+    return;
+  }
+
+  if (component.footprint && !unresolvedExpression(component.footprint)) return;
+  collections.blockers.push({
+    code: 'COMPONENT_FOOTPRINT_REQUIRES_INPUT',
+    severity: 'error',
+    message: 'The component footprint cannot be normalized without explicit metadata.',
+    componentId: component.canonicalComponentId,
+    componentRef: component.reference,
+    suggestedAction: 'Provide a component override with the intended EasyEDA footprint.',
+    confidence: 'high',
+  });
+}
+
+function addBomClassificationPlan(
+  component: CanonicalComponent,
+  override: ComponentOverride | undefined,
+  collections: PlanCollections,
+): void {
+  if (!['unknown', 'helper'].includes(component.componentKind)) return;
+  if (override?.bomEligible !== undefined) {
+    collections.operations.push(
+      createOperation({
+        kind: 'classify-bom',
+        targetType: 'component',
+        targetId: component.canonicalComponentId,
+        selector: { componentId: component.canonicalComponentId },
+        before: { bomEligible: component.bomEligible, componentKind: component.componentKind },
+        after: { bomEligible: override.bomEligible },
+        automatic: false,
+        requiresConfirmation: true,
+        confidence: 'high',
+        risk: 'medium',
+        reason: 'The user supplied an explicit BOM-classification override.',
+        validationGates: ['bom-count-reviewed', 'component-connectivity-unchanged'],
+      }),
+    );
+    return;
+  }
+  if (!component.reference && !component.value && !component.footprint) return;
+  collections.blockers.push({
+    code: 'BOM_CLASSIFICATION_REQUIRES_REVIEW',
+    severity: 'error',
+    message: 'A part-like helper primitive requires an explicit BOM classification.',
+    componentId: component.canonicalComponentId,
+    componentRef: component.reference,
+    suggestedAction: 'Provide a component override with bomEligible true or false.',
+    confidence: 'medium',
+  });
+}
+
+function addComponentPlans(
+  model: SchematicModel,
+  options: ParsedNormalizationPlanOptions,
+  collections: PlanCollections,
+): void {
   const overrides = new Map(
     options.componentOverrides.map((override) => [override.componentId, override]),
   );
-  const knownComponentIds = new Set(
-    model.components.map((component) => component.canonicalComponentId),
-  );
-
-  if (options.sourceTruncated) {
-    blockers.push({
-      code: 'SOURCE_COMPONENTS_TRUNCATED',
-      severity: 'error',
-      message: 'A complete normalization plan cannot be produced from a truncated component list.',
-      suggestedAction: 'Repeat the preview with a complete live component inventory.',
-      confidence: 'high',
-    });
-  }
-
-  for (const override of options.componentOverrides) {
-    if (!knownComponentIds.has(override.componentId)) {
-      blockers.push({
-        code: 'OVERRIDE_COMPONENT_NOT_FOUND',
-        severity: 'error',
-        message: `Override target ${override.componentId} is not present in the canonical model.`,
-        componentId: override.componentId,
-        suggestedAction: 'Refresh the audit and use a current canonical component ID.',
-        confidence: 'high',
-      });
-    }
-  }
-
-  if (audit.summary.duplicateReferenceCount > 0) {
-    for (const finding of audit.findings.filter(
-      (candidate) => candidate.code === 'DUPLICATE_COMPONENT_REFERENCE',
-    )) {
-      blockers.push({
-        code: 'DUPLICATE_COMPONENT_REFERENCE',
-        severity: 'error',
-        message: finding.message,
-        componentRef: finding.componentRef,
-        suggestedAction: finding.suggestedAction,
-        confidence: finding.confidence,
-      });
-    }
-  }
-
-  if (options.normalizeNetNames) {
-    for (const net of model.nets) {
-      if (!net.imported || net.kind === 'power-flag') continue;
-      for (const rawNetName of net.rawNetNames) {
-        if (rawNetName === net.canonicalNetName) continue;
-        operations.push(
-          createOperation({
-            kind: 'normalize-net-name',
-            targetType: 'net',
-            targetId: `net:${rawNetName}`,
-            selector: { rawNetName },
-            before: { netName: rawNetName },
-            after: { netName: net.canonicalNetName },
-            automatic: true,
-            requiresConfirmation: net.rawNetNames.length > 1,
-            confidence: net.rawNetNames.length > 1 ? 'medium' : 'high',
-            risk: net.rawNetNames.length > 1 ? 'medium' : 'low',
-            reason:
-              net.rawNetNames.length > 1
-                ? 'This imported alias resolves to a canonical net that also has other raw names.'
-                : 'This is a recognized imported power or ground alias.',
-            validationGates: [
-              'canonical-net-membership-unchanged',
-              'connected-pin-set-unchanged',
-              'native-erc-no-new-errors',
-            ],
-          }),
-        );
-      }
-    }
-  }
-
-  const refState = referenceState(model.components);
-  for (const component of [...model.components].sort((a, b) =>
+  const state = referenceState(model.components);
+  const components = [...model.components].sort((a, b) =>
     a.canonicalComponentId.localeCompare(b.canonicalComponentId),
-  )) {
+  );
+  for (const component of components) {
     const override = overrides.get(component.canonicalComponentId);
-    if (component.componentKind === 'part' && !component.annotated && options.annotateReferences) {
-      const proposedReference = override?.reference;
-      const prefix = proposedReference ? undefined : inferReferencePrefix(component);
-      const reference =
-        proposedReference ?? (prefix ? allocateReference(prefix, refState) : undefined);
-      if (!reference) {
-        blockers.push({
-          code: 'REFERENCE_PREFIX_UNRESOLVED',
-          severity: 'error',
-          message: 'A deterministic reference prefix could not be inferred for this component.',
-          componentId: component.canonicalComponentId,
-          componentRef: component.reference,
-          suggestedAction: 'Provide a component override with an explicit unique reference.',
-          confidence: 'high',
-        });
-      } else if (refState.used.has(reference.toUpperCase()) && proposedReference) {
-        blockers.push({
-          code: 'REFERENCE_OVERRIDE_CONFLICT',
-          severity: 'error',
-          message: `Reference override ${reference} conflicts with an existing or proposed reference.`,
-          componentId: component.canonicalComponentId,
-          componentRef: component.reference,
-          suggestedAction: 'Choose a unique reference designator.',
-          confidence: 'high',
-        });
-      } else {
-        if (proposedReference) refState.used.add(proposedReference.toUpperCase());
-        operations.push(
-          createOperation({
-            kind: 'annotate-reference',
-            targetType: 'component',
-            targetId: component.canonicalComponentId,
-            selector: {
-              componentId: component.canonicalComponentId,
-              ...(component.runtimePrimitiveId
-                ? { runtimePrimitiveId: component.runtimePrimitiveId }
-                : {}),
-            },
-            before: { reference: component.rawReference },
-            after: { reference },
-            automatic: !proposedReference,
-            requiresConfirmation: Boolean(proposedReference),
-            confidence: proposedReference ? 'high' : 'medium',
-            risk: 'medium',
-            reason: proposedReference
-              ? 'The user supplied an explicit reference override.'
-              : `The ${prefix} prefix was inferred and the next unused reference was allocated.`,
-            validationGates: [
-              'component-reference-unique',
-              'component-connectivity-unchanged',
-              'native-erc-no-new-errors',
-            ],
-          }),
-        );
-      }
-    }
-
-    if (component.componentKind === 'part') {
-      const valueOverride = override?.value;
-      const resolvedValueAvailable =
-        options.resolveMetadataExpressions &&
-        unresolvedExpression(component.rawValue) &&
-        !unresolvedExpression(component.value) &&
-        component.value.length > 0;
-      const valueOverrideChangesState =
-        valueOverride !== undefined && valueOverride !== component.rawValue;
-      if (valueOverrideChangesState || resolvedValueAvailable) {
-        const value = valueOverride ?? component.value;
-        operations.push(
-          createOperation({
-            kind: 'set-component-value',
-            targetType: 'component',
-            targetId: component.canonicalComponentId,
-            selector: { componentId: component.canonicalComponentId },
-            before: { value: component.rawValue },
-            after: { value },
-            automatic: !valueOverride,
-            requiresConfirmation: Boolean(valueOverride),
-            confidence: 'high',
-            risk: 'low',
-            reason: valueOverride
-              ? 'The user supplied an explicit value override.'
-              : 'The imported value expression resolves to concrete metadata.',
-            validationGates: ['component-identity-unchanged', 'bom-value-resolved'],
-          }),
-        );
-      } else if (!component.value || unresolvedExpression(component.value)) {
-        blockers.push({
-          code: 'COMPONENT_VALUE_REQUIRES_INPUT',
-          severity: 'error',
-          message: 'The component value cannot be normalized without explicit metadata.',
-          componentId: component.canonicalComponentId,
-          componentRef: component.reference,
-          suggestedAction: 'Provide a component override with the intended value.',
-          confidence: 'high',
-        });
-      }
-
-      const footprintOverride = override?.footprint;
-      const resolvedFootprintAvailable =
-        options.resolveMetadataExpressions &&
-        unresolvedExpression(component.rawFootprint) &&
-        !unresolvedExpression(component.footprint) &&
-        component.footprint.length > 0;
-      const footprintOverrideChangesState =
-        footprintOverride !== undefined && footprintOverride !== component.rawFootprint;
-      if (footprintOverrideChangesState || resolvedFootprintAvailable) {
-        const footprint = footprintOverride ?? component.footprint;
-        operations.push(
-          createOperation({
-            kind: 'set-component-footprint',
-            targetType: 'component',
-            targetId: component.canonicalComponentId,
-            selector: { componentId: component.canonicalComponentId },
-            before: { footprint: component.rawFootprint },
-            after: { footprint },
-            automatic: !footprintOverride,
-            requiresConfirmation: Boolean(footprintOverride),
-            confidence: 'high',
-            risk: 'medium',
-            reason: footprintOverride
-              ? 'The user supplied an explicit footprint override.'
-              : 'The imported footprint expression resolves to concrete metadata.',
-            validationGates: [
-              'component-identity-unchanged',
-              'footprint-resolved',
-              'pcb-linkage-reviewed',
-            ],
-          }),
-        );
-      } else if (!component.footprint || unresolvedExpression(component.footprint)) {
-        blockers.push({
-          code: 'COMPONENT_FOOTPRINT_REQUIRES_INPUT',
-          severity: 'error',
-          message: 'The component footprint cannot be normalized without explicit metadata.',
-          componentId: component.canonicalComponentId,
-          componentRef: component.reference,
-          suggestedAction: 'Provide a component override with the intended EasyEDA footprint.',
-          confidence: 'high',
-        });
-      }
-    }
-
-    if (['unknown', 'helper'].includes(component.componentKind)) {
-      if (override?.bomEligible !== undefined) {
-        operations.push(
-          createOperation({
-            kind: 'classify-bom',
-            targetType: 'component',
-            targetId: component.canonicalComponentId,
-            selector: { componentId: component.canonicalComponentId },
-            before: { bomEligible: component.bomEligible, componentKind: component.componentKind },
-            after: { bomEligible: override.bomEligible },
-            automatic: false,
-            requiresConfirmation: true,
-            confidence: 'high',
-            risk: 'medium',
-            reason: 'The user supplied an explicit BOM-classification override.',
-            validationGates: ['bom-count-reviewed', 'component-connectivity-unchanged'],
-          }),
-        );
-      } else if (component.reference || component.value || component.footprint) {
-        blockers.push({
-          code: 'BOM_CLASSIFICATION_REQUIRES_REVIEW',
-          severity: 'error',
-          message: 'A part-like helper primitive requires an explicit BOM classification.',
-          componentId: component.canonicalComponentId,
-          componentRef: component.reference,
-          suggestedAction: 'Provide a component override with bomEligible true or false.',
-          confidence: 'medium',
-        });
-      }
-    }
+    addReferencePlan(component, override, options, state, collections);
+    addValuePlan(component, override, options, collections);
+    addFootprintPlan(component, override, options, collections);
+    addBomClassificationPlan(component, override, collections);
   }
+}
 
-  for (const net of model.nets.filter((candidate) => candidate.kind === 'power-flag')) {
+function addPowerFlagWarnings(
+  model: SchematicModel,
+  warnings: NormalizationPlanDiagnostic[],
+): void {
+  for (const net of model.nets) {
+    if (net.kind !== 'power-flag') continue;
     warnings.push({
       code: 'POWER_FLAG_PRESERVED',
       severity: 'warning',
@@ -502,25 +702,28 @@ export function previewImportedNormalization(
       confidence: 'high',
     });
   }
+}
 
-  operations.sort(operationSort);
-  blockers.sort(diagnosticSort);
-  warnings.sort(diagnosticSort);
+function determinePlanStatus(
+  blockerCount: number,
+  requiresConfirmation: boolean,
+  operationCount: number,
+): ImportedNormalizationPlan['status'] {
+  if (blockerCount > 0) return 'blocked';
+  if (requiresConfirmation) return 'review';
+  if (operationCount === 0) return 'noop';
+  return 'ready';
+}
 
-  const confirmationOperationCount = operations.filter(
-    (operation) => operation.requiresConfirmation,
-  ).length;
-  const applicationReady = blockers.length === 0;
-  const requiresConfirmation = confirmationOperationCount > 0 || warnings.length > 0;
-  const status: ImportedNormalizationPlan['status'] =
-    blockers.length > 0
-      ? 'blocked'
-      : requiresConfirmation
-        ? 'review'
-        : operations.length === 0
-          ? 'noop'
-          : 'ready';
-  const modelHash = sha256({
+function countOperations(
+  operations: NormalizationOperation[],
+  kind: NormalizationOperationKind,
+): number {
+  return operations.filter((operation) => operation.kind === kind).length;
+}
+
+function canonicalModelHash(model: SchematicModel): string {
+  return sha256({
     ...model,
     components: [...model.components].sort((a, b) =>
       a.canonicalComponentId.localeCompare(b.canonicalComponentId),
@@ -528,13 +731,44 @@ export function previewImportedNormalization(
     nets: [...model.nets].sort((a, b) => a.canonicalNetName.localeCompare(b.canonicalNetName)),
     diagnostics: [...model.diagnostics].sort((a, b) => stableJson(a).localeCompare(stableJson(b))),
   });
+}
+
+export function previewImportedNormalization(
+  model: SchematicModel,
+  inputOptions: NormalizationPlanOptions = {},
+): ImportedNormalizationPlan {
+  const options = parsePlanOptions(inputOptions);
+  const collections: PlanCollections = { operations: [], blockers: [], warnings: [] };
+
+  addSourceTruncationBlocker(options, collections.blockers);
+  addOverrideTargetBlockers(model, options, collections.blockers);
+  addDuplicateReferenceBlockers(model, options, collections.blockers);
+  addNetRenameOperations(model, options, collections.operations);
+  addComponentPlans(model, options, collections);
+  addPowerFlagWarnings(model, collections.warnings);
+
+  collections.operations.sort(operationSort);
+  collections.blockers.sort(diagnosticSort);
+  collections.warnings.sort(diagnosticSort);
+
+  const confirmationOperationCount = collections.operations.filter(
+    (operation) => operation.requiresConfirmation,
+  ).length;
+  const applicationReady = collections.blockers.length === 0;
+  const requiresConfirmation = confirmationOperationCount > 0 || collections.warnings.length > 0;
+  const status = determinePlanStatus(
+    collections.blockers.length,
+    requiresConfirmation,
+    collections.operations.length,
+  );
+  const modelHash = canonicalModelHash(model);
   const planPayload = {
     schemaVersion: 'imported-normalization-plan/v1',
     modelHash,
     options,
-    operations,
-    blockers,
-    warnings,
+    operations: collections.operations,
+    blockers: collections.blockers,
+    warnings: collections.warnings,
   };
 
   return ImportedNormalizationPlanSchema.parse({
@@ -546,23 +780,17 @@ export function previewImportedNormalization(
     safeToAutoApply: applicationReady && !requiresConfirmation,
     requiresConfirmation,
     summary: {
-      operationCount: operations.length,
-      automaticOperationCount: operations.filter((operation) => operation.automatic).length,
+      operationCount: collections.operations.length,
+      automaticOperationCount: collections.operations.filter((operation) => operation.automatic)
+        .length,
       confirmationOperationCount,
-      netRenameCount: operations.filter((operation) => operation.kind === 'normalize-net-name')
-        .length,
-      referenceAnnotationCount: operations.filter(
-        (operation) => operation.kind === 'annotate-reference',
-      ).length,
-      valueUpdateCount: operations.filter((operation) => operation.kind === 'set-component-value')
-        .length,
-      footprintUpdateCount: operations.filter(
-        (operation) => operation.kind === 'set-component-footprint',
-      ).length,
-      bomClassificationCount: operations.filter((operation) => operation.kind === 'classify-bom')
-        .length,
-      blockerCount: blockers.length,
-      warningCount: warnings.length,
+      netRenameCount: countOperations(collections.operations, 'normalize-net-name'),
+      referenceAnnotationCount: countOperations(collections.operations, 'annotate-reference'),
+      valueUpdateCount: countOperations(collections.operations, 'set-component-value'),
+      footprintUpdateCount: countOperations(collections.operations, 'set-component-footprint'),
+      bomClassificationCount: countOperations(collections.operations, 'classify-bom'),
+      blockerCount: collections.blockers.length,
+      warningCount: collections.warnings.length,
     },
     expectedPostconditions: [
       'Canonical net membership is unchanged.',

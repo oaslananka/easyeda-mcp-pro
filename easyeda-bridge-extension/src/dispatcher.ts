@@ -196,40 +196,43 @@ function extractPrimitiveId(result: unknown): string {
  * before a partial `.modify()` call, since the native EasyEDA API resets any
  * field omitted from the property object rather than leaving it untouched.
  */
-function safeGetState(obj: unknown, key: string): unknown {
-  if (!obj || typeof obj !== 'object') return undefined;
-  const record = obj as Record<string, unknown>;
+function callStateGetter(obj: object, record: Record<string, unknown>, key: string): unknown {
   const getter = record[`getState_${key}`];
-  if (typeof getter === 'function') {
-    try {
-      const value = (getter as () => unknown).call(obj);
-      if (value !== undefined) return value;
-      // Some EasyEDA wrappers retain getState_* methods after modify(), but
-      // those getters return undefined while the value remains available on
-      // getState() or a direct lower-camel property. Continue to fallbacks.
-    } catch {
-      // Fall through to runtime variants that expose state as an object/property.
-    }
+  if (typeof getter !== 'function') return undefined;
+  try {
+    return (getter as () => unknown).call(obj);
+  } catch {
+    return undefined;
   }
+}
 
-  const lowerCamelKey = key.length > 0 ? key[0].toLowerCase() + key.slice(1) : key;
-  const getState = record.getState;
-  if (typeof getState === 'function') {
-    try {
-      const state = (getState as () => unknown).call(obj);
-      if (state && typeof state === 'object') {
-        const stateRecord = state as Record<string, unknown>;
-        if (key in stateRecord) return stateRecord[key];
-        if (lowerCamelKey in stateRecord) return stateRecord[lowerCamelKey];
-      }
-    } catch {
-      // Continue to direct property fallback.
-    }
+function readStateObject(
+  obj: object,
+  record: Record<string, unknown>,
+  key: string,
+  lowerCamelKey: string,
+): unknown {
+  if (typeof record.getState !== 'function') return undefined;
+  try {
+    const state = (record.getState as () => unknown).call(obj);
+    if (!isRecord(state)) return undefined;
+    if (key in state) return state[key];
+    if (lowerCamelKey in state) return state[lowerCamelKey];
+  } catch {
+    return undefined;
   }
-
-  if (key in record) return record[key];
-  if (lowerCamelKey in record) return record[lowerCamelKey];
   return undefined;
+}
+
+function safeGetState(obj: unknown, key: string): unknown {
+  if (!isRecord(obj)) return undefined;
+  const lowerCamelKey = key.length > 0 ? key.charAt(0).toLowerCase() + key.slice(1) : key;
+  const getterValue = callStateGetter(obj, obj, key);
+  if (getterValue !== undefined) return getterValue;
+  const stateValue = readStateObject(obj, obj, key, lowerCamelKey);
+  if (stateValue !== undefined) return stateValue;
+  if (key in obj) return obj[key];
+  return obj[lowerCamelKey];
 }
 
 type PublicTextAlignMode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
@@ -1348,6 +1351,40 @@ async function readPrimitiveFromClass(
  * expose internal encoded values. We therefore use getAll() only to fill
  * non-enum fields that are missing from get(id).
  */
+async function readPublicTextPrimitive(primitiveClass: any, path: string, primitiveId: string) {
+  if (typeof primitiveClass.get !== 'function') return undefined;
+  try {
+    return await primitiveClass.get(primitiveId);
+  } catch (error) {
+    logRecoverableError(`${path}.get(${primitiveId}) failed while reading text`, error);
+    return undefined;
+  }
+}
+
+async function readPersistentTextPrimitive(primitiveClass: any, path: string, primitiveId: string) {
+  if (typeof primitiveClass.getAll !== 'function') return undefined;
+  try {
+    const all = (await primitiveClass.getAll()) || [];
+    if (!Array.isArray(all)) return undefined;
+    return all.find((item) => extractPrimitiveId(item) === primitiveId);
+  } catch (error) {
+    logRecoverableError(`${path}.getAll() failed while reading text fallback state`, error);
+    return undefined;
+  }
+}
+
+function validatedPublicTextPrimitive(
+  publicCurrent: unknown,
+  persistentCurrent: unknown,
+  primitiveId: string,
+): unknown {
+  if (!publicCurrent) return undefined;
+  const publicPrimitiveId = extractPrimitiveId(publicCurrent);
+  const identifiesRequestedPrimitive = publicPrimitiveId === primitiveId;
+  const confirmedByInventory = !publicPrimitiveId && Boolean(persistentCurrent);
+  return identifiesRequestedPrimitive || confirmedByInventory ? publicCurrent : undefined;
+}
+
 async function readTextPrimitiveFromClass(
   paths: string[],
   primitiveId: string,
@@ -1355,43 +1392,13 @@ async function readTextPrimitiveFromClass(
   for (const path of paths) {
     const primitiveClass = readFirstPath<any>([path]);
     if (!primitiveClass) continue;
-
-    let publicCurrent: unknown;
-    if (typeof primitiveClass.get === 'function') {
-      try {
-        publicCurrent = await primitiveClass.get(primitiveId);
-      } catch (error) {
-        logRecoverableError(`${path}.get(${primitiveId}) failed while reading text`, error);
-      }
-    }
-
-    let persistentCurrent: unknown;
-    if (typeof primitiveClass.getAll === 'function') {
-      try {
-        const all = (await primitiveClass.getAll()) || [];
-        if (Array.isArray(all)) {
-          persistentCurrent = all.find((item) => extractPrimitiveId(item) === primitiveId);
-        }
-      } catch (error) {
-        logRecoverableError(`${path}.getAll() failed while reading text fallback state`, error);
-      }
-    }
-
-    if (publicCurrent) {
-      const publicPrimitiveId = extractPrimitiveId(publicCurrent);
-      if (publicPrimitiveId && publicPrimitiveId !== primitiveId) {
-        // EasyEDA Pro 3.2.x may return the last accessed text wrapper even
-        // when get() is called with a non-text primitive ID. Never classify a
-        // primitive as text unless the returned wrapper identifies itself as
-        // the requested primitive.
-        publicCurrent = undefined;
-      } else if (!publicPrimitiveId && !persistentCurrent) {
-        // A wrapper without an addressable ID is only safe when getAll() has
-        // independently confirmed the requested text primitive.
-        publicCurrent = undefined;
-      }
-    }
-
+    const persistentCurrent = await readPersistentTextPrimitive(primitiveClass, path, primitiveId);
+    const publicCandidate = await readPublicTextPrimitive(primitiveClass, path, primitiveId);
+    const publicCurrent = validatedPublicTextPrimitive(
+      publicCandidate,
+      persistentCurrent,
+      primitiveId,
+    );
     if (publicCurrent || persistentCurrent) {
       return { publicCurrent, persistentCurrent, className: path };
     }
@@ -1431,6 +1438,215 @@ function componentSnapshotProperty(
   });
 }
 
+const COMPONENT_CLASS_PATHS = [
+  'SCH_PrimitiveComponent',
+  'SCH_PrimitiveComponent3',
+  'sch_PrimitiveComponent',
+];
+const WIRE_CLASS_PATHS = ['SCH_PrimitiveWire', 'SCH_PrimitiveWire3', 'sch_PrimitiveWire'];
+const TEXT_CLASS_PATHS = ['SCH_PrimitiveText', 'sch_PrimitiveText'];
+const RECTANGLE_CLASS_PATHS = ['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle'];
+const CIRCLE_CLASS_PATHS = ['SCH_PrimitiveCircle', 'sch_PrimitiveCircle'];
+const POLYGON_CLASS_PATHS = ['SCH_PrimitivePolygon', 'sch_PrimitivePolygon'];
+
+interface TextSnapshotRead {
+  candidateFound: boolean;
+  snapshot?: SchematicPrimitiveSnapshot;
+}
+
+function componentKindFromType(componentType: string): SchematicPrimitiveSnapshotKind {
+  if (componentType === 'netflag') return 'netflag';
+  if (componentType === 'netport') return 'netport';
+  return 'component';
+}
+
+function componentSnapshot(primitiveId: string, current: unknown): SchematicPrimitiveSnapshot {
+  const componentType = readComponentType(current);
+  return {
+    schemaVersion: 'schematic-primitive-snapshot/v1',
+    primitiveId,
+    primitiveKind: componentKindFromType(componentType),
+    componentType,
+    property: componentSnapshotProperty(current, componentType),
+  };
+}
+
+function wireSnapshot(primitiveId: string, current: unknown): SchematicPrimitiveSnapshot {
+  return {
+    schemaVersion: 'schematic-primitive-snapshot/v1',
+    primitiveId,
+    primitiveKind: 'wire',
+    property: compactDefinedRecord({
+      line: safeGetState(current, 'Line'),
+      net: safeGetState(current, 'Net'),
+      color: safeGetState(current, 'Color'),
+      lineWidth: safeGetState(current, 'LineWidth'),
+      lineType: safeGetState(current, 'LineType'),
+    }),
+  };
+}
+
+function textSnapshot(
+  primitiveId: string,
+  text: TextPrimitiveRead,
+  alignMode: PublicTextAlignMode,
+): SchematicPrimitiveSnapshot {
+  return {
+    schemaVersion: 'schematic-primitive-snapshot/v1',
+    primitiveId,
+    primitiveKind: 'text',
+    property: compactDefinedRecord({
+      x: readTextState(text, 'X'),
+      y: readTextState(text, 'Y'),
+      content: readTextState(text, 'Content'),
+      rotation: readTextState(text, 'Rotation'),
+      color: readTextState(text, 'TextColor') ?? readTextState(text, 'Color'),
+      fontName: readTextState(text, 'FontName'),
+      fontSize: readTextState(text, 'FontSize'),
+      bold: readTextState(text, 'Bold'),
+      italic: readTextState(text, 'Italic'),
+      underline: readTextState(text, 'UnderLine'),
+      alignMode,
+    }),
+  };
+}
+
+function rectangleSnapshot(primitiveId: string, current: unknown): SchematicPrimitiveSnapshot {
+  return {
+    schemaVersion: 'schematic-primitive-snapshot/v1',
+    primitiveId,
+    primitiveKind: 'rectangle',
+    property: compactDefinedRecord({
+      x: safeGetState(current, 'TopLeftX') ?? safeGetState(current, 'X'),
+      y: safeGetState(current, 'TopLeftY') ?? safeGetState(current, 'Y'),
+      width: safeGetState(current, 'Width'),
+      height: safeGetState(current, 'Height'),
+      cornerRadius: safeGetState(current, 'CornerRadius'),
+      rotation: safeGetState(current, 'Rotation'),
+      color: safeGetState(current, 'Color'),
+      fillColor: safeGetState(current, 'FillColor'),
+      lineWidth: safeGetState(current, 'LineWidth'),
+      lineType: safeGetState(current, 'LineType'),
+      fillStyle: safeGetState(current, 'FillStyle'),
+    }),
+  };
+}
+
+function circleSnapshot(primitiveId: string, current: unknown): SchematicPrimitiveSnapshot {
+  return {
+    schemaVersion: 'schematic-primitive-snapshot/v1',
+    primitiveId,
+    primitiveKind: 'circle',
+    property: compactDefinedRecord({
+      centerX: safeGetState(current, 'CenterX'),
+      centerY: safeGetState(current, 'CenterY'),
+      radius: safeGetState(current, 'Radius'),
+      color: safeGetState(current, 'Color'),
+      fillColor: safeGetState(current, 'FillColor'),
+      lineWidth: safeGetState(current, 'LineWidth'),
+      lineType: safeGetState(current, 'LineType'),
+      fillStyle: safeGetState(current, 'FillStyle'),
+    }),
+  };
+}
+
+function polygonSnapshot(primitiveId: string, current: unknown): SchematicPrimitiveSnapshot {
+  return {
+    schemaVersion: 'schematic-primitive-snapshot/v1',
+    primitiveId,
+    primitiveKind: 'polygon',
+    property: compactDefinedRecord({
+      line: safeGetState(current, 'Line'),
+      color: safeGetState(current, 'Color'),
+      fillColor: safeGetState(current, 'FillColor'),
+      lineWidth: safeGetState(current, 'LineWidth'),
+      lineType: safeGetState(current, 'LineType'),
+    }),
+  };
+}
+
+async function readComponentSnapshot(
+  primitiveId: string,
+  expectedKind?: SchematicPrimitiveSnapshotKind,
+): Promise<SchematicPrimitiveSnapshot | null> {
+  const primitive = await readPrimitiveFromClass(COMPONENT_CLASS_PATHS, primitiveId);
+  if (!primitive) return null;
+  const snapshot = componentSnapshot(primitiveId, primitive.current);
+  return expectedKind && snapshot.primitiveKind !== expectedKind ? null : snapshot;
+}
+
+async function readClassSnapshot(
+  primitiveId: string,
+  paths: string[],
+  factory: (primitiveId: string, current: unknown) => SchematicPrimitiveSnapshot,
+): Promise<SchematicPrimitiveSnapshot | null> {
+  const primitive = await readPrimitiveFromClass(paths, primitiveId);
+  return primitive ? factory(primitiveId, primitive.current) : null;
+}
+
+async function readTextSnapshot(primitiveId: string): Promise<TextSnapshotRead> {
+  const text = await readTextPrimitiveFromClass(TEXT_CLASS_PATHS, primitiveId);
+  if (!text) return { candidateFound: false };
+  const alignMode = resolvePublicTextAlignMode(text, primitiveId);
+  return {
+    candidateFound: true,
+    snapshot: alignMode === undefined ? undefined : textSnapshot(primitiveId, text, alignMode),
+  };
+}
+
+function throwUnsupportedTextSnapshot(primitiveId: string): never {
+  throw newBridgeError(
+    'UNSUPPORTED_RUNTIME',
+    `Text ${primitiveId} did not expose a public alignMode`,
+    'Retry after reloading the document. Exact text rollback requires a documented ESCH_PrimitiveTextAlignMode value from 1 through 9.',
+  );
+}
+
+async function readSnapshotByKind(
+  primitiveId: string,
+  kind: SchematicPrimitiveSnapshotKind,
+): Promise<SchematicPrimitiveSnapshot | null> {
+  switch (kind) {
+    case 'component':
+    case 'netflag':
+    case 'netport':
+      return readComponentSnapshot(primitiveId, kind);
+    case 'wire':
+      return readClassSnapshot(primitiveId, WIRE_CLASS_PATHS, wireSnapshot);
+    case 'text': {
+      const text = await readTextSnapshot(primitiveId);
+      if (text.candidateFound && !text.snapshot) throwUnsupportedTextSnapshot(primitiveId);
+      return text.snapshot ?? null;
+    }
+    case 'rectangle':
+      return readClassSnapshot(primitiveId, RECTANGLE_CLASS_PATHS, rectangleSnapshot);
+    case 'circle':
+      return readClassSnapshot(primitiveId, CIRCLE_CLASS_PATHS, circleSnapshot);
+    case 'polygon':
+      return readClassSnapshot(primitiveId, POLYGON_CLASS_PATHS, polygonSnapshot);
+  }
+}
+
+async function readUnconstrainedSnapshot(
+  primitiveId: string,
+): Promise<SchematicPrimitiveSnapshot | null> {
+  const component = await readComponentSnapshot(primitiveId);
+  if (component) return component;
+  const wire = await readClassSnapshot(primitiveId, WIRE_CLASS_PATHS, wireSnapshot);
+  if (wire) return wire;
+
+  const text = await readTextSnapshot(primitiveId);
+  if (text.snapshot) return text.snapshot;
+  const rectangle = await readClassSnapshot(primitiveId, RECTANGLE_CLASS_PATHS, rectangleSnapshot);
+  if (rectangle) return rectangle;
+  const circle = await readClassSnapshot(primitiveId, CIRCLE_CLASS_PATHS, circleSnapshot);
+  if (circle) return circle;
+  const polygon = await readClassSnapshot(primitiveId, POLYGON_CLASS_PATHS, polygonSnapshot);
+  if (polygon) return polygon;
+  if (text.candidateFound) throwUnsupportedTextSnapshot(primitiveId);
+  return null;
+}
+
 async function getSchematicPrimitiveSnapshot(
   primitiveId: string,
   expectedPrimitiveKind?: SchematicPrimitiveSnapshotKind,
@@ -1443,304 +1659,17 @@ async function getSchematicPrimitiveSnapshot(
     );
   }
 
+  const snapshot = expectedPrimitiveKind
+    ? await readSnapshotByKind(primitiveId, expectedPrimitiveKind)
+    : await readUnconstrainedSnapshot(primitiveId);
+  if (snapshot) return snapshot;
   if (expectedPrimitiveKind) {
-    if (
-      expectedPrimitiveKind === 'component' ||
-      expectedPrimitiveKind === 'netflag' ||
-      expectedPrimitiveKind === 'netport'
-    ) {
-      const component = await readPrimitiveFromClass(
-        ['SCH_PrimitiveComponent', 'SCH_PrimitiveComponent3', 'sch_PrimitiveComponent'],
-        primitiveId,
-      );
-      if (component) {
-        const componentType = readComponentType(component.current);
-        const primitiveKind: SchematicPrimitiveSnapshotKind =
-          componentType === 'netflag'
-            ? 'netflag'
-            : componentType === 'netport'
-              ? 'netport'
-              : 'component';
-        if (primitiveKind === expectedPrimitiveKind) {
-          return {
-            schemaVersion: 'schematic-primitive-snapshot/v1',
-            primitiveId,
-            primitiveKind,
-            componentType,
-            property: componentSnapshotProperty(component.current, componentType),
-          };
-        }
-      }
-    } else if (expectedPrimitiveKind === 'wire') {
-      const wire = await readPrimitiveFromClass(
-        ['SCH_PrimitiveWire', 'SCH_PrimitiveWire3', 'sch_PrimitiveWire'],
-        primitiveId,
-      );
-      if (wire) {
-        return {
-          schemaVersion: 'schematic-primitive-snapshot/v1',
-          primitiveId,
-          primitiveKind: 'wire',
-          property: compactDefinedRecord({
-            line: safeGetState(wire.current, 'Line'),
-            net: safeGetState(wire.current, 'Net'),
-            color: safeGetState(wire.current, 'Color'),
-            lineWidth: safeGetState(wire.current, 'LineWidth'),
-            lineType: safeGetState(wire.current, 'LineType'),
-          }),
-        };
-      }
-    } else if (expectedPrimitiveKind === 'text') {
-      const text = await readTextPrimitiveFromClass(
-        ['SCH_PrimitiveText', 'sch_PrimitiveText'],
-        primitiveId,
-      );
-      if (text) {
-        const alignMode = resolvePublicTextAlignMode(text, primitiveId);
-        if (alignMode === undefined) {
-          throw newBridgeError(
-            'UNSUPPORTED_RUNTIME',
-            `Text ${primitiveId} did not expose a public alignMode`,
-            'Retry after reloading the document. Exact text rollback requires a documented ESCH_PrimitiveTextAlignMode value from 1 through 9.',
-          );
-        }
-        return {
-          schemaVersion: 'schematic-primitive-snapshot/v1',
-          primitiveId,
-          primitiveKind: 'text',
-          property: compactDefinedRecord({
-            x: readTextState(text, 'X'),
-            y: readTextState(text, 'Y'),
-            content: readTextState(text, 'Content'),
-            rotation: readTextState(text, 'Rotation'),
-            color: readTextState(text, 'TextColor') ?? readTextState(text, 'Color'),
-            fontName: readTextState(text, 'FontName'),
-            fontSize: readTextState(text, 'FontSize'),
-            bold: readTextState(text, 'Bold'),
-            italic: readTextState(text, 'Italic'),
-            underline: readTextState(text, 'UnderLine'),
-            alignMode,
-          }),
-        };
-      }
-    } else if (expectedPrimitiveKind === 'rectangle') {
-      const rectangle = await readPrimitiveFromClass(
-        ['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle'],
-        primitiveId,
-      );
-      if (rectangle) {
-        return {
-          schemaVersion: 'schematic-primitive-snapshot/v1',
-          primitiveId,
-          primitiveKind: 'rectangle',
-          property: compactDefinedRecord({
-            x: safeGetState(rectangle.current, 'TopLeftX') ?? safeGetState(rectangle.current, 'X'),
-            y: safeGetState(rectangle.current, 'TopLeftY') ?? safeGetState(rectangle.current, 'Y'),
-            width: safeGetState(rectangle.current, 'Width'),
-            height: safeGetState(rectangle.current, 'Height'),
-            cornerRadius: safeGetState(rectangle.current, 'CornerRadius'),
-            rotation: safeGetState(rectangle.current, 'Rotation'),
-            color: safeGetState(rectangle.current, 'Color'),
-            fillColor: safeGetState(rectangle.current, 'FillColor'),
-            lineWidth: safeGetState(rectangle.current, 'LineWidth'),
-            lineType: safeGetState(rectangle.current, 'LineType'),
-            fillStyle: safeGetState(rectangle.current, 'FillStyle'),
-          }),
-        };
-      }
-    } else if (expectedPrimitiveKind === 'circle') {
-      const circle = await readPrimitiveFromClass(
-        ['SCH_PrimitiveCircle', 'sch_PrimitiveCircle'],
-        primitiveId,
-      );
-      if (circle) {
-        return {
-          schemaVersion: 'schematic-primitive-snapshot/v1',
-          primitiveId,
-          primitiveKind: 'circle',
-          property: compactDefinedRecord({
-            centerX: safeGetState(circle.current, 'CenterX'),
-            centerY: safeGetState(circle.current, 'CenterY'),
-            radius: safeGetState(circle.current, 'Radius'),
-            color: safeGetState(circle.current, 'Color'),
-            fillColor: safeGetState(circle.current, 'FillColor'),
-            lineWidth: safeGetState(circle.current, 'LineWidth'),
-            lineType: safeGetState(circle.current, 'LineType'),
-            fillStyle: safeGetState(circle.current, 'FillStyle'),
-          }),
-        };
-      }
-    } else if (expectedPrimitiveKind === 'polygon') {
-      const polygon = await readPrimitiveFromClass(
-        ['SCH_PrimitivePolygon', 'sch_PrimitivePolygon'],
-        primitiveId,
-      );
-      if (polygon) {
-        return {
-          schemaVersion: 'schematic-primitive-snapshot/v1',
-          primitiveId,
-          primitiveKind: 'polygon',
-          property: compactDefinedRecord({
-            line: safeGetState(polygon.current, 'Line'),
-            color: safeGetState(polygon.current, 'Color'),
-            fillColor: safeGetState(polygon.current, 'FillColor'),
-            lineWidth: safeGetState(polygon.current, 'LineWidth'),
-            lineType: safeGetState(polygon.current, 'LineType'),
-          }),
-        };
-      }
-    }
-
     throw newBridgeError(
       'PRIMITIVE_NOT_FOUND',
       `Primitive ${primitiveId} was not found as expected kind ${expectedPrimitiveKind}`,
       'Refresh the expected primitive inventory and retry the transaction.',
     );
   }
-
-  const component = await readPrimitiveFromClass(
-    ['SCH_PrimitiveComponent', 'SCH_PrimitiveComponent3', 'sch_PrimitiveComponent'],
-    primitiveId,
-  );
-  if (component) {
-    const componentType = readComponentType(component.current);
-    const primitiveKind: SchematicPrimitiveSnapshotKind =
-      componentType === 'netflag'
-        ? 'netflag'
-        : componentType === 'netport'
-          ? 'netport'
-          : 'component';
-    return {
-      schemaVersion: 'schematic-primitive-snapshot/v1',
-      primitiveId,
-      primitiveKind,
-      componentType,
-      property: componentSnapshotProperty(component.current, componentType),
-    };
-  }
-
-  const wire = await readPrimitiveFromClass(
-    ['SCH_PrimitiveWire', 'SCH_PrimitiveWire3', 'sch_PrimitiveWire'],
-    primitiveId,
-  );
-  if (wire) {
-    return {
-      schemaVersion: 'schematic-primitive-snapshot/v1',
-      primitiveId,
-      primitiveKind: 'wire',
-      property: compactDefinedRecord({
-        line: safeGetState(wire.current, 'Line'),
-        net: safeGetState(wire.current, 'Net'),
-        color: safeGetState(wire.current, 'Color'),
-        lineWidth: safeGetState(wire.current, 'LineWidth'),
-        lineType: safeGetState(wire.current, 'LineType'),
-      }),
-    };
-  }
-
-  const text = await readTextPrimitiveFromClass(
-    ['SCH_PrimitiveText', 'sch_PrimitiveText'],
-    primitiveId,
-  );
-  const textAlignMode = text ? resolvePublicTextAlignMode(text, primitiveId) : undefined;
-  if (text && textAlignMode !== undefined) {
-    return {
-      schemaVersion: 'schematic-primitive-snapshot/v1',
-      primitiveId,
-      primitiveKind: 'text',
-      property: compactDefinedRecord({
-        x: readTextState(text, 'X'),
-        y: readTextState(text, 'Y'),
-        content: readTextState(text, 'Content'),
-        rotation: readTextState(text, 'Rotation'),
-        color: readTextState(text, 'TextColor') ?? readTextState(text, 'Color'),
-        fontName: readTextState(text, 'FontName'),
-        fontSize: readTextState(text, 'FontSize'),
-        bold: readTextState(text, 'Bold'),
-        italic: readTextState(text, 'Italic'),
-        underline: readTextState(text, 'UnderLine'),
-        alignMode: textAlignMode,
-      }),
-    };
-  }
-
-  // EasyEDA Pro can return a misleading text wrapper for a non-text ID.
-  // A text candidate without a documented public alignment is therefore not
-  // authoritative: continue probing the other primitive classes first.
-  const rectangle = await readPrimitiveFromClass(
-    ['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle'],
-    primitiveId,
-  );
-  if (rectangle) {
-    return {
-      schemaVersion: 'schematic-primitive-snapshot/v1',
-      primitiveId,
-      primitiveKind: 'rectangle',
-      property: compactDefinedRecord({
-        x: safeGetState(rectangle.current, 'TopLeftX') ?? safeGetState(rectangle.current, 'X'),
-        y: safeGetState(rectangle.current, 'TopLeftY') ?? safeGetState(rectangle.current, 'Y'),
-        width: safeGetState(rectangle.current, 'Width'),
-        height: safeGetState(rectangle.current, 'Height'),
-        cornerRadius: safeGetState(rectangle.current, 'CornerRadius'),
-        rotation: safeGetState(rectangle.current, 'Rotation'),
-        color: safeGetState(rectangle.current, 'Color'),
-        fillColor: safeGetState(rectangle.current, 'FillColor'),
-        lineWidth: safeGetState(rectangle.current, 'LineWidth'),
-        lineType: safeGetState(rectangle.current, 'LineType'),
-        fillStyle: safeGetState(rectangle.current, 'FillStyle'),
-      }),
-    };
-  }
-
-  const circle = await readPrimitiveFromClass(
-    ['SCH_PrimitiveCircle', 'sch_PrimitiveCircle'],
-    primitiveId,
-  );
-  if (circle) {
-    return {
-      schemaVersion: 'schematic-primitive-snapshot/v1',
-      primitiveId,
-      primitiveKind: 'circle',
-      property: compactDefinedRecord({
-        centerX: safeGetState(circle.current, 'CenterX'),
-        centerY: safeGetState(circle.current, 'CenterY'),
-        radius: safeGetState(circle.current, 'Radius'),
-        color: safeGetState(circle.current, 'Color'),
-        fillColor: safeGetState(circle.current, 'FillColor'),
-        lineWidth: safeGetState(circle.current, 'LineWidth'),
-        lineType: safeGetState(circle.current, 'LineType'),
-        fillStyle: safeGetState(circle.current, 'FillStyle'),
-      }),
-    };
-  }
-
-  const polygon = await readPrimitiveFromClass(
-    ['SCH_PrimitivePolygon', 'sch_PrimitivePolygon'],
-    primitiveId,
-  );
-  if (polygon) {
-    return {
-      schemaVersion: 'schematic-primitive-snapshot/v1',
-      primitiveId,
-      primitiveKind: 'polygon',
-      property: compactDefinedRecord({
-        line: safeGetState(polygon.current, 'Line'),
-        color: safeGetState(polygon.current, 'Color'),
-        fillColor: safeGetState(polygon.current, 'FillColor'),
-        lineWidth: safeGetState(polygon.current, 'LineWidth'),
-        lineType: safeGetState(polygon.current, 'LineType'),
-      }),
-    };
-  }
-
-  if (text && textAlignMode === undefined) {
-    throw newBridgeError(
-      'UNSUPPORTED_RUNTIME',
-      `Text ${primitiveId} did not expose a public alignMode`,
-      'Retry after reloading the document. Exact text rollback requires a documented ESCH_PrimitiveTextAlignMode value from 1 through 9.',
-    );
-  }
-
   throw newBridgeError(
     'PRIMITIVE_NOT_FOUND',
     `Primitive ${primitiveId} was not found in a transaction-safe schematic class`,
@@ -1839,6 +1768,15 @@ function parseSchematicPrimitiveKind(value: unknown): SchematicPrimitiveSnapshot
   return value as SchematicPrimitiveSnapshotKind;
 }
 
+function primitiveIdFromValue(value: unknown): string {
+  const direct = extractPrimitiveId(value);
+  if (direct) return direct;
+  const fallback = safeGetState(value, 'PrimitiveId');
+  if (typeof fallback === 'string') return fallback;
+  if (typeof fallback === 'number' || typeof fallback === 'bigint') return String(fallback);
+  return '';
+}
+
 async function listSchematicPrimitiveIds(
   kindInput: unknown,
 ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }> {
@@ -1862,7 +1800,7 @@ async function listSchematicPrimitiveIds(
     try {
       const primitiveIds = ((await primitiveClass.getAllPrimitiveId()) || [])
         .filter((value: unknown): value is string => typeof value === 'string' && value.length > 0)
-        .sort();
+        .sort((a: string, b: string) => a.localeCompare(b));
       return { primitiveKind, primitiveIds: Array.from(new Set(primitiveIds)) };
     } catch (error) {
       logRecoverableError(`failed to list ${primitiveKind} primitive IDs`, error);
@@ -1880,9 +1818,9 @@ async function listSchematicPrimitiveIds(
       }
       return true;
     })
-    .map((value) => extractPrimitiveId(value) || String(safeGetState(value, 'PrimitiveId') ?? ''))
+    .map(primitiveIdFromValue)
     .filter(Boolean)
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
   return { primitiveKind, primitiveIds: Array.from(new Set(primitiveIds)) };
 }
 

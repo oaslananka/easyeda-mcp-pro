@@ -276,7 +276,7 @@ const modifyPrimitiveInputSchema = z
       });
     }
     if (
-      Object.prototype.hasOwnProperty.call(value.property, 'alignMode') &&
+      Object.hasOwn(value.property, 'alignMode') &&
       !textAlignModeSchema.safeParse(value.property.alignMode).success
     ) {
       context.addIssue({

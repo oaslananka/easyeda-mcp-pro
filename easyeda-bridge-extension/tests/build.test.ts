@@ -125,7 +125,7 @@ describe('build.mjs hot-swap define', () => {
     });
 
     vm.runInContext(bundle, context);
-    const firstRuntime = (context as any).__easyedaMcpProBridgeRuntime_v7__;
+    const firstRuntime = (context as any).__easyedaMcpProBridgeRuntime_v8__;
     await (context as any).edaEsbuildExportName.enableAutoConnect();
     await (context as any).edaEsbuildExportName.enableAutoConnect();
     expect(storageState.autoConnect).toBe(true);
@@ -133,7 +133,7 @@ describe('build.mjs hot-swap define', () => {
     expect(toastMessages.at(-1)).toContain('Auto-Connect: ON');
 
     vm.runInContext(bundle, context);
-    const secondRuntime = (context as any).__easyedaMcpProBridgeRuntime_v7__;
+    const secondRuntime = (context as any).__easyedaMcpProBridgeRuntime_v8__;
     expect(secondRuntime).toBe(firstRuntime);
     await (context as any).edaEsbuildExportName.disableAutoConnect();
     await (context as any).edaEsbuildExportName.disableAutoConnect();

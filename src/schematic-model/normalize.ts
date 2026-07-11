@@ -45,8 +45,9 @@ function primitive(value: unknown): string | undefined {
 }
 
 function finiteNumber(value: unknown): number | undefined {
-  const number =
-    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  let number = Number.NaN;
+  if (typeof value === 'number') number = value;
+  else if (typeof value === 'string') number = Number(value);
   return Number.isFinite(number) ? number : undefined;
 }
 
@@ -120,6 +121,33 @@ function inferSymbolSource(raw: RawSchematicComponent): SymbolSource {
   return 'unknown';
 }
 
+function isAsciiLetter(char: string): boolean {
+  return (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z');
+}
+
+function isAsciiDigit(char: string): boolean {
+  return char >= '0' && char <= '9';
+}
+
+function isReferenceCharacter(char: string): boolean {
+  return isAsciiLetter(char) || isAsciiDigit(char);
+}
+
+function looksLikeReference(reference: string): boolean {
+  if (!reference || !isAsciiLetter(reference.charAt(0)) || reference.startsWith('#')) return false;
+  let questionMarkSeen = false;
+  for (let index = 1; index < reference.length; index += 1) {
+    const char = reference.charAt(index);
+    if (isReferenceCharacter(char)) {
+      if (questionMarkSeen && !isAsciiDigit(char)) return false;
+      continue;
+    }
+    if (char !== '?' || questionMarkSeen) return false;
+    questionMarkSeen = true;
+  }
+  return true;
+}
+
 function classifyComponent(raw: RawSchematicComponent, reference: string): ComponentKind {
   const componentType = (primitive(read(raw, 'componentType', 'type')) ?? '').toLowerCase();
   const name = [
@@ -150,7 +178,7 @@ function classifyComponent(raw: RawSchematicComponent, reference: string): Compo
   // design audit can surface BOM-classification ambiguity instead of silently
   // promoting it into the BOM.
   if (componentType) return 'helper';
-  if (/^[A-Za-z][A-Za-z0-9]*\??\d*$/.test(reference) && !reference.startsWith('#')) return 'part';
+  if (looksLikeReference(reference)) return 'part';
   if (
     primitive(read(raw, 'footprint')) ||
     primitive(read(raw, 'deviceUuid')) ||
@@ -256,10 +284,10 @@ export function normalizeSchematicNets(rawNets: RawSchematicNet[]): CanonicalNet
       CanonicalNetSchema.parse({
         id: `net:${canonicalNetName}`,
         canonicalNetName,
-        rawNetNames: [...group.rawNetNames].sort(),
+        rawNetNames: [...group.rawNetNames].sort((a, b) => a.localeCompare(b)),
         kind: group.kind,
         nodes: [...group.nodes.values()],
-        normalizationRules: [...group.rules].sort(),
+        normalizationRules: [...group.rules].sort((a, b) => a.localeCompare(b)),
         imported: group.imported,
       }),
     )

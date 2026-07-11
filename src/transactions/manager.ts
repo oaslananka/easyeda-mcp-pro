@@ -24,18 +24,32 @@ const DEFAULT_MAX_OPERATIONS = 250;
 const MAX_OPERATIONS = 2_000;
 const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
 
+type TransactionErrorCode =
+  | 'TRANSACTION_ACTIVE'
+  | 'TRANSACTION_NOT_FOUND'
+  | 'TRANSACTION_NOT_ACTIVE'
+  | 'TRANSACTION_INVALID_STATE'
+  | 'TRANSACTION_OPERATION_LIMIT'
+  | 'TRANSACTION_SNAPSHOT_TOO_LARGE'
+  | 'TRANSACTION_VALIDATION_FAILED'
+  | 'TRANSACTION_ROLLBACK_FAILED'
+  | 'TRANSACTION_OPERATION_FAILED';
+
+type CompensationResult = NonNullable<TransactionOperation['compensation']>;
+
+interface CreateReconciliationResult {
+  targetId?: string;
+  noSideEffect: boolean;
+}
+
+interface DeleteCompensationResult {
+  compensation: CompensationResult;
+  restoredTargetId?: string;
+}
+
 export class TransactionError extends Error {
   constructor(
-    public readonly code:
-      | 'TRANSACTION_ACTIVE'
-      | 'TRANSACTION_NOT_FOUND'
-      | 'TRANSACTION_NOT_ACTIVE'
-      | 'TRANSACTION_INVALID_STATE'
-      | 'TRANSACTION_OPERATION_LIMIT'
-      | 'TRANSACTION_SNAPSHOT_TOO_LARGE'
-      | 'TRANSACTION_VALIDATION_FAILED'
-      | 'TRANSACTION_ROLLBACK_FAILED'
-      | 'TRANSACTION_OPERATION_FAILED',
+    public readonly code: TransactionErrorCode,
     message: string,
     public readonly details?: Record<string, unknown>,
   ) {
@@ -216,7 +230,7 @@ export class TransactionManager {
   private async compensateModify(
     operation: TransactionOperation,
     hooks: TransactionalModifyHooks,
-  ): Promise<'not-needed' | 'restored' | 'failed'> {
+  ): Promise<CompensationResult> {
     let currentHash: string | undefined;
     try {
       currentHash = stableHash(await hooks.getSnapshot());
@@ -288,6 +302,54 @@ export class TransactionManager {
     }
   }
 
+  private async reconcileCreateFailure<TResult>(
+    hooks: TransactionalCreateHooks<TResult>,
+  ): Promise<CreateReconciliationResult> {
+    if (!hooks.reconcile) return { noSideEffect: false };
+    try {
+      const reconciliation = await hooks.reconcile();
+      if (reconciliation.status === 'none') return { noSideEffect: true };
+      if (reconciliation.status === 'created' && reconciliation.targetId) {
+        return { targetId: reconciliation.targetId, noSideEffect: false };
+      }
+    } catch {
+      // An unavailable reconciliation leaves the side effect unresolved.
+    }
+    return { noSideEffect: false };
+  }
+
+  private async compensateCreate<TResult>(
+    targetId: string | undefined,
+    hooks: TransactionalCreateHooks<TResult>,
+  ): Promise<CompensationResult> {
+    if (!targetId) return 'failed';
+    try {
+      if (await hooks.exists(targetId)) await hooks.remove(targetId);
+      return (await hooks.exists(targetId)) ? 'failed' : 'restored';
+    } catch {
+      return 'failed';
+    }
+  }
+
+  private recordFailedOperation(
+    transaction: TransactionRecord,
+    operation: TransactionOperation,
+    error: unknown,
+    compensation: CompensationResult,
+    failureMessage: string,
+    restoredTargetId?: string,
+  ): void {
+    operation.restoredTargetId = restoredTargetId;
+    operation.compensation = compensation;
+    operation.error = error instanceof Error ? error.message : String(error);
+    operation.rolledBackAt = compensation === 'restored' ? nowIso() : undefined;
+    operation.state = compensation === 'failed' ? 'failed' : 'cancelled';
+    transaction.updatedAt = nowIso();
+    if (compensation === 'failed') {
+      this.failTransaction(transaction, operation, failureMessage);
+    }
+  }
+
   async runCreate<TResult>(
     transactionId: string,
     targetHint: string,
@@ -315,46 +377,21 @@ export class TransactionManager {
       transaction.updatedAt = nowIso();
       return { result, targetId, operation: structuredClone(operation) };
     } catch (error) {
-      let reconciledNoSideEffect = false;
-      if (!targetId && hooks.reconcile) {
-        try {
-          const reconciliation = await hooks.reconcile();
-          if (reconciliation.status === 'none') reconciledNoSideEffect = true;
-          if (reconciliation.status === 'created' && reconciliation.targetId) {
-            targetId = reconciliation.targetId;
-            operation.target.id = targetId;
-          }
-        } catch {
-          // Reconciliation failure is treated as an unknown side effect below.
-        }
-      }
-
-      let compensation: 'not-needed' | 'restored' | 'failed' = reconciledNoSideEffect
+      const reconciliation = targetId
+        ? { targetId, noSideEffect: false }
+        : await this.reconcileCreateFailure(hooks);
+      targetId = reconciliation.targetId;
+      if (targetId) operation.target.id = targetId;
+      const compensation = reconciliation.noSideEffect
         ? 'not-needed'
-        : 'failed';
-      if (targetId) {
-        try {
-          if (await hooks.exists(targetId)) {
-            await hooks.remove(targetId);
-          }
-          compensation = (await hooks.exists(targetId)) ? 'failed' : 'restored';
-        } catch {
-          compensation = 'failed';
-        }
-      }
-
-      operation.compensation = compensation;
-      operation.error = error instanceof Error ? error.message : String(error);
-      operation.rolledBackAt = compensation === 'restored' ? nowIso() : undefined;
-      operation.state = compensation === 'failed' ? 'failed' : 'cancelled';
-      transaction.updatedAt = nowIso();
-      if (compensation === 'failed') {
-        this.failTransaction(
-          transaction,
-          operation,
-          `Create operation ${operation.id} failed with an unresolved side effect`,
-        );
-      }
+        : await this.compensateCreate(targetId, hooks);
+      this.recordFailedOperation(
+        transaction,
+        operation,
+        error,
+        compensation,
+        `Create operation ${operation.id} failed with an unresolved side effect`,
+      );
       throw new TransactionError(
         'TRANSACTION_OPERATION_FAILED',
         `Transactional create failed: ${operation.error}`,
@@ -366,6 +403,32 @@ export class TransactionManager {
           cause: operation.error,
         },
       );
+    }
+  }
+
+  private async compensateDelete<TResult>(
+    operation: TransactionOperation,
+    beforeSnapshot: unknown,
+    hooks: TransactionalDeleteHooks<TResult>,
+  ): Promise<DeleteCompensationResult> {
+    try {
+      if (await hooks.exists()) {
+        const current = await hooks.getSnapshot();
+        const matches =
+          stableHash(snapshotForHash(current, 'ignore-primitive-id')) === operation.beforeHash;
+        return { compensation: matches ? 'not-needed' : 'failed' };
+      }
+      const recreated = await hooks.recreate(structuredClone(beforeSnapshot));
+      const matches =
+        recreated.snapshot !== undefined &&
+        stableHash(snapshotForHash(recreated.snapshot, 'ignore-primitive-id')) ===
+          operation.beforeHash;
+      return {
+        compensation: matches ? 'restored' : 'failed',
+        restoredTargetId: recreated.targetId,
+      };
+    } catch {
+      return { compensation: 'failed' };
     }
   }
 
@@ -397,43 +460,19 @@ export class TransactionManager {
       transaction.updatedAt = nowIso();
       return { result, operation: structuredClone(operation) };
     } catch (error) {
-      let compensation: 'not-needed' | 'restored' | 'failed';
-      let restoredTargetId: string | undefined;
-      try {
-        if (await hooks.exists()) {
-          const current = await hooks.getSnapshot();
-          compensation =
-            stableHash(snapshotForHash(current, 'ignore-primitive-id')) === operation.beforeHash
-              ? 'not-needed'
-              : 'failed';
-        } else {
-          const recreated = await hooks.recreate(structuredClone(beforeSnapshot));
-          restoredTargetId = recreated.targetId;
-          const recreatedSnapshot = recreated.snapshot;
-          compensation =
-            recreatedSnapshot !== undefined &&
-            stableHash(snapshotForHash(recreatedSnapshot, 'ignore-primitive-id')) ===
-              operation.beforeHash
-              ? 'restored'
-              : 'failed';
-        }
-      } catch {
-        compensation = 'failed';
-      }
-
-      operation.restoredTargetId = restoredTargetId;
-      operation.compensation = compensation;
-      operation.error = error instanceof Error ? error.message : String(error);
-      operation.rolledBackAt = compensation === 'restored' ? nowIso() : undefined;
-      operation.state = compensation === 'failed' ? 'failed' : 'cancelled';
-      transaction.updatedAt = nowIso();
-      if (compensation === 'failed') {
-        this.failTransaction(
-          transaction,
-          operation,
-          `Delete operation ${operation.id} failed and automatic compensation failed`,
-        );
-      }
+      const { compensation, restoredTargetId } = await this.compensateDelete(
+        operation,
+        beforeSnapshot,
+        hooks,
+      );
+      this.recordFailedOperation(
+        transaction,
+        operation,
+        error,
+        compensation,
+        `Delete operation ${operation.id} failed and automatic compensation failed`,
+        restoredTargetId,
+      );
       throw new TransactionError(
         'TRANSACTION_OPERATION_FAILED',
         `Transactional delete failed: ${operation.error}`,
@@ -519,66 +558,66 @@ export class TransactionManager {
     return cloneTransaction(transaction);
   }
 
-  async rollback(transactionId: string, hooks: RollbackHooks): Promise<RollbackResult> {
-    const transaction = this.mutable(transactionId);
-    if (!['active', 'validated', 'failed', 'expired'].includes(transaction.state)) {
-      throw new TransactionError(
-        'TRANSACTION_INVALID_STATE',
-        `Transaction ${transactionId} cannot be rolled back from state ${transaction.state}`,
-      );
-    }
-    transaction.state = 'rolling-back';
-    transaction.updatedAt = nowIso();
-
-    const restoredOperationIds: string[] = [];
-    const failedOperationIds: string[] = [];
-    const operations = [...transaction.operations]
+  private rollbackCandidates(transaction: TransactionRecord): TransactionOperation[] {
+    return [...transaction.operations]
       .filter(
         (operation) =>
           operation.state === 'applied' ||
           (operation.state === 'failed' && operation.compensation === 'failed'),
       )
       .sort((a, b) => b.sequence - a.sequence);
+  }
 
-    for (const operation of operations) {
-      try {
-        const restoreResult = (await hooks.restore(structuredClone(operation))) ?? {};
-        if (restoreResult.restoredTargetId) {
-          operation.restoredTargetId = restoreResult.restoredTargetId;
-        }
-        let verified = true;
-        if (hooks.verify) {
-          verified = await hooks.verify(structuredClone(operation), restoreResult);
-        } else if (hooks.getSnapshot && operation.beforeHash !== undefined) {
-          const current = await hooks.getSnapshot(structuredClone(operation));
-          verified =
-            stableHash(snapshotForHash(current, operation.snapshotHashMode)) ===
-            operation.beforeHash;
-        }
-        if (!verified) throw new Error('Rollback verification did not match the captured state');
-        operation.state = 'rolled-back';
-        operation.compensation = 'restored';
-        operation.rolledBackAt = nowIso();
-        restoredOperationIds.push(operation.id);
-      } catch (error) {
-        operation.state = 'failed';
-        operation.compensation = 'failed';
-        operation.error = error instanceof Error ? error.message : String(error);
-        failedOperationIds.push(operation.id);
+  private async verifyRollback(
+    operation: TransactionOperation,
+    hooks: RollbackHooks,
+    restoreResult: { restoredTargetId?: string },
+  ): Promise<boolean> {
+    if (hooks.verify) return hooks.verify(structuredClone(operation), restoreResult);
+    if (!hooks.getSnapshot || operation.beforeHash === undefined) return true;
+    const current = await hooks.getSnapshot(structuredClone(operation));
+    return (
+      stableHash(snapshotForHash(current, operation.snapshotHashMode)) === operation.beforeHash
+    );
+  }
+
+  private async rollbackOperation(
+    operation: TransactionOperation,
+    hooks: RollbackHooks,
+  ): Promise<boolean> {
+    try {
+      const restoreResult = (await hooks.restore(structuredClone(operation))) ?? {};
+      if (restoreResult.restoredTargetId) {
+        operation.restoredTargetId = restoreResult.restoredTargetId;
       }
+      if (!(await this.verifyRollback(operation, hooks, restoreResult))) {
+        throw new Error('Rollback verification did not match the captured state');
+      }
+      operation.state = 'rolled-back';
+      operation.compensation = 'restored';
+      operation.rolledBackAt = nowIso();
+      return true;
+    } catch (error) {
+      operation.state = 'failed';
+      operation.compensation = 'failed';
+      operation.error = error instanceof Error ? error.message : String(error);
+      return false;
     }
+  }
 
+  private finalizeRollback(
+    transaction: TransactionRecord,
+    restoredOperationIds: string[],
+    failedOperationIds: string[],
+  ): RollbackResult {
     transaction.rollbackComplete = failedOperationIds.length === 0;
     transaction.state = transaction.rollbackComplete ? 'rolled-back' : 'failed';
     transaction.updatedAt = nowIso();
     transaction.error = transaction.rollbackComplete
       ? undefined
       : `Rollback failed for ${failedOperationIds.length} operation(s)`;
-    if (transaction.rollbackComplete) {
-      this.activeByDocument.delete(transaction.documentId);
-    } else {
-      this.activeByDocument.set(transaction.documentId, transaction.id);
-    }
+    if (transaction.rollbackComplete) this.activeByDocument.delete(transaction.documentId);
+    else this.activeByDocument.set(transaction.documentId, transaction.id);
 
     const result = {
       transaction: cloneTransaction(transaction),
@@ -593,6 +632,26 @@ export class TransactionManager {
       );
     }
     return result;
+  }
+
+  async rollback(transactionId: string, hooks: RollbackHooks): Promise<RollbackResult> {
+    const transaction = this.mutable(transactionId);
+    if (!['active', 'validated', 'failed', 'expired'].includes(transaction.state)) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        `Transaction ${transactionId} cannot be rolled back from state ${transaction.state}`,
+      );
+    }
+    transaction.state = 'rolling-back';
+    transaction.updatedAt = nowIso();
+
+    const restoredOperationIds: string[] = [];
+    const failedOperationIds: string[] = [];
+    for (const operation of this.rollbackCandidates(transaction)) {
+      const restored = await this.rollbackOperation(operation, hooks);
+      (restored ? restoredOperationIds : failedOperationIds).push(operation.id);
+    }
+    return this.finalizeRollback(transaction, restoredOperationIds, failedOperationIds);
   }
 
   private expireStaleTransactions(): void {

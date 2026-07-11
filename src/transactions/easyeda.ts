@@ -10,6 +10,11 @@ export interface TransactionBridgeCaller {
   ) => Promise<TResult>;
 }
 
+interface DeletePrimitiveResult {
+  deleted?: string[];
+  notFound?: string[];
+}
+
 export interface PrimitiveSnapshotResult {
   schemaVersion?: string;
   primitiveId?: string;
@@ -55,10 +60,10 @@ export async function deletePrimitiveExact(
   bridge: TransactionBridgeCaller,
   primitiveId: string,
 ): Promise<unknown> {
-  const result = await bridge.call<
-    { primitiveIds: string[] },
-    { deleted?: string[]; notFound?: string[] } | unknown
-  >('schematic.deletePrimitive', { primitiveIds: [primitiveId] });
+  const result = await bridge.call<{ primitiveIds: string[] }, DeletePrimitiveResult>(
+    'schematic.deletePrimitive',
+    { primitiveIds: [primitiveId] },
+  );
   if (
     result &&
     typeof result === 'object' &&
@@ -100,41 +105,43 @@ export async function listPrimitiveIds(
     : [];
 }
 
-export function extractCreatedPrimitiveId(result: unknown): string | undefined {
-  if (typeof result === 'string' && result.trim()) return result;
-  if (!result || typeof result !== 'object') return undefined;
-  if (Array.isArray(result)) {
-    for (const item of result) {
-      const primitiveId = extractCreatedPrimitiveId(item);
-      if (primitiveId) return primitiveId;
-    }
-    return undefined;
-  }
-  const record = result as Record<string, unknown>;
-  for (const key of ['primitiveId', 'primitive_id', 'PrimitiveId', 'id', 'uuid', 'componentId']) {
-    if (typeof record[key] === 'string' && record[key]) return record[key];
-  }
-  for (const key of [
-    'result',
-    'data',
-    'item',
-    'primitive',
-    'component',
-    'wire',
-    'text',
-    'rectangle',
-    'circle',
-    'polygon',
-  ]) {
-    const primitiveId = extractCreatedPrimitiveId(record[key]);
+const CREATED_ID_KEYS = [
+  'primitiveId',
+  'primitive_id',
+  'PrimitiveId',
+  'id',
+  'uuid',
+  'componentId',
+] as const;
+const CREATED_ID_NESTED_KEYS = [
+  'result',
+  'data',
+  'item',
+  'primitive',
+  'component',
+  'wire',
+  'text',
+  'rectangle',
+  'circle',
+  'polygon',
+  'state',
+] as const;
+
+function firstCreatedPrimitiveId(values: Iterable<unknown>): string | undefined {
+  for (const value of values) {
+    const primitiveId = extractCreatedPrimitiveId(value);
     if (primitiveId) return primitiveId;
   }
-  const state = record.state;
-  if (state && typeof state === 'object' && !Array.isArray(state)) {
-    const primitiveId = (state as Record<string, unknown>).PrimitiveId;
-    if (typeof primitiveId === 'string' && primitiveId) return primitiveId;
-  }
   return undefined;
+}
+
+export function extractCreatedPrimitiveId(result: unknown): string | undefined {
+  if (typeof result === 'string') return result.trim() || undefined;
+  if (Array.isArray(result)) return firstCreatedPrimitiveId(result);
+  if (!result || typeof result !== 'object') return undefined;
+  const record = result as Record<string, unknown>;
+  const direct = firstCreatedPrimitiveId(CREATED_ID_KEYS.map((key) => record[key]));
+  return direct ?? firstCreatedPrimitiveId(CREATED_ID_NESTED_KEYS.map((key) => record[key]));
 }
 
 function requireBeforeSnapshot(operation: Readonly<TransactionOperation>): unknown {

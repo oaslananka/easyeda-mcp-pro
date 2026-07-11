@@ -9,27 +9,136 @@ export interface NetNameNormalization {
   rules: string[];
 }
 
-const POWER_NAME =
-  /^(?:\+?-?\d+(?:V\d+|V)?|V(?:CC|DD|SS|EE|IN|OUT|BUS|SYS|BAT|REF|DRV|DRIVE|MOT|USB|CORE|IO|ANA|DIG)[A-Z0-9_+-]*)$/i;
-const GROUND_NAME = /^(?:GND|AGND|DGND|PGND|GNDA|GNDD|VSS|GROUND)$/i;
-const IMPORTED_POWER_SUFFIX =
-  /^(?:PWR_FLAG|GND|AGND|DGND|PGND|GNDA|GNDD|VSS|GROUND|\+?-?\d+(?:V\d+|V)?|V[A-Z0-9_+-]+)$/i;
+interface NetNameTransform {
+  value: string;
+  changed: boolean;
+}
+
+const GROUND_NAMES = new Set(['GND', 'AGND', 'DGND', 'PGND', 'GNDA', 'GNDD', 'VSS', 'GROUND']);
+const NAMED_POWER_PREFIXES = [
+  'VCC',
+  'VDD',
+  'VSS',
+  'VEE',
+  'VIN',
+  'VOUT',
+  'VBUS',
+  'VSYS',
+  'VBAT',
+  'VREF',
+  'VDRV',
+  'VDRIVE',
+  'VMOT',
+  'VUSB',
+  'VCORE',
+  'VIO',
+  'VANA',
+  'VDIG',
+] as const;
+
+function isAsciiDigit(char: string): boolean {
+  return char >= '0' && char <= '9';
+}
+
+function isPowerSuffixChar(char: string): boolean {
+  return (
+    (char >= 'A' && char <= 'Z') ||
+    isAsciiDigit(char) ||
+    char === '_' ||
+    char === '+' ||
+    char === '-'
+  );
+}
+
+function isNumericPowerName(name: string): boolean {
+  const upper = name.toUpperCase();
+  const unsigned = upper.startsWith('+') || upper.startsWith('-') ? upper.slice(1) : upper;
+  let index = 0;
+  while (index < unsigned.length && isAsciiDigit(unsigned.charAt(index))) index += 1;
+  if (index === 0) return false;
+  if (index === unsigned.length) return true;
+  if (unsigned[index] !== 'V') return false;
+  index += 1;
+  while (index < unsigned.length && isAsciiDigit(unsigned.charAt(index))) index += 1;
+  return index === unsigned.length;
+}
+
+function isNamedPowerName(name: string): boolean {
+  const upper = name.toUpperCase();
+  const prefix = NAMED_POWER_PREFIXES.find((candidate) => upper.startsWith(candidate));
+  if (!prefix) return false;
+  return [...upper.slice(prefix.length)].every(isPowerSuffixChar);
+}
+
+function isGroundName(name: string): boolean {
+  return GROUND_NAMES.has(name.toUpperCase());
+}
+
+function isPowerName(name: string): boolean {
+  return isNumericPowerName(name) || isNamedPowerName(name);
+}
+
+function isImportedPowerSuffix(name: string): boolean {
+  return name.toUpperCase() === 'PWR_FLAG' || isGroundName(name) || isPowerName(name);
+}
 
 function canonicalizePowerRail(name: string): string {
   const upper = name.toUpperCase();
-  if (GROUND_NAME.test(upper)) return upper === 'GROUND' || upper === 'VSS' ? 'GND' : upper;
-  if (/^\d+(?:V\d+|V)$/.test(upper)) return `+${upper}`;
-  if (/^\+\d+V$/.test(upper)) return upper;
-  if (/^\+\d+V\d+$/.test(upper)) return upper;
-  if (upper === 'PWR_FLAG') return 'PWR_FLAG';
+  if (isGroundName(upper)) return upper === 'GROUND' || upper === 'VSS' ? 'GND' : upper;
+  if (
+    !upper.startsWith('+') &&
+    !upper.startsWith('-') &&
+    upper.includes('V') &&
+    isNumericPowerName(upper)
+  ) {
+    return `+${upper}`;
+  }
   return upper;
+}
+
+function safeNetNameInput(input: unknown): string {
+  if (typeof input === 'string') return input;
+  if (typeof input === 'number' || typeof input === 'boolean' || typeof input === 'bigint') {
+    return String(input);
+  }
+  return '';
+}
+
+function decodeSlashToken(value: string): NetNameTransform {
+  if (!/\{SLASH\}/i.test(value)) return { value, changed: false };
+  return { value: value.replace(/\{SLASH\}/gi, '/'), changed: true };
+}
+
+function stripImportedSymbolsPrefix(value: string): NetNameTransform {
+  const prefix = 'SYMBOLS_';
+  if (!value.toUpperCase().startsWith(prefix)) return { value, changed: false };
+  const suffix = value.slice(prefix.length);
+  if (!suffix || !isImportedPowerSuffix(suffix)) return { value, changed: false };
+  return { value: canonicalizePowerRail(suffix), changed: true };
+}
+
+function normalizeSymbolPrefix(value: string, prefix: 'GROUND-' | 'POWER-'): NetNameTransform {
+  if (!value.toUpperCase().startsWith(prefix)) return { value, changed: false };
+  const suffix = value.slice(prefix.length);
+  const recognized = prefix === 'GROUND-' ? isGroundName(suffix) : isImportedPowerSuffix(suffix);
+  if (!suffix || !recognized) return { value, changed: false };
+  return { value: canonicalizePowerRail(suffix), changed: true };
+}
+
+function canonicalizeKnownRail(value: string, rules: string[]): string {
+  if (!isGroundName(value) && !isPowerName(value) && value !== 'PWR_FLAG') return value;
+  const canonical = canonicalizePowerRail(value);
+  if (canonical !== value) {
+    rules.push(isGroundName(value) ? 'canonicalize-ground-name' : 'canonicalize-power-name');
+  }
+  return canonical;
 }
 
 export function classifyCanonicalNetName(name: string): NetKind {
   if (!name || name === 'UNNAMED') return 'unnamed';
   if (name === 'PWR_FLAG') return 'power-flag';
-  if (GROUND_NAME.test(name)) return 'ground';
-  if (POWER_NAME.test(name)) return 'power';
+  if (isGroundName(name)) return 'ground';
+  if (isPowerName(name)) return 'power';
   return 'signal';
 }
 
@@ -39,7 +148,7 @@ export function classifyCanonicalNetName(name: string): NetKind {
  * explicit {SLASH} import token), so this function is safe for readback use.
  */
 export function normalizeNetName(input: unknown): NetNameNormalization {
-  const rawNetName = typeof input === 'string' ? input : input == null ? '' : String(input);
+  const rawNetName = safeNetNameInput(input);
   let canonical = rawNetName.trim();
   const rules: string[] = [];
   let imported = false;
@@ -49,40 +158,29 @@ export function normalizeNetName(input: unknown): NetNameNormalization {
     rules.push('empty-to-unnamed');
   }
 
-  if (/\{SLASH\}/i.test(canonical)) {
-    canonical = canonical.replace(/\{SLASH\}/gi, '/');
+  const slash = decodeSlashToken(canonical);
+  canonical = slash.value;
+  if (slash.changed) {
     rules.push('decode-import-slash-token');
     imported = true;
   }
 
-  const symbolsMatch = /^SYMBOLS_(.+)$/i.exec(canonical);
-  if (symbolsMatch?.[1] && IMPORTED_POWER_SUFFIX.test(symbolsMatch[1])) {
-    canonical = canonicalizePowerRail(symbolsMatch[1]);
+  const symbols = stripImportedSymbolsPrefix(canonical);
+  canonical = symbols.value;
+  if (symbols.changed) {
     rules.push('strip-imported-symbols-power-prefix');
     imported = true;
   }
 
-  const groundMatch = /^GROUND-(.+)$/i.exec(canonical);
-  if (groundMatch?.[1] && GROUND_NAME.test(groundMatch[1])) {
-    canonical = canonicalizePowerRail(groundMatch[1]);
-    rules.push('normalize-ground-symbol-name');
-  }
+  const ground = normalizeSymbolPrefix(canonical, 'GROUND-');
+  canonical = ground.value;
+  if (ground.changed) rules.push('normalize-ground-symbol-name');
 
-  const powerMatch = /^POWER-(.+)$/i.exec(canonical);
-  if (powerMatch?.[1] && IMPORTED_POWER_SUFFIX.test(powerMatch[1])) {
-    canonical = canonicalizePowerRail(powerMatch[1]);
-    rules.push('normalize-power-symbol-name');
-  }
+  const power = normalizeSymbolPrefix(canonical, 'POWER-');
+  canonical = power.value;
+  if (power.changed) rules.push('normalize-power-symbol-name');
 
-  if (GROUND_NAME.test(canonical)) {
-    const normalizedGround = canonicalizePowerRail(canonical);
-    if (normalizedGround !== canonical) rules.push('canonicalize-ground-name');
-    canonical = normalizedGround;
-  } else if (POWER_NAME.test(canonical) || canonical === 'PWR_FLAG') {
-    const normalizedPower = canonicalizePowerRail(canonical);
-    if (normalizedPower !== canonical) rules.push('canonicalize-power-name');
-    canonical = normalizedPower;
-  }
+  canonical = canonicalizeKnownRail(canonical, rules);
 
   return {
     rawNetName,

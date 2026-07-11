@@ -128,7 +128,7 @@ const modifyOperationSchema = z
   })
   .superRefine((value, context) => {
     if (
-      Object.prototype.hasOwnProperty.call(value.property, 'alignMode') &&
+      Object.hasOwn(value.property, 'alignMode') &&
       !textAlignModeSchema.safeParse(value.property.alignMode).success
     ) {
       context.addIssue({
@@ -403,6 +403,270 @@ async function validateAndCommitInternalTransaction(
   return manager.commit(transactionId);
 }
 
+type BatchOutput = z.infer<typeof batchOutputSchema>;
+type BatchTransactionState = z.infer<typeof transactionStateSchema>;
+
+interface BatchSession {
+  transactionId?: string;
+  internallyManaged: boolean;
+  transactionEngaged: boolean;
+  initialOperationCount: number;
+}
+
+interface BatchRollbackOutcome {
+  rolledBack: boolean;
+  rollbackError?: string;
+  transactionState?: BatchTransactionState;
+}
+
+function dryRunBatchResponse(parsed: BatchInput): BatchOutput {
+  return {
+    success: true,
+    atomic: true,
+    dry_run: true,
+    internally_managed_transaction: false,
+    committed: false,
+    rolled_back: false,
+    results: parsed.operations.map((operation) => ({
+      operation_id: operation.operationId,
+      action: operation.action,
+      status: 'planned',
+      primitive_id: operation.action === 'create' ? undefined : operation.primitiveId,
+    })),
+  };
+}
+
+function openBatchSession(parsed: BatchInput): BatchSession {
+  const manager = getGlobalTransactionManager();
+  if (parsed.transactionId) {
+    const transaction = manager.get(parsed.transactionId);
+    if (transaction.documentId !== parsed.projectId) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        `Transaction ${parsed.transactionId} belongs to ${transaction.documentId}, not ${parsed.projectId}`,
+      );
+    }
+    return {
+      transactionId: parsed.transactionId,
+      internallyManaged: false,
+      transactionEngaged: true,
+      initialOperationCount: transaction.operations.length,
+    };
+  }
+
+  const transaction = manager.begin({
+    documentId: parsed.projectId,
+    label: 'atomic schematic batch',
+    maxOperations: parsed.operations.length,
+  });
+  return {
+    transactionId: transaction.id,
+    internallyManaged: true,
+    transactionEngaged: true,
+    initialOperationCount: transaction.operations.length,
+  };
+}
+
+async function executeBatchOperation(
+  context: ToolContext,
+  transactionId: string,
+  operation: BatchOperation,
+): Promise<BatchItemResult> {
+  if (operation.action === 'create') {
+    const executed = await executeCreate(context, transactionId, operation);
+    return {
+      operation_id: operation.operationId,
+      action: 'create',
+      status: 'applied',
+      primitive_id: executed.targetId,
+      transaction_operation_id: executed.operation.id,
+    };
+  }
+  if (operation.action === 'modify') {
+    const executed = await executeModify(context, transactionId, operation);
+    return {
+      operation_id: operation.operationId,
+      action: 'modify',
+      status: 'applied',
+      primitive_id: operation.primitiveId,
+      transaction_operation_id: executed.operation.id,
+    };
+  }
+  const executed = await executeDelete(context, transactionId, operation);
+  return {
+    operation_id: operation.operationId,
+    action: 'delete',
+    status: 'applied',
+    primitive_id: operation.primitiveId,
+    transaction_operation_id: executed.operation.id,
+  };
+}
+
+async function successfulBatchResponse(
+  session: BatchSession,
+  operationCount: number,
+  results: BatchItemResult[],
+): Promise<BatchOutput> {
+  const transactionId = session.transactionId;
+  if (!transactionId) throw new Error('Batch transaction was not initialized');
+  if (session.internallyManaged) {
+    const committed = await validateAndCommitInternalTransaction(
+      transactionId,
+      session.initialOperationCount + operationCount,
+    );
+    return {
+      success: true,
+      atomic: true,
+      dry_run: false,
+      internally_managed_transaction: true,
+      transaction_id: transactionId,
+      transaction_state: committed.state,
+      committed: true,
+      rolled_back: false,
+      results,
+    };
+  }
+
+  const transaction = getGlobalTransactionManager().get(transactionId);
+  return {
+    success: true,
+    atomic: true,
+    dry_run: false,
+    internally_managed_transaction: false,
+    transaction_id: transactionId,
+    transaction_state: transaction.state,
+    committed: false,
+    rolled_back: false,
+    results,
+  };
+}
+
+function failedBatchOperation(
+  parsed: BatchInput,
+  results: BatchItemResult[],
+  error: unknown,
+): BatchOperation | undefined {
+  const primitiveId =
+    error instanceof TransactionError && typeof error.details?.primitiveId === 'string'
+      ? error.details.primitiveId
+      : undefined;
+  if (primitiveId) {
+    const matched = parsed.operations.find(
+      (operation) => operation.action !== 'create' && operation.primitiveId === primitiveId,
+    );
+    if (matched) return matched;
+  }
+  return parsed.operations[results.length];
+}
+
+function appendFailedBatchResult(
+  parsed: BatchInput,
+  results: BatchItemResult[],
+  error: unknown,
+): void {
+  const operation = failedBatchOperation(parsed, results, error);
+  if (!operation) return;
+  results.push({
+    operation_id: operation.operationId,
+    action: operation.action,
+    status: 'failed',
+    primitive_id: operation.action === 'create' ? undefined : operation.primitiveId,
+    error_code: error instanceof TransactionError ? error.code : undefined,
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
+function markAppliedResultsRolledBack(results: BatchItemResult[]): void {
+  for (const result of results) {
+    if (result.status === 'applied') result.status = 'rolled-back';
+  }
+}
+
+function readTransactionState(transactionId: string): BatchTransactionState | undefined {
+  try {
+    return getGlobalTransactionManager().get(transactionId).state;
+  } catch {
+    return undefined;
+  }
+}
+
+async function rollbackBatchSession(
+  context: ToolContext,
+  session: BatchSession,
+  results: BatchItemResult[],
+): Promise<BatchRollbackOutcome> {
+  if (!session.transactionId || !session.transactionEngaged) return { rolledBack: false };
+  try {
+    const rollback = await rollbackEasyedaTransaction(
+      getGlobalTransactionManager(),
+      session.transactionId,
+      context.bridge,
+    );
+    const rolledBack = rollback.transaction.rollbackComplete === true;
+    if (rolledBack) markAppliedResultsRolledBack(results);
+    return { rolledBack, transactionState: rollback.transaction.state };
+  } catch (error) {
+    return {
+      rolledBack: false,
+      rollbackError: error instanceof Error ? error.message : String(error),
+      transactionState: readTransactionState(session.transactionId),
+    };
+  }
+}
+
+async function failedBatchResponse(
+  context: ToolContext,
+  parsed: BatchInput,
+  session: BatchSession,
+  results: BatchItemResult[],
+  error: unknown,
+): Promise<BatchOutput> {
+  appendFailedBatchResult(parsed, results, error);
+  const rollback = await rollbackBatchSession(context, session, results);
+  return {
+    success: false,
+    atomic: true,
+    dry_run: parsed.dryRun,
+    internally_managed_transaction: session.internallyManaged,
+    transaction_id: session.transactionId,
+    transaction_state: rollback.transactionState,
+    committed: false,
+    rolled_back: rollback.rolledBack,
+    results,
+    error_code: error instanceof TransactionError ? error.code : 'BATCH_WRITE_FAILED',
+    error: error instanceof Error ? error.message : String(error),
+    rollback_error: rollback.rollbackError,
+  };
+}
+
+async function handleSchematicBatchWrite(
+  context: ToolContext,
+  input: unknown,
+): Promise<BatchOutput> {
+  const parsed = batchInputSchema.parse(input);
+  const results: BatchItemResult[] = [];
+  let session: BatchSession = {
+    transactionId: parsed.transactionId,
+    internallyManaged: false,
+    transactionEngaged: false,
+    initialOperationCount: 0,
+  };
+
+  try {
+    await preflightDeleteOperations(context, parsed.operations);
+    if (parsed.dryRun) return dryRunBatchResponse(parsed);
+    session = openBatchSession(parsed);
+    const transactionId = session.transactionId;
+    if (!transactionId) throw new Error('Batch transaction was not initialized');
+    for (const operation of parsed.operations) {
+      results.push(await executeBatchOperation(context, transactionId, operation));
+    }
+    return successfulBatchResponse(session, parsed.operations.length, results);
+  } catch (error) {
+    return failedBatchResponse(context, parsed, session, results, error);
+  }
+}
+
 export function registerSchematicBatchTools(
   registry: { register: (definition: ToolDefinition) => void },
   _config: EnvConfig,
@@ -421,190 +685,6 @@ export function registerSchematicBatchTools(
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     inputSchema: batchInputSchema,
     outputSchema: batchOutputSchema,
-    handler: async (context: ToolContext, input: unknown) => {
-      const parsed: BatchInput = batchInputSchema.parse(input);
-      const results: BatchItemResult[] = [];
-      let transactionId = parsed.transactionId;
-      let internallyManaged = false;
-      let transactionEngaged = false;
-
-      try {
-        await preflightDeleteOperations(context, parsed.operations);
-        if (parsed.dryRun) {
-          return {
-            success: true,
-            atomic: true as const,
-            dry_run: true,
-            internally_managed_transaction: false,
-            committed: false,
-            rolled_back: false,
-            results: parsed.operations.map((operation) => ({
-              operation_id: operation.operationId,
-              action: operation.action,
-              status: 'planned' as const,
-              primitive_id: operation.action === 'create' ? undefined : operation.primitiveId,
-            })),
-          };
-        }
-
-        const manager = getGlobalTransactionManager();
-        if (transactionId) {
-          const transaction = manager.get(transactionId);
-          if (transaction.documentId !== parsed.projectId) {
-            throw new TransactionError(
-              'TRANSACTION_INVALID_STATE',
-              `Transaction ${transactionId} belongs to ${transaction.documentId}, not ${parsed.projectId}`,
-            );
-          }
-          transactionEngaged = true;
-        } else {
-          transactionId = manager.begin({
-            documentId: parsed.projectId,
-            label: 'atomic schematic batch',
-            maxOperations: parsed.operations.length,
-          }).id;
-          internallyManaged = true;
-          transactionEngaged = true;
-        }
-
-        const initialOperationCount = manager.get(transactionId).operations.length;
-        for (const operation of parsed.operations) {
-          if (operation.action === 'create') {
-            const executed = await executeCreate(context, transactionId, operation);
-            results.push({
-              operation_id: operation.operationId,
-              action: 'create',
-              status: 'applied',
-              primitive_id: executed.targetId,
-              transaction_operation_id: executed.operation.id,
-            });
-          } else if (operation.action === 'modify') {
-            const executed = await executeModify(context, transactionId, operation);
-            results.push({
-              operation_id: operation.operationId,
-              action: 'modify',
-              status: 'applied',
-              primitive_id: operation.primitiveId,
-              transaction_operation_id: executed.operation.id,
-            });
-          } else {
-            const executed = await executeDelete(context, transactionId, operation);
-            results.push({
-              operation_id: operation.operationId,
-              action: 'delete',
-              status: 'applied',
-              primitive_id: operation.primitiveId,
-              transaction_operation_id: executed.operation.id,
-            });
-          }
-        }
-
-        if (internallyManaged) {
-          const committed = await validateAndCommitInternalTransaction(
-            transactionId,
-            initialOperationCount + parsed.operations.length,
-          );
-          return {
-            success: true,
-            atomic: true as const,
-            dry_run: false,
-            internally_managed_transaction: true,
-            transaction_id: transactionId,
-            transaction_state: committed.state,
-            committed: true,
-            rolled_back: false,
-            results,
-          };
-        }
-
-        const transaction = manager.get(transactionId);
-        return {
-          success: true,
-          atomic: true as const,
-          dry_run: false,
-          internally_managed_transaction: false,
-          transaction_id: transactionId,
-          transaction_state: transaction.state,
-          committed: false,
-          rolled_back: false,
-          results,
-        };
-      } catch (error) {
-        const errorPrimitiveId =
-          error instanceof TransactionError && typeof error.details?.primitiveId === 'string'
-            ? error.details.primitiveId
-            : undefined;
-        const failedOperation =
-          (errorPrimitiveId
-            ? parsed.operations.find(
-                (operation) =>
-                  operation.action !== 'create' && operation.primitiveId === errorPrimitiveId,
-              )
-            : undefined) ?? parsed.operations[results.length];
-        if (failedOperation) {
-          results.push({
-            operation_id: failedOperation.operationId,
-            action: failedOperation.action,
-            status: 'failed',
-            primitive_id:
-              failedOperation.action === 'create' ? undefined : failedOperation.primitiveId,
-            error_code: error instanceof TransactionError ? error.code : undefined,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-
-        let rolledBack = false;
-        let rollbackError: string | undefined;
-        let transactionState:
-          | 'active'
-          | 'validating'
-          | 'validated'
-          | 'committed'
-          | 'rolling-back'
-          | 'rolled-back'
-          | 'failed'
-          | 'expired'
-          | undefined;
-        if (transactionId && transactionEngaged) {
-          try {
-            const rollback = await rollbackEasyedaTransaction(
-              getGlobalTransactionManager(),
-              transactionId,
-              context.bridge,
-            );
-            rolledBack = rollback.transaction.rollbackComplete === true;
-            transactionState = rollback.transaction.state;
-            if (rolledBack) {
-              for (const result of results) {
-                if (result.status === 'applied') result.status = 'rolled-back';
-              }
-            }
-          } catch (rollbackFailure) {
-            rollbackError =
-              rollbackFailure instanceof Error ? rollbackFailure.message : String(rollbackFailure);
-            try {
-              transactionState = getGlobalTransactionManager().get(transactionId).state;
-            } catch {
-              // Keep the original batch error when transaction status is unavailable.
-            }
-          }
-        }
-
-        return {
-          success: false,
-          atomic: true as const,
-          dry_run: parsed.dryRun,
-          internally_managed_transaction: internallyManaged,
-          transaction_id: transactionId,
-          transaction_state: transactionState,
-          committed: false,
-          rolled_back: rolledBack,
-          results,
-          error_code: error instanceof TransactionError ? error.code : 'BATCH_WRITE_FAILED',
-          error: error instanceof Error ? error.message : String(error),
-          rollback_error: rollbackError,
-        };
-      }
-    },
+    handler: handleSchematicBatchWrite,
   });
 }

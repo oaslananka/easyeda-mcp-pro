@@ -291,11 +291,16 @@ function newLoaderError(code: string, message: string, suggestion: string): Erro
   return error;
 }
 
+function compareCodeUnits(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 async function refreshMethodListHash(): Promise<void> {
   try {
     // Locale-independent ordering: must produce byte-identical input to the
     // server's computeMethodRegistryHash (do NOT use localeCompare here).
-    const sorted = [...activeDispatcher.methodList].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const sorted = [...activeDispatcher.methodList].sort(compareCodeUnits);
     activeMethodListHash = (await sha256Hex(sorted.join(','))).slice(0, 16);
   } catch (error) {
     log('failed to compute method list hash', String(error));
@@ -819,6 +824,12 @@ function stopHeartbeat(): void {
   lastServerActivityMs = 0;
 }
 
+function bridgeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === 'string') return error.message;
+  return String(error);
+}
+
 async function handleRequest(message: BridgeRequest): Promise<void> {
   const startedAt = Date.now();
   try {
@@ -843,12 +854,7 @@ async function handleRequest(message: BridgeRequest): Promise<void> {
       ok: false,
       error: {
         code: String(record.code ?? 'EASYEDA_API_ERROR'),
-        message:
-          error instanceof Error
-            ? error.message
-            : isRecord(error) && typeof error.message === 'string'
-              ? error.message
-              : String(error),
+        message: bridgeErrorMessage(error),
         suggestion: String(record.suggestion ?? 'Check EasyEDA Pro and extension logs.'),
         data: record.data,
       },
@@ -858,55 +864,57 @@ async function handleRequest(message: BridgeRequest): Promise<void> {
   }
 }
 
+function applyHelloPayload(record: Record<string, unknown>): void {
+  if (record.contractVersion !== BRIDGE_CONTRACT_VERSION) {
+    log('Bridge hello contract version mismatch', {
+      expected: BRIDGE_CONTRACT_VERSION,
+      actual: record.contractVersion,
+    });
+  }
+  const supportedVersions = Array.isArray(record.supportedProtocolVersions)
+    ? record.supportedProtocolVersions
+    : [];
+  if (!supportedVersions.includes(BRIDGE_VERSION)) {
+    log('Bridge hello does not include this extension protocol version', {
+      protocolVersion: BRIDGE_VERSION,
+      supportedProtocolVersions: supportedVersions,
+    });
+  }
+  if (typeof record.maxPayloadSize === 'number' && record.maxPayloadSize > 0) {
+    bridgeMaxPayloadSize = record.maxPayloadSize;
+  }
+  serverSupportsChunking = record.supportsChunking === true;
+  maxAggregatePayloadSize = bridgeMaxPayloadSize;
+  if (typeof record.maxAggregatePayloadSize === 'number' && record.maxAggregatePayloadSize > 0) {
+    maxAggregatePayloadSize = record.maxAggregatePayloadSize;
+  }
+  serverHotSwapEnabled = record.hotSwapEnabled === true;
+  log('Bridge handshake accepted');
+}
+
+function handleHeartbeatMessage(source: 'server' | 'extension' | undefined): void {
+  if (source === 'extension') return;
+  send({ type: 'heartbeat', timestamp: Date.now(), source: 'extension' });
+}
+
 function handleMessage(raw: string): InboundMessageType {
   const message = JSON.parse(raw) as { type?: string; source?: 'server' | 'extension' };
   if (isServerActivityMessage(message.type, message.source)) {
     lastServerActivityMs = Date.now();
   }
-
-  if (message.type === 'hello') {
-    const record = message as Record<string, unknown>;
-    if (record.contractVersion !== BRIDGE_CONTRACT_VERSION) {
-      log('Bridge hello contract version mismatch', {
-        expected: BRIDGE_CONTRACT_VERSION,
-        actual: record.contractVersion,
-      });
-    }
-    const supportedVersions = Array.isArray(record.supportedProtocolVersions)
-      ? record.supportedProtocolVersions
-      : [];
-    if (!supportedVersions.includes(BRIDGE_VERSION)) {
-      log('Bridge hello does not include this extension protocol version', {
-        protocolVersion: BRIDGE_VERSION,
-        supportedProtocolVersions: supportedVersions,
-      });
-    }
-    if (typeof record.maxPayloadSize === 'number' && record.maxPayloadSize > 0) {
-      bridgeMaxPayloadSize = record.maxPayloadSize;
-    }
-    serverSupportsChunking = record.supportsChunking === true;
-    maxAggregatePayloadSize =
-      typeof record.maxAggregatePayloadSize === 'number' && record.maxAggregatePayloadSize > 0
-        ? record.maxAggregatePayloadSize
-        : bridgeMaxPayloadSize;
-    serverHotSwapEnabled = record.hotSwapEnabled === true;
-    log('Bridge handshake accepted');
-    return 'hello';
+  switch (message.type) {
+    case 'hello':
+      applyHelloPayload(message as Record<string, unknown>);
+      return 'hello';
+    case 'heartbeat':
+      handleHeartbeatMessage(message.source);
+      return 'heartbeat';
+    case 'request':
+      void handleRequest(message as BridgeRequest);
+      return 'request';
+    default:
+      return 'ignored';
   }
-
-  if (message.type === 'heartbeat') {
-    if (message.source !== 'extension') {
-      send({ type: 'heartbeat', timestamp: Date.now(), source: 'extension' });
-    }
-    return 'heartbeat';
-  }
-
-  if (message.type === 'request') {
-    void handleRequest(message as BridgeRequest);
-    return 'request';
-  }
-
-  return 'ignored';
 }
 
 async function connectToPort(
@@ -1276,7 +1284,7 @@ interface PersistentRuntime {
   showRemoteRelayStatus: typeof showRemoteRelayStatusInternal;
 }
 
-const PERSISTENT_RUNTIME_KEY = '__easyedaMcpProBridgeRuntime_v7__';
+const PERSISTENT_RUNTIME_KEY = '__easyedaMcpProBridgeRuntime_v8__';
 
 function getPersistentRuntime(): PersistentRuntime {
   const globalScope = globalThis as any;

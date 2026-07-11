@@ -42,28 +42,31 @@ function sortUnknown(value: unknown): unknown {
 function idsFrom(value: unknown): string[] {
   if (!value || typeof value !== 'object') return [];
   const ids = (value as { primitiveIds?: unknown }).primitiveIds;
-  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string').sort() : [];
+  return Array.isArray(ids)
+    ? ids.filter((id): id is string => typeof id === 'string').sort((a, b) => a.localeCompare(b))
+    : [];
 }
 
-function extractPrimitiveId(value: unknown): string | undefined {
-  if (typeof value === 'string' && value.trim()) return value;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const id = extractPrimitiveId(item);
-      if (id) return id;
-    }
-    return undefined;
-  }
-  if (!value || typeof value !== 'object') return undefined;
-  const record = value as Record<string, unknown>;
-  for (const key of ['primitiveId', 'primitiveUuid', 'id', 'uuid']) {
-    if (typeof record[key] === 'string' && record[key]) return record[key] as string;
-  }
-  for (const nested of ['result', 'data', 'text', 'rectangle']) {
-    const id = extractPrimitiveId(record[nested]);
+const PRIMITIVE_ID_KEYS = ['primitiveId', 'primitiveUuid', 'id', 'uuid'] as const;
+const PRIMITIVE_NESTED_KEYS = ['result', 'data', 'text', 'rectangle'] as const;
+
+function firstPrimitiveId(values: Iterable<unknown>): string | undefined {
+  for (const value of values) {
+    const id = extractPrimitiveId(value);
     if (id) return id;
   }
   return undefined;
+}
+
+function extractPrimitiveId(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (Array.isArray(value)) return firstPrimitiveId(value);
+  if (!value || typeof value !== 'object') return undefined;
+
+  const record = value as Record<string, unknown>;
+  const direct = firstPrimitiveId(PRIMITIVE_ID_KEYS.map((key) => record[key]));
+  if (direct) return direct;
+  return firstPrimitiveId(PRIMITIVE_NESTED_KEYS.map((key) => record[key]));
 }
 
 function descriptorHash(snapshot: unknown): string {
@@ -376,13 +379,9 @@ try {
   await waitForStableConnection(600_000);
 
   const status = (await bridge.call('system.getStatus', {})) as Record<string, unknown>;
-  const buildId = String(
-    status.dispatcherBuildId ??
-      status.dispatcherBuild ??
-      status.dispatcher_build ??
-      status.buildId ??
-      '',
-  );
+  const rawBuildId =
+    status.dispatcherBuildId ?? status.dispatcherBuild ?? status.dispatcher_build ?? status.buildId;
+  const buildId = typeof rawBuildId === 'string' ? rawBuildId : '';
   const capabilities = Array.isArray(status.capabilities) ? status.capabilities : [];
   if (EXPECTED_BUILD && buildId !== EXPECTED_BUILD) {
     throw new Error(
