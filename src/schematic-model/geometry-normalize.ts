@@ -305,7 +305,11 @@ export function resolveComponentMetadata(input: {
     datasheet: resolveAttribute(attributes, resolvedAttributes, ['Datasheet', 'Data Sheet', 'URL']),
     dnp:
       input.dnp === true ||
-      booleanAttribute({ ...attributes, ...resolvedAttributes }, ['DNP', 'Do Not Populate', 'Not Fitted']),
+      booleanAttribute({ ...attributes, ...resolvedAttributes }, [
+        'DNP',
+        'Do Not Populate',
+        'Not Fitted',
+      ]),
     rawAttributes: attributes,
   };
 }
@@ -324,5 +328,7 @@ export function canonicalModelHash(value: unknown): string {
         .map(([key, entry]) => [key, normalize(entry)]),
     );
   };
-  return createHash('sha256').update(JSON.stringify(normalize(value))).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(normalize(value)))
+    .digest('hex');
 }

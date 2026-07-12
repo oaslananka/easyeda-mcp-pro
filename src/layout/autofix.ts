@@ -22,10 +22,7 @@ import {
 } from '../transactions/easyeda.js';
 import type { TransactionManager } from '../transactions/manager.js';
 import type { TransactionRecord } from '../transactions/model.js';
-import {
-  checkPlacement,
-  type PlacementConstraintRegion,
-} from './placement.js';
+import { checkPlacement, type PlacementConstraintRegion } from './placement.js';
 
 export type AutofixPrimitiveType =
   | 'component'
@@ -138,12 +135,7 @@ export class LayoutAutofixConnectivityError extends Error {
   }
 }
 
-const TEXT_TYPES = new Set<AutofixPrimitiveType>([
-  'text',
-  'label',
-  'annotation',
-  'section-title',
-]);
+const TEXT_TYPES = new Set<AutofixPrimitiveType>(['text', 'label', 'annotation', 'section-title']);
 const ELECTRICAL_TYPES = new Set<AutofixPrimitiveType>(['wire', 'power-symbol', 'no-connect']);
 
 function violation(
@@ -151,7 +143,7 @@ function violation(
   primitiveIds: readonly string[],
   message: string,
 ): LayoutAutofixViolation {
-  const sortedIds = [...primitiveIds].sort();
+  const sortedIds = [...primitiveIds].sort((a, b) => a.localeCompare(b));
   return { id: `${code}:${sortedIds.join(':')}`, code, primitiveIds: sortedIds, message };
 }
 
@@ -286,9 +278,13 @@ function resizeSectionBox(
   );
   const childBounds = combineBounds(children.map((child) => child.combinedBounds));
   if (!childBounds) return undefined;
-  const proposed = inflateBounds(childBounds, Math.max(0, input.minimumClearance ?? input.sheet.grid));
+  const proposed = inflateBounds(
+    childBounds,
+    Math.max(0, input.minimumClearance ?? input.sheet.grid),
+  );
   if (!boundsInside(proposed, input.sheet.drawableBounds)) return undefined;
-  if (input.sheet.titleBlockBounds && boundsOverlap(proposed, input.sheet.titleBlockBounds)) return undefined;
+  if (input.sheet.titleBlockBounds && boundsOverlap(proposed, input.sheet.titleBlockBounds))
+    return undefined;
   return {
     id: `autofix:${issue.id}:${target.id}`,
     primitiveId: target.id,
@@ -327,12 +323,17 @@ export function previewLayoutAutofix(input: LayoutAutofixPreviewInput): LayoutAu
   const movedIds = new Set<string>();
   for (const issue of violations) {
     if (moves.length >= maxMoves) {
-      skipped.push({ violationId: issue.id, reason: 'The configured autofix move limit was reached.' });
+      skipped.push({
+        violationId: issue.id,
+        reason: 'The configured autofix move limit was reached.',
+      });
       continue;
     }
     const sectionBox =
       issue.code === 'SECTION_BOX_TOO_SMALL'
-        ? issue.primitiveIds.map((id) => byId.get(id)).find((item) => item?.primitiveType === 'section-box')
+        ? issue.primitiveIds
+            .map((id) => byId.get(id))
+            .find((item) => item?.primitiveType === 'section-box')
         : undefined;
     let move: LayoutAutofixMove | undefined;
     if (sectionBox && propertyAllowed(sectionBox, 'bounds', input.allowlist)) {
@@ -393,7 +394,9 @@ function batches<T>(items: readonly T[], size: number): T[][] {
 }
 
 function appliedReport(preview: LayoutAutofixPreview): LayoutAutofixReport {
-  const fixed = [...new Set(preview.moves.flatMap((move) => move.resolvesViolationIds))].sort();
+  const fixed = [...new Set(preview.moves.flatMap((move) => move.resolvesViolationIds))].sort(
+    (a, b) => a.localeCompare(b),
+  );
   return {
     fixed,
     skipped: preview.report.skipped,
@@ -445,7 +448,7 @@ export async function applyLayoutAutofix(
     };
   }
   const operationFactory = options.operationFactory ?? defaultOperationFactory;
-  const operations = preview.moves.map(operationFactory);
+  const operations = preview.moves.map((move, index) => operationFactory(move, index));
   const operationBatches = batches(operations, Math.max(1, options.batchSize ?? 20));
   const started = options.transactionManager.begin({
     documentId: options.documentId,
@@ -546,7 +549,12 @@ export function applyPreviewMovesToGeometry(
   const moveById = new Map(preview.moves.map((move) => [move.primitiveId, move]));
   return primitives.map((primitive) => {
     const move = moveById.get(primitive.id);
-    if (!move) return { ...primitive, origin: { ...primitive.origin }, combinedBounds: { ...primitive.combinedBounds } };
+    if (!move)
+      return {
+        ...primitive,
+        origin: { ...primitive.origin },
+        combinedBounds: { ...primitive.combinedBounds },
+      };
     if (move.property === 'bounds') {
       const bounds = move.to as SchematicBounds;
       return { ...primitive, origin: { x: bounds.x, y: bounds.y }, combinedBounds: { ...bounds } };

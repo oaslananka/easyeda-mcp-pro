@@ -9,10 +9,42 @@ describe('Wire Stub Generator', () => {
   describe('generateWireStubs', () => {
     it('generates axis-aligned stubs correctly for all directions', () => {
       const pins = [
-        { ref: 'R1', pin: '1', netName: 'NET_A', x: 100, y: 100, direction: 'left' as const, length: 10 },
-        { ref: 'R1', pin: '2', netName: 'NET_B', x: 200, y: 100, direction: 'right' as const, length: 15 },
-        { ref: 'U1', pin: '1', netName: 'NET_C', x: 300, y: 100, direction: 'up' as const, length: 20 },
-        { ref: 'U1', pin: '2', netName: 'NET_D', x: 300, y: 200, direction: 'down' as const, length: 25 },
+        {
+          ref: 'R1',
+          pin: '1',
+          netName: 'NET_A',
+          x: 100,
+          y: 100,
+          direction: 'left' as const,
+          length: 10,
+        },
+        {
+          ref: 'R1',
+          pin: '2',
+          netName: 'NET_B',
+          x: 200,
+          y: 100,
+          direction: 'right' as const,
+          length: 15,
+        },
+        {
+          ref: 'U1',
+          pin: '1',
+          netName: 'NET_C',
+          x: 300,
+          y: 100,
+          direction: 'up' as const,
+          length: 20,
+        },
+        {
+          ref: 'U1',
+          pin: '2',
+          netName: 'NET_D',
+          x: 300,
+          y: 200,
+          direction: 'down' as const,
+          length: 25,
+        },
       ];
 
       const stubs = generateWireStubs(pins);
@@ -47,9 +79,7 @@ describe('Wire Stub Generator', () => {
     });
 
     it('uses default values when optional parameters are omitted', () => {
-      const pins = [
-        { ref: 'R1', pin: '1', netName: 'NET_A', x: 100, y: 100 },
-      ];
+      const pins = [{ ref: 'R1', pin: '1', netName: 'NET_A', x: 100, y: 100 }];
 
       const stubs = generateWireStubs(pins);
       expect(stubs[0].points).toEqual([
@@ -60,9 +90,7 @@ describe('Wire Stub Generator', () => {
     });
 
     it('respects custom overrides in options', () => {
-      const pins = [
-        { ref: 'R1', pin: '1', netName: 'NET_A', x: 100, y: 100 },
-      ];
+      const pins = [{ ref: 'R1', pin: '1', netName: 'NET_A', x: 100, y: 100 }];
 
       const stubs = generateWireStubs(pins, { defaultLength: 30, lineWidth: 2 });
       expect(stubs[0].points[1].x).toBe(130);

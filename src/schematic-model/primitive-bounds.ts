@@ -86,10 +86,7 @@ const SOURCE_RANK: Record<PrimitiveGeometrySource, number> = {
 
 function rotateLocalPoint(
   point: SchematicPoint,
-  input: Pick<
-    PrimitiveBoundsInput,
-    'coordinateOrigin' | 'mirroredX' | 'mirroredY' | 'rotation'
-  >,
+  input: Pick<PrimitiveBoundsInput, 'coordinateOrigin' | 'mirroredX' | 'mirroredY' | 'rotation'>,
 ): SchematicPoint {
   const mirrored = {
     x: input.mirroredX ? -point.x : point.x,
@@ -104,7 +101,10 @@ function rotateLocalPoint(
   return mirrored;
 }
 
-function transformLocalBounds(bounds: SchematicBounds, input: PrimitiveBoundsInput): SchematicBounds {
+function transformLocalBounds(
+  bounds: SchematicBounds,
+  input: PrimitiveBoundsInput,
+): SchematicBounds {
   const corners = [
     { x: bounds.x, y: bounds.y },
     { x: bounds.x + bounds.width, y: bounds.y },
@@ -143,16 +143,9 @@ function normalizeSegment(
   return {
     ...(segment.id ? { id: segment.id } : {}),
     bounds:
-      segment.space === 'sheet'
-        ? { ...sourceBounds }
-        : transformLocalBounds(sourceBounds, input),
+      segment.space === 'sheet' ? { ...sourceBounds } : transformLocalBounds(sourceBounds, input),
     geometrySource,
-    confidence:
-      geometrySource === 'runtime'
-        ? 'exact'
-        : geometrySource === 'approximate'
-          ? 'conservative'
-          : 'conservative',
+    confidence: geometrySource === 'runtime' ? 'exact' : 'conservative',
   };
 }
 
@@ -168,9 +161,7 @@ function normalizeSegments(
 function weakestSource(segments: readonly PrimitiveBoundsSegment[]): PrimitiveGeometrySource {
   return segments.reduce<PrimitiveGeometrySource>(
     (weakest, segment) =>
-      SOURCE_RANK[segment.geometrySource] < SOURCE_RANK[weakest]
-        ? segment.geometrySource
-        : weakest,
+      SOURCE_RANK[segment.geometrySource] < SOURCE_RANK[weakest] ? segment.geometrySource : weakest,
     'runtime',
   );
 }

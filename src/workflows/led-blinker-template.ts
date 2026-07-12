@@ -151,7 +151,9 @@ export function calculateLedBlinker(values: LedBlinkerValues) {
 
 function mergePinMaps(input?: LedBlinkerTemplateInput['pinMaps']): LedBlinkerPinMaps {
   return {
-    switch: input?.switch ? { ...DEFAULT_PIN_MAPS.switch, ...input.switch } : DEFAULT_PIN_MAPS.switch,
+    switch: input?.switch
+      ? { ...DEFAULT_PIN_MAPS.switch, ...input.switch }
+      : DEFAULT_PIN_MAPS.switch,
     resistor: input?.resistor
       ? { ...DEFAULT_PIN_MAPS.resistor, ...input.resistor }
       : DEFAULT_PIN_MAPS.resistor,
@@ -267,8 +269,7 @@ export function buildLedBlinkerTemplate(input: LedBlinkerTemplateInput): LedBlin
     },
   ];
 
-  const wires =
-    input.createWireStubs === true ? generateStubsForComponents(anchor, stubSpecs) : [];
+  const wires = input.createWireStubs === true ? generateStubsForComponents(anchor, stubSpecs) : [];
 
   const workflowInput: WorkflowBlockInput = {
     projectId: input.projectId,

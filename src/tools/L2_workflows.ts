@@ -1456,16 +1456,38 @@ function registerWorkflowTools(
       const p = (params ?? {}) as {
         projectId: string;
         mode?: 'preview' | 'apply';
-        devices: { resistor: { libraryUuid: string; uuid: string }; led: { libraryUuid: string; uuid: string }; switch: { libraryUuid: string; uuid: string } };
+        devices: {
+          resistor: { libraryUuid: string; uuid: string };
+          led: { libraryUuid: string; uuid: string };
+          switch: { libraryUuid: string; uuid: string };
+        };
         anchor?: { x: number; y: number };
-        preferredRegion?: 'upper-left' | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right';
+        preferredRegion?:
+          | 'upper-left'
+          | 'upper-center'
+          | 'upper-right'
+          | 'center-left'
+          | 'center'
+          | 'center-right'
+          | 'lower-left'
+          | 'lower-center'
+          | 'lower-right';
         margin?: number;
         createNetPorts?: boolean;
         createWireStubs?: boolean;
         refs?: Partial<{ switch: string; resistor: string; led: string }>;
         nets?: Partial<{ vcc: string; gnd: string; switched: string; ledAnode: string }>;
-        values?: Partial<{ supplyVoltage: number; ledForwardVoltage: number; ledForwardCurrentMa: number; resistorOhms: number }>;
-        pinMaps?: Partial<{ switch: Partial<{ p1: string; p2: string; p3: string; p4: string }>; resistor: Partial<{ p1: string; p2: string }>; led: Partial<{ anode: string; cathode: string }> }>;
+        values?: Partial<{
+          supplyVoltage: number;
+          ledForwardVoltage: number;
+          ledForwardCurrentMa: number;
+          resistorOhms: number;
+        }>;
+        pinMaps?: Partial<{
+          switch: Partial<{ p1: string; p2: string; p3: string; p4: string }>;
+          resistor: Partial<{ p1: string; p2: string }>;
+          led: Partial<{ anode: string; cathode: string }>;
+        }>;
         runPostWriteQa?: boolean;
         confirmWrite?: boolean;
       };

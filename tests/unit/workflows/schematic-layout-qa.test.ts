@@ -130,11 +130,16 @@ describe('schematic layout QA', () => {
       componentRefs: ['U1', 'R1'],
       pinMappings: [{ componentRef: 'U1', pin: '1', netName: 'GND' }],
     };
-    qaInput.relationships = [
-      { sourceId: 'U1', targetId: 'dup', kind: 'support', maxDistance: 50 },
-    ];
+    qaInput.relationships = [{ sourceId: 'U1', targetId: 'dup', kind: 'support', maxDistance: 50 }];
     qaInput.wires = [
-      { id: 'wire-long', netName: 'VCC', points: [{ x: 0, y: 0 }, { x: 900, y: 0 }] },
+      {
+        id: 'wire-long',
+        netName: 'VCC',
+        points: [
+          { x: 0, y: 0 },
+          { x: 900, y: 0 },
+        ],
+      },
     ];
 
     const result = evaluateSchematicLayoutQa(qaInput);

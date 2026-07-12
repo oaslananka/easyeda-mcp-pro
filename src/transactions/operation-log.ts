@@ -92,8 +92,8 @@ export function changedPrimitiveIds(log: readonly OperationLogEntry[]): {
     for (const id of entry.result.deletedPrimitiveIds ?? []) deleted.add(id);
   }
   return {
-    created: [...created].sort(),
-    modified: [...modified].sort(),
-    deleted: [...deleted].sort(),
+    created: [...created].sort((a, b) => a.localeCompare(b)),
+    modified: [...modified].sort((a, b) => a.localeCompare(b)),
+    deleted: [...deleted].sort((a, b) => a.localeCompare(b)),
   };
 }

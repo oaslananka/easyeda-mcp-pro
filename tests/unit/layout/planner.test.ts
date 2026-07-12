@@ -4,7 +4,10 @@ import {
   planFunctionalLayout,
   type FunctionalLayoutComponent,
 } from '../../../src/layout/planner.js';
-import { boundsOverlap, type SchematicSheetGeometry } from '../../../src/schematic-engine/geometry.js';
+import {
+  boundsOverlap,
+  type SchematicSheetGeometry,
+} from '../../../src/schematic-engine/geometry.js';
 
 function sheet(pageSize: 'A4' | 'A3'): SchematicSheetGeometry {
   const a3 = pageSize === 'A3';
@@ -24,11 +27,35 @@ function sheet(pageSize: 'A4' | 'A3'): SchematicSheetGeometry {
 
 const ne555: FunctionalLayoutComponent[] = [
   { id: 'U1', blockId: 'timing', role: 'main', renderedSize: { width: 120, height: 80 } },
-  { id: 'R1', blockId: 'timing', role: 'feedback-network', parentId: 'U1', renderedSize: { width: 40, height: 20 } },
-  { id: 'R2', blockId: 'timing', role: 'feedback-network', parentId: 'U1', renderedSize: { width: 40, height: 20 } },
-  { id: 'C1', blockId: 'timing', role: 'decoupling-capacitor', parentId: 'U1', renderedSize: { width: 30, height: 30 } },
+  {
+    id: 'R1',
+    blockId: 'timing',
+    role: 'feedback-network',
+    parentId: 'U1',
+    renderedSize: { width: 40, height: 20 },
+  },
+  {
+    id: 'R2',
+    blockId: 'timing',
+    role: 'feedback-network',
+    parentId: 'U1',
+    renderedSize: { width: 40, height: 20 },
+  },
+  {
+    id: 'C1',
+    blockId: 'timing',
+    role: 'decoupling-capacitor',
+    parentId: 'U1',
+    renderedSize: { width: 30, height: 30 },
+  },
   { id: 'J1', blockId: 'io', role: 'main', renderedSize: { width: 80, height: 60 } },
-  { id: 'R3', blockId: 'io', role: 'led-current-limit', parentId: 'J1', renderedSize: { width: 40, height: 20 } },
+  {
+    id: 'R3',
+    blockId: 'io',
+    role: 'led-current-limit',
+    parentId: 'J1',
+    renderedSize: { width: 40, height: 20 },
+  },
 ];
 
 describe('deterministic functional layout planner', () => {
@@ -37,7 +64,11 @@ describe('deterministic functional layout planner', () => {
       sheet: sheet('A4'),
       components: ne555,
       existingOccupiedRegions: [
-        { id: 'existing-note', kind: 'existing-object' as const, bounds: { x: 40, y: 680, width: 180, height: 80 } },
+        {
+          id: 'existing-note',
+          kind: 'existing-object' as const,
+          bounds: { x: 40, y: 680, width: 180, height: 80 },
+        },
       ],
       constraints: { maximumSupportDistanceByRole: { 'decoupling-capacitor': 80 } },
     };
@@ -50,25 +81,69 @@ describe('deterministic functional layout planner', () => {
     expect(first.blockReservations).toHaveLength(2);
     expect(first.supportReservations.length).toBeGreaterThan(0);
     expect(first.occupancyMap.some((region) => region.id === 'existing-note')).toBe(true);
-    expect(first.placements.every((placement) => placement.origin.x % 10 === 0 && placement.origin.y % 10 === 0)).toBe(true);
-    expect(first.placements.every((placement) => [0, 90, 180, 270].includes(placement.rotation))).toBe(true);
+    expect(
+      first.placements.every(
+        (placement) => placement.origin.x % 10 === 0 && placement.origin.y % 10 === 0,
+      ),
+    ).toBe(true);
+    expect(
+      first.placements.every((placement) => [0, 90, 180, 270].includes(placement.rotation)),
+    ).toBe(true);
     const firstSupport = first.placementOrder.findIndex((id) => id !== 'U1' && id !== 'J1');
     expect(first.placementOrder.indexOf('U1')).toBeLessThan(firstSupport);
     expect(first.placementOrder.indexOf('J1')).toBeLessThan(firstSupport);
     const existing = first.occupancyMap.find((region) => region.id === 'existing-note')!;
-    expect(first.blockReservations.every((block) => !boundsOverlap(block.bounds, existing.bounds))).toBe(true);
+    expect(
+      first.blockReservations.every((block) => !boundsOverlap(block.bounds, existing.bounds)),
+    ).toBe(true);
   });
 
   it('groups a repeatable RP2040-style main device with reserved support roles', () => {
     const rp2040: FunctionalLayoutComponent[] = [
       { id: 'U1', blockId: 'mcu', role: 'main', renderedSize: { width: 180, height: 160 } },
-      { id: 'C1', blockId: 'mcu', role: 'decoupling-capacitor', parentId: 'U1', renderedSize: { width: 30, height: 30 } },
-      { id: 'C2', blockId: 'mcu', role: 'bulk-capacitor', parentId: 'U1', renderedSize: { width: 30, height: 30 } },
-      { id: 'R1', blockId: 'mcu', role: 'boot-strap', parentId: 'U1', renderedSize: { width: 40, height: 20 } },
-      { id: 'TP1', blockId: 'mcu', role: 'test-point', parentId: 'U1', renderedSize: { width: 20, height: 20 } },
+      {
+        id: 'C1',
+        blockId: 'mcu',
+        role: 'decoupling-capacitor',
+        parentId: 'U1',
+        renderedSize: { width: 30, height: 30 },
+      },
+      {
+        id: 'C2',
+        blockId: 'mcu',
+        role: 'bulk-capacitor',
+        parentId: 'U1',
+        renderedSize: { width: 30, height: 30 },
+      },
+      {
+        id: 'R1',
+        blockId: 'mcu',
+        role: 'boot-strap',
+        parentId: 'U1',
+        renderedSize: { width: 40, height: 20 },
+      },
+      {
+        id: 'TP1',
+        blockId: 'mcu',
+        role: 'test-point',
+        parentId: 'U1',
+        renderedSize: { width: 20, height: 20 },
+      },
       { id: 'J1', blockId: 'usb', role: 'main', renderedSize: { width: 100, height: 80 } },
-      { id: 'D1', blockId: 'usb', role: 'connector-protection', parentId: 'J1', renderedSize: { width: 50, height: 30 } },
-      { id: 'L1', blockId: 'usb', role: 'connector-filter', parentId: 'J1', renderedSize: { width: 50, height: 30 } },
+      {
+        id: 'D1',
+        blockId: 'usb',
+        role: 'connector-protection',
+        parentId: 'J1',
+        renderedSize: { width: 50, height: 30 },
+      },
+      {
+        id: 'L1',
+        blockId: 'usb',
+        role: 'connector-filter',
+        parentId: 'J1',
+        renderedSize: { width: 50, height: 30 },
+      },
     ];
     const plan = planFunctionalLayout({ sheet: sheet('A4'), components: rp2040 });
     expect(plan.feasible).toBe(true);
@@ -119,11 +194,20 @@ describe('deterministic functional layout planner', () => {
   it('reports exact unsatisfied constraints rather than arbitrary component coordinates', () => {
     const plan = planFunctionalLayout({
       sheet: sheet('A4'),
-      components: [{ id: 'U1', blockId: 'impossible', role: 'main', renderedSize: { width: 1500, height: 900 } }],
+      components: [
+        {
+          id: 'U1',
+          blockId: 'impossible',
+          role: 'main',
+          renderedSize: { width: 1500, height: 900 },
+        },
+      ],
     });
     expect(plan.feasible).toBe(false);
     expect(plan.placements).toEqual([]);
     expect(plan.conflicts.length).toBeGreaterThan(0);
-    expect(plan.pageSuitability.attempts[0]?.unsatisfiedConstraints).toContain('PAGE_BORDER_KEEP_OUT');
+    expect(plan.pageSuitability.attempts[0]?.unsatisfiedConstraints).toContain(
+      'PAGE_BORDER_KEEP_OUT',
+    );
   });
 });

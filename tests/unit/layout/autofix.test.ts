@@ -90,7 +90,9 @@ function baseOptions(
 
 describe('applyLayoutAutofix', () => {
   it('applies the batch, commits the transaction, and writes through the bridge', async () => {
-    const snapshots = new Map([['prim-1', { primitiveId: 'prim-1', property: { position: { x: 0, y: 0 } } }]]);
+    const snapshots = new Map([
+      ['prim-1', { primitiveId: 'prim-1', property: { position: { x: 0, y: 0 } } }],
+    ]);
     const { bridge, modifyCalls } = fakeBridge(snapshots);
 
     const result = await applyLayoutAutofix(
@@ -109,7 +111,9 @@ describe('applyLayoutAutofix', () => {
   });
 
   it('rolls back every applied operation when connectivity drifts after a batch', async () => {
-    const snapshots = new Map([['prim-1', { primitiveId: 'prim-1', property: { position: { x: 0, y: 0 } } }]]);
+    const snapshots = new Map([
+      ['prim-1', { primitiveId: 'prim-1', property: { position: { x: 0, y: 0 } } }],
+    ]);
     const { bridge, restoreCalls } = fakeBridge(snapshots);
 
     let readCalls = 0;
@@ -133,7 +137,9 @@ describe('applyLayoutAutofix', () => {
   });
 
   it('compensates and rolls back when a bridge write fails mid-batch', async () => {
-    const snapshots = new Map([['prim-1', { primitiveId: 'prim-1', property: { position: { x: 0, y: 0 } } }]]);
+    const snapshots = new Map([
+      ['prim-1', { primitiveId: 'prim-1', property: { position: { x: 0, y: 0 } } }],
+    ]);
     const bridge: TransactionBridgeCaller = {
       call: async <TParams, TResult>(method: string, params?: TParams): Promise<TResult> => {
         const input = params as Record<string, unknown>;

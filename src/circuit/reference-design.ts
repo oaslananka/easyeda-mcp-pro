@@ -16,4 +16,3 @@ export const UsbIsolatedRs485ReferenceSchema = z.object({
 });
 
 export type UsbIsolatedRs485Reference = z.infer<typeof UsbIsolatedRs485ReferenceSchema>;
-

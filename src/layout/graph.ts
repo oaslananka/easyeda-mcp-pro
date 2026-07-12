@@ -77,7 +77,9 @@ export function buildSchematicLayoutGraph(
   nets: readonly LayoutNetInput[] = [],
 ): SchematicLayoutGraph {
   const componentById = new Map(
-    [...components].sort((a, b) => compareIds(a.id, b.id)).map((component) => [component.id, component]),
+    [...components]
+      .sort((a, b) => compareIds(a.id, b.id))
+      .map((component) => [component.id, component]),
   );
   const incoming = new Map<string, Set<string>>();
   const outgoing = new Map<string, Set<string>>();

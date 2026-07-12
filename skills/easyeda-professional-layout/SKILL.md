@@ -23,16 +23,16 @@ If sheet, rendered primitive, or title-block geometry is unavailable, stop with 
 
 Defaults use EasyEDA schematic mil coordinates. Runtime units and grid remain authoritative; convert explicitly when they differ.
 
-| Constraint | Default |
-| --- | ---: |
-| Page-border clearance | 100 mil |
-| Title-block margin | 150 mil |
-| Component-to-component clearance | 50 mil |
-| Text-to-body/text clearance | 25 mil |
-| Section-to-circuit clearance | 75 mil |
-| Decoupling-to-parent maximum | 200 mil |
-| Crystal/load-to-parent maximum | 150 mil |
-| Connector-protection maximum | 250 mil |
+| Constraint                            | Default |
+| ------------------------------------- | ------: |
+| Page-border clearance                 | 100 mil |
+| Title-block margin                    | 150 mil |
+| Component-to-component clearance      |  50 mil |
+| Text-to-body/text clearance           |  25 mil |
+| Section-to-circuit clearance          |  75 mil |
+| Decoupling-to-parent maximum          | 200 mil |
+| Crystal/load-to-parent maximum        | 150 mil |
+| Connector-protection maximum          | 250 mil |
 | Bulk-capacitor-to-power-stage maximum | 350 mil |
 
 Use stricter caller constraints when provided. Approximate/derived geometry may guide a preview, but it cannot authorize placement without an explicit low-confidence result and human review.

@@ -34,4 +34,3 @@ export function simplifyOrthogonalPath(
   if (last) simplified.push(last);
   return simplified;
 }
-

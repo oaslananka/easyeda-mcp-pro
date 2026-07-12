@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   scanSheetForPinCollisions,
   reconcilePlacementCollisions,
-  type PinCollision,
 } from '../../../src/workflows/collision.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 
@@ -114,7 +113,7 @@ describe('scanSheetForPinCollisions', () => {
   it('ignores pins of the same component at the same coordinate (single-component bucket)', async () => {
     // Two pins of the *same* component share a coordinate — this is NOT a collision
     // because collisionsFromMap requires >= 2 distinct primitiveIds in the bucket.
-    bridgeCall.mockImplementation(async (method: string, params: any) => {
+    bridgeCall.mockImplementation(async (method: string, _params: any) => {
       if (method === 'schematic.listComponents') {
         return { total: 1, items: [{ primitiveId: 'comp-A' }] };
       }
@@ -185,7 +184,6 @@ describe('scanSheetForPinCollisions', () => {
 
   it('paginates through multiple pages of components', async () => {
     // Simulate 2 pages: first returns 1 item (total=2), second returns 1 item
-    let callIndex = 0;
     bridgeCall.mockImplementation(async (method: string, params: any) => {
       if (method === 'schematic.listComponents') {
         if (params.offset === 0) {
@@ -258,12 +256,7 @@ describe('reconcilePlacementCollisions', () => {
 
     const ctx = makeCtx(bridgeCall);
     const positions = new Map([['candidate-1', { x: 500, y: 500 }]]);
-    const result = await reconcilePlacementCollisions(
-      ctx,
-      'proj-1',
-      ['candidate-1'],
-      positions,
-    );
+    const result = await reconcilePlacementCollisions(ctx, 'proj-1', ['candidate-1'], positions);
 
     expect(result.unresolvedCollisions).toHaveLength(0);
     expect(result.movedComponents.size).toBe(0);
@@ -301,12 +294,7 @@ describe('reconcilePlacementCollisions', () => {
 
     const ctx = makeCtx(bridgeCall);
     const positions = new Map([['candidate-1', { x: 100, y: 100 }]]);
-    const result = await reconcilePlacementCollisions(
-      ctx,
-      'proj-1',
-      ['candidate-1'],
-      positions,
-    );
+    const result = await reconcilePlacementCollisions(ctx, 'proj-1', ['candidate-1'], positions);
 
     expect(result.unresolvedCollisions).toHaveLength(0);
     expect(result.movedComponents.has('candidate-1')).toBe(true);
@@ -340,9 +328,7 @@ describe('reconcilePlacementCollisions', () => {
         }
         if (id === 'candidate-1') {
           // Always returns a pin at the candidate's current position
-          // which matches one of existing-1's pins
-          const pos = params.args[0] === 'candidate-1' ? true : false;
-          // We need to track position via the candidatePositions map
+          // which matches one of existing-1's pins.
           // The candidate will be nudged to (130,130), (160,160), (190,190)
           // and all of those collide with existing-1
           return { result: [pin('1', 'OUT', 100, 100)] };
@@ -398,12 +384,7 @@ describe('reconcilePlacementCollisions', () => {
 
     const ctx = makeCtx(bridgeCall);
     const positions = new Map([['candidate-1', { x: 100, y: 100 }]]);
-    const result = await reconcilePlacementCollisions(
-      ctx,
-      'proj-1',
-      ['candidate-1'],
-      positions,
-    );
+    const result = await reconcilePlacementCollisions(ctx, 'proj-1', ['candidate-1'], positions);
 
     expect(result.unresolvedCollisions.length).toBeGreaterThan(0);
     // Verify the modify call was made 3 times (NUDGE_ATTEMPTS = 3)
@@ -511,12 +492,7 @@ describe('collisionsFromMap onlyInvolving filter (tested via reconcilePlacementC
 
     const ctx = makeCtx(bridgeCall);
     const positions = new Map([['candidate-1', { x: 800, y: 800 }]]);
-    const result = await reconcilePlacementCollisions(
-      ctx,
-      'proj-1',
-      ['candidate-1'],
-      positions,
-    );
+    const result = await reconcilePlacementCollisions(ctx, 'proj-1', ['candidate-1'], positions);
 
     // The collision between existing-1 and existing-2 is NOT reported
     expect(result.unresolvedCollisions).toHaveLength(0);

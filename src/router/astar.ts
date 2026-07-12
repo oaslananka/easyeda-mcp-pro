@@ -7,11 +7,7 @@ import {
 } from './geometry.js';
 import { gridNeighbors, type RoutingGrid } from './grid.js';
 import { checkSegmentCollisions, type RoutingEnvironment } from './obstacles.js';
-import {
-  calculateStepCost,
-  createRouteCostContext,
-  type RouteCostContext,
-} from './route-cost.js';
+import { calculateStepCost, createRouteCostContext, type RouteCostContext } from './route-cost.js';
 import type { CardinalDirection, Point } from './types.js';
 
 interface SearchNode {
@@ -179,10 +175,7 @@ export function findOrthogonalPath(input: AStarSearchInput): AStarSearchResult {
     }
 
     for (const neighbor of gridNeighbors(current.point, input.grid)) {
-      if (
-        current.direction &&
-        neighbor.direction === oppositeDirection(current.direction)
-      ) {
+      if (current.direction && neighbor.direction === oppositeDirection(current.direction)) {
         continue;
       }
       const nextBends =
@@ -239,4 +232,3 @@ export function findOrthogonalPath(input: AStarSearchInput): AStarSearchResult {
     reason: 'no-path',
   };
 }
-

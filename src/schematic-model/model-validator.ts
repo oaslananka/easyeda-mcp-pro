@@ -180,7 +180,9 @@ export function validateSchematicModel(model: SchematicModel): ModelValidationRe
           evidence: { start, end },
         });
       }
-      const endpoints = [`${start.x},${start.y}`, `${end.x},${end.y}`].sort();
+      const endpoints = [`${start.x},${start.y}`, `${end.x},${end.y}`].sort((a, b) =>
+        a.localeCompare(b),
+      );
       const key = `${wire.canonicalNetName ?? ''}:${endpoints.join('>')}`;
       if (segmentKeys.has(key)) {
         diagnostics.push({

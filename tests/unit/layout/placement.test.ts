@@ -54,10 +54,19 @@ describe('placement constraints and safe regions', () => {
         combinedBounds: { x: 100, y: 700, width: 80, height: 40 },
       },
       reservedRegions: [
-        { id: 'reserved-power', kind: 'caller-reserved' as const, bounds: { x: 90, y: 690, width: 120, height: 70 } },
+        {
+          id: 'reserved-power',
+          kind: 'caller-reserved' as const,
+          bounds: { x: 90, y: 690, width: 120, height: 70 },
+        },
       ],
       occupiedRegions: [
-        { id: 'existing-R1', kind: 'existing-object' as const, primitiveId: 'R1', bounds: { x: 220, y: 690, width: 60, height: 40 } },
+        {
+          id: 'existing-R1',
+          kind: 'existing-object' as const,
+          primitiveId: 'R1',
+          bounds: { x: 220, y: 690, width: 60, height: 40 },
+        },
       ],
       minimumClearance: 10,
     };

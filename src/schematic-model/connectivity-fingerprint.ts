@@ -101,15 +101,12 @@ function normalizePinMembership(model: SchematicModel): FingerprintPinMembership
         references.get(pin.canonicalComponentId) ?? pin.reference ?? pin.canonicalComponentId,
       pinId: pin.canonicalPinId,
       pinNumber: pin.number,
-      netIds: [...pin.netIds].sort(),
+      netIds: [...pin.netIds].sort((a, b) => a.localeCompare(b)),
     }))
     .sort((a, b) => a.pinId.localeCompare(b.pinId));
 }
 
-function normalizeWires(
-  model: SchematicModel,
-  endpointTolerance: number,
-): FingerprintWire[] {
+function normalizeWires(model: SchematicModel, endpointTolerance: number): FingerprintWire[] {
   return model.wires
     .map((wire) => {
       const first = wire.points[0];
@@ -119,13 +116,7 @@ function normalizeWires(
         ...(wire.canonicalNetId ? { netId: wire.canonicalNetId } : {}),
         ...(wire.canonicalNetName ? { netName: wire.canonicalNetName } : {}),
         endpoints: [
-          endpointToken(
-            first,
-            model,
-            endpointTolerance,
-            wire.canonicalWireId,
-            'start',
-          ),
+          endpointToken(first, model, endpointTolerance, wire.canonicalWireId, 'start'),
           endpointToken(last, model, endpointTolerance, wire.canonicalWireId, 'end'),
         ],
       } satisfies FingerprintWire;
@@ -141,7 +132,7 @@ function normalizeLabelsAndPorts(model: SchematicModel): FingerprintNetLabelOrPo
   }));
   const ports: FingerprintNetLabelOrPort[] = model.sheets.flatMap((sheet) =>
     [...sheet.portNames]
-      .sort()
+      .sort((a, b) => a.localeCompare(b))
       .map((portName, index) => ({
         id: `${sheet.canonicalSheetId}:port:${index}:${portName}`,
         kind: 'sheet-port' as const,
@@ -160,9 +151,7 @@ function normalizeNoConnects(model: SchematicModel): FingerprintNoConnect[] {
   return model.noConnects
     .map((noConnect) => ({
       noConnectId: noConnect.canonicalNoConnectId,
-      ...(noConnect.componentReference
-        ? { componentReference: noConnect.componentReference }
-        : {}),
+      ...(noConnect.componentReference ? { componentReference: noConnect.componentReference } : {}),
       ...(noConnect.canonicalPinId ? { pinId: noConnect.canonicalPinId } : {}),
       ...(noConnect.pinNumber ? { pinNumber: noConnect.pinNumber } : {}),
     }))
@@ -190,7 +179,9 @@ function structuredArrayDiff<T>(
 ): ConnectivityDiffEntry<T>[] {
   const beforeMap = new Map(before.map((value) => [key(value), value]));
   const afterMap = new Map(after.map((value) => [key(value), value]));
-  const keys = [...new Set([...beforeMap.keys(), ...afterMap.keys()])].sort();
+  const keys = [...new Set([...beforeMap.keys(), ...afterMap.keys()])].sort((a, b) =>
+    a.localeCompare(b),
+  );
   const result: ConnectivityDiffEntry<T>[] = [];
   for (const itemKey of keys) {
     const beforeValue = beforeMap.get(itemKey);

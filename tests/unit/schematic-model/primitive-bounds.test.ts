@@ -59,7 +59,9 @@ describe('primitive rendered bounds', () => {
     expect(result.combinedBounds?.width).toBeGreaterThan(200);
     expect(result.geometrySource).toBe('approximate');
     expect(result.confidence).toBe('conservative');
-    expect(result.limitations).toContain('One or more text bounds use conservative measurement fallback.');
+    expect(result.limitations).toContain(
+      'One or more text bounds use conservative measurement fallback.',
+    );
   });
 
   it('preserves exact runtime sheet-space geometry without a second rotation', () => {

@@ -67,16 +67,17 @@ describe('Workflow Tools', () => {
     });
 
     it('runs post-write QA after a successful apply and keeps success true when QA passes', async () => {
-      const placedBounds: Record<string, { x: number; y: number; width: number; height: number }> = {
-        U1: { x: 50, y: 50, width: 80, height: 60 },
-        R1: { x: 200, y: 50, width: 80, height: 60 },
-        R2: { x: 350, y: 50, width: 80, height: 60 },
-        C1: { x: 500, y: 50, width: 80, height: 60 },
-        C2: { x: 50, y: 200, width: 80, height: 60 },
-        C3: { x: 200, y: 200, width: 80, height: 60 },
-        R3: { x: 350, y: 200, width: 80, height: 60 },
-        D1: { x: 500, y: 200, width: 80, height: 60 },
-      };
+      const placedBounds: Record<string, { x: number; y: number; width: number; height: number }> =
+        {
+          U1: { x: 50, y: 50, width: 80, height: 60 },
+          R1: { x: 200, y: 50, width: 80, height: 60 },
+          R2: { x: 350, y: 50, width: 80, height: 60 },
+          C1: { x: 500, y: 50, width: 80, height: 60 },
+          C2: { x: 50, y: 200, width: 80, height: 60 },
+          C3: { x: 200, y: 200, width: 80, height: 60 },
+          R3: { x: 350, y: 200, width: 80, height: 60 },
+          D1: { x: 500, y: 200, width: 80, height: 60 },
+        };
       const netMembership: Record<string, Array<{ component: string; pin: string }>> = {
         '+5V': [
           { component: 'U1', pin: '4' },

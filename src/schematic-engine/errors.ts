@@ -72,7 +72,8 @@ export function schematicError(
       operation,
       recoverable: options.recoverable ?? true,
       details: options.details ?? {},
-      suggestion: options.suggestion ?? 'Review the operation input and retry from a fresh preview.',
+      suggestion:
+        options.suggestion ?? 'Review the operation input and retry from a fresh preview.',
     },
     options.cause === undefined ? undefined : { cause: options.cause },
   );

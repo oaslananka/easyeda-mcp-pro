@@ -7,9 +7,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 describe('extension manifest activation', () => {
   it('loads the bridge entry at EasyEDA startup so auto-connect can run without a menu click', () => {
-    const manifest = JSON.parse(
-      readFileSync(join(root, 'extension.json'), 'utf8'),
-    ) as {
+    const manifest = JSON.parse(readFileSync(join(root, 'extension.json'), 'utf8')) as {
       activationEvents?: { onStartupFinished?: boolean };
     };
 

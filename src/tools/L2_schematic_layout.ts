@@ -149,7 +149,8 @@ function bounds(value: unknown): LayoutQaBounds | undefined {
   if (x === undefined || y === undefined || width === undefined || height === undefined) {
     const right = numberValue(item.right);
     const top = numberValue(item.top);
-    if (x === undefined || y === undefined || right === undefined || top === undefined) return undefined;
+    if (x === undefined || y === undefined || right === undefined || top === undefined)
+      return undefined;
     return { x, y, width: right - x, height: top - y };
   }
   return { x, y, width, height };
@@ -171,9 +172,7 @@ function normalizePrimitiveType(value: unknown): LayoutQaPrimitive['primitiveTyp
   return 'component';
 }
 
-function normalizeGeometrySource(
-  value: unknown,
-): LayoutQaPrimitive['geometrySource'] {
+function normalizeGeometrySource(value: unknown): LayoutQaPrimitive['geometrySource'] {
   const normalized = String(value ?? '').toLowerCase();
   if (normalized === 'runtime') return 'runtime';
   if (normalized === 'approximate') return 'approximate';
@@ -281,7 +280,8 @@ function normalizeDiagnostics(result: unknown, source: 'DRC' | 'ERC'): RuntimeDi
     return {
       id: stringValue(item.id ?? item.rule),
       message:
-        stringValue(item.description ?? item.message) ?? `${source} returned an unspecified finding.`,
+        stringValue(item.description ?? item.message) ??
+        `${source} returned an unspecified finding.`,
       severity,
       componentId: stringValue(item.component ?? item.primitiveId),
       netName: stringValue(item.net ?? item.netName),

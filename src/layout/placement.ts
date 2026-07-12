@@ -3,7 +3,6 @@ import {
   boundsInside,
   boundsOverlap,
   boundsRight,
-  inflateBounds,
   snapToGrid,
   translateBounds,
   type SchematicBounds,
@@ -13,11 +12,7 @@ import {
 import type { PrimitiveRotation } from '../schematic-model/primitive-bounds.js';
 
 export type PlacementRegionKind =
-  | 'title-block'
-  | 'page-border'
-  | 'caller-reserved'
-  | 'support-reservation'
-  | 'existing-object';
+  'title-block' | 'page-border' | 'caller-reserved' | 'support-reservation' | 'existing-object';
 
 export interface PlacementConstraintRegion {
   id: string;
@@ -255,9 +250,10 @@ function preferenceParts(preference: SafeRegionPreference): {
   return { horizontal, vertical };
 }
 
-function candidateSearch(
-  input: PlacementCheckInput,
-): { candidates: PlacementAlternative[]; searched: number } {
+function candidateSearch(input: PlacementCheckInput): {
+  candidates: PlacementAlternative[];
+  searched: number;
+} {
   const drawable = input.sheet.drawableBounds;
   const relative = {
     x: input.candidate.combinedBounds.x - input.candidate.origin.x,
@@ -313,7 +309,9 @@ export function checkPlacement(input: PlacementCheckInput): PlacementCheckResult
     suggestedAlternatives: [],
     failure: {
       code: 'NO_FEASIBLE_POSITION',
-      unsatisfiedConstraints: [...new Set(checked.conflicts.map((conflict) => conflict.code))].sort(),
+      unsatisfiedConstraints: [...new Set(checked.conflicts.map((conflict) => conflict.code))].sort(
+        (a, b) => a.localeCompare(b),
+      ),
       searchedCandidates: search.searched,
     },
   };

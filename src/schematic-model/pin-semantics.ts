@@ -28,12 +28,16 @@ const PIN_TYPE_ALIASES: Readonly<Record<string, BasePinElectricalType>> = {
 };
 
 function normalizedTypeKey(value: string): string {
-  return value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
 }
 
-export function normalizePinElectricalType(
-  rawType: string | null | undefined,
-): { electricalType: PinElectricalType; baseElectricalType: BasePinElectricalType } {
+export function normalizePinElectricalType(rawType: string | null | undefined): {
+  electricalType: PinElectricalType;
+  baseElectricalType: BasePinElectricalType;
+} {
   if (!rawType) {
     return { electricalType: 'unspecified', baseElectricalType: 'unspecified' };
   }
@@ -57,7 +61,8 @@ export function pinSemanticFlags(raw: RawPinInput): {
   return {
     hidden: raw.hidden === true || normalized.electricalType === 'hidden',
     stacked: raw.stacked === true || normalized.electricalType === 'stacked',
-    internallyConnected: raw.internallyConnected === true || normalized.electricalType === 'internal',
+    internallyConnected:
+      raw.internallyConnected === true || normalized.electricalType === 'internal',
     deliberateNoConnect:
       raw.deliberateNoConnect === true || normalized.baseElectricalType === 'noConnect',
     noConnectAllowed:

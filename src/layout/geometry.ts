@@ -126,8 +126,10 @@ export function segmentsIntersect(
   const d2 = cross(a1, a2, b2);
   const d3 = cross(b1, b2, a1);
   const d4 = cross(b1, b2, a2);
-  if (((d1 > EPSILON && d2 < -EPSILON) || (d1 < -EPSILON && d2 > EPSILON)) &&
-      ((d3 > EPSILON && d4 < -EPSILON) || (d3 < -EPSILON && d4 > EPSILON))) {
+  if (
+    ((d1 > EPSILON && d2 < -EPSILON) || (d1 < -EPSILON && d2 > EPSILON)) &&
+    ((d3 > EPSILON && d4 < -EPSILON) || (d3 < -EPSILON && d4 > EPSILON))
+  ) {
     return true;
   }
   return (
@@ -138,11 +140,7 @@ export function segmentsIntersect(
   );
 }
 
-export function segmentIntersectsRect(
-  a: LayoutPoint,
-  b: LayoutPoint,
-  rect: LayoutRect,
-): boolean {
+export function segmentIntersectsRect(a: LayoutPoint, b: LayoutPoint, rect: LayoutRect): boolean {
   if (pointInsideRect(a, rect) || pointInsideRect(b, rect)) return true;
   const topLeft = { x: rect.x, y: rect.y + rect.height };
   const topRight = { x: rect.x + rect.width, y: rect.y + rect.height };

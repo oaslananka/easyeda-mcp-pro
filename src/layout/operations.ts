@@ -49,7 +49,8 @@ export function alignComponents(
   options: AlignOptions,
 ): LayoutPlacement[] {
   const selected = selectedPlacements(placements, options.componentIds);
-  if (selected.length === 0) return placements.map((placement) => ({ ...placement, bbox: { ...placement.bbox } }));
+  if (selected.length === 0)
+    return placements.map((placement) => ({ ...placement, bbox: { ...placement.bbox } }));
   const coordinate = options.axis === 'x' ? 'x' : 'y';
   const value =
     options.value ??
@@ -76,10 +77,12 @@ export function distributeComponents(
   const selected = selectedPlacements(placements, options.componentIds).sort(
     (a, b) => a[coordinate] - b[coordinate] || compareIds(a.componentId, b.componentId),
   );
-  if (selected.length < 2) return placements.map((placement) => ({ ...placement, bbox: { ...placement.bbox } }));
+  if (selected.length < 2)
+    return placements.map((placement) => ({ ...placement, bbox: { ...placement.bbox } }));
   const first = selected[0];
   const last = selected[selected.length - 1];
-  if (!first || !last) return placements.map((placement) => ({ ...placement, bbox: { ...placement.bbox } }));
+  if (!first || !last)
+    return placements.map((placement) => ({ ...placement, bbox: { ...placement.bbox } }));
   const start = options.start ?? first[coordinate];
   const end = options.end ?? last[coordinate];
   const step = (end - start) / (selected.length - 1);
@@ -88,7 +91,8 @@ export function distributeComponents(
   );
   return placements.map((placement) => {
     const target = targetById.get(placement.componentId);
-    if (target === undefined || placement.locked) return { ...placement, bbox: { ...placement.bbox } };
+    if (target === undefined || placement.locked)
+      return { ...placement, bbox: { ...placement.bbox } };
     return movedPlacement(
       placement,
       options.axis === 'x' ? target : placement.x,
@@ -127,7 +131,9 @@ export function compactLayout(
   const ordered = [...placements].sort((a, b) => compareIds(a.componentId, b.componentId));
   const resultById = new Map<string, LayoutPlacement>();
   const occupied: LayoutPlacement[] = [];
-  for (const placement of ordered.filter((item) => item.locked || lockedIds.has(item.componentId))) {
+  for (const placement of ordered.filter(
+    (item) => item.locked || lockedIds.has(item.componentId),
+  )) {
     const clone = { ...placement, bbox: { ...placement.bbox }, locked: true };
     resultById.set(clone.componentId, clone);
     occupied.push(clone);

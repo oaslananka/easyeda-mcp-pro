@@ -848,7 +848,11 @@ function recoverConnection(reason: string): void {
 
   connectionState = 'disconnected';
   if (
-    shouldReconnectAfterSocketFailure({ wasConnected, manualDisconnectRequested, autoConnectEnabled })
+    shouldReconnectAfterSocketFailure({
+      wasConnected,
+      manualDisconnectRequested,
+      autoConnectEnabled,
+    })
   ) {
     scheduleReconnect();
   }

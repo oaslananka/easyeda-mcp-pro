@@ -91,7 +91,9 @@ describe('professional layout template catalog', () => {
 
   it('rejects missing mandatory templates and unsafe geometry behavior', () => {
     const catalog = structuredClone(professionalLayoutTemplateCatalog);
-    catalog.templates = catalog.templates.filter((template) => template.id !== 'usb-powered-mcu-board');
+    catalog.templates = catalog.templates.filter(
+      (template) => template.id !== 'usb-powered-mcu-board',
+    );
     catalog.templates[0]!.geometryPolicy.unavailableBehavior = 'block-placement';
     const validation = validateProfessionalLayoutTemplateCatalog(catalog);
     expect(validation.valid).toBe(false);

@@ -47,9 +47,11 @@ function componentLookupKey(runtimeId: string | undefined, reference: string | u
   return runtimeId ? `id:${runtimeId}` : `ref:${reference?.toUpperCase() ?? ''}`;
 }
 
-function createComponents(
-  snapshot: RawSchematicSnapshot,
-): { components: ComponentModel[]; pins: PinModel[]; diagnostics: ModelDiagnostic[] } {
+function createComponents(snapshot: RawSchematicSnapshot): {
+  components: ComponentModel[];
+  pins: PinModel[];
+  diagnostics: ModelDiagnostic[];
+} {
   const components: ComponentModel[] = [];
   const pins: PinModel[] = [];
   const diagnostics: ModelDiagnostic[] = [];
@@ -220,14 +222,14 @@ function resolveNodePin(node: RawNetNodeInput, indexes: PinIndexes): PinModel | 
   if (number && node.componentPrimitiveId) {
     const component = indexes.componentByRuntime.get(node.componentPrimitiveId);
     const match = component
-      ? indexes.byComponentAndNumber.get(`${component.canonicalComponentId}\u001f${number.toUpperCase()}`)
+      ? indexes.byComponentAndNumber.get(
+          `${component.canonicalComponentId}\u001f${number.toUpperCase()}`,
+        )
       : undefined;
     if (match?.length === 1) return match[0];
   }
   if (number && node.componentReference) {
-    const match = indexes.byReferenceAndNumber.get(
-      pinLookupKey(node.componentReference, number),
-    );
+    const match = indexes.byReferenceAndNumber.get(pinLookupKey(node.componentReference, number));
     if (match?.length === 1) return match[0];
   }
   const coordinate = pointKey(node.position);
@@ -494,14 +496,12 @@ export function buildSchematicModel(
     ...componentResult.diagnostics,
     ...noConnectResult.diagnostics,
     ...netResult.diagnostics,
-    ...(snapshot.unsupportedPrimitives ?? []).map(
-      (primitive): ModelDiagnostic => ({
-        code: 'UNSUPPORTED_PRIMITIVE',
-        severity: 'warning',
-        message: `Unsupported primitive type: ${primitive.type}.`,
-        evidence: { ...primitive },
-      }),
-    ),
+    ...(snapshot.unsupportedPrimitives ?? []).map((primitive): ModelDiagnostic => ({
+      code: 'UNSUPPORTED_PRIMITIVE',
+      severity: 'warning',
+      message: `Unsupported primitive type: ${primitive.type}.`,
+      evidence: { ...primitive },
+    })),
   ];
 
   const model: SchematicModel = {

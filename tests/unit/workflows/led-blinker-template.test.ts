@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   buildLedBlinkerTemplate,
   calculateLedBlinker,
-  LED_BLINKER_CONTENT,
 } from '../../../src/workflows/led-blinker-template.js';
 
 const devices = {
@@ -24,7 +23,7 @@ describe('LED Blinker Template', () => {
       const result = calculateLedBlinker(values);
       expect(result.currentMa).toBe(20.0);
       expect(result.resistorPowerMw).toBe(60.0); // (5 - 2) * 0.02 * 1000 = 60
-      expect(result.ledPowerMw).toBe(40.0);      // 2 * 0.02 * 1000 = 40
+      expect(result.ledPowerMw).toBe(40.0); // 2 * 0.02 * 1000 = 40
       expect(result.totalPowerMw).toBe(100.0);
     });
   });

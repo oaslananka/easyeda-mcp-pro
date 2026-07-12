@@ -32,8 +32,12 @@ function stableValue(value: unknown): unknown {
   return value;
 }
 
-export function professionalLayoutCatalogDigest(catalog: ProfessionalLayoutTemplateCatalog): string {
-  return createHash('sha256').update(JSON.stringify(stableValue(catalog))).digest('hex');
+export function professionalLayoutCatalogDigest(
+  catalog: ProfessionalLayoutTemplateCatalog,
+): string {
+  return createHash('sha256')
+    .update(JSON.stringify(stableValue(catalog)))
+    .digest('hex');
 }
 
 export function validateProfessionalLayoutTemplateCatalog(
@@ -70,7 +74,10 @@ export function validateProfessionalLayoutTemplateCatalog(
     if (template.geometryPolicy.unavailableBehavior !== 'block-placement') {
       errors.push(`${template.id}: missing geometry must block placement.`);
     }
-    if (!template.hardKeepouts.includes('page-border') || !template.hardKeepouts.includes('title-block')) {
+    if (
+      !template.hardKeepouts.includes('page-border') ||
+      !template.hardKeepouts.includes('title-block')
+    ) {
       errors.push(`${template.id}: page border and title block must be hard keep-outs.`);
     }
     const blockIds = template.blockOrder.map((block) => block.id);
@@ -100,7 +107,9 @@ const catalogValidation = validateProfessionalLayoutTemplateCatalog(
   PROFESSIONAL_LAYOUT_TEMPLATE_CATALOG_V1,
 );
 if (!catalogValidation.valid) {
-  throw new Error(`Invalid professional layout template catalog: ${catalogValidation.errors.join(' ')}`);
+  throw new Error(
+    `Invalid professional layout template catalog: ${catalogValidation.errors.join(' ')}`,
+  );
 }
 
 export const professionalLayoutTemplateCatalog: ProfessionalLayoutTemplateCatalog =
@@ -113,7 +122,9 @@ export function listProfessionalLayoutTemplates(): ProfessionalLayoutTemplate[] 
 export function getProfessionalLayoutTemplate(
   templateId: ProfessionalLayoutTemplateId,
 ): ProfessionalLayoutTemplate {
-  const template = professionalLayoutTemplateCatalog.templates.find((item) => item.id === templateId);
+  const template = professionalLayoutTemplateCatalog.templates.find(
+    (item) => item.id === templateId,
+  );
   if (!template) throw new Error(`Unknown professional layout template: ${templateId}`);
   return template;
 }
@@ -121,15 +132,15 @@ export function getProfessionalLayoutTemplate(
 export function resolveProfessionalLayoutTemplate(
   templateId: ProfessionalLayoutTemplateId,
   geometry:
-    | { available: false }
-    | { available: true; source: 'runtime' | 'live-readback' | 'derived' },
+    { available: false } | { available: true; source: 'runtime' | 'live-readback' | 'derived' },
 ): ProfessionalLayoutTemplateResolution {
   const template = getProfessionalLayoutTemplate(templateId);
   if (!geometry.available) {
     return {
       status: 'blocked',
       code: 'LAYOUT_GEOMETRY_REQUIRED',
-      message: 'Sheet, drawable, rendered primitive, and title-block geometry are required before placement.',
+      message:
+        'Sheet, drawable, rendered primitive, and title-block geometry are required before placement.',
       templateId,
     };
   }

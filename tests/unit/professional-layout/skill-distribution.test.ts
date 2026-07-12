@@ -21,7 +21,7 @@ const policyIds = [
 
 describe('professional layout skill distributions', () => {
   it.each(distributions)('%s contains the equivalent safety contract', (relativePath) => {
-    const content = readFileSync(resolve(ROOT, relativePath), 'utf8');
+    const content = readFileSync(resolve(ROOT, relativePath), 'utf8').replace(/\r\n/g, '\n');
     expect(content).toMatch(/^---\nname: easyeda-professional-layout\n/);
     for (const policyId of policyIds) expect(content).toContain(policyId);
     for (const numericDefault of ['100 mil', '150 mil', '50 mil', '25 mil', '75 mil']) {
@@ -36,8 +36,8 @@ describe('professional layout skill distributions', () => {
     const metadata = readFileSync(
       resolve(ROOT, 'skills/easyeda-professional-layout/agents/openai.yaml'),
       'utf8',
-    );
-    expect(metadata).toContain('display_name: "EasyEDA Professional Layout"');
+    ).replace(/\r\n/g, '\n');
+    expect(metadata).toContain("display_name: 'EasyEDA Professional Layout'");
     expect(metadata).toContain('$easyeda-professional-layout');
   });
 });

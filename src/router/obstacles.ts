@@ -351,4 +351,3 @@ export function minimumForeignWireDistance(point: Point, environment: RoutingEnv
   }
   return minimum;
 }
-

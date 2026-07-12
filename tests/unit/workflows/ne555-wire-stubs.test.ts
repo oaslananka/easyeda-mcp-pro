@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildNe555VisibleWireStubs } from '../../../src/workflows/ne555-wire-stubs.js';
-import type { Ne555AstableRefs, Ne555AstableNets } from '../../../src/workflows/ne555-astable-template.js';
+import type {
+  Ne555AstableRefs,
+  Ne555AstableNets,
+} from '../../../src/workflows/ne555-astable-template.js';
 
 /* ─── defaults ────────────────────────────────────────────────────────── */
 

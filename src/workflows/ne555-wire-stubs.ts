@@ -9,15 +9,11 @@ export function buildNe555VisibleWireStubs(
   const at = (dx: number, dy: number) => ({ x: anchor.x + dx, y: anchor.y + dy });
   const wires: WorkflowWireInput[] = [];
 
-  const route = (
-    role: string,
-    netName: string,
-    points: { dx: number; dy: number }[],
-  ) => {
+  const route = (role: string, netName: string, points: { dx: number; dy: number }[]) => {
     wires.push({
       role,
       netName,
-      points: points.map(p => at(p.dx, p.dy)),
+      points: points.map((p) => at(p.dx, p.dy)),
       lineWidth: 1,
     });
   };

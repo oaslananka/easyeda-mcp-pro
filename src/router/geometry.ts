@@ -213,7 +213,9 @@ export function segmentIntersectsRect(a: Point, b: Point, rect: Rect): boolean {
     [bottomRight, bottomLeft],
     [bottomLeft, topLeft],
   ];
-  return edges.some(([start, end]) => intersectAxisAlignedSegments(a, b, start, end).kind !== 'none');
+  return edges.some(
+    ([start, end]) => intersectAxisAlignedSegments(a, b, start, end).kind !== 'none',
+  );
 }
 
 export function distancePointToRect(point: Point, rect: Rect): number {
@@ -286,4 +288,3 @@ export function boundingRect(points: readonly Point[]): Rect {
   }
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
-

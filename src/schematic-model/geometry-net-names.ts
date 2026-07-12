@@ -65,7 +65,9 @@ function mergedRules(rules?: NetNameNormalizationRules): Required<NetNameNormali
   return {
     exact: { ...DEFAULT_NET_NAME_RULES.exact, ...rules?.exact },
     stripImportedSymbolsPrefix:
-      rules?.stripImportedSymbolsPrefix ?? DEFAULT_NET_NAME_RULES.stripImportedSymbolsPrefix ?? true,
+      rules?.stripImportedSymbolsPrefix ??
+      DEFAULT_NET_NAME_RULES.stripImportedSymbolsPrefix ??
+      true,
     normalizePowerPrefixes:
       rules?.normalizePowerPrefixes ?? DEFAULT_NET_NAME_RULES.normalizePowerPrefixes ?? true,
     normalizeGroundAliases:
@@ -82,10 +84,7 @@ function categoryFor(name: string | null, excluded: boolean): NetNameCategory {
   if (!name) return 'unnamed';
   const upper = name.toUpperCase();
   if (/^(?:A|D|P)?GND$/.test(upper) || upper === 'VSS') return 'ground';
-  if (
-    /^\+\d/.test(upper) ||
-    /^(?:VCC|VDD|VEE|VBUS|VBAT|VSYS|VIN|VOUT|AVCC|DVCC)$/.test(upper)
-  ) {
+  if (/^\+\d/.test(upper) || /^(?:VCC|VDD|VEE|VBUS|VBAT|VSYS|VIN|VOUT|AVCC|DVCC)$/.test(upper)) {
     return 'power';
   }
   return 'signal';

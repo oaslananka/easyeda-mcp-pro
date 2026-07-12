@@ -86,7 +86,11 @@ export function classifyComponent(input: RawComponentInput): ComponentClassifica
     };
   }
 
-  if (type === 'netflag' || type === 'powersymbol' || /(?:ground|gnd|power)[+\dv]/.test(symbolText)) {
+  if (
+    type === 'netflag' ||
+    type === 'powersymbol' ||
+    /(?:ground|gnd|power)[+\dv]/.test(symbolText)
+  ) {
     reasons.push('Net flag/power symbol participates in connectivity but not the BOM.');
     return {
       symbolSource: source,

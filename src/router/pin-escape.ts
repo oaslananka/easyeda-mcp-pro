@@ -114,7 +114,8 @@ function inferredDirections(
     west: Math.abs(point.x - bounds.x),
   };
   return [...DIRECTION_ORDER].sort(
-    (a, b) => distances[a] - distances[b] || DIRECTION_ORDER.indexOf(a) - DIRECTION_ORDER.indexOf(b),
+    (a, b) =>
+      distances[a] - distances[b] || DIRECTION_ORDER.indexOf(a) - DIRECTION_ORDER.indexOf(b),
   );
 }
 
@@ -147,8 +148,7 @@ function validateLead(
     const start = points[index - 1];
     const end = points[index];
     if (!start || !end) continue;
-    const ignore =
-      index === 1 && ownerObstacleId ? new Set<string>([ownerObstacleId]) : undefined;
+    const ignore = index === 1 && ownerObstacleId ? new Set<string>([ownerObstacleId]) : undefined;
     collisions.push(
       ...checkSegmentCollisions(start, end, environment, {
         segmentIndex: index - 1,
@@ -170,7 +170,8 @@ export function buildPinEscapeCandidates(
     ? { ...original, direction: directionOverride }
     : original;
   const owner = findOwnerObstacle(terminal, environment);
-  const shouldEscape = isRouteTerminal(endpoint) || directionOverride !== undefined || owner !== undefined;
+  const shouldEscape =
+    isRouteTerminal(endpoint) || directionOverride !== undefined || owner !== undefined;
   const directions = shouldEscape ? inferredDirections(terminal, owner) : [null];
   const candidates = new Map<string, PinEscapeCandidate>();
   const rejected: RouteCollision[] = [];
@@ -222,7 +223,10 @@ export function buildPinEscapeCandidates(
       a.leadLength - b.leadLength ||
       a.bends - b.bends ||
       pointKey(a.anchor).localeCompare(pointKey(b.anchor)) ||
-      a.pointsFromTerminal.map(pointKey).join(';').localeCompare(b.pointsFromTerminal.map(pointKey).join(';')),
+      a.pointsFromTerminal
+        .map(pointKey)
+        .join(';')
+        .localeCompare(b.pointsFromTerminal.map(pointKey).join(';')),
   );
   return ordered.length > 0
     ? { candidates: ordered }
@@ -234,4 +238,3 @@ export function buildPinEscapeCandidates(
         },
       };
 }
-

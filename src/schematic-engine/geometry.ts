@@ -49,10 +49,7 @@ export function boundsBottom(bounds: SchematicBounds): number {
 
 export function boundsOverlap(a: SchematicBounds, b: SchematicBounds): boolean {
   return (
-    a.x < boundsRight(b) &&
-    boundsRight(a) > b.x &&
-    a.y < boundsBottom(b) &&
-    boundsBottom(a) > b.y
+    a.x < boundsRight(b) && boundsRight(a) > b.x && a.y < boundsBottom(b) && boundsBottom(a) > b.y
   );
 }
 
@@ -88,9 +85,6 @@ export function snapToGrid(value: number, grid: number): number {
   return Math.round(value / grid) * grid;
 }
 
-export function translateBounds(
-  bounds: SchematicBounds,
-  delta: SchematicPoint,
-): SchematicBounds {
+export function translateBounds(bounds: SchematicBounds, delta: SchematicPoint): SchematicBounds {
   return { ...bounds, x: bounds.x + delta.x, y: bounds.y + delta.y };
 }

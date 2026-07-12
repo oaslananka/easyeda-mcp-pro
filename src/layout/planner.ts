@@ -1,6 +1,5 @@
 import {
   boundsBottom,
-  boundsRight,
   combineBounds,
   snapToGrid,
   type SchematicBounds,
@@ -174,9 +173,7 @@ function normalizedConstraints(
 function componentRotation(component: FunctionalLayoutComponent): PrimitiveRotation {
   const allowed: PrimitiveRotation[] = [
     ...new Set<PrimitiveRotation>(component.allowedRotations ?? [0, 90, 180, 270]),
-  ].sort(
-    (a, b) => a - b,
-  );
+  ].sort((a, b) => a - b);
   if (component.preferredRotation !== undefined && allowed.includes(component.preferredRotation)) {
     return component.preferredRotation;
   }
@@ -208,7 +205,9 @@ function buildBlockDrafts(
       const mains = members.filter((member) => member.role === 'main');
       const supports = members.filter((member) => member.role !== 'main');
       const ordered = [...mains, ...supports];
-      const sizes = ordered.map((component) => renderedSize(component, componentRotation(component)));
+      const sizes = ordered.map((component) =>
+        renderedSize(component, componentRotation(component)),
+      );
       if (constraints.preferredFlow === 'top-to-bottom') {
         return {
           id,
@@ -258,7 +257,9 @@ function conflictSummary(
     blockId,
     code,
     message: group.map((item) => item.message).join(' '),
-    constraintIds: [...new Set(group.map((item) => item.regionId))].sort(),
+    constraintIds: [...new Set(group.map((item) => item.regionId))].sort((a, b) =>
+      a.localeCompare(b),
+    ),
   }));
 }
 
@@ -293,7 +294,9 @@ function placeMembers(
 } {
   const ordered = [...block.mains, ...block.supports].sort((a, b) => {
     const mainOrder = Number(a.role !== 'main') - Number(b.role !== 'main');
-    return mainOrder || (a.parentId ?? '').localeCompare(b.parentId ?? '') || a.id.localeCompare(b.id);
+    return (
+      mainOrder || (a.parentId ?? '').localeCompare(b.parentId ?? '') || a.id.localeCompare(b.id)
+    );
   });
   let cursorX = reservation.bounds.x + constraints.blockPadding;
   let cursorY = reservation.bounds.y + constraints.blockPadding;
@@ -332,8 +335,11 @@ function placeMembers(
       blockId: block.id,
       ...(parentId !== 'block' ? { parentId } : {}),
       role,
-      componentIds: group.map((placement) => placement.componentId).sort(),
-      bounds: combineBounds(group.map((placement) => placement.combinedBounds)) ?? reservation.bounds,
+      componentIds: group
+        .map((placement) => placement.componentId)
+        .sort((a, b) => a.localeCompare(b)),
+      bounds:
+        combineBounds(group.map((placement) => placement.combinedBounds)) ?? reservation.bounds,
     };
   });
   return { placements, supports };
@@ -376,8 +382,12 @@ function attemptSheet(
     const reservation: FunctionalBlockReservation = {
       blockId: block.id,
       bounds: selected.combinedBounds,
-      componentIds: [...block.mains, ...block.supports].map((component) => component.id).sort(),
-      supportComponentIds: block.supports.map((component) => component.id).sort(),
+      componentIds: [...block.mains, ...block.supports]
+        .map((component) => component.id)
+        .sort((a, b) => a.localeCompare(b)),
+      supportComponentIds: block.supports
+        .map((component) => component.id)
+        .sort((a, b) => a.localeCompare(b)),
     };
     blocks.push(reservation);
     occupancy.push({
@@ -392,14 +402,18 @@ function attemptSheet(
   }
   const globalPlacementOrder = [...placements].sort((a, b) => {
     const roleOrder = Number(a.role !== 'main') - Number(b.role !== 'main');
-    return roleOrder || a.blockId.localeCompare(b.blockId) || a.componentId.localeCompare(b.componentId);
+    return (
+      roleOrder || a.blockId.localeCompare(b.blockId) || a.componentId.localeCompare(b.componentId)
+    );
   });
   globalPlacementOrder.forEach((placement, index) => {
     placement.placementOrder = index;
   });
   const sheetArea = Math.max(1, sheet.drawableBounds.width * sheet.drawableBounds.height);
   const utilization = occupiedArea(blocks) / sheetArea;
-  const unsatisfiedConstraints = [...new Set(conflicts.map((conflict) => conflict.code))].sort();
+  const unsatisfiedConstraints = [...new Set(conflicts.map((conflict) => conflict.code))].sort(
+    (a, b) => a.localeCompare(b),
+  );
   return {
     sheet,
     blocks,
@@ -447,14 +461,16 @@ function proximityScore(
       maximum,
     });
   }
-  if (distances.length === 0) return { score: 1, rationale: ['No parent proximity rules were required.'] };
+  if (distances.length === 0)
+    return { score: 1, rationale: ['No parent proximity rules were required.'] };
   const score =
     distances.reduce((sum, item) => sum + Math.max(0, 1 - item.distance / item.maximum), 0) /
     distances.length;
   return {
     score,
     rationale: distances.map(
-      (item) => `${item.id} is ${item.distance.toFixed(2)} units from its parent (limit ${item.maximum}).`,
+      (item) =>
+        `${item.id} is ${item.distance.toFixed(2)} units from its parent (limit ${item.maximum}).`,
     ),
   };
 }
@@ -465,7 +481,8 @@ function finalScore(
   constraints: FunctionalLayoutConstraints,
 ): FunctionalLayoutScore {
   const proximity = proximityScore(result.placements, input.components, constraints);
-  const target = (constraints.minimumReadableUtilization + constraints.maximumReadableUtilization) / 2;
+  const target =
+    (constraints.minimumReadableUtilization + constraints.maximumReadableUtilization) / 2;
   const utilizationScore = Math.max(0, 1 - Math.abs(result.attempt.utilization - target) / target);
   const clearance = result.conflicts.length === 0 ? 1 : 0;
   const overall = (proximity.score * 0.4 + utilizationScore * 0.3 + clearance * 0.3) * 100;

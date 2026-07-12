@@ -249,7 +249,9 @@ function registerVisualTools(
           };
         }
         if (sheet.source !== 'sheet-info') {
-          warnings.push('Using inferred A4 landscape geometry; the viewport is not runtime-proven.');
+          warnings.push(
+            'Using inferred A4 landscape geometry; the viewport is not runtime-proven.',
+          );
         }
 
         const viewport = {

@@ -31,12 +31,7 @@ export interface RouteTerminal {
 
 export type RouteEndpoint = Point | RouteTerminal;
 
-export type RoutingObstacleKind =
-  | 'component'
-  | 'pin-text'
-  | 'text'
-  | 'net-label'
-  | 'keepout';
+export type RoutingObstacleKind = 'component' | 'pin-text' | 'text' | 'net-label' | 'keepout';
 
 export interface RoutingObstacle {
   id: string;
@@ -222,4 +217,3 @@ export interface ResolvedRouteOptions {
   endpointTolerance: number;
   costWeights: RouteCostWeights;
 }
-

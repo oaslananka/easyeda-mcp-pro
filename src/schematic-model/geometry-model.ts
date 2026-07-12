@@ -51,17 +51,10 @@ export type BasePinElectricalType =
   | 'noConnect'
   | 'unspecified';
 
-export type PinElectricalType =
-  | BasePinElectricalType
-  | 'hidden'
-  | 'stacked'
-  | 'internal';
+export type PinElectricalType = BasePinElectricalType | 'hidden' | 'stacked' | 'internal';
 
 export type AttributeResolution =
-  | 'literal'
-  | 'resolved-expression'
-  | 'unresolved-expression'
-  | 'missing';
+  'literal' | 'resolved-expression' | 'unresolved-expression' | 'missing';
 
 export interface ResolvedAttribute {
   raw?: string;

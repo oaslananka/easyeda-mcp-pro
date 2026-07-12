@@ -23,7 +23,11 @@ export class GridLimitError extends Error {
   }
 }
 
-export function createRoutingGrid(bounds: Rect, spacing: number, maxGridCells: number): RoutingGrid {
+export function createRoutingGrid(
+  bounds: Rect,
+  spacing: number,
+  maxGridCells: number,
+): RoutingGrid {
   if (!Number.isFinite(spacing) || spacing <= 0) {
     throw new GridLimitError('Grid size must be a positive finite number.');
   }
@@ -78,4 +82,3 @@ export function gridNeighbors(point: Point, grid: RoutingGrid): readonly GridNei
   }
   return result;
 }
-

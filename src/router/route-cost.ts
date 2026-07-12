@@ -34,11 +34,7 @@ export const DEFAULT_ROUTE_COST_WEIGHTS: RouteCostWeights = {
   compactness: 0.15,
 };
 
-const TEXT_KINDS: ReadonlySet<RoutingObstacleKind> = new Set([
-  'pin-text',
-  'text',
-  'net-label',
-]);
+const TEXT_KINDS: ReadonlySet<RoutingObstacleKind> = new Set(['pin-text', 'text', 'net-label']);
 const COMPONENT_KINDS: ReadonlySet<RoutingObstacleKind> = new Set(['component']);
 
 export interface RouteCostContext {
@@ -81,9 +77,7 @@ function channelReward(
 }
 
 function compactnessPenalty(point: Point, compactBounds: Rect, weight: number): number {
-  return pointInRect(point, compactBounds)
-    ? 0
-    : distancePointToRect(point, compactBounds) * weight;
+  return pointInRect(point, compactBounds) ? 0 : distancePointToRect(point, compactBounds) * weight;
 }
 
 export function createRouteCostContext(
@@ -142,10 +136,7 @@ export function calculateStepCost(
   return Math.max(length * 0.05, cost - Math.min(reward, cost * 0.8));
 }
 
-export function calculatePathCost(
-  points: readonly Point[],
-  context: RouteCostContext,
-): number {
+export function calculatePathCost(points: readonly Point[], context: RouteCostContext): number {
   let cost = 0;
   let previousDirection: CardinalDirection | null = null;
   for (let index = 1; index < points.length; index += 1) {
@@ -159,4 +150,3 @@ export function calculatePathCost(
   }
   return Number(cost.toFixed(6));
 }
-

@@ -1,12 +1,7 @@
 export type LayoutQaSeverity = 'critical' | 'error' | 'warning' | 'info';
 
 export type LayoutQaCategory =
-  | 'electrical'
-  | 'geometry'
-  | 'readability'
-  | 'grouping'
-  | 'wiring'
-  | 'runtime';
+  'electrical' | 'geometry' | 'readability' | 'grouping' | 'wiring' | 'runtime';
 
 export type LayoutQaEvidenceSource =
   | 'exact_geometry'
@@ -344,7 +339,11 @@ function textRegions(
       primitive.primitiveType === 'annotation') &&
     regions.length === 0
   ) {
-    regions.push({ ownerId: primitive.id, bounds: primitive.combinedBounds, kind: primitive.primitiveType });
+    regions.push({
+      ownerId: primitive.id,
+      bounds: primitive.combinedBounds,
+      kind: primitive.primitiveType,
+    });
   }
   return regions;
 }
@@ -353,9 +352,7 @@ function blockingSeverity(severity: LayoutQaSeverity): boolean {
   return severity === 'critical' || severity === 'error';
 }
 
-function diagnosticClassification(
-  diagnostic: RuntimeDiagnostic,
-): RuntimeDiagnosticClassification {
+function diagnosticClassification(diagnostic: RuntimeDiagnostic): RuntimeDiagnosticClassification {
   if (diagnostic.classification) return diagnostic.classification;
   const message = diagnostic.message.toLowerCase();
   if (/intentional|no connect|\bnc\b/.test(message)) return 'intentional_nc';
@@ -392,16 +389,13 @@ function diagnosticSeverity(
 function issueIdentity(value: LayoutQaIssue): string {
   return [
     value.code,
-    [...value.affectedPrimitiveIds].sort().join(','),
-    [...value.affectedNets].sort().join(','),
-    [...value.affectedPins].sort().join(','),
+    [...value.affectedPrimitiveIds].sort((a, b) => a.localeCompare(b)).join(','),
+    [...value.affectedNets].sort((a, b) => a.localeCompare(b)).join(','),
+    [...value.affectedPins].sort((a, b) => a.localeCompare(b)).join(','),
   ].join('|');
 }
 
-function scoreDimension(
-  issues: LayoutQaIssue[],
-  categories: LayoutQaCategory[],
-): number {
+function scoreDimension(issues: LayoutQaIssue[], categories: LayoutQaCategory[]): number {
   const penalty = issues
     .filter((value) => categories.includes(value.category))
     .reduce((sum, value) => sum + SEVERITY_PENALTY[value.severity], 0);
@@ -481,7 +475,8 @@ export function evaluateSchematicLayoutQa(input: LayoutQaInput): LayoutQaResult 
           affectedPrimitiveIds: [primitive.id],
           region: primitive.combinedBounds,
           evidence: `Rendered combined bounds intersect ${keepout.id}.`,
-          remediation: 'Move the complete rendered primitive, including all text, outside the hard keep-out.',
+          remediation:
+            'Move the complete rendered primitive, including all text, outside the hard keep-out.',
           blocksCommit: true,
           confidence: primitive.geometrySource === 'runtime' ? 1 : 0.85,
         }),
@@ -816,7 +811,8 @@ export function evaluateSchematicLayoutQa(input: LayoutQaInput): LayoutQaResult 
           measured,
           expected: thresholds.excessiveWireLength,
           evidence: 'Orthogonal path length exceeds the workflow threshold.',
-          remediation: 'Move related blocks closer or replace the cross-sheet route with an explicit net label.',
+          remediation:
+            'Move related blocks closer or replace the cross-sheet route with an explicit net label.',
           blocksCommit: false,
           confidence: 1,
         }),
@@ -841,7 +837,8 @@ export function evaluateSchematicLayoutQa(input: LayoutQaInput): LayoutQaResult 
           measured: utilization,
           expected: thresholds.minimumUtilization,
           evidence: 'Total component rendered area divided by drawable page area is too low.',
-          remediation: 'Consolidate functional blocks or use a smaller sheet when constraints allow.',
+          remediation:
+            'Consolidate functional blocks or use a smaller sheet when constraints allow.',
           blocksCommit: false,
           confidence: 0.9,
         }),
@@ -875,7 +872,8 @@ export function evaluateSchematicLayoutQa(input: LayoutQaInput): LayoutQaResult 
             measured: density,
             expected: thresholds.maximumLocalDensity,
             evidence: 'Rendered component area within a normalized page cell is too dense.',
-            remediation: 'Redistribute the affected functional block while preserving relationships.',
+            remediation:
+              'Redistribute the affected functional block while preserving relationships.',
             blocksCommit: false,
             confidence: 0.9,
           }),
@@ -918,7 +916,8 @@ export function evaluateSchematicLayoutQa(input: LayoutQaInput): LayoutQaResult 
         source: 'runtime_capability',
         message: 'Bridge or active-document state could not be verified after the write.',
         evidence: 'Post-write runtime verification did not confirm both bridge and document state.',
-        remediation: 'Restore the bridge/document state and repeat readback before retrying any write.',
+        remediation:
+          'Restore the bridge/document state and repeat readback before retrying any write.',
         blocksCommit: true,
         confidence: 1,
       }),
@@ -936,7 +935,8 @@ export function evaluateSchematicLayoutQa(input: LayoutQaInput): LayoutQaResult 
         source: 'runtime_capability',
         message: 'Full-page capture or visual QA was unavailable.',
         evidence: 'No fit-to-page image evidence was supplied to the QA run.',
-        remediation: 'Capture the complete page and rerun visual QA; do not interpret this run as visual approval.',
+        remediation:
+          'Capture the complete page and rerun visual QA; do not interpret this run as visual approval.',
         blocksCommit: false,
         confidence: 1,
       }),
@@ -979,7 +979,9 @@ export function evaluateSchematicLayoutQa(input: LayoutQaInput): LayoutQaResult 
   const commitBlocked = issues.some((value) => value.blocksCommit);
   const inconclusive =
     !commitBlocked &&
-    (!input.visual?.captureAvailable || runtime?.drcAvailable === false || runtime?.ercAvailable === false);
+    (!input.visual?.captureAvailable ||
+      runtime?.drcAvailable === false ||
+      runtime?.ercAvailable === false);
   const status: LayoutQaResult['status'] = commitBlocked
     ? 'fail'
     : inconclusive

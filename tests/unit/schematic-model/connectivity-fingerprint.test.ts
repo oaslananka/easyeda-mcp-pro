@@ -35,10 +35,7 @@ function rawSchematic(offset = 0, detachStart = false, netName = 'SIG') {
       {
         runtimePrimitiveId: 'net-1',
         name: netName,
-        nodes: [
-          { pinPrimitiveId: 'pin-U1-1' },
-          { pinPrimitiveId: 'pin-J1-1' },
-        ],
+        nodes: [{ pinPrimitiveId: 'pin-U1-1' }, { pinPrimitiveId: 'pin-J1-1' }],
       },
     ],
     wires: [
@@ -48,9 +45,7 @@ function rawSchematic(offset = 0, detachStart = false, netName = 'SIG') {
         points: [detachStart ? { x: 30, y: 20 } : moved(30, 20), moved(90, 20)],
       },
     ],
-    labels: [
-      { runtimePrimitiveId: 'label-1', netName, position: moved(60, 20) },
-    ],
+    labels: [{ runtimePrimitiveId: 'label-1', netName, position: moved(60, 20) }],
     powerSymbols: [
       { runtimePrimitiveId: 'power-1', netName: 'GND', position: moved(50, 10), isPowerFlag: true },
     ],

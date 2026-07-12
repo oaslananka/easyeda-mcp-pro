@@ -8,10 +8,7 @@ export type ProfessionalLayoutTemplateId =
   | 'simple-analog-timer'
   | 'medium-mcu-peripheral-board';
 
-export type ProfessionalLayoutFlow =
-  | 'left-to-right'
-  | 'top-to-bottom'
-  | 'power-left-signals-right';
+export type ProfessionalLayoutFlow = 'left-to-right' | 'top-to-bottom' | 'power-left-signals-right';
 
 export type ProfessionalLayoutBlockKind =
   | 'power-entry'

@@ -60,8 +60,9 @@ function matchesAny(text: string, expressions: readonly RegExp[]): boolean {
 export function inferFunctionalBlockKind(component: LayoutComponentInput): FunctionalBlockKind {
   const text = searchableText(component);
   const reference = component.reference.toUpperCase();
-  if (matchesAny(text, [/\busb(?:-?c)?\b/, /type\s*-?\s*c/, /usb connector/])) return 'usb';
-  if (matchesAny(text, [/\bjtag\b/, /\bswd\b/, /debug/, /program(?:mer|ming) header/])) return 'debug';
+  if (matchesAny(text, [/\busb(?:-?c)?\b/, /type[\s-]*c/, /usb connector/])) return 'usb';
+  if (matchesAny(text, [/\bjtag\b/, /\bswd\b/, /debug/, /program(?:mer|ming) header/]))
+    return 'debug';
   if (
     matchesAny(text, [
       /\bldo\b/,
@@ -104,7 +105,10 @@ export function inferFunctionalBlockKind(component: LayoutComponentInput): Funct
   if (matchesAny(text, [/\bflash\b/, /\beeprom\b/, /\bsram\b/, /\bmemory\b/, /w25q/, /qspi/])) {
     return 'memory';
   }
-  if (matchesAny(text, [/\bcrystal\b/, /\bxtal\b/, /oscillator/, /resonator/]) || /^[XY]\d+/i.test(reference)) {
+  if (
+    matchesAny(text, [/\bcrystal\b/, /\bxtal\b/, /oscillator/, /resonator/]) ||
+    /^[XY]\d+/i.test(reference)
+  ) {
     return 'crystal';
   }
   if (
@@ -145,10 +149,14 @@ export function inferFunctionalBlockKind(component: LayoutComponentInput): Funct
   ) {
     return 'analog-front-end';
   }
-  if (matchesAny(text, [/connector/, /header/, /terminal block/, /\bjack\b/]) || /^(J|P|CN)\d+/i.test(reference)) {
+  if (
+    matchesAny(text, [/connector/, /header/, /terminal block/, /\bjack\b/]) ||
+    /^(J|P|CN)\d+/i.test(reference)
+  ) {
     return 'connector';
   }
-  if (matchesAny(text, [/led/, /light emitting diode/]) || /^D\d+/i.test(reference)) return 'led-chain';
+  if (matchesAny(text, [/led/, /light emitting diode/]) || /^D\d+/i.test(reference))
+    return 'led-chain';
   return 'other';
 }
 
@@ -158,10 +166,12 @@ function dominantKind(components: readonly LayoutComponentInput[]): FunctionalBl
     const kind = inferFunctionalBlockKind(component);
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
-  return [...counts.entries()].sort(
-    ([kindA, countA], [kindB, countB]) =>
-      countB - countA || KIND_PRIORITY.indexOf(kindA) - KIND_PRIORITY.indexOf(kindB),
-  )[0]?.[0] ?? 'other';
+  return (
+    [...counts.entries()].sort(
+      ([kindA, countA], [kindB, countB]) =>
+        countB - countA || KIND_PRIORITY.indexOf(kindA) - KIND_PRIORITY.indexOf(kindB),
+    )[0]?.[0] ?? 'other'
+  );
 }
 
 function inferredBlock(
@@ -235,7 +245,9 @@ export function detectFunctionalBlocks(
     grouped.push(component);
     groupedByDeclaredBlock.set(component.blockId, grouped);
   }
-  for (const [blockId, members] of [...groupedByDeclaredBlock.entries()].sort(([a], [b]) => compareIds(a, b))) {
+  for (const [blockId, members] of [...groupedByDeclaredBlock.entries()].sort(([a], [b]) =>
+    compareIds(a, b),
+  )) {
     members.forEach((component) => claimed.add(component.id));
     blocks.push(
       inferredBlock(

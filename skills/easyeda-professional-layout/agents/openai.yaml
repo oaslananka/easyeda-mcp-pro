@@ -1,7 +1,7 @@
 interface:
-  display_name: "EasyEDA Professional Layout"
-  short_description: "Plan and verify safe schematic layouts"
-  default_prompt: "Use $easyeda-professional-layout to plan, preview, and verify this schematic layout without guessing coordinates."
+  display_name: 'EasyEDA Professional Layout'
+  short_description: 'Plan and verify safe schematic layouts'
+  default_prompt: 'Use $easyeda-professional-layout to plan, preview, and verify this schematic layout without guessing coordinates.'
 
 policy:
   allow_implicit_invocation: true
