@@ -1220,6 +1220,50 @@ async function listComponentsApi(limit?: number, offset = 0): Promise<unknown> {
   return { total, items: result };
 }
 
+interface RawPrimitiveBBox {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+/**
+ * Real rendered (sheet-space) bounding box per primitive, via the runtime's own
+ * SCH_Primitive.getPrimitivesBBox -- already rotation/mirror-aware since it reads
+ * the live rendered geometry rather than recomputing it from origin+rotation.
+ */
+async function primitiveBoundsApi(primitiveIds: unknown): Promise<unknown> {
+  const schPrimitiveClass = readFirstPath<any>(['SCH_Primitive', 'sch_Primitive']);
+  if (!schPrimitiveClass) {
+    throw new Error('SCH_Primitive class not found in EasyEDA Pro API');
+  }
+  const ids = Array.isArray(primitiveIds)
+    ? primitiveIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : [];
+
+  const items: Array<{ primitiveId: string; bounds: RawPrimitiveBBox | null }> = [];
+  for (const id of ids) {
+    let bounds: RawPrimitiveBBox | null = null;
+    try {
+      bounds = (await schPrimitiveClass.getPrimitivesBBox([id])) ?? null;
+    } catch (err) {
+      logRecoverableError(`failed to read bounding box for primitive ${id}`, err);
+    }
+    items.push({ primitiveId: id, bounds });
+  }
+
+  let combined: RawPrimitiveBBox | null = null;
+  if (ids.length > 0) {
+    try {
+      combined = (await schPrimitiveClass.getPrimitivesBBox(ids)) ?? null;
+    } catch (err) {
+      logRecoverableError('failed to read combined bounding box', err);
+    }
+  }
+
+  return { items, combined };
+}
+
 async function getSchematicSheetInfoApi(): Promise<unknown> {
   const currentPage = await callFirst([
     'DMT_Schematic.getCurrentSchematicPageInfo',
@@ -3169,6 +3213,8 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       );
     case 'schematic.getSheetInfo':
       return getSchematicSheetInfoApi();
+    case 'schematic.primitiveBounds':
+      return primitiveBoundsApi(params.primitiveIds);
     case 'schematic.searchDevice':
       return callFirst(
         ['LIB_Device.search', 'lib_Device.search'],

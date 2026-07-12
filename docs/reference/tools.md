@@ -96,6 +96,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_place_component`                | `core`  | `medium` | Place a library component/device on the active schematic sheet. Auto-assigns the next free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one node. On a timeout error, auto-reconciles against the sheet before reporting failure (see reconciled/unconfirmed) — do not blindly retry.          |
 | `easyeda_schematic_plan_safe_region`               | `core`  | `low`    | Compute a safe schematic drawing region before placing components. Uses live sheet info when available, assumes EasyEDA bottom-left coordinates, reserves the default lower-right title-block keep-out, and returns an anchor/bounds plan that avoids title-block overlap.                                                       |
 | `easyeda_schematic_preview_imported_normalization` | `core`  | `low`    | Read the live schematic and produce a deterministic, read-only normalization plan with a stable plan ID, model hash, proposed net-name/reference/metadata operations, validation gates, warnings, and blockers. This tool never writes to EasyEDA.                                                                               |
+| `easyeda_schematic_primitive_bounds`               | `pro`   | `low`    | Read real rendered (sheet-space, rotation-aware) component bounding boxes from the live bridge, batched in one call. Origin is not a collision bound -- use combinedBounds for overlap/page/title-block checks. Reference/value text is not independently addressable here and reports not_available.                            |
 | `easyeda_schematic_search_device`                  | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords. Full results carry the library's complete metadata object per device; pass minimal:true to get back only uuid/libraryUuid/name/pin_count/symbol_type when that is all you need.                                                                         |
 | `easyeda_schematic_set_title_block`                | `core`  | `medium` | Update schematic title block text fields (Company, Version, Drawn, Reviewed, Page Size). Only these 5 are exposed — writing Symbol/Border/Device/etc once corrupted a real title block; those are read-only natively and must be fixed via the EasyEDA Pro UI.                                                                   |
 | `easyeda_schematic_sheet_info`                     | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
@@ -3070,6 +3071,35 @@ Returns a JSON object matching the schema:
   plan: object;
   not_available: boolean(optional);
   error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_primitive_bounds`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Read real rendered (sheet-space, rotation-aware) component bounding boxes from the live bridge, batched in one call. Origin is not a collision bound -- use combinedBounds for overlap/page/title-block checks. Reference/value text is not independently addressable here and reports not_available.
+
+### Input Parameters
+
+| Parameter      | Type                  | Required | Description |
+| -------------- | --------------------- | -------- | ----------- |
+| `projectId`    | `string`              | Yes      |             |
+| `primitiveIds` | `string[] (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  items: object[];
+  availableCount: number;
+  notAvailableCount: number;
+  units: string;
+  coordinateOrigins: object[];
 }
 ```
 
