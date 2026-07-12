@@ -94,6 +94,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_net_detail`                     | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                                                |
 | `easyeda_schematic_nets`                           | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
 | `easyeda_schematic_place_component`                | `core`  | `medium` | Place a library component/device on the active schematic sheet. Auto-assigns the next free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one node. On a timeout error, auto-reconciles against the sheet before reporting failure (see reconciled/unconfirmed) — do not blindly retry.          |
+| `easyeda_schematic_plan_layout`                    | `pro`   | `low`    | Deterministically plan functional-block placement (reserved rectangles, support space, grid-aligned coordinates, occupancy map, A3 fallback, score) from real sheet/primitive geometry -- no writes. Caller supplies roles/blockId/parentId; other primitives read as occupied regions, never overwritten.                       |
 | `easyeda_schematic_plan_safe_region`               | `core`  | `low`    | Compute a safe schematic drawing region before placing components. Uses live sheet info when available, assumes EasyEDA bottom-left coordinates, reserves the default lower-right title-block keep-out, and returns an anchor/bounds plan that avoids title-block overlap.                                                       |
 | `easyeda_schematic_preview_imported_normalization` | `core`  | `low`    | Read the live schematic and produce a deterministic, read-only normalization plan with a stable plan ID, model hash, proposed net-name/reference/metadata operations, validation gates, warnings, and blockers. This tool never writes to EasyEDA.                                                                               |
 | `easyeda_schematic_primitive_bounds`               | `pro`   | `low`    | Read real rendered (sheet-space, rotation-aware) component bounding boxes from the live bridge, batched in one call. Origin is not a collision bound -- use combinedBounds for overlap/page/title-block checks. Reference/value text is not independently addressable here and reports not_available.                            |
@@ -2997,6 +2998,45 @@ Returns a JSON object matching the schema:
   unconfirmed: boolean(optional);
   warning: string(optional);
   error: string(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_plan_layout`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Deterministically plan functional-block placement (reserved rectangles, support space, grid-aligned coordinates, occupancy map, A3 fallback, score) from real sheet/primitive geometry -- no writes. Caller supplies roles/blockId/parentId; other primitives read as occupied regions, never overwritten.
+
+### Input Parameters
+
+| Parameter         | Type                  | Required | Description |
+| ----------------- | --------------------- | -------- | ----------- |
+| `projectId`       | `string`              | Yes      |             |
+| `components`      | `object[]`            | Yes      |             |
+| `allowA3Fallback` | `boolean`             | Yes      |             |
+| `hardKeepouts`    | `object[] (optional)` | No       |             |
+| `constraints`     | `object (optional)`   | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  feasible: boolean;
+  deterministic: 'true';
+  layoutHash: string;
+  selectedSheet: object;
+  blockReservations: object[];
+  supportReservations: object[];
+  placements: object[];
+  placementOrder: string[];
+  occupancyMap: object[];
+  conflicts: object[];
+  pageSuitability: object;
+  score: object;
 }
 ```
 

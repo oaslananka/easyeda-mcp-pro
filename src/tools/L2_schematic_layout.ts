@@ -20,6 +20,12 @@ import { createConnectivityFingerprint } from '../schematic-model/connectivity-f
 import { buildSchematicModel } from '../schematic-model/model-builder.js';
 import { gatherLiveSchematicSnapshot } from '../schematic-model/live-snapshot.js';
 import { gatherLivePrimitiveBounds } from '../schematic-model/live-primitive-bounds.js';
+import {
+  gatherLiveFunctionalLayoutPlan,
+  type LiveFunctionalLayoutComponentInput,
+} from '../schematic-model/live-functional-layout.js';
+import type { FunctionalLayoutConstraints } from '../layout/planner.js';
+import type { PlacementConstraintRegion } from '../layout/placement.js';
 import { type ToolContext, type ToolDefinition } from './types.js';
 
 const boundsSchema = z.object({
@@ -177,6 +183,138 @@ const primitiveBoundsOutputSchema = z.object({
       source: z.enum(['runtime', 'live-readback', 'derived']),
     }),
   ),
+});
+
+const functionalRoleSchema = z.enum([
+  'main',
+  'decoupling-capacitor',
+  'bulk-capacitor',
+  'feedback-network',
+  'pull-up',
+  'pull-down',
+  'boot-strap',
+  'connector-protection',
+  'connector-filter',
+  'regulator-inductor',
+  'regulator-compensation',
+  'led-current-limit',
+  'transistor-gate-resistor',
+  'transistor-base-resistor',
+  'test-point',
+  'support',
+]);
+
+const layoutComponentInputSchema = z.object({
+  primitiveId: z.string().min(1),
+  blockId: z.string().min(1),
+  role: functionalRoleSchema,
+  parentId: z.string().optional(),
+  preferredRotation: z
+    .union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)])
+    .optional(),
+  allowedRotations: z
+    .array(z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]))
+    .optional(),
+  minimumProximity: z.number().nonnegative().optional(),
+});
+
+const placementConstraintRegionSchema = z.object({
+  id: z.string(),
+  kind: z.enum([
+    'title-block',
+    'page-border',
+    'caller-reserved',
+    'support-reservation',
+    'existing-object',
+  ]),
+  bounds: boundsSchema,
+  primitiveId: z.string().optional(),
+  ownerId: z.string().optional(),
+});
+
+const placementCandidateSchema = z.object({
+  origin: z.object({ x: z.number(), y: z.number() }),
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+  combinedBounds: boundsSchema,
+});
+
+const functionalLayoutOutputSchema = z.object({
+  feasible: z.boolean(),
+  deterministic: z.literal(true),
+  layoutHash: z.string(),
+  selectedSheet: z.object({
+    bounds: boundsSchema,
+    drawableBounds: boundsSchema,
+    grid: z.number(),
+    units: z.string(),
+    pageSize: z.enum(['A4', 'A3', 'custom']),
+    coordinateOrigin: z.object({
+      x: z.number(),
+      y: z.number(),
+      yAxis: z.enum(['up', 'down']),
+      source: z.enum(['runtime', 'live-readback', 'derived']),
+    }),
+    geometrySource: z.enum(['runtime', 'live-readback', 'derived']),
+    titleBlockBounds: boundsSchema.optional(),
+  }),
+  blockReservations: z.array(
+    z.object({
+      blockId: z.string(),
+      bounds: boundsSchema,
+      componentIds: z.array(z.string()),
+      supportComponentIds: z.array(z.string()),
+    }),
+  ),
+  supportReservations: z.array(
+    z.object({
+      id: z.string(),
+      blockId: z.string(),
+      parentId: z.string().optional(),
+      role: functionalRoleSchema,
+      componentIds: z.array(z.string()),
+      bounds: boundsSchema,
+    }),
+  ),
+  placements: z.array(
+    placementCandidateSchema.extend({
+      componentId: z.string(),
+      blockId: z.string(),
+      role: functionalRoleSchema,
+      parentId: z.string().optional(),
+      placementOrder: z.number().int().nonnegative(),
+    }),
+  ),
+  placementOrder: z.array(z.string()),
+  occupancyMap: z.array(placementConstraintRegionSchema),
+  conflicts: z.array(
+    z.object({
+      blockId: z.string().optional(),
+      componentId: z.string().optional(),
+      code: z.string(),
+      message: z.string(),
+      constraintIds: z.array(z.string()),
+    }),
+  ),
+  pageSuitability: z.object({
+    attempts: z.array(
+      z.object({
+        pageSize: z.enum(['A4', 'A3', 'custom']),
+        feasible: z.boolean(),
+        utilization: z.number(),
+        unsatisfiedConstraints: z.array(z.string()),
+        searchedBlockIds: z.array(z.string()),
+      }),
+    ),
+    selectedPageSize: z.enum(['A4', 'A3', 'custom']).optional(),
+    a3FallbackRationale: z.string().optional(),
+  }),
+  score: z.object({
+    overall: z.number(),
+    utilization: z.number(),
+    proximity: z.number(),
+    clearance: z.number(),
+    rationale: z.array(z.string()),
+  }),
 });
 
 export const layoutQaOutputSchema = z.object({
@@ -649,6 +787,58 @@ export function registerSchematicLayoutTools(
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId, primitiveIds } = params as { projectId: string; primitiveIds?: string[] };
       return gatherLivePrimitiveBounds(ctx, projectId, { primitiveIds });
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_plan_layout',
+    title: 'Plan deterministic functional-block layout',
+    description:
+      'Deterministically plan functional-block placement (reserved rectangles, support space, ' +
+      'grid-aligned coordinates, occupancy map, A3 fallback, score) from real sheet/primitive ' +
+      'geometry -- no writes. Caller supplies roles/blockId/parentId; other primitives read as ' +
+      'occupied regions, never overwritten.',
+    profile: 'pro',
+    evidence: ['runtime-probe', 'inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'workflows',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: false,
+    },
+    inputSchema: z.object({
+      projectId: z.string().min(1),
+      components: z.array(layoutComponentInputSchema).min(1),
+      allowA3Fallback: z.boolean().default(false),
+      hardKeepouts: z.array(placementConstraintRegionSchema).optional(),
+      constraints: z
+        .object({
+          minimumClearance: z.number().nonnegative().optional(),
+          blockPadding: z.number().nonnegative().optional(),
+          componentSpacing: z.number().nonnegative().optional(),
+          preferredFlow: z.enum(['left-to-right', 'top-to-bottom']).optional(),
+          maximumSupportDistance: z.number().positive().optional(),
+          minimumReadableUtilization: z.number().min(0).max(1).optional(),
+          maximumReadableUtilization: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    }),
+    outputSchema: functionalLayoutOutputSchema,
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const values = params as {
+        projectId: string;
+        components: LiveFunctionalLayoutComponentInput[];
+        allowA3Fallback: boolean;
+        hardKeepouts?: PlacementConstraintRegion[];
+        constraints?: Partial<FunctionalLayoutConstraints>;
+      };
+      return gatherLiveFunctionalLayoutPlan(ctx, values.projectId, values.components, {
+        a3FallbackAllowed: values.allowA3Fallback,
+        hardKeepouts: values.hardKeepouts,
+        constraints: values.constraints,
+      });
     },
   });
 }
