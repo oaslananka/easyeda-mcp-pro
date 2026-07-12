@@ -112,6 +112,92 @@ describe('schematic layout QA', () => {
     expect(result.evidence.fullPageCapture).toBe(false);
   });
 
+  it('classifies intentional-NC and symbol-model-limitation diagnostics from message text', () => {
+    const qaInput = input();
+    qaInput.runtime = {
+      bridgeVerified: true,
+      documentVerified: true,
+      drcAvailable: true,
+      ercAvailable: true,
+      drc: [{ message: 'Pin marked as intentional no connect' }],
+      erc: [{ message: 'Symbol pin type mismatch' }],
+    };
+
+    const result = evaluateSchematicLayoutQa(qaInput);
+    const codes = result.issues.map((issue) => issue.code);
+
+    expect(codes).toContain('DRC_INTENTIONAL_NC');
+    expect(codes).toContain('ERC_SYMBOL_MODEL_LIMITATION');
+    const intentional = result.issues.find((issue) => issue.code === 'DRC_INTENTIONAL_NC');
+    expect(intentional?.severity).toBe('info');
+    expect(intentional?.blocksCommit).toBe(false);
+  });
+
+  it('reports unverified bridge/document state after a write', () => {
+    const qaInput = input([component('U1', 100, 100)]);
+    qaInput.runtime = { bridgeVerified: false, documentVerified: true };
+
+    const result = evaluateSchematicLayoutQa(qaInput);
+
+    expect(result.issues.map((issue) => issue.code)).toContain('DOCUMENT_STATE_UNVERIFIED');
+    expect(result.commitBlocked).toBe(true);
+  });
+
+  it('passes through supplied visual heuristic findings', () => {
+    const qaInput = input([component('U1', 100, 100)]);
+    qaInput.visual = {
+      captureAvailable: true,
+      findings: [
+        {
+          code: 'LOCAL_CROWDING',
+          severity: 'warning',
+          message: 'Visually crowded region',
+          confidence: 0.7,
+          affectedPrimitiveIds: ['U1'],
+          remediation: 'Spread components out.',
+        },
+      ],
+    };
+
+    const result = evaluateSchematicLayoutQa(qaInput);
+    const finding = result.issues.find((issue) => issue.source === 'visual_heuristic');
+
+    expect(finding?.code).toBe('LOCAL_CROWDING');
+    expect(finding?.confidence).toBe(0.7);
+  });
+
+  it('does not flag a satisfied pin mapping or an in-range relationship', () => {
+    const u1 = component('U1', 100, 100);
+    u1.pinConnections = [{ pin: '1', netName: 'GND', connected: true }];
+    const r1 = component('R1', 130, 100);
+    const qaInput = input([u1, r1]);
+    qaInput.expected = { pinMappings: [{ componentRef: 'U1', pin: '1', netName: 'GND' }] };
+    qaInput.relationships = [{ sourceId: 'U1', targetId: 'R1', kind: 'support', maxDistance: 500 }];
+
+    const result = evaluateSchematicLayoutQa(qaInput);
+    const codes = result.issues.map((issue) => issue.code);
+
+    expect(codes).not.toContain('EXPECTED_NET_MISMATCH');
+    expect(codes).not.toContain('RELATED_COMPONENT_DISTANCE');
+  });
+
+  it('includes pin-name, label, and annotation text regions in overlap detection', () => {
+    const u1 = component('U1', 100, 100, 80, 40);
+    u1.pinTextBounds = [{ x: 200, y: 100, width: 20, height: 10 }];
+    u1.labelBounds = [{ x: 220, y: 100, width: 20, height: 10 }];
+    u1.annotationBounds = [{ x: 240, y: 100, width: 20, height: 10 }];
+    const overlappingText: LayoutQaPrimitive = {
+      id: 'note-1',
+      primitiveType: 'annotation',
+      combinedBounds: { x: 205, y: 100, width: 20, height: 10 },
+      geometrySource: 'runtime',
+    };
+
+    const result = evaluateSchematicLayoutQa(input([u1, overlappingText]));
+
+    expect(result.issues.map((issue) => issue.code)).toContain('TEXT_TEXT_OVERLAP');
+  });
+
   it('validates topology, detached netports, relationships, and excessive wires', () => {
     const u1 = component('U1', 100, 100);
     u1.pinConnections = [{ pin: '1', netName: 'WRONG', connected: true }];
@@ -166,5 +252,115 @@ describe('schematic layout QA', () => {
     expect(comparison.newIssues.map((issue) => issue.code)).not.toContain('TITLE_BLOCK_OVERLAP');
     expect(comparison.afterScore).toBeGreaterThan(comparison.beforeScore);
     expect(comparison.improved).toBe(true);
+  });
+
+  it('keeps an unresolved issue in unchangedIssues across a comparison', () => {
+    const stuck = () => input([component('U1', 660, 100, 80, 40)]);
+    const before = evaluateSchematicLayoutQa(stuck());
+    const after = evaluateSchematicLayoutQa(stuck());
+
+    const comparison = compareSchematicLayoutQa(before, after);
+
+    expect(comparison.unchangedIssues.map((issue) => issue.code)).toContain('TITLE_BLOCK_OVERLAP');
+    expect(comparison.newIssues).toEqual([]);
+    expect(comparison.resolvedIssues).toEqual([]);
+    expect(comparison.improved).toBe(false);
+  });
+
+  it('flags a primitive that extends past the drawable page bounds', () => {
+    const primitive = component('U1', -50, 100, 80, 40);
+    const result = evaluateSchematicLayoutQa(input([primitive]));
+
+    expect(result.issues.map((issue) => issue.code)).toContain('PAGE_BOUNDARY_OVERFLOW');
+    expect(result.commitBlocked).toBe(true);
+  });
+
+  it('flags a section box that conflicts with a foreign component or the title block', () => {
+    const section: LayoutQaPrimitive = {
+      id: 'sec-1',
+      primitiveType: 'section',
+      blockId: 'block-a',
+      combinedBounds: { x: 90, y: 90, width: 100, height: 100 },
+      geometrySource: 'runtime',
+    };
+    const foreign = component('R1', 100, 100, 40, 20);
+    foreign.blockId = 'block-b';
+
+    const result = evaluateSchematicLayoutQa(input([section, foreign]));
+
+    expect(result.issues.map((issue) => issue.code)).toContain('SECTION_BOX_CONFLICT');
+  });
+
+  it('does not flag a section box against its own member components', () => {
+    const section: LayoutQaPrimitive = {
+      id: 'sec-1',
+      primitiveType: 'section',
+      blockId: 'block-a',
+      combinedBounds: { x: 90, y: 90, width: 100, height: 100 },
+      geometrySource: 'runtime',
+    };
+    const member = component('R1', 100, 100, 40, 20);
+    member.blockId = 'block-a';
+
+    const result = evaluateSchematicLayoutQa(input([section, member]));
+
+    expect(result.issues.map((issue) => issue.code)).not.toContain('SECTION_BOX_CONFLICT');
+  });
+
+  it('flags a dangling pin that is unconnected or has no net name', () => {
+    const u1 = component('U1', 100, 100);
+    u1.pinConnections = [{ pin: '1', connected: false }];
+
+    const result = evaluateSchematicLayoutQa(input([u1]));
+
+    expect(result.issues.map((issue) => issue.code)).toContain('DANGLING_PIN');
+    expect(result.commitBlocked).toBe(true);
+  });
+
+  it('flags duplicate visible labels/netports sharing the same net name', () => {
+    const labelA: LayoutQaPrimitive = {
+      id: 'label-1',
+      primitiveType: 'label',
+      netName: 'VCC',
+      combinedBounds: { x: 100, y: 100, width: 20, height: 10 },
+      geometrySource: 'runtime',
+    };
+    const labelB: LayoutQaPrimitive = {
+      id: 'label-2',
+      primitiveType: 'netport',
+      netName: 'VCC',
+      connected: true,
+      combinedBounds: { x: 300, y: 100, width: 20, height: 10 },
+      geometrySource: 'runtime',
+    };
+
+    const result = evaluateSchematicLayoutQa(input([labelA, labelB]));
+
+    expect(result.issues.map((issue) => issue.code)).toContain('DUPLICATE_NET_LABEL');
+    expect(result.commitBlocked).toBe(false);
+  });
+
+  it('flags excessive whitespace when components occupy too little of the sheet', () => {
+    const qaInput = input([
+      component('U1', 20, 20, 10, 10),
+      component('U2', 500, 400, 10, 10),
+      component('U3', 800, 600, 10, 10),
+    ]);
+
+    const result = evaluateSchematicLayoutQa(qaInput);
+
+    expect(result.issues.map((issue) => issue.code)).toContain('EXCESSIVE_WHITESPACE');
+  });
+
+  it('flags local crowding when a page region exceeds the density threshold', () => {
+    const qaInput = input([
+      component('U1', 20, 20, 200, 150),
+      component('U2', 20, 20, 190, 140),
+      component('U3', 20, 20, 180, 130),
+    ]);
+
+    const result = evaluateSchematicLayoutQa(qaInput);
+
+    expect(result.issues.map((issue) => issue.code)).toContain('LOCAL_CROWDING');
   });
 });
