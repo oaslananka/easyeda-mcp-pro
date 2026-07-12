@@ -19,6 +19,7 @@ import {
 import { createConnectivityFingerprint } from '../schematic-model/connectivity-fingerprint.js';
 import { buildSchematicModel } from '../schematic-model/model-builder.js';
 import { gatherLiveSchematicSnapshot } from '../schematic-model/live-snapshot.js';
+import { gatherLivePrimitiveBounds } from '../schematic-model/live-primitive-bounds.js';
 import { type ToolContext, type ToolDefinition } from './types.js';
 
 const boundsSchema = z.object({
@@ -126,6 +127,56 @@ const connectivityFingerprintOutputSchema = z.object({
     ),
   }),
   diagnosticCount: z.number().int().nonnegative(),
+});
+
+const primitiveBoundsSegmentSchema = z.object({
+  id: z.string().optional(),
+  bounds: boundsSchema,
+  geometrySource: z.enum(['runtime', 'derived', 'approximate']),
+  confidence: z.enum(['exact', 'conservative', 'low']),
+});
+
+const primitiveBoundsItemSchema = z.object({
+  id: z.string(),
+  primitiveType: z.string(),
+  origin: z.object({ x: z.number(), y: z.number() }),
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+  mirroredX: z.boolean(),
+  mirroredY: z.boolean(),
+  units: z.string(),
+  grid: z.number(),
+  coordinateOrigin: z.object({
+    x: z.number(),
+    y: z.number(),
+    yAxis: z.enum(['up', 'down']),
+    source: z.enum(['runtime', 'live-readback', 'derived']),
+  }),
+  availability: z.enum(['available', 'not_available']),
+  geometrySource: z.enum(['runtime', 'derived', 'approximate', 'not_available']),
+  confidence: z.enum(['exact', 'conservative', 'low', 'not_available']),
+  body: primitiveBoundsSegmentSchema.optional(),
+  reference: primitiveBoundsSegmentSchema.optional(),
+  value: primitiveBoundsSegmentSchema.optional(),
+  pinTexts: z.array(primitiveBoundsSegmentSchema),
+  labels: z.array(primitiveBoundsSegmentSchema),
+  annotations: z.array(primitiveBoundsSegmentSchema),
+  combinedBounds: boundsSchema.optional(),
+  limitations: z.array(z.string()),
+});
+
+const primitiveBoundsOutputSchema = z.object({
+  items: z.array(primitiveBoundsItemSchema),
+  availableCount: z.number().int().nonnegative(),
+  notAvailableCount: z.number().int().nonnegative(),
+  units: z.string(),
+  coordinateOrigins: z.array(
+    z.object({
+      x: z.number(),
+      y: z.number(),
+      yAxis: z.enum(['up', 'down']),
+      source: z.enum(['runtime', 'live-readback', 'derived']),
+    }),
+  ),
 });
 
 export const layoutQaOutputSchema = z.object({
@@ -569,6 +620,35 @@ export function registerSchematicLayoutTools(
         normalized: fingerprint.normalized,
         diagnosticCount: model.diagnostics.length,
       };
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_primitive_bounds',
+    title: 'Get schematic primitive bounding boxes',
+    description:
+      'Read real rendered (sheet-space, rotation-aware) component bounding boxes from the ' +
+      'live bridge, batched in one call. Origin is not a collision bound -- use ' +
+      'combinedBounds for overlap/page/title-block checks. Reference/value text is not ' +
+      'independently addressable here and reports not_available.',
+    profile: 'pro',
+    evidence: ['runtime-probe', 'inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'workflows',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().min(1),
+      primitiveIds: z.array(z.string().min(1)).optional(),
+    }),
+    outputSchema: primitiveBoundsOutputSchema,
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, primitiveIds } = params as { projectId: string; primitiveIds?: string[] };
+      return gatherLivePrimitiveBounds(ctx, projectId, { primitiveIds });
     },
   });
 }
