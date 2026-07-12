@@ -58,8 +58,9 @@ await build({
   ...commonOptions,
   entryPoints: [join(root, 'src', 'index.ts')],
   outfile: join(distDir, 'index.js'),
-  // EasyEDA's extension loader resolves exported lifecycle/menu functions
-  // from this exact IIFE global (the official pro-api-sdk uses the same name).
+  // EasyEDA's extension loader resolves exported lifecycle/menu functions from
+  // this exact IIFE global (the official pro-api-sdk uses the same name), then
+  // calls through it after loading (for example edaEsbuildExportName.activate('onStartupFinished')).
   globalName: 'edaEsbuildExportName',
   // Merge onto commonOptions.define rather than replacing it — an object
   // literal here would silently drop __MCP_DEV_HOTSWAP__ and always compile

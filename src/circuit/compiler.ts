@@ -347,6 +347,7 @@ function buildCircuitIR(
       process: designIntent.requirements.manufacturing.process,
       timelineWeeks: designIntent.requirements.manufacturing.timelineWeeks,
     },
+    referenceDesign: designIntent.referenceDesign,
   };
 }
 

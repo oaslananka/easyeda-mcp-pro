@@ -9,6 +9,12 @@ import {
 } from '../workflows/schematic-post-write-qa.js';
 import { buildNe555AstableTemplate } from '../workflows/ne555-astable-template.js';
 import { buildRp2040ServoModuleScaffold } from '../workflows/rp2040-servo-module-scaffold.js';
+import { buildLedBlinkerTemplate } from '../workflows/led-blinker-template.js';
+import {
+  collectSchematicLayoutQa,
+  layoutQaOutputSchema,
+  type CollectSchematicLayoutQaOptions,
+} from './L2_schematic_layout.js';
 import {
   computeSectionBounds,
   findOverlappingRectangles,
@@ -274,7 +280,8 @@ async function applySingleOperation(
         op.kind === 'createNetPort' ||
         op.kind === 'addWire' ||
         op.kind === 'addRectangle' ||
-        op.kind === 'addText') &&
+        op.kind === 'addText' ||
+        op.kind === 'connectPinToNet') &&
       Boolean(primitiveId);
 
     return {
@@ -513,7 +520,7 @@ const ne555InputSchema = z.object({
   preferredRegion: schematicRegionPreferenceSchema.default('upper-left'),
   margin: z.number().positive().optional(),
   createNetPorts: z.boolean().default(false),
-  createWireStubs: z.boolean().default(true),
+  createWireStubs: z.boolean().default(false),
   refs: ne555RefsSchema,
   nets: ne555NetsSchema,
   values: ne555ValuesSchema,
@@ -550,6 +557,7 @@ const postWriteQaOutputSchema = z.object({
   categories: z.record(z.string(), z.number().int().nonnegative()),
   issues: z.array(z.record(z.string(), z.unknown())),
   summary: z.string(),
+  layout_qa: layoutQaOutputSchema,
 });
 
 const rp2040ServoDevicesSchema = z.object({
@@ -652,9 +660,30 @@ const ne555OutputSchema = workflowOutputSchema.extend({
   post_write_qa: postWriteQaOutputSchema.optional(),
 });
 
-async function runPostWriteQa(ctx: ToolContext, projectId: string) {
+async function runPostWriteQa(
+  ctx: ToolContext,
+  projectId: string,
+  options: CollectSchematicLayoutQaOptions = {},
+) {
   const { drc, erc } = await collectNativeRuleRunsForPostWriteQa(ctx.bridge, projectId);
-  return classifyPostWriteQa({ projectId, policy: 'circuit', drc, erc });
+  const nativeQa = classifyPostWriteQa({ projectId, policy: 'circuit', drc, erc });
+  const layoutQa = await collectSchematicLayoutQa(ctx, projectId, options);
+  const status =
+    nativeQa.status === 'fail' || layoutQa.status === 'fail'
+      ? 'fail'
+      : nativeQa.status === 'inconclusive' || layoutQa.status === 'inconclusive'
+        ? 'inconclusive'
+        : 'pass';
+  return {
+    ...nativeQa,
+    status,
+    passed: status === 'pass',
+    summary:
+      status === nativeQa.status
+        ? `${nativeQa.summary} Layout QA: ${layoutQa.status}.`
+        : `${nativeQa.summary} Integrated layout QA changed the result to ${status}.`,
+    layout_qa: layoutQa,
+  };
 }
 
 const railVerificationOutputSchema = z.object({
@@ -957,7 +986,37 @@ function registerWorkflowTools(
 
       let postWriteQa;
       if (result.applied === true && p.runPostWriteQa) {
-        postWriteQa = await runPostWriteQa(ctx, p.projectId);
+        postWriteQa = await runPostWriteQa(ctx, p.projectId, {
+          expectedComponentRefs: Object.values(template.refs),
+          expectedNetNames: Object.values(template.nets),
+          expectedPinMappings: (template.workflowInput.components ?? []).flatMap((component) =>
+            (component.pinConnections ?? []).map((connection) => ({
+              componentRef: component.ref,
+              pin: connection.pin,
+              netName: connection.netName,
+            })),
+          ),
+          relationships: [
+            {
+              sourceId: template.refs.cCtrl,
+              targetId: template.refs.timer,
+              kind: 'support',
+              maxDistance: 180,
+            },
+            {
+              sourceId: template.refs.cDecouple,
+              targetId: template.refs.timer,
+              kind: 'decoupling',
+              maxDistance: 180,
+            },
+            {
+              sourceId: template.refs.rLed,
+              targetId: template.refs.led,
+              kind: 'signal-flow',
+              maxDistance: 180,
+            },
+          ],
+        });
       }
 
       const qaFailed = Boolean(postWriteQa && postWriteQa.status !== 'pass');
@@ -1294,6 +1353,203 @@ function registerWorkflowTools(
         })),
       };
       return runWorkflow(ctx, input, 'wf_connector_breakout', p.confirmWrite);
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_workflow_led_blinker',
+    title: 'Plan or apply a Level-1 LED blinker circuit (Switch + Resistor + LED)',
+    description:
+      'Create a deterministic LED blinker workflow: a switch controls power through a current-limiting ' +
+      'resistor to an indicator LED. Uses safe sheet-region planning, left-to-right signal flow layout, ' +
+      'generic wire stubs, and optional post-write QA. Caller supplies already-resolved EasyEDA device items ' +
+      '(confirmWrite required). This is the simplest complete circuit for validating the full MCP pipeline.',
+    profile: 'pro',
+    evidence: ['inferred', 'runtime-probe'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'workflows',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: z.object({
+      projectId: z.string().min(1),
+      mode: z.enum(['preview', 'apply']).default('preview'),
+      devices: z.object({
+        resistor: deviceItemSchema,
+        led: deviceItemSchema,
+        switch: deviceItemSchema,
+      }),
+      anchor: pointSchema.optional(),
+      preferredRegion: schematicRegionPreferenceSchema.default('upper-left'),
+      margin: z.number().positive().optional(),
+      createNetPorts: z.boolean().default(false),
+      createWireStubs: z.boolean().default(false),
+      refs: z
+        .object({
+          switch: z.string().min(1).optional(),
+          resistor: z.string().min(1).optional(),
+          led: z.string().min(1).optional(),
+        })
+        .optional(),
+      nets: z
+        .object({
+          vcc: z.string().min(1).optional(),
+          gnd: z.string().min(1).optional(),
+          switched: z.string().min(1).optional(),
+          ledAnode: z.string().min(1).optional(),
+        })
+        .optional(),
+      values: z
+        .object({
+          supplyVoltage: z.number().positive().optional(),
+          ledForwardVoltage: z.number().positive().optional(),
+          ledForwardCurrentMa: z.number().positive().optional(),
+          resistorOhms: z.number().positive().optional(),
+        })
+        .optional(),
+      pinMaps: z
+        .object({
+          switch: z
+            .object({
+              p1: z.string().min(1).optional(),
+              p2: z.string().min(1).optional(),
+              p3: z.string().min(1).optional(),
+              p4: z.string().min(1).optional(),
+            })
+            .optional(),
+          resistor: z
+            .object({ p1: z.string().min(1).optional(), p2: z.string().min(1).optional() })
+            .optional(),
+          led: z
+            .object({
+              anode: z.string().min(1).optional(),
+              cathode: z.string().min(1).optional(),
+            })
+            .optional(),
+        })
+        .optional(),
+      runPostWriteQa: z.boolean().default(true),
+      confirmWrite: z.boolean().optional(),
+    }),
+    outputSchema: workflowOutputSchema.extend({
+      safe_region: safeRegionOutputSchema,
+      design: z.object({
+        refs: z.record(z.string(), z.string()),
+        nets: z.record(z.string(), z.string()),
+        values: z.record(z.string(), z.number()),
+        calculated: z.object({
+          current_ma: z.number(),
+          resistor_power_mw: z.number(),
+          led_power_mw: z.number(),
+          total_power_mw: z.number(),
+        }),
+        component_count: z.number().int().positive(),
+        notes: z.array(z.string()),
+      }),
+      post_write_qa: postWriteQaOutputSchema.optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = (params ?? {}) as {
+        projectId: string;
+        mode?: 'preview' | 'apply';
+        devices: { resistor: { libraryUuid: string; uuid: string }; led: { libraryUuid: string; uuid: string }; switch: { libraryUuid: string; uuid: string } };
+        anchor?: { x: number; y: number };
+        preferredRegion?: 'upper-left' | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right';
+        margin?: number;
+        createNetPorts?: boolean;
+        createWireStubs?: boolean;
+        refs?: Partial<{ switch: string; resistor: string; led: string }>;
+        nets?: Partial<{ vcc: string; gnd: string; switched: string; ledAnode: string }>;
+        values?: Partial<{ supplyVoltage: number; ledForwardVoltage: number; ledForwardCurrentMa: number; resistorOhms: number }>;
+        pinMaps?: Partial<{ switch: Partial<{ p1: string; p2: string; p3: string; p4: string }>; resistor: Partial<{ p1: string; p2: string }>; led: Partial<{ anode: string; cathode: string }> }>;
+        runPostWriteQa?: boolean;
+        confirmWrite?: boolean;
+      };
+      let sheetInfo: unknown;
+      try {
+        sheetInfo = await ctx.bridge.call('schematic.getSheetInfo', { projectId: p.projectId });
+      } catch {
+        sheetInfo = undefined;
+      }
+
+      const template = buildLedBlinkerTemplate({ ...p, sheetInfo });
+      const result = (await runWorkflow(
+        ctx,
+        template.workflowInput,
+        'wf_led_blinker',
+        p.confirmWrite,
+        (plan) => {
+          for (const warning of template.safeRegion.warnings) {
+            pushIssue(plan, {
+              code: 'WORKFLOW_SAFE_REGION',
+              severity: 'warning',
+              message: warning,
+              remediationHint:
+                'Review the returned safe_region bounds and use its anchor before applying the template.',
+            });
+          }
+          for (const issue of template.safeRegion.issues) {
+            pushIssue(plan, {
+              code: 'WORKFLOW_SAFE_REGION',
+              severity: 'error',
+              message: `${issue.code}: ${issue.message}`,
+              remediationHint:
+                'Reduce content size, choose another preferredRegion, increase the sheet size manually, or provide a safe anchor.',
+            });
+          }
+        },
+      )) as Record<string, unknown>;
+
+      let postWriteQa;
+      if (result.applied === true && p.runPostWriteQa !== false) {
+        postWriteQa = await runPostWriteQa(ctx, p.projectId, {
+          expectedComponentRefs: Object.values(template.refs),
+          expectedNetNames: Object.values(template.nets),
+          expectedPinMappings: (template.workflowInput.components ?? []).flatMap((component) =>
+            (component.pinConnections ?? []).map((connection) => ({
+              componentRef: component.ref,
+              pin: connection.pin,
+              netName: connection.netName,
+            })),
+          ),
+        });
+      }
+
+      const qaFailed = Boolean(postWriteQa && postWriteQa.status !== 'pass');
+      return {
+        ...result,
+        success: Boolean(result.success) && !qaFailed,
+        summary: qaFailed
+          ? `${String(result.summary)} Post-write QA ${postWriteQa?.status}: ${postWriteQa?.summary}`
+          : result.summary,
+        safe_region: {
+          blocked: template.safeRegion.blocked,
+          preferred_region: template.safeRegion.preferredRegion,
+          sheet: template.safeRegion.sheet,
+          bounds: template.safeRegion.bounds,
+          anchor: template.workflowInput.anchor,
+          warnings: template.safeRegion.warnings,
+          issues: template.safeRegion.issues,
+        },
+        design: {
+          refs: template.refs,
+          nets: template.nets,
+          values: template.values,
+          calculated: {
+            current_ma: template.calculated.currentMa,
+            resistor_power_mw: template.calculated.resistorPowerMw,
+            led_power_mw: template.calculated.ledPowerMw,
+            total_power_mw: template.calculated.totalPowerMw,
+          },
+          component_count: template.componentCount,
+          notes: template.designNotes,
+        },
+        post_write_qa: postWriteQa,
+      };
     },
   });
 

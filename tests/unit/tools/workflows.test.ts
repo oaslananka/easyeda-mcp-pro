@@ -60,13 +60,62 @@ describe('Workflow Tools', () => {
       expect(result.design.calculated.frequency_hz).toBeCloseTo(1.053, 3);
       expect(result.placements).toHaveLength(8);
       expect(result.operations.filter((op: any) => op.kind === 'connectPinToNet')).toHaveLength(22);
-      expect(result.operations.filter((op: any) => op.kind === 'addWire')).toHaveLength(22);
+      expect(result.operations.filter((op: any) => op.kind === 'addWire')).toHaveLength(0);
       expect(result.operations.filter((op: any) => op.kind === 'createNetPort')).toHaveLength(0);
       expect(bridgeCall).toHaveBeenCalledTimes(1);
       expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', { projectId: 'proj-555' });
     });
 
     it('runs post-write QA after a successful apply and keeps success true when QA passes', async () => {
+      const placedBounds: Record<string, { x: number; y: number; width: number; height: number }> = {
+        U1: { x: 50, y: 50, width: 80, height: 60 },
+        R1: { x: 200, y: 50, width: 80, height: 60 },
+        R2: { x: 350, y: 50, width: 80, height: 60 },
+        C1: { x: 500, y: 50, width: 80, height: 60 },
+        C2: { x: 50, y: 200, width: 80, height: 60 },
+        C3: { x: 200, y: 200, width: 80, height: 60 },
+        R3: { x: 350, y: 200, width: 80, height: 60 },
+        D1: { x: 500, y: 200, width: 80, height: 60 },
+      };
+      const netMembership: Record<string, Array<{ component: string; pin: string }>> = {
+        '+5V': [
+          { component: 'U1', pin: '4' },
+          { component: 'U1', pin: '8' },
+          { component: 'R1', pin: '1' },
+          { component: 'C3', pin: '1' },
+        ],
+        GND: [
+          { component: 'U1', pin: '1' },
+          { component: 'C1', pin: '2' },
+          { component: 'C2', pin: '2' },
+          { component: 'C3', pin: '2' },
+          { component: 'D1', pin: '2' },
+        ],
+        TIMING: [
+          { component: 'U1', pin: '2' },
+          { component: 'U1', pin: '6' },
+          { component: 'R2', pin: '2' },
+          { component: 'C1', pin: '1' },
+        ],
+        OUT: [
+          { component: 'U1', pin: '3' },
+          { component: 'R3', pin: '1' },
+        ],
+        CTRL: [
+          { component: 'U1', pin: '5' },
+          { component: 'C2', pin: '1' },
+        ],
+        DISCH: [
+          { component: 'U1', pin: '7' },
+          { component: 'R1', pin: '2' },
+          { component: 'R2', pin: '1' },
+        ],
+        LED_A: [
+          { component: 'R3', pin: '2' },
+          { component: 'D1', pin: '1' },
+        ],
+      };
+
       bridgeCall.mockImplementation(async (method: string) => {
         if (method === 'schematic.getSheetInfo')
           return { currentPage: { width: 1189, height: 841 } };
@@ -78,6 +127,22 @@ describe('Workflow Tools', () => {
         if (method === 'schematic.createNetPort')
           return { primitiveId: `net-${bridgeCall.mock.calls.length}` };
         if (method === 'schematic.listComponents') return { total: 8, items: [] };
+        if (method === 'schematic.primitiveBounds') {
+          return {
+            items: Object.entries(placedBounds).map(([ref, bounds]) => ({
+              id: `component-${ref}`,
+              primitiveType: 'component',
+              ref,
+              combinedBounds: bounds,
+              bodyBounds: bounds,
+              geometrySource: 'runtime',
+            })),
+          };
+        }
+        if (method === 'schematic.listNets') {
+          return Object.entries(netMembership).map(([netName, nodes]) => ({ netName, nodes }));
+        }
+        if (method === 'canvas.captureRegion') return { base64: 'YQ==', mimeType: 'image/png' };
         if (method === 'design.drc' || method === 'design.erc') {
           return { violations: [], totalViolations: 0, errorCount: 0, warningCount: 0 };
         }

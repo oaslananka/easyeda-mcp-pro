@@ -12,6 +12,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'schematic.listRectangles',
   'schematic.searchDevice',
   'schematic.getSheetInfo',
+  'schematic.primitiveBounds',
   'schematic.placeComponent',
   'schematic.restorePrimitiveSnapshot',
   'schematic.recreatePrimitiveSnapshot',

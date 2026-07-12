@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
+import { readStable } from '../live/readback.js';
 import { fetchComponentPins } from './schematic-helpers.js';
 import { scanSheetForPinCollisions } from '../workflows/collision.js';
 import { planSafeSchematicRegion } from '../workflows/schematic-safe-region.js';
@@ -67,6 +68,13 @@ const searchDeviceInputSchema = z.object({
         'for place_component, to avoid paying for fields you will not read.',
     ),
 });
+
+const readConsistencySchema = z.object({
+  stable: z.boolean(),
+  attempts: z.number().int().positive(),
+});
+
+const stableReadOptions = { attempts: 4, delayMs: 80 } as const;
 
 const _deviceItemSchema = z
   .object({
@@ -206,12 +214,18 @@ function registerSchematicReadTools(
         }),
       ),
       total: z.number().int().nonnegative(),
+      read_consistency: readConsistencySchema.optional(),
       not_available: z.boolean().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = params as { projectId: string };
       try {
-        const result = await ctx.bridge.call('schematic.listNets', { projectId });
+        const observation = await readStable(
+          () => ctx.bridge.call('schematic.listNets', { projectId }),
+          stableReadOptions,
+        );
+        const result = observation.value;
         const nets = result as Array<{
           netName?: string;
           nodes?: Array<{ component?: string; pin?: string }>;
@@ -235,6 +249,10 @@ function registerSchematicReadTools(
             };
           }),
           total: nets?.length ?? 0,
+          read_consistency: {
+            stable: observation.stable,
+            attempts: observation.attempts,
+          },
         };
       } catch (err) {
         return {
@@ -309,6 +327,7 @@ function registerSchematicReadTools(
         }),
       ),
       total: z.number().int().nonnegative(),
+      read_consistency: readConsistencySchema.optional(),
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
@@ -319,11 +338,16 @@ function registerSchematicReadTools(
         offset: number;
       };
       try {
-        const result = await ctx.bridge.call('schematic.listComponents', {
-          projectId,
-          limit,
-          offset,
-        });
+        const observation = await readStable(
+          () =>
+            ctx.bridge.call('schematic.listComponents', {
+              projectId,
+              limit,
+              offset,
+            }),
+          stableReadOptions,
+        );
+        const result = observation.value;
         const { total: bridgeTotal, items } = result as {
           total?: number;
           items?: Array<{
@@ -375,6 +399,10 @@ function registerSchematicReadTools(
             };
           }),
           total: bridgeTotal ?? comps.length,
+          read_consistency: {
+            stable: observation.stable,
+            attempts: observation.attempts,
+          },
         };
       } catch (err) {
         return {
@@ -423,6 +451,7 @@ function registerSchematicReadTools(
         }),
       ),
       total: z.number().int().nonnegative(),
+      read_consistency: readConsistencySchema.optional(),
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
@@ -433,7 +462,11 @@ function registerSchematicReadTools(
         offset: number;
       };
       try {
-        const result = await ctx.bridge.call('system.inspectWires', { limit, offset });
+        const observation = await readStable(
+          () => ctx.bridge.call('system.inspectWires', { limit, offset }),
+          stableReadOptions,
+        );
+        const result = observation.value;
         const data = result as {
           total?: number;
           samples?: Array<{
@@ -456,6 +489,10 @@ function registerSchematicReadTools(
             lineType: w.lineType,
           })),
           total: data.total ?? data.samples?.length ?? 0,
+          read_consistency: {
+            stable: observation.stable,
+            attempts: observation.attempts,
+          },
         };
       } catch (err) {
         return {

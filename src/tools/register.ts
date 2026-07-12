@@ -18,6 +18,7 @@ import { registerTransactionTools } from './L1_transactions.js';
 import { registerVisualTools } from './L1_visual.js';
 import { registerAutoroutingTools } from './L2_autorouting.js';
 import { registerSimulationTools } from './L2_simulation.js';
+import { registerSchematicLayoutTools } from './L2_schematic_layout.js';
 import { registerWorkflowTools } from './L2_workflows.js';
 import { type ToolRegistry } from './registry.js';
 
@@ -40,6 +41,7 @@ export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig):
   registerCatalogTools(registry, config);
   registerDesignRulesTools(registry, config);
   registerWorkflowTools(registry, config);
+  registerSchematicLayoutTools(registry, config);
   registerAutoroutingTools(registry, config);
   registerSimulationTools(registry, config);
 }

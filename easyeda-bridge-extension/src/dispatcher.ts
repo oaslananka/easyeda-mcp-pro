@@ -302,6 +302,85 @@ function normalizeWireLine(line: unknown): Array<{ x: number; y: number }> {
   return pts;
 }
 
+function isBetween(value: number, a: number, b: number): boolean {
+  return value >= Math.min(a, b) && value <= Math.max(a, b);
+}
+
+function samePoint(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+function pointOnAxisAlignedSegment(
+  point: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): boolean {
+  if (a.x === b.x) return point.x === a.x && isBetween(point.y, a.y, b.y);
+  if (a.y === b.y) return point.y === a.y && isBetween(point.x, a.x, b.x);
+  return samePoint(point, a) || samePoint(point, b);
+}
+
+function pointOnPolyline(
+  point: { x: number; y: number },
+  points: Array<{ x: number; y: number }>,
+): boolean {
+  if (points.length === 1) return samePoint(point, points[0]);
+  for (let i = 0; i + 1 < points.length; i += 1) {
+    if (pointOnAxisAlignedSegment(point, points[i], points[i + 1])) return true;
+  }
+  return false;
+}
+
+function axisAlignedSegmentIntersection(
+  a1: { x: number; y: number },
+  a2: { x: number; y: number },
+  b1: { x: number; y: number },
+  b2: { x: number; y: number },
+): { x: number; y: number } | null {
+  const aVertical = a1.x === a2.x;
+  const aHorizontal = a1.y === a2.y;
+  const bVertical = b1.x === b2.x;
+  const bHorizontal = b1.y === b2.y;
+
+  if (aVertical && bVertical && a1.x === b1.x) {
+    const y = Math.max(Math.min(a1.y, a2.y), Math.min(b1.y, b2.y));
+    if (isBetween(y, a1.y, a2.y) && isBetween(y, b1.y, b2.y)) return { x: a1.x, y };
+  }
+  if (aHorizontal && bHorizontal && a1.y === b1.y) {
+    const x = Math.max(Math.min(a1.x, a2.x), Math.min(b1.x, b2.x));
+    if (isBetween(x, a1.x, a2.x) && isBetween(x, b1.x, b2.x)) return { x, y: a1.y };
+  }
+  if (aVertical && bHorizontal && isBetween(a1.x, b1.x, b2.x) && isBetween(b1.y, a1.y, a2.y)) {
+    return { x: a1.x, y: b1.y };
+  }
+  if (aHorizontal && bVertical && isBetween(b1.x, a1.x, a2.x) && isBetween(a1.y, b1.y, b2.y)) {
+    return { x: b1.x, y: a1.y };
+  }
+
+  return null;
+}
+
+function polylineIntersection(
+  a: Array<{ x: number; y: number }>,
+  b: Array<{ x: number; y: number }>,
+): { x: number; y: number } | null {
+  for (let i = 0; i + 1 < a.length; i += 1) {
+    for (let j = 0; j + 1 < b.length; j += 1) {
+      const intersection = axisAlignedSegmentIntersection(a[i], a[i + 1], b[j], b[j + 1]);
+      if (intersection) return intersection;
+    }
+  }
+  return null;
+}
+
+function parsePointKey(key: string): { x: number; y: number } | null {
+  const [xRaw, yRaw] = key.split(',');
+  const x = Number(xRaw);
+  const y = Number(yRaw);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
 /**
  * Checks whether any of `points` exactly coincides with a coordinate already
  * used by an existing wire on a *different* net. EasyEDA Pro auto-merges
@@ -424,12 +503,9 @@ async function findForeignNetCollision(
       const wireNet = String(safeGetState(wire, 'Net') ?? '');
       if (!wireNet || wireNet === netName) continue;
       const wirePts = normalizeWireLine(safeGetState(wire, 'Line'));
-      for (const p of points) {
-        for (const wp of wirePts) {
-          if (wp.x === p.x && wp.y === p.y) {
-            return { x: p.x, y: p.y, foreignNet: wireNet, kind: 'wire' };
-          }
-        }
+      const intersection = polylineIntersection(points, wirePts);
+      if (intersection) {
+        return { x: intersection.x, y: intersection.y, foreignNet: wireNet, kind: 'wire' };
       }
     }
   }
@@ -440,10 +516,13 @@ async function findForeignNetCollision(
   // like landing on a foreign wire does, and the check above never saw it
   // (the foreign pin has no wire of its own at that point).
   const foreignMap = await buildForeignConnectivityMap();
-  for (const p of points) {
-    const foreignNet = foreignMap.get(pointKey(p));
+  for (const [key, foreignNet] of foreignMap) {
+    const p = parsePointKey(key);
+    if (!p) continue;
     if (foreignNet && foreignNet !== netName) {
-      return { x: p.x, y: p.y, foreignNet, kind: 'pin_or_flag' };
+      if (pointOnPolyline(p, points)) {
+        return { x: p.x, y: p.y, foreignNet, kind: 'pin_or_flag' };
+      }
     }
   }
 
@@ -799,6 +878,37 @@ function readPrimitivePoint(source: unknown): SchematicPoint | undefined {
   return { x, y };
 }
 
+function addUnnamedWireNetLabels(
+  netMap: Map<string, SchematicNetNode[]>,
+  dsu: DisjointSet,
+  rootNetNames: Map<string, Set<string>>,
+): void {
+  const canonicalPointByRoot = new Map<string, string>();
+  for (const point of dsu.parent.keys()) {
+    const root = dsu.find(point);
+    const canonicalPoint = canonicalPointByRoot.get(root);
+    if (!canonicalPoint || point.localeCompare(canonicalPoint) < 0) {
+      canonicalPointByRoot.set(root, point);
+    }
+  }
+
+  const unnamedRoots = Array.from(canonicalPointByRoot.entries())
+    .filter(([root]) => !rootNetNames.get(root)?.size)
+    .sort((a, b) => a[1].localeCompare(b[1]));
+  let nextAnonymousNet = 1;
+
+  for (const [root] of unnamedRoots) {
+    let netName = `N$${nextAnonymousNet}`;
+    while (netMap.has(netName)) {
+      nextAnonymousNet += 1;
+      netName = `N$${nextAnonymousNet}`;
+    }
+    nextAnonymousNet += 1;
+    rootNetNames.set(root, new Set([netName]));
+    ensureNetEntry(netMap, netName);
+  }
+}
+
 async function addCoordinateFallbackNets(
   netMap: Map<string, SchematicNetNode[]>,
   comps: unknown[],
@@ -850,12 +960,18 @@ async function addCoordinateFallbackNets(
   }
 
   for (const component of comps) {
-    if (readComponentType(component) !== 'netflag') continue;
+    const componentType = readComponentType(component);
+    if (componentType !== 'netflag' && componentType !== 'netport') continue;
     const netName = readComponentNet(component);
     const point = readPrimitivePoint(component);
     if (!netName || !point) continue;
     addNetLabel(point, netName);
   }
+
+  // EasyEDA leaves Wire.Net empty for ordinary point-to-point connections.
+  // Give each unlabeled connected wire component a stable local name so its
+  // endpoint pins still appear together in schematic.listNets readback.
+  addUnnamedWireNetLabels(netMap, dsu, rootNetNames);
 
   for (const component of comps) {
     const ref = readStringMemberOrState(component, 'designator', 'Designator');
@@ -960,6 +1076,61 @@ async function callAllowedApi(path: string, args: unknown[]): Promise<unknown> {
   );
 }
 
+function readOtherPropertyValue(
+  otherProperty: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  if (!otherProperty) return undefined;
+  const exact = otherProperty[key];
+  if (exact !== undefined && exact !== null && String(exact).trim()) return String(exact);
+  const normalizedKey = key.trim().toLowerCase();
+  for (const [candidateKey, candidateValue] of Object.entries(otherProperty)) {
+    if (
+      candidateKey.trim().toLowerCase() === normalizedKey &&
+      candidateValue !== undefined &&
+      candidateValue !== null &&
+      String(candidateValue).trim()
+    ) {
+      return String(candidateValue);
+    }
+  }
+  return undefined;
+}
+
+/** Resolve EasyEDA display expressions such as `={Value}` to their actual
+ * component metadata. Library-created parts commonly store the expression in
+ * Name while the concrete value lives in OtherProperty or ManufacturerId. */
+function resolveComponentDisplayValue(
+  rawName: unknown,
+  otherProperty: Record<string, unknown> | undefined,
+  manufacturerId: string,
+  deviceName: string,
+): string {
+  const name = typeof rawName === 'string' ? rawName.trim() : '';
+  const expression = /^=\{(.+)\}$/.exec(name);
+  if (expression) {
+    const propertyName = expression[1].trim();
+    const propertyValue = readOtherPropertyValue(otherProperty, propertyName);
+    if (propertyValue) return propertyValue;
+    if (propertyName.toLowerCase() === 'manufacturer part' && manufacturerId) {
+      return manufacturerId;
+    }
+    return manufacturerId || deviceName || name;
+  }
+  if (name) return name;
+  return readOtherPropertyValue(otherProperty, 'Value') || manufacturerId || deviceName || '';
+}
+
+function isSchematicBomComponent(component: unknown): boolean {
+  const componentType = readComponentType(component);
+  if (componentType === 'sheet' || componentType === 'netflag' || componentType === 'netport') {
+    return false;
+  }
+  const device = safeGetState(component, 'Component');
+  const deviceName = isRecord(device) ? String(device.name ?? '') : '';
+  return !deviceName.startsWith('Drawing-Symbol_');
+}
+
 async function listComponentsApi(limit?: number, offset = 0): Promise<unknown> {
   const schCompClass = readFirstPath<any>([
     'SCH_PrimitiveComponent',
@@ -973,51 +1144,61 @@ async function listComponentsApi(limit?: number, offset = 0): Promise<unknown> {
   }
 
   const allComps = (await schCompClass.getAll(undefined, true)) || [];
-  const total = allComps.length;
+  const bomComps = allComps.filter((component: unknown) => isSchematicBomComponent(component));
+  const total = bomComps.length;
   const start = Math.max(0, offset);
   const end = typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
-  const comps = allComps.slice(start, end);
+  const comps = bomComps.slice(start, end);
   const result: any[] = [];
 
   for (const c of comps || []) {
     const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
-    const val = typeof c.getState_Name === 'function' ? c.getState_Name() : '';
-    let fp = '';
-
-    if (typeof c.getState_Footprint === 'function') {
-      const fpInfo = c.getState_Footprint();
-      if (fpInfo && fpInfo.uuid && libFpClass) {
-        try {
-          const fpObj = await libFpClass.get(fpInfo.uuid, fpInfo.libraryUuid);
-          if (fpObj) fp = fpObj.name || '';
-        } catch (e) {
-          logRecoverableError('failed to resolve component footprint', e);
-        }
-      }
-    }
-
     const lcsc = typeof c.getState_SupplierId === 'function' ? c.getState_SupplierId() : '';
     const mfr = typeof c.getState_Manufacturer === 'function' ? c.getState_Manufacturer() : '';
     const mfrId =
       typeof c.getState_ManufacturerId === 'function' ? c.getState_ManufacturerId() : '';
-    let ds = '';
+    const comp = typeof c.getState_Component === 'function' ? c.getState_Component() : undefined;
+    const sym = typeof c.getState_Symbol === 'function' ? c.getState_Symbol() : undefined;
+    const other =
+      typeof c.getState_OtherProperty === 'function' && isRecord(c.getState_OtherProperty())
+        ? (c.getState_OtherProperty() as Record<string, unknown>)
+        : undefined;
+    const rawName = typeof c.getState_Name === 'function' ? c.getState_Name() : '';
+    const val = resolveComponentDisplayValue(rawName, other, String(mfrId || ''), comp?.name ?? '');
 
-    if (typeof c.getState_OtherProperty === 'function') {
-      const other = c.getState_OtherProperty();
-      if (other) {
-        if (!fp && (other.Footprint || other.footprint))
-          fp = String(other.Footprint || other.footprint);
-        ds = String(other.Datasheet || other.datasheet || '');
+    let fp = '';
+    if (typeof c.getState_Footprint === 'function') {
+      const fpInfo = c.getState_Footprint();
+      if (isRecord(fpInfo)) {
+        // The live runtime already exposes the resolved footprint name here;
+        // prefer it and avoid a redundant library lookup that may fail offline.
+        if (typeof fpInfo.name === 'string' && fpInfo.name.trim()) fp = fpInfo.name;
+        if (!fp && fpInfo.uuid && libFpClass) {
+          try {
+            const fpObj = await libFpClass.get(fpInfo.uuid, fpInfo.libraryUuid);
+            if (fpObj) fp = fpObj.name || '';
+          } catch (e) {
+            logRecoverableError('failed to resolve component footprint', e);
+          }
+        }
       }
     }
+
+    if (!fp) {
+      fp =
+        readOtherPropertyValue(other, 'Footprint') ||
+        readOtherPropertyValue(other, 'Supplier Footprint') ||
+        '';
+    }
+    const ds =
+      readOtherPropertyValue(other, 'Datasheet') ||
+      readOtherPropertyValue(other, 'datasheet') ||
+      '';
 
     // Device identity — needed to re-place / clone a part. `Component` holds the
     // device uuid+libraryUuid (a valid place_component deviceItem within THIS
     // project; for a clean project, re-resolve via lcsc/manufacturerId/name).
     // `Symbol` names the schematic symbol used.
-    const comp = typeof c.getState_Component === 'function' ? c.getState_Component() : undefined;
-    const sym = typeof c.getState_Symbol === 'function' ? c.getState_Symbol() : undefined;
-
     result.push({
       primitiveId: safeGetState(c, 'PrimitiveId') ?? '',
       reference: ref,
@@ -2824,6 +3005,51 @@ async function runDrcCheck(classPaths: string[]): Promise<{
   };
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Run PCB DRC only when a PCB canvas is available, translating EasyEDA's
+ * opaque message-bus failure into a stable bridge error. The public MCP tool
+ * already maps this error to `not_available: true`; callers of the bridge API
+ * now receive an actionable code/suggestion instead of a localized runtime
+ * string. */
+async function runPcbDrcCheck(): ReturnType<typeof runDrcCheck> {
+  try {
+    return await runDrcCheck(['PCB_Drc.check']);
+  } catch (error) {
+    throw newBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      'PCB DRC is unavailable in the current editor context.',
+      'Open and focus a PCB document, then retry design.drc.',
+      { cause: errorMessage(error) },
+    );
+  }
+}
+
+/** Generic rule-check chooses the active canvas by trying PCB first and then
+ * schematic. EasyEDA exposes both classes globally even when their canvas is
+ * not active, so class presence alone is not a reliable context signal. */
+async function runRuleCheckForActiveCanvas(): ReturnType<typeof runDrcCheck> {
+  let pcbError: unknown;
+  try {
+    return await runDrcCheck(['PCB_Drc.check']);
+  } catch (error) {
+    pcbError = error;
+    logRecoverableError('design.ruleCheck: PCB DRC unavailable; trying schematic ERC/DRC', error);
+  }
+  try {
+    return await runDrcCheck(['SCH_Drc.check']);
+  } catch (schematicError) {
+    throw newBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      'No active PCB or schematic canvas is available for design.ruleCheck.',
+      'Open and focus a PCB or schematic document, then retry.',
+      { pcbCause: errorMessage(pcbError), schematicCause: errorMessage(schematicError) },
+    );
+  }
+}
+
 /**
  * Find schematic pins whose (designator, pinNumber) does not appear in any
  * inferred net's node list. Shared by schematic.validateNetlist and the ERC
@@ -3941,7 +4167,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'inventory.getPrice':
       return null;
     case 'design.ruleCheck':
-      return runDrcCheck(['PCB_Drc.check', 'SCH_Drc.check']);
+      return runRuleCheckForActiveCanvas();
     case 'design.erc': {
       const result = await runDrcCheck(['SCH_Drc.check']);
       // SCH_Drc.check()'s verbose mode only ever returns per-severity
@@ -3969,7 +4195,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       }
     }
     case 'design.drc':
-      return runDrcCheck(['PCB_Drc.check', 'SCH_Drc.check']);
+      return runPcbDrcCheck();
     case 'export.pickPlace':
       return normalizeBinaryResultSafely(
         await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params),

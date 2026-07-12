@@ -15,6 +15,7 @@
 import { z } from 'zod';
 import { BoardType } from './types.js';
 import { CircuitError, CircuitErrorCode, fromZodError } from './errors.js';
+import { UsbIsolatedRs485ReferenceSchema } from './reference-design.js';
 
 // ── Schema version ────────────────────────────────────────────────────────
 
@@ -105,6 +106,8 @@ export const DesignIntentSchema = z
         createdAt: z.string().datetime().optional(),
       })
       .optional(),
+
+    referenceDesign: UsbIsolatedRs485ReferenceSchema.optional(),
   })
   .strict();
 

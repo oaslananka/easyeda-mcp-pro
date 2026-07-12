@@ -254,7 +254,7 @@ describe('Remote Relay MCP HTTP integration', () => {
         },
       ],
     });
-    expect(harness.dispatched).toHaveLength(1);
+    expect(harness.dispatched).toHaveLength(2);
     expect(harness.dispatched[0]).toMatchObject({
       sessionId: harness.remoteSessionId,
       toolName: 'schematic.listComponents',
@@ -295,7 +295,7 @@ describe('Remote Relay MCP HTTP integration', () => {
       toolName: 'easyeda_schematic_add_text',
       riskLevel: 'write',
     });
-    expect(harness.dispatched).toHaveLength(1);
+    expect(harness.dispatched).toHaveLength(2);
 
     expect(
       harness.gateway.resolveApprovalFromExtension({
@@ -314,8 +314,8 @@ describe('Remote Relay MCP HTTP integration', () => {
       success: true,
       text: { primitiveId: 'text-http-1' },
     });
-    expect(harness.dispatched).toHaveLength(2);
-    expect(harness.dispatched[1]).toMatchObject({
+    expect(harness.dispatched).toHaveLength(3);
+    expect(harness.dispatched[2]).toMatchObject({
       sessionId: harness.remoteSessionId,
       toolName: 'schematic.addText',
       riskLevel: 'write',
@@ -331,7 +331,7 @@ describe('Remote Relay MCP HTTP integration', () => {
       errorCode: 'ERR_REMOTE_RELAY',
       details: { remoteCode: 'APPROVAL_NOT_APPROVED', approvalId },
     });
-    expect(harness.dispatched).toHaveLength(2);
+    expect(harness.dispatched).toHaveLength(3);
 
     const rejectedArguments = { ...writeArguments, content: 'Rejected remote note' };
     const rejectionRequired = await client.callTool({
@@ -363,7 +363,7 @@ describe('Remote Relay MCP HTTP integration', () => {
       },
     });
     expect(rejected.content[0]?.text).toContain('rejected by the user');
-    expect(harness.dispatched).toHaveLength(2);
+    expect(harness.dispatched).toHaveLength(3);
 
     const timeoutArguments = { ...writeArguments, content: 'Timed out remote note' };
     const timeoutRequired = await client.callTool({
@@ -395,7 +395,7 @@ describe('Remote Relay MCP HTTP integration', () => {
       },
     });
     expect(timedOut.content[0]?.text).toContain('expired');
-    expect(harness.dispatched).toHaveLength(2);
+    expect(harness.dispatched).toHaveLength(3);
   });
 
   it('keeps two independent MCP clients connected to the same paired extension session', async () => {
@@ -434,7 +434,7 @@ describe('Remote Relay MCP HTTP integration', () => {
 
     expect(firstResult.isError).not.toBe(true);
     expect(secondResult.isError).not.toBe(true);
-    expect(harness.dispatched).toHaveLength(2);
+    expect(harness.dispatched).toHaveLength(4);
     expect(harness.dispatched.map((request) => request.input)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ projectId: 'project-client-a' }),
@@ -462,8 +462,8 @@ describe('Remote Relay MCP HTTP integration', () => {
 
     expect(survivingResult.isError).not.toBe(true);
     expect(harness.closedSessionServerCount).toBe(1);
-    expect(harness.dispatched).toHaveLength(3);
-    expect(harness.dispatched[2]).toMatchObject({
+    expect(harness.dispatched).toHaveLength(6);
+    expect(harness.dispatched[4]).toMatchObject({
       sessionId: harness.remoteSessionId,
       input: { projectId: 'project-client-b-after-a-closed' },
     });

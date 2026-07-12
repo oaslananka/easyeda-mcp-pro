@@ -965,6 +965,24 @@ describe('Schematic Tools', () => {
             nodes: [{ component_ref: 'R1', pin: '2' }],
           },
         ],
+        read_consistency: { stable: true, attempts: 2 },
+      });
+    });
+
+    it('waits for net readback to settle before returning', async () => {
+      const tool = registry.get('easyeda_schematic_nets');
+      bridgeCall
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ netName: 'GND', nodes: [{ component: 'R1', pin: '2' }] }])
+        .mockResolvedValueOnce([{ netName: 'GND', nodes: [{ component: 'R1', pin: '2' }] }]);
+
+      const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+      expect(bridgeCall).toHaveBeenCalledTimes(3);
+      expect(result).toMatchObject({
+        project_id: 'proj-123',
+        total: 1,
+        read_consistency: { stable: true, attempts: 3 },
       });
     });
 
@@ -1025,6 +1043,29 @@ describe('Schematic Tools', () => {
         project_id: 'proj-123',
         total: 1,
         components: [{ reference: 'R1', value: '10k', footprint: '' }],
+        read_consistency: { stable: true, attempts: 2 },
+      });
+    });
+
+    it('waits for component readback to settle before returning', async () => {
+      const tool = registry.get('easyeda_schematic_components');
+      bridgeCall
+        .mockResolvedValueOnce({ total: 0, items: [] })
+        .mockResolvedValueOnce({ total: 1, items: [{ reference: 'R1', value: '10k' }] })
+        .mockResolvedValueOnce({ total: 1, items: [{ reference: 'R1', value: '10k' }] });
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-123',
+        limit: 100,
+        offset: 0,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledTimes(3);
+      expect(result).toMatchObject({
+        project_id: 'proj-123',
+        total: 1,
+        components: [{ reference: 'R1', value: '10k', footprint: '' }],
+        read_consistency: { stable: true, attempts: 3 },
       });
     });
 
@@ -1039,6 +1080,63 @@ describe('Schematic Tools', () => {
         components: [],
         total: 0,
         not_available: true,
+      });
+    });
+  });
+
+  describe('easyeda_schematic_wires', () => {
+    it('lists wires with read consistency metadata', async () => {
+      const tool = registry.get('easyeda_schematic_wires');
+      expect(tool).toBeDefined();
+      bridgeCall.mockResolvedValue({
+        total: 1,
+        samples: [{ primitiveId: 'wire-1', line: [0, 0, 10, 0], net: 'GND', lineWidth: 1 }],
+      });
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-123',
+        limit: 50,
+        offset: 0,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('system.inspectWires', { limit: 50, offset: 0 });
+      expect(result).toMatchObject({
+        project_id: 'proj-123',
+        total: 1,
+        wires: [{ primitiveId: 'wire-1', line: [0, 0, 10, 0], net: 'GND', lineWidth: 1 }],
+        read_consistency: { stable: true, attempts: 2 },
+      });
+    });
+
+    it('reports unstable wire readback after the bounded retry window', async () => {
+      const tool = registry.get('easyeda_schematic_wires');
+      bridgeCall
+        .mockResolvedValueOnce({ total: 0, samples: [] })
+        .mockResolvedValueOnce({ total: 1, samples: [{ primitiveId: 'wire-1' }] })
+        .mockResolvedValueOnce({
+          total: 2,
+          samples: [{ primitiveId: 'wire-1' }, { primitiveId: 'wire-2' }],
+        })
+        .mockResolvedValueOnce({
+          total: 3,
+          samples: [
+            { primitiveId: 'wire-1' },
+            { primitiveId: 'wire-2' },
+            { primitiveId: 'wire-3' },
+          ],
+        });
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-123',
+        limit: 50,
+        offset: 0,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledTimes(4);
+      expect(result).toMatchObject({
+        project_id: 'proj-123',
+        total: 3,
+        read_consistency: { stable: false, attempts: 4 },
       });
     });
   });

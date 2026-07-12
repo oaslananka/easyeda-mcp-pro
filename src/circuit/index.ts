@@ -32,6 +32,10 @@ export {
 } from './design-intent.js';
 export type { DesignIntent } from './design-intent.js';
 
+// Reference designs
+export { UsbIsolatedRs485ReferenceSchema } from './reference-design.js';
+export type { UsbIsolatedRs485Reference } from './reference-design.js';
+
 // CircuitIR
 export {
   CircuitIRSchema,

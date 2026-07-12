@@ -20,6 +20,11 @@ import {
 } from './remote-client.js';
 import { createDispatcher } from './dispatcher.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
+import {
+  createRuntimeTimers,
+  type EasyedaTimerApi,
+  type RuntimeTimerHandle,
+} from './runtime-timers.js';
 import { isRecord, log, readPath, type JsonValue } from './utils.js';
 
 declare const eda: EasyedaGlobal | undefined;
@@ -156,8 +161,6 @@ const BRIDGE_PROTOCOL = 'easyeda-mcp-pro.bridge';
 const BRIDGE_VERSION = '1.0.0';
 const BRIDGE_CONTRACT_VERSION = 1;
 const LOOPBACK_HOST = ['127', '0', '0', '1'].join('.');
-const EASYEDA_REGISTER_OPEN_FALLBACK_MS = 600;
-const STORAGE_KEY = 'easyeda-mcp-pro:autoConnect';
 const SOCKET_ID = 'easyeda-mcp-pro-bridge';
 
 let socketHandle: SocketHandle | null = null;
@@ -168,8 +171,8 @@ let activeConnectPromise: Promise<void> | null = null;
 let reconnectAttempts = 0;
 let connectRunId = 0;
 let manualDisconnectRequested = false;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let reconnectTimer: RuntimeTimerHandle | null = null;
+let heartbeatTimer: RuntimeTimerHandle | null = null;
 let lastServerActivityMs = 0;
 let externalInteractionWarningShown = false;
 // Updated from the server's `hello` message; matches BRIDGE_MAX_PAYLOAD_SIZE default
@@ -187,6 +190,12 @@ function getGlobal(): EasyedaGlobal | null {
   if (typeof eda !== 'undefined' && eda) return eda;
   return globalThis as unknown as EasyedaGlobal;
 }
+
+const runtimeTimers = createRuntimeTimers(
+  () => readPath<EasyedaTimerApi>(getGlobal(), 'sys_Timer'),
+  globalThis as any,
+  SOCKET_ID,
+);
 
 function showToast(message: string): void {
   const safeMessage = String(message);
@@ -608,6 +617,14 @@ function getRemoteRelayClient(): RemoteRelayClient {
     executeToolRequest: (toolName, input) =>
       dispatchViaActive(toolName, isRecord(input) ? input : {}),
     requestApproval: requestRemoteApproval,
+    timers: runtimeTimers,
+    createWebSocket: (url) => {
+      const WebSocketCtor = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+      if (typeof WebSocketCtor !== 'function') {
+        throw new Error('WebSocket is unavailable in the EasyEDA extension runtime.');
+      }
+      return new WebSocketCtor(url);
+    },
   });
   return remoteRelayClient;
 }
@@ -671,8 +688,9 @@ function createSocket(
   const sysWs = getWsApi();
 
   // Try easyeda-register first (may throw if external interaction is denied).
-  // EasyEDA Pro v3.2.x can also create the socket but never call connectedCallFn,
-  // so fire the open hook through a guarded fallback timer as well.
+  // Only the API's real connected callback may mark the socket open. Calling
+  // onOpen speculatively while WebSocket.readyState is CONNECTING makes send()
+  // throw and closes an otherwise healthy loopback connection.
   if (sysWs?.register && sysWs.send) {
     let openFired = false;
     const fireOpen = (): void => {
@@ -688,7 +706,6 @@ function createSocket(
         (event) => onMessage(String(isRecord(event) && 'data' in event ? event.data : event)),
         fireOpen,
       );
-      setTimeout(fireOpen, EASYEDA_REGISTER_OPEN_FALLBACK_MS);
       return { type: 'easyeda-register', id };
     } catch (err) {
       showExternalInteractionHintOnce(err);
@@ -767,7 +784,8 @@ function sendRaw(payload: string): void {
       sysWs.send(socketHandle.id ?? SOCKET_ID, payload);
       return;
     } catch (err) {
-      handleLocalSocketFailure('sysWs.send threw exception', err);
+      log('sysWs.send threw exception', err);
+      recoverConnection('Bridge send failed; reconnecting');
     }
     return;
   }
@@ -775,7 +793,8 @@ function sendRaw(payload: string): void {
   try {
     socketHandle?.raw?.send?.(payload);
   } catch (err) {
-    handleLocalSocketFailure('socket raw send threw exception', err);
+    log('socket raw send threw exception', err);
+    recoverConnection('Bridge socket send failed; reconnecting');
   }
 }
 
@@ -805,19 +824,31 @@ function closeSocket(): void {
   socketHandle = null;
   connectedPort = null;
   connectionState = 'disconnected';
+  lastServerActivityMs = 0;
 }
 
-function handleLocalSocketFailure(context: string, error: unknown): void {
-  const wasConnected = connectionState === 'connected';
-  log(context, error);
+function recoverConnection(reason: string): void {
+  const wasConnected = connectionState === 'connected' && connectedPort !== null;
+  const wasConnecting = connectionState === 'connecting';
+  if (!wasConnected && !wasConnecting && !socketHandle) return;
+
+  log(reason);
   stopHeartbeat();
-  closeSocket();
+  closeHandle(socketHandle);
+  socketHandle = null;
+  connectedPort = null;
+  lastServerActivityMs = 0;
+
+  if (wasConnecting) {
+    // A failed handshake is one failed port attempt, not a disconnected session.
+    // Keep the scan state intact so connectToPort can time out and continue.
+    connectionState = 'connecting';
+    return;
+  }
+
+  connectionState = 'disconnected';
   if (
-    shouldReconnectAfterSocketFailure({
-      wasConnected,
-      manualDisconnectRequested,
-      autoConnectEnabled,
-    })
+    shouldReconnectAfterSocketFailure({ wasConnected, manualDisconnectRequested, autoConnectEnabled })
   ) {
     scheduleReconnect();
   }
@@ -864,15 +895,11 @@ function getEasyedaVersion(): string | undefined {
 function startHeartbeat(): void {
   stopHeartbeat();
   lastServerActivityMs = Date.now();
-  heartbeatTimer = setInterval(() => {
+  heartbeatTimer = runtimeTimers.setInterval(() => {
     if (connectedPort === null) return;
     const nowMs = Date.now();
     if (hasHeartbeatTimedOut(lastServerActivityMs, nowMs)) {
-      handleLocalSocketFailure('Bridge heartbeat timeout', {
-        lastServerActivityMs,
-        nowMs,
-        silenceMs: nowMs - lastServerActivityMs,
-      });
+      recoverConnection(`Bridge heartbeat timeout; silent for ${nowMs - lastServerActivityMs}ms`);
       return;
     }
     send({ type: 'heartbeat', timestamp: nowMs, source: 'extension' });
@@ -881,7 +908,7 @@ function startHeartbeat(): void {
 
 function stopHeartbeat(): void {
   if (heartbeatTimer) {
-    clearInterval(heartbeatTimer);
+    runtimeTimers.clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
   lastServerActivityMs = 0;
@@ -995,11 +1022,11 @@ async function connectToPort(
     const finish = (connected: boolean): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeout);
+      runtimeTimers.clearTimeout(timeout);
       resolve(connected);
     };
 
-    const timeout = setTimeout(() => {
+    const timeout = runtimeTimers.setTimeout(() => {
       if (socketHandle === handle) {
         socketHandle = null;
       }
@@ -1086,14 +1113,18 @@ async function connectInternal(mode: ConnectMode = 'manual'): Promise<void> {
   }
 
   if (connectionState === 'connecting' && activeConnectPromise) {
-    if (manual) {
-      showToast(`MCP Bridge is already connecting to local server`);
-    }
-    return activeConnectPromise;
+    if (!manual) return activeConnectPromise;
+
+    // A manual Connect request should not remain trapped behind an auto-connect
+    // scan that may currently be waiting on another port. Cancel the old run and
+    // immediately restart from the preferred/base port.
+    connectRunId += 1;
+    activeConnectPromise = null;
+    closeSocket();
   }
 
   if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
+    runtimeTimers.clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
 
@@ -1153,7 +1184,7 @@ function disconnectInternal(notifyUser: boolean): void {
   activeConnectPromise = null;
   reconnectAttempts = 0;
   if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
+    runtimeTimers.clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
   stopHeartbeat();
@@ -1202,7 +1233,7 @@ function scheduleReconnect(): void {
   if (manualDisconnectRequested || reconnectTimer) return;
   reconnectAttempts += 1;
   const delay = reconnectDelayMs(reconnectAttempts);
-  reconnectTimer = setTimeout(() => {
+  reconnectTimer = runtimeTimers.setTimeout(() => {
     reconnectTimer = null;
     if (connectionState === 'disconnected') {
       void connectInternal('auto');
@@ -1227,12 +1258,6 @@ function loadAutoConnectSetting(): boolean {
   } catch (e) {
     log('sys_Storage.getExtensionUserConfig unavailable', e);
   }
-  try {
-    const val = localStorage.getItem(STORAGE_KEY);
-    if (val !== null) return val !== 'false';
-  } catch (e) {
-    log('localStorage read failed', e);
-  }
   return true;
 }
 
@@ -1247,11 +1272,6 @@ async function saveAutoConnectSetting(value: boolean): Promise<void> {
     }
   } catch (e) {
     log('sys_Storage.setExtensionUserConfig unavailable', e);
-  }
-  try {
-    localStorage.setItem(STORAGE_KEY, String(value));
-  } catch (e) {
-    log('localStorage write failed', e);
   }
 }
 
@@ -1276,7 +1296,7 @@ async function setAutoConnectInternal(enabled: boolean): Promise<void> {
   } else {
     manualDisconnectRequested = true;
     if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
+      runtimeTimers.clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
   }
@@ -1456,4 +1476,6 @@ log('Extension script loaded');
 // Compute the method-list hash early so the first handshake can include it.
 void refreshMethodListHash();
 
-// EasyEDA calls the exported activate('onStartupFinished') lifecycle hook.
+// EasyEDA appends activate('onStartupFinished') after evaluating this bundle.
+// The exported activate function above starts the connection only after the
+// extension runtime (including sys_Timer and sys_WebSocket) is ready.
