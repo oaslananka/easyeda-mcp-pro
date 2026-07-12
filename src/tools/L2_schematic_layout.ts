@@ -25,7 +25,11 @@ import {
   type LiveFunctionalLayoutComponentInput,
 } from '../schematic-model/live-functional-layout.js';
 import type { FunctionalLayoutConstraints } from '../layout/planner.js';
-import type { PlacementConstraintRegion } from '../layout/placement.js';
+import type { PlacementConstraintRegion, SafeRegionPreference } from '../layout/placement.js';
+import {
+  gatherLivePlacementCheck,
+  type LivePlacementCandidateInput,
+} from '../schematic-model/live-placement-check.js';
 import { type ToolContext, type ToolDefinition } from './types.js';
 
 const boundsSchema = z.object({
@@ -236,6 +240,100 @@ const placementCandidateSchema = z.object({
   origin: z.object({ x: z.number(), y: z.number() }),
   rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
   combinedBounds: boundsSchema,
+});
+
+const placementConflictSchema = z.object({
+  code: z.enum([
+    'PAGE_BORDER_KEEP_OUT',
+    'TITLE_BLOCK_KEEP_OUT',
+    'CALLER_RESERVED_REGION',
+    'SUPPORT_RESERVATION',
+    'EXISTING_OBJECT_OCCUPIED',
+    'MINIMUM_CLEARANCE',
+  ]),
+  regionId: z.string(),
+  regionKind: z.enum([
+    'title-block',
+    'page-border',
+    'caller-reserved',
+    'support-reservation',
+    'existing-object',
+  ]),
+  candidateBounds: boundsSchema,
+  conflictingBounds: boundsSchema,
+  clearance: z.number(),
+  requiredClearance: z.number(),
+  message: z.string(),
+});
+
+const placementAlternativeSchema = placementCandidateSchema.extend({
+  reason: z.string(),
+});
+
+const placementCheckResultSchema = z.object({
+  accepted: z.boolean(),
+  proposed: placementCandidateSchema,
+  combinedBounds: boundsSchema,
+  clearances: z.array(
+    z.object({
+      regionId: z.string(),
+      regionKind: z.enum([
+        'title-block',
+        'page-border',
+        'caller-reserved',
+        'support-reservation',
+        'existing-object',
+      ]),
+      clearance: z.number(),
+    }),
+  ),
+  conflicts: z.array(placementConflictSchema),
+  suggestedAlternatives: z.array(placementAlternativeSchema),
+  failure: z
+    .object({
+      code: z.literal('NO_FEASIBLE_POSITION'),
+      unsatisfiedConstraints: z.array(z.string()),
+      searchedCandidates: z.number().int().nonnegative(),
+    })
+    .optional(),
+});
+
+const placementCheckOutputSchema = z.object({
+  mode: z.enum(['check-placement', 'select-safe-region']),
+  // check-placement mode
+  accepted: z.boolean().optional(),
+  proposed: placementCandidateSchema.optional(),
+  combinedBounds: boundsSchema.optional(),
+  clearances: z
+    .array(
+      z.object({
+        regionId: z.string(),
+        regionKind: z.enum([
+          'title-block',
+          'page-border',
+          'caller-reserved',
+          'support-reservation',
+          'existing-object',
+        ]),
+        clearance: z.number(),
+      }),
+    )
+    .optional(),
+  conflicts: z.array(placementConflictSchema).optional(),
+  suggestedAlternatives: z.array(placementAlternativeSchema).optional(),
+  failure: z
+    .object({
+      code: z.literal('NO_FEASIBLE_POSITION'),
+      unsatisfiedConstraints: z.array(z.string()),
+      searchedCandidates: z.number().int().nonnegative(),
+    })
+    .optional(),
+  // select-safe-region mode
+  feasible: z.boolean().optional(),
+  preference: z.string().optional(),
+  candidate: placementCandidateSchema.optional(),
+  check: placementCheckResultSchema.optional(),
+  rationale: z.array(z.string()).optional(),
 });
 
 const functionalLayoutOutputSchema = z.object({
@@ -838,6 +936,66 @@ export function registerSchematicLayoutTools(
         a3FallbackAllowed: values.allowA3Fallback,
         hardKeepouts: values.hardKeepouts,
         constraints: values.constraints,
+      });
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_check_placement',
+    title: 'Check or find a safe schematic placement',
+    description:
+      'Validate a candidate placement (rendered bounds, clearances, conflicts, deterministic ' +
+      'alternatives) or -- when x/y are omitted -- search for a safe region of the given size, ' +
+      'against real title-block/page-border/existing-primitive constraints. Read-only, no writes.',
+    profile: 'pro',
+    evidence: ['runtime-probe', 'inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'workflows',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().min(1),
+      candidate: z.object({
+        width: z.number().positive(),
+        height: z.number().positive(),
+        x: z.number().optional(),
+        y: z.number().optional(),
+        rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional(),
+        preference: z
+          .enum([
+            'upper-left',
+            'upper-center',
+            'upper-right',
+            'center-left',
+            'center',
+            'center-right',
+            'lower-left',
+            'lower-center',
+            'lower-right',
+          ])
+          .optional(),
+      }),
+      reservedRegions: z.array(placementConstraintRegionSchema).optional(),
+      minimumClearance: z.number().nonnegative().optional(),
+      excludePrimitiveIds: z.array(z.string().min(1)).optional(),
+    }),
+    outputSchema: placementCheckOutputSchema,
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const values = params as {
+        projectId: string;
+        candidate: LivePlacementCandidateInput & { preference?: SafeRegionPreference };
+        reservedRegions?: PlacementConstraintRegion[];
+        minimumClearance?: number;
+        excludePrimitiveIds?: string[];
+      };
+      return gatherLivePlacementCheck(ctx, values.projectId, values.candidate, {
+        reservedRegions: values.reservedRegions,
+        minimumClearance: values.minimumClearance,
+        excludePrimitiveIds: values.excludePrimitiveIds,
       });
     },
   });

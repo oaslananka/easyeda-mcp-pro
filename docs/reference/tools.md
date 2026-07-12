@@ -81,6 +81,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_batch_write`                    | `core`  | `high`   | Apply up to 200 validated schematic create, modify, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.                                                                                                          |
 | `easyeda_schematic_capture_full_page`              | `pro`   | `low`    | Read the active schematic sheet geometry, clear selection overlays, frame the complete sheet including its border and title block, and return a deterministic PNG plus the sheet-to-image coordinate transform. Refuses guessed geometry unless explicitly allowed.                                                              |
 | `easyeda_schematic_check_collisions`               | `core`  | `low`    | Scan every component's real pin coordinates and report any (x,y) shared by two or more components — a silent-short risk the native NET_COLLISION guard misses for never-wired pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this automatically).                                            |
+| `easyeda_schematic_check_placement`                | `pro`   | `low`    | Validate a candidate placement (rendered bounds, clearances, conflicts, deterministic alternatives) or -- when x/y are omitted -- search for a safe region of the given size, against real title-block/page-border/existing-primitive constraints. Read-only, no writes.                                                         |
 | `easyeda_schematic_component_pins`                 | `core`  | `low`    | Get exact pin numbers, names, coordinates, and native pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.                                                          |
 | `easyeda_schematic_components`                     | `core`  | `low`    | List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem in this project), deviceName, symbolName, lcsc, manufacturerId.                                                                                  |
 | `easyeda_schematic_connect_pin_to_net`             | `core`  | `medium` | Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.                                                                         |
@@ -2576,6 +2577,46 @@ Returns a JSON object matching the schema:
   collision_count: number;
   success: boolean;
   error: string (optional);
+}
+```
+
+---
+
+## `easyeda_schematic_check_placement`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Validate a candidate placement (rendered bounds, clearances, conflicts, deterministic alternatives) or -- when x/y are omitted -- search for a safe region of the given size, against real title-block/page-border/existing-primitive constraints. Read-only, no writes.
+
+### Input Parameters
+
+| Parameter             | Type                  | Required | Description |
+| --------------------- | --------------------- | -------- | ----------- |
+| `projectId`           | `string`              | Yes      |             |
+| `candidate`           | `object`              | Yes      |             |
+| `reservedRegions`     | `object[] (optional)` | No       |             |
+| `minimumClearance`    | `number (optional)`   | No       |             |
+| `excludePrimitiveIds` | `string[] (optional)` | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  mode: 'check-placement' | 'select-safe-region';
+  accepted: boolean (optional);
+  proposed: object (optional);
+  combinedBounds: object (optional);
+  clearances: object[] (optional);
+  conflicts: object[] (optional);
+  suggestedAlternatives: object[] (optional);
+  failure: object (optional);
+  feasible: boolean (optional);
+  preference: string (optional);
+  candidate: object (optional);
+  check: object (optional);
+  rationale: string[] (optional);
 }
 ```
 
