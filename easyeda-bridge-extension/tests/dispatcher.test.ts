@@ -54,6 +54,26 @@ function fakeComponent(overrides: Record<string, unknown> = {}): Record<string, 
   return obj;
 }
 
+function fakeSchematicPin(pinNumber: string, x: number, y: number): Record<string, unknown> {
+  return {
+    getState_PinNumber: () => pinNumber,
+    getState_X: () => x,
+    getState_Y: () => y,
+    getState_OtherProperty: () => ({}),
+  };
+}
+
+function fakeSchematicPart(
+  designator: string,
+  pins: Array<Record<string, unknown>>,
+): Record<string, unknown> {
+  return {
+    getState_Designator: () => designator,
+    getState_ComponentType: () => 'part',
+    getAllPins: async () => pins,
+  };
+}
+
 describe('createDispatcher', () => {
   it('returns a dispatcher with a sorted, non-empty method list and a build id', () => {
     const dispatcher = createDispatcher(makeToolkit({}));
@@ -181,6 +201,39 @@ describe('createDispatcher', () => {
     );
   });
 
+  it('schematic.listNets reports pins joined only by an unnamed wire', async () => {
+    const u1 = fakeSchematicPart('U1', [fakeSchematicPin('XL1', 100, 200)]);
+    const x1 = fakeSchematicPart('X1', [fakeSchematicPin('1', 300, 200)]);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [u1, x1] },
+        SCH_PrimitiveWire: { getAll: async () => [fakeWire('w1', '', [100, 200, 300, 200])] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([
+      {
+        netName: 'N$1',
+        nodes: [
+          {
+            component: 'U1',
+            pin: 'XL1',
+            x: 100,
+            y: 200,
+            source: 'coordinate-fallback',
+          },
+          {
+            component: 'X1',
+            pin: '1',
+            x: 300,
+            y: 200,
+            source: 'coordinate-fallback',
+          },
+        ],
+      },
+    ]);
+  });
+
   // Live-verified (2026-07-07): a generic net label (SCH_PrimitiveAttribute.
   // createNetLabel) is cosmetic and never appears here, but a power/ground
   // flag (SCH_PrimitiveComponent.createNetFlag) is a real componentType
@@ -195,6 +248,37 @@ describe('createDispatcher', () => {
       getState_Y: () => y,
     };
   }
+
+  it('schematic.listNets uses a connected net port name instead of an anonymous name', async () => {
+    const u1 = fakeSchematicPart('U1', [fakeSchematicPin('XL1', 100, 200)]);
+    const x1 = fakeSchematicPart('X1', [fakeSchematicPin('1', 300, 200)]);
+    const port = {
+      getState_ComponentType: () => 'netport',
+      getState_Net: () => 'XL1',
+      getState_X: () => 100,
+      getState_Y: () => 200,
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [u1, x1, port] },
+        SCH_PrimitiveWire: { getAll: async () => [fakeWire('w1', '', [100, 200, 300, 200])] },
+      }),
+    );
+
+    const result = (await dispatcher.dispatch('schematic.listNets', {})) as Array<{
+      netName: string;
+      nodes: Array<{ component: string; pin: string }>;
+    }>;
+    expect(result).toEqual([
+      {
+        netName: 'XL1',
+        nodes: [
+          expect.objectContaining({ component: 'U1', pin: 'XL1' }),
+          expect.objectContaining({ component: 'X1', pin: '1' }),
+        ],
+      },
+    ]);
+  });
 
   it('refuses addWire when a point collides with a foreign net flag', async () => {
     const create = vi.fn();
@@ -422,6 +506,43 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('design.drc translates an inactive PCB canvas failure into CONTEXT_UNAVAILABLE', async () => {
+    const check = vi.fn(async () => {
+      throw new Error('localized message-bus error');
+    });
+    const dispatcher = createDispatcher(makeToolkit({ PCB_Drc: { check } }));
+
+    await expect(dispatcher.dispatch('design.drc', {})).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: 'PCB DRC is unavailable in the current editor context.',
+      suggestion: 'Open and focus a PCB document, then retry design.drc.',
+      data: { cause: 'localized message-bus error' },
+    });
+    expect(check).toHaveBeenCalledWith(true, true, true);
+  });
+
+  it('design.ruleCheck falls back from inactive PCB DRC to the schematic checker', async () => {
+    const pcbCheck = vi.fn(async () => {
+      throw new Error('no PCB canvas');
+    });
+    const schematicCheck = vi.fn(async () => [{ type: 'warn', count: 2 }]);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        PCB_Drc: { check: pcbCheck },
+        SCH_Drc: { check: schematicCheck },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('design.ruleCheck', {})).resolves.toMatchObject({
+      totalViolations: 2,
+      warningCount: 2,
+      errorCount: 0,
+      passed: true,
+    });
+    expect(pcbCheck).toHaveBeenCalledWith(true, true, true);
+    expect(schematicCheck).toHaveBeenCalledWith(true, true, true);
+  });
+
   // Live-verified against EasyEDA Pro (2026-07-07): PCB_PrimitiveVia.create's
   // real signature is (net, x, y, holeDiameter, diameter, viaType,
   // designRuleBlindViaName, locked, solderMaskExpansion) — net comes FIRST,
@@ -619,6 +740,116 @@ describe('createDispatcher', () => {
       endY: 4990,
     });
     expect(create).toHaveBeenCalledWith('', 3, 90, 4990, 110, 4990, 0.2, false);
+  });
+
+  it('schematic.listComponents excludes sheet/netflag primitives and resolves library display metadata', async () => {
+    const makeSchematicComponent = (state: Record<string, unknown>) => {
+      const component: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(state)) {
+        component[`getState_${key}`] = () => value;
+      }
+      return component;
+    };
+    const frame = makeSchematicComponent({
+      PrimitiveId: 'frame1',
+      ComponentType: 'sheet',
+      Component: { uuid: 'frame-dev', libraryUuid: 'lib', name: 'Drawing-Symbol_A4' },
+    });
+    const netflag = makeSchematicComponent({
+      PrimitiveId: 'flag1',
+      ComponentType: 'netflag',
+      Component: { uuid: 'gnd-dev', libraryUuid: 'lib', name: 'Ground-GND' },
+    });
+    const resistor = makeSchematicComponent({
+      PrimitiveId: 'r1',
+      ComponentType: 'part',
+      Component: { uuid: 'res-dev', libraryUuid: 'lib', name: 'RES_1K' },
+      Symbol: { name: 'RES' },
+      Footprint: { uuid: 'fp-r', libraryUuid: 'lib', name: 'R0805' },
+      Designator: 'R1',
+      Name: '={Value}',
+      Manufacturer: 'Example',
+      ManufacturerId: 'RES-1K',
+      SupplierId: 'C1',
+      OtherProperty: { Value: '1kΩ', Datasheet: 'https://example.invalid/r1' },
+      X: 100,
+      Y: 200,
+      Rotation: 0,
+    });
+    const timer = makeSchematicComponent({
+      PrimitiveId: 'u1',
+      ComponentType: 'part',
+      Component: { uuid: 'timer-dev', libraryUuid: 'lib', name: 'NE555P' },
+      Symbol: { name: 'NE555P' },
+      Footprint: null,
+      Designator: 'U1',
+      Name: '={Manufacturer Part}',
+      Manufacturer: 'TI',
+      ManufacturerId: 'NE555P',
+      SupplierId: 'C2',
+      OtherProperty: { 'Supplier Footprint': 'DIP-8' },
+      X: 300,
+      Y: 400,
+      Rotation: 0,
+    });
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [frame, netflag, resistor, timer] },
+      }),
+    );
+
+    const result = (await dispatcher.dispatch('schematic.listComponents', {})) as {
+      total: number;
+      items: Array<Record<string, unknown>>;
+    };
+
+    expect(result.total).toBe(2);
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        primitiveId: 'r1',
+        reference: 'R1',
+        value: '1kΩ',
+        footprint: 'R0805',
+        deviceName: 'RES_1K',
+      }),
+      expect.objectContaining({
+        primitiveId: 'u1',
+        reference: 'U1',
+        value: 'NE555P',
+        footprint: 'DIP-8',
+        deviceName: 'NE555P',
+      }),
+    ]);
+  });
+
+  it('schematic.listComponents paginates after filtering non-BOM primitives', async () => {
+    const makePart = (id: string, ref: string) => ({
+      getState_PrimitiveId: () => id,
+      getState_ComponentType: () => 'part',
+      getState_Component: () => ({ uuid: `${id}-dev`, libraryUuid: 'lib', name: id }),
+      getState_Designator: () => ref,
+      getState_Name: () => id,
+      getState_OtherProperty: () => ({}),
+    });
+    const frame = {
+      getState_PrimitiveId: () => 'frame',
+      getState_ComponentType: () => 'sheet',
+      getState_Component: () => ({ name: 'Drawing-Symbol_A4' }),
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: {
+          getAll: async () => [frame, makePart('a', 'R1'), makePart('b', 'R2')],
+        },
+      }),
+    );
+
+    await expect(
+      dispatcher.dispatch('schematic.listComponents', { limit: 1, offset: 1 }),
+    ).resolves.toMatchObject({
+      total: 2,
+      items: [expect.objectContaining({ primitiveId: 'b', reference: 'R2' })],
+    });
   });
 
   // PCB readback: field names below are the getState_* getters observed live

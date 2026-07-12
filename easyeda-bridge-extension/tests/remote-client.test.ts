@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RemoteRelayClient } from '../src/remote-client.js';
+import { createRuntimeTimers } from '../src/runtime-timers.js';
 
 const OPEN = 1;
 const CLOSED = 3;
@@ -56,6 +57,8 @@ function makeClient(requestApproval = vi.fn(async () => 'approved' as const)) {
     readActiveProject: () => ({ projectName: 'Fixture', documentType: 'schematic' }),
     executeToolRequest,
     requestApproval,
+    timers: createRuntimeTimers(() => undefined, globalThis as any, 'remote-test'),
+    createWebSocket: (url) => new FakeWebSocket(url) as unknown as WebSocket,
   });
   return { client, log, showToast, executeToolRequest, requestApproval };
 }

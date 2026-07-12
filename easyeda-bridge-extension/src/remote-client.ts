@@ -1,3 +1,5 @@
+import type { RuntimeTimerHandle, RuntimeTimers } from './runtime-timers.js';
+
 export type RemoteRelayMode = 'disabled' | 'hosted' | 'self_hosted';
 export type RemoteRelayState = 'disconnected' | 'connecting' | 'connected' | 'paired';
 
@@ -41,6 +43,8 @@ interface RemoteRelayClientOptions {
   readActiveProject: () => RemoteActiveProject | undefined;
   executeToolRequest?: (toolName: string, input: unknown) => Promise<unknown>;
   requestApproval?: (request: RemoteApprovalPrompt) => Promise<RemoteApprovalDecision>;
+  timers: RuntimeTimers;
+  createWebSocket: (url: string) => WebSocket;
 }
 
 interface RemoteRelayConnectInput {
@@ -99,8 +103,8 @@ export class RemoteRelayClient {
   private socket: WebSocket | null = null;
   private status: RemoteRelayStatus = { mode: 'disabled', state: 'disconnected' };
   private desiredConnection: RemoteRelayConnectInput | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectTimer: RuntimeTimerHandle | null = null;
+  private heartbeatTimer: RuntimeTimerHandle | null = null;
   private readonly pendingApprovalIds = new Set<string>();
 
   constructor(private readonly options: RemoteRelayClientOptions) {}
@@ -156,7 +160,7 @@ export class RemoteRelayClient {
     this.clearReconnectTimer();
 
     try {
-      const socket = new WebSocket(input.relayUrl);
+      const socket = this.options.createWebSocket(input.relayUrl);
       this.socket = socket;
       socket.onopen = () => this.handleOpen(socket, input.pairingCode);
       socket.onmessage = (event) => this.handleMessage(socket, event.data);
@@ -365,7 +369,7 @@ export class RemoteRelayClient {
       nextReconnectDelayMs: delay,
     };
     this.options.log('Remote Relay reconnect scheduled', { attempt: nextAttempt, delayMs: delay });
-    this.reconnectTimer = setTimeout(() => {
+    this.reconnectTimer = this.options.timers.setTimeout(() => {
       this.reconnectTimer = null;
       if (this.desiredConnection) this.openSocket(desired);
     }, delay);
@@ -373,11 +377,14 @@ export class RemoteRelayClient {
 
   private startHeartbeatTimer(): void {
     this.clearHeartbeatTimer();
-    this.heartbeatTimer = setInterval(() => this.checkHeartbeatLiveness(), HEARTBEAT_SWEEP_MS);
+    this.heartbeatTimer = this.options.timers.setInterval(
+      () => this.checkHeartbeatLiveness(),
+      HEARTBEAT_SWEEP_MS,
+    );
   }
 
   private checkHeartbeatLiveness(): void {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    if (!this.socket || this.socket.readyState !== 1) return;
     const lastHeartbeat = this.status.lastHeartbeatAt
       ? Date.parse(this.status.lastHeartbeatAt)
       : undefined;
@@ -394,13 +401,13 @@ export class RemoteRelayClient {
 
   private clearReconnectTimer(): void {
     if (!this.reconnectTimer) return;
-    clearTimeout(this.reconnectTimer);
+    this.options.timers.clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
   }
 
   private clearHeartbeatTimer(): void {
     if (!this.heartbeatTimer) return;
-    clearInterval(this.heartbeatTimer);
+    this.options.timers.clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = null;
   }
 
@@ -410,7 +417,7 @@ export class RemoteRelayClient {
   }
 
   private sendOnSocket(socket: WebSocket, payload: Record<string, unknown>): void {
-    if (socket.readyState !== WebSocket.OPEN) return;
+    if (socket.readyState !== 1) return;
     const envelope = {
       protocolVersion: PROTOCOL_VERSION,
       messageId: makeMessageId(),

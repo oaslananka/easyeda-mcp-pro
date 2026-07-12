@@ -149,6 +149,73 @@ describe('Visual Tools', () => {
     });
   });
 
+  describe('easyeda_schematic_capture_full_page', () => {
+    it('frames runtime sheet geometry and reports the image transform', async () => {
+      const tool = registry.get('easyeda_schematic_capture_full_page');
+      expect(tool).toBeDefined();
+
+      const png = Buffer.alloc(24);
+      png.write('PNG', 1, 'ascii');
+      png.writeUInt32BE(1200, 16);
+      png.writeUInt32BE(800, 20);
+      bridgeCall
+        .mockResolvedValueOnce({ pageSize: { width: 600, height: 400, unit: 'mil' } })
+        .mockResolvedValueOnce({
+          base64: png.toString('base64'),
+          mimeType: 'image/png',
+          fileName: 'full-page.png',
+          byteLength: png.length,
+          selectionCleared: true,
+        });
+
+      const result = await tool?.handler(context, {
+        projectId: 'project-1',
+        tabId: 'tab-1',
+        padding: 0,
+        allowInferredA4: false,
+      });
+
+      expect(bridgeCall).toHaveBeenNthCalledWith(1, 'schematic.getSheetInfo', {
+        projectId: 'project-1',
+      });
+      expect(bridgeCall).toHaveBeenNthCalledWith(2, 'canvas.captureRegion', {
+        left: -0,
+        right: 600,
+        top: 400,
+        bottom: -0,
+        tabId: 'tab-1',
+        clearSelection: true,
+      });
+      expect(result).toMatchObject({
+        captured: true,
+        deterministic_viewport: true,
+        selection_overlays_removed: true,
+        image_dimensions: { width: 1200, height: 800 },
+        sheet_to_image_transform: {
+          scale_x: 2,
+          scale_y: -2,
+          offset_x: 0,
+          offset_y: 800,
+        },
+      });
+    });
+
+    it('fails safely when runtime sheet geometry is unavailable', async () => {
+      const tool = registry.get('easyeda_schematic_capture_full_page');
+      bridgeCall.mockResolvedValueOnce({});
+
+      const result = await tool?.handler(context, { projectId: 'project-1' });
+
+      expect(bridgeCall).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({
+        captured: false,
+        not_available: true,
+        deterministic_viewport: false,
+      });
+      expect(result?.error).toContain('runtime sheet geometry');
+    });
+  });
+
   describe('easyeda_canvas_locate', () => {
     it('returns the resulting viewport rectangle', async () => {
       const tool = registry.get('easyeda_canvas_locate');

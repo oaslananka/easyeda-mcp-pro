@@ -310,7 +310,7 @@ export function buildNe555AstableTemplate(
   ];
 
   const wires =
-    input.createWireStubs === false ? [] : buildNe555VisibleWireStubs(anchor, refs, nets);
+    input.createWireStubs === true ? buildNe555VisibleWireStubs(anchor, refs, nets) : [];
 
   const workflowInput: WorkflowBlockInput = {
     projectId: input.projectId,
@@ -346,7 +346,7 @@ export function buildNe555AstableTemplate(
       'Pin 2 TRIG and pin 6 THRESH are tied to the timing node; pin 7 DISCH is between R1 and R2.',
       'Pin 4 RESET is tied to VCC; pin 5 CTRL is bypassed to GND; C3 is a local VCC/GND decoupling capacitor.',
       'Detached external netports are disabled by default; local pin-to-net labels avoid disconnected netport DRC info.',
-      'Visible wire stubs are drawn from each known pin by default so the generated schematic reads less like isolated net labels.',
+      'Exact pin-to-net connectivity is created by bridge pin readback; extra template guide wires are opt-in because hardcoded symbol coordinates can short mismatched library symbols.',
       'Use post-write QA with circuit policy after apply; duplicate net names, free wire-only nets, disconnected netports, and floating pins are blocking failures.',
     ],
   };

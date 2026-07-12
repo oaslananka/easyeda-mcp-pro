@@ -79,6 +79,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_add_wire`                       | `core`  | `medium` | Add a wire connecting schematic coordinates/pins — real native connectivity. Same `netName` connects pins globally: separate stubs sharing one name merge into one net (no label needed). NET_COLLISION guards touched points against a foreign net's wire, pin, or flag/port — not mid-segment crossings.                       |
 | `easyeda_schematic_audit_imported_design`          | `core`  | `low`    | Read the live schematic without modifying it, build a canonical model, and report imported net aliases, duplicate or missing references, unresolved metadata expressions, missing values/footprints, and ambiguous BOM classification. Includes a preview only; it never renames nets or changes components.                     |
 | `easyeda_schematic_batch_write`                    | `core`  | `high`   | Apply up to 200 validated schematic create, modify, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.                                                                                                          |
+| `easyeda_schematic_capture_full_page`              | `pro`   | `low`    | Read the active schematic sheet geometry, clear selection overlays, frame the complete sheet including its border and title block, and return a deterministic PNG plus the sheet-to-image coordinate transform. Refuses guessed geometry unless explicitly allowed.                                                              |
 | `easyeda_schematic_check_collisions`               | `core`  | `low`    | Scan every component's real pin coordinates and report any (x,y) shared by two or more components — a silent-short risk the native NET_COLLISION guard misses for never-wired pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this automatically).                                            |
 | `easyeda_schematic_component_pins`                 | `core`  | `low`    | Get exact pin numbers, names, coordinates, and native pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.                                                          |
 | `easyeda_schematic_components`                     | `core`  | `low`    | List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem in this project), deviceName, symbolName, lcsc, manufacturerId.                                                                                  |
@@ -87,6 +88,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_create_net_flag`                | `core`  | `medium` | Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/ProtectGround) it places a power-flag symbol binding to a coincident pin (use for VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire stubs sharing one netName.                                               |
 | `easyeda_schematic_create_net_port`                | `core`  | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                                                  |
 | `easyeda_schematic_delete_primitive`               | `core`  | `medium` | Delete components, wires, or other drawing objects from the schematic by their primitive UUIDs.                                                                                                                                                                                                                                  |
+| `easyeda_schematic_layout_qa`                      | `pro`   | `low`    | Run a normalized post-write QA pass combining runtime DRC/ERC, expected component/pin topology, rendered primitive bounds, title-block and page constraints, wiring/grouping checks, and connectivity fingerprints, with optional full-page visual evidence. Critical geometry or connectivity findings always block commit.     |
 | `easyeda_schematic_modify_primitive`               | `core`  | `medium` | Safely modify a schematic primitive while preserving omitted fields. With transactionId and projectId, capture before/after snapshots and automatically restore the prior state if the write or post-write read fails. Component moves keep connected wires attached.                                                            |
 | `easyeda_schematic_net_detail`                     | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                                                |
 | `easyeda_schematic_nets`                           | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
@@ -108,6 +110,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_workflow_connector_breakout`              | `pro`   | `medium` | Place a connector, wire each declared pin to its net, and create a net port for each net so the breakout is accessible off-sheet — all as a single atomic transaction (confirmWrite required).                                                                                                                                   |
 | `easyeda_workflow_decouple_ic`                     | `pro`   | `medium` | Place one decoupling capacitor per declared IC power pin and wire each to the pin's net and ground, in a single atomic transaction. Cites design-rules decoupling guidance (rule-of-thumb, not datasheet-specific) alongside the plan (confirmWrite required).                                                                   |
 | `easyeda_workflow_layout_section`                  | `pro`   | `medium` | Compute and create a section rectangle + title sized from the real pin extents of the given already-placed components (or replace an existing rectangle/title pair). Reports overlap with other rectangles and page-size overflow as warnings; never resizes the page.                                                           |
+| `easyeda_workflow_led_blinker`                     | `pro`   | `medium` | Create a deterministic LED blinker workflow: a switch, current-limiting resistor, and indicator LED. Uses safe sheet-region planning, left-to-right layout, generic wire stubs, and optional post-write QA. Caller supplies resolved device items (confirmWrite required); simplest circuit for validating the MCP pipeline.     |
 | `easyeda_workflow_ne555_astable`                   | `pro`   | `medium` | Create a deterministic NE555 astable LED flasher workflow using safe sheet-region planning, component-level layout offsets, explicit pin-to-net connectivity, and optional post-write QA. Caller supplies already-resolved EasyEDA device items; this tool does not guess catalog parts (confirmWrite required).                 |
 | `easyeda_workflow_place_block`                     | `pro`   | `medium` | Place a group of components, wire their pin-to-net connections (new and/or pre-existing components), and create net ports for block-external nets — all as a single atomic transaction with rollback on partial failure (confirmWrite required).                                                                                 |
 | `easyeda_workflow_power_rail`                      | `pro`   | `medium` | Place a regulator and its supporting passives and wire them to input/output/ground nets in a single atomic transaction, instead of one primitive call per component. Caller supplies already-resolved device items and pin connections; this tool does not select parts (confirmWrite required).                                 |
@@ -2506,6 +2509,47 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_schematic_capture_full_page`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Read the active schematic sheet geometry, clear selection overlays, frame the complete sheet including its border and title block, and return a deterministic PNG plus the sheet-to-image coordinate transform. Refuses guessed geometry unless explicitly allowed.
+
+### Input Parameters
+
+| Parameter         | Type                | Required | Description |
+| ----------------- | ------------------- | -------- | ----------- |
+| `projectId`       | `string`            | Yes      |             |
+| `tabId`           | `string (optional)` | No       |             |
+| `padding`         | `number`            | Yes      |             |
+| `allowInferredA4` | `boolean`           | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  captured: boolean;
+  mime_type: string (optional);
+  file_name: string (optional);
+  byte_length: number (optional);
+  image_base64: string (optional);
+  not_available: boolean (optional);
+  error: string (optional);
+  project_id: string;
+  sheet: object (optional);
+  viewport: object (optional);
+  image_dimensions: object (optional);
+  sheet_to_image_transform: object (optional);
+  selection_overlays_removed: boolean (optional);
+  deterministic_viewport: boolean;
+  warnings: string[];
+}
+```
+
+---
+
 ## `easyeda_schematic_check_collisions`
 
 **Profile:** `core` | **Risk Level:** `low`
@@ -2584,6 +2628,7 @@ Returns a JSON object matching the schema:
   project_id: string;
   components: object[];
   total: number;
+  read_consistency: object (optional);
   not_available: boolean (optional);
   error: string (optional);
 }
@@ -2749,6 +2794,46 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_schematic_layout_qa`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Run a normalized post-write QA pass combining runtime DRC/ERC, expected component/pin topology, rendered primitive bounds, title-block and page constraints, wiring/grouping checks, and connectivity fingerprints, with optional full-page visual evidence. Critical geometry or connectivity findings always block commit.
+
+### Input Parameters
+
+| Parameter               | Type                  | Required | Description |
+| ----------------------- | --------------------- | -------- | ----------- |
+| `projectId`             | `string`              | Yes      |             |
+| `expectedComponentRefs` | `string[] (optional)` | No       |             |
+| `expectedNetNames`      | `string[] (optional)` | No       |             |
+| `expectedPinMappings`   | `object[] (optional)` | No       |             |
+| `relationships`         | `object[] (optional)` | No       |             |
+| `connectivity`          | `object (optional)`   | No       |             |
+| `thresholds`            | `object (optional)`   | No       |             |
+| `visualFindings`        | `object[] (optional)` | No       |             |
+| `runVisualCapture`      | `boolean`             | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  projectId: string;
+  status: 'pass' | 'fail' | 'inconclusive';
+  passed: boolean;
+  commitBlocked: boolean;
+  issues: object[];
+  issueCounts: object;
+  scores: object;
+  evidence: object;
+  summary: object;
+}
+```
+
+---
+
 ## `easyeda_schematic_modify_primitive`
 
 **Profile:** `core` | **Risk Level:** `medium`
@@ -2832,7 +2917,9 @@ Returns a JSON object matching the schema:
   project_id: string;
   nets: object[];
   total: number;
+  read_consistency: object (optional);
   not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -3171,6 +3258,7 @@ Returns a JSON object matching the schema:
   project_id: string;
   wires: object[];
   total: number;
+  read_consistency: object (optional);
   not_available: boolean (optional);
   error: string (optional);
 }
@@ -3469,6 +3557,59 @@ Returns a JSON object matching the schema:
   title_primitive_id: string (optional);
   deleted_primitive_ids: string[];
   error: string (optional);
+}
+```
+
+---
+
+## `easyeda_workflow_led_blinker`
+
+**Profile:** `pro` | **Risk Level:** `medium`
+
+> Create a deterministic LED blinker workflow: a switch, current-limiting resistor, and indicator LED. Uses safe sheet-region planning, left-to-right layout, generic wire stubs, and optional post-write QA. Caller supplies resolved device items (confirmWrite required); simplest circuit for validating the MCP pipeline.
+
+### Input Parameters
+
+| Parameter         | Type                 | Required       | Description   |
+| ----------------- | -------------------- | -------------- | ------------- |
+| `projectId`       | `string`             | Yes            |               |
+| `mode`            | `'preview'           | 'apply'`       | Yes           |               |
+| `devices`         | `object`             | Yes            |               |
+| `anchor`          | `object (optional)`  | No             |               |
+| `preferredRegion` | `'upper-left'        | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
+| `margin`          | `number (optional)`  | No             |               |
+| `createNetPorts`  | `boolean`            | Yes            |               |
+| `createWireStubs` | `boolean`            | Yes            |               |
+| `refs`            | `object (optional)`  | No             |               |
+| `nets`            | `object (optional)`  | No             |               |
+| `values`          | `object (optional)`  | No             |               |
+| `pinMaps`         | `object (optional)`  | No             |               |
+| `runPostWriteQa`  | `boolean`            | Yes            |               |
+| `confirmWrite`    | `boolean (optional)` | No             |               |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  transaction_id: string;
+  mode: string;
+  applied: boolean;
+  blocked: boolean;
+  rolled_back: boolean;
+  placements: object[];
+  operations: object[];
+  apply_results: object[] (optional);
+  issues: object[];
+  summary: string;
+  rollback_notes: string[];
+  error: string (optional);
+  safe_region: object;
+  design: object;
+  post_write_qa: object (optional);
 }
 ```
 

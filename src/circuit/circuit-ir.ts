@@ -24,6 +24,7 @@ import {
   MountingHoleType,
 } from './types.js';
 import { CircuitError, CircuitErrorCode, fromZodError } from './errors.js';
+import { UsbIsolatedRs485ReferenceSchema } from './reference-design.js';
 
 // ── Schema constants ──────────────────────────────────────────────────────
 
@@ -419,6 +420,7 @@ export const CircuitIRSchema = z
     bom: BomIntentSchema.default({ excludeRefs: [], preferredVendors: [] }),
     pcb: PcbIntentSchema.default({}),
     manufacturing: ManufacturingIntentSchema.default({}),
+    referenceDesign: UsbIsolatedRs485ReferenceSchema.optional(),
   })
   .strict()
   .refine(

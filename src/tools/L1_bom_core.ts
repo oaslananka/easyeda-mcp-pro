@@ -61,11 +61,12 @@ function registerBomCoreTools(
           quantity?: number;
           manufacturer?: string;
         }>;
+        const validEntries = (entries ?? []).filter((entry) => entry.reference?.trim());
         return {
           project_id: projectId,
           format,
           group_by: groupBy,
-          entries: (entries ?? []).map((e) => ({
+          entries: validEntries.map((e) => ({
             reference: e.reference ?? '',
             value: e.value ?? '',
             footprint: e.footprint ?? '',
@@ -73,7 +74,7 @@ function registerBomCoreTools(
             quantity: e.quantity ?? 0,
             manufacturer: e.manufacturer,
           })),
-          total_entries: entries?.length ?? 0,
+          total_entries: validEntries.length,
         };
       } catch (err) {
         return {
