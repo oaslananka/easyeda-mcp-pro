@@ -16,6 +16,9 @@ import {
   defaultTitleBlockKeepout,
   inferSchematicSheetGeometry,
 } from '../workflows/schematic-safe-region.js';
+import { createConnectivityFingerprint } from '../schematic-model/connectivity-fingerprint.js';
+import { buildSchematicModel } from '../schematic-model/model-builder.js';
+import { gatherLiveSchematicSnapshot } from '../schematic-model/live-snapshot.js';
 import { type ToolContext, type ToolDefinition } from './types.js';
 
 const boundsSchema = z.object({
@@ -73,6 +76,56 @@ const qaIssueSchema = z.object({
   remediation: z.string(),
   blocksCommit: z.boolean(),
   confidence: z.number().min(0).max(1),
+});
+
+const connectivityFingerprintOutputSchema = z.object({
+  projectId: z.string(),
+  schemaVersion: z.literal(1),
+  hash: z.string(),
+  modelHash: z.string(),
+  componentCount: z.number().int().nonnegative(),
+  netCount: z.number().int().nonnegative(),
+  normalized: z.object({
+    pinNetMembership: z.array(
+      z.object({
+        componentId: z.string(),
+        componentReference: z.string(),
+        pinId: z.string(),
+        pinNumber: z.string(),
+        netIds: z.array(z.string()),
+      }),
+    ),
+    wireEndpoints: z.array(
+      z.object({
+        wireId: z.string(),
+        netId: z.string().optional(),
+        netName: z.string().optional(),
+        endpoints: z.array(
+          z.object({
+            endpoint: z.enum(['start', 'end']),
+            kind: z.enum(['pin', 'unresolved']),
+            token: z.string(),
+          }),
+        ),
+      }),
+    ),
+    labelsAndPorts: z.array(
+      z.object({
+        id: z.string(),
+        kind: z.enum(['label', 'sheet-port', 'power-symbol']),
+        netName: z.string(),
+      }),
+    ),
+    noConnects: z.array(
+      z.object({
+        noConnectId: z.string(),
+        componentReference: z.string().optional(),
+        pinId: z.string().optional(),
+        pinNumber: z.string().optional(),
+      }),
+    ),
+  }),
+  diagnosticCount: z.number().int().nonnegative(),
 });
 
 export const layoutQaOutputSchema = z.object({
@@ -476,6 +529,46 @@ export function registerSchematicLayoutTools(
         ...values,
         runVisualCapture: values.runVisualCapture ?? true,
       });
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_connectivity_fingerprint',
+    title: 'Compute schematic connectivity fingerprint',
+    description:
+      'Compute a deterministic connectivity fingerprint (pin/net membership, wire ' +
+      'endpoints, labels/ports, no-connects) from the live schematic. Pass the hash as ' +
+      'beforeFingerprint/afterFingerprint to easyeda_schematic_layout_qa to prove a ' +
+      'cosmetic move left connectivity unchanged.',
+    profile: 'pro',
+    evidence: ['runtime-probe', 'inferred'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'workflows',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().min(1),
+    }),
+    outputSchema: connectivityFingerprintOutputSchema,
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId } = params as { projectId: string };
+      const snapshot = await gatherLiveSchematicSnapshot(ctx, projectId);
+      const model = buildSchematicModel(snapshot);
+      const fingerprint = createConnectivityFingerprint(model);
+      return {
+        projectId,
+        schemaVersion: fingerprint.schemaVersion,
+        hash: fingerprint.hash,
+        modelHash: model.modelHash,
+        componentCount: model.components.length,
+        netCount: model.nets.length,
+        normalized: fingerprint.normalized,
+        diagnosticCount: model.diagnostics.length,
+      };
     },
   });
 }
