@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildNe555AstableTemplate,
   calculateNe555Astable,
+  NE555_ASTABLE_CONTENT,
 } from '../../../src/workflows/ne555-astable-template.js';
 
 const deviceItem = { libraryUuid: 'lib-1', uuid: 'dev-1' };
@@ -114,5 +115,47 @@ describe('NE555 astable template', () => {
     const led = result.workflowInput.components?.find((c) => c.ref === 'D1');
     expect(led?.pinConnections).toContainEqual({ pin: 'A', netName: 'LED_A' });
     expect(led?.pinConnections).toContainEqual({ pin: 'K', netName: 'GND' });
+  });
+
+  it('golden: reserves a title-block-clear region and keeps every component offset inside it', () => {
+    // Partial regression guard for #245's "prevents title-block overlap"
+    // criterion. This proves the reserved bounding box (NE555_ASTABLE_CONTENT)
+    // never overlaps the title-block keep-out, and that no component's
+    // placementOffset literal has drifted outside that declared box. It does
+    // NOT prove the template's interior is collision-free -- the template
+    // hard-codes placementOffset dx/dy per component instead of running them
+    // through the shared planFunctionalLayout engine (#272), so there are no
+    // per-component rendered bounds to check text/body overlap against here.
+    // See #245 for that open gap.
+    const result = buildNe555AstableTemplate({ projectId: 'proj-555', devices });
+
+    expect(result.safeRegion.blocked).toBe(false);
+    expect(result.safeRegion.issues).toEqual([]);
+    expect(result.safeRegion.bounds.width).toBe(NE555_ASTABLE_CONTENT.width);
+    expect(result.safeRegion.bounds.height).toBe(NE555_ASTABLE_CONTENT.height);
+
+    for (const component of result.workflowInput.components ?? []) {
+      const offset = component.placementOffset;
+      expect(offset).toBeDefined();
+      expect(offset!.dx).toBeGreaterThanOrEqual(0);
+      expect(offset!.dx).toBeLessThanOrEqual(NE555_ASTABLE_CONTENT.width);
+      expect(offset!.dy).toBeLessThanOrEqual(0);
+      expect(offset!.dy).toBeGreaterThanOrEqual(-NE555_ASTABLE_CONTENT.height);
+    }
+  });
+
+  it('golden: never assigns two different logical nets or two components the same name', () => {
+    // Regression guard for #245's "prevents ... duplicate net-name warnings"
+    // acceptance criterion, at the data level this template controls.
+    const result = buildNe555AstableTemplate({ projectId: 'proj-555', devices });
+
+    const netNames = Object.values(result.nets);
+    expect(new Set(netNames).size).toBe(netNames.length);
+
+    const refs = Object.values(result.refs);
+    expect(new Set(refs).size).toBe(refs.length);
+
+    const refsFromComponents = (result.workflowInput.components ?? []).map((c) => c.ref);
+    expect(new Set(refsFromComponents).size).toBe(refsFromComponents.length);
   });
 });
