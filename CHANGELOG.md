@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.34.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.33.0...easyeda-mcp-pro-v0.34.0) (2026-07-13)
+
+
+### Features
+
+* **schematic-layout:** live connectivity fingerprint ([#273](https://github.com/oaslananka/easyeda-mcp-pro/issues/273)) ([239f731](https://github.com/oaslananka/easyeda-mcp-pro/commit/239f731ce28a029543dcefe56cd9f11e5a9ebbb9))
+* **schematic-layout:** live connectivity fingerprint for [#273](https://github.com/oaslananka/easyeda-mcp-pro/issues/273) ([480d78d](https://github.com/oaslananka/easyeda-mcp-pro/commit/480d78d9e43a466703d92861ce3ae227d090751a))
+* **schematic-layout:** live deterministic functional-block layout planner for [#272](https://github.com/oaslananka/easyeda-mcp-pro/issues/272) ([3d0306b](https://github.com/oaslananka/easyeda-mcp-pro/commit/3d0306b6f4b19051aac19d3670e81c60e7add792))
+* **schematic-layout:** live functional-block layout planner ([#272](https://github.com/oaslananka/easyeda-mcp-pro/issues/272)) ([00da038](https://github.com/oaslananka/easyeda-mcp-pro/commit/00da03887f54c74228df29266125e7498b523c0e))
+* **schematic-layout:** live placement check / safe-region search ([#243](https://github.com/oaslananka/easyeda-mcp-pro/issues/243)) ([b78d97c](https://github.com/oaslananka/easyeda-mcp-pro/commit/b78d97c4d9fc5cab3c0702f9306c5dfb9e3a12fc))
+* **schematic-layout:** live placement check + safe-region search for [#243](https://github.com/oaslananka/easyeda-mcp-pro/issues/243) ([be4b182](https://github.com/oaslananka/easyeda-mcp-pro/commit/be4b18241292ca6e2342dd41bce5c60598a18bd8))
+* **schematic-layout:** live primitive bounding boxes ([#271](https://github.com/oaslananka/easyeda-mcp-pro/issues/271)) ([b8955ca](https://github.com/oaslananka/easyeda-mcp-pro/commit/b8955ca3fcf20c7a2361bc909be9c6f403c7e752))
+* **schematic-layout:** live primitive bounding boxes for [#271](https://github.com/oaslananka/easyeda-mcp-pro/issues/271) ([c32ac7b](https://github.com/oaslananka/easyeda-mcp-pro/commit/c32ac7bbc7535aac83e69325aa432418b8348799))
+* **schematic-layout:** wire confirmWrite-gated layout autofix apply mode ([8cc960c](https://github.com/oaslananka/easyeda-mcp-pro/commit/8cc960c93aa2a377b26e572cf3d3dbd378850316))
+* **schematic-layout:** wire confirmWrite-gated layout autofix apply mode ([ffe3e5b](https://github.com/oaslananka/easyeda-mcp-pro/commit/ffe3e5bd083834eb6df281d778f12d92b9b92e65))
+* **schematic-layout:** wire easyeda_schematic_layout_autofix (preview mode) ([dd13f8f](https://github.com/oaslananka/easyeda-mcp-pro/commit/dd13f8f55f55862790d447ada7684fcb560a5de7))
+* **schematic-layout:** wire easyeda_schematic_layout_autofix (preview mode) ([4e3a531](https://github.com/oaslananka/easyeda-mcp-pro/commit/4e3a531c4f1eb34fa3e3a8ff6dce243ea7c3adc4))
+* **workflows:** add visible RP2040 scaffold sections ([d52a943](https://github.com/oaslananka/easyeda-mcp-pro/commit/d52a943a202ccbbd0f8c4099780ff99520524cf5))
+* **workflows:** add visible RP2040 scaffold sections ([1dc4c3a](https://github.com/oaslananka/easyeda-mcp-pro/commit/1dc4c3a5884065ba0e8983c033be482ec15bc271))
+
+
+### Bug Fixes
+
+* **ne555-astable:** stop createWireStubs from crashing every live apply ([7944938](https://github.com/oaslananka/easyeda-mcp-pro/commit/794493899e055c6bbc5c4237b0c5edebe706abc1))
+* **ne555-astable:** stop createWireStubs from crashing every live apply (partial [#253](https://github.com/oaslananka/easyeda-mcp-pro/issues/253)) ([d4bc2e7](https://github.com/oaslananka/easyeda-mcp-pro/commit/d4bc2e72032f84995120c9c5cb9a837272d6e057))
+* **schematic-layout-qa:** resolve component refs from listComponents, not primitiveBounds ([90f795a](https://github.com/oaslananka/easyeda-mcp-pro/commit/90f795ae6301b360a66163fdc13de7e6a1d3d4f5))
+* **schematic-layout-qa:** resolve component refs from listComponents, not primitiveBounds ([#288](https://github.com/oaslananka/easyeda-mcp-pro/issues/288)) ([24b7969](https://github.com/oaslananka/easyeda-mcp-pro/commit/24b796927e4b6bdac53d89832bb42f931bebdef5))
+* **schematic-layout:** clear remaining quality-gate failures on PR [#278](https://github.com/oaslananka/easyeda-mcp-pro/issues/278) ([41f2c74](https://github.com/oaslananka/easyeda-mcp-pro/commit/41f2c74b1f5dda932ea8b45b4cf4cd7e194ebf6e))
+* **schematic-layout:** resolve CI quality-gate failures on PR [#278](https://github.com/oaslananka/easyeda-mcp-pro/issues/278) ([fc0b4fb](https://github.com/oaslananka/easyeda-mcp-pro/commit/fc0b4fbbced383723938d66d15f60aaee2af2fd4))
+
 ## [0.33.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.32.0...easyeda-mcp-pro-v0.33.0) (2026-07-11)
 
 
