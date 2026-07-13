@@ -152,6 +152,10 @@ describe('easyeda_schematic_layout_autofix', () => {
   });
 
   it('honors a caller-supplied allowlist instead of the component/position default', async () => {
+    // Every live primitive is reported as primitiveType 'component' (see
+    // gatherLiveLayoutAutofixPreview), so an allowlist that only admits
+    // 'text' primitives excludes it -- schema-legal (inputSchema requires
+    // .min(1) per array) but effectively empty for this primitive set.
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'schematic.getSheetInfo')
         return { pageSize: { width: 1000, height: 700, unit: 'mil' } };
@@ -182,12 +186,21 @@ describe('easyeda_schematic_layout_autofix', () => {
 
     const result = await registry.get('easyeda_schematic_layout_autofix')?.handler(context, {
       projectId: 'project-1',
-      allowlist: { primitiveTypes: [], properties: [] },
+      allowlist: { primitiveTypes: ['text'], properties: ['position'] },
     });
 
-    expect(result.allowlist).toEqual({ primitiveTypes: [], properties: [] });
+    expect(result.allowlist).toEqual({ primitiveTypes: ['text'], properties: ['position'] });
     expect(result.violations).toHaveLength(1);
     expect(result.moves).toEqual([]);
     expect(result.report.remaining).toEqual([result.violations[0].id]);
+  });
+
+  it('rejects an allowlist with an empty primitiveTypes or properties array via the input schema', () => {
+    const tool = registry.get('easyeda_schematic_layout_autofix');
+    const parsed = tool?.inputSchema?.safeParse({
+      projectId: 'project-1',
+      allowlist: { primitiveTypes: [], properties: [] },
+    });
+    expect(parsed?.success).toBe(false);
   });
 });
