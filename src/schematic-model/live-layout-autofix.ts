@@ -13,6 +13,7 @@ import {
   previewLayoutAutofix,
   LayoutAutofixConnectivityError,
   type LayoutAutofixAllowlist,
+  type LayoutAutofixApplyResult,
   type LayoutAutofixPreview,
   type LayoutAutofixPrimitive,
   type LayoutAutofixReport,
@@ -127,6 +128,31 @@ async function readLiveConnectivityFingerprint(
   return createConnectivityFingerprint(model);
 }
 
+function toApplyResult(
+  base: Pick<
+    ApplyLiveLayoutAutofixResult,
+    'preview' | 'primitiveCount' | 'unavailablePrimitiveIds'
+  >,
+  engineResult: LayoutAutofixApplyResult,
+  errorInfo?: { errorCode: string; error: string },
+): ApplyLiveLayoutAutofixResult {
+  return {
+    ...base,
+    applied: engineResult.applied,
+    batchesVerified: engineResult.batchesVerified,
+    actualStateReadAfterFailure: engineResult.actualStateReadAfterFailure,
+    ...(engineResult.beforeFingerprint
+      ? { beforeFingerprint: engineResult.beforeFingerprint }
+      : {}),
+    ...(engineResult.afterFingerprint ? { afterFingerprint: engineResult.afterFingerprint } : {}),
+    ...(engineResult.connectivityDiff ? { connectivityDiff: engineResult.connectivityDiff } : {}),
+    report: engineResult.report,
+    ...(engineResult.transaction ? { transactionId: engineResult.transaction.id } : {}),
+    ...(engineResult.transaction ? { transactionState: engineResult.transaction.state } : {}),
+    ...(errorInfo ?? {}),
+  };
+}
+
 /**
  * Recomputes the autofix preview against current live state, then -- unless
  * dryRun is set or there are no moves to make -- applies it through the
@@ -160,6 +186,7 @@ export async function applyLiveLayoutAutofix(
     };
   }
 
+  const base = { preview, primitiveCount, unavailablePrimitiveIds };
   const transactionManager = getGlobalTransactionManager();
   try {
     const result = await applyLayoutAutofix(preview, {
@@ -170,44 +197,16 @@ export async function applyLiveLayoutAutofix(
       readConnectivity: () => readLiveConnectivityFingerprint(ctx, projectId),
       ...(options.batchSize !== undefined ? { batchSize: options.batchSize } : {}),
     });
-    return {
-      preview,
-      primitiveCount,
-      unavailablePrimitiveIds,
-      applied: result.applied,
-      batchesVerified: result.batchesVerified,
-      actualStateReadAfterFailure: result.actualStateReadAfterFailure,
-      ...(result.beforeFingerprint ? { beforeFingerprint: result.beforeFingerprint } : {}),
-      ...(result.afterFingerprint ? { afterFingerprint: result.afterFingerprint } : {}),
-      ...(result.connectivityDiff ? { connectivityDiff: result.connectivityDiff } : {}),
-      report: result.report,
-      ...(result.transaction ? { transactionId: result.transaction.id } : {}),
-      ...(result.transaction ? { transactionState: result.transaction.state } : {}),
-    };
+    return toApplyResult(base, result);
   } catch (error) {
     if (error instanceof LayoutAutofixConnectivityError) {
-      const { result } = error;
-      return {
-        preview,
-        primitiveCount,
-        unavailablePrimitiveIds,
-        applied: result.applied,
-        batchesVerified: result.batchesVerified,
-        actualStateReadAfterFailure: result.actualStateReadAfterFailure,
-        ...(result.beforeFingerprint ? { beforeFingerprint: result.beforeFingerprint } : {}),
-        ...(result.afterFingerprint ? { afterFingerprint: result.afterFingerprint } : {}),
-        ...(result.connectivityDiff ? { connectivityDiff: result.connectivityDiff } : {}),
-        report: result.report,
-        ...(result.transaction ? { transactionId: result.transaction.id } : {}),
-        ...(result.transaction ? { transactionState: result.transaction.state } : {}),
+      return toApplyResult(base, error.result, {
         errorCode: 'AUTOFIX_ROLLED_BACK',
         error: error.message,
-      };
+      });
     }
     return {
-      preview,
-      primitiveCount,
-      unavailablePrimitiveIds,
+      ...base,
       applied: false,
       batchesVerified: 0,
       actualStateReadAfterFailure: false,

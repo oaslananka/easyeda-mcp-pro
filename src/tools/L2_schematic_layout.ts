@@ -398,6 +398,39 @@ const autofixReportSchema = z.object({
   remaining: z.array(z.string()),
 });
 
+const autofixSharedInputFields = {
+  allowlist: z
+    .object({
+      primitiveTypes: z.array(autofixPrimitiveTypeSchema).min(1).optional(),
+      properties: z.array(autofixPropertySchema).min(1).optional(),
+    })
+    .optional(),
+  hardKeepouts: z.array(placementConstraintRegionSchema).optional(),
+  reservedRegions: z.array(placementConstraintRegionSchema).optional(),
+  minimumClearance: z.number().nonnegative().optional(),
+  maxMoves: z.number().int().positive().optional(),
+};
+
+interface AutofixSharedInputValues {
+  allowlist?: Partial<LayoutAutofixAllowlist>;
+  hardKeepouts?: GatherLiveLayoutAutofixPreviewOptions['hardKeepouts'];
+  reservedRegions?: GatherLiveLayoutAutofixPreviewOptions['callerReservedRegions'];
+  minimumClearance?: number;
+  maxMoves?: number;
+}
+
+function toAutofixGatherOptions(
+  values: AutofixSharedInputValues,
+): GatherLiveLayoutAutofixPreviewOptions {
+  return {
+    allowlist: values.allowlist,
+    hardKeepouts: values.hardKeepouts,
+    callerReservedRegions: values.reservedRegions,
+    minimumClearance: values.minimumClearance,
+    maxMoves: values.maxMoves,
+  };
+}
+
 const layoutAutofixOutputSchema = z.object({
   projectId: z.string(),
   mode: z.literal('preview'),
@@ -1216,35 +1249,13 @@ export function registerSchematicLayoutTools(
     },
     inputSchema: z.object({
       projectId: z.string().min(1),
-      allowlist: z
-        .object({
-          primitiveTypes: z.array(autofixPrimitiveTypeSchema).min(1).optional(),
-          properties: z.array(autofixPropertySchema).min(1).optional(),
-        })
-        .optional(),
-      hardKeepouts: z.array(placementConstraintRegionSchema).optional(),
-      reservedRegions: z.array(placementConstraintRegionSchema).optional(),
-      minimumClearance: z.number().nonnegative().optional(),
-      maxMoves: z.number().int().positive().optional(),
+      ...autofixSharedInputFields,
     }),
     outputSchema: layoutAutofixOutputSchema,
     handler: async (ctx: ToolContext, params: unknown) => {
-      const values = params as {
-        projectId: string;
-        allowlist?: Partial<LayoutAutofixAllowlist>;
-        hardKeepouts?: GatherLiveLayoutAutofixPreviewOptions['hardKeepouts'];
-        reservedRegions?: GatherLiveLayoutAutofixPreviewOptions['callerReservedRegions'];
-        minimumClearance?: number;
-        maxMoves?: number;
-      };
+      const values = params as { projectId: string } & AutofixSharedInputValues;
       const { preview, primitiveCount, unavailablePrimitiveIds } =
-        await gatherLiveLayoutAutofixPreview(ctx, values.projectId, {
-          allowlist: values.allowlist,
-          hardKeepouts: values.hardKeepouts,
-          callerReservedRegions: values.reservedRegions,
-          minimumClearance: values.minimumClearance,
-          maxMoves: values.maxMoves,
-        });
+        await gatherLiveLayoutAutofixPreview(ctx, values.projectId, toAutofixGatherOptions(values));
       return {
         projectId: values.projectId,
         ...preview,
@@ -1274,16 +1285,7 @@ export function registerSchematicLayoutTools(
     },
     inputSchema: z.object({
       projectId: z.string().min(1),
-      allowlist: z
-        .object({
-          primitiveTypes: z.array(autofixPrimitiveTypeSchema).min(1).optional(),
-          properties: z.array(autofixPropertySchema).min(1).optional(),
-        })
-        .optional(),
-      hardKeepouts: z.array(placementConstraintRegionSchema).optional(),
-      reservedRegions: z.array(placementConstraintRegionSchema).optional(),
-      minimumClearance: z.number().nonnegative().optional(),
-      maxMoves: z.number().int().positive().optional(),
+      ...autofixSharedInputFields,
       batchSize: z.number().int().positive().optional(),
       dryRun: z.boolean().default(false),
       confirmWrite: z
@@ -1294,20 +1296,11 @@ export function registerSchematicLayoutTools(
     handler: async (ctx: ToolContext, params: unknown) => {
       const values = params as {
         projectId: string;
-        allowlist?: Partial<LayoutAutofixAllowlist>;
-        hardKeepouts?: GatherLiveLayoutAutofixPreviewOptions['hardKeepouts'];
-        reservedRegions?: GatherLiveLayoutAutofixPreviewOptions['callerReservedRegions'];
-        minimumClearance?: number;
-        maxMoves?: number;
         batchSize?: number;
         dryRun: boolean;
-      };
+      } & AutofixSharedInputValues;
       const result = await applyLiveLayoutAutofix(ctx, values.projectId, {
-        allowlist: values.allowlist,
-        hardKeepouts: values.hardKeepouts,
-        callerReservedRegions: values.reservedRegions,
-        minimumClearance: values.minimumClearance,
-        maxMoves: values.maxMoves,
+        ...toAutofixGatherOptions(values),
         batchSize: values.batchSize,
         dryRun: values.dryRun,
       });
