@@ -40,4 +40,23 @@ describe('professional layout skill distributions', () => {
     expect(metadata).toContain("display_name: 'EasyEDA Professional Layout'");
     expect(metadata).toContain('$easyeda-professional-layout');
   });
+
+  it('links to a worked example and a benchmark guide that both exist on disk', () => {
+    const skill = readFileSync(
+      resolve(ROOT, 'skills/easyeda-professional-layout/SKILL.md'),
+      'utf8',
+    );
+    const linkedDocs = [...skill.matchAll(/\]\(\.\.\/\.\.\/(docs\/[\w-]+\.md)\)/g)].map(
+      (match) => match[1]!,
+    );
+    expect(linkedDocs).toEqual(
+      expect.arrayContaining([
+        'docs/professional-schematic-layout.md',
+        'docs/schematic-layout-benchmarks.md',
+      ]),
+    );
+    for (const relativeDoc of linkedDocs) {
+      expect(() => readFileSync(resolve(ROOT, relativeDoc), 'utf8')).not.toThrow();
+    }
+  });
 });
