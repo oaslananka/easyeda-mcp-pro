@@ -38,6 +38,8 @@ export default defineConfig({
           { text: 'Power Tree Analyzer', link: '/power-tree' },
           { text: 'Design Rules Reference', link: '/design-rules' },
           { text: 'High-Level PCB Layout', link: '/high-level-pcb-layout' },
+          { text: 'Professional Schematic Layout', link: '/professional-schematic-layout' },
+          { text: 'Schematic Layout Benchmarks', link: '/schematic-layout-benchmarks' },
           { text: 'Electrical Verification (SPICE)', link: '/simulation' },
           { text: 'Production QA Artifacts', link: '/production-qa' },
           { text: 'Observability Budgets', link: '/observability-budgets' },
