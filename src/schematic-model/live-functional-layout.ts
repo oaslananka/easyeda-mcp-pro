@@ -44,7 +44,7 @@ export interface GatherLiveFunctionalLayoutPlanOptions {
  * <= 0). `yAxis: 'up'` here documents that increasing Y visually goes up, i.e.
  * the page rectangle spans y in [-height, 0].
  */
-function buildEngineSheetGeometry(rawSheetInfo: unknown): SchematicSheetGeometry {
+export function buildEngineSheetGeometry(rawSheetInfo: unknown): SchematicSheetGeometry {
   const inferred = inferSchematicSheetGeometry(rawSheetInfo);
   const margin = Math.max(10, Math.round(Math.min(inferred.width, inferred.height) * 0.03));
   const bounds: SchematicBounds = {
