@@ -20,6 +20,7 @@ import { createConnectivityFingerprint } from '../schematic-model/connectivity-f
 import { buildSchematicModel } from '../schematic-model/model-builder.js';
 import { gatherLiveSchematicSnapshot } from '../schematic-model/live-snapshot.js';
 import { gatherLivePrimitiveBounds } from '../schematic-model/live-primitive-bounds.js';
+import type { PrimitiveBoundsResult } from '../schematic-model/primitive-bounds.js';
 import {
   gatherLiveFunctionalLayoutPlan,
   type LiveFunctionalLayoutComponentInput,
@@ -476,10 +477,6 @@ function numberValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
-function booleanValue(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
-}
-
 function bounds(value: unknown): LayoutQaBounds | undefined {
   const item = record(value);
   const x = numberValue(item.x ?? item.left);
@@ -520,36 +517,79 @@ function normalizeGeometrySource(value: unknown): LayoutQaPrimitive['geometrySou
   return 'derived';
 }
 
-function primitiveItems(result: unknown): unknown[] {
-  if (Array.isArray(result)) return result;
-  const root = record(result);
-  for (const key of ['items', 'primitives', 'bounds', 'results']) {
-    if (Array.isArray(root[key])) return root[key];
+/**
+ * schematic.primitiveBounds is a pure-geometry endpoint keyed by internal
+ * primitiveId -- it has no reference-designator string field at all (the
+ * `reference` key it does carry is the bounds of the reference-designator
+ * *text label*, not a "U1"-style string). QA's expected-component/pin
+ * matching needs real ref strings, so cross-reference against
+ * schematic.listComponents separately rather than guessing a ref out of the
+ * bounds response (see #288).
+ */
+async function fetchPrimitiveIdToRef(
+  ctx: ToolContext,
+  projectId: string,
+): Promise<Map<string, string>> {
+  const refById = new Map<string, string>();
+  const pageSize = 500;
+  let offset = 0;
+  for (;;) {
+    let page: { items?: Array<{ primitiveId?: string; reference?: string }>; total?: number };
+    try {
+      page = (await ctx.bridge.call('schematic.listComponents', {
+        projectId,
+        limit: pageSize,
+        offset,
+      })) as typeof page;
+    } catch {
+      break;
+    }
+    const items = page?.items ?? [];
+    for (const item of items) {
+      if (item.primitiveId && item.reference) refById.set(item.primitiveId, item.reference);
+    }
+    offset += items.length;
+    const total = page?.total ?? items.length;
+    if (items.length === 0 || offset >= total) break;
   }
-  return [];
+  return refById;
 }
 
-function normalizePrimitive(itemValue: unknown): LayoutQaPrimitive | undefined {
-  const item = record(itemValue);
-  const combined = bounds(item.combinedBounds ?? item.combined_bounds ?? item.bounds);
-  const id = stringValue(item.id ?? item.primitiveId ?? item.primitive_id);
-  if (!combined || !id) return undefined;
+async function gatherLivePrimitiveBoundsSafely(
+  ctx: ToolContext,
+  projectId: string,
+): Promise<{ available: boolean; result: PrimitiveBoundsResult[]; error?: string }> {
+  try {
+    const batch = await gatherLivePrimitiveBounds(ctx, projectId);
+    return { available: true, result: batch.items };
+  } catch (error) {
+    return {
+      available: false,
+      result: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function normalizePrimitiveBoundsResult(
+  item: PrimitiveBoundsResult,
+  ref: string | undefined,
+): LayoutQaPrimitive | undefined {
+  const combined = bounds(item.combinedBounds);
+  if (!combined) return undefined;
   return {
-    id,
-    primitiveType: normalizePrimitiveType(item.primitiveType ?? item.primitive_type ?? item.type),
-    ref: stringValue(item.ref ?? item.reference ?? item.designator),
-    netName: stringValue(item.netName ?? item.net_name ?? item.net),
-    blockId: stringValue(item.blockId ?? item.block_id),
+    id: item.id,
+    primitiveType: normalizePrimitiveType(item.primitiveType),
+    ref,
     combinedBounds: combined,
-    bodyBounds: bounds(item.bodyBounds ?? item.body_bounds),
-    referenceBounds: bounds(item.referenceBounds ?? item.reference_bounds),
-    valueBounds: bounds(item.valueBounds ?? item.value_bounds),
-    pinTextBounds: boundsArray(item.pinTextBounds ?? item.pin_text_bounds),
-    labelBounds: boundsArray(item.labelBounds ?? item.label_bounds),
-    annotationBounds: boundsArray(item.annotationBounds ?? item.annotation_bounds),
-    connected: booleanValue(item.connected),
-    rotation: numberValue(item.rotation),
-    geometrySource: normalizeGeometrySource(item.geometrySource ?? item.geometry_source),
+    bodyBounds: bounds(item.body?.bounds),
+    referenceBounds: bounds(item.reference?.bounds),
+    valueBounds: bounds(item.value?.bounds),
+    pinTextBounds: boundsArray(item.pinTexts?.map((segment) => segment.bounds)),
+    labelBounds: boundsArray(item.labels?.map((segment) => segment.bounds)),
+    annotationBounds: boundsArray(item.annotations?.map((segment) => segment.bounds)),
+    rotation: item.rotation,
+    geometrySource: normalizeGeometrySource(item.geometrySource),
   };
 }
 
@@ -669,8 +709,9 @@ export async function collectSchematicLayoutQa(
     height: Math.max(0, sheet.height - margin * 2),
   };
 
-  const [boundsRead, netsRead, wiresRead, drcRead, ercRead] = await Promise.all([
-    optionalBridgeCall(ctx, 'schematic.primitiveBounds', { projectId }),
+  const [boundsRead, refByPrimitiveId, netsRead, wiresRead, drcRead, ercRead] = await Promise.all([
+    gatherLivePrimitiveBoundsSafely(ctx, projectId),
+    fetchPrimitiveIdToRef(ctx, projectId),
     optionalBridgeCall(ctx, 'schematic.listNets', { projectId }),
     optionalBridgeCall(ctx, 'system.inspectWires', { projectId, limit: 10_000, offset: 0 }),
     optionalBridgeCall(ctx, 'design.drc', { projectId }),
@@ -678,8 +719,8 @@ export async function collectSchematicLayoutQa(
   ]);
 
   const pinsByRef = netPinMap(netsRead.result);
-  const primitives = primitiveItems(boundsRead.result)
-    .map(normalizePrimitive)
+  const primitives = boundsRead.result
+    .map((item) => normalizePrimitiveBoundsResult(item, refByPrimitiveId.get(item.id)))
     .filter((item): item is LayoutQaPrimitive => Boolean(item))
     .map((primitive) => {
       const pins = primitive.ref ? pinsByRef.get(primitive.ref) : undefined;

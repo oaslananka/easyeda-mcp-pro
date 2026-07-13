@@ -127,16 +127,29 @@ describe('Workflow Tools', () => {
           return { primitiveId: `wire-${bridgeCall.mock.calls.length}` };
         if (method === 'schematic.createNetPort')
           return { primitiveId: `net-${bridgeCall.mock.calls.length}` };
-        if (method === 'schematic.listComponents') return { total: 8, items: [] };
+        if (method === 'schematic.listComponents') {
+          return {
+            total: Object.keys(placedBounds).length,
+            items: Object.keys(placedBounds).map((ref) => ({
+              primitiveId: `component-${ref}`,
+              reference: ref,
+              component_kind: 'part',
+              x: placedBounds[ref]!.x,
+              y: placedBounds[ref]!.y,
+              rotation: 0,
+            })),
+          };
+        }
         if (method === 'schematic.primitiveBounds') {
           return {
             items: Object.entries(placedBounds).map(([ref, bounds]) => ({
-              id: `component-${ref}`,
-              primitiveType: 'component',
-              ref,
-              combinedBounds: bounds,
-              bodyBounds: bounds,
-              geometrySource: 'runtime',
+              primitiveId: `component-${ref}`,
+              bounds: {
+                minX: bounds.x,
+                maxX: bounds.x + bounds.width,
+                minY: bounds.y,
+                maxY: bounds.y + bounds.height,
+              },
             })),
           };
         }

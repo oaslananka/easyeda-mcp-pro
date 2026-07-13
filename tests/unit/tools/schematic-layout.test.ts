@@ -26,16 +26,26 @@ describe('schematic layout tools', () => {
       switch (method) {
         case 'schematic.getSheetInfo':
           return { pageSize: { width: 1000, height: 700, unit: 'mil' } };
+        case 'schematic.listComponents':
+          return {
+            total: 1,
+            items: [
+              {
+                primitiveId: 'component-u1',
+                reference: 'U1',
+                component_kind: 'part',
+                x: 100,
+                y: 200,
+                rotation: 0,
+              },
+            ],
+          };
         case 'schematic.primitiveBounds':
           return {
             items: [
               {
-                id: 'component-u1',
-                primitiveType: 'component',
-                ref: 'U1',
-                combinedBounds: { x: 100, y: 200, width: 80, height: 60 },
-                bodyBounds: { x: 100, y: 200, width: 80, height: 60 },
-                geometrySource: 'runtime',
+                primitiveId: 'component-u1',
+                bounds: { minX: 100, maxX: 180, minY: 200, maxY: 260 },
               },
             ],
           };
@@ -75,7 +85,7 @@ describe('schematic layout tools', () => {
       },
     });
     expect(bridgeCall).toHaveBeenCalledWith('schematic.primitiveBounds', {
-      projectId: 'project-1',
+      primitiveIds: ['component-u1'],
     });
   });
 
@@ -83,15 +93,26 @@ describe('schematic layout tools', () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'schematic.getSheetInfo')
         return { pageSize: { width: 1000, height: 700, unit: 'mil' } };
+      if (method === 'schematic.listComponents')
+        return {
+          total: 1,
+          items: [
+            {
+              primitiveId: 'component-u1',
+              reference: 'U1',
+              component_kind: 'part',
+              x: 530,
+              y: 100,
+              rotation: 0,
+            },
+          ],
+        };
       if (method === 'schematic.primitiveBounds')
         return {
           items: [
             {
-              id: 'component-u1',
-              primitiveType: 'component',
-              ref: 'U1',
-              combinedBounds: { x: 530, y: 100, width: 80, height: 80 },
-              geometrySource: 'runtime',
+              primitiveId: 'component-u1',
+              bounds: { minX: 530, maxX: 610, minY: 100, maxY: 180 },
             },
           ],
         };
@@ -109,6 +130,59 @@ describe('schematic layout tools', () => {
 
     expect(result?.status).toBe('fail');
     expect(result?.summary.criticalIssueCodes).toContain('TITLE_BLOCK_OVERLAP');
+  });
+
+  it('resolves component references from schematic.listComponents, not from schematic.primitiveBounds (#288)', async () => {
+    // Regression guard: schematic.primitiveBounds is a pure-geometry endpoint
+    // keyed by internal primitiveId -- its response never carries a "U1"-style
+    // reference string (this mock deliberately omits one, matching the real
+    // bridge shape). Live evidence showed a prior version of this code path
+    // tried to read a ref straight off that response and always got
+    // `undefined`, so every expected component was reported missing even
+    // when the write genuinely succeeded. The fix cross-references
+    // schematic.listComponents (which does carry `.reference`) by
+    // primitiveId instead.
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'schematic.getSheetInfo')
+        return { pageSize: { width: 1000, height: 700, unit: 'mil' } };
+      if (method === 'schematic.listComponents')
+        return {
+          total: 1,
+          items: [
+            {
+              primitiveId: 'component-u1',
+              reference: 'U1',
+              component_kind: 'part',
+              x: 100,
+              y: 200,
+              rotation: 0,
+            },
+          ],
+        };
+      if (method === 'schematic.primitiveBounds')
+        return {
+          items: [
+            {
+              primitiveId: 'component-u1',
+              bounds: { minX: 100, maxX: 180, minY: 200, maxY: 260 },
+            },
+          ],
+        };
+      if (method === 'schematic.listNets')
+        return [{ netName: 'GND', nodes: [{ component: 'U1', pin: '1' }] }];
+      if (method === 'system.inspectWires') return { samples: [] };
+      if (method === 'design.drc' || method === 'design.erc') return { violations: [] };
+      throw new Error(`Unexpected method ${method}`);
+    });
+
+    const result = await registry.get('easyeda_schematic_layout_qa')?.handler(context, {
+      projectId: 'project-1',
+      expectedComponentRefs: ['U1'],
+      expectedPinMappings: [{ componentRef: 'U1', pin: '1', netName: 'GND' }],
+    });
+
+    const codes = result?.issues.map((issue: { code: string }) => issue.code) ?? [];
+    expect(codes).not.toContain('EXPECTED_NET_MISMATCH');
   });
 
   it('does not pass when complete rendered bounds are unavailable', async () => {
