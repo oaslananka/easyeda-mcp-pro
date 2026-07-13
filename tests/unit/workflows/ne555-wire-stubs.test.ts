@@ -35,7 +35,7 @@ describe('buildNe555VisibleWireStubs', () => {
 
   it('produces the expected total number of routed guide wires', () => {
     const wires = buildNe555VisibleWireStubs(anchor, DEFAULT_REFS, DEFAULT_NETS);
-    expect(wires).toHaveLength(19);
+    expect(wires).toHaveLength(18);
   });
 
   it('every wire stub has at least 2 points', () => {
@@ -164,5 +164,51 @@ describe('buildNe555VisibleWireStubs', () => {
     for (const wire of wires) {
       expect(wire.lineWidth).toBe(1);
     }
+  });
+
+  it('golden: no two different-net wire stubs ever share an exact coordinate', () => {
+    // Regression guard for #253's live-apply failure: EasyEDA Pro auto-merges
+    // any two primitives that share an exact (x, y) once either is wired,
+    // shorting the two nets together. The bridge's own NET_COLLISION guard
+    // rejects the write outright when this happens (see
+    // easyeda-bridge-extension/src/dispatcher.ts), so a colliding stub table
+    // makes createWireStubs unconditionally fail on live apply -- unit tests
+    // never caught it because none of them checked point-level geometry
+    // across different nets. This walks every orthogonal segment as its full
+    // set of integer lattice points (matching how the bridge's collision
+    // check treats a drawn wire) and asserts no two segments belonging to
+    // different nets ever intersect.
+    const wires = buildNe555VisibleWireStubs(anchor, DEFAULT_REFS, DEFAULT_NETS);
+
+    const segmentPoints = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+      const points: string[] = [];
+      if (a.x === b.x) {
+        const [lo, hi] = a.y <= b.y ? [a.y, b.y] : [b.y, a.y];
+        for (let y = lo; y <= hi; y++) points.push(`${a.x},${y}`);
+      } else if (a.y === b.y) {
+        const [lo, hi] = a.x <= b.x ? [a.x, b.x] : [b.x, a.x];
+        for (let x = lo; x <= hi; x++) points.push(`${x},${a.y}`);
+      } else {
+        throw new Error(`non-orthogonal segment ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+      }
+      return points;
+    };
+
+    const pointToNets = new Map<string, Set<string>>();
+    for (const wire of wires) {
+      const occupied = new Set<string>();
+      for (let i = 1; i < wire.points.length; i++) {
+        for (const key of segmentPoints(wire.points[i - 1], wire.points[i])) {
+          occupied.add(key);
+        }
+      }
+      for (const key of occupied) {
+        if (!pointToNets.has(key)) pointToNets.set(key, new Set());
+        pointToNets.get(key)!.add(wire.netName);
+      }
+    }
+
+    const collisions = [...pointToNets.entries()].filter(([, nets]) => nets.size > 1);
+    expect(collisions).toEqual([]);
   });
 });

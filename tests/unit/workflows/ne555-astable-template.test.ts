@@ -54,7 +54,7 @@ describe('NE555 astable template', () => {
       createWireStubs: true,
     });
 
-    expect(result.workflowInput.wires).toHaveLength(19);
+    expect(result.workflowInput.wires).toHaveLength(18);
   });
 
   it('wires NE555 pins to the correct astable nets', () => {
