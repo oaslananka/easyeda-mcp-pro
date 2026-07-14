@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.2...easyeda-mcp-pro-v0.34.3) (2026-07-14)
+
+
+### Bug Fixes
+
+* **pcb:** harden runtime readiness ([#304](https://github.com/oaslananka/easyeda-mcp-pro/issues/304)) ([#305](https://github.com/oaslananka/easyeda-mcp-pro/issues/305)) ([e68d2f6](https://github.com/oaslananka/easyeda-mcp-pro/commit/e68d2f6682d3f85fd7f8c45cbbf00c5fb7281c1a))
+
 ## [0.34.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.1...easyeda-mcp-pro-v0.34.2) (2026-07-14)
 
 
