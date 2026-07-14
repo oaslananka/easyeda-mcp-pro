@@ -73,7 +73,6 @@ const METHOD_LIST: readonly string[] = [
   'pcb.listTracks',
   'pcb.listVias',
   'pcb.modifyComponent',
-  'pcb.placeComponent',
   'project.export',
   'project.open',
   'project.save',
@@ -2330,69 +2329,130 @@ async function inspectWiresApi(limit = 10, offset = 0): Promise<unknown> {
   };
 }
 
+async function requireActivePcbContext(): Promise<void> {
+  const dmtPcb = readFirstPath<any>(['DMT_Pcb', 'dmt_Pcb']);
+  if (!dmtPcb || typeof dmtPcb.getCurrentPcbInfo !== 'function') {
+    // Older EasyEDA builds may not expose DMT_Pcb. Preserve compatibility and
+    // let the concrete PCB API call decide whether the context is usable.
+    return;
+  }
+
+  let currentPcb: unknown;
+  try {
+    currentPcb = await dmtPcb.getCurrentPcbInfo();
+  } catch (error) {
+    throw newBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      'PCB data is unavailable in the current editor context.',
+      'Open and focus a PCB document, then retry.',
+      { cause: errorMessage(error) },
+    );
+  }
+  if (!currentPcb) {
+    throw newBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      'No active PCB document is focused.',
+      'Open and focus a PCB document, then retry.',
+    );
+  }
+}
+
+function isActivePcbLayerName(name: string, copperLayerCount: number): boolean {
+  const inner = /^Inner(\d+)$/i.exec(name);
+  if (inner) return Number(inner[1]) <= Math.max(0, copperLayerCount - 2);
+  // EasyEDA returns its entire layer catalogue (200 Custom slots and all 32
+  // possible inner layers) from getAllLayers(). Those catalogue placeholders
+  // are not layers in the active board. A renamed custom layer no longer
+  // matches this placeholder pattern and is retained.
+  if (/^Custom\d+$/i.test(name) || /^Dielectric\d+$/i.test(name)) return false;
+  return true;
+}
+
+async function readCopperLayerCount(pcbLayerClass: any): Promise<number> {
+  if (typeof pcbLayerClass?.getTheNumberOfCopperLayers !== 'function') return 0;
+  try {
+    const value = Number(await pcbLayerClass.getTheNumberOfCopperLayers());
+    return Number.isInteger(value) && value >= 2 ? value : 0;
+  } catch (error) {
+    logRecoverableError('failed to read copper layer count', error);
+    return 0;
+  }
+}
+
 async function listLayersApi(): Promise<unknown> {
-  const globalObj = tk.getGlobal();
-  const pcbLayerClass = readPath<any>(globalObj, 'pcb_Layer');
+  await requireActivePcbContext();
+  const pcbLayerClass = readFirstPath<any>(['PCB_Layer', 'pcb_Layer']);
   if (!pcbLayerClass || typeof pcbLayerClass.getAllLayers !== 'function') {
     throw new Error('pcb_Layer class or getAllLayers method not found');
   }
-  const layers = await pcbLayerClass.getAllLayers();
-  return (layers || []).map((l: any) => ({
-    name: l.name || '',
-    type: l.type || '',
-    color: l.color || '',
-    visible: l.visible !== false,
-    order: l.order || 0,
-  }));
+  const copperLayerCount = await readCopperLayerCount(pcbLayerClass);
+  const rawLayers = await pcbLayerClass.getAllLayers();
+  const layers = Array.isArray(rawLayers) ? rawLayers : [];
+  return layers
+    .filter((layer: any) => isActivePcbLayerName(String(layer?.name ?? ''), copperLayerCount))
+    .map((layer: any, index: number) => ({
+      name: layer?.name || '',
+      type: layer?.type || '',
+      color: layer?.color || '',
+      visible: layer?.visible !== false,
+      order:
+        typeof layer?.order === 'number' && Number.isFinite(layer.order) && layer.order > 0
+          ? layer.order
+          : index,
+    }));
 }
 
 async function getStackupApi(): Promise<unknown> {
-  const globalObj = tk.getGlobal();
-  const pcbLayerClass = readPath<any>(globalObj, 'pcb_Layer');
+  await requireActivePcbContext();
+  const pcbLayerClass = readFirstPath<any>(['PCB_Layer', 'pcb_Layer']);
   if (!pcbLayerClass) {
     throw new Error('pcb_Layer class not found');
   }
 
-  let totalCopper = 2;
-  if (typeof pcbLayerClass.getTheNumberOfCopperLayers === 'function') {
-    try {
-      totalCopper = await pcbLayerClass.getTheNumberOfCopperLayers();
-    } catch (e) {
-      logRecoverableError('failed to read copper layer count', e);
-    }
-  }
-
+  const totalCopper = await readCopperLayerCount(pcbLayerClass);
   let physicalStacking: any = null;
   if (typeof pcbLayerClass.getCurrentPhysicalStackingConfiguration === 'function') {
     try {
       physicalStacking = await pcbLayerClass.getCurrentPhysicalStackingConfiguration();
-    } catch (e) {
-      logRecoverableError('failed to read physical stackup', e);
+    } catch (error) {
+      logRecoverableError('failed to read physical stackup', error);
     }
   }
 
-  const layers: any[] = [];
-  if (physicalStacking && Array.isArray(physicalStacking.layers)) {
-    for (const l of physicalStacking.layers) {
-      layers.push({
-        name: l.name || '',
-        type: l.type || '',
-        thicknessMm: l.thickness || 0,
-        material: l.material || '',
-        dielectricConstant: l.dielectric || 0,
-        copperWeightOz: l.copperWeight || 0,
-      });
-    }
-  }
+  const rawLayers = Array.isArray(physicalStacking?.layers)
+    ? physicalStacking.layers
+    : Array.isArray(physicalStacking?.stackup)
+      ? physicalStacking.stackup
+      : [];
+  const layers = rawLayers.map((layer: any) => ({
+    name: layer?.name || '',
+    type: layer?.type || '',
+    thicknessMm: typeof layer?.thicknessMm === 'number' ? layer.thicknessMm : layer?.thickness,
+    material: layer?.material || '',
+    dielectricConstant:
+      typeof layer?.dielectricConstant === 'number' ? layer.dielectricConstant : layer?.dielectric,
+    copperWeightOz:
+      typeof layer?.copperWeightOz === 'number' ? layer.copperWeightOz : layer?.copperWeight,
+  }));
+  const boardThickness =
+    typeof physicalStacking?.thicknessMm === 'number'
+      ? physicalStacking.thicknessMm
+      : typeof physicalStacking?.thickness === 'number'
+        ? physicalStacking.thickness
+        : undefined;
+  const available = Boolean(physicalStacking && layers.length > 0);
 
   return {
     totalLayers: totalCopper,
-    boardThicknessMm: physicalStacking?.thickness || 1.6,
+    boardThicknessMm: boardThickness,
     layers,
+    available,
+    source: available ? 'physical_stackup' : 'copper_layer_count_only',
   };
 }
 
 async function getDimensionsApi(): Promise<unknown> {
+  await requireActivePcbContext();
   const globalObj = tk.getGlobal();
   const pcbLineClass = readPath<any>(globalObj, 'pcb_PrimitiveLine');
   const pcbArcClass = readPath<any>(globalObj, 'pcb_PrimitiveArc');
@@ -2463,16 +2523,19 @@ async function getDimensionsApi(): Promise<unknown> {
     }
   }
 
+  const hasOutline = width > 0 && height > 0;
   return {
     widthMm: width,
     heightMm: height,
-    shape: 'custom',
+    shape: hasOutline ? 'custom' : undefined,
     mountingHoleCount: mountingHoles,
     areaMm2: width * height,
+    hasOutline,
   };
 }
 
 async function getFeaturesApi(): Promise<unknown> {
+  await requireActivePcbContext();
   const globalObj = tk.getGlobal();
   const pcbViaClass = readPath<any>(globalObj, 'pcb_PrimitiveVia');
   // Tracks are PCB_PrimitiveLine segments (confirmed live: PCB_PrimitivePolyline
@@ -2613,6 +2676,7 @@ async function pcbDeletePrimitivesApi(
  * than throw, since "no PCB open" is a normal state, not an error.
  */
 async function pcbListComponentsApi(limit?: number, offset = 0): Promise<unknown> {
+  await requireActivePcbContext();
   const pcbCompClass = readFirstPath<any>(['PCB_PrimitiveComponent', 'pcb_PrimitiveComponent']);
   if (!pcbCompClass || typeof pcbCompClass.getAll !== 'function') {
     return { total: 0, items: [] };
@@ -2642,6 +2706,7 @@ async function pcbListComponentsApi(limit?: number, offset = 0): Promise<unknown
 }
 
 async function pcbListTracksApi(limit?: number, offset = 0): Promise<unknown> {
+  await requireActivePcbContext();
   // Tracks are PCB_PrimitiveLine segments — see the pcb.addTrack case for why
   // PCB_PrimitivePolyline is not used (its create() never resolved live).
   const pcbLineClass = readFirstPath<any>(['PCB_PrimitiveLine', 'pcb_PrimitiveLine']);
@@ -2667,6 +2732,7 @@ async function pcbListTracksApi(limit?: number, offset = 0): Promise<unknown> {
 }
 
 async function pcbListViasApi(limit?: number, offset = 0): Promise<unknown> {
+  await requireActivePcbContext();
   const pcbViaClass = readFirstPath<any>(['PCB_PrimitiveVia', 'pcb_PrimitiveVia']);
   if (!pcbViaClass || typeof pcbViaClass.getAll !== 'function') {
     return { total: 0, items: [] };
@@ -2990,8 +3056,24 @@ function normalizeDrcSeverity(raw: unknown): 'error' | 'warning' | 'info' {
 
 function normalizeDrcViolation(item: unknown): Record<string, unknown> {
   const obj: Record<string, unknown> = item && typeof item === 'object' ? { ...item } : {};
-  const message = obj.message ?? obj.msg ?? obj.description ?? obj.text ?? obj.detail ?? item;
-  const severitySource = obj.level ?? obj.severity ?? obj.type ?? obj.errorLevel;
+  const explanation =
+    obj.explanation && typeof obj.explanation === 'object'
+      ? (obj.explanation as Record<string, unknown>).str
+      : undefined;
+  const message =
+    obj.message ?? obj.msg ?? obj.description ?? obj.text ?? obj.detail ?? explanation ?? item;
+  const severitySource = [
+    obj.level,
+    obj.severity,
+    obj.type,
+    obj.errorLevel,
+    obj.errorType,
+    obj.errorObjType,
+    obj.name,
+    obj.ruleName,
+  ]
+    .filter((value) => value !== undefined && value !== null)
+    .join(' ');
   const posSource =
     obj.position && typeof obj.position === 'object'
       ? (obj.position as Record<string, unknown>)
@@ -3001,7 +3083,15 @@ function normalizeDrcViolation(item: unknown): Record<string, unknown> {
   const x = posSource.x;
   const y = posSource.y;
   return {
-    rule: String(obj.rule ?? obj.ruleName ?? obj.type ?? 'unknown'),
+    rule: String(
+      obj.rule ??
+        obj.ruleName ??
+        obj.ruleTypeName ??
+        obj.errorType ??
+        obj.name ??
+        obj.type ??
+        'unknown',
+    ),
     description: typeof message === 'string' ? message : JSON.stringify(message),
     severity: normalizeDrcSeverity(severitySource),
     net: obj.net ?? obj.netName ?? undefined,
@@ -3013,51 +3103,69 @@ function normalizeDrcViolation(item: unknown): Record<string, unknown> {
   };
 }
 
-/**
- * Detects the `{type: 'fatal'|'error'|'warn'|'info', count: number}` shape
- * that `SCH_Drc.check`/`PCB_Drc.check` actually return in verbose mode —
- * confirmed live: a schematic with 6 real "multiple net names" warnings
- * (visible itemized in EasyEDA's own bottom DRC panel) produced exactly one
- * verbose-array entry, `{type:"warn", count:6}`. The native API only exposes
- * coarse per-severity totals through its return value; the itemized
- * per-violation text (which wire, which net) is rendered by the UI panel
- * itself and is not part of what check() resolves with, so it cannot be
- * reconstructed here.
- */
 function normalizeDrcAggregate(
   item: unknown,
 ): { severity: 'error' | 'warning' | 'info'; count: number } | null {
   const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
-  if (!obj) return null;
-  const { type, count } = obj;
-  if (typeof type === 'string' && typeof count === 'number') {
-    return { severity: normalizeDrcSeverity(type), count };
+  if (!obj || typeof obj.count !== 'number') return null;
+  const severitySource = [
+    obj.type,
+    obj.severity,
+    obj.level,
+    obj.errorType,
+    obj.errorObjType,
+    obj.name,
+    Array.isArray(obj.title) ? obj.title.join(' ') : obj.title,
+  ]
+    .filter((value) => value !== undefined && value !== null)
+    .join(' ');
+  return { severity: normalizeDrcSeverity(severitySource), count: obj.count };
+}
+
+function hasDrcLeafDetail(obj: Record<string, unknown>): boolean {
+  return [
+    'message',
+    'msg',
+    'description',
+    'text',
+    'detail',
+    'explanation',
+    'errorType',
+    'errorObjType',
+    'rule',
+    'ruleName',
+    'ruleTypeName',
+  ].some((key) => obj[key] !== undefined);
+}
+
+function normalizeDrcNode(item: unknown): {
+  violations: Array<Record<string, unknown>>;
+  aggregates: Array<{ severity: 'error' | 'warning' | 'info'; count: number }>;
+} {
+  const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+  if (!obj) return { violations: [normalizeDrcViolation(item)], aggregates: [] };
+
+  const children = Array.isArray(obj.list) ? obj.list : [];
+  if (children.length > 0) {
+    const normalizedChildren = children.map(normalizeDrcNode);
+    const violations = normalizedChildren.flatMap((entry) => entry.violations);
+    const aggregates = normalizedChildren.flatMap((entry) => entry.aggregates);
+    if (violations.length > 0 || aggregates.length > 0) return { violations, aggregates };
   }
-  return null;
+
+  if (hasDrcLeafDetail(obj)) {
+    return { violations: [normalizeDrcViolation(obj)], aggregates: [] };
+  }
+  const aggregate = normalizeDrcAggregate(obj);
+  return { violations: [], aggregates: aggregate ? [aggregate] : [] };
 }
 
 /**
- * Runs the native SCH_Drc.check/PCB_Drc.check API correctly.
- *
- * The previous implementation forwarded a single `{projectId, ...}` params
- * object as the function's first argument, but the real signature is
- * `check(strict: boolean, userInterface: boolean, includeVerboseError: boolean)`
- * — three positional booleans, not one options object. Passing an object for
- * `strict` made `includeVerboseError` implicitly `undefined` (falsy), which
- * selects the *boolean-return* overload instead of the verbose-array one. The
- * tool then silently treated that stray `true`/`false` as an empty result,
- * so `easyeda_erc_run`/`easyeda_drc_run` always reported 0 violations/passed
- * regardless of what EasyEDA's own DRC panel actually found.
- *
- * Passing `userInterface: false` alone was still not enough: verified live
- * against a schematic with 6 real "multiple net names" wire warnings visible
- * in EasyEDA's own bottom DRC panel, `check(true, false, true)` returned an
- * empty violations array — the netlist/wire-consistency class of checks only
- * runs as part of the *UI-driven* check path, not the headless one. Calling
- * with `userInterface: true` (the same thing clicking "Check DRC" does) is
- * required to actually populate the verbose violations array; this opens/
- * refreshes the bottom DRC panel in the user's EasyEDA window as a visible
- * side effect, same as the manual button.
+ * Runs the native SCH_Drc.check/PCB_Drc.check API correctly. EasyEDA has two
+ * observed verbose return shapes: flat aggregates (`{type,count}`) and nested
+ * UI trees (`{name,count,list:[...]}`). The latter is used by PCB netlist
+ * mismatch checks, so the tree must be recursively flattened rather than
+ * stringified as one informational item.
  */
 async function runDrcCheck(classPaths: string[]): Promise<{
   violations: Array<Record<string, unknown>>;
@@ -3068,43 +3176,34 @@ async function runDrcCheck(classPaths: string[]): Promise<{
 }> {
   const raw = await callFirst(classPaths, true, true, true);
   const items = Array.isArray(raw) ? raw : [];
-
-  const aggregates = items
-    .map(normalizeDrcAggregate)
-    .filter((a): a is { severity: 'error' | 'warning' | 'info'; count: number } => a !== null);
-
-  if (aggregates.length > 0) {
-    const violations = aggregates
-      .filter((a) => a.count > 0)
-      .map((a) => ({
-        rule: 'aggregate',
-        description:
-          `${a.count} ${a.severity}(s) reported by EasyEDA's native design/electrical rule ` +
-          'check. Per-violation detail (affected wire/net/component) is only shown in EasyEDA ' +
-          "Pro's own bottom DRC panel and is not exposed by the check() API's return value.",
-        severity: a.severity,
-      }));
-    const errorCount = aggregates
-      .filter((a) => a.severity === 'error')
-      .reduce((sum, a) => sum + a.count, 0);
-    const warningCount = aggregates
-      .filter((a) => a.severity === 'warning')
-      .reduce((sum, a) => sum + a.count, 0);
-    return {
-      violations,
-      totalViolations: aggregates.reduce((sum, a) => sum + a.count, 0),
-      errorCount,
-      warningCount,
-      passed: errorCount === 0,
-    };
-  }
-
-  const violations = items.map(normalizeDrcViolation);
-  const errorCount = violations.filter((v) => v.severity === 'error').length;
-  const warningCount = violations.filter((v) => v.severity === 'warning').length;
+  const normalized = items.map(normalizeDrcNode);
+  const detailedViolations = normalized.flatMap((entry) => entry.violations);
+  const aggregates = normalized.flatMap((entry) => entry.aggregates);
+  const aggregateViolations = aggregates
+    .filter((entry) => entry.count > 0)
+    .map((entry) => ({
+      rule: 'aggregate',
+      description:
+        `${entry.count} ${entry.severity}(s) reported by EasyEDA's native design/electrical rule ` +
+        'check. Per-violation detail is only shown in EasyEDA Pro when the API returns aggregate counts.',
+      severity: entry.severity,
+    }));
+  const violations = [...detailedViolations, ...aggregateViolations];
+  const errorCount =
+    detailedViolations.filter((entry) => entry.severity === 'error').length +
+    aggregates
+      .filter((entry) => entry.severity === 'error')
+      .reduce((sum, entry) => sum + entry.count, 0);
+  const warningCount =
+    detailedViolations.filter((entry) => entry.severity === 'warning').length +
+    aggregates
+      .filter((entry) => entry.severity === 'warning')
+      .reduce((sum, entry) => sum + entry.count, 0);
+  const totalViolations =
+    detailedViolations.length + aggregates.reduce((sum, entry) => sum + entry.count, 0);
   return {
     violations,
-    totalViolations: violations.length,
+    totalViolations,
     errorCount,
     warningCount,
     passed: errorCount === 0,
@@ -4370,15 +4469,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
       return callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
     }
-    case 'pcb.placeComponent':
-      return callFirst(
-        ['PCB_PrimitiveComponent.create', 'pcb_PrimitiveComponent.create'],
-        params.footprint,
-        params.x,
-        params.y,
-        params.rotation,
-        params.layer,
-      );
     case 'pcb.addTrack': {
       // PCB_PrimitivePolyline.create's real argument order could not be
       // determined live (every points/layer/width/net permutation tried

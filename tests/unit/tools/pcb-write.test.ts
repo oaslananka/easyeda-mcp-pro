@@ -170,9 +170,8 @@ describe('PCB Write Tools', () => {
     expect(result?.applied).toBe(true);
   });
 
-  it('easyeda_pcb_place_component should call bridge and return success', async () => {
+  it('easyeda_pcb_place_component fails closed without calling the unsupported bridge method', async () => {
     const tool = registry.get('easyeda_pcb_place_component');
-    bridgeCall.mockResolvedValue('comp-1234');
 
     const result = await tool?.handler(context, {
       footprint: 'SOIC-8',
@@ -183,17 +182,13 @@ describe('PCB Write Tools', () => {
       confirmWrite: true,
     });
 
-    expect(bridgeCall).toHaveBeenCalledWith('pcb.placeComponent', {
-      footprint: 'SOIC-8',
-      x: 10,
-      y: 20,
-      rotation: 90,
-      layer: 1,
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      success: false,
+      not_available: true,
     });
-    expect(result).toEqual({
-      success: true,
-      primitiveId: 'comp-1234',
-    });
+    expect(result?.error).toContain('not supported');
+    expect(result?.remediation).toContain('easyeda_schematic_sync_to_pcb');
   });
 
   it('easyeda_pcb_add_track should pass structured points and call bridge', async () => {

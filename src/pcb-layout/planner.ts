@@ -198,29 +198,35 @@ export function planComponentGroupPlacement(
       }
     }
 
+    if (!component.primitiveId) {
+      issues.push(
+        issue(
+          'LAYOUT_COMPONENT_NOT_ON_BOARD',
+          'error',
+          `Component ${component.ref} has no existing PCB primitive ID`,
+          'Sync the component from the schematic into the PCB first, then pass its primitiveId for placement.',
+          { ref: component.ref },
+        ),
+      );
+    }
+
     placements.push(placement);
   });
 
-  const operations = placements.map((placement) => ({
-    method: placement.primitiveId ? 'pcb.modifyComponent' : 'pcb.placeComponent',
-    params: placement.primitiveId
-      ? {
-          primitiveId: placement.primitiveId,
-          property: {
-            x: placement.x,
-            y: placement.y,
-            rotation: placement.rotation,
-            layer: placement.layer,
-          },
-        }
-      : {
-          footprint: placement.footprint ?? placement.ref,
+  const operations = placements
+    .filter((placement) => Boolean(placement.primitiveId))
+    .map((placement) => ({
+      method: 'pcb.modifyComponent',
+      params: {
+        primitiveId: placement.primitiveId as string,
+        property: {
           x: placement.x,
           y: placement.y,
           rotation: placement.rotation,
           layer: placement.layer,
         },
-  }));
+      },
+    }));
   const blocked = issues.some((i) => i.severity === 'error');
 
   return {

@@ -21,6 +21,22 @@ describe('pcb layout planner', () => {
     expect(plan.summary).toContain('ready');
   });
 
+  it('blocks new component placement when no existing PCB primitive ID is supplied', () => {
+    const plan = planComponentGroupPlacement({
+      board: { widthMm: 60, heightMm: 40 },
+      anchor: { x: 10, y: 10 },
+      components: [{ ref: 'U1', footprint: 'SOIC-8', widthMm: 6, heightMm: 6 }],
+    });
+
+    expect(plan.blocked).toBe(true);
+    expect(plan.operations).toEqual([]);
+    expect(plan.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'LAYOUT_COMPONENT_NOT_ON_BOARD', severity: 'error' }),
+      ]),
+    );
+  });
+
   it('blocks component placements outside board or inside keepouts', () => {
     const plan = planComponentGroupPlacement({
       board: { widthMm: 20, heightMm: 20 },

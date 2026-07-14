@@ -123,6 +123,27 @@ describe('Board Tools', () => {
     });
   });
 
+  it('easyeda_board_stackup marks copper-count-only data as unavailable', async () => {
+    const tool = registry.get('easyeda_board_stackup');
+    bridgeCall.mockResolvedValue({
+      totalLayers: 2,
+      layers: [],
+      available: false,
+      source: 'copper_layer_count_only',
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      total_layers: 2,
+      layers: [],
+      data_source: 'copper_layer_count_only',
+      not_available: true,
+    });
+    expect(result?.board_thickness_mm).toBeUndefined();
+    expect(result?.error).toContain('only the copper-layer count was verified');
+  });
+
   it('easyeda_board_dimensions returns dimensions', async () => {
     const tool = registry.get('easyeda_board_dimensions');
     expect(tool).toBeDefined();
@@ -145,6 +166,27 @@ describe('Board Tools', () => {
     expect(result?.shape).toBe('rectangle');
     expect(result?.mounting_hole_count).toBe(4);
     expect(result?.area_mm2).toBe(8000);
+  });
+
+  it('easyeda_board_dimensions distinguishes a missing outline from a 0x0 board', async () => {
+    const tool = registry.get('easyeda_board_dimensions');
+    bridgeCall.mockResolvedValue({
+      widthMm: 0,
+      heightMm: 0,
+      mountingHoleCount: 0,
+      areaMm2: 0,
+      hasOutline: false,
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      width_mm: 0,
+      height_mm: 0,
+      has_outline: false,
+      not_available: true,
+    });
+    expect(result?.error).toContain('No board outline');
   });
 
   it('easyeda_board_features returns feature counts', async () => {

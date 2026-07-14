@@ -153,6 +153,7 @@ function registerDrcErcTools(
           totalViolations?: number;
           errorCount?: number;
           warningCount?: number;
+          passed?: boolean;
         };
         const violations = (data.violations ?? []).map((v) => ({
           rule: v.rule ?? '',
@@ -170,14 +171,19 @@ function registerDrcErcTools(
           net: v.net,
           component: v.component,
         }));
+        const errorCount =
+          data.errorCount ??
+          violations.filter((violation) => violation.severity === 'error').length;
+        const warningCount =
+          data.warningCount ??
+          violations.filter((violation) => violation.severity === 'warning').length;
         return {
           project_id: projectId,
           violations,
           total_violations: data.totalViolations ?? violations.length,
-          error_count: data.errorCount ?? violations.filter((v) => v.severity === 'error').length,
-          warning_count:
-            data.warningCount ?? violations.filter((v) => v.severity === 'warning').length,
-          passed: (data.errorCount ?? 0) === 0,
+          error_count: errorCount,
+          warning_count: warningCount,
+          passed: data.passed ?? errorCount === 0,
         };
       } catch (err) {
         return {
