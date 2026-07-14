@@ -664,44 +664,47 @@ function normalizeValue(value: unknown, depth = 3, seen = new WeakSet<object>())
   if (depth <= 0) return '[MaxDepth]';
 
   seen.add(value);
-
-  if (Array.isArray(value)) {
-    return value.slice(0, 100).map((item) => normalizeValue(item, depth - 1, seen));
-  }
-
-  const output: Record<string, JsonValue | undefined> = {};
-  const ctorName = (value as { constructor?: { name?: string } }).constructor?.name;
-  if (ctorName && ctorName !== 'Object') output.__class = ctorName;
-
-  const getterNames = getFunctionNames(value)
-    .filter((name) => name.startsWith('getState_'))
-    .slice(0, 80);
-  if (getterNames.length > 0) {
-    const state: Record<string, JsonValue | undefined> = {};
-    for (const getterName of getterNames) {
-      const getter = readMember(value, getterName);
-      if (typeof getter !== 'function') continue;
-      try {
-        state[getterName.replace(/^getState_/, '')] = normalizeValue(
-          getter.call(value),
-          depth - 1,
-          seen,
-        );
-      } catch (error) {
-        state[getterName.replace(/^getState_/, '')] = `ERROR: ${String(error)}`;
-      }
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => normalizeValue(item, depth - 1, seen));
     }
-    output.state = state;
+
+    const output: Record<string, JsonValue | undefined> = {};
+    const ctorName = (value as { constructor?: { name?: string } }).constructor?.name;
+    if (ctorName && ctorName !== 'Object') output.__class = ctorName;
+
+    const getterNames = getFunctionNames(value).filter((name) => name.startsWith('getState_'));
+    if (getterNames.length > 0) {
+      const state: Record<string, JsonValue | undefined> = {};
+      for (const getterName of getterNames) {
+        const getter = readMember(value, getterName);
+        if (typeof getter !== 'function') continue;
+        try {
+          state[getterName.replace(/^getState_/, '')] = normalizeValue(
+            getter.call(value),
+            depth - 1,
+            seen,
+          );
+        } catch (error) {
+          state[getterName.replace(/^getState_/, '')] = `ERROR: ${String(error)}`;
+        }
+      }
+      output.state = state;
+    }
+
+    const methodNames = getFunctionNames(value);
+    if (methodNames.length > 0) output.__methods = methodNames;
+
+    for (const key of Object.keys(value)) {
+      output[key] = normalizeValue((value as Record<string, unknown>)[key], depth - 1, seen);
+    }
+
+    return output;
+  } finally {
+    // Track only the active recursion path. Repeated references are valid data;
+    // only a reference back into the current path is a true cycle.
+    seen.delete(value);
   }
-
-  const methodNames = getFunctionNames(value).slice(0, 120);
-  if (methodNames.length > 0) output.__methods = methodNames;
-
-  for (const key of Object.keys(value).slice(0, 80)) {
-    output[key] = normalizeValue((value as Record<string, unknown>)[key], depth - 1, seen);
-  }
-
-  return output;
 }
 
 function normalizeStandalone(value: unknown, depth = 4): JsonValue {

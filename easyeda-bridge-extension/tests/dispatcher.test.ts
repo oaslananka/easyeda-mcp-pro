@@ -436,6 +436,55 @@ describe('createDispatcher', () => {
     expect(result.resolvedPath).toBe('eda.SCH_PrimitiveWire.getAll');
   });
 
+  it('api.call normalization preserves complete arrays, objects, state, and method metadata', async () => {
+    const shared = { marker: 'shared' };
+    const introspected: Record<string, unknown> = Object.fromEntries(
+      Array.from({ length: 90 }, (_, index) => [`key${index}`, index]),
+    );
+    for (let index = 0; index < 90; index += 1) {
+      introspected[`getState_Field${index}`] = () => index;
+    }
+    for (let index = 0; index < 130; index += 1) {
+      introspected[`method${index}`] = () => index;
+    }
+
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: {
+          getAll: async () => ({
+            items: Array.from({ length: 151 }, (_, index) => index),
+            introspected,
+            repeatedReferences: [shared, shared],
+          }),
+        },
+      }),
+    );
+    const response = (await dispatcher.dispatch('api.call', {
+      path: 'SCH_PrimitiveWire.getAll',
+      args: [],
+    })) as {
+      result: {
+        items: number[];
+        introspected: {
+          key89: number;
+          state: Record<string, unknown>;
+          __methods: string[];
+        };
+        repeatedReferences: Array<Record<string, unknown>>;
+      };
+    };
+
+    expect(response.result.items).toHaveLength(151);
+    expect(response.result.items.at(-1)).toBe(150);
+    expect(response.result.introspected.key89).toBe(89);
+    expect(response.result.introspected.state.Field89).toBe(89);
+    expect(response.result.introspected.__methods).toContain('method129');
+    expect(response.result.repeatedReferences).toEqual([
+      { marker: 'shared' },
+      { marker: 'shared' },
+    ]);
+  });
+
   it('system.getStatus reports capabilities equal to methodList and the build id', async () => {
     const dispatcher = createDispatcher(makeToolkit({}));
     const status = (await dispatcher.dispatch('system.getStatus', {})) as {
