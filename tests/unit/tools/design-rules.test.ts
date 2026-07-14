@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ToolRegistry } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import { registerDesignRulesTools } from '../../../src/tools/L1_design_rules.js';
@@ -39,6 +42,50 @@ describe('Design Rules Tools', () => {
     expect(tool!.risk).toBe('low');
     expect(tool!.confirmWrite).toBe(false);
     expect(tool!.annotations.readOnlyHint).toBe(true);
+  });
+
+  it('publishes the complete input signature through MCP tools/list', async () => {
+    const server = new McpServer({ name: 'design-rules-schema-test', version: '1.0.0' });
+    const client = new Client({ name: 'design-rules-schema-client', version: '1.0.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    registry.registerAllOnServer(server, context);
+
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+
+      const listed = await client.listTools();
+      const tool = listed.tools.find(
+        (candidate) => candidate.name === 'easyeda_design_rules_lookup',
+      );
+      const properties = tool?.inputSchema.properties as Record<string, unknown> | undefined;
+
+      expect(tool?.inputSchema.type).toBe('object');
+      expect(properties).toBeDefined();
+      expect(Object.keys(properties ?? {})).toEqual(
+        expect.arrayContaining([
+          'topic',
+          'currentA',
+          'traceWidthMils',
+          'temperatureRiseC',
+          'layer',
+          'copperWeightOz',
+          'voltageV',
+          'location',
+          'protocol',
+          'category',
+          'loadA',
+          'minBulkCapacitanceUfPerA',
+          'minBulkCapacitanceUf',
+          'id',
+        ]),
+      );
+      expect(tool?.inputSchema.required).toContain('topic');
+      expect(properties?.currentA).toMatchObject({ type: 'number' });
+      expect(properties?.copperWeightOz).toMatchObject({ type: 'number' });
+    } finally {
+      await Promise.allSettled([client.close(), server.close()]);
+    }
   });
 
   describe('topic: trace-width', () => {

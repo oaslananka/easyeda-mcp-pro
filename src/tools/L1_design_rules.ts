@@ -49,24 +49,33 @@ const dfmCategorySchema = z.enum([
   'assembly',
 ]);
 
-const inputSchema = z.discriminatedUnion('topic', [
+const currentASchema = z.number().positive();
+const temperatureRiseCSchema = z.number().positive();
+const copperWeightOzSchema = z.number().positive();
+const traceWidthMilsSchema = z.number().positive();
+const voltageVSchema = z.number().nonnegative();
+const loadASchema = z.number().positive();
+const minBulkCapacitanceUfPerASchema = z.number().positive();
+const minBulkCapacitanceUfSchema = z.number().positive();
+
+const lookupInputSchema = z.discriminatedUnion('topic', [
   z.object({
     topic: z.literal('trace-width'),
-    currentA: z.number().positive(),
-    temperatureRiseC: z.number().positive(),
+    currentA: currentASchema,
+    temperatureRiseC: temperatureRiseCSchema,
     layer: conductorLayerSchema,
-    copperWeightOz: z.number().positive(),
+    copperWeightOz: copperWeightOzSchema,
   }),
   z.object({
     topic: z.literal('max-current'),
-    traceWidthMils: z.number().positive(),
-    temperatureRiseC: z.number().positive(),
+    traceWidthMils: traceWidthMilsSchema,
+    temperatureRiseC: temperatureRiseCSchema,
     layer: conductorLayerSchema,
-    copperWeightOz: z.number().positive(),
+    copperWeightOz: copperWeightOzSchema,
   }),
   z.object({
     topic: z.literal('clearance'),
-    voltageV: z.number().nonnegative(),
+    voltageV: voltageVSchema,
     location: conductorLayerSchema,
   }),
   z.object({
@@ -79,9 +88,9 @@ const inputSchema = z.discriminatedUnion('topic', [
   }),
   z.object({
     topic: z.literal('bulk-capacitance'),
-    loadA: z.number().positive(),
-    minBulkCapacitanceUfPerA: z.number().positive().optional(),
-    minBulkCapacitanceUf: z.number().positive().optional(),
+    loadA: loadASchema,
+    minBulkCapacitanceUfPerA: minBulkCapacitanceUfPerASchema.optional(),
+    minBulkCapacitanceUf: minBulkCapacitanceUfSchema.optional(),
   }),
   z.object({
     topic: z.literal('dfm-checklist'),
@@ -89,6 +98,71 @@ const inputSchema = z.discriminatedUnion('topic', [
     id: z.string().optional(),
   }),
 ]);
+
+const inputSchema = z
+  .object({
+    topic: z
+      .enum([
+        'trace-width',
+        'max-current',
+        'clearance',
+        'protocol-routing',
+        'decoupling',
+        'bulk-capacitance',
+        'dfm-checklist',
+      ])
+      .describe('Reference topic to look up.'),
+    currentA: currentASchema
+      .optional()
+      .describe('Required when topic is trace-width. Load current in amperes.'),
+    traceWidthMils: traceWidthMilsSchema
+      .optional()
+      .describe('Required when topic is max-current. Trace width in mils.'),
+    temperatureRiseC: temperatureRiseCSchema
+      .optional()
+      .describe('Required for trace-width and max-current. Allowed temperature rise in °C.'),
+    layer: conductorLayerSchema
+      .optional()
+      .describe('Required for trace-width and max-current. Conductor layer location.'),
+    copperWeightOz: copperWeightOzSchema
+      .optional()
+      .describe('Required for trace-width and max-current. Copper weight in oz/ft².'),
+    voltageV: voltageVSchema
+      .optional()
+      .describe('Required when topic is clearance. Working voltage in volts.'),
+    location: conductorLayerSchema
+      .optional()
+      .describe('Required when topic is clearance. Clearance location.'),
+    protocol: protocolKeySchema
+      .optional()
+      .describe('Optional protocol filter when topic is protocol-routing.'),
+    category: z
+      .union([decouplingCategorySchema, dfmCategorySchema])
+      .optional()
+      .describe('Optional category filter for decoupling or dfm-checklist.'),
+    loadA: loadASchema
+      .optional()
+      .describe('Required when topic is bulk-capacitance. Load current in amperes.'),
+    minBulkCapacitanceUfPerA: minBulkCapacitanceUfPerASchema
+      .optional()
+      .describe('Optional minimum bulk capacitance per ampere in µF/A.'),
+    minBulkCapacitanceUf: minBulkCapacitanceUfSchema
+      .optional()
+      .describe('Optional absolute minimum bulk capacitance in µF.'),
+    id: z.string().optional().describe('Optional DFM checklist item id.'),
+  })
+  .superRefine((value, ctx) => {
+    const parsed = lookupInputSchema.safeParse(value);
+    if (parsed.success) return;
+
+    for (const issue of parsed.error.issues) {
+      ctx.addIssue({
+        code: 'custom',
+        path: issue.path,
+        message: issue.message,
+      });
+    }
+  });
 
 const traceWidthResultSchema = z.object({
   requiredAreaMils2: z.number(),
@@ -173,7 +247,7 @@ const outputSchema = z.object({
   error: z.string().optional(),
 });
 
-type LookupInput = z.infer<typeof inputSchema>;
+type LookupInput = z.infer<typeof lookupInputSchema>;
 type LookupOutput = z.infer<typeof outputSchema>;
 
 function handleLookup(input: LookupInput): LookupOutput {
@@ -272,12 +346,18 @@ function registerDesignRulesTools(
     inputSchema,
     outputSchema,
     handler: async (_ctx: ToolContext, params: unknown) => {
-      const input = params as LookupInput;
+      const topic =
+        typeof params === 'object' &&
+        params !== null &&
+        'topic' in params &&
+        typeof params.topic === 'string'
+          ? params.topic
+          : 'unknown';
       try {
-        return handleLookup(input);
+        return handleLookup(lookupInputSchema.parse(params));
       } catch (err) {
         return {
-          topic: input.topic,
+          topic,
           error: err instanceof Error ? err.message : String(err),
         };
       }

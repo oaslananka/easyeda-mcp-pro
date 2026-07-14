@@ -704,66 +704,22 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-This tool accepts one of several shapes, selected by the `topic` field:
-
-**When `topic` is 'trace-width':**
-
-| Parameter          | Type            | Required    | Description |
-| ------------------ | --------------- | ----------- | ----------- |
-| `topic`            | `'trace-width'` | Yes         |             |
-| `currentA`         | `number`        | Yes         |             |
-| `temperatureRiseC` | `number`        | Yes         |             |
-| `layer`            | `'external'     | 'internal'` | Yes         |     |
-| `copperWeightOz`   | `number`        | Yes         |             |
-
-**When `topic` is 'max-current':**
-
-| Parameter          | Type            | Required    | Description |
-| ------------------ | --------------- | ----------- | ----------- |
-| `topic`            | `'max-current'` | Yes         |             |
-| `traceWidthMils`   | `number`        | Yes         |             |
-| `temperatureRiseC` | `number`        | Yes         |             |
-| `layer`            | `'external'     | 'internal'` | Yes         |     |
-| `copperWeightOz`   | `number`        | Yes         |             |
-
-**When `topic` is 'clearance':**
-
-| Parameter  | Type          | Required    | Description |
-| ---------- | ------------- | ----------- | ----------- |
-| `topic`    | `'clearance'` | Yes         |             |
-| `voltageV` | `number`      | Yes         |             |
-| `location` | `'external'   | 'internal'` | Yes         |     |
-
-**When `topic` is 'protocol-routing':**
-
-| Parameter  | Type                 | Required | Description |
-| ---------- | -------------------- | -------- | ----------- |
-| `topic`    | `'protocol-routing'` | Yes      |             |
-| `protocol` | `'usb2'              | 'usb3'   | 'rs485'     | 'i2c' | 'spi' | 'uart' | 'ethernet-10-100' | 'ethernet-1000' (optional)` | No  |     |
-
-**When `topic` is 'decoupling':**
-
-| Parameter  | Type             | Required | Description |
-| ---------- | ---------------- | -------- | ----------- |
-| `topic`    | `'decoupling'`   | Yes      |             |
-| `category` | `'digital-logic' | 'mcu'    | 'analog'    | 'rf' | 'crystal-oscillator' | 'power-regulator' (optional)` | No  |     |
-
-**When `topic` is 'bulk-capacitance':**
-
-| Parameter                  | Type                 | Required | Description |
-| -------------------------- | -------------------- | -------- | ----------- |
-| `topic`                    | `'bulk-capacitance'` | Yes      |             |
-| `loadA`                    | `number`             | Yes      |             |
-| `minBulkCapacitanceUfPerA` | `number (optional)`  | No       |             |
-| `minBulkCapacitanceUf`     | `number (optional)`  | No       |             |
-
-**When `topic` is 'dfm-checklist':**
-
-| Parameter  | Type                | Required   | Description |
-| ---------- | ------------------- | ---------- | ----------- |
-| `topic`    | `'dfm-checklist'`   | Yes        |             |
-| `category` | `'clearance'        | 'drilling' | 'copper'    | 'solder-mask' | 'silkscreen' | 'panelization' | 'assembly' (optional)` | No  |     |
-| `id`       | `string (optional)` | No         |             |
+| Parameter                  | Type                | Required               | Description                                                               |
+| -------------------------- | ------------------- | ---------------------- | ------------------------------------------------------------------------- |
+| `topic`                    | `'trace-width'      | 'max-current'          | 'clearance'                                                               | 'protocol-routing'                                                  | 'decoupling'         | 'bulk-capacitance' | 'dfm-checklist'`  | Yes                         | Reference topic to look up. |
+| `currentA`                 | `number (optional)` | No                     | Required when topic is trace-width. Load current in amperes.              |
+| `traceWidthMils`           | `number (optional)` | No                     | Required when topic is max-current. Trace width in mils.                  |
+| `temperatureRiseC`         | `number (optional)` | No                     | Required for trace-width and max-current. Allowed temperature rise in °C. |
+| `layer`                    | `'external'         | 'internal' (optional)` | No                                                                        | Required for trace-width and max-current. Conductor layer location. |
+| `copperWeightOz`           | `number (optional)` | No                     | Required for trace-width and max-current. Copper weight in oz/ft².        |
+| `voltageV`                 | `number (optional)` | No                     | Required when topic is clearance. Working voltage in volts.               |
+| `location`                 | `'external'         | 'internal' (optional)` | No                                                                        | Required when topic is clearance. Clearance location.               |
+| `protocol`                 | `'usb2'             | 'usb3'                 | 'rs485'                                                                   | 'i2c'                                                               | 'spi'                | 'uart'             | 'ethernet-10-100' | 'ethernet-1000' (optional)` | No                          | Optional protocol filter when topic is protocol-routing. |
+| `category`                 | `'digital-logic'    | 'mcu'                  | 'analog'                                                                  | 'rf'                                                                | 'crystal-oscillator' | 'power-regulator'  | 'clearance'       | 'drilling'                  | 'copper'                    | 'solder-mask'                                            | 'silkscreen' | 'panelization' | 'assembly' (optional)` | No  | Optional category filter for decoupling or dfm-checklist. |
+| `loadA`                    | `number (optional)` | No                     | Required when topic is bulk-capacitance. Load current in amperes.         |
+| `minBulkCapacitanceUfPerA` | `number (optional)` | No                     | Optional minimum bulk capacitance per ampere in µF/A.                     |
+| `minBulkCapacitanceUf`     | `number (optional)` | No                     | Optional absolute minimum bulk capacitance in µF.                         |
+| `id`                       | `string (optional)` | No                     | Optional DFM checklist item id.                                           |
 
 ### Output Format
 
