@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.34.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.1...easyeda-mcp-pro-v0.34.2) (2026-07-14)
+
+
+### Bug Fixes
+
+* **bridge:** align extension registry and modernize actions ([1426388](https://github.com/oaslananka/easyeda-mcp-pro/commit/1426388c6cc8423d5d706e53562b535ec210cfdd))
+* **bridge:** keep extension method registry in parity ([08c6f8d](https://github.com/oaslananka/easyeda-mcp-pro/commit/08c6f8da6c66fb426574c3d07891fab474cce0f8))
+
 ## [0.34.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.0...easyeda-mcp-pro-v0.34.1) (2026-07-14)
 
 
