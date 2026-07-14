@@ -3,7 +3,7 @@
   "uuid": "e7b9fb543e9a4c2898e30d33e5c9b68a",
   "displayName": "MCP Pro Bridge",
   "description": "Connect EasyEDA Pro to MCP clients for schematic and PCB inspection, BOM, DRC/ERC, exports, and AI-assisted hardware review.",
-  "version": "0.34.0",
+  "version": "0.34.1",
   "publisher": "oaslananka",
   "engines": {
     "eda": "^3.0.0"

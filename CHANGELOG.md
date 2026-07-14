@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.34.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.0...easyeda-mcp-pro-v0.34.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* **bridge:** preserve complete normalized values ([#295](https://github.com/oaslananka/easyeda-mcp-pro/issues/295)) ([e467af7](https://github.com/oaslananka/easyeda-mcp-pro/commit/e467af7f5c10a5c507d0b3baefad710645774585))
+* **bridge:** stop truncating normalized API values ([698058c](https://github.com/oaslananka/easyeda-mcp-pro/commit/698058cfc612a86bc7a69dbafbadc418bf8f1657))
+* **design-rules:** expose lookup input schema ([09ae084](https://github.com/oaslananka/easyeda-mcp-pro/commit/09ae084b499d99e000c742c99cd78c530720427c))
+* **design-rules:** expose lookup input schema ([#292](https://github.com/oaslananka/easyeda-mcp-pro/issues/292)) ([40fae49](https://github.com/oaslananka/easyeda-mcp-pro/commit/40fae4991166fe593d7b92da9684e4fd189579e9))
+* **visual:** capture requested canvas regions reliably ([da8a768](https://github.com/oaslananka/easyeda-mcp-pro/commit/da8a768ae57a72920d695a24521a94457c23a0df))
+* **visual:** stabilize region capture zoom ([#294](https://github.com/oaslananka/easyeda-mcp-pro/issues/294)) ([cc37675](https://github.com/oaslananka/easyeda-mcp-pro/commit/cc376758d19c82e72b829a6040535d0141f402af))
+
 ## [0.34.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.33.0...easyeda-mcp-pro-v0.34.0) (2026-07-13)
 
 
