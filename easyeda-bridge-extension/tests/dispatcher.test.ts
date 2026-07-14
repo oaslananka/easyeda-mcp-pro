@@ -645,6 +645,119 @@ describe('createDispatcher', () => {
     expect(check).toHaveBeenCalledWith(true, true, true);
   });
 
+  it('design.drc flattens nested PCB UI error trees and fails netlist mismatches', async () => {
+    const check = vi.fn(async () => [
+      {
+        name: 'Netlist Error',
+        count: 1,
+        list: [
+          {
+            name: 'Netlist Error',
+            count: 1,
+            list: [
+              {
+                visible: true,
+                errorType: 'Netlist Error',
+                ruleName: 'Import Changes',
+                ruleTypeName: 'Import Changes',
+                explanation: {
+                  str: 'PCB and schematic netlist does not match. Import changes to continue.',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    const dispatcher = createDispatcher(makeToolkit({ PCB_Drc: { check } }));
+
+    await expect(dispatcher.dispatch('design.drc', {})).resolves.toMatchObject({
+      totalViolations: 1,
+      errorCount: 1,
+      warningCount: 0,
+      passed: false,
+      violations: [
+        {
+          rule: 'Import Changes',
+          severity: 'error',
+          description: 'PCB and schematic netlist does not match. Import changes to continue.',
+        },
+      ],
+    });
+  });
+
+  it('board.listLayers removes inactive catalogue placeholders', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
+        PCB_Layer: {
+          getTheNumberOfCopperLayers: async () => 4,
+          getAllLayers: async () => [
+            { name: 'Top Layer', type: 'SIGNAL' },
+            { name: 'Bottom Layer', type: 'SIGNAL' },
+            { name: 'Inner1', type: 'SIGNAL' },
+            { name: 'Inner2', type: 'SIGNAL' },
+            { name: 'Inner3', type: 'SIGNAL' },
+            { name: 'Custom1', type: 'CUSTOM' },
+            { name: 'Dielectric1', type: 'OTHER' },
+            { name: 'Mechanical Layer', type: 'OTHER' },
+            { name: 'RF Keepout', type: 'CUSTOM' },
+          ],
+        },
+      }),
+    );
+
+    const result = (await dispatcher.dispatch('board.listLayers', {})) as Array<{
+      name: string;
+      order: number;
+    }>;
+    expect(result.map((layer) => layer.name)).toEqual([
+      'Top Layer',
+      'Bottom Layer',
+      'Inner1',
+      'Inner2',
+      'Mechanical Layer',
+      'RF Keepout',
+    ]);
+    expect(result.map((layer) => layer.order)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it('board.getStackup never invents thickness when physical stackup is unavailable', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
+        PCB_Layer: {
+          getTheNumberOfCopperLayers: async () => 2,
+          getCurrentPhysicalStackingConfiguration: async () => null,
+        },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('board.getStackup', {})).resolves.toEqual({
+      totalLayers: 2,
+      boardThicknessMm: undefined,
+      layers: [],
+      available: false,
+      source: 'copper_layer_count_only',
+    });
+  });
+
+  it('PCB list methods reject an inactive PCB context before calling primitive APIs', async () => {
+    const getAll = vi.fn(async () => []);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Pcb: { getCurrentPcbInfo: async () => null },
+        PCB_PrimitiveComponent: { getAll },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('pcb.listComponents', {})).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: 'No active PCB document is focused.',
+    });
+    expect(getAll).not.toHaveBeenCalled();
+  });
+
   it('design.ruleCheck falls back from inactive PCB DRC to the schematic checker', async () => {
     const pcbCheck = vi.fn(async () => {
       throw new Error('no PCB canvas');

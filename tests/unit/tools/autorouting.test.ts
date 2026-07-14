@@ -102,7 +102,9 @@ describe('Autorouting Tools', () => {
       const tool = registry.get('easyeda_pcb_floorplan');
       const result = (await tool?.handler(context, {
         circuitIR: validCircuitIR,
-        devices: [{ deviceId: 'dev-u1', ref: 'U1', widthMm: 5, heightMm: 5 }],
+        devices: [
+          { deviceId: 'dev-u1', ref: 'U1', primitiveId: 'pcb-u1', widthMm: 5, heightMm: 5 },
+        ],
         board: { widthMm: 100, heightMm: 80 },
         anchor: { x: 10, y: 10 },
         mode: 'apply',
@@ -112,8 +114,7 @@ describe('Autorouting Tools', () => {
       expect(result.error).toMatch(/confirmWrite=true is required/);
     });
 
-    it('applies placement operations via the bridge when confirmed', async () => {
-      bridgeCall.mockResolvedValue('placed-1');
+    it('blocks apply when a device has not been synced to an existing PCB primitive', async () => {
       const tool = registry.get('easyeda_pcb_floorplan');
       const result = (await tool?.handler(context, {
         circuitIR: validCircuitIR,
@@ -123,8 +124,14 @@ describe('Autorouting Tools', () => {
         mode: 'apply',
         confirmWrite: true,
       })) as any;
-      expect(result.applied).toBe(true);
-      expect(bridgeCall).toHaveBeenCalledWith('pcb.placeComponent', expect.any(Object));
+      expect(result.applied).toBe(false);
+      expect(result.blocked).toBe(true);
+      expect(result.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'LAYOUT_COMPONENT_NOT_ON_BOARD' }),
+        ]),
+      );
+      expect(bridgeCall).not.toHaveBeenCalled();
     });
   });
 

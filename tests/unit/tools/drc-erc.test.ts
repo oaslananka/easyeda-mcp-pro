@@ -99,6 +99,28 @@ describe('DRC/ERC Tools', () => {
     });
   });
 
+  it('easyeda_drc_run derives passed=false from error violations when counts are omitted', async () => {
+    const tool = registry.get('easyeda_drc_run');
+    bridgeCall.mockResolvedValue({
+      violations: [
+        {
+          rule: 'Import Changes',
+          description: 'PCB and schematic netlist does not match.',
+          severity: 'error',
+        },
+      ],
+      totalViolations: 1,
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      total_violations: 1,
+      error_count: 1,
+      warning_count: 0,
+      passed: false,
+    });
+  });
+
   it('easyeda_drc_run handles empty violations', async () => {
     const tool = registry.get('easyeda_drc_run');
     expect(tool).toBeDefined();

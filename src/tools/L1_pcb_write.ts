@@ -301,17 +301,18 @@ function registerPcbWriteTools(
 
   registry.register({
     name: 'easyeda_pcb_place_component',
-    title: 'Place component on PCB',
+    title: 'Place component on PCB (unavailable)',
     description:
-      'Place a component footprint on the active PCB layout. CAUTION: the native create() call ' +
-      'needs 6 args but this tool sends only 5 (footprint, x, y, rotation, layer) — ' +
-      'live-confirmed mismatch, not yet resolved. Verify placement visually before trusting it.',
+      'Direct PCB component creation is unavailable because the verified EasyEDA runtime does ' +
+      'not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in ' +
+      'the schematic, sync to PCB, confirm the native dialog, then reposition it with ' +
+      'easyeda_pcb_modify_component.',
     profile: 'full',
-    evidence: ['inferred'],
+    evidence: ['runtime-probe'],
     risk: 'high',
     confirmWrite: true,
     group: 'pcb-write',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -328,41 +329,19 @@ function registerPcbWriteTools(
     }),
     outputSchema: z.object({
       success: z.boolean(),
-      primitiveId: z.string().optional(),
+      not_available: z.boolean().optional(),
       error: z.string().optional(),
+      remediation: z.string().optional(),
     }),
-    handler: async (ctx: ToolContext, params: unknown) => {
-      const p = params as {
-        footprint: string;
-        x: number;
-        y: number;
-        rotation: number;
-        layer: number;
-      };
-      try {
-        const result = await ctx.bridge.call<
-          Record<string, unknown>,
-          { primitiveId?: string; result?: string }
-        >('pcb.placeComponent', {
-          footprint: p.footprint,
-          x: p.x,
-          y: p.y,
-          rotation: p.rotation,
-          layer: p.layer,
-        });
-        const data = result as { primitiveId?: string; result?: string } | string;
-        return {
-          success: true,
-          primitiveId:
-            typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined),
-        };
-      } catch (err) {
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
+    handler: async () => ({
+      success: false,
+      not_available: true,
+      error: 'Direct PCB component creation is not supported by the verified EasyEDA Pro runtime.',
+      remediation:
+        'Place the component in the schematic with addIntoPcb enabled, run ' +
+        'easyeda_schematic_sync_to_pcb, confirm the native import dialog, then reposition it with ' +
+        'easyeda_pcb_modify_component.',
+    }),
   });
 
   registry.register({
