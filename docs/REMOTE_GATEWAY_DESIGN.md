@@ -71,8 +71,8 @@ OAUTH_JWKS_URI=https://auth.example.com/.well-known/jwks.json
 OAUTH_REQUIRED_SCOPES=easyeda.read
 ```
 
-The existing safe production guardrails should remain active. Public binding must require OAuth and
-an explicit origin allowlist.
+The runtime guardrails apply in every environment. Every non-loopback bind must require complete OAuth/JWKS settings and
+an explicit non-wildcard origin allowlist.
 
 ## Experimental remote relay configuration
 

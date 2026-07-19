@@ -33,16 +33,16 @@ EasyEDA Web page
 
 ## Required controls
 
-| Control           | Requirement                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------- |
-| Authentication    | Remote tool calls require a valid token or equivalent authenticated session.                |
-| Pairing           | A remote user must be paired with exactly one active extension session before tool routing. |
-| Session isolation | A user must never access another user's EasyEDA session.                                    |
-| Authorization     | Tool scopes separate read, write, export, and project administration actions.               |
-| Approval          | Write, export, and destructive actions require explicit approval according to policy.       |
-| Origin validation | Public HTTP endpoints validate expected origins where applicable.                           |
-| Safe defaults     | Public binding is not enabled without remote mode, auth, and allowed-origin configuration.  |
-| Audit             | Remote requests record structured events without secrets or raw design payloads by default. |
+| Control           | Requirement                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| Authentication    | Every non-loopback HTTP listener requires valid OAuth/JWKS authentication regardless of `NODE_ENV`. |
+| Pairing           | A remote user must be paired with exactly one active extension session before tool routing.         |
+| Session isolation | A user must never access another user's EasyEDA session.                                            |
+| Authorization     | Tool scopes separate read, write, export, and project administration actions.                       |
+| Approval          | Write, export, and destructive actions require explicit approval according to policy.               |
+| Origin validation | Public HTTP endpoints require an explicit non-wildcard allowlist; CORS never replaces auth.         |
+| Safe defaults     | Public binding fails closed without complete OAuth settings and allowed-origin configuration.       |
+| Audit             | Remote requests record structured events without secrets or raw design payloads by default.         |
 
 ## Scope model
 
@@ -54,6 +54,22 @@ Recommended initial scopes:
 - `easyeda.project_admin`
 
 Read tools require `easyeda.read`. Project-changing tools require the relevant stronger scope and approval.
+
+### Tool risk and scope precedence
+
+Remote tool authorization resolves risk metadata in this order:
+
+1. `easyeda_execute` is always `destructive`.
+2. Tools in the `export` group retain the explicit `export` policy.
+3. Every remaining tool declared with `risk: high` is `destructive`, including tools that also set `confirmWrite: true`.
+4. `risk: medium` and ordinary `confirmWrite: true` tools are `write`.
+5. Remaining tools are `read`.
+
+The resulting scopes are `easyeda.read`, `easyeda.write`, `easyeda.export`, and
+`easyeda.project_admin`, respectively. `confirmWrite` is a mutation acknowledgement control; it must
+never downgrade a high-risk tool from `destructive` to `write`. Consequently, an identity with only
+`easyeda.write` cannot invoke a high-risk tool even when the user has supplied `confirmWrite: true`;
+`easyeda.project_admin` and the applicable approval are required.
 
 ## Hosted responsibilities
 

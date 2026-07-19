@@ -195,22 +195,54 @@ export function getBridgePairingConfigIssue(config: EnvConfig): string | undefin
   );
 }
 
+export function getHttpSecurityConfigIssues(config: EnvConfig): string[] {
+  if (config.TRANSPORT !== 'http' || isLoopbackHost(config.HTTP_HOST)) return [];
+
+  const issues: string[] = [];
+  const allowedOrigins = config.ALLOWED_ORIGINS.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (allowedOrigins.length === 0) {
+    issues.push(
+      'SAFETY: HTTP_HOST is not a loopback address but ALLOWED_ORIGINS is empty. ' +
+        'Non-loopback HTTP requires an explicit comma-separated origin allowlist.',
+    );
+  } else if (allowedOrigins.includes('*')) {
+    issues.push(
+      'SAFETY: ALLOWED_ORIGINS=* is not allowed for non-loopback HTTP. ' +
+        'Configure an explicit comma-separated origin allowlist. CORS is not an authentication boundary.',
+    );
+  }
+
+  if (!config.OAUTH_ENABLED) {
+    issues.push(
+      'SAFETY: HTTP_HOST is not a loopback address but OAUTH_ENABLED is false. ' +
+        'Every non-loopback HTTP deployment requires OAuth/JWKS authentication, regardless of NODE_ENV. ' +
+        'Set OAUTH_ENABLED=true with OAUTH_JWKS_URI, OAUTH_ISSUER, and OAUTH_AUDIENCE, ' +
+        'or use HTTP_HOST=127.0.0.1 for local development.',
+    );
+  } else {
+    const missing: string[] = [];
+    if (!config.OAUTH_JWKS_URI) missing.push('OAUTH_JWKS_URI');
+    if (!config.OAUTH_ISSUER) missing.push('OAUTH_ISSUER');
+    if (!config.OAUTH_AUDIENCE) missing.push('OAUTH_AUDIENCE');
+    if (missing.length > 0) {
+      issues.push(
+        `SAFETY: OAuth is enabled for non-loopback HTTP but required variables are missing: ${missing.join(', ')}. ` +
+          'Set every listed OAuth variable or use HTTP_HOST=127.0.0.1 for local development.',
+      );
+    }
+  }
+
+  return issues;
+}
+
 export function validateSafeConfig(config: EnvConfig): void {
   // ── Bridge pairing policy ────────────────────────────────
   const bridgePairingIssue = getBridgePairingConfigIssue(config);
   if (bridgePairingIssue) {
     console.error(bridgePairingIssue);
-    process.exit(1);
-  }
-
-  // ── CORS / origin policy ─────────────────────────────────
-  if (config.TRANSPORT === 'http' && !isLoopbackHost(config.HTTP_HOST) && !config.ALLOWED_ORIGINS) {
-    // Logger not yet initialized — env config is loaded first
-    console.error(
-      'SAFETY: HTTP_HOST is not a loopback address but ALLOWED_ORIGINS is empty. ' +
-        'Non-loopback HTTP deployments must declare an explicit origin allowlist. ' +
-        'Set ALLOWED_ORIGINS to a comma-separated list of allowed origins or use HTTP_HOST=127.0.0.1.',
-    );
     process.exit(1);
   }
 
@@ -225,20 +257,11 @@ export function validateSafeConfig(config: EnvConfig): void {
     }
   }
 
-  // ── OAuth/JWKS validation ─────────────────────────────────
-  if (config.OAUTH_ENABLED && !isLoopbackHost(config.HTTP_HOST)) {
-    const missing: string[] = [];
-    if (!config.OAUTH_JWKS_URI) missing.push('OAUTH_JWKS_URI');
-    if (!config.OAUTH_ISSUER) missing.push('OAUTH_ISSUER');
-    if (!config.OAUTH_AUDIENCE) missing.push('OAUTH_AUDIENCE');
-    if (missing.length > 0) {
-      // Logger not yet initialized — env config is loaded first
-      console.error(
-        `SAFETY: OAuth is enabled for non-loopback HTTP but required variables are missing: ${missing.join(', ')}. ` +
-          'Set all required OAuth variables or use HTTP_HOST=127.0.0.1 for local development.',
-      );
-      process.exit(1);
-    }
+  // ── Non-loopback HTTP authentication policy ───────────────
+  const httpSecurityIssues = getHttpSecurityConfigIssues(config);
+  if (httpSecurityIssues.length > 0) {
+    for (const issue of httpSecurityIssues) console.error(issue);
+    process.exit(1);
   }
 
   // No weak-token fallback: if OAuth is enabled, JWKS must be configured
@@ -254,14 +277,6 @@ export function validateSafeConfig(config: EnvConfig): void {
 
   // ── NODE_ENV production checks ──────────────────────────
   if (config.NODE_ENV === 'production') {
-    if (!isLoopbackHost(config.HTTP_HOST) && !config.OAUTH_ENABLED) {
-      // Logger not yet initialized — env config is loaded first
-      console.error(
-        'SAFETY: HTTP_HOST is not localhost but OAUTH_ENABLED is false. ' +
-          'Set OAUTH_ENABLED=true or use HTTP_HOST=127.0.0.1.',
-      );
-      process.exit(1);
-    }
     if (config.BRIDGE_RAW_EXEC_ENABLED) {
       // Logger not yet initialized — env config is loaded first
       console.error('SAFETY: BRIDGE_RAW_EXEC_ENABLED=true is not allowed in production mode.');

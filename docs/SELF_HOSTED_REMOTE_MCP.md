@@ -49,8 +49,9 @@ The server exposes protected-resource metadata for remote clients at:
 https://mcp.user-domain.example/.well-known/oauth-protected-resource/mcp
 ```
 
-The local server should bind to localhost behind the tunnel or reverse proxy. Do not bind to all
-interfaces unless the host firewall, TLS, auth, and origin policy are explicitly configured.
+The local server should bind to localhost behind the tunnel or reverse proxy. Every non-loopback
+listener requires OAuth/JWKS authentication and an explicit non-wildcard origin allowlist regardless
+of `NODE_ENV`; a tunnel or CORS policy alone is not an authentication boundary.
 
 ## Experimental relay configuration
 

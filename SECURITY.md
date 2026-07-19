@@ -29,13 +29,14 @@ Please report vulnerabilities privately via [GitHub Security Advisories](https:/
 At startup the server enforces:
 
 - non-loopback `BRIDGE_HOST` requires a non-empty `BRIDGE_TOKEN` for pairing
+- every non-loopback HTTP listener requires OAuth/JWKS authentication regardless of `NODE_ENV`
+- non-loopback HTTP requires an explicit origin allowlist and rejects `ALLOWED_ORIGINS=*`
 - all environment variables are validated through a strict Zod schema
 
 In `production` mode the server additionally enforces:
 
 - `BRIDGE_RAW_EXEC_ENABLED` must be `false`
 - `JLCPCB_ENABLE_ORDERING` requires `JLCPCB_MODE=approved_api`
-- `HTTP_HOST` bound to `127.0.0.1` unless `OAUTH_ENABLED` is `true`
 
 ## Response Process
 

@@ -76,17 +76,19 @@ HTTP_RATE_LIMIT_MAX=100
 
 Loopback HTTP deployments validate browser `Origin` headers and only accept loopback `Host` headers. For browser tooling running on a local development port, use the default loopback host or set `CORS_ORIGIN` / `ALLOWED_ORIGINS` explicitly.
 
-### Production Security for HTTP
+### Remote Security for HTTP
 
-For remote HTTP deployments, OAuth 2.0 validation can be enforced:
+For every non-loopback HTTP deployment, OAuth 2.0 validation is mandatory regardless of `NODE_ENV`:
 
 ```ini
 OAUTH_ENABLED=true
 OAUTH_ISSUER=https://your-identity-provider.com
 OAUTH_JWKS_URI=https://your-identity-provider.com/.well-known/jwks.json
+OAUTH_AUDIENCE=easyeda-mcp-pro
+ALLOWED_ORIGINS=https://your-client.example.com
 ```
 
-_Note: Non-loopback `HTTP_HOST` (e.g., `0.0.0.0`) without OAuth enabled is rejected at startup for security._
+_Note: Non-loopback `HTTP_HOST` (e.g., `0.0.0.0`) without complete OAuth settings is rejected at startup in development, test, and production. `ALLOWED_ORIGINS=*` is also rejected because CORS does not authenticate non-browser clients._
 
 ### Raw execution quarantine
 

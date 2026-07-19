@@ -38,7 +38,7 @@ ENV TRANSPORT=http
 ENV HTTP_HOST=127.0.0.1
 ENV HTTP_PORT=3000
 ENV ALLOWED_ORIGINS=
-# For public HTTP deployments, override HTTP_HOST=0.0.0.0 and provide auth plus ALLOWED_ORIGINS.
+# Non-loopback HTTP requires OAuth/JWKS plus an explicit non-wildcard ALLOWED_ORIGINS value.
 
 # Copy runtime assets and built package, owned by the non-root "node" user
 # baked into the official image (uid/gid 1000).
