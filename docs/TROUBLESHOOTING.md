@@ -42,6 +42,7 @@ The AI client (e.g. Claude Desktop or Cursor) displays an error: `"Failed to sta
    bridge extension's version differs from the installed `easyeda-mcp-pro` package
    version. Update the extension in EasyEDA Pro (Settings → Extensions → Extension
    Manager) or reinstall `easyeda-bridge-extension.eext` from a matching release.
+6. **Read the connection phase**: Newer bridge builds append the last failed phase to the offline message. In particular, `SYS_WebSocket.register() ... did not invoke its open callback` means the EasyEDA runtime accepted the preferred registration API but never reported a usable socket. The extension closes that handle without sending and retries the same port through `SYS_WebSocket.create()` and then browser WebSocket. If no alternate API exists, the phase remains visible instead of being collapsed into the generic `no local server found` message. Other phase messages distinguish an unavailable socket API, an open timeout, a socket that opened without returning bridge `hello`, an early close, and an explicit socket error.
 
 ---
 

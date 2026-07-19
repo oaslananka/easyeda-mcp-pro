@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { REGISTER_OPEN_CALLBACK_TIMEOUT_MS } from '../src/connection-policy.js';
 
 // Regression test for a real bug: the second esbuild call in build.mjs used
 // to pass a `define` object literal that REPLACED (rather than merged onto)
@@ -139,6 +140,167 @@ describe('build.mjs hot-swap define', () => {
     await (context as any).edaEsbuildExportName.disableAutoConnect();
     expect(storageState.autoConnect).toBe(false);
     expect(toastMessages.at(-1)).toContain('Auto-Connect: OFF');
+  });
+
+  it('falls back to sys_WebSocket.create when register never reports open', async () => {
+    const outDir = mkdtempSync(join(tmpdir(), 'ext-build-silent-register-'));
+    outDirs.push(outDir);
+    const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: '' });
+
+    const toastMessages: string[] = [];
+    const registerClosedIds: string[] = [];
+    const rawHandshakePayloads: Array<Record<string, unknown>> = [];
+    let registerCalls = 0;
+    let registerSendCalls = 0;
+    let createCalls = 0;
+    let createdSocket: FakeCreatedSocket | undefined;
+
+    class FakeCreatedSocket {
+      onopen: (() => void) | null = null;
+      onmessage: ((event: { data: string }) => void) | null = null;
+      onclose: (() => void) | null = null;
+      onerror: ((error: unknown) => void) | null = null;
+
+      constructor() {
+        createdSocket = this;
+        queueMicrotask(() => this.onopen?.());
+      }
+
+      send(payload: string): void {
+        const parsed = JSON.parse(payload) as Record<string, unknown>;
+        rawHandshakePayloads.push(parsed);
+        if (parsed.type === 'handshake') {
+          queueMicrotask(() => {
+            this.onmessage?.({
+              data: JSON.stringify({
+                type: 'hello',
+                contractVersion: 1,
+                supportedProtocolVersions: ['1.0.0'],
+              }),
+            });
+          });
+        }
+      }
+
+      close(): void {
+        this.onclose?.();
+      }
+    }
+
+    const nativeSetTimeout = setTimeout;
+    const nativeClearTimeout = clearTimeout;
+    const context = vm.createContext({
+      console,
+      crypto: webcrypto,
+      TextEncoder,
+      TextDecoder,
+      URL,
+      Promise,
+      setTimeout: (callback: () => void, delayMs: number) => {
+        if (delayMs === REGISTER_OPEN_CALLBACK_TIMEOUT_MS) return nativeSetTimeout(callback, 0);
+        if (delayMs >= 8_000) return nativeSetTimeout(callback, 20);
+        if (delayMs === 1_000) return nativeSetTimeout(callback, 10);
+        return { ignored: true, delayMs };
+      },
+      clearTimeout: (handle: unknown) => {
+        if (handle && typeof handle === 'object' && 'ignored' in handle) return;
+        nativeClearTimeout(handle as ReturnType<typeof setTimeout>);
+      },
+      setInterval: () => ({ ignored: true }),
+      clearInterval: () => undefined,
+      localStorage: {
+        getItem: () => 'false',
+        setItem: () => undefined,
+      },
+      SYS_Message: {
+        showToastMessage: (message: string) => toastMessages.push(message),
+      },
+      SYS_WebSocket: {
+        register: () => {
+          registerCalls += 1;
+          // EasyEDA Pro 3.2.149 on macOS can accept register() without
+          // invoking the optional connected callback.
+        },
+        send: () => {
+          registerSendCalls += 1;
+        },
+        close: (id: string) => registerClosedIds.push(id),
+        create: () => {
+          createCalls += 1;
+          return new FakeCreatedSocket();
+        },
+      },
+    });
+
+    vm.runInContext(bundle, context);
+    await (context as any).edaEsbuildExportName.connect();
+
+    expect(registerCalls).toBe(1);
+    expect(registerSendCalls).toBe(0);
+    expect(registerClosedIds).toHaveLength(1);
+    expect(createCalls).toBe(1);
+    expect(rawHandshakePayloads).toContainEqual(expect.objectContaining({ type: 'handshake' }));
+    expect(toastMessages).toContain('MCP Bridge connected to local server');
+
+    createdSocket?.onmessage?.({
+      data: JSON.stringify({ type: 'heartbeat', source: 'server' }),
+    });
+    expect(rawHandshakePayloads).toContainEqual(
+      expect.objectContaining({ type: 'heartbeat', source: 'extension' }),
+    );
+
+    createdSocket?.close();
+    (context as any).edaEsbuildExportName.showStatus();
+    expect(toastMessages.at(-1)).toContain('waiting for server');
+
+    (context as any).edaEsbuildExportName.disconnect();
+  });
+
+  it('reports the silent register phase when no alternate socket API is available', async () => {
+    const outDir = mkdtempSync(join(tmpdir(), 'ext-build-silent-register-offline-'));
+    outDirs.push(outDir);
+    const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: '' });
+
+    const toastMessages: string[] = [];
+    const nativeSetTimeout = setTimeout;
+    const nativeClearTimeout = clearTimeout;
+    const context = vm.createContext({
+      console,
+      crypto: webcrypto,
+      TextEncoder,
+      TextDecoder,
+      URL,
+      Promise,
+      setTimeout: (callback: () => void, delayMs: number) => {
+        if (delayMs === REGISTER_OPEN_CALLBACK_TIMEOUT_MS) return nativeSetTimeout(callback, 0);
+        if (delayMs >= 8_000) return nativeSetTimeout(callback, 4);
+        if (delayMs === 1_000) return nativeSetTimeout(callback, 2);
+        return { ignored: true, delayMs };
+      },
+      clearTimeout: (handle: unknown) => {
+        if (handle && typeof handle === 'object' && 'ignored' in handle) return;
+        nativeClearTimeout(handle as ReturnType<typeof setTimeout>);
+      },
+      setInterval: () => ({ ignored: true }),
+      clearInterval: () => undefined,
+      SYS_Message: {
+        showToastMessage: (message: string) => toastMessages.push(message),
+      },
+      SYS_WebSocket: {
+        register: () => undefined,
+        send: () => undefined,
+        close: () => undefined,
+      },
+    });
+
+    vm.runInContext(bundle, context);
+    await (context as any).edaEsbuildExportName.connect();
+
+    expect(toastMessages.at(-1)).toContain('MCP Bridge offline: no local server found');
+    expect(toastMessages.at(-1)).toContain('did not invoke its open callback');
+    expect(toastMessages.at(-1)).toContain('port 49620');
+
+    (context as any).edaEsbuildExportName.disconnect();
   });
 
   it('routes Remote Relay approval requests through the official EasyEDA confirmation dialog', async () => {

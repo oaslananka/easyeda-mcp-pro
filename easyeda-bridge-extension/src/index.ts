@@ -10,6 +10,7 @@ import {
   HEARTBEAT_INTERVAL_MS,
   isServerActivityMessage,
   reconnectDelayMs,
+  REGISTER_OPEN_CALLBACK_TIMEOUT_MS,
   shouldReconnectAfterSocketFailure,
 } from './connection-policy.js';
 import {
@@ -157,6 +158,26 @@ interface SocketHandle {
   raw?: EasyedaSocket | WebSocket;
 }
 
+interface CreateSocketOptions {
+  skipRegister?: boolean;
+}
+
+type LocalConnectionPhase =
+  | 'register-open-timeout'
+  | 'socket-api-unavailable'
+  | 'socket-open-timeout'
+  | 'hello-timeout'
+  | 'socket-closed'
+  | 'socket-error';
+
+interface LocalConnectionDiagnostic {
+  phase: LocalConnectionPhase;
+  port: number;
+  transport?: SocketHandle['type'];
+  message: string;
+  priority: number;
+}
+
 const BRIDGE_PROTOCOL = 'easyeda-mcp-pro.bridge';
 const BRIDGE_VERSION = '1.0.0';
 const BRIDGE_CONTRACT_VERSION = 1;
@@ -174,6 +195,7 @@ let manualDisconnectRequested = false;
 let reconnectTimer: RuntimeTimerHandle | null = null;
 let heartbeatTimer: RuntimeTimerHandle | null = null;
 let lastServerActivityMs = 0;
+let lastLocalConnectionDiagnostic: LocalConnectionDiagnostic | null = null;
 let externalInteractionWarningShown = false;
 // Updated from the server's `hello` message; matches BRIDGE_MAX_PAYLOAD_SIZE default
 // until the handshake completes.
@@ -196,6 +218,26 @@ const runtimeTimers = createRuntimeTimers(
   globalThis as any,
   SOCKET_ID,
 );
+
+function recordLocalConnectionDiagnostic(diagnostic: LocalConnectionDiagnostic): void {
+  log(`Local bridge connection phase ${diagnostic.phase}`, {
+    port: diagnostic.port,
+    transport: diagnostic.transport,
+    message: diagnostic.message,
+  });
+  const effectivePriority = diagnostic.priority + (diagnostic.port === preferredPort ? 1_000 : 0);
+  if (
+    !lastLocalConnectionDiagnostic ||
+    effectivePriority >= lastLocalConnectionDiagnostic.priority
+  ) {
+    lastLocalConnectionDiagnostic = { ...diagnostic, priority: effectivePriority };
+  }
+}
+
+function localConnectionDiagnosticSuffix(): string {
+  if (!lastLocalConnectionDiagnostic) return '';
+  return ` — ${lastLocalConnectionDiagnostic.message}`;
+}
 
 function showToast(message: string): void {
   const safeMessage = String(message);
@@ -684,6 +726,7 @@ function createSocket(
   onMessage: (data: string) => void,
   onClose: () => void,
   onError: (error: unknown) => void,
+  options: CreateSocketOptions = {},
 ): SocketHandle | null {
   const sysWs = getWsApi();
 
@@ -691,7 +734,7 @@ function createSocket(
   // Only the API's real connected callback may mark the socket open. Calling
   // onOpen speculatively while WebSocket.readyState is CONNECTING makes send()
   // throw and closes an otherwise healthy loopback connection.
-  if (sysWs?.register && sysWs.send) {
+  if (!options.skipRegister && sysWs?.register && sysWs.send) {
     let openFired = false;
     const fireOpen = (): void => {
       if (openFired) return;
@@ -1022,15 +1065,44 @@ async function connectToPort(
   return new Promise((resolve) => {
     let settled = false;
     let handle: SocketHandle | null = null;
+    let socketGeneration = 0;
+    let socketOpened = false;
+    let handshakeSent = false;
+    let registerFallbackTimer: RuntimeTimerHandle | null = null;
+
+    const clearRegisterFallback = (): void => {
+      if (!registerFallbackTimer) return;
+      runtimeTimers.clearTimeout(registerFallbackTimer);
+      registerFallbackTimer = null;
+    };
 
     const finish = (connected: boolean): void => {
       if (settled) return;
       settled = true;
+      clearRegisterFallback();
       runtimeTimers.clearTimeout(timeout);
       resolve(connected);
     };
 
     const timeout = runtimeTimers.setTimeout(() => {
+      clearRegisterFallback();
+      if (handshakeSent) {
+        recordLocalConnectionDiagnostic({
+          phase: 'hello-timeout',
+          port,
+          transport: handle?.type,
+          message: `Socket opened on port ${port}, but the MCP bridge hello was not received.`,
+          priority: 90,
+        });
+      } else if (handle?.type !== 'easyeda-register') {
+        recordLocalConnectionDiagnostic({
+          phase: 'socket-open-timeout',
+          port,
+          transport: handle?.type,
+          message: `The ${handle?.type ?? 'WebSocket'} path did not open on port ${port}.`,
+          priority: 50,
+        });
+      }
       if (socketHandle === handle) {
         socketHandle = null;
       }
@@ -1038,74 +1110,151 @@ async function connectToPort(
       finish(false);
     }, timeoutMs);
 
-    try {
-      handle = createSocket(
-        socketId,
-        url,
-        () => {
-          if (settled || runId !== connectRunId) {
-            closeHandle(handle);
-            return;
-          }
-          socketHandle = handle ?? { type: 'easyeda-register', id: socketId };
-          sendHandshake();
-        },
-        (data) => {
-          try {
-            const messageType = handleMessage(data);
-            if (messageType === 'hello' && runId === connectRunId && !settled) {
-              socketHandle = handle ?? { type: 'easyeda-register', id: socketId };
-              connectedPort = port;
-              connectionState = 'connected';
-              reconnectAttempts = 0;
-              manualDisconnectRequested = false;
-              startHeartbeat();
-              if (showSuccessToast) {
-                showToast(`MCP Bridge connected to local server`);
-              }
-              finish(true);
+    const startSocket = (options: CreateSocketOptions = {}): SocketHandle | null => {
+      const generation = ++socketGeneration;
+      socketOpened = false;
+      handshakeSent = false;
+      let attemptHandle: SocketHandle | null = null;
+      const isCurrentGeneration = (): boolean =>
+        runId === connectRunId && generation === socketGeneration;
+      const resolvedHandle = (): SocketHandle =>
+        attemptHandle ?? { type: 'easyeda-register', id: socketId };
+
+      try {
+        attemptHandle = createSocket(
+          socketId,
+          url,
+          () => {
+            if (settled || !isCurrentGeneration()) {
+              closeHandle(attemptHandle);
+              return;
             }
-          } catch (error) {
-            log('Bridge message error', error);
-          }
-        },
-        () => {
-          const wasActiveConnection = socketHandle === handle && connectionState === 'connected';
-          if (socketHandle === handle) {
-            stopHeartbeat();
-            socketHandle = null;
-            connectedPort = null;
-            connectionState = 'disconnected';
-          }
-          if (!settled) {
+            socketOpened = true;
+            clearRegisterFallback();
+            socketHandle = resolvedHandle();
+            handshakeSent = true;
+            log('Local bridge socket opened; sending handshake', {
+              port,
+              transport: socketHandle.type,
+            });
+            sendHandshake();
+          },
+          (data) => {
+            if (!isCurrentGeneration()) return;
+            try {
+              const messageType = handleMessage(data);
+              if (messageType === 'hello' && !settled) {
+                socketHandle = resolvedHandle();
+                connectedPort = port;
+                connectionState = 'connected';
+                reconnectAttempts = 0;
+                manualDisconnectRequested = false;
+                lastLocalConnectionDiagnostic = null;
+                startHeartbeat();
+                if (showSuccessToast) {
+                  showToast(`MCP Bridge connected to local server`);
+                }
+                finish(true);
+              }
+            } catch (error) {
+              log('Bridge message error', error);
+            }
+          },
+          () => {
+            if (!isCurrentGeneration()) return;
+            clearRegisterFallback();
+            const currentHandle = resolvedHandle();
+            const wasActiveConnection =
+              socketHandle === currentHandle && connectionState === 'connected';
+            if (!settled) {
+              recordLocalConnectionDiagnostic({
+                phase: 'socket-closed',
+                port,
+                transport: currentHandle.type,
+                message: `The ${currentHandle.type} path closed before the bridge handshake completed on port ${port}.`,
+                priority: 60,
+              });
+            }
+            if (socketHandle === currentHandle) {
+              stopHeartbeat();
+              socketHandle = null;
+              connectedPort = null;
+              connectionState = 'disconnected';
+            }
+            if (!settled) {
+              finish(false);
+            }
+            if (wasActiveConnection && !manualDisconnectRequested && runId === connectRunId) {
+              scheduleReconnect();
+            }
+          },
+          (error) => {
+            if (!isCurrentGeneration()) return;
+            clearRegisterFallback();
+            const currentHandle = resolvedHandle();
+            recordLocalConnectionDiagnostic({
+              phase: 'socket-error',
+              port,
+              transport: currentHandle.type,
+              message: `The ${currentHandle.type} path failed on port ${port}: ${bridgeErrorMessage(error)}`,
+              priority: 70,
+            });
+            if (socketHandle === currentHandle) {
+              socketHandle = null;
+            }
+            closeHandle(currentHandle);
+            finish(false);
+          },
+          options,
+        );
+      } catch (error) {
+        log('createSocket threw', error);
+        closeHandle(attemptHandle);
+        return null;
+      }
+
+      handle = attemptHandle;
+      if (!attemptHandle) {
+        recordLocalConnectionDiagnostic({
+          phase: 'socket-api-unavailable',
+          port,
+          message: `No usable EasyEDA or browser WebSocket API was available for port ${port}.`,
+          priority: 80,
+        });
+        return null;
+      }
+
+      if (!settled && attemptHandle.type === 'easyeda-register') {
+        const registerHandle = attemptHandle;
+        registerFallbackTimer = runtimeTimers.setTimeout(() => {
+          if (settled || !isCurrentGeneration() || socketOpened) return;
+          registerFallbackTimer = null;
+          recordLocalConnectionDiagnostic({
+            phase: 'register-open-timeout',
+            port,
+            transport: registerHandle.type,
+            message:
+              `SYS_WebSocket.register() accepted port ${port} but did not invoke its open callback; ` +
+              'the extension closed that handle and tried a safe alternate socket API.',
+            priority: 85,
+          });
+          closeHandle(registerHandle);
+          if (socketHandle === registerHandle) socketHandle = null;
+
+          const fallbackHandle = startSocket({ skipRegister: true });
+          if (!fallbackHandle) {
             finish(false);
           }
-          if (wasActiveConnection && !manualDisconnectRequested && runId === connectRunId) {
-            scheduleReconnect();
-          }
-        },
-        (error) => {
-          log(`Connection failed on port ${port}`, error);
-          if (socketHandle === handle) {
-            socketHandle = null;
-          }
-          closeHandle(handle);
-          finish(false);
-        },
-      );
-    } catch (error) {
-      log('createSocket threw', error);
-      closeHandle(handle);
-      finish(false);
-      return;
-    }
+        }, REGISTER_OPEN_CALLBACK_TIMEOUT_MS);
+      }
 
-    if (!handle) {
-      finish(false);
-    }
+      return attemptHandle;
+    };
+
+    handle = startSocket();
+    if (!handle) finish(false);
   });
 }
-
 async function connectInternal(mode: ConnectMode = 'manual'): Promise<void> {
   const manual = mode === 'manual';
 
@@ -1134,6 +1283,7 @@ async function connectInternal(mode: ConnectMode = 'manual'): Promise<void> {
 
   manualDisconnectRequested = false;
   connectionState = 'connecting';
+  lastLocalConnectionDiagnostic = null;
   const runId = ++connectRunId;
 
   if (manual) {
@@ -1158,7 +1308,7 @@ async function connectInternal(mode: ConnectMode = 'manual'): Promise<void> {
         connectionState = 'disconnected';
         socketHandle = null;
         connectedPort = null;
-        const message = `MCP Bridge offline: no local server found`;
+        const message = `MCP Bridge offline: no local server found${localConnectionDiagnosticSuffix()}`;
         if (manual) {
           showToast(message);
         } else {
@@ -1230,7 +1380,9 @@ function showStatusInternal(): void {
     return;
   }
 
-  showToast(`MCP Bridge disconnected | ${autoLabel} — click Connect to connect`);
+  showToast(
+    `MCP Bridge disconnected | ${autoLabel} — click Connect to connect${localConnectionDiagnosticSuffix()}`,
+  );
 }
 
 function scheduleReconnect(): void {

@@ -7,6 +7,7 @@ export const BRIDGE_PORT = 49_620;
 export const PORT_SCAN_COUNT = 10;
 export const PRIMARY_CONNECT_TIMEOUT_MS = 8_000;
 export const FALLBACK_CONNECT_TIMEOUT_MS = 1_000;
+export const REGISTER_OPEN_CALLBACK_TIMEOUT_MS = 600;
 export const RECONNECT_BASE_MS = 500;
 export const RECONNECT_MAX_MS = 5_000;
 export const HEARTBEAT_INTERVAL_MS = 15_000;

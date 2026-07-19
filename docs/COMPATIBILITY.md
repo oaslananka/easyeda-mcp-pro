@@ -17,13 +17,13 @@ This document lists the tested and supported versions, environments, and clients
 
 ## 2. EasyEDA Pro Versions
 
-| EasyEDA Pro Version         | Tested Status        | Notes                                                                                                               |
-| :-------------------------- | :------------------- | :------------------------------------------------------------------------------------------------------------------ |
-| **v3.2.x** (Desktop / Web)  | **Supported**        | Requires **Allow External Interaction**. v3.2.148 needs the bridge open-callback fallback introduced for issue #47. |
-| **v2.2.x** (Desktop / Web)  | **Verified**         | Primary development target. Full compatibility.                                                                     |
-| **v2.1.x**                  | **Needs Validation** | Mostly compatible, but some schematic APIs may be missing.                                                          |
-| **v2.0.x**                  | **Needs Validation** | Underlying extension APIs might not expose required methods.                                                        |
-| **v1.x** (Standard Edition) | **Unsupported**      | Standard edition does not support the Pro extension platform.                                                       |
+| EasyEDA Pro Version         | Tested Status        | Notes                                                                                                                                                                                                                      |
+| :-------------------------- | :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **v3.2.x** (Desktop / Web)  | **Supported**        | Requires **Allow External Interaction**. Some v3.2 runtimes accept `SYS_WebSocket.register()` without reporting open; the bridge safely closes that handle and retries with `SYS_WebSocket.create()` or browser WebSocket. |
+| **v2.2.x** (Desktop / Web)  | **Verified**         | Primary development target. Full compatibility.                                                                                                                                                                            |
+| **v2.1.x**                  | **Needs Validation** | Mostly compatible, but some schematic APIs may be missing.                                                                                                                                                                 |
+| **v2.0.x**                  | **Needs Validation** | Underlying extension APIs might not expose required methods.                                                                                                                                                               |
+| **v1.x** (Standard Edition) | **Unsupported**      | Standard edition does not support the Pro extension platform.                                                                                                                                                              |
 
 ---
 
@@ -43,11 +43,11 @@ This document lists the tested and supported versions, environments, and clients
 
 ## 4. Operating Systems
 
-| OS                                | Supported    | Notes                           |
-| :-------------------------------- | :----------- | :------------------------------ |
-| **Windows 10/11**                 | **Verified** | Tested with PowerShell and CMD. |
-| **macOS** (Intel / Apple Silicon) | **Verified** | Tested with zsh.                |
-| **Linux** (Ubuntu / Fedora)       | **Verified** | Tested with bash.               |
+| OS                                | Supported                                  | Notes                                                                                                                                                                                       |
+| :-------------------------------- | :----------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Windows 10/11**                 | **Verified**                               | Tested with PowerShell and CMD.                                                                                                                                                             |
+| **macOS** (Intel / Apple Silicon) | **Supported; release validation required** | Automated coverage models the EasyEDA Pro 3.2.149 silent-register behavior without an `eda` global. Packaged `.eext` validation on affected macOS hardware remains required before release. |
+| **Linux** (Ubuntu / Fedora)       | **Verified**                               | Tested with bash.                                                                                                                                                                           |
 
 ---
 
