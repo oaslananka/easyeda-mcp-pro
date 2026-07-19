@@ -655,6 +655,26 @@ describe('createHttpTransport — OAuth/JWKS validation', () => {
     }
   });
 
+  it('should reject a no-Origin request without Authorization on non-loopback HTTP', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { server, port } = await createOAuthApp({
+        HTTP_HOST: '0.0.0.0',
+        ALLOWED_ORIGINS: 'https://app.example.com',
+      });
+      try {
+        const res = await fetchWithPort(port);
+        expect(res.status).toBe(401);
+        const body = (await res.json()) as { error: string; code: string };
+        expect(body.code).toBe('missing_auth');
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('should reject requests without Authorization header', async () => {
     const { server, port } = await createOAuthApp();
     try {

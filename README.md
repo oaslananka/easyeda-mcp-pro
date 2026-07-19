@@ -504,15 +504,16 @@ When using `TRANSPORT=http`:
 
 | Variable              | Default     | Description                                        |
 | --------------------- | ----------- | -------------------------------------------------- |
-| `HTTP_HOST`           | `127.0.0.1` | Bind address (use `0.0.0.0` with caution)          |
+| `HTTP_HOST`           | `127.0.0.1` | Bind address; non-loopback requires OAuth          |
 | `HTTP_PORT`           | `3000`      | Port                                               |
 | `HTTP_AUTH_DISABLED`  | `false`     | Disable HTTP auth for non-production loopback only |
 | `HTTP_RATE_LIMIT_MAX` | `100`       | Max requests per minute per IP                     |
-| `CORS_ORIGIN`         | `''`        | Allowed CORS origin                                |
+| `CORS_ORIGIN`         | `''`        | Legacy allowed origin for loopback browser clients |
+| `ALLOWED_ORIGINS`     | `''`        | Explicit remote origin allowlist; `*` is rejected  |
 
-#### Production HTTP Security
+#### Remote HTTP Security
 
-For remote HTTP deployments, OAuth 2.0 / OpenID Connect is strongly recommended:
+Every non-loopback HTTP deployment requires OAuth 2.0 / OpenID Connect authentication, regardless of `NODE_ENV`:
 
 | Variable                | Default           | Description                                  |
 | ----------------------- | ----------------- | -------------------------------------------- |
@@ -524,11 +525,11 @@ For remote HTTP deployments, OAuth 2.0 / OpenID Connect is strongly recommended:
 
 When `OAUTH_ENABLED=true`, every request to `/mcp` must include an `Authorization: Bearer <token>` header unless `HTTP_AUTH_DISABLED=true` is explicitly set for non-production loopback development. Tokens are verified against `OAUTH_JWKS_URI`, `iss`/`aud` claims are validated, and `OAUTH_REQUIRED_SCOPES` is enforced against `scope`, `scp`, `permissions`, or `roles` claims.
 
-The server enforces startup safety checks: **non-loopback `HTTP_HOST` without OAuth is rejected**, and `HTTP_AUTH_DISABLED=true` is rejected outside non-production loopback deployments.
+The server enforces startup safety checks in every environment: **non-loopback `HTTP_HOST` without OAuth is rejected**, `OAUTH_JWKS_URI` / `OAUTH_ISSUER` / `OAUTH_AUDIENCE` are required, wildcard `ALLOWED_ORIGINS=*` is rejected, and `HTTP_AUTH_DISABLED=true` remains limited to non-production loopback development. Requests without an `Origin` header still require a valid bearer token on authenticated deployments; CORS is not an authentication boundary.
 
 ### Docker defaults
 
-The Docker image starts in HTTP mode with `HTTP_HOST=127.0.0.1` so the default container boot path is safe and passes the same startup safety checks as local HTTP mode. For an externally reachable container, override the bind address and configure OAuth plus an explicit origin allowlist:
+The Docker image starts in HTTP mode with `HTTP_HOST=127.0.0.1` so the default container boot path is safe and passes the same startup safety checks as local HTTP mode. For an externally reachable container, override the bind address and configure OAuth plus an explicit, non-wildcard origin allowlist:
 
 ```bash
 docker run --rm \
@@ -542,7 +543,7 @@ docker run --rm \
   ghcr.io/oaslananka/easyeda-mcp-pro:latest
 ```
 
-Do not expose non-loopback HTTP without OAuth. Use a reverse proxy or platform gateway for TLS termination and external access.
+Do not expose non-loopback HTTP without OAuth. `ALLOWED_ORIGINS` restricts browsers but never replaces authentication. Use a reverse proxy or platform gateway for TLS termination and external access.
 
 #### HTTP Security Features
 
@@ -863,7 +864,7 @@ easyeda-bridge-extension/    # EasyEDA Pro bridge extension workspace package
 
 See [Security Architecture & Threat Model](docs/security-architecture.md) for the complete security reference, including deployment modes, authentication, tool safety controls, secrets management, safe defaults, supplier API security, threat scenarios, and deployment checklists.
 
-- **Production safety**: Validates config at startup — rejects non-loopback HTTP without OAuth, blocks dangerous features in production
+- **Network safety**: Validates config at startup in every environment — rejects non-loopback HTTP without complete OAuth and an explicit non-wildcard origin allowlist
 - **OAuth/JWKS**: Bearer token validation via JWKS endpoint for HTTP transport (see [OAuth section](docs/security-architecture.md#21-oauth-20--openid-connect-http-transport))
 - **Rate limiting**: Per-IP sliding window rate limiter on HTTP transport (default 100 req/min)
 - **Path traversal protection**: All file export paths validated against `ARTIFACT_DIR`

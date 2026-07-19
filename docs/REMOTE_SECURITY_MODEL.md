@@ -33,16 +33,16 @@ EasyEDA Web page
 
 ## Required controls
 
-| Control           | Requirement                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------- |
-| Authentication    | Remote tool calls require a valid token or equivalent authenticated session.                |
-| Pairing           | A remote user must be paired with exactly one active extension session before tool routing. |
-| Session isolation | A user must never access another user's EasyEDA session.                                    |
-| Authorization     | Tool scopes separate read, write, export, and project administration actions.               |
-| Approval          | Write, export, and destructive actions require explicit approval according to policy.       |
-| Origin validation | Public HTTP endpoints validate expected origins where applicable.                           |
-| Safe defaults     | Public binding is not enabled without remote mode, auth, and allowed-origin configuration.  |
-| Audit             | Remote requests record structured events without secrets or raw design payloads by default. |
+| Control           | Requirement                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| Authentication    | Every non-loopback HTTP listener requires valid OAuth/JWKS authentication regardless of `NODE_ENV`. |
+| Pairing           | A remote user must be paired with exactly one active extension session before tool routing.         |
+| Session isolation | A user must never access another user's EasyEDA session.                                            |
+| Authorization     | Tool scopes separate read, write, export, and project administration actions.                       |
+| Approval          | Write, export, and destructive actions require explicit approval according to policy.               |
+| Origin validation | Public HTTP endpoints require an explicit non-wildcard allowlist; CORS never replaces auth.         |
+| Safe defaults     | Public binding fails closed without complete OAuth settings and allowed-origin configuration.       |
+| Audit             | Remote requests record structured events without secrets or raw design payloads by default.         |
 
 ## Scope model
 
