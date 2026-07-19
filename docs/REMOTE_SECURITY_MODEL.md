@@ -55,6 +55,22 @@ Recommended initial scopes:
 
 Read tools require `easyeda.read`. Project-changing tools require the relevant stronger scope and approval.
 
+### Tool risk and scope precedence
+
+Remote tool authorization resolves risk metadata in this order:
+
+1. `easyeda_execute` is always `destructive`.
+2. Tools in the `export` group retain the explicit `export` policy.
+3. Every remaining tool declared with `risk: high` is `destructive`, including tools that also set `confirmWrite: true`.
+4. `risk: medium` and ordinary `confirmWrite: true` tools are `write`.
+5. Remaining tools are `read`.
+
+The resulting scopes are `easyeda.read`, `easyeda.write`, `easyeda.export`, and
+`easyeda.project_admin`, respectively. `confirmWrite` is a mutation acknowledgement control; it must
+never downgrade a high-risk tool from `destructive` to `write`. Consequently, an identity with only
+`easyeda.write` cannot invoke a high-risk tool even when the user has supplied `confirmWrite: true`;
+`easyeda.project_admin` and the applicable approval are required.
+
 ## Hosted responsibilities
 
 The maintainer-operated hosted gateway is responsible for TLS, token verification, pairing lifecycle, session routing, rate limiting, audit logging, and policy enforcement before relay dispatch.

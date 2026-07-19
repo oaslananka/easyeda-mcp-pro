@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { z } from 'zod';
-import { ToolRegistry, ErrorCodes } from '../../../src/tools/registry.js';
+import { ToolRegistry, ErrorCodes, remoteRiskForTool } from '../../../src/tools/registry.js';
 import { type ToolDefinition, type ToolContext } from '../../../src/tools/types.js';
 import { registerBuiltinTools } from '../../../src/tools/register.js';
 import { EnvSchema } from '../../../src/config/env.js';
+import { checkRemoteScope, requiredScopeForRisk } from '../../../src/remote/scope.js';
 import { registeredOutputSchema, writePlanOutputSchema } from '../../../src/tools/transaction.js';
 import {
   getGlobalMetricsCollector,
@@ -620,6 +621,90 @@ describe('ToolRegistry', () => {
     });
   });
 
+  describe('remote risk policy', () => {
+    it.each([
+      {
+        label: 'high-risk confirmWrite tool',
+        tool: createMockTool('high_write', 'core', { risk: 'high', confirmWrite: true }),
+        expected: 'destructive',
+      },
+      {
+        label: 'medium-risk confirmWrite tool',
+        tool: createMockTool('medium_write', 'core', { risk: 'medium', confirmWrite: true }),
+        expected: 'write',
+      },
+      {
+        label: 'low-risk read tool',
+        tool: createMockTool('low_read', 'core', { risk: 'low', confirmWrite: false }),
+        expected: 'read',
+      },
+      {
+        label: 'high-risk export tool',
+        tool: createMockTool('high_export', 'core', {
+          group: 'export',
+          risk: 'high',
+          confirmWrite: true,
+        }),
+        expected: 'export',
+      },
+      {
+        label: 'raw execution tool',
+        tool: createMockTool('easyeda_execute', 'dev', {
+          risk: 'low',
+          confirmWrite: false,
+        }),
+        expected: 'destructive',
+      },
+    ] as const)('classifies $label as $expected', ({ tool, expected }) => {
+      expect(remoteRiskForTool(tool)).toBe(expected);
+    });
+
+    it('enumerates every built-in high-risk tool and classifies non-export tools as destructive', () => {
+      registerBuiltinTools(registry, TEST_CONFIG);
+      const highRiskTools = registry
+        .getAllTools()
+        .filter((tool) => tool.risk === 'high')
+        .sort((left, right) => left.name.localeCompare(right.name));
+
+      expect(highRiskTools.map((tool) => tool.name)).toEqual([
+        'easyeda_api_call',
+        'easyeda_pcb_add_track',
+        'easyeda_pcb_add_via',
+        'easyeda_pcb_add_zone',
+        'easyeda_pcb_autoroute',
+        'easyeda_pcb_delete_component',
+        'easyeda_pcb_floorplan',
+        'easyeda_pcb_modify_component',
+        'easyeda_pcb_place_component',
+        'easyeda_pcb_place_component_group',
+        'easyeda_pcb_route_path_plan',
+        'easyeda_schematic_batch_write',
+        'easyeda_schematic_layout_autofix_apply',
+      ]);
+
+      for (const tool of highRiskTools) {
+        expect(tool.group).not.toBe('export');
+        expect(remoteRiskForTool(tool), tool.name).toBe('destructive');
+      }
+    });
+
+    it('requires project_admin and rejects write-only identity for high-risk tools', () => {
+      const riskLevel = remoteRiskForTool(
+        createMockTool('high_scope_tool', 'core', { risk: 'high', confirmWrite: true }),
+      );
+
+      expect(requiredScopeForRisk(riskLevel)).toBe('easyeda.project_admin');
+      expect(checkRemoteScope({ userId: 'writer', scopes: ['easyeda.write'] }, riskLevel)).toEqual({
+        ok: false,
+        code: 'SCOPE_MISSING',
+        message: 'Remote tool requires easyeda.project_admin.',
+      });
+      expect(
+        checkRemoteScope({ userId: 'admin', scopes: ['easyeda.project_admin'] }, riskLevel),
+      ).toEqual({ ok: true });
+    });
+  });
+
   // ── Original tests preserved below ──────────────────────────────────────
 
   it('should expose runtime inventory in core and generic API call in full profile', () => {
@@ -895,6 +980,64 @@ describe('ToolRegistry remote relay backend', () => {
       userId: 'user-a',
       scopes: ['easyeda.read'],
     });
+  });
+
+  it('classifies a high-risk confirmWrite tool as destructive for Remote Relay authorization', async () => {
+    const authorizeToolInvocation = vi.fn(async () => ({
+      ok: true as const,
+      sessionId: 'sess_high_risk',
+      grantId: 'grant_high_risk',
+    }));
+    const revokeInvocationGrant = vi.fn(() => true);
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_high_risk_tool', 'core', {
+        risk: 'high',
+        confirmWrite: true,
+        inputSchema: z.object({ confirmWrite: z.literal(true) }),
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+        },
+        remote: {
+          gateway: { authorizeToolInvocation, revokeInvocationGrant } as any,
+        },
+      }),
+    );
+
+    const response = await handlers.get('remote_high_risk_tool')!(
+      {
+        confirmWrite: true,
+        remoteSessionId: 'sess_high_risk',
+        remoteApprovalId: 'approval_high_risk',
+      },
+      {
+        authInfo: {
+          clientId: 'client-a',
+          scopes: ['easyeda:write'],
+          extra: { sub: 'user-a' },
+        },
+      },
+    );
+
+    expect(response.isError).toBeFalsy();
+    expect(authorizeToolInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'remote_high_risk_tool',
+        riskLevel: 'destructive',
+        approvalId: 'approval_high_risk',
+      }),
+    );
+    expect(revokeInvocationGrant).toHaveBeenCalledWith('grant_high_risk');
   });
 
   it('authorizes a risky MCP invocation once and reuses its private grant for every bridge call', async () => {

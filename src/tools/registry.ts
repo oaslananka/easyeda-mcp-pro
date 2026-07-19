@@ -275,11 +275,12 @@ function rawRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function remoteRiskForTool(tool: ToolDefinition): RemoteRiskLevel {
+/** Resolve a tool's Remote Relay risk tier using explicit policy precedence. */
+export function remoteRiskForTool(tool: ToolDefinition): RemoteRiskLevel {
   if (tool.name === 'easyeda_execute') return 'destructive';
   if (tool.group === 'export') return 'export';
-  if (tool.confirmWrite || tool.risk === 'medium') return 'write';
   if (tool.risk === 'high') return 'destructive';
+  if (tool.confirmWrite || tool.risk === 'medium') return 'write';
   return 'read';
 }
 
