@@ -279,6 +279,8 @@ describe('validateSafeConfig', () => {
     OAUTH_ISSUER: '',
     OAUTH_AUDIENCE: 'easyeda-mcp-pro',
     HTTP_PORT: 3000,
+    BRIDGE_HOST: '127.0.0.1',
+    BRIDGE_TOKEN: '',
     BRIDGE_RAW_EXEC_ENABLED: false,
     JLCPCB_ENABLE_ORDERING: false,
     JLCPCB_MODE: 'disabled' as const,
@@ -363,6 +365,39 @@ describe('validateSafeConfig', () => {
         OAUTH_AUDIENCE: 'my-app',
         HTTP_HOST: '0.0.0.0',
         ALLOWED_ORIGINS: 'https://example.com',
+      }),
+    ).not.toThrow();
+  });
+
+  it('should reject a non-loopback bridge without a pairing token', () => {
+    expect(() =>
+      validateSafeConfig({
+        ...baseConfig,
+        BRIDGE_HOST: '0.0.0.0',
+        BRIDGE_TOKEN: '',
+      }),
+    ).toThrow('process.exit called');
+  });
+
+  it.each(['127.0.0.1', 'localhost', '::1'])(
+    'should allow loopback bridge host %s without a pairing token',
+    (bridgeHost) => {
+      expect(() =>
+        validateSafeConfig({
+          ...baseConfig,
+          BRIDGE_HOST: bridgeHost,
+          BRIDGE_TOKEN: '',
+        }),
+      ).not.toThrow();
+    },
+  );
+
+  it('should allow a non-loopback bridge when a pairing token is configured', () => {
+    expect(() =>
+      validateSafeConfig({
+        ...baseConfig,
+        BRIDGE_HOST: '0.0.0.0',
+        BRIDGE_TOKEN: 'test-pairing-secret',
       }),
     ).not.toThrow();
   });

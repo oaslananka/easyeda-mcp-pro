@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { ToolRegistry } from '../tools/registry.js';
 import { registerBuiltinTools } from '../tools/register.js';
 import { type ToolProfile } from '../config/profiles.js';
-import { EnvSchema, type EnvConfig } from '../config/env.js';
+import { EnvSchema, getBridgePairingConfigIssue, type EnvConfig } from '../config/env.js';
 import { parsePortScanSpec } from '../bridge/manager.js';
 
 type CliCommand =
@@ -511,10 +511,16 @@ async function checkTcpPort(host: string, port: number, timeoutMs = 2000): Promi
 
 function parseCliEnv(): { config?: EnvConfig; issues: string[] } {
   const result = EnvSchema.safeParse(process.env);
-  if (result.success) return { config: result.data, issues: [] };
-  return {
-    issues: result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
-  };
+  if (!result.success) {
+    return {
+      issues: result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+    };
+  }
+
+  const bridgePairingIssue = getBridgePairingConfigIssue(result.data);
+  if (bridgePairingIssue) return { issues: [bridgePairingIssue] };
+
+  return { config: result.data, issues: [] };
 }
 
 function readPackageInfo(packageRoot: string): PackageInfo {

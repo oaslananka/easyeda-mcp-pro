@@ -177,12 +177,28 @@ export function loadEnvConfig(): EnvConfig {
   return result.data;
 }
 
-/** Check whether HTTP_HOST refers to a loopback address. */
+/** Check whether a host refers to a loopback address. */
 function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1';
 }
 
+export function getBridgePairingConfigIssue(config: EnvConfig): string | undefined {
+  if (isLoopbackHost(config.BRIDGE_HOST) || config.BRIDGE_TOKEN) return undefined;
+  return (
+    'SAFETY: BRIDGE_HOST is not a loopback address but BRIDGE_TOKEN is empty. ' +
+    'Non-loopback bridge listeners require a pairing token. ' +
+    'Set BRIDGE_TOKEN to a strong secret or use BRIDGE_HOST=127.0.0.1 for local operation.'
+  );
+}
+
 export function validateSafeConfig(config: EnvConfig): void {
+  // ── Bridge pairing policy ────────────────────────────────
+  const bridgePairingIssue = getBridgePairingConfigIssue(config);
+  if (bridgePairingIssue) {
+    console.error(bridgePairingIssue);
+    process.exit(1);
+  }
+
   // ── CORS / origin policy ─────────────────────────────────
   if (config.TRANSPORT === 'http' && !isLoopbackHost(config.HTTP_HOST) && !config.ALLOWED_ORIGINS) {
     // Logger not yet initialized — env config is loaded first

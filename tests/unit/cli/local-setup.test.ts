@@ -368,6 +368,19 @@ describe('local setup CLI helpers', () => {
       });
     });
 
+    it('reports a non-loopback bridge without a pairing token as unsafe', async () => {
+      await withEnv(
+        { BRIDGE_HOST: '0.0.0.0', BRIDGE_TOKEN: '', BRIDGE_PORT_SCAN: '1' },
+        async () => {
+          const report = await createDoctorReport();
+
+          expect(report.envValid).toBe(false);
+          expect(report.envIssues.join(' ')).toContain('BRIDGE_TOKEN');
+          expect(report.toolCounts).toBeUndefined();
+        },
+      );
+    });
+
     it('surfaces environment validation issues and omits tool counts', async () => {
       await withEnv({ HTTP_PORT: 'not-a-number', BRIDGE_PORT_SCAN: '1' }, async () => {
         const report = await createDoctorReport();
