@@ -7,15 +7,19 @@ const DEFAULT_SQLITE_PATH = join(DEFAULT_DATA_DIR, 'easyeda-mcp-pro.sqlite');
 const DEFAULT_ARTIFACT_DIR = join(DEFAULT_DATA_DIR, 'artifacts');
 const DEFAULT_CACHE_DIR = join(DEFAULT_DATA_DIR, 'cache');
 
+const STRICT_BOOLEAN_MESSAGE = 'Invalid boolean literal. Expected one of: true, false, 1, or 0.';
+
 function envBoolean() {
-  return z.preprocess((val) => {
-    if (typeof val === 'string') {
-      const lower = val.toLowerCase().trim();
-      if (lower === 'false' || lower === '0' || lower === '') return false;
-      return true;
-    }
-    return val;
-  }, z.boolean());
+  return z.union([z.boolean(), z.string()]).transform((value, ctx) => {
+    if (typeof value === 'boolean') return value;
+
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+
+    ctx.addIssue({ code: 'custom', message: STRICT_BOOLEAN_MESSAGE });
+    return z.NEVER;
+  });
 }
 
 export const EnvSchema = z.object({

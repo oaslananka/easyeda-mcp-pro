@@ -434,6 +434,8 @@ This checks:
 
 Copy `.env.example` to `.env` and edit. All variables have safe defaults — only configure what you need.
 
+Boolean environment variables use strict literals: `true` / `1` enable a setting and `false` / `0` disable it. Matching is case-insensitive and surrounding whitespace is ignored. Other values—including `yes`, `no`, `on`, `off`, `enabled`, `disabled`, empty strings, and misspellings—fail startup validation and report the offending variable. Leave a variable unset to use its documented default.
+
 ### Essential
 
 | Variable                | Default        | Description                                                                  |

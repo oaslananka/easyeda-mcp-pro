@@ -72,6 +72,87 @@ describe('EnvSchema', () => {
     expect(result.JLCSEARCH_ENABLED).toBe(false);
   });
 
+  it.each([
+    ['true', true],
+    ['TRUE', true],
+    ['  true  ', true],
+    ['1', true],
+    ['false', false],
+    ['FALSE', false],
+    ['  false  ', false],
+    ['0', false],
+  ] as const)('should parse strict boolean literal %j as %s', (literal, expected) => {
+    expect(EnvSchema.parse({ MCP_TASKS_ENABLED: literal }).MCP_TASKS_ENABLED).toBe(expected);
+  });
+
+  it('should preserve native boolean values and defaults', () => {
+    expect(EnvSchema.parse({ MCP_TASKS_ENABLED: true }).MCP_TASKS_ENABLED).toBe(true);
+    expect(EnvSchema.parse({ MCP_TASKS_ENABLED: false }).MCP_TASKS_ENABLED).toBe(false);
+    expect(EnvSchema.parse({}).MCP_TASKS_ENABLED).toBe(false);
+    expect(EnvSchema.parse({}).JLCSEARCH_ENABLED).toBe(true);
+  });
+
+  it.each([
+    ['HTTP_AUTH_DISABLED', 'off'],
+    ['BRIDGE_RAW_EXEC_ENABLED', 'flase'],
+    ['MCP_RAW_EXEC_EXPERIMENTAL', 'no'],
+    ['BRIDGE_HOT_SWAP_ENABLED', 'yes'],
+    ['AI_ALLOW_DESIGN_MUTATIONS', 'disabled'],
+    ['JLCPCB_ENABLE_ORDERING', 'arbitrary'],
+    ['OAUTH_ENABLED', 'on'],
+  ] as const)('should reject invalid security boolean %s=%j', (key, literal) => {
+    const result = EnvSchema.safeParse({ [key]: literal });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: [key],
+            message: expect.stringContaining('true, false, 1, or 0'),
+          }),
+        ]),
+      );
+    }
+  });
+
+  it('should apply strict literal validation to every boolean environment field', () => {
+    const booleanKeys = Object.entries(EnvSchema.parse({}))
+      .filter(([, value]) => typeof value === 'boolean')
+      .map(([key]) => key);
+
+    expect(booleanKeys).toEqual([
+      'HTTP_AUTH_DISABLED',
+      'MCP_TASKS_ENABLED',
+      'MCP_APPS_ENABLED',
+      'MCP_V2_EXPERIMENTAL',
+      'MCP_RAW_EXEC_EXPERIMENTAL',
+      'EASYEDA_DEV_BRIDGE',
+      'BRIDGE_RAW_EXEC_ENABLED',
+      'BRIDGE_HOT_SWAP_ENABLED',
+      'AI_ALLOW_DESIGN_MUTATIONS',
+      'JLCPCB_ENABLE_ORDERING',
+      'JLCSEARCH_ENABLED',
+      'KEYLESS_SOURCING_ENABLED',
+      'MOUSER_ENABLED',
+      'DIGIKEY_ENABLED',
+      'DIGIKEY_SANDBOX',
+      'OAUTH_ENABLED',
+      'OTEL_ENABLED',
+    ]);
+
+    for (const key of booleanKeys) {
+      const result = EnvSchema.safeParse({ [key]: 'invalid-boolean' });
+      expect(result.success, key).toBe(false);
+      if (!result.success) {
+        expect(
+          result.error.issues.some((issue) => issue.path[0] === key),
+          key,
+        ).toBe(true);
+      }
+    }
+  });
+
   it('should coerce numeric strings', () => {
     const result = EnvSchema.parse({
       BRIDGE_PORT: '8080',
