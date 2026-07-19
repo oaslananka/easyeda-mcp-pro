@@ -2,6 +2,12 @@
 
 All configuration is managed using environment variables. When running locally from source, you can define them in a `.env` file in the root directory. When running via `npx`, they are passed as environment variables in your client config JSON.
 
+## Boolean literals
+
+Boolean environment variables accept only `true`, `false`, `1`, or `0`. Text matching is case-insensitive and surrounding whitespace is ignored. Do not use `yes` / `no`, `on` / `off`, `enabled` / `disabled`, or an empty value; unsupported literals and typos stop startup with a validation error naming the variable. Leave a variable unset to use its documented default. Native boolean values remain supported for programmatic configuration and tests.
+
+---
+
 ---
 
 ## Tool Profiles
