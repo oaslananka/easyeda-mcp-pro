@@ -143,11 +143,15 @@ describe('validateSafeConfig', () => {
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('ALLOWED_ORIGINS is empty'));
   });
 
-  it('should allow non-loopback HTTP with explicit ALLOWED_ORIGINS', () => {
+  it('should allow non-loopback HTTP with OAuth and an explicit origin allowlist', () => {
     const config = EnvSchema.parse({
       TRANSPORT: 'http',
       HTTP_HOST: '0.0.0.0',
       ALLOWED_ORIGINS: 'https://app.example.com',
+      OAUTH_ENABLED: true,
+      OAUTH_JWKS_URI: 'https://auth.example.com/.well-known/jwks.json',
+      OAUTH_ISSUER: 'https://auth.example.com',
+      OAUTH_AUDIENCE: 'easyeda-mcp-pro',
     });
 
     validateSafeConfig(config);
@@ -273,6 +277,7 @@ describe('validateSafeConfig', () => {
     NODE_ENV: 'test' as const,
     TRANSPORT: 'http' as const,
     HTTP_HOST: '127.0.0.1',
+    ALLOWED_ORIGINS: '',
     OAUTH_ENABLED: false,
     HTTP_AUTH_DISABLED: false,
     OAUTH_JWKS_URI: '',
@@ -325,6 +330,7 @@ describe('validateSafeConfig', () => {
         OAUTH_JWKS_URI: 'https://example.com/jwks',
         OAUTH_ISSUER: '',
         HTTP_HOST: '0.0.0.0',
+        ALLOWED_ORIGINS: 'https://app.example.com',
       }),
     ).toThrow('process.exit called');
   });
@@ -338,6 +344,7 @@ describe('validateSafeConfig', () => {
         OAUTH_ISSUER: 'https://example.com',
         OAUTH_AUDIENCE: '',
         HTTP_HOST: '0.0.0.0',
+        ALLOWED_ORIGINS: 'https://app.example.com',
       }),
     ).toThrow('process.exit called');
   });
@@ -412,16 +419,48 @@ describe('validateSafeConfig', () => {
     ).toThrow('process.exit called');
   });
 
-  it('should reject non-loopback HTTP without OAuth in production', () => {
+  it.each(['development', 'test', 'production'] as const)(
+    'should reject non-loopback HTTP without OAuth in %s mode',
+    (nodeEnv) => {
+      expect(() =>
+        validateSafeConfig({
+          ...baseConfig,
+          NODE_ENV: nodeEnv,
+          OAUTH_ENABLED: false,
+          HTTP_HOST: '0.0.0.0',
+          ALLOWED_ORIGINS: 'https://app.example.com',
+        }),
+      ).toThrow('process.exit called');
+    },
+  );
+
+  it('should reject a wildcard origin on non-loopback HTTP', () => {
     expect(() =>
       validateSafeConfig({
         ...baseConfig,
-        NODE_ENV: 'production',
-        OAUTH_ENABLED: false,
         HTTP_HOST: '0.0.0.0',
+        ALLOWED_ORIGINS: '*',
+        OAUTH_ENABLED: true,
+        OAUTH_JWKS_URI: 'https://auth.example.com/.well-known/jwks.json',
+        OAUTH_ISSUER: 'https://auth.example.com',
+        OAUTH_AUDIENCE: 'easyeda-mcp-pro',
       }),
     ).toThrow('process.exit called');
   });
+
+  it.each(['development', 'test'] as const)(
+    'should allow loopback HTTP without OAuth in %s mode',
+    (nodeEnv) => {
+      expect(() =>
+        validateSafeConfig({
+          ...baseConfig,
+          NODE_ENV: nodeEnv,
+          HTTP_HOST: '127.0.0.1',
+          OAUTH_ENABLED: false,
+        }),
+      ).not.toThrow();
+    },
+  );
 });
 
 describe('loadFeatureFlags', () => {

@@ -368,6 +368,74 @@ describe('local setup CLI helpers', () => {
       });
     });
 
+    it('reports a missing origin allowlist for non-loopback HTTP', async () => {
+      await withEnv(
+        {
+          TRANSPORT: 'http',
+          HTTP_HOST: '0.0.0.0',
+          ALLOWED_ORIGINS: '',
+          OAUTH_ENABLED: 'true',
+          OAUTH_JWKS_URI: 'https://auth.example.test/.well-known/jwks.json',
+          OAUTH_ISSUER: 'https://auth.example.test',
+          OAUTH_AUDIENCE: 'easyeda-mcp-pro',
+          BRIDGE_PORT_SCAN: '1',
+        },
+        async () => {
+          const report = await createDoctorReport();
+
+          expect(report.envValid).toBe(false);
+          expect(report.envIssues.join(' ')).toContain('ALLOWED_ORIGINS');
+          expect(report.toolCounts).toBeUndefined();
+        },
+      );
+    });
+
+    it('reports OAuth as required for non-loopback HTTP in development', async () => {
+      await withEnv(
+        {
+          NODE_ENV: 'development',
+          TRANSPORT: 'http',
+          HTTP_HOST: '0.0.0.0',
+          ALLOWED_ORIGINS: 'https://app.example.com',
+          OAUTH_ENABLED: 'false',
+          BRIDGE_PORT_SCAN: '1',
+        },
+        async () => {
+          const report = await createDoctorReport();
+
+          expect(report.envValid).toBe(false);
+          expect(report.envIssues).toHaveLength(1);
+          expect(report.envIssues[0]).toContain('OAUTH_ENABLED=true');
+          expect(report.toolCounts).toBeUndefined();
+        },
+      );
+    });
+
+    it('reports every missing OAuth setting for non-loopback HTTP', async () => {
+      await withEnv(
+        {
+          TRANSPORT: 'http',
+          HTTP_HOST: '0.0.0.0',
+          ALLOWED_ORIGINS: 'https://app.example.com',
+          OAUTH_ENABLED: 'true',
+          OAUTH_JWKS_URI: '',
+          OAUTH_ISSUER: '',
+          OAUTH_AUDIENCE: '',
+          BRIDGE_PORT_SCAN: '1',
+        },
+        async () => {
+          const report = await createDoctorReport();
+          const issues = report.envIssues.join(' ');
+
+          expect(report.envValid).toBe(false);
+          expect(issues).toContain('OAUTH_JWKS_URI');
+          expect(issues).toContain('OAUTH_ISSUER');
+          expect(issues).toContain('OAUTH_AUDIENCE');
+          expect(report.toolCounts).toBeUndefined();
+        },
+      );
+    });
+
     it('reports a non-loopback bridge without a pairing token as unsafe', async () => {
       await withEnv(
         { BRIDGE_HOST: '0.0.0.0', BRIDGE_TOKEN: '', BRIDGE_PORT_SCAN: '1' },

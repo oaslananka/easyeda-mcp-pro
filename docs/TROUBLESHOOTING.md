@@ -91,12 +91,12 @@ The doctor output includes a `Remote backend:` line. For Remote Relay mode it ch
 ### Symptom:
 
 The server exits on startup when using `TRANSPORT=http` with the error:
-`"Production safety check failed: Non-loopback HTTP host requires OAUTH_ENABLED=true."`
+`"SAFETY: HTTP_HOST is not a loopback address but OAUTH_ENABLED is false."`
 
 ### Rationale & Solution:
 
 For security, binding the server to an external network interface (e.g. `HTTP_HOST=0.0.0.0`) without active authentication is blocked to prevent exposing your local EasyEDA instance to the public web.
-To bypass this locally, bind to `127.0.0.1`. For production deployments, configure `OAUTH_ENABLED=true` and provide a valid JWKS endpoint (`OAUTH_JWKS_URI`).
+For local development, bind to `127.0.0.1`. Every non-loopback deployment—including development and test processes—must configure `OAUTH_ENABLED=true`, `OAUTH_JWKS_URI`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, and an explicit non-wildcard `ALLOWED_ORIGINS` value.
 
 ---
 

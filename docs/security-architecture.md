@@ -76,7 +76,7 @@ OAUTH_JWKS_URI=https://your-idp.example.com/.well-known/jwks.json
 OAUTH_REQUIRED_SCOPES=easyeda:read
 ```
 
-The server enforces startup safety checks: **non-loopback HTTP without OAuth is rejected**, and `HTTP_AUTH_DISABLED=true` is rejected for production or non-loopback HTTP.
+The server enforces startup safety checks in every environment: **non-loopback HTTP without complete OAuth is rejected**, `ALLOWED_ORIGINS=*` is rejected remotely, and `HTTP_AUTH_DISABLED=true` is rejected for production or non-loopback HTTP.
 
 ### 2.2 Bridge Pairing Authentication
 
@@ -200,8 +200,8 @@ The `ToolRegistry` enforces unique tool names at registration time — duplicate
 **Origin validation (CORS):**
 
 - Loopback mode: accepts loopback `http://` / `https://` origins with or without explicit ports, `null`, and the legacy `CORS_ORIGIN` value.
-- Non-loopback mode: requires an explicit `ALLOWED_ORIGINS` allowlist (comma-separated). Wildcard (`*`) disables origin checking and should only be used behind a trusted gateway.
-- Requests without an `Origin` header (non-browser clients) are allowed, but the `Host` header is still validated.
+- Non-loopback mode: requires an explicit comma-separated `ALLOWED_ORIGINS` allowlist. Wildcard (`*`) is rejected at startup.
+- Requests without an `Origin` header (non-browser clients) pass origin validation, but they still require OAuth authentication on every non-loopback deployment; the `Host` header is also validated.
 - Unknown origins receive `403 Origin not allowed`.
 - DNS rebinding protection validates the `Host` header in both loopback and non-loopback modes. Loopback binds only accept loopback hostnames/IPs.
 - CORS preflight is handled after origin validation but before OAuth token validation, so browser preflight can succeed without weakening authenticated routes.
@@ -287,21 +287,21 @@ The Zod schema in `src/config/env.ts` validates all environment variables at sta
 
 Every unsafe configuration override has a safe default. The following table documents each override, its risk, and when it is appropriate:
 
-| Variable                    | Safe Default  | Unsafe Override                | Risk                                            | When Appropriate                            |
-| :-------------------------- | :------------ | :----------------------------- | :---------------------------------------------- | :------------------------------------------ |
-| `HTTP_HOST`                 | `127.0.0.1`   | Non-loopback (e.g., `0.0.0.0`) | **High** — exposes server to network            | Remote deployment behind auth/reverse proxy |
-| `OAUTH_ENABLED`             | `false`       | `true`                         | **Medium** — required for non-loopback          | Remote HTTP access with proper IdP          |
-| `BRIDGE_RAW_EXEC_ENABLED`   | `false`       | `true`                         | **Critical** — enables raw JavaScript execution | Development/testing only                    |
-| `BRIDGE_TOKEN`              | `''`          | Set to a shared secret         | **Medium** — enables bridge pairing             | Non-loopback bridge connections             |
-| `EASYEDA_DEV_BRIDGE`        | `false`       | `true`                         | **Medium** — enables dev bridge features        | Development only                            |
-| `HTTP_AUTH_DISABLED`        | `false`       | `true`                         | **High** — disables all HTTP auth               | Non-production loopback development only    |
-| `NODE_ENV`                  | `development` | `production`                   | **Medium** — enables production safety checks   | Production deployment                       |
-| `JLCPCB_ENABLE_ORDERING`    | `false`       | `true`                         | **High** — enables ordering via API             | When JLCPCB ordering is needed              |
-| `AI_ALLOW_DESIGN_MUTATIONS` | `false`       | `true`                         | **High** — allows AI to modify designs          | Experimental AI-assisted design             |
-| `MCP_TASKS_ENABLED`         | `false`       | `true`                         | **Medium** — enables MCP task protocol          | When task protocol needed                   |
-| `TOOL_PROFILE`              | `core`        | `full`, `dev`, `experimental`  | **Varies** — grants access to more tools        | When broader tool access is needed          |
-| `CORS_ORIGIN`               | `''`          | Set to an origin               | **Low** — local dev only                        | Legacy CORS configuration                   |
-| `ALLOWED_ORIGINS`           | `''`          | Comma-separated origins        | **Medium** — restricts cross-origin access      | Remote HTTP with known browser clients      |
+| Variable                    | Safe Default  | Unsafe Override                | Risk                                                      | When Appropriate                            |
+| :-------------------------- | :------------ | :----------------------------- | :-------------------------------------------------------- | :------------------------------------------ |
+| `HTTP_HOST`                 | `127.0.0.1`   | Non-loopback (e.g., `0.0.0.0`) | **High** — exposes server to network                      | Remote deployment behind auth/reverse proxy |
+| `OAUTH_ENABLED`             | `false`       | `true`                         | **High** — mandatory for every non-loopback HTTP listener | Remote HTTP access with proper IdP          |
+| `BRIDGE_RAW_EXEC_ENABLED`   | `false`       | `true`                         | **Critical** — enables raw JavaScript execution           | Development/testing only                    |
+| `BRIDGE_TOKEN`              | `''`          | Set to a shared secret         | **Medium** — enables bridge pairing                       | Non-loopback bridge connections             |
+| `EASYEDA_DEV_BRIDGE`        | `false`       | `true`                         | **Medium** — enables dev bridge features                  | Development only                            |
+| `HTTP_AUTH_DISABLED`        | `false`       | `true`                         | **High** — disables all HTTP auth                         | Non-production loopback development only    |
+| `NODE_ENV`                  | `development` | `production`                   | **Medium** — enables production safety checks             | Production deployment                       |
+| `JLCPCB_ENABLE_ORDERING`    | `false`       | `true`                         | **High** — enables ordering via API                       | When JLCPCB ordering is needed              |
+| `AI_ALLOW_DESIGN_MUTATIONS` | `false`       | `true`                         | **High** — allows AI to modify designs                    | Experimental AI-assisted design             |
+| `MCP_TASKS_ENABLED`         | `false`       | `true`                         | **Medium** — enables MCP task protocol                    | When task protocol needed                   |
+| `TOOL_PROFILE`              | `core`        | `full`, `dev`, `experimental`  | **Varies** — grants access to more tools                  | When broader tool access is needed          |
+| `CORS_ORIGIN`               | `''`          | Set to an origin               | **Low** — local dev only                                  | Legacy CORS configuration                   |
+| `ALLOWED_ORIGINS`           | `''`          | Comma-separated origins        | **Medium** — restricts cross-origin access                | Remote HTTP with known browser clients      |
 
 ---
 
@@ -491,7 +491,7 @@ Path traversal protection is enforced in all export tools — artifact paths are
     - [ ] `OAUTH_ISSUER` — valid IdP issuer URL.
     - [ ] `OAUTH_JWKS_URI` — valid JWKS endpoint.
     - [ ] `OAUTH_AUDIENCE` — expected audience (default `easyeda-mcp-pro`).
-  - [ ] Set `ALLOWED_ORIGINS` if browser-based clients will connect.
+  - [ ] Set an explicit, non-wildcard `ALLOWED_ORIGINS` value for every non-loopback HTTP listener.
   - [ ] Configure `HTTP_RATE_LIMIT_MAX` if the default 100 req/min is too restrictive.
 - [ ] Restart the server and verify:
   - [ ] Server starts without SAFETY errors.
@@ -533,7 +533,7 @@ Path traversal protection is enforced in all export tools — artifact paths are
 - [ ] Verify safe config:
   - [ ] `BRIDGE_RAW_EXEC_ENABLED=false`.
   - [ ] `JLCPCB_ENABLE_ORDERING` → requires `JLCPCB_MODE=approved_api`.
-  - [ ] `HTTP_HOST` is loopback OR OAuth is enabled.
+  - [ ] `HTTP_HOST` is loopback OR OAuth is enabled with JWKS, issuer, audience, and a non-wildcard origin allowlist.
   - [ ] `HTTP_AUTH_DISABLED` is `false` for production and for any non-loopback HTTP.
 - [ ] Run full CI gate locally:
   - [ ] `pnpm install --frozen-lockfile`

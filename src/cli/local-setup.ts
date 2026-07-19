@@ -7,7 +7,12 @@ import { promisify } from 'node:util';
 import { ToolRegistry } from '../tools/registry.js';
 import { registerBuiltinTools } from '../tools/register.js';
 import { type ToolProfile } from '../config/profiles.js';
-import { EnvSchema, getBridgePairingConfigIssue, type EnvConfig } from '../config/env.js';
+import {
+  EnvSchema,
+  getBridgePairingConfigIssue,
+  getHttpSecurityConfigIssues,
+  type EnvConfig,
+} from '../config/env.js';
 import { parsePortScanSpec } from '../bridge/manager.js';
 
 type CliCommand =
@@ -98,7 +103,7 @@ function remoteBackendStatusFromConfig(
     }
     if (!oauthEnabled) {
       warnings.push(
-        'OAUTH_ENABLED=false; production remote relay should use OAuth for user identity.',
+        'OAUTH_ENABLED=false; enable OAuth before exposing Remote Relay through a proxy, tunnel, VPN, or non-loopback listener.',
       );
     }
     if (httpAuthDisabled) {
@@ -517,8 +522,10 @@ function parseCliEnv(): { config?: EnvConfig; issues: string[] } {
     };
   }
 
+  const issues = getHttpSecurityConfigIssues(result.data);
   const bridgePairingIssue = getBridgePairingConfigIssue(result.data);
-  if (bridgePairingIssue) return { issues: [bridgePairingIssue] };
+  if (bridgePairingIssue) issues.unshift(bridgePairingIssue);
+  if (issues.length > 0) return { issues };
 
   return { config: result.data, issues: [] };
 }
