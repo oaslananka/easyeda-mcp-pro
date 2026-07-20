@@ -770,10 +770,13 @@ function createSocket(
     }
   }
 
-  // Last resort: raw browser WebSocket (works outside extension sandbox)
-  if (typeof WebSocket !== 'undefined') {
+  // Last resort: raw browser WebSocket (works outside extension sandbox).
+  // Resolve via globalThis because some EasyEDA runtimes shadow the bare
+  // WebSocket identifier while preserving the constructor on the global.
+  const BrowserWebSocketCtor = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+  if (typeof BrowserWebSocketCtor === 'function') {
     try {
-      const socket = new WebSocket(url);
+      const socket = new BrowserWebSocketCtor(url);
       socket.onopen = onOpen;
       socket.onmessage = (event) => onMessage(String(event.data));
       socket.onclose = onClose;
