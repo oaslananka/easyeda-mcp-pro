@@ -4,5 +4,13 @@
   "trailingComma": "all",
   "printWidth": 100,
   "tabWidth": 2,
-  "arrowParens": "always"
+  "arrowParens": "always",
+  "overrides": [
+    {
+      "files": ".claude-plugin/plugin.json",
+      "options": {
+        "printWidth": 60
+      }
+    }
+  ]
 }

@@ -99,6 +99,17 @@ describe('repository security tooling policy', () => {
     expect(benchmarkWorkflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
   });
 
+  it('keeps the release-managed Claude plugin manifest compatible with Prettier', () => {
+    const prettierConfig = JSON.parse(readText('.prettierrc')) as {
+      overrides?: Array<{ files?: string; options?: { printWidth?: number } }>;
+    };
+
+    expect(prettierConfig.overrides).toContainEqual({
+      files: '.claude-plugin/plugin.json',
+      options: { printWidth: 60 },
+    });
+  });
+
   it('documents hook setup, Snyk authentication, controlled bypass, and Sonar Connected Mode', () => {
     const guide = readText('docs/development/security-tooling.md');
 
