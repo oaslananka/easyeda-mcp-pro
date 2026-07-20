@@ -478,14 +478,67 @@ export class CdpBridgeManager extends EventEmitter {
       `
       (async () => {
         ${this.runtimePrelude()}
-        const currentPage = await callFirst(['DMT_Schematic.getCurrentSchematicPageInfo','dmt_Schematic.getCurrentSchematicPageInfo']);
-        let pages = [];
-        try {
-          pages = await callFirst(['DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo','DMT_Schematic.getAllSchematicPagesInfo','dmt_Schematic.getCurrentSchematicAllSchematicPagesInfo','dmt_Schematic.getAllSchematicPagesInfo']);
-        } catch (error) {
-          pages = { warning: String(error && error.message || error) };
+        const attempts = [];
+        const asRecord = (value) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0 ? value : undefined;
+        const asRecordArray = (value) => Array.isArray(value) ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : [];
+        const tryCall = async (stage, paths, ...args) => {
+          try {
+            const value = await callFirst(paths, ...args);
+            const meaningful = Array.isArray(value) ? value.length > 0 : Boolean(asRecord(value)) || (value !== null && value !== undefined);
+            attempts.push({ stage, status: meaningful ? 'value' : 'empty' });
+            return value;
+          } catch (error) {
+            attempts.push({ stage, status: 'unavailable', error: String(error && error.message || error) });
+            return undefined;
+          }
+        };
+
+        let source;
+        let currentPage = asRecord(await tryCall('current_page', ['DMT_Schematic.getCurrentSchematicPageInfo','dmt_Schematic.getCurrentSchematicPageInfo']));
+        if (currentPage) source = 'current_page';
+
+        let pages = asRecordArray(await tryCall('current_page_list', ['DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo','dmt_Schematic.getCurrentSchematicAllSchematicPagesInfo']));
+        if (pages.length === 0) {
+          pages = asRecordArray(await tryCall('all_page_list', ['DMT_Schematic.getAllSchematicPagesInfo','dmt_Schematic.getAllSchematicPagesInfo']));
         }
-        return { currentPage, pages };
+
+        const focusedDocument = asRecord(await tryCall('focused_document', ['DMT_SelectControl.getCurrentDocumentInfo','dmt_SelectControl.getCurrentDocumentInfo']));
+        const focusedPageUuid = typeof focusedDocument?.uuid === 'string' && focusedDocument.uuid.trim() ? focusedDocument.uuid : undefined;
+        let currentSchematic;
+        if (!currentPage || pages.length === 0) {
+          currentSchematic = asRecord(await tryCall('current_schematic', ['DMT_Schematic.getCurrentSchematicInfo','dmt_Schematic.getCurrentSchematicInfo']));
+        }
+
+        if (!currentPage && focusedPageUuid) {
+          currentPage = asRecord(await tryCall('focused_document_page', ['DMT_Schematic.getSchematicPageInfo','dmt_Schematic.getSchematicPageInfo'], focusedPageUuid));
+          if (currentPage) source = 'focused_document';
+        }
+
+        const schematicPages = asRecordArray(currentSchematic?.page);
+        if (pages.length === 0 && schematicPages.length > 0) pages = schematicPages;
+        if (!currentPage && focusedPageUuid && pages.length > 0) {
+          currentPage = pages.find((page) => page.uuid === focusedPageUuid);
+          if (currentPage) source = 'focused_document';
+        }
+        if (!currentPage && pages.length === 1 && currentSchematic) {
+          currentPage = pages[0];
+          source = 'current_schematic_page_list';
+        }
+
+        const diagnostics = {
+          stage: 'focused_sheet_resolution',
+          currentPageAvailable: Boolean(currentPage),
+          pageListAvailable: pages.length > 0,
+          focusedDocumentAvailable: Boolean(focusedDocument),
+          attempts,
+        };
+        if (!currentPage) {
+          const error = new Error('EasyEDA did not expose metadata for the focused schematic page.');
+          error.code = 'SHEET_INFO_UNAVAILABLE';
+          error.data = diagnostics;
+          throw error;
+        }
+        return { currentPage, pages, source, focusedDocument, diagnostics };
       })()
     `,
     );

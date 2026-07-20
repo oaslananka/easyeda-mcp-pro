@@ -379,6 +379,77 @@ describe('createDispatcher', () => {
     expect(create).toHaveBeenCalled();
   });
 
+  it('schematic.getSheetInfo recovers the focused page through DMT_SelectControl', async () => {
+    const focusedPage = {
+      itemType: 3,
+      uuid: 'page-1',
+      name: 'Sheet 1',
+      parentSchematicUuid: 'sch-1',
+      showTitleBlock: true,
+      titleBlockData: {},
+    };
+    const getSchematicPageInfo = vi.fn(async (uuid: string) =>
+      uuid === 'page-1' ? focusedPage : undefined,
+    );
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_SelectControl: {
+          getCurrentDocumentInfo: async () => ({
+            documentType: 3,
+            uuid: 'page-1',
+            tabId: 'tab-1',
+            parentProjectUuid: 'project-1',
+          }),
+        },
+        DMT_Schematic: {
+          getCurrentSchematicPageInfo: async () => null,
+          getCurrentSchematicAllSchematicPagesInfo: async () => [],
+          getCurrentSchematicInfo: async () => ({
+            uuid: 'sch-1',
+            name: 'Main',
+            page: [focusedPage],
+            parentProjectUuid: 'project-1',
+          }),
+          getSchematicPageInfo,
+        },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.getSheetInfo', {})).resolves.toMatchObject({
+      currentPage: focusedPage,
+      pages: [focusedPage],
+      source: 'focused_document',
+      focusedDocument: { uuid: 'page-1', tabId: 'tab-1' },
+      diagnostics: {
+        currentPageAvailable: true,
+        pageListAvailable: true,
+      },
+    });
+    expect(getSchematicPageInfo).toHaveBeenCalledWith('page-1');
+  });
+
+  it('schematic.getSheetInfo rejects an empty focused-sheet response with diagnostics', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_SelectControl: { getCurrentDocumentInfo: async () => undefined },
+        DMT_Schematic: {
+          getCurrentSchematicPageInfo: async () => null,
+          getCurrentSchematicAllSchematicPagesInfo: async () => [],
+          getCurrentSchematicInfo: async () => undefined,
+        },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.getSheetInfo', {})).rejects.toMatchObject({
+      code: 'SHEET_INFO_UNAVAILABLE',
+      data: {
+        stage: 'focused_sheet_resolution',
+        currentPageAvailable: false,
+        pageListAvailable: false,
+      },
+    });
+  });
+
   // DATA-LOSS INCIDENT (2026-07-07, live-reproduced on a real project): the
   // first implementation round-tripped the FULL getCurrentSchematicPageInfo()
   // snapshot back through modifySchematicPageTitleBlock. That silently wiped

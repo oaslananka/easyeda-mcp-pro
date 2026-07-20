@@ -127,6 +127,55 @@ describe('Schematic Tools', () => {
     });
   });
 
+  it('easyeda_schematic_sheet_info reports focused page identity without inventing geometry', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    bridgeCall.mockResolvedValue({
+      currentPage: {
+        uuid: 'page-1',
+        name: 'Sheet 1',
+        parentSchematicUuid: 'sch-1',
+        showTitleBlock: true,
+      },
+      pages: [{ uuid: 'page-1', name: 'Sheet 1' }],
+      source: 'focused_document',
+      focusedDocument: { uuid: 'page-1', tabId: 'tab-1' },
+      diagnostics: { currentPageAvailable: true, pageListAvailable: true },
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      sheet: { uuid: 'page-1', name: 'Sheet 1' },
+      metadata_source: 'focused_document',
+      geometry_available: false,
+      warning:
+        'Focused schematic page identity is available, but this EasyEDA runtime did not expose page geometry.',
+    });
+    expect(result).not.toHaveProperty('page_size');
+    expect(result).not.toHaveProperty('not_available');
+  });
+
+  it('easyeda_schematic_sheet_info rejects empty metadata as unavailable', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    bridgeCall.mockResolvedValue({
+      currentPage: null,
+      pages: [],
+      diagnostics: { currentPageAvailable: false, pageListAvailable: false },
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      not_available: true,
+      geometry_available: false,
+      error: 'EasyEDA did not expose metadata for the focused schematic page.',
+    });
+    expect(result).not.toHaveProperty('sheet');
+    expect(result).not.toHaveProperty('page_size');
+  });
+
   it('easyeda_schematic_place_component should call bridge and return success', async () => {
     const tool = registry.get('easyeda_schematic_place_component');
     bridgeCall.mockResolvedValue({ componentId: 'comp-123' });

@@ -675,7 +675,7 @@ function registerSchematicReadTools(
     risk: 'low',
     confirmWrite: false,
     group: 'schematic',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       idempotentHint: true,
@@ -697,7 +697,13 @@ function registerSchematicReadTools(
       origin: z.unknown().optional(),
       grid: z.unknown().optional(),
       raw: z.unknown().optional(),
+      metadata_source: z.string().optional(),
+      focused_document: z.unknown().optional(),
+      diagnostics: z.unknown().optional(),
+      geometry_available: z.boolean(),
+      warning: z.string().optional(),
       not_available: z.boolean().optional(),
+      error_code: z.string().optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -708,12 +714,40 @@ function registerSchematicReadTools(
           result && typeof result === 'object' && !Array.isArray(result)
             ? (result as Record<string, unknown>)
             : {};
-        const current =
-          root.currentPage &&
-          typeof root.currentPage === 'object' &&
-          !Array.isArray(root.currentPage)
-            ? (root.currentPage as Record<string, unknown>)
-            : root;
+        const isNonEmptyRecord = (value: unknown): value is Record<string, unknown> =>
+          Boolean(
+            value &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            Object.keys(value as Record<string, unknown>).length > 0,
+          );
+        const wrappedCurrent = isNonEmptyRecord(root.currentPage) ? root.currentPage : undefined;
+        const hasLegacyDirectSheetData = [
+          'uuid',
+          'name',
+          'width',
+          'height',
+          'pageWidth',
+          'pageHeight',
+          'paperWidth',
+          'paperHeight',
+          'frame',
+          'titleBlock',
+          'origin',
+          'canvasOrigin',
+          'grid',
+          'gridSize',
+        ].some((key) => root[key] !== undefined && root[key] !== null);
+        const current = wrappedCurrent ?? (hasLegacyDirectSheetData ? root : undefined);
+        if (!current) {
+          return {
+            project_id: projectId,
+            geometry_available: false,
+            not_available: true,
+            diagnostics: root.diagnostics,
+            error: 'EasyEDA did not expose metadata for the focused schematic page.',
+          };
+        }
         const readNumber = (keys: string[]): number | undefined => {
           for (const key of keys) {
             const value = current[key] ?? root[key];
@@ -732,23 +766,51 @@ function registerSchematicReadTools(
           }
           return undefined;
         };
+        const width = readNumber(['width', 'pageWidth', 'paperWidth', 'w']);
+        const height = readNumber(['height', 'pageHeight', 'paperHeight', 'h']);
+        const unit = readString(['unit', 'units', 'pageUnit']);
+        const frame = current.frame ?? current.titleBlock ?? root.frame;
+        const origin = current.origin ?? current.canvasOrigin ?? root.origin;
+        const grid = current.grid ?? current.gridSize ?? root.grid;
+        const geometryAvailable =
+          width !== undefined ||
+          height !== undefined ||
+          unit !== undefined ||
+          frame !== undefined ||
+          origin !== undefined ||
+          grid !== undefined;
+        const pageSize =
+          width !== undefined || height !== undefined || unit !== undefined
+            ? { width, height, unit }
+            : undefined;
         return {
           project_id: projectId,
           sheet: current,
-          page_size: {
-            width: readNumber(['width', 'pageWidth', 'paperWidth', 'w']),
-            height: readNumber(['height', 'pageHeight', 'paperHeight', 'h']),
-            unit: readString(['unit', 'units', 'pageUnit']),
-          },
-          frame: current.frame ?? current.titleBlock ?? root.frame,
-          origin: current.origin ?? current.canvasOrigin ?? root.origin,
-          grid: current.grid ?? current.gridSize ?? root.grid,
+          ...(pageSize ? { page_size: pageSize } : {}),
+          ...(frame !== undefined ? { frame } : {}),
+          ...(origin !== undefined ? { origin } : {}),
+          ...(grid !== undefined ? { grid } : {}),
           raw: result,
+          ...(typeof root.source === 'string' ? { metadata_source: root.source } : {}),
+          ...(root.focusedDocument !== undefined ? { focused_document: root.focusedDocument } : {}),
+          ...(root.diagnostics !== undefined ? { diagnostics: root.diagnostics } : {}),
+          geometry_available: geometryAvailable,
+          ...(geometryAvailable
+            ? {}
+            : {
+                warning:
+                  'Focused schematic page identity is available, but this EasyEDA runtime did not expose page geometry.',
+              }),
         };
       } catch (err) {
+        const record =
+          err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
         return {
           project_id: projectId,
+          geometry_available: false,
           not_available: true,
+          error_code: typeof record?.code === 'string' ? record.code : undefined,
+          diagnostics: record?.data,
           error: err instanceof Error ? err.message : String(err),
         };
       }
