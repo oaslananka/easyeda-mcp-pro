@@ -27,7 +27,7 @@ jobs:
           node-version: '24'
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Run golden eval benchmark (non-live, mocked-fixture tier)
         run: pnpm exec tsx scripts/run-evals.mts --output .easyeda-mcp-pro/evals/ci-latest.json
 
