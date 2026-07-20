@@ -2539,6 +2539,8 @@ Returns a JSON object matching the schema:
   project_id: string;
   collisions: object[];
   collision_count: number;
+  scan_complete: boolean;
+  scan_diagnostics: object (optional);
   success: boolean;
   error: string (optional);
 }
