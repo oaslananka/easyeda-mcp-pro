@@ -79,7 +79,12 @@
     "eval:golden": "tsx scripts/run-evals.mts",
     "eval:golden:update": "tsx scripts/run-evals.mts --update-baseline",
     "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm test:extension && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build",
-    "smoke:schematic-transactions": "tsx scripts/live-schematic-transaction-smoke.mts"
+    "smoke:schematic-transactions": "tsx scripts/live-schematic-transaction-smoke.mts",
+    "security:semgrep": "semgrep scan --config .semgrep.yml --error --metrics=off .",
+    "security:semgrep:test": "node scripts/test-semgrep-rules.mjs",
+    "security:snyk:oss": "corepack pnpm dlx snyk@1.1306.1 test --all-projects --severity-threshold=high",
+    "security:snyk:code": "corepack pnpm dlx snyk@1.1306.1 code test --severity-threshold=high",
+    "security:snyk": "pnpm security:snyk:oss && pnpm security:snyk:code"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

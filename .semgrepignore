@@ -1,0 +1,15 @@
+# Dependencies and generated output
+node_modules/
+dist/
+coverage/
+easyeda-bridge-extension/dist/
+docs/.vitepress/
+
+# Packaged artifacts
+artifacts/
+*.eext
+*.tgz
+
+# Documentation and intentional Semgrep rule fixtures
+docs/
+tests/semgrep/
