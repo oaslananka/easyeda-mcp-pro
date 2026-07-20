@@ -17,7 +17,7 @@ Add fast, deterministic local security feedback for Semgrep, Snyk, and SonarQube
 ## Components
 
 1. `.pre-commit-config.yaml` installs both `pre-commit` and `pre-push` hooks, adds secret/large-file/case checks, runs Semgrep on staged files, and runs Snyk Open Source before push.
-2. `.semgrep.yml` contains repository-owned rules and `.semgrepignore` excludes generated files, dependencies, documentation, and intentional rule fixtures.
+2. `.semgrep.yml` contains repository-owned rules, `.semgrepignore` excludes generated files, dependencies, documentation, and intentional rule fixtures, and `scripts/test-semgrep-rules.mjs` provides cross-platform rule-test execution.
 3. `package.json` exposes version-pinned security commands.
 4. `.github/workflows/static-security-analysis.yml` validates and tests the Semgrep rules, scans the full repository, and uploads SARIF for trusted events.
 5. `tests/unit/repository/security-tooling-policy.test.ts` prevents accidental removal or weakening of the security-tooling contract.

@@ -1,0 +1,54 @@
+rules:
+  - id: easyeda.security.no-dynamic-code-execution
+    message: >-
+      Dynamic code execution is not allowed. Use explicit parsing, dispatch tables,
+      or a reviewed sandbox boundary instead of eval() or Function().
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-95
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory: [audit]
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: easyeda.security.no-shell-child-process
+    message: >-
+      Shell-backed child processes are not allowed. Use execFile() or spawn() with
+      an argument array and shell disabled.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-78
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory: [audit]
+    pattern-either:
+      - pattern: exec(...)
+      - pattern: execSync(...)
+      - pattern: 'spawn(..., { ..., shell: true, ... })'
+      - pattern: 'spawnSync(..., { ..., shell: true, ... })'
+
+  - id: easyeda.security.no-disabled-tls-verification
+    message: >-
+      TLS certificate verification must remain enabled. Do not set
+      rejectUnauthorized to false or NODE_TLS_REJECT_UNAUTHORIZED to 0.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-295
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory: [audit]
+    pattern-either:
+      - pattern: '$F(..., { ..., rejectUnauthorized: false, ... })'
+      - pattern: $OBJ.rejectUnauthorized = false
+      - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
