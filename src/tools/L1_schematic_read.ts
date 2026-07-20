@@ -519,7 +519,7 @@ function registerSchematicReadTools(
     risk: 'low',
     confirmWrite: false,
     group: 'schematic',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       idempotentHint: true,
@@ -539,11 +539,20 @@ function registerSchematicReadTools(
         }),
       ),
       not_available: z.boolean().optional(),
+      timed_out: z.boolean().optional(),
+      error_code: z.string().optional(),
+      timeout_stage: z.string().optional(),
+      timeout_component: z.string().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId, netName } = params as { projectId: string; netName: string };
       try {
-        const result = await ctx.bridge.call('schematic.getNetDetail', { projectId, netName });
+        const result = await ctx.bridge.call(
+          'schematic.getNetDetail',
+          { projectId, netName, operationTimeoutMs: 15_000 },
+          { timeoutMs: 20_000 },
+        );
         const net = result as {
           netName?: string;
           nodes?: Array<{ component?: string; pin?: string }>;
@@ -567,13 +576,26 @@ function registerSchematicReadTools(
           })),
         };
       } catch (err) {
+        const record =
+          err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
+        const errorCode = typeof record?.code === 'string' ? record.code : undefined;
+        const data =
+          record?.data && typeof record.data === 'object'
+            ? (record.data as Record<string, unknown>)
+            : undefined;
+        const message = err instanceof Error ? err.message : String(err);
+        const timedOut = errorCode === 'NET_DETAIL_TIMEOUT' || /timed out/i.test(message);
         return {
           project_id: projectId,
           net_name: netName,
           node_count: 0,
           nodes: [],
           not_available: true,
-          error: err instanceof Error ? err.message : String(err),
+          timed_out: timedOut || undefined,
+          error_code: errorCode,
+          timeout_stage: typeof data?.stage === 'string' ? data.stage : undefined,
+          timeout_component: typeof data?.component === 'string' ? data.component : undefined,
+          error: message,
         };
       }
     },

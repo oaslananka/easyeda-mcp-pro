@@ -56,10 +56,11 @@ describe('Schematic Tools', () => {
       netName: 'GND',
     });
 
-    expect(bridgeCall).toHaveBeenCalledWith('schematic.getNetDetail', {
-      projectId: 'proj-123',
-      netName: 'GND',
-    });
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'schematic.getNetDetail',
+      { projectId: 'proj-123', netName: 'GND', operationTimeoutMs: 15_000 },
+      { timeoutMs: 20_000 },
+    );
 
     expect(result).toMatchObject({
       project_id: 'proj-123',
@@ -69,6 +70,40 @@ describe('Schematic Tools', () => {
         { component_ref: 'R1', pin: '2' },
         { component_ref: 'C1', pin: '1' },
       ],
+    });
+  });
+
+  it('easyeda_schematic_net_detail applies a bounded bridge deadline and returns timeout diagnostics', async () => {
+    const tool = registry.get('easyeda_schematic_net_detail');
+    const timeoutError = Object.assign(
+      new Error('Net detail timed out during component pin read'),
+      {
+        code: 'NET_DETAIL_TIMEOUT',
+        data: { stage: 'component_pin_read', component: 'U1', netName: 'VBUS' },
+      },
+    );
+    bridgeCall.mockRejectedValue(timeoutError);
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-123',
+      netName: 'VBUS',
+    });
+
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'schematic.getNetDetail',
+      { projectId: 'proj-123', netName: 'VBUS', operationTimeoutMs: 15_000 },
+      { timeoutMs: 20_000 },
+    );
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      net_name: 'VBUS',
+      node_count: 0,
+      nodes: [],
+      not_available: true,
+      timed_out: true,
+      error_code: 'NET_DETAIL_TIMEOUT',
+      timeout_stage: 'component_pin_read',
+      timeout_component: 'U1',
     });
   });
 
