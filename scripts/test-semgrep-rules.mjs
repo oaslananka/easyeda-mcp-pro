@@ -4,32 +4,34 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const repoRoot = resolve(import.meta.dirname, '..');
-const tempDirectory = mkdtempSync(join(tmpdir(), 'easyeda-mcp-pro-semgrep-'));
-let exitCode = 1;
 
-try {
-  copyFileSync(resolve(repoRoot, '.semgrep.yml'), resolve(tempDirectory, 'security-rules.yml'));
-  copyFileSync(
-    resolve(repoRoot, 'tests/semgrep/security-rules.fixture'),
-    resolve(tempDirectory, 'security-rules.ts'),
-  );
+function runSemgrepRuleTests() {
+  const tempDirectory = mkdtempSync(join(tmpdir(), 'easyeda-mcp-pro-semgrep-'));
 
-  const result = spawnSync(process.env.SEMGREP_BIN ?? 'semgrep', ['--test', tempDirectory], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      SEMGREP_SEND_METRICS: 'off',
-    },
-    stdio: 'inherit',
-  });
+  try {
+    copyFileSync(resolve(repoRoot, '.semgrep.yml'), resolve(tempDirectory, 'security-rules.yml'));
+    copyFileSync(
+      resolve(repoRoot, 'tests/semgrep/security-rules.fixture'),
+      resolve(tempDirectory, 'security-rules.ts'),
+    );
 
-  if (result.error) {
-    throw result.error;
+    const result = spawnSync(process.env.SEMGREP_BIN ?? 'semgrep', ['--test', tempDirectory], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        SEMGREP_SEND_METRICS: 'off',
+      },
+      stdio: 'inherit',
+    });
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    return result.status ?? 1;
+  } finally {
+    rmSync(tempDirectory, { force: true, recursive: true });
   }
-
-  exitCode = result.status ?? 1;
-} finally {
-  rmSync(tempDirectory, { force: true, recursive: true });
 }
 
-process.exitCode = exitCode;
+process.exitCode = runSemgrepRuleTests();
