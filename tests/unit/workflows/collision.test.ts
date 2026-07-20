@@ -182,6 +182,37 @@ describe('scanSheetForPinCollisions', () => {
     expect(collisions).toHaveLength(1);
   });
 
+  it('uses bounded concurrency and per-call deadlines for a moderate component graph', async () => {
+    const ids = Array.from({ length: 9 }, (_, index) => `comp-${index + 1}`);
+    let activePinLookups = 0;
+    let maxActivePinLookups = 0;
+
+    bridgeCall.mockImplementation(
+      async (method: string, params: any, opts?: { timeoutMs?: number }) => {
+        if (method === 'schematic.listComponents') {
+          return { total: ids.length, items: ids.map((primitiveId) => ({ primitiveId })) };
+        }
+        if (method === 'api.call') {
+          expect(opts?.timeoutMs).toBeGreaterThan(0);
+          expect(opts?.timeoutMs).toBeLessThanOrEqual(5_000);
+          activePinLookups += 1;
+          maxActivePinLookups = Math.max(maxActivePinLookups, activePinLookups);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          activePinLookups -= 1;
+          const index = ids.indexOf(params.args[0]);
+          return { result: [pin('1', 'P1', index * 10, index * 10)] };
+        }
+        return undefined;
+      },
+    );
+
+    const ctx = makeCtx(bridgeCall);
+    await expect(scanSheetForPinCollisions(ctx, 'proj-1')).resolves.toEqual([]);
+
+    expect(maxActivePinLookups).toBeGreaterThan(1);
+    expect(maxActivePinLookups).toBeLessThanOrEqual(4);
+  });
+
   it('paginates through multiple pages of components', async () => {
     // Simulate 2 pages: first returns 1 item (total=2), second returns 1 item
     bridgeCall.mockImplementation(async (method: string, params: any) => {

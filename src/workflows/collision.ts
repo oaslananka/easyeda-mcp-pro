@@ -33,24 +33,96 @@ interface SheetComponentRef {
   primitiveId: string;
 }
 
+export interface CollisionScanFailure {
+  primitiveId: string;
+  error: string;
+}
+
+export interface CollisionScanDiagnostics {
+  stage: 'complete' | 'component_enumeration' | 'pin_lookup';
+  componentCount: number;
+  componentsScanned: number;
+  failedComponents: CollisionScanFailure[];
+  durationMs: number;
+  componentEnumerationMs: number;
+  pinLookupMs: number;
+  concurrency: number;
+  perCallTimeoutMs: number;
+  overallTimeoutMs: number;
+  stageError?: string;
+}
+
+export interface CollisionScanResult {
+  collisions: PinCollision[];
+  diagnostics: CollisionScanDiagnostics;
+}
+
+interface CollisionScanBudget {
+  startedAt: number;
+  deadlineAt: number;
+  concurrency: number;
+  perCallTimeoutMs: number;
+  overallTimeoutMs: number;
+}
+
+interface PointBucket {
+  x: number;
+  y: number;
+  pins: CollisionPinRef[];
+}
+
+interface PinMapBuildResult {
+  map: Map<string, PointBucket>;
+  componentsScanned: number;
+  failedComponents: CollisionScanFailure[];
+}
+
+export const COLLISION_SCAN_CONCURRENCY = 4;
+export const COLLISION_PIN_LOOKUP_TIMEOUT_MS = 5_000;
+export const COLLISION_SCAN_TIMEOUT_MS = 20_000;
+
 /** Round to the same precision the bridge's own coordinate-key helper uses. */
 function pointKey(x: number, y: number): string {
   return `${Math.round(x * 1000) / 1000},${Math.round(y * 1000) / 1000}`;
+}
+
+function createScanBudget(): CollisionScanBudget {
+  const startedAt = Date.now();
+  return {
+    startedAt,
+    deadlineAt: startedAt + COLLISION_SCAN_TIMEOUT_MS,
+    concurrency: COLLISION_SCAN_CONCURRENCY,
+    perCallTimeoutMs: COLLISION_PIN_LOOKUP_TIMEOUT_MS,
+    overallTimeoutMs: COLLISION_SCAN_TIMEOUT_MS,
+  };
+}
+
+function remainingCallTimeoutMs(budget: CollisionScanBudget): number {
+  const remainingMs = budget.deadlineAt - Date.now();
+  if (remainingMs <= 0) return 0;
+  return Math.max(1, Math.min(budget.perCallTimeoutMs, remainingMs));
+}
+
+function overallDeadlineError(stage: string, budget: CollisionScanBudget): string {
+  return `Collision scan overall deadline of ${budget.overallTimeoutMs}ms expired during ${stage}`;
 }
 
 /** Page through `schematic.listComponents` and return every component's primitiveId. */
 async function listAllComponentIds(
   ctx: ToolContext,
   projectId: string,
+  budget: CollisionScanBudget,
 ): Promise<SheetComponentRef[]> {
   const pageSize = 500;
   const all: SheetComponentRef[] = [];
   let offset = 0;
   for (;;) {
+    const timeoutMs = remainingCallTimeoutMs(budget);
+    if (timeoutMs === 0) throw new Error(overallDeadlineError('component enumeration', budget));
     const result = await ctx.bridge.call<
       { projectId: string; limit: number; offset: number },
       { total?: number; items?: Array<{ primitiveId?: string }> }
-    >('schematic.listComponents', { projectId, limit: pageSize, offset });
+    >('schematic.listComponents', { projectId, limit: pageSize, offset }, { timeoutMs });
     const items = result?.items ?? [];
     for (const item of items) {
       if (item.primitiveId) all.push({ primitiveId: item.primitiveId });
@@ -63,35 +135,72 @@ async function listAllComponentIds(
 }
 
 /**
- * Build a coordinate -> pins map for the given components. Fetches every component's
- * pin list individually (one bridge round-trip each) — intentionally unfiltered by net
- * membership, since that's exactly the blind spot this closes.
+ * Build a coordinate -> pins map with a bounded worker pool. Each component lookup receives
+ * an explicit bridge deadline and failures are retained so callers can return partial,
+ * actionable diagnostics instead of abandoning the entire scan at the first stalled RPC.
  */
-interface PointBucket {
-  x: number;
-  y: number;
-  pins: CollisionPinRef[];
-}
-
 async function buildPinCoordinateMap(
   ctx: ToolContext,
   components: SheetComponentRef[],
-): Promise<Map<string, PointBucket>> {
+  budget: CollisionScanBudget,
+): Promise<PinMapBuildResult> {
   const map = new Map<string, PointBucket>();
-  for (const component of components) {
-    const pins = await fetchComponentPins(ctx, component.primitiveId);
-    for (const pin of pins) {
-      const key = pointKey(pin.x, pin.y);
-      const bucket = map.get(key) ?? { x: pin.x, y: pin.y, pins: [] };
-      bucket.pins.push({
-        primitiveId: component.primitiveId,
-        pinNumber: pin.pinNumber,
-        pinName: pin.pinName,
-      });
-      map.set(key, bucket);
+  const failedComponents: CollisionScanFailure[] = [];
+  let componentsScanned = 0;
+  let nextIndex = 0;
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= components.length) return;
+
+      const component = components[index];
+      if (!component) return;
+      const timeoutMs = remainingCallTimeoutMs(budget);
+      if (timeoutMs === 0) {
+        failedComponents.push({
+          primitiveId: component.primitiveId,
+          error: overallDeadlineError('pin lookup', budget),
+        });
+        continue;
+      }
+
+      try {
+        const pins = await fetchComponentPins(ctx, component.primitiveId, { timeoutMs });
+        componentsScanned += 1;
+        for (const pin of pins) {
+          const key = pointKey(pin.x, pin.y);
+          const bucket = map.get(key) ?? { x: pin.x, y: pin.y, pins: [] };
+          bucket.pins.push({
+            primitiveId: component.primitiveId,
+            pinNumber: pin.pinNumber,
+            pinName: pin.pinName,
+          });
+          map.set(key, bucket);
+        }
+      } catch (error) {
+        failedComponents.push({
+          primitiveId: component.primitiveId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
-  }
-  return map;
+  };
+
+  const workerCount = Math.min(budget.concurrency, components.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+  const componentOrder = new Map(
+    components.map((component, index) => [component.primitiveId, index] as const),
+  );
+  failedComponents.sort(
+    (a, b) =>
+      (componentOrder.get(a.primitiveId) ?? Number.MAX_SAFE_INTEGER) -
+      (componentOrder.get(b.primitiveId) ?? Number.MAX_SAFE_INTEGER),
+  );
+
+  return { map, componentsScanned, failedComponents };
 }
 
 function collisionsFromMap(
@@ -108,18 +217,88 @@ function collisionsFromMap(
   return collisions;
 }
 
+export function collisionScanErrorMessage(diagnostics: CollisionScanDiagnostics): string {
+  if (diagnostics.stage === 'component_enumeration') {
+    return `Collision scan incomplete during component enumeration: ${diagnostics.stageError ?? 'unknown bridge error'}.`;
+  }
+  const failedIds = diagnostics.failedComponents.map((failure) => failure.primitiveId).join(', ');
+  return (
+    `Collision scan incomplete: ${diagnostics.failedComponents.length}/${diagnostics.componentCount} ` +
+    `component pin lookups failed${failedIds ? ` (${failedIds})` : ''}. Partial collision results are included.`
+  );
+}
+
 /**
- * Full-sheet pin-coordinate collision scan. Read-only — used both standalone
- * (`easyeda_schematic_check_collisions`) and as the basis for the workflow-apply
- * reconcile step below.
+ * Full-sheet pin-coordinate collision scan with timing and failure diagnostics.
+ * Successful pin lookups are still analyzed when another component stalls.
+ */
+export async function scanSheetForPinCollisionsDetailed(
+  ctx: ToolContext,
+  projectId: string,
+): Promise<CollisionScanResult> {
+  const budget = createScanBudget();
+  const enumerationStartedAt = Date.now();
+  let components: SheetComponentRef[];
+
+  try {
+    components = await listAllComponentIds(ctx, projectId, budget);
+  } catch (error) {
+    const now = Date.now();
+    return {
+      collisions: [],
+      diagnostics: {
+        stage: 'component_enumeration',
+        componentCount: 0,
+        componentsScanned: 0,
+        failedComponents: [],
+        durationMs: now - budget.startedAt,
+        componentEnumerationMs: now - enumerationStartedAt,
+        pinLookupMs: 0,
+        concurrency: budget.concurrency,
+        perCallTimeoutMs: budget.perCallTimeoutMs,
+        overallTimeoutMs: budget.overallTimeoutMs,
+        stageError: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+
+  const enumerationFinishedAt = Date.now();
+  const pinLookupStartedAt = enumerationFinishedAt;
+  const pinMap = await buildPinCoordinateMap(ctx, components, budget);
+  const finishedAt = Date.now();
+  const complete = pinMap.failedComponents.length === 0;
+
+  return {
+    collisions: collisionsFromMap(pinMap.map),
+    diagnostics: {
+      stage: complete ? 'complete' : 'pin_lookup',
+      componentCount: components.length,
+      componentsScanned: pinMap.componentsScanned,
+      failedComponents: pinMap.failedComponents,
+      durationMs: finishedAt - budget.startedAt,
+      componentEnumerationMs: enumerationFinishedAt - enumerationStartedAt,
+      pinLookupMs: finishedAt - pinLookupStartedAt,
+      concurrency: budget.concurrency,
+      perCallTimeoutMs: budget.perCallTimeoutMs,
+      overallTimeoutMs: budget.overallTimeoutMs,
+    },
+  };
+}
+
+/**
+ * Strict compatibility wrapper used by safety-sensitive workflows. Standalone tooling uses
+ * the detailed variant so it can expose partial results, while placement reconciliation must
+ * fail closed when any component was not inspected.
  */
 export async function scanSheetForPinCollisions(
   ctx: ToolContext,
   projectId: string,
 ): Promise<PinCollision[]> {
-  const components = await listAllComponentIds(ctx, projectId);
-  const map = await buildPinCoordinateMap(ctx, components);
-  return collisionsFromMap(map);
+  const result = await scanSheetForPinCollisionsDetailed(ctx, projectId);
+  if (result.diagnostics.stage !== 'complete') {
+    throw new Error(collisionScanErrorMessage(result.diagnostics));
+  }
+  return result.collisions;
 }
 
 export interface ReconcilePlacementResult {
@@ -152,11 +331,28 @@ export async function reconcilePlacementCollisions(
     return { unresolvedCollisions: [], movedComponents };
   }
 
-  const components = await listAllComponentIds(ctx, projectId);
+  const enumerationBudget = createScanBudget();
+  const components = await listAllComponentIds(ctx, projectId, enumerationBudget);
 
   for (let attempt = 0; attempt <= NUDGE_ATTEMPTS; attempt += 1) {
-    const map = await buildPinCoordinateMap(ctx, components);
-    const collisions = collisionsFromMap(map, candidateSet);
+    const pinMap = await buildPinCoordinateMap(ctx, components, createScanBudget());
+    if (pinMap.failedComponents.length > 0) {
+      throw new Error(
+        collisionScanErrorMessage({
+          stage: 'pin_lookup',
+          componentCount: components.length,
+          componentsScanned: pinMap.componentsScanned,
+          failedComponents: pinMap.failedComponents,
+          durationMs: 0,
+          componentEnumerationMs: 0,
+          pinLookupMs: 0,
+          concurrency: COLLISION_SCAN_CONCURRENCY,
+          perCallTimeoutMs: COLLISION_PIN_LOOKUP_TIMEOUT_MS,
+          overallTimeoutMs: COLLISION_SCAN_TIMEOUT_MS,
+        }),
+      );
+    }
+    const collisions = collisionsFromMap(pinMap.map, candidateSet);
     if (collisions.length === 0) {
       return { unresolvedCollisions: [], movedComponents };
     }

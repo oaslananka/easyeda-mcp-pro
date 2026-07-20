@@ -1408,6 +1408,48 @@ describe('Schematic Tools', () => {
       expect(result.collisions).toEqual([]);
     });
 
+    it('returns partial collisions and actionable diagnostics when one pin lookup times out', async () => {
+      const tool = registry.get('easyeda_schematic_check_collisions');
+      bridgeCall.mockImplementation(
+        async (method: string, params: any, opts?: { timeoutMs?: number }) => {
+          if (method === 'schematic.listComponents') {
+            return {
+              total: 3,
+              items: [{ primitiveId: 'A' }, { primitiveId: 'B' }, { primitiveId: 'C' }],
+            };
+          }
+          if (method === 'api.call') {
+            expect(opts?.timeoutMs).toBeGreaterThan(0);
+            const primitiveId = params.args?.[0];
+            if (primitiveId === 'B') {
+              throw new Error('Bridge method "api.call" timed out after 5000ms');
+            }
+            return {
+              result: [{ pinNumber: '1', pinName: primitiveId, x: 10, y: 10 }],
+            };
+          }
+          return {};
+        },
+      );
+
+      const result = (await tool?.handler(context, { projectId: 'proj-1' })) as any;
+
+      expect(result).toMatchObject({
+        success: false,
+        scan_complete: false,
+        collision_count: 1,
+        scan_diagnostics: {
+          stage: 'pin_lookup',
+          component_count: 3,
+          components_scanned: 2,
+          failed_component_count: 1,
+          failed_components: [{ primitive_id: 'B' }],
+          concurrency: 4,
+        },
+      });
+      expect(result.error).toContain('incomplete');
+    });
+
     it('returns success=false on bridge error', async () => {
       const tool = registry.get('easyeda_schematic_check_collisions');
       bridgeCall.mockRejectedValue(new Error('bridge down'));

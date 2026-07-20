@@ -30,11 +30,15 @@ function asString(value: unknown): string | undefined {
 export async function fetchComponentPins(
   ctx: ToolContext,
   primitiveId: string,
+  opts?: { timeoutMs?: number },
 ): Promise<BridgeSchematicPin[]> {
-  const result = await ctx.bridge.call<{ path: string; args: unknown[] }, unknown>('api.call', {
+  const params = {
     path: 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId',
     args: [primitiveId],
-  });
+  };
+  const result = opts
+    ? await ctx.bridge.call<{ path: string; args: unknown[] }, unknown>('api.call', params, opts)
+    : await ctx.bridge.call<{ path: string; args: unknown[] }, unknown>('api.call', params);
   const resultObj = result as { result?: Array<Record<string, unknown>> } | undefined;
   const pins = Array.isArray(resultObj?.result) ? resultObj.result : [];
   return pins.map((p: Record<string, unknown>) => {
