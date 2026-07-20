@@ -106,9 +106,14 @@ jobs:
 
       - name: Generate CycloneDX SBOM
         if: ${{ env.RELEASE_RUN == 'true' }}
-        run: |
-          npm install --ignore-scripts --no-save --package-lock-only 2>/dev/null || true
-          npx --yes @cyclonedx/cyclonedx-npm@5.0.0 --ignore-npm-errors --output-format JSON --output-file sbom.json
+        # anchore/sbom-action v0.24.0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom.json
+          upload-artifact: false
+          upload-release-assets: false
 
       - name: Upload SBOM Artifact
         if: ${{ env.RELEASE_RUN == 'true' }}

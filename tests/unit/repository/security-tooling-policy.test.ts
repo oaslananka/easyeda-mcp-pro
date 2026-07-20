@@ -84,6 +84,21 @@ describe('repository security tooling policy', () => {
     expect(workflow).not.toContain('SEMGREP_APP_TOKEN');
   });
 
+  it('hardens release and benchmark dependency installation', () => {
+    const releaseWorkflow = readText('.github/workflows/release-please.yml');
+    const benchmarkWorkflow = readText('.github/workflows/golden-benchmark.yml');
+
+    expect(releaseWorkflow).toContain(
+      'uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610',
+    );
+    expect(releaseWorkflow).toContain('format: cyclonedx-json');
+    expect(releaseWorkflow).toContain('output-file: sbom.json');
+    expect(releaseWorkflow).toContain('upload-artifact: false');
+    expect(releaseWorkflow).toContain('upload-release-assets: false');
+    expect(releaseWorkflow).not.toContain('npx --yes @cyclonedx/cyclonedx-npm');
+    expect(benchmarkWorkflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
+  });
+
   it('documents hook setup, Snyk authentication, controlled bypass, and Sonar Connected Mode', () => {
     const guide = readText('docs/development/security-tooling.md');
 
