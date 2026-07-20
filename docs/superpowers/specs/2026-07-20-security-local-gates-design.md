@@ -21,7 +21,7 @@ Add fast, deterministic local security feedback for Semgrep, Snyk, and SonarQube
 3. `package.json` exposes version-pinned security commands.
 4. `.github/workflows/static-security-analysis.yml` validates and tests the Semgrep rules, scans the full repository, and uploads SARIF for trusted events.
 5. `tests/unit/repository/security-tooling-policy.test.ts` prevents accidental removal or weakening of the security-tooling contract.
-6. `tests/semgrep/security-rules.ts` proves positive and negative rule behavior.
+6. `tests/semgrep/security-rules.ts.txt` proves positive and negative rule behavior.
 7. `docs/development/security-tooling.md` documents installation, authentication, Connected Mode, normal commands, and controlled bypass behavior.
 
 ## Failure Behavior

@@ -10,7 +10,7 @@ let exitCode = 1;
 try {
   copyFileSync(resolve(repoRoot, '.semgrep.yml'), resolve(tempDirectory, 'security-rules.yml'));
   copyFileSync(
-    resolve(repoRoot, 'tests/semgrep/security-rules.ts'),
+    resolve(repoRoot, 'tests/semgrep/security-rules.ts.txt'),
     resolve(tempDirectory, 'security-rules.ts'),
   );
 
