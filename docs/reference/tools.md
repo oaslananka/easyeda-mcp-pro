@@ -3324,7 +3324,13 @@ Returns a JSON object matching the schema:
   origin: any(optional);
   grid: any(optional);
   raw: any(optional);
+  metadata_source: string(optional);
+  focused_document: any(optional);
+  diagnostics: any(optional);
+  geometry_available: boolean;
+  warning: string(optional);
   not_available: boolean(optional);
+  error_code: string(optional);
   error: string(optional);
 }
 ```

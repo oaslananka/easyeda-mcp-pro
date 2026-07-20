@@ -1325,26 +1325,140 @@ async function primitiveBoundsApi(primitiveIds: unknown): Promise<unknown> {
   return { items, combined };
 }
 
-async function getSchematicSheetInfoApi(): Promise<unknown> {
-  const currentPage = await callFirst([
-    'DMT_Schematic.getCurrentSchematicPageInfo',
-    'dmt_Schematic.getCurrentSchematicPageInfo',
-  ]);
-  let pages: unknown = [];
+type SheetInfoSource = 'current_page' | 'focused_document' | 'current_schematic_page_list';
+
+type SheetInfoAttempt = {
+  stage: string;
+  status: 'value' | 'empty' | 'unavailable';
+  error?: string;
+};
+
+function asNonEmptyRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value) || Object.keys(value).length === 0) return undefined;
+  return value;
+}
+
+function asRecordArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> => isRecord(item));
+}
+
+async function trySheetInfoCall(
+  stage: string,
+  paths: string[],
+  attempts: SheetInfoAttempt[],
+  ...args: unknown[]
+): Promise<unknown> {
   try {
-    pages = await callFirst([
-      'DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo',
-      'DMT_Schematic.getAllSchematicPagesInfo',
-      'dmt_Schematic.getCurrentSchematicAllSchematicPagesInfo',
-      'dmt_Schematic.getAllSchematicPagesInfo',
-    ]);
-  } catch (err) {
-    logRecoverableError('failed to read schematic pages list', err);
+    const value = normalizeValue(await callFirst(paths, ...args), 5);
+    const meaningful = Array.isArray(value)
+      ? value.length > 0
+      : Boolean(asNonEmptyRecord(value)) || (value !== null && value !== undefined);
+    attempts.push({ stage, status: meaningful ? 'value' : 'empty' });
+    return value;
+  } catch (error) {
+    attempts.push({
+      stage,
+      status: 'unavailable',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
+
+async function getSchematicSheetInfoApi(): Promise<unknown> {
+  const attempts: SheetInfoAttempt[] = [];
+  let source: SheetInfoSource | undefined;
+
+  let currentPage = asNonEmptyRecord(
+    await trySheetInfoCall('current_page', ['DMT_Schematic.getCurrentSchematicPageInfo'], attempts),
+  );
+  if (currentPage) source = 'current_page';
+
+  let pages = asRecordArray(
+    await trySheetInfoCall(
+      'current_page_list',
+      ['DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo'],
+      attempts,
+    ),
+  );
+  if (pages.length === 0) {
+    pages = asRecordArray(
+      await trySheetInfoCall('all_page_list', ['DMT_Schematic.getAllSchematicPagesInfo'], attempts),
+    );
+  }
+
+  const focusedDocument = asNonEmptyRecord(
+    await trySheetInfoCall(
+      'focused_document',
+      ['DMT_SelectControl.getCurrentDocumentInfo'],
+      attempts,
+    ),
+  );
+  const focusedPageUuid =
+    typeof focusedDocument?.uuid === 'string' && focusedDocument.uuid.trim()
+      ? focusedDocument.uuid
+      : undefined;
+
+  let currentSchematic: Record<string, unknown> | undefined;
+  if (!currentPage || pages.length === 0) {
+    currentSchematic = asNonEmptyRecord(
+      await trySheetInfoCall(
+        'current_schematic',
+        ['DMT_Schematic.getCurrentSchematicInfo'],
+        attempts,
+      ),
+    );
+  }
+
+  if (!currentPage && focusedPageUuid) {
+    currentPage = asNonEmptyRecord(
+      await trySheetInfoCall(
+        'focused_document_page',
+        ['DMT_Schematic.getSchematicPageInfo'],
+        attempts,
+        focusedPageUuid,
+      ),
+    );
+    if (currentPage) source = 'focused_document';
+  }
+
+  const schematicPages = asRecordArray(currentSchematic?.page);
+  if (pages.length === 0 && schematicPages.length > 0) pages = schematicPages;
+
+  if (!currentPage && focusedPageUuid && pages.length > 0) {
+    currentPage = pages.find((page) => page.uuid === focusedPageUuid);
+    if (currentPage) source = 'focused_document';
+  }
+
+  if (!currentPage && pages.length === 1 && currentSchematic) {
+    currentPage = pages[0];
+    source = 'current_schematic_page_list';
+  }
+
+  const diagnostics = {
+    stage: 'focused_sheet_resolution',
+    currentPageAvailable: Boolean(currentPage),
+    pageListAvailable: pages.length > 0,
+    focusedDocumentAvailable: Boolean(focusedDocument),
+    attempts,
+  };
+
+  if (!currentPage) {
+    throw newBridgeError(
+      'SHEET_INFO_UNAVAILABLE',
+      'EasyEDA did not expose metadata for the focused schematic page.',
+      'Focus the schematic editor tab and retry. The diagnostics identify which runtime paths were empty or unavailable.',
+      diagnostics,
+    );
   }
 
   return {
-    currentPage: normalizeValue(currentPage, 5),
-    pages: normalizeValue(pages, 4),
+    currentPage,
+    pages,
+    source,
+    focusedDocument,
+    diagnostics,
   };
 }
 
