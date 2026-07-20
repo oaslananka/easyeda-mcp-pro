@@ -39,14 +39,14 @@
 
 - Create: `.semgrep.yml`
 - Create: `.semgrepignore`
-- Create: `tests/semgrep/security-rules.ts.txt`
+- Create: `tests/semgrep/security-rules.fixture`
 
 **Interfaces:**
 
 - Consumes: JavaScript and TypeScript source.
 - Produces: rule IDs `easyeda.security.no-dynamic-code-execution`, `easyeda.security.no-shell-child-process`, and `easyeda.security.no-disabled-tls-verification`.
 
-- [ ] Add intentional positive and negative examples to `tests/semgrep/security-rules.ts.txt`.
+- [ ] Add intentional positive and negative examples to `tests/semgrep/security-rules.fixture`.
 - [ ] Run Semgrep rule tests before adding the rules and verify the expected rule IDs are missing.
 - [ ] Implement the three high-confidence rules and generated/test-fixture exclusions.
 - [ ] Run `semgrep --validate --config .semgrep.yml`, `pnpm security:semgrep:test`, and a full scan; verify all complete successfully with zero production findings. The Node wrapper copies the rule and fixture to matching temporary filenames before invoking Semgrep test mode.
