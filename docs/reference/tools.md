@@ -2539,6 +2539,8 @@ Returns a JSON object matching the schema:
   project_id: string;
   collisions: object[];
   collision_count: number;
+  scan_complete: boolean;
+  scan_diagnostics: object (optional);
   success: boolean;
   error: string (optional);
 }
@@ -3018,6 +3020,11 @@ Returns a JSON object matching the schema:
   node_count: number;
   nodes: object[];
   not_available: boolean (optional);
+  timed_out: boolean (optional);
+  error_code: string (optional);
+  timeout_stage: string (optional);
+  timeout_component: string (optional);
+  error: string (optional);
 }
 ```
 

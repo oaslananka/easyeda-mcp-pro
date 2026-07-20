@@ -21,3 +21,7 @@ easyeda-bridge-extension.checksums.json
 # Local code-analysis metadata
 .serena/
 .codebase-memory/
+
+# Local security-tool virtual environments
+.venv-pre-commit/
+.venv-semgrep/

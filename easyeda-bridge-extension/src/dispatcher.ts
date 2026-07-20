@@ -820,6 +820,97 @@ type SchematicPoint = { x: number; y: number };
 type SchematicNetNode = { component: string; pin: string; x?: number; y?: number; source?: string };
 type SchematicNetEntry = { netName: string; nodes: SchematicNetNode[] };
 
+type NetDetailStage =
+  | 'component_enumeration'
+  | 'component_pin_read'
+  | 'net_catalog_read'
+  | 'wire_read'
+  | 'coordinate_pin_read';
+
+type NetDetailBudget = {
+  netName: string;
+  startedAt: number;
+  deadlineAt: number;
+  operationTimeoutMs: number;
+};
+
+const NET_DETAIL_DEFAULT_TIMEOUT_MS = 15_000;
+const NET_DETAIL_MAX_TIMEOUT_MS = 20_000;
+const NET_DETAIL_STAGE_TIMEOUT_MS = 5_000;
+
+function createNetDetailBudget(netName: string, requestedTimeoutMs: unknown): NetDetailBudget {
+  const numericTimeout =
+    typeof requestedTimeoutMs === 'number' && Number.isFinite(requestedTimeoutMs)
+      ? Math.trunc(requestedTimeoutMs)
+      : NET_DETAIL_DEFAULT_TIMEOUT_MS;
+  const operationTimeoutMs = Math.max(1, Math.min(NET_DETAIL_MAX_TIMEOUT_MS, numericTimeout));
+  const startedAt = Date.now();
+  return {
+    netName,
+    startedAt,
+    deadlineAt: startedAt + operationTimeoutMs,
+    operationTimeoutMs,
+  };
+}
+
+function isNetDetailTimeout(error: unknown): boolean {
+  return isRecord(error) && error.code === 'NET_DETAIL_TIMEOUT';
+}
+
+async function awaitNetDetailStage<T>(
+  budget: NetDetailBudget | undefined,
+  stage: NetDetailStage,
+  operation: () => PromiseLike<T> | T,
+  context: Record<string, unknown> = {},
+): Promise<T> {
+  if (!budget) return await operation();
+
+  const remainingMs = budget.deadlineAt - Date.now();
+  const stageTimeoutMs = Math.min(NET_DETAIL_STAGE_TIMEOUT_MS, remainingMs);
+  if (stageTimeoutMs <= 0) {
+    throw newBridgeError(
+      'NET_DETAIL_TIMEOUT',
+      `Net detail scan timed out before ${stage} while resolving "${budget.netName}".`,
+      'Retry with the affected schematic focused; inspect the timeout stage and component in error data.',
+      {
+        stage,
+        netName: budget.netName,
+        elapsedMs: Date.now() - budget.startedAt,
+        operationTimeoutMs: budget.operationTimeoutMs,
+        ...context,
+      },
+    );
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            newBridgeError(
+              'NET_DETAIL_TIMEOUT',
+              `Net detail scan timed out during ${stage} while resolving "${budget.netName}".`,
+              'Retry with the affected schematic focused; inspect the timeout stage and component in error data.',
+              {
+                stage,
+                netName: budget.netName,
+                elapsedMs: Date.now() - budget.startedAt,
+                operationTimeoutMs: budget.operationTimeoutMs,
+                stageTimeoutMs,
+                ...context,
+              },
+            ),
+          );
+        }, stageTimeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 type DisjointSet = {
   parent: Map<string, string>;
   find: (key: string) => string;
@@ -973,6 +1064,7 @@ function addUnnamedWireNetLabels(
 async function addCoordinateFallbackNets(
   netMap: Map<string, SchematicNetNode[]>,
   comps: unknown[],
+  budget?: NetDetailBudget,
 ): Promise<void> {
   const schWireClass = readFirstPath<any>([
     'SCH_PrimitiveWire',
@@ -981,7 +1073,7 @@ async function addCoordinateFallbackNets(
   ]);
   if (!schWireClass || typeof schWireClass.getAll !== 'function') return;
 
-  const wires = await schWireClass.getAll();
+  const wires = await awaitNetDetailStage(budget, 'wire_read', () => schWireClass.getAll());
   const wireItems = Array.isArray(wires) ? wires : [];
   if (wireItems.length === 0) return;
 
@@ -1039,7 +1131,12 @@ async function addCoordinateFallbackNets(
     if (!ref || typeof (component as { getAllPins?: unknown }).getAllPins !== 'function') continue;
 
     try {
-      const pins = await (component as { getAllPins: () => Promise<unknown[]> }).getAllPins();
+      const pins = await awaitNetDetailStage(
+        budget,
+        'coordinate_pin_read',
+        () => (component as { getAllPins: () => Promise<unknown[]> }).getAllPins(),
+        { component: ref },
+      );
       for (const pin of pins || []) {
         const pinNumber = readStringMemberOrState(pin, 'pinNumber', 'PinNumber');
         const point = readPrimitivePoint(pin);
@@ -1058,6 +1155,7 @@ async function addCoordinateFallbackNets(
         }
       }
     } catch (error) {
+      if (isNetDetailTimeout(error)) throw error;
       logRecoverableError('failed to inspect schematic component pins for coordinate nets', error);
     }
   }
@@ -1462,7 +1560,7 @@ async function getSchematicSheetInfoApi(): Promise<unknown> {
   };
 }
 
-async function listNetsApi(): Promise<unknown> {
+async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
   const schCompClass = readFirstPath<any>([
     'SCH_PrimitiveComponent',
     'SCH_PrimitiveComponent3',
@@ -1474,7 +1572,9 @@ async function listNetsApi(): Promise<unknown> {
     throw new Error('SCH_PrimitiveComponent class not found in EasyEDA Pro API');
   }
 
-  const comps = await schCompClass.getAll(undefined, true);
+  const comps = await awaitNetDetailStage(budget, 'component_enumeration', () =>
+    schCompClass.getAll(undefined, true),
+  );
   const netMap = new Map<string, SchematicNetNode[]>();
 
   for (const c of comps || []) {
@@ -1482,7 +1582,9 @@ async function listNetsApi(): Promise<unknown> {
     if (!ref || typeof c.getAllPins !== 'function') continue;
 
     try {
-      const pins = await c.getAllPins();
+      const pins = await awaitNetDetailStage(budget, 'component_pin_read', () => c.getAllPins(), {
+        component: ref,
+      });
       for (const p of pins || []) {
         if (typeof p.getState_PinNumber !== 'function') continue;
         const pinNum = p.getState_PinNumber();
@@ -1500,25 +1602,30 @@ async function listNetsApi(): Promise<unknown> {
         }
       }
     } catch (e) {
+      if (isNetDetailTimeout(e)) throw e;
       logRecoverableError('failed to inspect schematic component pins', e);
     }
   }
 
   if (schNetClass && typeof schNetClass.getAllNets === 'function') {
     try {
-      const allNets = await schNetClass.getAllNets();
+      const allNets = await awaitNetDetailStage(budget, 'net_catalog_read', () =>
+        schNetClass.getAllNets(),
+      );
       for (const n of allNets || []) {
         const netName = n.netName || n.net;
         if (netName) ensureNetEntry(netMap, String(netName));
       }
     } catch (e) {
+      if (isNetDetailTimeout(e)) throw e;
       logRecoverableError('failed to inspect schematic nets', e);
     }
   }
 
   try {
-    await addCoordinateFallbackNets(netMap, comps || []);
+    await addCoordinateFallbackNets(netMap, comps || [], budget);
   } catch (error) {
+    if (isNetDetailTimeout(error)) throw error;
     logRecoverableError('failed to infer schematic nets from wire coordinates', error);
   }
 
@@ -3462,7 +3569,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       return listNetsApi();
     case 'schematic.getNetDetail': {
       const netName = params.netName as string;
-      const allNets = (await listNetsApi()) as Array<{ netName: string; nodes: unknown[] }>;
+      const budget = createNetDetailBudget(netName, params.operationTimeoutMs);
+      const allNets = (await listNetsApi(budget)) as Array<{
+        netName: string;
+        nodes: unknown[];
+      }>;
       const match = allNets.find((n) => n.netName === netName);
       if (!match)
         throw newBridgeError(

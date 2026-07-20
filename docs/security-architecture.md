@@ -358,6 +358,9 @@ Path traversal protection is enforced in all export tools — artifact paths are
 - The release workflow has elevated permissions scoped to the specific job.
 - Concurrency limits cancel in-progress runs on the same branch/tag.
 - CodeQL analysis runs on every push and PR (security-extended + security-and-quality queries).
+- Repository-owned Semgrep rules run on staged files locally and in a full CI scan; trusted CI events upload SARIF to code scanning.
+- The Snyk GitHub App scans pull requests, while an authenticated high-severity Snyk Open Source scan runs at pre-push.
+- SonarQube Cloud remains the pull-request quality gate; SonarQube for IDE Connected Mode provides editor-time feedback.
 - Socket.dev scans every PR for dependency vulnerabilities.
 
 ### 9.2 Dependency Management

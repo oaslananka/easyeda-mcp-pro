@@ -3,7 +3,10 @@ import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { readStable } from '../live/readback.js';
 import { fetchComponentPins } from './schematic-helpers.js';
-import { scanSheetForPinCollisions } from '../workflows/collision.js';
+import {
+  collisionScanErrorMessage,
+  scanSheetForPinCollisionsDetailed,
+} from '../workflows/collision.js';
 import { planSafeSchematicRegion } from '../workflows/schematic-safe-region.js';
 import {
   auditImportedDesign,
@@ -516,7 +519,7 @@ function registerSchematicReadTools(
     risk: 'low',
     confirmWrite: false,
     group: 'schematic',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       idempotentHint: true,
@@ -536,11 +539,20 @@ function registerSchematicReadTools(
         }),
       ),
       not_available: z.boolean().optional(),
+      timed_out: z.boolean().optional(),
+      error_code: z.string().optional(),
+      timeout_stage: z.string().optional(),
+      timeout_component: z.string().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId, netName } = params as { projectId: string; netName: string };
       try {
-        const result = await ctx.bridge.call('schematic.getNetDetail', { projectId, netName });
+        const result = await ctx.bridge.call(
+          'schematic.getNetDetail',
+          { projectId, netName, operationTimeoutMs: 15_000 },
+          { timeoutMs: 20_000 },
+        );
         const net = result as {
           netName?: string;
           nodes?: Array<{ component?: string; pin?: string }>;
@@ -564,13 +576,26 @@ function registerSchematicReadTools(
           })),
         };
       } catch (err) {
+        const record =
+          err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
+        const errorCode = typeof record?.code === 'string' ? record.code : undefined;
+        const data =
+          record?.data && typeof record.data === 'object'
+            ? (record.data as Record<string, unknown>)
+            : undefined;
+        const message = err instanceof Error ? err.message : String(err);
+        const timedOut = errorCode === 'NET_DETAIL_TIMEOUT' || /timed out/i.test(message);
         return {
           project_id: projectId,
           net_name: netName,
           node_count: 0,
           nodes: [],
           not_available: true,
-          error: err instanceof Error ? err.message : String(err),
+          timed_out: timedOut || undefined,
+          error_code: errorCode,
+          timeout_stage: typeof data?.stage === 'string' ? data.stage : undefined,
+          timeout_component: typeof data?.component === 'string' ? data.component : undefined,
+          error: message,
         };
       }
     },
@@ -1092,7 +1117,7 @@ function registerSchematicReadTools(
     risk: 'low',
     confirmWrite: false,
     group: 'schematic',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       idempotentHint: true,
@@ -1116,24 +1141,73 @@ function registerSchematicReadTools(
         }),
       ),
       collision_count: z.number().int().nonnegative(),
+      scan_complete: z.boolean(),
+      scan_diagnostics: z
+        .object({
+          stage: z.enum(['complete', 'component_enumeration', 'pin_lookup']),
+          component_count: z.number().int().nonnegative(),
+          components_scanned: z.number().int().nonnegative(),
+          failed_component_count: z.number().int().nonnegative(),
+          failed_components: z.array(
+            z.object({
+              primitive_id: z.string(),
+              error: z.string(),
+            }),
+          ),
+          duration_ms: z.number().int().nonnegative(),
+          component_enumeration_ms: z.number().int().nonnegative(),
+          pin_lookup_ms: z.number().int().nonnegative(),
+          concurrency: z.number().int().positive(),
+          per_call_timeout_ms: z.number().int().positive(),
+          overall_timeout_ms: z.number().int().positive(),
+          stage_error: z.string().optional(),
+        })
+        .optional(),
       success: z.boolean(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = params as { projectId: string };
       try {
-        const collisions = await scanSheetForPinCollisions(ctx, projectId);
+        const scan = await scanSheetForPinCollisionsDetailed(ctx, projectId);
+        const diagnostics = scan.diagnostics;
+        const scanDiagnostics = {
+          stage: diagnostics.stage,
+          component_count: diagnostics.componentCount,
+          components_scanned: diagnostics.componentsScanned,
+          failed_component_count: diagnostics.failedComponents.length,
+          failed_components: diagnostics.failedComponents.map((failure) => ({
+            primitive_id: failure.primitiveId,
+            error: failure.error,
+          })),
+          duration_ms: diagnostics.durationMs,
+          component_enumeration_ms: diagnostics.componentEnumerationMs,
+          pin_lookup_ms: diagnostics.pinLookupMs,
+          concurrency: diagnostics.concurrency,
+          per_call_timeout_ms: diagnostics.perCallTimeoutMs,
+          overall_timeout_ms: diagnostics.overallTimeoutMs,
+          stage_error: diagnostics.stageError,
+        };
+        const complete = diagnostics.stage === 'complete';
         return {
           project_id: projectId,
-          collisions,
-          collision_count: collisions.length,
-          success: true,
+          collisions: scan.collisions,
+          collision_count: scan.collisions.length,
+          scan_complete: complete,
+          scan_diagnostics: scanDiagnostics,
+          success: complete,
+          error: complete
+            ? undefined
+            : diagnostics.stage === 'component_enumeration' && diagnostics.stageError
+              ? diagnostics.stageError
+              : collisionScanErrorMessage(diagnostics),
         };
       } catch (err) {
         return {
           project_id: projectId,
           collisions: [],
           collision_count: 0,
+          scan_complete: false,
           success: false,
           error: err instanceof Error ? err.message : String(err),
         };

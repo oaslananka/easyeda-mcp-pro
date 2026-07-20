@@ -56,10 +56,11 @@ describe('Schematic Tools', () => {
       netName: 'GND',
     });
 
-    expect(bridgeCall).toHaveBeenCalledWith('schematic.getNetDetail', {
-      projectId: 'proj-123',
-      netName: 'GND',
-    });
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'schematic.getNetDetail',
+      { projectId: 'proj-123', netName: 'GND', operationTimeoutMs: 15_000 },
+      { timeoutMs: 20_000 },
+    );
 
     expect(result).toMatchObject({
       project_id: 'proj-123',
@@ -69,6 +70,40 @@ describe('Schematic Tools', () => {
         { component_ref: 'R1', pin: '2' },
         { component_ref: 'C1', pin: '1' },
       ],
+    });
+  });
+
+  it('easyeda_schematic_net_detail applies a bounded bridge deadline and returns timeout diagnostics', async () => {
+    const tool = registry.get('easyeda_schematic_net_detail');
+    const timeoutError = Object.assign(
+      new Error('Net detail timed out during component pin read'),
+      {
+        code: 'NET_DETAIL_TIMEOUT',
+        data: { stage: 'component_pin_read', component: 'U1', netName: 'VBUS' },
+      },
+    );
+    bridgeCall.mockRejectedValue(timeoutError);
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-123',
+      netName: 'VBUS',
+    });
+
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'schematic.getNetDetail',
+      { projectId: 'proj-123', netName: 'VBUS', operationTimeoutMs: 15_000 },
+      { timeoutMs: 20_000 },
+    );
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      net_name: 'VBUS',
+      node_count: 0,
+      nodes: [],
+      not_available: true,
+      timed_out: true,
+      error_code: 'NET_DETAIL_TIMEOUT',
+      timeout_stage: 'component_pin_read',
+      timeout_component: 'U1',
     });
   });
 
@@ -1455,6 +1490,48 @@ describe('Schematic Tools', () => {
       expect(result.success).toBe(true);
       expect(result.collision_count).toBe(0);
       expect(result.collisions).toEqual([]);
+    });
+
+    it('returns partial collisions and actionable diagnostics when one pin lookup times out', async () => {
+      const tool = registry.get('easyeda_schematic_check_collisions');
+      bridgeCall.mockImplementation(
+        async (method: string, params: any, opts?: { timeoutMs?: number }) => {
+          if (method === 'schematic.listComponents') {
+            return {
+              total: 3,
+              items: [{ primitiveId: 'A' }, { primitiveId: 'B' }, { primitiveId: 'C' }],
+            };
+          }
+          if (method === 'api.call') {
+            expect(opts?.timeoutMs).toBeGreaterThan(0);
+            const primitiveId = params.args?.[0];
+            if (primitiveId === 'B') {
+              throw new Error('Bridge method "api.call" timed out after 5000ms');
+            }
+            return {
+              result: [{ pinNumber: '1', pinName: primitiveId, x: 10, y: 10 }],
+            };
+          }
+          return {};
+        },
+      );
+
+      const result = (await tool?.handler(context, { projectId: 'proj-1' })) as any;
+
+      expect(result).toMatchObject({
+        success: false,
+        scan_complete: false,
+        collision_count: 1,
+        scan_diagnostics: {
+          stage: 'pin_lookup',
+          component_count: 3,
+          components_scanned: 2,
+          failed_component_count: 1,
+          failed_components: [{ primitive_id: 'B' }],
+          concurrency: 4,
+        },
+      });
+      expect(result.error).toContain('incomplete');
     });
 
     it('returns success=false on bridge error', async () => {

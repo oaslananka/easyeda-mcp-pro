@@ -1,11 +1,45 @@
+minimum_pre_commit_version: 4.6.0
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
         exclude_types: [json]
       - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+        # Intentional fake PEM fixture used to verify log redaction.
+        exclude: ^tests/unit/utils/redaction\.test\.ts$
       - id: check-yaml
       - id: check-json
       - id: check-toml
+
+  - repo: https://github.com/semgrep/pre-commit
+    rev: v1.170.0
+    hooks:
+      - id: semgrep
+        # Positive rule fixtures intentionally contain blocked patterns.
+        exclude: ^tests/semgrep/
+        args:
+          - --config=.semgrep.yml
+          - --error
+          - --metrics=off
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      - id: snyk-oss
+        name: Snyk Open Source high-severity scan
+        entry: corepack pnpm security:snyk:oss
+        language: system
+        pass_filenames: false
+        require_serial: true
+        always_run: true
+        stages: [pre-push]

@@ -201,6 +201,67 @@ describe('createDispatcher', () => {
     );
   });
 
+  it('returns a requested net detail within the bounded scan path', async () => {
+    const pin = {
+      getState_PinNumber: () => '1',
+      getState_X: () => 100,
+      getState_Y: () => 200,
+      getState_OtherProperty: () => ({ net: 'VBUS' }),
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: {
+          getAll: async () => [fakeSchematicPart('U1', [pin])],
+        },
+      }),
+    );
+
+    await expect(
+      dispatcher.dispatch('schematic.getNetDetail', {
+        netName: 'VBUS',
+        operationTimeoutMs: 1_000,
+      }),
+    ).resolves.toEqual({
+      netName: 'VBUS',
+      nodes: [{ component: 'U1', pin: '1' }],
+    });
+  });
+
+  it('bounds schematic.getNetDetail when a native component pin read never settles', async () => {
+    const stalledPart = {
+      getState_Designator: () => 'U1',
+      getState_ComponentType: () => 'part',
+      getAllPins: () => new Promise<never>(() => {}),
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [stalledPart] },
+      }),
+    );
+
+    const outcome = await Promise.race([
+      dispatcher
+        .dispatch('schematic.getNetDetail', { netName: 'VBUS', operationTimeoutMs: 20 })
+        .then((value) => ({ kind: 'resolved' as const, value }))
+        .catch((error: unknown) => ({ kind: 'rejected' as const, error })),
+      new Promise<{ kind: 'outer-timeout' }>((resolve) =>
+        setTimeout(() => resolve({ kind: 'outer-timeout' }), 100),
+      ),
+    ]);
+
+    expect(outcome).toMatchObject({
+      kind: 'rejected',
+      error: {
+        code: 'NET_DETAIL_TIMEOUT',
+        data: {
+          stage: 'component_pin_read',
+          component: 'U1',
+          netName: 'VBUS',
+        },
+      },
+    });
+  });
+
   it('schematic.listNets reports pins joined only by an unnamed wire', async () => {
     const u1 = fakeSchematicPart('U1', [fakeSchematicPin('XL1', 100, 200)]);
     const x1 = fakeSchematicPart('X1', [fakeSchematicPin('1', 300, 200)]);
