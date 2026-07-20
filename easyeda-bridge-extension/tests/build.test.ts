@@ -256,6 +256,81 @@ describe('build.mjs hot-swap define', () => {
     (context as any).edaEsbuildExportName.disconnect();
   });
 
+  it('uses globalThis.WebSocket when the bare identifier is shadowed', async () => {
+    const outDir = mkdtempSync(join(tmpdir(), 'ext-build-shadowed-websocket-'));
+    outDirs.push(outDir);
+    const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: '' });
+
+    const toastMessages: string[] = [];
+    const handshakePayloads: Array<Record<string, unknown>> = [];
+    let constructorCalls = 0;
+
+    class FakeBrowserWebSocket {
+      onopen: (() => void) | null = null;
+      onmessage: ((event: { data: string }) => void) | null = null;
+      onclose: (() => void) | null = null;
+      onerror: ((error: unknown) => void) | null = null;
+
+      constructor(_url: string) {
+        constructorCalls += 1;
+        queueMicrotask(() => this.onopen?.());
+      }
+
+      send(payload: string): void {
+        const parsed = JSON.parse(payload) as Record<string, unknown>;
+        handshakePayloads.push(parsed);
+        if (parsed.type === 'handshake') {
+          queueMicrotask(() => {
+            this.onmessage?.({
+              data: JSON.stringify({
+                type: 'hello',
+                contractVersion: 1,
+                supportedProtocolVersions: ['1.0.0'],
+              }),
+            });
+          });
+        }
+      }
+
+      close(): void {
+        this.onclose?.();
+      }
+    }
+
+    const context = vm.createContext({
+      console,
+      crypto: webcrypto,
+      TextEncoder,
+      TextDecoder,
+      URL,
+      Promise,
+      setTimeout,
+      clearTimeout,
+      setInterval: () => ({ ignored: true }),
+      clearInterval: () => undefined,
+      localStorage: {
+        getItem: () => 'false',
+        setItem: () => undefined,
+      },
+      SYS_Message: {
+        showToastMessage: (message: string) => toastMessages.push(message),
+      },
+      WebSocket: FakeBrowserWebSocket,
+    });
+
+    vm.runInContext(
+      `(function (WebSocket) {\n${bundle}\nglobalThis.__shadowedWebSocketExport = edaEsbuildExportName;\n}).call(globalThis, undefined);`,
+      context,
+    );
+    await (context as any).__shadowedWebSocketExport.connect();
+
+    expect(constructorCalls).toBe(1);
+    expect(handshakePayloads).toContainEqual(expect.objectContaining({ type: 'handshake' }));
+    expect(toastMessages).toContain('MCP Bridge connected to local server');
+
+    (context as any).__shadowedWebSocketExport.disconnect();
+  });
+
   it('reports the silent register phase when no alternate socket API is available', async () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ext-build-silent-register-offline-'));
     outDirs.push(outDir);
