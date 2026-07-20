@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.34.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.3...easyeda-mcp-pro-v0.34.4) (2026-07-20)
+
+
+### Bug Fixes
+
+* **bridge:** recover from silent register sockets ([#317](https://github.com/oaslananka/easyeda-mcp-pro/issues/317)) ([17f0334](https://github.com/oaslananka/easyeda-mcp-pro/commit/17f03347f12a9f167081c2166c7373e94262c3ac)), closes [#307](https://github.com/oaslananka/easyeda-mcp-pro/issues/307)
+* **bridge:** resolve browser WebSocket through globalThis ([#321](https://github.com/oaslananka/easyeda-mcp-pro/issues/321)) ([f61f54d](https://github.com/oaslananka/easyeda-mcp-pro/commit/f61f54d3015c94d9bcb3d38db4f48c778f3f1c4b))
+* **ci:** restore Sonar security gate ([#326](https://github.com/oaslananka/easyeda-mcp-pro/issues/326)) ([2366495](https://github.com/oaslananka/easyeda-mcp-pro/commit/236649507f182f868ffefc5c89ae9c7009edc424))
+* **config:** reject invalid boolean literals ([#315](https://github.com/oaslananka/easyeda-mcp-pro/issues/315)) ([0d9100c](https://github.com/oaslananka/easyeda-mcp-pro/commit/0d9100cbdba37d1b04e2125a4c7e3b29f5e3c420)), closes [#311](https://github.com/oaslananka/easyeda-mcp-pro/issues/311)
+* **remote:** preserve destructive risk classification ([#314](https://github.com/oaslananka/easyeda-mcp-pro/issues/314)) ([1f961de](https://github.com/oaslananka/easyeda-mcp-pro/commit/1f961de3d332ee7e9b9629ec988371f792bd0b34)), closes [#310](https://github.com/oaslananka/easyeda-mcp-pro/issues/310)
+* **schematic:** bound collision scan RPCs ([#322](https://github.com/oaslananka/easyeda-mcp-pro/issues/322)) ([ff9e0dc](https://github.com/oaslananka/easyeda-mcp-pro/commit/ff9e0dc11fc2ecaeb667de446a5d76885d304cd1))
+* **schematic:** bound net-detail reads ([#323](https://github.com/oaslananka/easyeda-mcp-pro/issues/323)) ([4bccca7](https://github.com/oaslananka/easyeda-mcp-pro/commit/4bccca78ec2fcbabc63327e43b87146b83b33211))
+* **schematic:** recover focused sheet metadata ([#324](https://github.com/oaslananka/easyeda-mcp-pro/issues/324)) ([829c8fc](https://github.com/oaslananka/easyeda-mcp-pro/commit/829c8fc395ac3026916bbde25ce144a370b8c32c))
+* **security:** require OAuth for remote HTTP ([#313](https://github.com/oaslananka/easyeda-mcp-pro/issues/313)) ([a37a516](https://github.com/oaslananka/easyeda-mcp-pro/commit/a37a516e1886d43e2973c38f5c5184bb0d1bf8ab)), closes [#309](https://github.com/oaslananka/easyeda-mcp-pro/issues/309)
+
 ## [0.34.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.2...easyeda-mcp-pro-v0.34.3) (2026-07-14)
 
 
