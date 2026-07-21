@@ -66,6 +66,30 @@ describe('Codecov CLI installer', () => {
     }
   });
 
+  it('reports a TypeError when the configured URL is not a string', () => {
+    const root = makeRoot();
+    const output = join(root, 'bin', 'codecovcli');
+    const config = join(root, 'codecov-cli.json');
+    writeFileSync(
+      config,
+      JSON.stringify({
+        version: '11.3.1',
+        asset: 'codecovcli_linux',
+        url: 123,
+        size: 1,
+        sha256: '0'.repeat(64),
+      }),
+    );
+
+    const result = runInstaller(config, output);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Codecov CLI URL must be a string');
+    expect(readFileSync(installer, 'utf8')).toContain(
+      "throw new TypeError('Codecov CLI URL must be a string')",
+    );
+  });
+
   it('rejects a source whose digest does not match the pinned config', () => {
     const root = makeRoot();
     const source = join(root, 'codecovcli');

@@ -51,7 +51,7 @@ const loadConfig = async (configPath) => {
     throw new Error('Codecov CLI asset must be codecovcli_linux');
   }
   if (typeof url !== 'string') {
-    throw new Error('Codecov CLI URL must be a string');
+    throw new TypeError('Codecov CLI URL must be a string');
   }
   if (!Number.isInteger(size) || size <= 0 || size > MAX_BINARY_BYTES) {
     throw new Error(`invalid Codecov CLI byte size: ${String(size)}`);
