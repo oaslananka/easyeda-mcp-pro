@@ -1551,6 +1551,39 @@ describe('Schematic Tools', () => {
       ]);
     });
 
+    it('ignores malformed native no-connect values instead of stringifying objects', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockResolvedValue({
+        result: [
+          {
+            primitiveId: 'pin-malformed',
+            pinNumber: '3',
+            pinName: 'IO',
+            x: 0,
+            y: 0,
+            rotation: 0,
+            pinLength: 0,
+            noConnected: { unexpected: true },
+          },
+          {
+            primitiveId: 'pin-string',
+            pinNumber: '4',
+            pinName: 'NC',
+            x: 0,
+            y: 0,
+            rotation: 0,
+            pinLength: 0,
+            noConnected: 'true',
+          },
+        ],
+      });
+
+      const result = await tool?.handler(context, { primitiveId: 'comp-malformed' });
+
+      expect(result?.pins[0]?.noConnected).toBeUndefined();
+      expect(result?.pins[1]).toMatchObject({ noConnected: true });
+    });
+
     it('falls back to the nested state object when direct fields are absent', async () => {
       const tool = registry.get('easyeda_schematic_component_pins');
       bridgeCall.mockResolvedValue({

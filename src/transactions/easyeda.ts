@@ -187,7 +187,7 @@ async function readPinNoConnectSnapshot(
     pinNumber: expected.pinNumber,
   });
   if (typeof state?.pinPrimitiveId !== 'string' || typeof state?.noConnected !== 'boolean') {
-    throw new Error('Pin no-connect rollback verification returned an invalid state');
+    throw new TypeError('Pin no-connect rollback verification returned an invalid state');
   }
   return {
     schemaVersion: 'schematic-pin-no-connect-snapshot/v1',

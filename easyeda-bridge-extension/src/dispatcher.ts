@@ -161,6 +161,15 @@ function readFirstPath<T>(paths: string[]): T | undefined {
   return undefined;
 }
 
+function nativeScalarString(value: unknown): string {
+  return typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+    ? String(value)
+    : '';
+}
+
 /**
  * Best-effort extraction of a primitive id from a value returned by an EasyEDA
  * Pro create* API. The runtime may return a plain object with primitiveId/uuid,
@@ -169,13 +178,13 @@ function readFirstPath<T>(paths: string[]): T | undefined {
 function extractPrimitiveId(result: unknown): string {
   if (!result || typeof result !== 'object') return '';
   const obj = result as Record<string, unknown>;
-  const direct = obj.primitiveId ?? obj.uuid;
-  if (direct) return String(direct);
+  const direct = nativeScalarString(obj.primitiveId ?? obj.uuid);
+  if (direct) return direct;
   try {
     const getter = obj.getState_PrimitiveId;
     if (typeof getter === 'function') {
-      const id = (getter as () => unknown).call(obj);
-      if (id) return String(id);
+      const id = nativeScalarString((getter as () => unknown).call(obj));
+      if (id) return id;
     }
   } catch {
     /* ignore */
@@ -184,7 +193,8 @@ function extractPrimitiveId(result: unknown): string {
     const getState = obj.getState;
     if (typeof getState === 'function') {
       const state = (getState as () => unknown).call(obj) as Record<string, unknown> | undefined;
-      if (state?.PrimitiveId) return String(state.PrimitiveId);
+      const id = nativeScalarString(state?.PrimitiveId);
+      if (id) return id;
     }
   } catch {
     /* ignore */
@@ -3051,7 +3061,7 @@ function readPinPoint(pin: unknown): Partial<PinPoint> {
 
 function readPinNumber(pin: unknown): string {
   const value = safeGetState(pin, 'PinNumber');
-  return value !== undefined && value !== null ? String(value) : '';
+  return nativeScalarString(value);
 }
 
 type PinNoConnectState = {
@@ -3065,7 +3075,7 @@ type PinNoConnectState = {
 
 function readPinName(pin: unknown): string {
   const value = safeGetState(pin, 'PinName');
-  return value !== undefined && value !== null ? String(value) : '';
+  return nativeScalarString(value);
 }
 
 function readPinNoConnected(pin: unknown): boolean {
@@ -3107,7 +3117,8 @@ async function resolvePinNoConnectState(
     );
   }
   const pin = matches[0];
-  const pinPrimitiveId = extractPrimitiveId(pin) || String(safeGetState(pin, 'PrimitiveId') ?? '');
+  const pinPrimitiveId =
+    extractPrimitiveId(pin) || nativeScalarString(safeGetState(pin, 'PrimitiveId'));
   if (!pinPrimitiveId) {
     throw newBridgeError(
       'PIN_PRIMITIVE_ID_UNAVAILABLE',
@@ -3158,7 +3169,7 @@ async function setPinNoConnectState(
     const updated = setter.call(before.pin, noConnected);
     const doneTarget =
       isRecord(updated) && typeof updated.done === 'function' ? updated : before.pin;
-    await (doneTarget as { done: () => Promise<unknown> | unknown }).done();
+    await (doneTarget as { done: () => unknown }).done();
   } else {
     const pinClass = readFirstPath<any>(['SCH_PrimitivePin', 'sch_PrimitivePin']);
     if (!pinClass || typeof pinClass.modify !== 'function') {

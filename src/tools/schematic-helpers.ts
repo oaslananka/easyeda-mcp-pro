@@ -23,6 +23,20 @@ function asString(value: unknown): string | undefined {
     : undefined;
 }
 
+function asOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  return undefined;
+}
+
 /**
  * Fetch a component's pins via the bridge's generic api.call passthrough to
  * SCH_PrimitiveComponent.getAllPinsByPrimitiveId, normalizing EasyEDA's
@@ -48,12 +62,7 @@ export async function fetchComponentPins(
     const pinType = p.pinType ?? state?.pinType ?? state?.PinType;
     const primitiveId = asString(p.primitiveId) ?? asString(state?.PrimitiveId);
     const noConnectedRaw = p.noConnected ?? state?.noConnected ?? state?.NoConnected;
-    const noConnected =
-      typeof noConnectedRaw === 'boolean'
-        ? noConnectedRaw
-        : noConnectedRaw === undefined
-          ? undefined
-          : String(noConnectedRaw).toLowerCase() === 'true';
+    const noConnected = asOptionalBoolean(noConnectedRaw);
     return {
       primitiveId,
       noConnected,

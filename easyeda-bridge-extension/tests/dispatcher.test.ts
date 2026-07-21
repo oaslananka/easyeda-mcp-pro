@@ -205,6 +205,62 @@ describe('createDispatcher', () => {
     expect(modify).not.toHaveBeenCalled();
   });
 
+  it('does not stringify object-valued native pin identifiers or names', async () => {
+    const malformedPinNumber = {
+      getState_PrimitiveId: () => 'pin-object-number',
+      getState_PinNumber: () => ({ unexpected: true }),
+      getState_PinName: () => 'PIN',
+      getState_NoConnected: () => false,
+    };
+    const numberDispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAllPinsByPrimitiveId: async () => [malformedPinNumber] },
+      }),
+    );
+    await expect(
+      numberDispatcher.dispatch('schematic.getPinNoConnect', {
+        primitiveId: 'comp-object-number',
+        pinNumber: '[object Object]',
+      }),
+    ).rejects.toMatchObject({ code: 'PIN_NOT_FOUND' });
+
+    const malformedPinId = {
+      getState_PrimitiveId: () => ({ unexpected: true }),
+      getState_PinNumber: () => '11',
+      getState_PinName: () => ({ unexpected: true }),
+      getState_NoConnected: () => false,
+    };
+    const idDispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAllPinsByPrimitiveId: async () => [malformedPinId] },
+      }),
+    );
+    await expect(
+      idDispatcher.dispatch('schematic.getPinNoConnect', {
+        primitiveId: 'comp-object-id',
+        pinNumber: '11',
+      }),
+    ).rejects.toMatchObject({ code: 'PIN_PRIMITIVE_ID_UNAVAILABLE' });
+
+    const malformedName = {
+      getState_PrimitiveId: () => 'pin-object-name',
+      getState_PinNumber: () => '12',
+      getState_PinName: () => ({ unexpected: true }),
+      getState_NoConnected: () => false,
+    };
+    const nameDispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAllPinsByPrimitiveId: async () => [malformedName] },
+      }),
+    );
+    await expect(
+      nameDispatcher.dispatch('schematic.getPinNoConnect', {
+        primitiveId: 'comp-object-name',
+        pinNumber: '12',
+      }),
+    ).resolves.toMatchObject({ pinName: '' });
+  });
+
   it('rejects unverified native no-connect writes', async () => {
     const pin = fakeNoConnectPin('pin-4', '10', false, { setter: false, done: false });
     const dispatcher = createDispatcher(
