@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.4...easyeda-mcp-pro-v0.35.0) (2026-07-21)
+
+
+### Features
+
+* **schematic:** support native pin no-connect state ([#329](https://github.com/oaslananka/easyeda-mcp-pro/issues/329)) ([e9a534c](https://github.com/oaslananka/easyeda-mcp-pro/commit/e9a534c761e0a8453714d8edcd089af109349e1f))
+
 ## [0.34.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.3...easyeda-mcp-pro-v0.34.4) (2026-07-20)
 
 
