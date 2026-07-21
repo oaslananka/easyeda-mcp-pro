@@ -409,6 +409,57 @@ async function main() {
     warn('R2 pins', e.message);
   }
 
+  // Native No Connect set/readback/clear on a disposable test pin.
+  const noConnectPin = r2Pins[0]?.pinNumber || r2Pins[0]?.number;
+  if (r2PrimId && noConnectPin) {
+    try {
+      const setResult = await toolCall('easyeda_schematic_set_pin_no_connect', {
+        projectId: PLACEHOLDER_ID,
+        primitiveId: r2PrimId,
+        pinNumber: String(noConnectPin),
+        noConnected: true,
+        confirmWrite: true,
+      });
+      const setPayload = JSON.parse(setResult.text);
+      if (setPayload.no_connected !== true || setPayload.verified !== true) {
+        throw new Error(`set readback was not verified: ${setResult.text}`);
+      }
+      ok('Set native No Connect', `${r2PrimId}/${noConnectPin}`);
+      capture('set native no-connect', setResult.text);
+
+      const { text: readText } = await toolCall('easyeda_schematic_component_pins', {
+        primitiveId: r2PrimId,
+      });
+      const readPayload = JSON.parse(readText);
+      const readPins = readPayload.pins || readPayload || [];
+      const readPin = readPins.find(
+        (pin) => String(pin.pinNumber || pin.number || '') === String(noConnectPin),
+      );
+      if (readPin?.noConnected !== true) {
+        throw new Error(`component pin readback did not expose noConnected=true: ${readText}`);
+      }
+      ok('Read back native No Connect', `pinPrimitiveId=${readPin.primitiveId || 'unknown'}`);
+
+      const clearResult = await toolCall('easyeda_schematic_set_pin_no_connect', {
+        projectId: PLACEHOLDER_ID,
+        primitiveId: r2PrimId,
+        pinNumber: String(noConnectPin),
+        noConnected: false,
+        confirmWrite: true,
+      });
+      const clearPayload = JSON.parse(clearResult.text);
+      if (clearPayload.no_connected !== false || clearPayload.verified !== true) {
+        throw new Error(`clear readback was not verified: ${clearResult.text}`);
+      }
+      ok('Clear native No Connect', `${r2PrimId}/${noConnectPin}`);
+      capture('clear native no-connect', clearResult.text);
+    } catch (err) {
+      fail_('Native No Connect set/readback/clear', err.message);
+    }
+  } else {
+    warn('Native No Connect', 'Skipped because no addressable R2 pin was available');
+  }
+
   // ── Phase 5: Create TEST_NET Flag & Port ──────────────────────────────
   console.log('\n\u2500\u2500 [5/7] Create TEST_NET \u2691 & \u2690 \u2500\u2500\n');
 

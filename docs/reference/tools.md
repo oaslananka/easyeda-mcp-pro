@@ -78,11 +78,11 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_add_text`                       | `core`  | `medium` | Place free-standing text on the schematic sheet (section headers, notes, block labels) — cosmetic/organizational, not a net label. color must be a hex string and fontName a real font (e.g. "Arial") — untyped placeholders create nothing despite returning ok.                                                                |
 | `easyeda_schematic_add_wire`                       | `core`  | `medium` | Add a wire connecting schematic coordinates/pins — real native connectivity. Same `netName` connects pins globally: separate stubs sharing one name merge into one net (no label needed). NET_COLLISION guards touched points against a foreign net's wire, pin, or flag/port — not mid-segment crossings.                       |
 | `easyeda_schematic_audit_imported_design`          | `core`  | `low`    | Read the live schematic without modifying it, build a canonical model, and report imported net aliases, duplicate or missing references, unresolved metadata expressions, missing values/footprints, and ambiguous BOM classification. Includes a preview only; it never renames nets or changes components.                     |
-| `easyeda_schematic_batch_write`                    | `core`  | `high`   | Apply up to 200 validated schematic create, modify, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.                                                                                                          |
+| `easyeda_schematic_batch_write`                    | `core`  | `high`   | Apply up to 200 validated schematic create, modify, pin no-connect, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.                                                                                          |
 | `easyeda_schematic_capture_full_page`              | `pro`   | `low`    | Read the active schematic sheet geometry, clear selection overlays, frame the complete sheet including its border and title block, and return a deterministic PNG plus the sheet-to-image coordinate transform. Refuses guessed geometry unless explicitly allowed.                                                              |
 | `easyeda_schematic_check_collisions`               | `core`  | `low`    | Scan every component's real pin coordinates and report any (x,y) shared by two or more components — a silent-short risk the native NET_COLLISION guard misses for never-wired pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this automatically).                                            |
 | `easyeda_schematic_check_placement`                | `pro`   | `low`    | Validate a candidate placement (rendered bounds, clearances, conflicts, deterministic alternatives) or -- when x/y are omitted -- search for a safe region of the given size, against real title-block/page-border/existing-primitive constraints. Read-only, no writes.                                                         |
-| `easyeda_schematic_component_pins`                 | `core`  | `low`    | Get exact pin numbers, names, coordinates, and native pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.                                                          |
+| `easyeda_schematic_component_pins`                 | `core`  | `low`    | Get exact pin primitive IDs, numbers, names, coordinates, native no-connect state, and pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.                         |
 | `easyeda_schematic_components`                     | `core`  | `low`    | List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem in this project), deviceName, symbolName, lcsc, manufacturerId.                                                                                  |
 | `easyeda_schematic_connect_pin_to_net`             | `core`  | `medium` | Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.                                                                         |
 | `easyeda_schematic_connect_pins_by_net`            | `core`  | `medium` | Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with netName, so all listed pins (and anything else already on that net) merge into one net. Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported in failures rather than aborting the batch.               |
@@ -102,6 +102,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_preview_imported_normalization` | `core`  | `low`    | Read the live schematic and produce a deterministic, read-only normalization plan with a stable plan ID, model hash, proposed net-name/reference/metadata operations, validation gates, warnings, and blockers. This tool never writes to EasyEDA.                                                                               |
 | `easyeda_schematic_primitive_bounds`               | `pro`   | `low`    | Read real rendered (sheet-space, rotation-aware) component bounding boxes from the live bridge, batched in one call. Origin is not a collision bound -- use combinedBounds for overlap/page/title-block checks. Reference/value text is not independently addressable here and reports not_available.                            |
 | `easyeda_schematic_search_device`                  | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords. Full results carry the library's complete metadata object per device; pass minimal:true to get back only uuid/libraryUuid/name/pin_count/symbol_type when that is all you need.                                                                         |
+| `easyeda_schematic_set_pin_no_connect`             | `core`  | `medium` | Set or clear EasyEDA Pro's native No Connect marker on one exact component pin. This changes the component pin noConnected state; it does not create a net, label, power flag, or short-circuit flag. The bridge rejects missing/ambiguous pins and verifies the native readback after the write.                                |
 | `easyeda_schematic_set_title_block`                | `core`  | `medium` | Update schematic title block text fields (Company, Version, Drawn, Reviewed, Page Size). Only these 5 are exposed — writing Symbol/Border/Device/etc once corrupted a real title block; those are read-only natively and must be fixed via the EasyEDA Pro UI.                                                                   |
 | `easyeda_schematic_sheet_info`                     | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
 | `easyeda_schematic_sync_to_pcb`                    | `core`  | `medium` | Request a schematic-to-PCB sync (SCH_Document.importChanges). CAUTION (live-verified): opens a confirmation dialog in EasyEDA Pro's UI a HUMAN must approve — success here only means the request was sent, not that components appeared. Ask the user to approve the dialog, then verify with pcb_components.                   |
@@ -2441,7 +2442,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `high`
 
-> Apply up to 200 validated schematic create, modify, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.
+> Apply up to 200 validated schematic create, modify, pin no-connect, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.
 
 ### Input Parameters
 
@@ -2449,7 +2450,7 @@ Returns a JSON object matching the schema:
 | --------------- | ------------------- | -------- | ----------- |
 | `projectId`     | `string`            | Yes      |             |
 | `transactionId` | `string (optional)` | No       |             |
-| `operations`    | `object             | object   | object      | object | object | object | object | object | object | object[]` | Yes |     |
+| `operations`    | `object             | object   | object      | object | object | object | object | object | object | object | object[]` | Yes |     |
 | `atomic`        | `'true'`            | Yes      |             |
 | `dryRun`        | `boolean`           | Yes      |             |
 | `confirmWrite`  | `'true'`            | Yes      |             |
@@ -2592,7 +2593,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Get exact pin numbers, names, coordinates, and native pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.
+> Get exact pin primitive IDs, numbers, names, coordinates, native no-connect state, and pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.
 
 ### Input Parameters
 
@@ -3274,6 +3275,44 @@ Returns a JSON object matching the schema:
   provider_tier: 'local_library' (optional);
   not_available: boolean (optional);
   error: string (optional);
+}
+```
+
+---
+
+## `easyeda_schematic_set_pin_no_connect`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Set or clear EasyEDA Pro's native No Connect marker on one exact component pin. This changes the component pin noConnected state; it does not create a net, label, power flag, or short-circuit flag. The bridge rejects missing/ambiguous pins and verifies the native readback after the write.
+
+### Input Parameters
+
+| Parameter      | Type      | Required | Description                                                                   |
+| -------------- | --------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`    | `string`  | Yes      | The project/schematic ID                                                      |
+| `primitiveId`  | `string`  | Yes      | The component primitive ID                                                    |
+| `pinNumber`    | `string`  | Yes      | The exact component pin number                                                |
+| `noConnected`  | `boolean` | Yes      | true places the native No Connect marker; false removes it                    |
+| `confirmWrite` | `'true'`  | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  project_id: string;
+  component_primitive_id: string;
+  pin_primitive_id: string(optional);
+  pin_number: string;
+  previous_no_connected: boolean(optional);
+  no_connected: boolean(optional);
+  changed: boolean(optional);
+  verified: boolean(optional);
+  error_code: string(optional);
+  error: string(optional);
 }
 ```
 
