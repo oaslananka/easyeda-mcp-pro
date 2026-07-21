@@ -109,6 +109,168 @@ describe('easyeda_schematic_batch_write', () => {
     });
   });
 
+  it('plans a pin no-connect mutation without issuing a write', async () => {
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      operations: [
+        {
+          operationId: 'mark-u1-7-nc',
+          action: 'setPinNoConnect',
+          primitiveId: 'comp-1',
+          pinNumber: '7',
+          noConnected: true,
+        },
+      ],
+      atomic: true,
+      dryRun: true,
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      success: true,
+      dry_run: true,
+      results: [
+        {
+          operation_id: 'mark-u1-7-nc',
+          action: 'setPinNoConnect',
+          status: 'planned',
+          primitive_id: 'comp-1',
+          pin_number: '7',
+        },
+      ],
+    });
+  });
+
+  it('sets native pin no-connect state in an internally managed transaction', async () => {
+    let noConnected = false;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'schematic.getPinNoConnect') {
+        return {
+          componentPrimitiveId: params.primitiveId,
+          pinPrimitiveId: 'pin-7',
+          pinNumber: params.pinNumber,
+          noConnected,
+        };
+      }
+      if (method === 'schematic.setPinNoConnect') {
+        const previousNoConnected = noConnected;
+        noConnected = params.noConnected;
+        return {
+          componentPrimitiveId: params.primitiveId,
+          pinPrimitiveId: 'pin-7',
+          pinNumber: params.pinNumber,
+          previousNoConnected,
+          noConnected,
+          changed: previousNoConnected !== noConnected,
+          verified: true,
+        };
+      }
+      throw new Error(`Unexpected bridge method ${method}`);
+    });
+
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      operations: [
+        {
+          operationId: 'mark-u1-7-nc',
+          action: 'setPinNoConnect',
+          primitiveId: 'comp-1',
+          pinNumber: '7',
+          noConnected: true,
+        },
+      ],
+      atomic: true,
+      dryRun: false,
+      confirmWrite: true,
+    });
+
+    expect(noConnected).toBe(true);
+    expect(result).toMatchObject({
+      success: true,
+      committed: true,
+      results: [
+        {
+          operation_id: 'mark-u1-7-nc',
+          action: 'setPinNoConnect',
+          status: 'applied',
+          primitive_id: 'comp-1',
+          pin_primitive_id: 'pin-7',
+          pin_number: '7',
+        },
+      ],
+    });
+  });
+
+  it('restores the prior pin no-connect state when a later batch operation fails', async () => {
+    let noConnected = false;
+    const textSnapshot = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'text-1',
+      primitiveKind: 'text',
+      property: { x: 5, y: 5, content: 'before' },
+    };
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'schematic.getPinNoConnect') {
+        return {
+          componentPrimitiveId: params.primitiveId,
+          pinPrimitiveId: 'pin-7',
+          pinNumber: params.pinNumber,
+          noConnected,
+        };
+      }
+      if (method === 'schematic.setPinNoConnect') {
+        const previousNoConnected = noConnected;
+        noConnected = params.noConnected;
+        return {
+          componentPrimitiveId: params.primitiveId,
+          pinPrimitiveId: 'pin-7',
+          pinNumber: params.pinNumber,
+          previousNoConnected,
+          noConnected,
+          changed: previousNoConnected !== noConnected,
+          verified: true,
+        };
+      }
+      if (method === 'schematic.getPrimitiveSnapshot') return structuredClone(textSnapshot);
+      if (method === 'schematic.modifyPrimitive') throw new Error('later write failed');
+      throw new Error(`Unexpected bridge method ${method}`);
+    });
+
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      operations: [
+        {
+          operationId: 'mark-u1-7-nc',
+          action: 'setPinNoConnect',
+          primitiveId: 'comp-1',
+          pinNumber: '7',
+          noConnected: true,
+        },
+        {
+          operationId: 'modify-text',
+          action: 'modify',
+          primitiveId: 'text-1',
+          property: { content: 'after' },
+        },
+      ],
+      atomic: true,
+      dryRun: false,
+      confirmWrite: true,
+    });
+
+    expect(noConnected).toBe(false);
+    expect(result).toMatchObject({
+      success: false,
+      transaction_state: 'rolled-back',
+      rolled_back: true,
+      results: [
+        { operation_id: 'mark-u1-7-nc', status: 'rolled-back' },
+        { operation_id: 'modify-text', status: 'failed' },
+      ],
+    });
+  });
+
   it('creates and commits an internally managed transaction', async () => {
     const snapshots = new Map<string, Record<string, unknown>>();
     bridgeCall.mockImplementation(async (method: string, params: any) => {

@@ -138,6 +138,13 @@ const modifyOperationSchema = z
       });
     }
   });
+const setPinNoConnectOperationSchema = z.object({
+  operationId: operationIdSchema,
+  action: z.literal('setPinNoConnect'),
+  primitiveId: z.string().min(1),
+  pinNumber: z.string().min(1),
+  noConnected: z.boolean().default(true),
+});
 const deleteOperationSchema = z.object({
   operationId: operationIdSchema,
   action: z.literal('delete'),
@@ -146,6 +153,7 @@ const deleteOperationSchema = z.object({
 const batchOperationSchema = z.union([
   createOperationSchema,
   modifyOperationSchema,
+  setPinNoConnectOperationSchema,
   deleteOperationSchema,
 ]);
 type BatchOperation = z.infer<typeof batchOperationSchema>;
@@ -173,14 +181,21 @@ const batchInputSchema = z
       }
       operationIds.add(operation.operationId);
       if (operation.action !== 'create') {
-        if (targetIds.has(operation.primitiveId)) {
+        const targetId =
+          operation.action === 'setPinNoConnect'
+            ? `${operation.primitiveId}#pin:${operation.pinNumber}`
+            : operation.primitiveId;
+        if (targetIds.has(targetId)) {
           context.addIssue({
             code: 'custom',
             path: ['operations', index, 'primitiveId'],
-            message: `Primitive ${operation.primitiveId} can be modified or deleted only once per atomic batch`,
+            message:
+              operation.action === 'setPinNoConnect'
+                ? `Pin ${operation.primitiveId}:${operation.pinNumber} can be changed only once per atomic batch`
+                : `Primitive ${operation.primitiveId} can be modified or deleted only once per atomic batch`,
           });
         }
-        targetIds.add(operation.primitiveId);
+        targetIds.add(targetId);
       }
     }
   });
@@ -188,9 +203,11 @@ type BatchInput = z.infer<typeof batchInputSchema>;
 
 const batchItemResultSchema = z.object({
   operation_id: z.string(),
-  action: z.enum(['create', 'modify', 'delete']),
+  action: z.enum(['create', 'modify', 'setPinNoConnect', 'delete']),
   status: z.enum(['planned', 'applied', 'failed', 'rolled-back']),
   primitive_id: z.string().optional(),
+  pin_primitive_id: z.string().optional(),
+  pin_number: z.string().optional(),
   restored_primitive_id: z.string().optional(),
   transaction_operation_id: z.string().optional(),
   error_code: z.string().optional(),
@@ -355,6 +372,80 @@ async function executeModify(
   });
 }
 
+type PinNoConnectSnapshot = {
+  schemaVersion: 'schematic-pin-no-connect-snapshot/v1';
+  projectId: string;
+  componentPrimitiveId: string;
+  pinPrimitiveId: string;
+  pinNumber: string;
+  noConnected: boolean;
+};
+
+type PinNoConnectBridgeState = {
+  componentPrimitiveId?: string;
+  pinPrimitiveId?: string;
+  pinNumber?: string;
+  noConnected?: boolean;
+};
+
+async function getPinNoConnectSnapshot(
+  context: ToolContext,
+  projectId: string,
+  primitiveId: string,
+  pinNumber: string,
+): Promise<PinNoConnectSnapshot> {
+  const state = (await context.bridge.call('schematic.getPinNoConnect', {
+    projectId,
+    primitiveId,
+    pinNumber,
+  })) as PinNoConnectBridgeState;
+  if (!state.pinPrimitiveId || typeof state.noConnected !== 'boolean') {
+    throw new Error('Pin no-connect readback did not return an addressable pin and boolean state');
+  }
+  return {
+    schemaVersion: 'schematic-pin-no-connect-snapshot/v1',
+    projectId,
+    componentPrimitiveId: state.componentPrimitiveId ?? primitiveId,
+    pinPrimitiveId: state.pinPrimitiveId,
+    pinNumber: state.pinNumber ?? pinNumber,
+    noConnected: state.noConnected,
+  };
+}
+
+async function executeSetPinNoConnect(
+  context: ToolContext,
+  transactionId: string,
+  projectId: string,
+  operation: z.infer<typeof setPinNoConnectOperationSchema>,
+) {
+  const initial = await getPinNoConnectSnapshot(
+    context,
+    projectId,
+    operation.primitiveId,
+    operation.pinNumber,
+  );
+  return getGlobalTransactionManager().runModify(transactionId, initial.pinPrimitiveId, {
+    getSnapshot: async () =>
+      getPinNoConnectSnapshot(context, projectId, operation.primitiveId, operation.pinNumber),
+    apply: async () =>
+      context.bridge.call('schematic.setPinNoConnect', {
+        projectId,
+        primitiveId: operation.primitiveId,
+        pinNumber: operation.pinNumber,
+        noConnected: operation.noConnected,
+      }),
+    restore: async (snapshot) => {
+      const previous = snapshot as PinNoConnectSnapshot;
+      await context.bridge.call('schematic.setPinNoConnect', {
+        projectId: previous.projectId,
+        primitiveId: previous.componentPrimitiveId,
+        pinNumber: previous.pinNumber,
+        noConnected: previous.noConnected,
+      });
+    },
+  });
+}
+
 async function executeDelete(
   context: ToolContext,
   transactionId: string,
@@ -432,6 +523,7 @@ function dryRunBatchResponse(parsed: BatchInput): BatchOutput {
       action: operation.action,
       status: 'planned',
       primitive_id: operation.action === 'create' ? undefined : operation.primitiveId,
+      pin_number: operation.action === 'setPinNoConnect' ? operation.pinNumber : undefined,
     })),
   };
 }
@@ -470,6 +562,7 @@ function openBatchSession(parsed: BatchInput): BatchSession {
 async function executeBatchOperation(
   context: ToolContext,
   transactionId: string,
+  projectId: string,
   operation: BatchOperation,
 ): Promise<BatchItemResult> {
   if (operation.action === 'create') {
@@ -489,6 +582,18 @@ async function executeBatchOperation(
       action: 'modify',
       status: 'applied',
       primitive_id: operation.primitiveId,
+      transaction_operation_id: executed.operation.id,
+    };
+  }
+  if (operation.action === 'setPinNoConnect') {
+    const executed = await executeSetPinNoConnect(context, transactionId, projectId, operation);
+    return {
+      operation_id: operation.operationId,
+      action: 'setPinNoConnect',
+      status: 'applied',
+      primitive_id: operation.primitiveId,
+      pin_primitive_id: executed.operation.target.id,
+      pin_number: operation.pinNumber,
       transaction_operation_id: executed.operation.id,
     };
   }
@@ -571,6 +676,7 @@ function appendFailedBatchResult(
     action: operation.action,
     status: 'failed',
     primitive_id: operation.action === 'create' ? undefined : operation.primitiveId,
+    pin_number: operation.action === 'setPinNoConnect' ? operation.pinNumber : undefined,
     error_code: error instanceof TransactionError ? error.code : undefined,
     error: error instanceof Error ? error.message : String(error),
   });
@@ -659,7 +765,9 @@ async function handleSchematicBatchWrite(
     const transactionId = session.transactionId;
     if (!transactionId) throw new Error('Batch transaction was not initialized');
     for (const operation of parsed.operations) {
-      results.push(await executeBatchOperation(context, transactionId, operation));
+      results.push(
+        await executeBatchOperation(context, transactionId, parsed.projectId, operation),
+      );
     }
     return successfulBatchResponse(session, parsed.operations.length, results);
   } catch (error) {
@@ -675,13 +783,13 @@ export function registerSchematicBatchTools(
     name: 'easyeda_schematic_batch_write',
     title: 'Atomic schematic batch write',
     description:
-      'Apply up to 200 validated schematic create, modify, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.',
+      'Apply up to 200 validated schematic create, modify, pin no-connect, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.',
     profile: 'core',
     evidence: ['runtime-probe', 'inferred'],
     risk: 'high',
     confirmWrite: true,
     group: 'schematic',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     inputSchema: batchInputSchema,
     outputSchema: batchOutputSchema,
