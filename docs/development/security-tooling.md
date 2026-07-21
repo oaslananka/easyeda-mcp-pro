@@ -1,60 +1,69 @@
 # Local Security Tooling
 
-This repository uses layered security checks so contributors receive fast local feedback without
-running every cloud scanner on every commit.
+This repository separates fast local feedback from networked and whole-repository security scans.
+Git hooks must remain quick and deterministic; cloud and CI scanners keep the broader context.
 
 ## Check placement
 
-| Stage        | Checks                                                                       |
-| ------------ | ---------------------------------------------------------------------------- |
-| Editor       | SonarQube for IDE in Connected Mode                                          |
-| Pre-commit   | file hygiene, private-key detection, and repository-owned Semgrep rules      |
-| Pre-push     | Snyk Open Source dependency scan at high severity or above                   |
-| Pull request | CI, CodeQL, Dependency Review, Semgrep, Snyk GitHub App, and SonarQube Cloud |
+| Stage        | Checks                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| Editor       | SonarQube for IDE in Connected Mode                                                            |
+| Pre-commit   | file hygiene, private-key detection, actionlint, and zizmor                                    |
+| Pull request | CI, CodeQL, Dependency Review, repository Semgrep rules, Trivy, Snyk App, and SonarQube Cloud  |
+| Release      | CycloneDX SBOM, npm provenance, GitHub artifact attestation, and SHA-pinned release automation |
 
-## Install the hooks
+GitHub secret scanning and push protection are enabled for the public repository. Do not replace
+push protection with a slower local full-history scanner unless a concrete gap requires it.
 
-Install `pre-commit` 4.6.0 or newer, then install both hook types:
+## Install the hook
+
+Install `pre-commit` 4.6.0 or newer and register only the commit hook:
 
 ```bash
 python3 -m pip install --user 'pre-commit>=4.6.0,<5'
-pre-commit install --hook-type pre-commit --hook-type pre-push
+pre-commit install --hook-type pre-commit
 ```
 
-Validate every commit-stage hook against the repository:
+Validate the complete local hook set with:
 
 ```bash
 pre-commit run --all-files
 ```
 
-The Semgrep hook is pinned to `1.170.0`, uses `.semgrep.yml`, and does not require a Semgrep token.
-It scans only files supplied by pre-commit. Generated output and intentional rule fixtures are
-excluded through `.semgrepignore`.
+The hook set performs whitespace, YAML/JSON/TOML, merge-conflict, large-file, private-key, and
+mixed-line-ending checks. `actionlint` validates GitHub Actions syntax and expressions. `zizmor`
+audits workflow security at medium severity and above. Both tools are version-pinned and managed by
+Renovate.
+
+Do not add full tests, Docker builds, CodeQL, Semgrep, Snyk, or Trivy to pre-commit. Those checks
+need repository, network, or CI context and would make ordinary commits unreliable.
 
 ## Semgrep commands
+
+Repository-owned Semgrep rules remain a blocking CI check for project-specific security policy:
 
 ```bash
 # Validate positive and negative rule fixtures
 pnpm security:semgrep:test
 
-# Scan all tracked production source with local rules
+# Scan the full repository with local rules
 pnpm security:semgrep
 ```
 
 The rules reject dynamic code execution, shell-backed child processes, and disabled TLS
-certificate verification. Add a focused `ruleid` and `ok` fixture whenever a rule changes.
+certificate verification. Add focused `ruleid` and `ok` fixtures whenever a rule changes.
 
 ## Snyk authentication and scans
 
-The pre-push hook executes the pinned Snyk CLI through pnpm. Authenticate once on each development
-machine:
+Snyk scans are explicit rather than Git-hook requirements. Authenticate when a maintainer needs the
+commercial AppSec view or wants to reproduce the GitHub App result locally:
 
 ```bash
 corepack pnpm dlx snyk@1.1306.1 auth
 # Equivalent when Snyk is installed globally: snyk auth
 ```
 
-Run scans explicitly with:
+Run the pinned scans with:
 
 ```bash
 pnpm security:snyk:oss
@@ -62,17 +71,20 @@ pnpm security:snyk:code
 pnpm security:snyk
 ```
 
-`security:snyk:oss` blocks on high or critical dependency findings and is the pre-push gate. A
-missing login or network failure also blocks the push rather than silently skipping security.
+Do not commit a Snyk token. A missing login or network outage must not block every local commit or
+push; the remote Snyk integration remains the organization-level source of truth when enabled.
 
-For an exceptional local recovery, pre-commit supports an explicit one-command bypass:
+## Trivy container and configuration scans
 
-```bash
-SKIP=snyk-oss git push
-```
+`.github/workflows/static-security-analysis.yml` uses the SHA-pinned Trivy Action with Trivy `v0.72.0` to scan:
 
-Use this only when the remote Snyk GitHub App and all required pull-request checks will still run.
-Do not configure a permanent skip, commit a Snyk token, or weaken the severity threshold.
+- Docker and repository configuration for high and critical misconfigurations,
+- the production Docker image for fixed high and critical vulnerabilities.
+
+Results are uploaded as separate SARIF categories to GitHub Code Scanning. High and critical
+configuration findings, plus fixed high and critical image vulnerabilities, block the security job
+after SARIF upload. Dependency Review remains the dependency-change gate; Trivy owns the distinct
+Docker configuration and built-image surface.
 
 ## SonarQube Cloud Connected Mode
 
@@ -80,12 +92,14 @@ Install **SonarQube for IDE** in the editor and bind this workspace to the Sonar
 `oaslananka_easyeda-mcp-pro` using **Connected Mode**. Connected Mode applies the same rules and
 new-code settings used by the pull-request Quality Gate while code is being edited.
 
-Do not add a local Sonar scanner to the Git hooks. SonarQube Cloud analysis depends on branch and
+Do not add a local Sonar scanner to Git hooks. SonarQube Cloud analysis depends on branch and
 pull-request context and remains authoritative in GitHub.
 
 ## CI ownership
 
-`.github/workflows/static-security-analysis.yml` installs the pinned Semgrep version in an isolated
-Python environment, validates the rules, runs the fixture suite, scans the full repository, and
-uploads SARIF for trusted events. Snyk and SonarQube Cloud remain owned by their existing GitHub
-integrations.
+- CodeQL provides the GitHub-native general SAST signal.
+- Semgrep blocks only on repository-owned custom rules.
+- Dependency Review blocks high-severity dependency changes.
+- Trivy reports Docker/configuration and image findings.
+- Snyk and SonarQube Cloud remain external integrations rather than duplicate local gates.
+- actionlint and zizmor run both locally and in CI so workflow regressions are caught before merge.

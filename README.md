@@ -74,7 +74,7 @@
 
 ## Trust and Supply Chain
 
-easyeda-mcp-pro keeps its public OpenSSF Best Practices evidence in [`docs/OPENSSF_BEST_PRACTICES.md`](docs/OPENSSF_BEST_PRACTICES.md) and its security assurance case in [`docs/SECURITY_ASSURANCE_CASE.md`](docs/SECURITY_ASSURANCE_CASE.md). The header badges link to workflow-backed signals only: CI, generated docs deployment, the project security policy, OpenSSF Best Practices self-certification, and the OpenSSF Scorecard. Release integrity evidence (npm provenance, signed-release status) is tracked in [`docs/RELEASE_VERIFICATION.md`](docs/RELEASE_VERIFICATION.md).
+easyeda-mcp-pro keeps its public OpenSSF Best Practices evidence in [`docs/OPENSSF_BEST_PRACTICES.md`](docs/OPENSSF_BEST_PRACTICES.md) and its security assurance case in [`docs/SECURITY_ASSURANCE_CASE.md`](docs/SECURITY_ASSURANCE_CASE.md). The header badges link to workflow-backed signals only: CI, generated docs deployment, the project security policy, OpenSSF Best Practices self-certification, and the OpenSSF Scorecard. Release integrity evidence (npm provenance, signed-release status) is tracked in [`docs/RELEASE_VERIFICATION.md`](docs/RELEASE_VERIFICATION.md). Coverage, Test Analytics, and extension bundle monitoring are documented in [`docs/CODECOV_ANALYTICS.md`](docs/CODECOV_ANALYTICS.md).
 
 **Current OpenSSF Best Practices status:** Passing (100%) — see [live badge](https://www.bestpractices.dev/projects/13406) and [Silver evidence map](docs/OPENSSF_BEST_PRACTICES.md#silver-evidence) for in-progress Silver criteria.
 

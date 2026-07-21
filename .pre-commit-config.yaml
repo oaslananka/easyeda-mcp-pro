@@ -1,7 +1,6 @@
 minimum_pre_commit_version: 4.6.0
 default_install_hook_types:
   - pre-commit
-  - pre-push
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -20,26 +19,16 @@ repos:
       - id: check-yaml
       - id: check-json
       - id: check-toml
+      - id: mixed-line-ending
+        args: [--fix=no]
 
-  - repo: https://github.com/semgrep/pre-commit
-    rev: v1.170.0
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
     hooks:
-      - id: semgrep
-        # Positive rule fixtures intentionally contain blocked patterns.
-        exclude: ^tests/semgrep/
-        args:
-          - --config=.semgrep.yml
-          - --error
-          - --metrics=off
-        stages: [pre-commit]
+      - id: actionlint
 
-  - repo: local
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.22.0
     hooks:
-      - id: snyk-oss
-        name: Snyk Open Source high-severity scan
-        entry: corepack pnpm security:snyk:oss
-        language: system
-        pass_filenames: false
-        require_serial: true
-        always_run: true
-        stages: [pre-push]
+      - id: zizmor
+        args: [--min-severity=medium]

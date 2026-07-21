@@ -1,0 +1,63 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true
+        flags:
+          - server
+          - extension
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true
+        flags:
+          - server
+          - extension
+
+comment:
+  layout: 'reach,diff,flags,files,components'
+  behavior: default
+  require_changes: true
+  require_bundle_changes: bundle_increase
+  bundle_change_threshold: '1Kb'
+
+flags:
+  server:
+    paths:
+      - src/
+    carryforward: false
+  extension:
+    paths:
+      - easyeda-bridge-extension/src/
+    carryforward: false
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+        informational: true
+      - type: patch
+        target: auto
+        threshold: 1%
+        informational: true
+  individual_components:
+    - component_id: server
+      name: MCP Server
+      paths:
+        - src/**
+    - component_id: bridge-extension
+      name: EasyEDA Bridge Extension
+      paths:
+        - easyeda-bridge-extension/src/**
+
+bundle_analysis:
+  warning_threshold: '5%'
+  status: informational

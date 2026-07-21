@@ -2,17 +2,18 @@
 
 ## Goal
 
-Add trustworthy coverage analytics and test analytics to the existing GitHub Actions quality job, while adding a dependency-free size regression gate for the EasyEDA extension artifacts.
+Add trustworthy coverage, test, and bundle analytics to the existing GitHub Actions quality job, while retaining a dependency-free blocking size regression gate for the EasyEDA extension artifacts.
 
 ## Scope
 
 The implementation covers three related quality signals:
 
-1. Upload server coverage from the existing Vitest V8 coverage run to Codecov.
-2. Upload JUnit results for both the server and EasyEDA extension test suites to Codecov Test Analytics.
-3. Enforce deterministic byte budgets for the packaged extension and its two browser bundles.
+1. Upload separate server and EasyEDA bridge-extension coverage reports to Codecov.
+2. Upload JUnit results for both test suites to Codecov Test Analytics.
+3. Publish informational bundle-size trends through Codecov's general bundle analyzer.
+4. Enforce deterministic byte budgets for the packaged extension and its two browser bundles.
 
-Codecov Bundle Analysis and `@codecov/vite-plugin` are intentionally excluded. The server is built with TypeScript and the extension is built directly with esbuild, so a Vite plugin would add an unrelated runtime dependency and duplicate a simpler artifact-size policy.
+`@codecov/vite-plugin` remains excluded because the extension does not use Vite. Codecov's general `@codecov/bundle-analyzer` CLI is appropriate for the custom esbuild output and complements the repository-owned byte gate rather than replacing it.
 
 ## CI Architecture
 
@@ -25,6 +26,7 @@ The server test run produces:
 
 The extension test run produces:
 
+- `easyeda-bridge-extension/coverage/lcov.info`
 - `reports/extension.junit.xml`
 
 Both uploads use `codecov/codecov-action` v6.0.1 pinned to commit `cddd853df119a48c5be31a973f8cd97e12e35e16`, with Codecov CLI `v11.3.1` pinned explicitly. Authentication uses the existing `CODECOV_TOKEN` repository secret. Uploads are skipped for fork pull requests because GitHub does not expose repository secrets to fork workflows.
@@ -33,10 +35,10 @@ Coverage and test-result uploads run with `if: !cancelled()` and explicit report
 
 ## Coverage Policy
 
-`vitest.config.ts` will guarantee an LCOV report in addition to text, JSON, and HTML output. `codecov.yml` will start with informational project and patch statuses:
+The server and extension Vitest configurations guarantee separate LCOV reports. `codecov.yml` defines `server` and `extension` flags plus matching components, and starts with informational project and patch statuses:
 
 - Project target: automatic baseline, 1% tolerance.
-- Patch target: 80%, no tolerance.
+- Patch target: automatic baseline, 1% tolerance.
 - PR comments appear only when coverage changes.
 
 The repository's existing local coverage thresholds remain authoritative and blocking: 80% lines, functions, and statements; 75% branches. Codecov statuses begin informational so the first uploads can establish a stable baseline before a separate decision makes them required branch checks.
@@ -44,6 +46,12 @@ The repository's existing local coverage thresholds remain authoritative and blo
 ## Test Analytics Policy
 
 The server and extension suites are uploaded separately with the flags `server-tests` and `extension-tests`. This preserves independent timing and flakiness histories in Codecov. Vitest's default reporter remains enabled so GitHub logs stay readable while JUnit XML is written to disk.
+
+## Bundle Analysis Policy
+
+The pinned `@codecov/bundle-analyzer` CLI scans `easyeda-bridge-extension/dist` after the production extension build. It uploads raw and gzip-size data for JavaScript assets under the stable bundle name `easyeda-bridge-extension`; source maps and JSON metadata are excluded. Bundle status and PR-comment behavior remain informational, with a 5% warning threshold and comments only for bundle increases of at least 1 KB.
+
+This remote trend signal is not a release gate by itself. The deterministic repository-owned budgets below remain blocking and work without Codecov availability.
 
 ## Extension Size Policy
 
@@ -61,19 +69,22 @@ These limits provide approximately 25% headroom while still detecting accidental
 - The Codecov CLI version is pinned.
 - The Codecov token is referenced only through GitHub Secrets and is never printed.
 - Fork pull requests do not receive the token and therefore skip uploads.
-- No new runtime or development dependency is added for analytics or bundle sizing.
+- `@codecov/bundle-analyzer` is an exact-pinned MIT-licensed development dependency and is never shipped in the runtime package.
+- Codecov YAML is validated through the official validator in every quality run.
 
 ## Testing
 
-Repository policy tests will assert the Codecov action pin, CLI pin, report paths, token handling, informational policy, CI scripts, and absence of the Vite bundle plugin.
+Repository policy tests assert the Codecov action pin, CLI pin, report paths, token handling, flags/components, bundle policy, validation command, and absence of the unrelated Vite plugin.
 
 A behavioral test will execute the extension-size checker against temporary files and verify successful, over-budget, and missing-file cases. The complete repository verification command remains `pnpm verify`; workflow syntax is additionally checked with actionlint, and the pull request must pass all existing bot and agent checks.
 
 ## Success Criteria
 
 - Local full verification passes.
-- Server coverage generates `coverage/lcov.info`.
+- Server and extension coverage generate separate LCOV files.
 - Server and extension JUnit files parse as XML and contain test cases.
+- Codecov's validator accepts `codecov.yml`.
+- The general bundle analyzer generates a report for the two extension JavaScript assets.
 - Extension artifacts pass the configured size budgets.
-- Pull-request CI uploads coverage and both test reports successfully.
+- Pull-request CI uploads both coverage reports, both test reports, and bundle metadata successfully.
 - Codecov, SonarQube, Snyk, Semgrep, CodeQL, DeepScan, Socket, Dependency Review, and platform matrix checks report no blocking findings.

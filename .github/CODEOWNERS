@@ -1,10 +1,10 @@
 # CODEOWNERS for easyeda-mcp-pro
-# Designates code owners for key paths to enforce PR approvals.
+# Documents ownership and routes review requests for key paths.
 
 # Default owner for everything in the repository
 * @oaslananka
 
-# Configuration and Security files require explicit review
+# Configuration and security files have an explicit maintainer owner
 /.github/ @oaslananka
 /package.json @oaslananka
 /pnpm-lock.yaml @oaslananka

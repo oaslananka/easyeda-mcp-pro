@@ -25,3 +25,7 @@ easyeda-bridge-extension.checksums.json
 # Local security-tool virtual environments
 .venv-pre-commit/
 .venv-semgrep/
+reports/
+
+# Generated Codecov reports
+easyeda-bridge-extension/coverage/

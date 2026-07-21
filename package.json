@@ -84,7 +84,12 @@
     "security:semgrep:test": "node scripts/test-semgrep-rules.mjs",
     "security:snyk:oss": "corepack pnpm dlx snyk@1.1306.1 test --all-projects --severity-threshold=high",
     "security:snyk:code": "corepack pnpm dlx snyk@1.1306.1 code test --severity-threshold=high",
-    "security:snyk": "pnpm security:snyk:oss && pnpm security:snyk:code"
+    "security:snyk": "pnpm security:snyk:oss && pnpm security:snyk:code",
+    "test:coverage:ci": "node -e \"require('node:fs').mkdirSync('reports',{recursive:true})\" && vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=reports/server.junit.xml",
+    "test:extension:ci": "node -e \"require('node:fs').mkdirSync('reports',{recursive:true})\" && pnpm --filter @easyeda-mcp-pro/bridge-extension exec vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=../reports/extension.junit.xml",
+    "check:extension-size": "node scripts/check-extension-size-budget.mjs",
+    "validate:codecov": "curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors --data-binary @codecov.yml https://codecov.io/validate",
+    "analyze:extension-bundle:ci": "bundle-analyzer easyeda-bridge-extension/dist --bundle-name=easyeda-bridge-extension --upload-token=$CODECOV_TOKEN --ignore-patterns='*.map' --ignore-patterns='*.json'"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -96,6 +101,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@codecov/bundle-analyzer": "2.0.1",
     "@eslint/js": "^10.0.1",
     "@jlceda/pro-api-types": "^0.3.5",
     "@types/express": "^5.0.6",
