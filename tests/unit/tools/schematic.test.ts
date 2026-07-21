@@ -1402,6 +1402,43 @@ describe('Schematic Tools', () => {
       expect(result?.pins[0]).toMatchObject({ pinNumber: '1', pinType: 'IN' });
     });
 
+    it('exposes native pin primitive ID and no-connect state', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockResolvedValue({
+        result: [
+          {
+            primitiveId: 'pin-1',
+            pinNumber: '1',
+            pinName: 'NC',
+            x: 10,
+            y: 20,
+            rotation: 0,
+            pinLength: 5,
+            noConnected: true,
+          },
+          {
+            state: {
+              PrimitiveId: 'pin-2',
+              PinNumber: '2',
+              PinName: 'IO',
+              X: 30,
+              Y: 40,
+              Rotation: 90,
+              PinLength: 6,
+              NoConnected: false,
+            },
+          },
+        ],
+      });
+
+      const result = await tool?.handler(context, { primitiveId: 'comp-1' });
+
+      expect(result?.pins).toEqual([
+        expect.objectContaining({ primitiveId: 'pin-1', pinNumber: '1', noConnected: true }),
+        expect.objectContaining({ primitiveId: 'pin-2', pinNumber: '2', noConnected: false }),
+      ]);
+    });
+
     it('falls back to the nested state object when direct fields are absent', async () => {
       const tool = registry.get('easyeda_schematic_component_pins');
       bridgeCall.mockResolvedValue({

@@ -1,6 +1,8 @@
 import { type ToolContext } from './types.js';
 
 export interface BridgeSchematicPin {
+  primitiveId?: string;
+  noConnected?: boolean;
   pinNumber: string;
   pinName: string;
   x: number;
@@ -44,7 +46,17 @@ export async function fetchComponentPins(
   return pins.map((p: Record<string, unknown>) => {
     const state = p.state as Record<string, unknown> | undefined;
     const pinType = p.pinType ?? state?.pinType ?? state?.PinType;
+    const primitiveId = asString(p.primitiveId) ?? asString(state?.PrimitiveId);
+    const noConnectedRaw = p.noConnected ?? state?.noConnected ?? state?.NoConnected;
+    const noConnected =
+      typeof noConnectedRaw === 'boolean'
+        ? noConnectedRaw
+        : noConnectedRaw === undefined
+          ? undefined
+          : String(noConnectedRaw).toLowerCase() === 'true';
     return {
+      primitiveId,
+      noConnected,
       pinNumber: asString(p.pinNumber) ?? asString(state?.PinNumber) ?? '',
       pinName: asString(p.pinName) ?? asString(state?.PinName) ?? '',
       x: p.x !== undefined ? Number(p.x) : Number(state?.X ?? 0),

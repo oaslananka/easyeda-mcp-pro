@@ -519,7 +519,7 @@ function registerSchematicReadTools(
     risk: 'low',
     confirmWrite: false,
     group: 'schematic',
-    version: '1.1.0',
+    version: '1.2.0',
     annotations: {
       readOnlyHint: true,
       idempotentHint: true,
@@ -1056,7 +1056,7 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_component_pins',
     title: 'Get component pins',
     description:
-      'Get exact pin numbers, names, coordinates, and native pinType for a schematic component ' +
+      'Get exact pin primitive IDs, numbers, names, coordinates, native no-connect state, and pinType for a schematic component ' +
       "by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably " +
       'authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.',
     profile: 'core',
@@ -1076,6 +1076,8 @@ function registerSchematicReadTools(
       primitiveId: z.string(),
       pins: z.array(
         z.object({
+          primitiveId: z.string().optional(),
+          noConnected: z.boolean().optional(),
           pinNumber: z.string(),
           pinName: z.string(),
           x: z.number(),
