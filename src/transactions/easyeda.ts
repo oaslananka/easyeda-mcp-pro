@@ -144,6 +144,64 @@ export function extractCreatedPrimitiveId(result: unknown): string | undefined {
   return direct ?? firstCreatedPrimitiveId(CREATED_ID_NESTED_KEYS.map((key) => record[key]));
 }
 
+interface PinNoConnectSnapshot {
+  schemaVersion: 'schematic-pin-no-connect-snapshot/v1';
+  projectId: string;
+  componentPrimitiveId: string;
+  pinPrimitiveId: string;
+  pinNumber: string;
+  noConnected: boolean;
+}
+
+function asPinNoConnectSnapshot(value: unknown): PinNoConnectSnapshot | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const snapshot = value as Partial<PinNoConnectSnapshot>;
+  if (
+    snapshot.schemaVersion !== 'schematic-pin-no-connect-snapshot/v1' ||
+    typeof snapshot.projectId !== 'string' ||
+    typeof snapshot.componentPrimitiveId !== 'string' ||
+    typeof snapshot.pinPrimitiveId !== 'string' ||
+    typeof snapshot.pinNumber !== 'string' ||
+    typeof snapshot.noConnected !== 'boolean'
+  ) {
+    return undefined;
+  }
+  return snapshot as PinNoConnectSnapshot;
+}
+
+async function readPinNoConnectSnapshot(
+  bridge: TransactionBridgeCaller,
+  expected: PinNoConnectSnapshot,
+): Promise<PinNoConnectSnapshot> {
+  const state = await bridge.call<
+    { projectId: string; primitiveId: string; pinNumber: string },
+    {
+      componentPrimitiveId?: unknown;
+      pinPrimitiveId?: unknown;
+      pinNumber?: unknown;
+      noConnected?: unknown;
+    }
+  >('schematic.getPinNoConnect', {
+    projectId: expected.projectId,
+    primitiveId: expected.componentPrimitiveId,
+    pinNumber: expected.pinNumber,
+  });
+  if (typeof state?.pinPrimitiveId !== 'string' || typeof state?.noConnected !== 'boolean') {
+    throw new TypeError('Pin no-connect rollback verification returned an invalid state');
+  }
+  return {
+    schemaVersion: 'schematic-pin-no-connect-snapshot/v1',
+    projectId: expected.projectId,
+    componentPrimitiveId:
+      typeof state.componentPrimitiveId === 'string'
+        ? state.componentPrimitiveId
+        : expected.componentPrimitiveId,
+    pinPrimitiveId: state.pinPrimitiveId,
+    pinNumber: typeof state.pinNumber === 'string' ? state.pinNumber : expected.pinNumber,
+    noConnected: state.noConnected,
+  };
+}
+
 function requireBeforeSnapshot(operation: Readonly<TransactionOperation>): unknown {
   if (operation.beforeSnapshot === undefined) {
     throw new Error(`Operation ${operation.id} has no rollback snapshot`);
@@ -162,11 +220,21 @@ export async function rollbackEasyedaTransaction(
         case 'create':
           await deletePrimitiveExact(bridge, operation.target.id);
           return;
-        case 'modify':
-          await bridge.call('schematic.restorePrimitiveSnapshot', {
-            snapshot: requireBeforeSnapshot(operation),
-          });
+        case 'modify': {
+          const snapshot = requireBeforeSnapshot(operation);
+          const pinSnapshot = asPinNoConnectSnapshot(snapshot);
+          if (pinSnapshot) {
+            await bridge.call('schematic.setPinNoConnect', {
+              projectId: pinSnapshot.projectId,
+              primitiveId: pinSnapshot.componentPrimitiveId,
+              pinNumber: pinSnapshot.pinNumber,
+              noConnected: pinSnapshot.noConnected,
+            });
+            return;
+          }
+          await bridge.call('schematic.restorePrimitiveSnapshot', { snapshot });
           return;
+        }
         case 'delete': {
           const recreated = await recreatePrimitiveSnapshot(
             bridge,
@@ -180,8 +248,11 @@ export async function rollbackEasyedaTransaction(
       if (operation.kind === 'create') {
         return !(await primitiveExists(bridge, operation.target.id));
       }
-      const targetId = restoreResult.restoredTargetId ?? operation.target.id;
-      const snapshot = await getPrimitiveSnapshot(bridge, targetId);
+      const beforeSnapshot = requireBeforeSnapshot(operation);
+      const pinSnapshot = asPinNoConnectSnapshot(beforeSnapshot);
+      const snapshot = pinSnapshot
+        ? await readPinNoConnectSnapshot(bridge, pinSnapshot)
+        : await getPrimitiveSnapshot(bridge, restoreResult.restoredTargetId ?? operation.target.id);
       if (!operation.beforeHash) return false;
       return (
         stableHash(snapshotForHash(snapshot, operation.snapshotHashMode)) === operation.beforeHash

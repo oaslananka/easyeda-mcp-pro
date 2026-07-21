@@ -87,6 +87,7 @@ const METHOD_LIST: readonly string[] = [
   'schematic.createNetPort',
   'schematic.deletePrimitive',
   'schematic.getNetDetail',
+  'schematic.getPinNoConnect',
   'schematic.getPrimitiveSnapshot',
   'schematic.getSheetInfo',
   'schematic.listComponents',
@@ -99,6 +100,7 @@ const METHOD_LIST: readonly string[] = [
   'schematic.recreatePrimitiveSnapshot',
   'schematic.restorePrimitiveSnapshot',
   'schematic.searchDevice',
+  'schematic.setPinNoConnect',
   'schematic.setTitleBlock',
   'schematic.syncToPcb',
   'schematic.validateNetlist',
@@ -159,6 +161,15 @@ function readFirstPath<T>(paths: string[]): T | undefined {
   return undefined;
 }
 
+function nativeScalarString(value: unknown): string {
+  return typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+    ? String(value)
+    : '';
+}
+
 /**
  * Best-effort extraction of a primitive id from a value returned by an EasyEDA
  * Pro create* API. The runtime may return a plain object with primitiveId/uuid,
@@ -167,13 +178,13 @@ function readFirstPath<T>(paths: string[]): T | undefined {
 function extractPrimitiveId(result: unknown): string {
   if (!result || typeof result !== 'object') return '';
   const obj = result as Record<string, unknown>;
-  const direct = obj.primitiveId ?? obj.uuid;
-  if (direct) return String(direct);
+  const direct = nativeScalarString(obj.primitiveId ?? obj.uuid);
+  if (direct) return direct;
   try {
     const getter = obj.getState_PrimitiveId;
     if (typeof getter === 'function') {
-      const id = (getter as () => unknown).call(obj);
-      if (id) return String(id);
+      const id = nativeScalarString((getter as () => unknown).call(obj));
+      if (id) return id;
     }
   } catch {
     /* ignore */
@@ -182,7 +193,8 @@ function extractPrimitiveId(result: unknown): string {
     const getState = obj.getState;
     if (typeof getState === 'function') {
       const state = (getState as () => unknown).call(obj) as Record<string, unknown> | undefined;
-      if (state?.PrimitiveId) return String(state.PrimitiveId);
+      const id = nativeScalarString(state?.PrimitiveId);
+      if (id) return id;
     }
   } catch {
     /* ignore */
@@ -3048,10 +3060,149 @@ function readPinPoint(pin: unknown): Partial<PinPoint> {
 }
 
 function readPinNumber(pin: unknown): string {
-  const state = readMember(pin, 'state');
-  const stateRecord = isRecord(state) ? state : undefined;
-  const direct = readMember(pin, 'pinNumber') ?? stateRecord?.PinNumber;
-  return direct !== undefined && direct !== null ? String(direct) : '';
+  const value = safeGetState(pin, 'PinNumber');
+  return nativeScalarString(value);
+}
+
+type PinNoConnectState = {
+  componentPrimitiveId: string;
+  pinPrimitiveId: string;
+  pinNumber: string;
+  pinName: string;
+  noConnected: boolean;
+  pin: unknown;
+};
+
+function readPinName(pin: unknown): string {
+  const value = safeGetState(pin, 'PinName');
+  return nativeScalarString(value);
+}
+
+function readPinNoConnected(pin: unknown): boolean {
+  const value = safeGetState(pin, 'NoConnected');
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  if (typeof value === 'number') return value !== 0;
+  return false;
+}
+
+async function resolvePinNoConnectState(
+  componentPrimitiveId: string,
+  pinNumber: string,
+): Promise<PinNoConnectState> {
+  const pins = await callFirst(
+    [
+      'SCH_PrimitiveComponent.getAllPinsByPrimitiveId',
+      'sch_PrimitiveComponent.getAllPinsByPrimitiveId',
+    ],
+    componentPrimitiveId,
+  );
+  const matches = (Array.isArray(pins) ? pins : []).filter(
+    (pin) => readPinNumber(pin) === String(pinNumber),
+  );
+  if (matches.length === 0) {
+    throw newBridgeError(
+      'PIN_NOT_FOUND',
+      `Pin "${pinNumber}" was not found on component "${componentPrimitiveId}"`,
+      'Verify the component primitive ID and exact pin number with easyeda_schematic_component_pins.',
+      { componentPrimitiveId, pinNumber },
+    );
+  }
+  if (matches.length > 1) {
+    throw newBridgeError(
+      'PIN_AMBIGUOUS',
+      `Pin number "${pinNumber}" matched ${matches.length} pins on component "${componentPrimitiveId}"`,
+      'Use a component whose pin numbers are unique before applying a no-connect marker.',
+      { componentPrimitiveId, pinNumber, matchCount: matches.length },
+    );
+  }
+  const pin = matches[0];
+  const pinPrimitiveId =
+    extractPrimitiveId(pin) || nativeScalarString(safeGetState(pin, 'PrimitiveId'));
+  if (!pinPrimitiveId) {
+    throw newBridgeError(
+      'PIN_PRIMITIVE_ID_UNAVAILABLE',
+      `Pin "${pinNumber}" on component "${componentPrimitiveId}" has no addressable primitive ID`,
+      'Update EasyEDA Pro or the bridge extension before retrying this write.',
+      { componentPrimitiveId, pinNumber },
+    );
+  }
+  return {
+    componentPrimitiveId,
+    pinPrimitiveId,
+    pinNumber: readPinNumber(pin),
+    pinName: readPinName(pin),
+    noConnected: readPinNoConnected(pin),
+    pin,
+  };
+}
+
+function publicPinNoConnectState(state: PinNoConnectState) {
+  return {
+    componentPrimitiveId: state.componentPrimitiveId,
+    pinPrimitiveId: state.pinPrimitiveId,
+    pinNumber: state.pinNumber,
+    pinName: state.pinName,
+    noConnected: state.noConnected,
+  };
+}
+
+async function setPinNoConnectState(
+  componentPrimitiveId: string,
+  pinNumber: string,
+  noConnected: boolean,
+) {
+  const before = await resolvePinNoConnectState(componentPrimitiveId, pinNumber);
+  if (before.noConnected === noConnected) {
+    return {
+      ...publicPinNoConnectState(before),
+      previousNoConnected: before.noConnected,
+      changed: false,
+      verified: true,
+    };
+  }
+
+  const pinRecord = isRecord(before.pin) ? before.pin : undefined;
+  const setter = pinRecord?.setState_NoConnected;
+  const done = pinRecord?.done;
+  if (typeof setter === 'function' && typeof done === 'function') {
+    const updated = setter.call(before.pin, noConnected);
+    const doneTarget =
+      isRecord(updated) && typeof updated.done === 'function' ? updated : before.pin;
+    await (doneTarget as { done: () => unknown }).done();
+  } else {
+    const pinClass = readFirstPath<any>(['SCH_PrimitivePin', 'sch_PrimitivePin']);
+    if (!pinClass || typeof pinClass.modify !== 'function') {
+      throw newBridgeError(
+        'PIN_NO_CONNECT_UNSUPPORTED',
+        'The connected EasyEDA runtime does not expose a supported component-pin no-connect write path',
+        'Update EasyEDA Pro or use a bridge build that supports SCH_PrimitivePin.modify.',
+        { componentPrimitiveId, pinNumber },
+      );
+    }
+    await pinClass.modify(before.pin, { noConnected });
+  }
+
+  const after = await resolvePinNoConnectState(componentPrimitiveId, pinNumber);
+  if (after.noConnected !== noConnected) {
+    throw newBridgeError(
+      'PIN_NO_CONNECT_VERIFY_FAILED',
+      `Pin "${pinNumber}" no-connect readback did not match the requested state`,
+      'Do not retry blindly; inspect the pin state and EasyEDA ERC result first.',
+      {
+        componentPrimitiveId,
+        pinNumber,
+        requested: noConnected,
+        observed: after.noConnected,
+      },
+    );
+  }
+  return {
+    ...publicPinNoConnectState(after),
+    previousNoConnected: before.noConnected,
+    changed: true,
+    verified: true,
+  };
 }
 
 /**
@@ -4078,6 +4229,16 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         property,
       );
     }
+    case 'schematic.getPinNoConnect':
+      return publicPinNoConnectState(
+        await resolvePinNoConnectState(params.primitiveId as string, params.pinNumber as string),
+      );
+    case 'schematic.setPinNoConnect':
+      return setPinNoConnectState(
+        params.primitiveId as string,
+        params.pinNumber as string,
+        params.noConnected !== false,
+      );
     case 'schematic.createNetFlag': {
       const nfX = params.x as number;
       const nfY = params.y as number;

@@ -1,6 +1,8 @@
 import { type ToolContext } from './types.js';
 
 export interface BridgeSchematicPin {
+  primitiveId?: string;
+  noConnected?: boolean;
   pinNumber: string;
   pinName: string;
   x: number;
@@ -19,6 +21,20 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
     ? String(value)
     : undefined;
+}
+
+function asOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  return undefined;
 }
 
 /**
@@ -44,7 +60,12 @@ export async function fetchComponentPins(
   return pins.map((p: Record<string, unknown>) => {
     const state = p.state as Record<string, unknown> | undefined;
     const pinType = p.pinType ?? state?.pinType ?? state?.PinType;
+    const primitiveId = asString(p.primitiveId) ?? asString(state?.PrimitiveId);
+    const noConnectedRaw = p.noConnected ?? state?.noConnected ?? state?.NoConnected;
+    const noConnected = asOptionalBoolean(noConnectedRaw);
     return {
+      primitiveId,
+      noConnected,
       pinNumber: asString(p.pinNumber) ?? asString(state?.PinNumber) ?? '',
       pinName: asString(p.pinName) ?? asString(state?.PinName) ?? '',
       x: p.x !== undefined ? Number(p.x) : Number(state?.X ?? 0),

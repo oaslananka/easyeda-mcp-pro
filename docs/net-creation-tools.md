@@ -6,10 +6,11 @@ The original `easyeda_schematic_add_wire` tool creates **graphical wires** on th
 
 ## Solution
 
-Six new MCP tools bridge the gap between visual wires and real electrical connectivity:
+Seven MCP tools cover real electrical connectivity, intentional no-connect state, validation, and persistence:
 
 | Tool                                    | Purpose                                             | confirmWrite |
 | --------------------------------------- | --------------------------------------------------- | ------------ |
+| `easyeda_schematic_set_pin_no_connect`  | Set or clear a native intentional no-connect marker | `true`       |
 | `easyeda_schematic_create_net_flag`     | Place a named net flag (label) on the canvas        | `true`       |
 | `easyeda_schematic_create_net_port`     | Place a hierarchical net port (off-sheet connector) | `true`       |
 | `easyeda_schematic_connect_pin_to_net`  | Connect a single component pin to a named net       | `true`       |
@@ -38,6 +39,7 @@ Six new MCP tools bridge the gap between visual wires and real electrical connec
 └──────────────────────────────────────────────────┘
 ```
 
+- **Native no-connect state** (`easyeda_schematic_set_pin_no_connect`): Toggles the target component pin's EasyEDA `noConnected` state. It does not create a wire, net, label, net flag, or short-circuit flag.
 - **Graphical wires** (`easyeda_schematic_add_wire`): Visual segments with optional `netName` hint. May or may not create SCH_Net entries — depends on connected net flags.
 - **Net flags** (`easyeda_schematic_create_net_flag`): Named labels placed on wires. When a wire segment has a net flag, the bridge registers it in `SCH_Net.getAllNetsName`.
 - **Net ports** (`easyeda_schematic_create_net_port`): Hierarchical connectors that propagate a net name across sheets (off-sheet connectors).
@@ -46,6 +48,43 @@ Six new MCP tools bridge the gap between visual wires and real electrical connec
 - **Project save** (`easyeda_project_save`): Explicit persistence — net changes are lost if not saved.
 
 ## Tool Details
+
+### set_pin_no_connect
+
+Sets or clears EasyEDA Pro's native **No Connect** state on one exact component pin. Use this only when a pin is intentionally left electrically unconnected. The bridge resolves the component pin by `primitiveId` plus exact `pinNumber`, rejects missing or duplicate matches, changes only the pin's `noConnected` property, and verifies native readback.
+
+**Set the marker:**
+
+```json
+{
+  "projectId": "proj-abc",
+  "primitiveId": "component-001",
+  "pinNumber": "7",
+  "noConnected": true,
+  "confirmWrite": true
+}
+```
+
+**Clear the marker:**
+
+```json
+{
+  "projectId": "proj-abc",
+  "primitiveId": "component-001",
+  "pinNumber": "7",
+  "noConnected": false,
+  "confirmWrite": true
+}
+```
+
+This is not an alias for `create_net_flag`. `SCH_PrimitiveComponent.createShortCircuitFlag()` creates a different short-circuit symbol and is not used by this tool.
+
+Official API references:
+
+- [Place No Connect](https://prodocs.easyeda.com/en/schematic/place-no-connect/)
+- [`SCH_PrimitiveComponent.getAllPinsByPrimitiveId`](https://prodocs.easyeda.com/en/api/reference/pro-api.sch_primitivecomponent.getallpinsbyprimitiveid.html)
+- [`SCH_PrimitivePin.modify`](https://prodocs.easyeda.com/en/api/reference/pro-api.sch_primitivepin.modify.html)
+- [`ISCH_PrimitiveComponentPin.getState_NoConnected`](https://prodocs.easyeda.com/en/api/reference/pro-api.isch_primitivecomponentpin.getstate_noconnected.html)
 
 ### create_net_flag
 
@@ -168,7 +207,7 @@ Explicitly saves the current project to persist all changes.
 
 ## Safety
 
-All mutation tools (`create_net_flag`, `create_net_port`, `connect_pin_to_net`, `connect_pins_by_net`, `project_save`) require `confirmWrite: true`. The MCP runtime rejects calls that omit this field.
+All mutation tools (`set_pin_no_connect`, `create_net_flag`, `create_net_port`, `connect_pin_to_net`, `connect_pins_by_net`, `project_save`) require `confirmWrite: true`. The MCP runtime rejects calls that omit this field.
 
 `validate_netlist` is read-only (`confirmWrite: false`, `readOnlyHint: true`, `idempotentHint: true`).
 
@@ -178,6 +217,7 @@ Each tool maps to a bridge method registered in the `EasyedaApiMethodSchema`:
 
 | MCP Tool                                | Bridge Method                |
 | --------------------------------------- | ---------------------------- |
+| `easyeda_schematic_set_pin_no_connect`  | `schematic.setPinNoConnect`  |
 | `easyeda_schematic_create_net_flag`     | `schematic.createNetFlag`    |
 | `easyeda_schematic_create_net_port`     | `schematic.createNetPort`    |
 | `easyeda_schematic_connect_pin_to_net`  | `schematic.connectPinToNet`  |
@@ -197,10 +237,11 @@ These methods appear in:
 
 Tests live in `tests/unit/tools/schematic.test.ts` and cover:
 
+- Native pin set/clear with verified readback
 - Successful bridge call → expected output mapping
 - Bridge error → graceful error output
 - `confirmWrite` flag presence (`confirmWrite: true` for mutation, `false` for validate)
 
 ### Live/Manual Validation
 
-Live validation against EasyEDA Pro is **blocked** — see `docs/manual-netlist-validation.md` for exact manual steps.
+The automated live script exercises set/readback/clear on a disposable test component. Final acceptance still requires macOS EasyEDA Pro validation of ERC behavior and save/reopen persistence before the draft PR can be marked ready.

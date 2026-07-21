@@ -72,6 +72,7 @@ Use only after explicit permission and bridge capability confirmation.
 - `easyeda_schematic_add_circle` — decorative circle marker; cosmetic only
 - `easyeda_schematic_add_polygon` — closed custom shape from 3+ vertices (callouts, block-diagram elements); cosmetic only
 - `easyeda_schematic_set_title_block` — edit title block text fields (Company, Version, Drawn, Reviewed, Page Size) only. **Do not attempt to widen this tool to other title-block fields** (Symbol, Border, Device, Name, Description, Width/Height, Region\*, "@"-prefixed, ID): a past attempt to round-trip the full snapshot corrupted a real project's title block (EasyEDA Pro's own Log panel flagged "abnormal data" on the Symbol/Device property) — those fields are read-only through this native API, either silently ignored or throwing a native TypeError, and are only fixable via the EasyEDA Pro UI
+- `easyeda_schematic_set_pin_no_connect` — set or clear EasyEDA's native intentional no-connect state on one exact component pin; this does not create a net or flag primitive
 - `easyeda_schematic_create_net_flag`
 - `easyeda_schematic_create_net_port`
 - `easyeda_schematic_connect_pin_to_net`
@@ -80,6 +81,8 @@ Use only after explicit permission and bridge capability confirmation.
 - `easyeda_schematic_delete_primitive`
 - `easyeda_schematic_sync_to_pcb`
 - `easyeda_project_save`
+
+**Native No Connect is pin state, not a net primitive.** Use `easyeda_schematic_set_pin_no_connect` only for pins intentionally left open. Resolve the exact pin first with `easyeda_schematic_component_pins`; set `noConnected: true`, verify `no_connected: true`, and use `false` to clear it. Never emulate this with a drawn X, `create_net_flag`, or `createShortCircuitFlag`, and never apply it to a pin that already belongs to a net.
 
 **Connectivity model:** wires/stubs sharing the same `netName` merge into one net regardless of physical location or distance — prefer `connect_pin_to_net`/named stubs over drawing a continuous route when the goal is just correct connectivity, not a hand-routed look. The collision guard (`NET_COLLISION`) only catches a foreign net at an _exact_ touched coordinate (a wire/pin/flag endpoint) — it does not catch a wire whose interior merely crosses a foreign point. EasyEDA also rejects diagonal (non-axis-aligned) wire segments outright; keep routing to horizontal/vertical only.
 
