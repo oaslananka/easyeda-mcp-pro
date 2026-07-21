@@ -20,6 +20,7 @@ jobs:
   semgrep:
     if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read
@@ -66,4 +67,107 @@ jobs:
 
       - name: Enforce Semgrep result
         if: always() && steps.semgrep-scan.outcome == 'failure'
+        run: exit 1
+
+  workflow-security:
+    if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      # actions/checkout v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Install pre-commit 4.6.0
+        run: |
+          python3 -m venv .venv-pre-commit
+          .venv-pre-commit/bin/python -m pip install --disable-pip-version-check pre-commit==4.6.0
+          echo "$GITHUB_WORKSPACE/.venv-pre-commit/bin" >> "$GITHUB_PATH"
+
+      - name: Check workflow syntax
+        run: pre-commit run actionlint --all-files
+
+      - name: Audit workflow security
+        run: pre-commit run zizmor --all-files
+
+  container-security:
+    if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      # actions/checkout v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Scan Docker and repository configuration
+        id: trivy-config
+        continue-on-error: true
+        # aquasecurity/trivy-action v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          version: 'v0.72.0'
+          format: 'sarif'
+          output: 'trivy-config.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          limit-severities-for-sarif: true
+
+      - name: Upload Trivy configuration findings
+        if: >-
+          always() && hashFiles('trivy-config.sarif') != '' &&
+          (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        # github/codeql-action/upload-sarif v4.36.2
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-configuration
+
+      - name: Build production image
+        run: docker build -t easyeda-mcp-pro:security .
+
+      - name: Scan production image
+        id: trivy-image
+        continue-on-error: true
+        # aquasecurity/trivy-action v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: 'easyeda-mcp-pro:security'
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          severity: 'HIGH,CRITICAL'
+          scanners: 'vuln'
+          ignore-unfixed: true
+          exit-code: '1'
+          limit-severities-for-sarif: true
+          skip-setup-trivy: true
+
+      - name: Upload Trivy image findings
+        if: >-
+          always() && hashFiles('trivy-image.sarif') != '' &&
+          (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        # github/codeql-action/upload-sarif v4.36.2
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-production-image
+
+      - name: Enforce Trivy results
+        if: >-
+          always() &&
+          (steps.trivy-config.outcome == 'failure' ||
+          steps.trivy-image.outcome == 'failure')
         run: exit 1

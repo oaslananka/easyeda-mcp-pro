@@ -43,22 +43,30 @@ jobs:
 
       - name: Set Release Status
         id: status
+        env:
+          RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          MANUAL_TAG: ${{ github.event.inputs.tag_name }}
+          GENERATED_TAG: ${{ steps.release.outputs.tag_name }}
         run: |
-          if [ "${{ steps.release.outputs.release_created }}" = "true" ] || [ -n "${{ github.event.inputs.tag_name }}" ]; then
-            echo "RELEASE_RUN=true" >> "$GITHUB_ENV"
-            if [ -n "${{ github.event.inputs.tag_name }}" ]; then
-              echo "RELEASE_TAG=${{ github.event.inputs.tag_name }}" >> "$GITHUB_ENV"
-            else
-              echo "RELEASE_TAG=${{ steps.release.outputs.tag_name }}" >> "$GITHUB_ENV"
+          set -euo pipefail
+          if [[ "$RELEASE_CREATED" == "true" || -n "$MANUAL_TAG" ]]; then
+            RELEASE_TAG="${MANUAL_TAG:-$GENERATED_TAG}"
+            if [[ ! "$RELEASE_TAG" =~ ^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Invalid release tag format" >&2
+              exit 1
             fi
+            printf 'RELEASE_RUN=true\n' >> "$GITHUB_ENV"
+            printf 'RELEASE_TAG=%s\n' "$RELEASE_TAG" >> "$GITHUB_ENV"
           else
-            echo "RELEASE_RUN=false" >> "$GITHUB_ENV"
+            printf 'RELEASE_RUN=false\n' >> "$GITHUB_ENV"
           fi
 
       # actions/checkout v7.0.0
       - name: Checkout Code
         if: ${{ env.RELEASE_RUN == 'true' }}
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
 
       # pnpm/action-setup v4.0.0
       - name: Setup pnpm
@@ -71,9 +79,9 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24'
-          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
+          package-manager-cache: false
       - name: Install dependencies
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: pnpm install --frozen-lockfile
@@ -134,9 +142,11 @@ jobs:
 
       - name: Verify NPM Token
         if: ${{ env.RELEASE_RUN == 'true' }}
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "❌ Error: NPM_TOKEN secret is not defined or is empty. Please configure it in your repository secrets."
+          if [[ -z "$NPM_TOKEN" ]]; then
+            echo "Error: NPM_TOKEN secret is not configured." >&2
             exit 1
           fi
 
@@ -189,6 +199,8 @@ jobs:
     steps:
       # actions/checkout v7.0.0
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
@@ -199,8 +211,14 @@ jobs:
 
       - name: Clean version tag
         id: clean_version
+        env:
+          RAW_TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
-          RAW_TAG="${{ needs.release-please.outputs.tag_name }}"
+          set -euo pipefail
+          if [[ ! "$RAW_TAG" =~ ^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag format" >&2
+            exit 1
+          fi
           CLEAN_VER="${RAW_TAG##*v}"
           echo "version=${CLEAN_VER}" >> "$GITHUB_OUTPUT"
           if [[ "$CLEAN_VER" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then

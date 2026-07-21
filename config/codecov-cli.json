@@ -1,0 +1,7 @@
+{
+  "version": "11.3.1",
+  "asset": "codecovcli_linux",
+  "url": "https://github.com/codecov/codecov-cli/releases/download/v11.3.1/codecovcli_linux",
+  "size": 10402464,
+  "sha256": "ca1d64196d2d34771084afe76ea657d581bf628e31d993ff8e52ea09cc88a56d"
+}

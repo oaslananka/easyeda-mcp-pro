@@ -29,19 +29,19 @@ If another active maintainer is added, this table should be updated and branch p
 
 To enforce code quality, security, and a clean history, the `main` branch must have the following protection rules configured in GitHub (**Settings > Branches > Add rule**):
 
-| Rule Setting                                     | Status                               | Rationale                                                                                                                                    |
-| :----------------------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Require a pull request before merging**        | **Enabled**                          | Prevents direct pushes to the production branch.                                                                                             |
-| **Require approvals**                            | **Disabled for solo maintainer**     | Required reviews are not enforced while the repository has a single maintainer; required checks and conversation resolution remain enforced. |
-| **Dismiss stale pull request approvals...**      | **N/A while approvals are disabled** | Re-enable if the repository adds another active maintainer and mandatory reviews return.                                                     |
-| **Require status checks to pass before merging** | **Enabled**                          | Enforces automated quality checks.                                                                                                           |
-| _Status Check:_ `quality (24)`                   | **Required**                         | Ensures the codebase builds, lints, tests, audits, and verifies docs on Node 24.                                                             |
-| _Status Check:_ `codeql`                         | **Required**                         | Ensures static application security analysis (SAST) passes.                                                                                  |
-| **Require branches to be up to date...**         | **Enabled**                          | Enforces strict branch testing against the latest `main` commit.                                                                             |
-| **Require conversation resolution...**           | **Enabled**                          | Ensures all review comments are addressed.                                                                                                   |
-| **Require linear history**                       | **Optional**                         | Use only if maintainers prefer squash/rebase merges. Current repo history uses merge commits for PR traceability.                            |
-| **Do not allow force pushes**                    | **Enforced**                         | Prevents history rewriting on `main`.                                                                                                        |
-| **Do not allow deletions**                       | **Enforced**                         | Prevents accidental deletion of the `main` branch.                                                                                           |
+| Rule Setting                                     | Status                                | Rationale                                                                                                                                    |
+| :----------------------------------------------- | :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Require a pull request before merging**        | **Enabled**                           | Prevents direct pushes to the production branch.                                                                                             |
+| **Require approvals**                            | **Disabled for solo maintainer**      | Required reviews are not enforced while the repository has a single maintainer; required checks and conversation resolution remain enforced. |
+| **Dismiss stale pull request approvals...**      | **N/A while approvals are disabled**  | Re-enable if the repository adds another active maintainer and mandatory reviews return.                                                     |
+| **Require status checks to pass before merging** | **Enabled**                           | Enforces automated quality checks.                                                                                                           |
+| _Status Check:_ `quality (24)`                   | **Required**                          | Ensures the codebase builds, lints, tests, audits, and verifies docs on Node 24.                                                             |
+| _Status Check:_ `codeql`                         | **Required**                          | Ensures static application security analysis (SAST) passes.                                                                                  |
+| **Require branches to be up to date...**         | **Enabled**                           | Enforces strict branch testing against the latest `main` commit.                                                                             |
+| **Require conversation resolution...**           | **Enabled**                           | Ensures all review comments are addressed.                                                                                                   |
+| **Require linear history**                       | **Enabled through squash-only merge** | Merge commits and rebase merges are disabled; PRs use squash merge for a linear, revertable history.                                         |
+| **Do not allow force pushes**                    | **Enforced**                          | Prevents history rewriting on `main`.                                                                                                        |
+| **Do not allow deletions**                       | **Enforced**                          | Prevents accidental deletion of the `main` branch.                                                                                           |
 
 ---
 

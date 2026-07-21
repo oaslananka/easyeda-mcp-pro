@@ -47,9 +47,14 @@ COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.eext ./easyeda-bridge-extension.eext
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 
+# The production process invokes Node directly and never needs npm, npx, or
+# corepack. Remove package-manager payloads from the runtime stage to reduce
+# image size and eliminate vulnerabilities in tooling that is not executed.
 # WORKDIR created /app while still root; hand ownership to "node" so the app
 # can create its runtime DATA_DIR (.easyeda-mcp-pro/) under it at startup.
-RUN chown node:node /app
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    && chown node:node /app
 
 USER node
 

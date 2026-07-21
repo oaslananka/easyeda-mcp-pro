@@ -45,6 +45,13 @@
       "groupName": "github-actions dependencies",
       "commitMessageTopic": "github-actions",
       "commitMessagePrefix": "ci(deps):"
+    },
+    {
+      "matchManagers": ["pre-commit"],
+      "groupName": "pre-commit hook dependencies",
+      "commitMessageTopic": "pre-commit-hooks",
+      "commitMessagePrefix": "chore(deps):"
     }
-  ]
+  ],
+  "minimumReleaseAge": "3 days"
 }

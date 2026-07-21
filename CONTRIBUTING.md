@@ -75,7 +75,7 @@ pnpm verify:extension
 npx --yes -p renovate renovate-config-validator .github/renovate.json
 ```
 
-Install and run the local security hooks described in [Local Security Tooling](docs/development/security-tooling.md). The pre-commit stage runs repository-owned Semgrep rules; the pre-push stage runs the Snyk Open Source high-severity gate.
+Install and run the fast local hook described in [Local Security Tooling](docs/development/security-tooling.md). Pre-commit checks file hygiene plus GitHub Actions syntax and security; whole-repository Semgrep, Trivy, Snyk, and SonarQube analysis stays in CI or explicit maintainer commands.
 
 ---
 

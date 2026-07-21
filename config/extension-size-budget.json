@@ -1,0 +1,5 @@
+{
+  "easyeda-bridge-extension.eext": 200000,
+  "easyeda-bridge-extension/dist/index.js": 260000,
+  "easyeda-bridge-extension/dist/dispatcher.js": 185000
+}

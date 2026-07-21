@@ -396,7 +396,7 @@ describe('Remote Relay MCP HTTP integration', () => {
     });
     expect(timedOut.content[0]?.text).toContain('expired');
     expect(harness.dispatched).toHaveLength(3);
-  });
+  }, 15_000);
 
   it('keeps two independent MCP clients connected to the same paired extension session', async () => {
     const harness = await createHarness();

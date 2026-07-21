@@ -72,6 +72,7 @@ export default defineConfig({
           { text: 'Bridge Telemetry', link: '/reference/bridge-telemetry' },
           { text: 'Save/Export Safety', link: '/reference/save-export-rollback-safety' },
           { text: 'Supply Chain Verification', link: '/supply-chain-verification' },
+          { text: 'Codecov Analytics', link: '/CODECOV_ANALYTICS' },
           { text: 'Power Tree Analyzer', link: '/power-tree' },
           { text: 'Design Rules Reference', link: '/design-rules' },
           { text: 'Electrical Verification (SPICE)', link: '/simulation' },

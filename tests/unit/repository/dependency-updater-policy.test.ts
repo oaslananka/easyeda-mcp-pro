@@ -13,6 +13,9 @@ interface RenovatePackageRule {
 }
 
 interface RenovateConfig {
+  minimumReleaseAge?: string;
+  dependencyDashboard?: boolean;
+  osvVulnerabilityAlerts?: boolean;
   packageRules?: RenovatePackageRule[];
 }
 
@@ -22,12 +25,24 @@ describe('dependency updater ownership', () => {
     expect(existsSync(dependabotConfigPath)).toBe(false);
   });
 
-  it('keeps GitHub Actions under Renovate management', () => {
+  it('delays fresh releases and keeps the dependency dashboard plus vulnerability alerts enabled', () => {
+    const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig;
+
+    expect(config.minimumReleaseAge).toBe('3 days');
+    expect(config.dependencyDashboard).toBe(true);
+    expect(config.osvVulnerabilityAlerts).toBe(true);
+  });
+
+  it('keeps GitHub Actions and pre-commit hooks under Renovate management', () => {
     const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig;
     const managesGitHubActions = config.packageRules?.some((rule) =>
       rule.matchManagers?.includes('github-actions'),
     );
+    const managesPreCommit = config.packageRules?.some((rule) =>
+      rule.matchManagers?.includes('pre-commit'),
+    );
 
     expect(managesGitHubActions).toBe(true);
+    expect(managesPreCommit).toBe(true);
   });
 });

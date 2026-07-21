@@ -4,9 +4,14 @@ packages:
 
 allowBuilds:
   esbuild: true
-minimumReleaseAge: 0
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+trustLockfile: false
+blockExoticSubdeps: true
 
 overrides:
+  body-parser: 2.3.0
   vite: 7.3.5
   '@vitejs/plugin-vue': 6.0.7
   esbuild: 0.28.1
