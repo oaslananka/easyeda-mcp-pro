@@ -29,7 +29,7 @@ The extension test run produces:
 - `easyeda-bridge-extension/coverage/lcov.info`
 - `reports/extension.junit.xml`
 
-Both uploads use `codecov/codecov-action` v6.0.1 pinned to commit `cddd853df119a48c5be31a973f8cd97e12e35e16`, with Codecov CLI `v11.3.1` pinned explicitly. Authentication uses the existing `CODECOV_TOKEN` repository secret. Uploads are skipped for fork pull requests because GitHub does not expose repository secrets to fork workflows.
+All four report uploads use `codecov/codecov-action` v6.0.1 pinned to commit `cddd853df119a48c5be31a973f8cd97e12e35e16`. Codecov CLI `11.3.1` is downloaded from its official GitHub release, verified against the repository-pinned byte length and SHA-256 digest, and supplied through the Action's `binary` input. Authentication uses the existing `CODECOV_TOKEN` repository secret. Uploads are skipped for fork pull requests because GitHub does not expose repository secrets to fork workflows.
 
 Coverage and test-result uploads run with `if: !cancelled()` and explicit report-file checks, allowing reports to be uploaded after a test failure without hiding that failure from the job result.
 
@@ -66,7 +66,7 @@ These limits provide approximately 25% headroom while still detecting accidental
 ## Security and Supply Chain
 
 - GitHub Actions are pinned to full commit SHAs.
-- The Codecov CLI version is pinned.
+- The Codecov CLI version, release asset, byte length, and SHA-256 digest are pinned; installation fails closed before upload.
 - The Codecov token is referenced only through GitHub Secrets and is never printed.
 - Fork pull requests do not receive the token and therefore skip uploads.
 - `@codecov/bundle-analyzer` is an exact-pinned MIT-licensed development dependency and is never shipped in the runtime package.

@@ -69,3 +69,5 @@ pnpm validate:codecov
 ```
 
 The workflow uses the repository `CODECOV_TOKEN` only for trusted pushes and same-repository pull requests. Fork and Dependabot pull requests still run tests, coverage generation, the deterministic size gate, and all other quality checks, but skip authenticated uploads because GitHub does not expose repository secrets to those runs.
+
+Before upload, `scripts/install-codecov-cli.mjs` downloads the exact Linux asset declared in `config/codecov-cli.json`. The installer restricts the source to the official Codecov GitHub release path, checks the expected byte length and SHA-256 digest, writes the executable atomically, and passes that verified local binary to the SHA-pinned Codecov Action. This avoids disabling validation when the Action's remote GPG-key bootstrap is unavailable.

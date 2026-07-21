@@ -43,7 +43,13 @@ describe('Codecov analytics policy', () => {
     const action = 'codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16';
 
     expect(workflow.match(new RegExp(action, 'g'))).toHaveLength(4);
-    expect(workflow.match(/version: v11\.3\.1/g)).toHaveLength(4);
+    expect(workflow).toContain('run: node scripts/install-codecov-cli.mjs');
+    expect(
+      workflow.match(/binary: \$\{\{ runner\.temp \}\}\/codecov-cli\/codecovcli/g),
+    ).toHaveLength(4);
+    expect(workflow).not.toContain('version: v11.3.1');
+    expect(workflow).not.toContain('skip_validation: true');
+    expect(workflow).not.toContain('use_pypi: true');
     expect(workflow.match(/report_type: coverage/g)).toHaveLength(2);
     expect(workflow.match(/report_type: test_results/g)).toHaveLength(2);
     expect(workflow.match(/token: \$\{\{ secrets\.CODECOV_TOKEN \}\}/g)).toHaveLength(4);
@@ -63,6 +69,24 @@ describe('Codecov analytics policy', () => {
     expect(workflow.match(/if: \$\{\{ !cancelled\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
     expect(gitignore).toContain('reports/');
     expect(gitignore).toContain('easyeda-bridge-extension/coverage/');
+
+    const cliConfig = JSON.parse(readText('config/codecov-cli.json')) as {
+      version?: string;
+      asset?: string;
+      url?: string;
+      size?: number;
+      sha256?: string;
+    };
+    expect(cliConfig).toEqual({
+      version: '11.3.1',
+      asset: 'codecovcli_linux',
+      url: 'https://github.com/codecov/codecov-cli/releases/download/v11.3.1/codecovcli_linux',
+      size: 10402464,
+      sha256: 'ca1d64196d2d34771084afe76ea657d581bf628e31d993ff8e52ea09cc88a56d',
+    });
+    const installer = readText('scripts/install-codecov-cli.mjs');
+    expect(installer).toContain("createHash('sha256')");
+    expect(installer).toContain('Only the pinned Codecov GitHub release URL is allowed');
   });
 
   it('starts Codecov statuses as informational and limits comments to changed coverage', () => {
