@@ -165,6 +165,19 @@ const placeComponentInputSchema = z.object({
     .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
+const setPinNoConnectInputSchema = z.object({
+  projectId: z.string().min(1).describe('The project/schematic ID'),
+  primitiveId: z.string().min(1).describe('The component primitive ID'),
+  pinNumber: z.string().min(1).describe('The exact component pin number'),
+  noConnected: z
+    .boolean()
+    .default(true)
+    .describe('true places the native No Connect marker; false removes it'),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+});
+
 const addWireInputSchema = z.object({
   points: z.array(
     z.object({
@@ -776,6 +789,81 @@ function registerSchematicWriteTools(
           error_code: err instanceof TransactionError ? err.code : undefined,
           error: err instanceof Error ? err.message : String(err),
           details: err instanceof TransactionError ? err.details : undefined,
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_set_pin_no_connect',
+    title: 'Set native pin No Connect state',
+    description:
+      "Set or clear EasyEDA Pro's native No Connect marker on one exact component pin. " +
+      'This changes the component pin noConnected state; it does not create a net, label, ' +
+      'power flag, or short-circuit flag. The bridge rejects missing/ambiguous pins and ' +
+      'verifies the native readback after the write.',
+    profile: 'core',
+    evidence: ['official-docs'],
+    risk: 'medium',
+    confirmWrite: true,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: setPinNoConnectInputSchema,
+    outputSchema: z.object({
+      success: z.boolean(),
+      project_id: z.string(),
+      component_primitive_id: z.string(),
+      pin_primitive_id: z.string().optional(),
+      pin_number: z.string(),
+      previous_no_connected: z.boolean().optional(),
+      no_connected: z.boolean().optional(),
+      changed: z.boolean().optional(),
+      verified: z.boolean().optional(),
+      error_code: z.string().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const p = setPinNoConnectInputSchema.parse(params);
+      try {
+        const result = (await ctx.bridge.call('schematic.setPinNoConnect', {
+          projectId: p.projectId,
+          primitiveId: p.primitiveId,
+          pinNumber: p.pinNumber,
+          noConnected: p.noConnected,
+        })) as {
+          componentPrimitiveId?: string;
+          pinPrimitiveId?: string;
+          pinNumber?: string;
+          previousNoConnected?: boolean;
+          noConnected?: boolean;
+          changed?: boolean;
+          verified?: boolean;
+        };
+        return {
+          success: true,
+          project_id: p.projectId,
+          component_primitive_id: result.componentPrimitiveId ?? p.primitiveId,
+          pin_primitive_id: result.pinPrimitiveId,
+          pin_number: result.pinNumber ?? p.pinNumber,
+          previous_no_connected: result.previousNoConnected,
+          no_connected: result.noConnected,
+          changed: result.changed,
+          verified: result.verified,
+        };
+      } catch (err) {
+        const record =
+          err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
+        return {
+          success: false,
+          project_id: p.projectId,
+          component_primitive_id: p.primitiveId,
+          pin_number: p.pinNumber,
+          error_code: typeof record?.code === 'string' ? record.code : undefined,
+          error: err instanceof Error ? err.message : String(err),
         };
       }
     },

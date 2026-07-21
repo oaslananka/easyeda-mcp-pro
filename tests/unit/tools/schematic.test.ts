@@ -464,6 +464,118 @@ describe('Schematic Tools', () => {
     expect(bridgeCall).not.toHaveBeenCalled();
   });
 
+  describe('easyeda_schematic_set_pin_no_connect', () => {
+    it('sets native no-connect state by default and returns verified readback', async () => {
+      const tool = registry.get('easyeda_schematic_set_pin_no_connect');
+      expect(tool).toBeDefined();
+      expect(tool?.confirmWrite).toBe(true);
+      bridgeCall.mockResolvedValue({
+        componentPrimitiveId: 'comp-1',
+        pinPrimitiveId: 'pin-1',
+        pinNumber: '7',
+        previousNoConnected: false,
+        noConnected: true,
+        changed: true,
+        verified: true,
+      });
+
+      const result = await tool?.handler(context, {
+        projectId: 'project-1',
+        primitiveId: 'comp-1',
+        pinNumber: '7',
+        confirmWrite: true,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.setPinNoConnect', {
+        projectId: 'project-1',
+        primitiveId: 'comp-1',
+        pinNumber: '7',
+        noConnected: true,
+      });
+      expect(result).toEqual({
+        success: true,
+        project_id: 'project-1',
+        component_primitive_id: 'comp-1',
+        pin_primitive_id: 'pin-1',
+        pin_number: '7',
+        previous_no_connected: false,
+        no_connected: true,
+        changed: true,
+        verified: true,
+      });
+    });
+
+    it('clears the native marker when noConnected is false', async () => {
+      const tool = registry.get('easyeda_schematic_set_pin_no_connect');
+      bridgeCall.mockResolvedValue({
+        componentPrimitiveId: 'comp-2',
+        pinPrimitiveId: 'pin-2',
+        pinNumber: '8',
+        previousNoConnected: true,
+        noConnected: false,
+        changed: true,
+        verified: true,
+      });
+
+      await tool?.handler(context, {
+        projectId: 'project-2',
+        primitiveId: 'comp-2',
+        pinNumber: '8',
+        noConnected: false,
+        confirmWrite: true,
+      });
+
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.setPinNoConnect', {
+        projectId: 'project-2',
+        primitiveId: 'comp-2',
+        pinNumber: '8',
+        noConnected: false,
+      });
+    });
+
+    it('preserves structured bridge error codes', async () => {
+      const tool = registry.get('easyeda_schematic_set_pin_no_connect');
+      bridgeCall.mockRejectedValue(
+        Object.assign(new Error('Pin 9 was not found'), { code: 'PIN_NOT_FOUND' }),
+      );
+
+      const result = await tool?.handler(context, {
+        projectId: 'project-3',
+        primitiveId: 'comp-3',
+        pinNumber: '9',
+        confirmWrite: true,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        project_id: 'project-3',
+        component_primitive_id: 'comp-3',
+        pin_number: '9',
+        error_code: 'PIN_NOT_FOUND',
+        error: 'Pin 9 was not found',
+      });
+    });
+
+    it('requires literal write confirmation in its public schema', () => {
+      const tool = registry.get('easyeda_schematic_set_pin_no_connect');
+      expect(
+        tool?.inputSchema.safeParse({
+          projectId: 'project-4',
+          primitiveId: 'comp-4',
+          pinNumber: '10',
+        }).success,
+      ).toBe(false);
+      expect(
+        tool?.inputSchema.safeParse({
+          projectId: 'project-4',
+          primitiveId: 'comp-4',
+          pinNumber: '10',
+          confirmWrite: true,
+        }).success,
+      ).toBe(true);
+    });
+  });
+
   // ── Real schematic net creation tools ─────────────────────────────
 
   it('easyeda_schematic_create_net_flag should call bridge and return success', async () => {
