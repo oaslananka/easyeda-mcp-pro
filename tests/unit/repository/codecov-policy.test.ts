@@ -6,12 +6,18 @@ import { describe, expect, it } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../../..');
 
+const normalizeLineEndings = (text: string): string => text.replace(/\r\n/g, '\n');
+
 const readText = (path: string): string => {
   const absolutePath = resolve(repoRoot, path);
-  return existsSync(absolutePath) ? readFileSync(absolutePath, 'utf8') : '';
+  return existsSync(absolutePath) ? normalizeLineEndings(readFileSync(absolutePath, 'utf8')) : '';
 };
 
 describe('Codecov analytics policy', () => {
+  it('normalizes Windows line endings before evaluating workflow policy', () => {
+    expect(normalizeLineEndings('first\r\nsecond\r\n')).toBe('first\nsecond\n');
+  });
+
   it('generates explicit LCOV and JUnit reports for server and extension tests', () => {
     const packageJson = JSON.parse(readText('package.json')) as {
       scripts?: Record<string, string>;
