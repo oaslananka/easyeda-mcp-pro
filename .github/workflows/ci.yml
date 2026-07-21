@@ -107,7 +107,8 @@ jobs:
       - run: pnpm check:metadata
       - run: pnpm build:extension
       - run: pnpm check:extension-size
-      - name: Upload extension bundle analysis to Codecov
+      - name: Upload extension bundle analysis to Codecov (informational)
+        continue-on-error: true
         if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && github.actor != 'dependabot[bot]' }}
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

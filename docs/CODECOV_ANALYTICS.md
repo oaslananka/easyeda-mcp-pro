@@ -41,7 +41,7 @@ Generated reports are ignored by Git and must not be committed.
 
 The extension uses a custom esbuild script rather than Vite, Rollup, or Webpack. The CI job therefore uses Codecov's general `@codecov/bundle-analyzer` CLI against `easyeda-bridge-extension/dist`.
 
-Bundle Analysis is informational and tracks raw and gzip-size changes for `index.js` and `dispatcher.js`. It complements, but does not replace, the repository-owned blocking byte budgets:
+Bundle Analysis is informational and tracks raw and gzip-size changes for `index.js` and `dispatcher.js`. The upload step is best-effort: Codecov onboarding, repository feature availability, or a transient API error must not fail the repository quality job. It complements, but does not replace, the repository-owned blocking byte budgets:
 
 ```bash
 pnpm build:extension

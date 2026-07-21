@@ -61,7 +61,9 @@ describe('Codecov CLI installer', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Installed Codecov CLI 11.3.1');
     expect(readFileSync(output)).toEqual(payload);
-    expect(statSync(output).mode & 0o111).not.toBe(0);
+    if (process.platform !== 'win32') {
+      expect(statSync(output).mode & 0o111).not.toBe(0);
+    }
   });
 
   it('rejects a source whose digest does not match the pinned config', () => {

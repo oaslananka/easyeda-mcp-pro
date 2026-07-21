@@ -51,7 +51,7 @@ The server and extension suites are uploaded separately with the flags `server-t
 
 The pinned `@codecov/bundle-analyzer` CLI scans `easyeda-bridge-extension/dist` after the production extension build. It uploads raw and gzip-size data for JavaScript assets under the stable bundle name `easyeda-bridge-extension`; source maps and JSON metadata are excluded. Bundle status and PR-comment behavior remain informational, with a 5% warning threshold and comments only for bundle increases of at least 1 KB.
 
-This remote trend signal is not a release gate by itself. The deterministic repository-owned budgets below remain blocking and work without Codecov availability.
+This remote trend signal is not a release gate by itself. Its upload is explicitly best-effort so Codecov onboarding, feature availability, or an API outage cannot fail the quality job. The deterministic repository-owned budgets below remain blocking and work without Codecov availability.
 
 ## Extension Size Policy
 

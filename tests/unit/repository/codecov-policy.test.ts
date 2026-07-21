@@ -64,6 +64,10 @@ describe('Codecov analytics policy', () => {
     expect(workflow).toContain("github.actor != 'dependabot[bot]'");
     expect(workflow).toContain('fetch-depth: 0');
     expect(workflow).toContain('run: pnpm validate:codecov');
+    expect(workflow).toContain(
+      '- name: Upload extension bundle analysis to Codecov (informational)\n' +
+        '        continue-on-error: true',
+    );
     expect(workflow).toContain('run: pnpm analyze:extension-bundle:ci');
     expect(workflow).toContain('CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}');
     expect(workflow.match(/if: \$\{\{ !cancelled\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
