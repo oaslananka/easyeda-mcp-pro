@@ -5,6 +5,7 @@
  * Exits: 0=all passed, 1=one or more checks failed
  */
 import { spawnTrackedProcess } from './harness.mjs';
+import { extractPinsPayload } from './payloads.mjs';
 import { createInterface } from 'node:readline';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -388,7 +389,7 @@ async function main() {
     const { text: pins1 } = await toolCall('easyeda_schematic_component_pins', {
       primitiveId: r1PrimId,
     });
-    r1Pins = JSON.parse(pins1).pins || JSON.parse(pins1) || [];
+    r1Pins = extractPinsPayload(JSON.parse(pins1));
     ok(
       'R1 pins',
       `${r1Pins.length} pins: ${r1Pins.map((p) => p.number || p.pinNumber || '').join(', ')}`,
@@ -400,7 +401,7 @@ async function main() {
     const { text: pins2 } = await toolCall('easyeda_schematic_component_pins', {
       primitiveId: r2PrimId,
     });
-    r2Pins = JSON.parse(pins2).pins || JSON.parse(pins2) || [];
+    r2Pins = extractPinsPayload(JSON.parse(pins2));
     ok(
       'R2 pins',
       `${r2Pins.length} pins: ${r2Pins.map((p) => p.number || p.pinNumber || '').join(', ')}`,
@@ -411,7 +412,7 @@ async function main() {
 
   // Native No Connect set/readback/clear on a disposable test pin.
   const noConnectPin = r2Pins[0]?.pinNumber || r2Pins[0]?.number;
-  if (r2PrimId && noConnectPin) {
+  if (noConnectPin) {
     try {
       const setResult = await toolCall('easyeda_schematic_set_pin_no_connect', {
         projectId: PLACEHOLDER_ID,
@@ -430,8 +431,7 @@ async function main() {
       const { text: readText } = await toolCall('easyeda_schematic_component_pins', {
         primitiveId: r2PrimId,
       });
-      const readPayload = JSON.parse(readText);
-      const readPins = readPayload.pins || readPayload || [];
+      const readPins = extractPinsPayload(JSON.parse(readText));
       const readPin = readPins.find(
         (pin) => String(pin.pinNumber || pin.number || '') === String(noConnectPin),
       );
