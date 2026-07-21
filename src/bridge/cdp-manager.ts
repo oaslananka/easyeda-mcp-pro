@@ -273,6 +273,15 @@ export class CdpBridgeManager extends EventEmitter {
       return this.evaluateObject(this.addWireExpression(params), timeoutMs);
     }
 
+    if (method === 'schematic.getPinNoConnect') {
+      return this.evaluateObject(this.getPinNoConnectExpression(params), timeoutMs);
+    }
+
+    if (method === 'schematic.setPinNoConnect') {
+      this.requireMappedWriteAllowed(method);
+      return this.evaluateObject(this.setPinNoConnectExpression(params), timeoutMs);
+    }
+
     if (method === 'schematic.createNetFlag') {
       this.requireMappedWriteAllowed(method);
       return this.evaluateObject(this.createNetFlagExpression(params), timeoutMs);
@@ -656,6 +665,126 @@ export class CdpBridgeManager extends EventEmitter {
         return { primitiveId: result?.uuid || result?.id || result?.primitiveId || null, raw: result };
       })()
     `;
+  }
+
+  private pinNoConnectExpression(params: unknown, mutate: boolean): string {
+    const p = JSON.stringify(params ?? {});
+    return `
+      (async () => {
+        ${this.runtimePrelude()}
+        const params = ${p};
+        const bridgeError = (code, message, data) => Object.assign(new Error(message), { code, data });
+        const readState = (pin, key) => {
+          if (!pin || typeof pin !== 'object') return undefined;
+          const getter = pin['getState_' + key];
+          if (typeof getter === 'function') return getter.call(pin);
+          const lower = key.length ? key[0].toLowerCase() + key.slice(1) : key;
+          return pin[lower] ?? pin.state?.[key] ?? pin.state?.[lower];
+        };
+        const resolvePin = async () => {
+          const pins = await callFirst(
+            ['SCH_PrimitiveComponent.getAllPinsByPrimitiveId','sch_PrimitiveComponent.getAllPinsByPrimitiveId'],
+            params.primitiveId,
+          );
+          const matches = (Array.isArray(pins) ? pins : []).filter(
+            (pin) => String(readState(pin, 'PinNumber') ?? '') === String(params.pinNumber),
+          );
+          if (matches.length === 0) {
+            throw bridgeError(
+              'PIN_NOT_FOUND',
+              'Pin "' + params.pinNumber + '" was not found on component "' + params.primitiveId + '"',
+              { componentPrimitiveId: params.primitiveId, pinNumber: params.pinNumber },
+            );
+          }
+          if (matches.length > 1) {
+            throw bridgeError(
+              'PIN_AMBIGUOUS',
+              'Pin number "' + params.pinNumber + '" matched ' + matches.length + ' pins on component "' + params.primitiveId + '"',
+              { componentPrimitiveId: params.primitiveId, pinNumber: params.pinNumber, matchCount: matches.length },
+            );
+          }
+          const pin = matches[0];
+          const pinPrimitiveId = String(readState(pin, 'PrimitiveId') ?? '');
+          if (!pinPrimitiveId) {
+            throw bridgeError(
+              'PIN_PRIMITIVE_ID_UNAVAILABLE',
+              'The target component pin has no addressable primitive ID',
+              { componentPrimitiveId: params.primitiveId, pinNumber: params.pinNumber },
+            );
+          }
+          const rawNoConnected = readState(pin, 'NoConnected');
+          const noConnected = typeof rawNoConnected === 'boolean'
+            ? rawNoConnected
+            : typeof rawNoConnected === 'string'
+              ? rawNoConnected.toLowerCase() === 'true'
+              : Number(rawNoConnected ?? 0) !== 0;
+          return {
+            pin,
+            componentPrimitiveId: String(params.primitiveId),
+            pinPrimitiveId,
+            pinNumber: String(readState(pin, 'PinNumber') ?? params.pinNumber),
+            pinName: String(readState(pin, 'PinName') ?? ''),
+            noConnected,
+          };
+        };
+        const publicState = ({ pin: _pin, ...state }) => state;
+        const before = await resolvePin();
+        if (!${mutate ? 'true' : 'false'}) return publicState(before);
+        const requested = params.noConnected !== false;
+        if (before.noConnected === requested) {
+          return {
+            ...publicState(before),
+            previousNoConnected: before.noConnected,
+            changed: false,
+            verified: true,
+          };
+        }
+        const setter = before.pin?.setState_NoConnected;
+        const done = before.pin?.done;
+        if (typeof setter === 'function' && typeof done === 'function') {
+          const updated = setter.call(before.pin, requested);
+          const doneTarget = updated && typeof updated.done === 'function' ? updated : before.pin;
+          await doneTarget.done();
+        } else {
+          const pinClass = readFirst(['SCH_PrimitivePin','sch_PrimitivePin']);
+          if (!pinClass || typeof pinClass.modify !== 'function') {
+            throw bridgeError(
+              'PIN_NO_CONNECT_UNSUPPORTED',
+              'The EasyEDA runtime does not expose a supported component-pin no-connect write path',
+              { componentPrimitiveId: params.primitiveId, pinNumber: params.pinNumber },
+            );
+          }
+          await pinClass.modify(before.pin, { noConnected: requested });
+        }
+        const after = await resolvePin();
+        if (after.noConnected !== requested) {
+          throw bridgeError(
+            'PIN_NO_CONNECT_VERIFY_FAILED',
+            'The native no-connect readback did not match the requested state',
+            {
+              componentPrimitiveId: params.primitiveId,
+              pinNumber: params.pinNumber,
+              requested,
+              observed: after.noConnected,
+            },
+          );
+        }
+        return {
+          ...publicState(after),
+          previousNoConnected: before.noConnected,
+          changed: true,
+          verified: true,
+        };
+      })()
+    `;
+  }
+
+  private getPinNoConnectExpression(params: unknown): string {
+    return this.pinNoConnectExpression(params, false);
+  }
+
+  private setPinNoConnectExpression(params: unknown): string {
+    return this.pinNoConnectExpression(params, true);
   }
 
   private createNetFlagExpression(params: unknown): string {
