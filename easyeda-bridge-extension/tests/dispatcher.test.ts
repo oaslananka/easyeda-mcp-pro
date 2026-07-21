@@ -63,6 +63,30 @@ function fakeSchematicPin(pinNumber: string, x: number, y: number): Record<strin
   };
 }
 
+function fakeNoConnectPin(
+  primitiveId: string,
+  pinNumber: string,
+  initial: boolean,
+  options: { setter?: boolean; done?: boolean } = { setter: true, done: true },
+): Record<string, unknown> & { state: { noConnected: boolean } } {
+  const state = { noConnected: initial };
+  const pin: Record<string, unknown> & { state: { noConnected: boolean } } = {
+    state,
+    getState_PrimitiveId: () => primitiveId,
+    getState_PinNumber: () => pinNumber,
+    getState_PinName: () => `PIN_${pinNumber}`,
+    getState_NoConnected: () => state.noConnected,
+  };
+  if (options.setter !== false) {
+    pin.setState_NoConnected = (value: boolean) => {
+      state.noConnected = value;
+      return pin;
+    };
+  }
+  if (options.done !== false) pin.done = vi.fn(async () => pin);
+  return pin;
+}
+
 function fakeSchematicPart(
   designator: string,
   pins: Array<Record<string, unknown>>,
@@ -84,6 +108,119 @@ describe('createDispatcher', () => {
     expect(dispatcher.methodList).toContain('schematic.getPrimitiveSnapshot');
     expect(dispatcher.methodList).toContain('schematic.restorePrimitiveSnapshot');
     expect(dispatcher.methodList).toContain('system.inspectWires');
+  });
+
+  it('reads and sets native component-pin no-connect state with verification', async () => {
+    const pin = fakeNoConnectPin('pin-1', '7', false);
+    const getAllPinsByPrimitiveId = vi.fn(async () => [pin]);
+    const dispatcher = createDispatcher(
+      makeToolkit({ SCH_PrimitiveComponent: { getAllPinsByPrimitiveId } }),
+    );
+
+    await expect(
+      dispatcher.dispatch('schematic.getPinNoConnect', {
+        primitiveId: 'comp-1',
+        pinNumber: '7',
+      }),
+    ).resolves.toMatchObject({
+      componentPrimitiveId: 'comp-1',
+      pinPrimitiveId: 'pin-1',
+      pinNumber: '7',
+      noConnected: false,
+    });
+
+    await expect(
+      dispatcher.dispatch('schematic.setPinNoConnect', {
+        primitiveId: 'comp-1',
+        pinNumber: '7',
+        noConnected: true,
+      }),
+    ).resolves.toMatchObject({
+      previousNoConnected: false,
+      noConnected: true,
+      changed: true,
+      verified: true,
+    });
+    expect(pin.setState_NoConnected).toBeTypeOf('function');
+    expect(pin.done).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to SCH_PrimitivePin.modify for native no-connect writes', async () => {
+    const pin = fakeNoConnectPin('pin-2', '8', false, { setter: false, done: false });
+    const modify = vi.fn(async (_target: unknown, property: { noConnected: boolean }) => {
+      pin.state.noConnected = property.noConnected;
+      return pin;
+    });
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAllPinsByPrimitiveId: async () => [pin] },
+        SCH_PrimitivePin: { modify },
+      }),
+    );
+
+    await expect(
+      dispatcher.dispatch('schematic.setPinNoConnect', {
+        primitiveId: 'comp-2',
+        pinNumber: '8',
+        noConnected: true,
+      }),
+    ).resolves.toMatchObject({ noConnected: true, verified: true });
+    expect(modify).toHaveBeenCalledWith(pin, { noConnected: true });
+  });
+
+  it('rejects missing and ambiguous pin matches before mutation', async () => {
+    const modify = vi.fn();
+    const missing = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAllPinsByPrimitiveId: async () => [] },
+        SCH_PrimitivePin: { modify },
+      }),
+    );
+    await expect(
+      missing.dispatch('schematic.setPinNoConnect', {
+        primitiveId: 'comp-3',
+        pinNumber: '9',
+        noConnected: true,
+      }),
+    ).rejects.toMatchObject({ code: 'PIN_NOT_FOUND' });
+
+    const ambiguous = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: {
+          getAllPinsByPrimitiveId: async () => [
+            fakeNoConnectPin('pin-a', '9', false),
+            fakeNoConnectPin('pin-b', '9', false),
+          ],
+        },
+        SCH_PrimitivePin: { modify },
+      }),
+    );
+    await expect(
+      ambiguous.dispatch('schematic.setPinNoConnect', {
+        primitiveId: 'comp-3',
+        pinNumber: '9',
+        noConnected: true,
+      }),
+    ).rejects.toMatchObject({ code: 'PIN_AMBIGUOUS' });
+    expect(modify).not.toHaveBeenCalled();
+  });
+
+  it('rejects unverified native no-connect writes', async () => {
+    const pin = fakeNoConnectPin('pin-4', '10', false, { setter: false, done: false });
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAllPinsByPrimitiveId: async () => [pin] },
+        SCH_PrimitivePin: { modify: vi.fn(async () => pin) },
+      }),
+    );
+
+    await expect(
+      dispatcher.dispatch('schematic.setPinNoConnect', {
+        primitiveId: 'comp-4',
+        pinNumber: '10',
+        noConnected: true,
+      }),
+    ).rejects.toMatchObject({ code: 'PIN_NO_CONNECT_VERIFY_FAILED' });
   });
 
   it('rejects unknown methods with METHOD_NOT_ALLOWED', async () => {
