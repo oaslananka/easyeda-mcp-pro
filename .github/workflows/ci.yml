@@ -39,7 +39,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Validate Codecov configuration
         run: pnpm validate:codecov
-      - run: pnpm audit --audit-level low
+      - run: pnpm security:audit
       - run: pnpm peers check
       - run: pnpm format:check
       - run: pnpm typecheck

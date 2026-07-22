@@ -89,7 +89,7 @@ jobs:
       - name: Verify Quality Gates
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: |
-          pnpm audit --audit-level low
+          pnpm security:audit
           pnpm peers check
           pnpm format:check
           pnpm typecheck
