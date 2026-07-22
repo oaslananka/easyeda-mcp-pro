@@ -95,7 +95,7 @@ const validateDate = (value, field, advisory) => {
 };
 
 const validateAllowlist = (allowlist) => {
-  if (!allowlist || allowlist.schemaVersion !== 1 || !Array.isArray(allowlist.exceptions)) {
+  if (allowlist?.schemaVersion !== 1 || !Array.isArray(allowlist?.exceptions)) {
     throw new Error('Dependency audit allowlist must use schemaVersion 1 and an exceptions array');
   }
 
@@ -177,18 +177,38 @@ const flattenFindings = (audit) => {
   return findings;
 };
 
+const getFindingPolicyError = (finding, exception, today) => {
+  if (finding.severity === 'high' || finding.severity === 'critical') {
+    return `High and critical advisories cannot be allowlisted: ${finding.advisory} (${finding.severity})`;
+  }
+  if (exception.severity !== finding.severity) {
+    return `Severity ${finding.severity} is not allowlisted for ${finding.advisory}; expected ${exception.severity}`;
+  }
+  if (!exception.versions.includes(finding.version)) {
+    return `Resolved version ${finding.version} is not allowlisted for ${finding.advisory} (${finding.package})`;
+  }
+  if (today > exception.expiresOn) {
+    return `Dependency audit exception expired for ${finding.advisory}: ${exception.expiresOn}`;
+  }
+  if (today > exception.reviewBy) {
+    return `Review date passed for ${finding.advisory}: ${exception.reviewBy} (owner ${exception.owner})`;
+  }
+  return undefined;
+};
+
+const exceptionKey = ({ advisory, package: packageName }) => `${advisory}\0${packageName}`;
+
 const evaluate = (audit, exceptions, today) => {
   const findings = flattenFindings(audit);
+  const exceptionsByKey = new Map(
+    exceptions.map((exception) => [exceptionKey(exception), exception]),
+  );
   const usedExceptions = new Set();
   const allowed = [];
   const errors = [];
 
   for (const finding of findings) {
-    const exception = exceptions.find(
-      (candidate) =>
-        candidate.advisory === finding.advisory && candidate.package === finding.package,
-    );
-
+    const exception = exceptionsByKey.get(exceptionKey(finding));
     if (!exception) {
       errors.push(
         `Unexpected dependency advisory ${finding.advisory}: ${finding.package}@${finding.version} (${finding.severity})`,
@@ -197,39 +217,12 @@ const evaluate = (audit, exceptions, today) => {
     }
 
     usedExceptions.add(exception);
-
-    if (finding.severity === 'high' || finding.severity === 'critical') {
-      errors.push(
-        `High and critical advisories cannot be allowlisted: ${finding.advisory} (${finding.severity})`,
-      );
-      continue;
+    const policyError = getFindingPolicyError(finding, exception, today);
+    if (policyError) {
+      errors.push(policyError);
+    } else {
+      allowed.push({ finding, exception });
     }
-    if (exception.severity !== finding.severity) {
-      errors.push(
-        `Severity ${finding.severity} is not allowlisted for ${finding.advisory}; expected ${exception.severity}`,
-      );
-      continue;
-    }
-    if (!exception.versions.includes(finding.version)) {
-      errors.push(
-        `Resolved version ${finding.version} is not allowlisted for ${finding.advisory} (${finding.package})`,
-      );
-      continue;
-    }
-    if (today > exception.expiresOn) {
-      errors.push(
-        `Dependency audit exception expired for ${finding.advisory}: ${exception.expiresOn}`,
-      );
-      continue;
-    }
-    if (today > exception.reviewBy) {
-      errors.push(
-        `Review date passed for ${finding.advisory}: ${exception.reviewBy} (owner ${exception.owner})`,
-      );
-      continue;
-    }
-
-    allowed.push({ finding, exception });
   }
 
   for (const exception of exceptions) {
