@@ -34,13 +34,24 @@ describe('Codecov analytics policy', () => {
       '--outputFile.junit=../reports/extension.junit.xml',
     );
     expect(vitestConfig).toContain("reporter: ['text', 'json', 'html', 'lcov']");
-    expect(extensionVitestConfig).toContain("reporter: ['text', 'lcov']");
+    expect(extensionVitestConfig).toContain("reporter: ['text', 'json-summary', 'lcov']");
     expect(extensionVitestConfig).toContain("include: ['src/**/*.ts']");
+    expect(extensionVitestConfig).toContain('thresholds: {');
+    expect(extensionVitestConfig).toContain('lines: 52');
+    expect(extensionVitestConfig).toContain('statements: 51');
+    expect(extensionVitestConfig).toContain('functions: 61');
+    expect(extensionVitestConfig).toContain('branches: 46');
+    expect(extensionVitestConfig).not.toContain("'src/index.ts'");
+    expect(extensionVitestConfig).not.toContain("'src/dispatcher-entry.ts'");
     expect(packageJson.scripts?.['validate:codecov']).toContain('codecov.io/validate');
     expect(packageJson.devDependencies?.['@codecov/bundle-analyzer']).toBe('2.0.1');
     expect(packageJson.scripts?.['analyze:extension-bundle:ci']).toContain(
       'bundle-analyzer easyeda-bridge-extension/dist',
     );
+    const ratchet = readText('docs/coverage-ratchet.md');
+    expect(ratchet).toContain('2026-07-23 extension baseline');
+    expect(ratchet).toContain('#337');
+    expect(ratchet).toContain('Do not exclude `src/index.ts`');
   });
 
   it('uploads coverage and both test reports with pinned Codecov tooling', () => {
