@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { classifyPostWriteQa } from '../../../src/workflows/schematic-post-write-qa.js';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  classifyPostWriteQa,
+  collectNativeRuleRunsForPostWriteQa,
+} from '../../../src/workflows/schematic-post-write-qa.js';
 
 describe('schematic post-write QA classifier', () => {
   it('fails duplicate net-name DRC warnings even when reported as warning', () => {
@@ -97,6 +100,37 @@ describe('schematic post-write QA classifier', () => {
       component: 'U1',
       fatal: true,
     });
+  });
+
+  it('does not reintroduce an intentional no-connect issue after bridge inference filters it', async () => {
+    const bridge = {
+      call: vi.fn(async (method: string) => {
+        if (method !== 'design.erc') throw new Error(`Unexpected method ${method}`);
+        return {
+          violations: [],
+          totalViolations: 1,
+          errorCount: 0,
+          warningCount: 1,
+          inferredFloatingPins: [],
+        };
+      }),
+    };
+
+    const runs = await collectNativeRuleRunsForPostWriteQa(bridge, 'proj-no-connect', {
+      drc: false,
+      erc: true,
+    });
+    const result = classifyPostWriteQa({ projectId: 'proj-no-connect', erc: runs.erc });
+
+    expect(runs.erc).toMatchObject({
+      total_violations: 1,
+      error_count: 0,
+      warning_count: 1,
+      inferred_floating_pins: [],
+    });
+    expect(result.categories.unconnected_pin).toBe(0);
+    expect(result.categories.native_rule_violation).toBe(1);
+    expect(result.status).toBe('pass');
   });
 
   it('returns inconclusive when native DRC is unavailable and no fatal issue exists', () => {

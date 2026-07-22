@@ -3629,11 +3629,20 @@ async function runRuleCheckForActiveCanvas(): ReturnType<typeof runDrcCheck> {
 
 /**
  * Find schematic pins whose (designator, pinNumber) does not appear in any
- * inferred net's node list. Shared by schematic.validateNetlist and the ERC
- * enhancement in design.erc — see the comment at validateNetlist's call site
- * for why connectivity is read from listNetsApi()'s authoritative net data
- * rather than by re-reading each pin's OtherProperty.net.
+ * inferred net's node list. Pins are omitted only when EasyEDA's native
+ * NoConnected state is read successfully as the strict boolean `true`;
+ * missing, malformed, string, and numeric values remain eligible so inference
+ * fails conservatively instead of hiding a real floating pin.
+ *
+ * Shared by schematic.validateNetlist and the ERC enhancement in design.erc —
+ * see the comment at validateNetlist's call site for why connectivity is read
+ * from listNetsApi()'s authoritative net data rather than by re-reading each
+ * pin's OtherProperty.net.
  */
+function isConfirmedNativeNoConnect(pin: unknown): boolean {
+  return safeGetState(pin, 'NoConnected') === true;
+}
+
 function buildConnectedNodeSet(netlistData: SchematicNetEntry[]): Set<string> {
   const connectedNodes = new Set<string>();
   for (const n of netlistData) {
@@ -3655,6 +3664,7 @@ async function collectFloatingPinsForComponent(
     const pins = await component.getAllPins();
     for (const p of pins || []) {
       if (typeof p.getState_PinNumber !== 'function') continue;
+      if (isConfirmedNativeNoConnect(p)) continue;
       const pinNum = String(p.getState_PinNumber());
       if (!connectedNodes.has(`${ref} ${pinNum}`)) {
         floating.push({ primitiveId: primitiveId || ref, designator: ref, pinNumber: pinNum });

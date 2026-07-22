@@ -827,6 +827,29 @@ describe('Schematic Tools', () => {
     });
   });
 
+  it('easyeda_schematic_validate_netlist preserves a filtered no-connect result and native ERC', async () => {
+    const tool = registry.get('easyeda_schematic_validate_netlist');
+    bridgeCall.mockResolvedValue({
+      nets: [{ netName: 'NET_A', refs: ['R1'], pins: ['1'], hasNetFlag: true }],
+      floatingPins: [],
+      nativeErc: { errorCount: 0, warningCount: 2, passed: true },
+      warnings: [],
+    });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-no-connect',
+      includeWireCheck: false,
+    });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-no-connect',
+      floating_pins: [],
+      native_erc: { error_count: 0, warning_count: 2, passed: true },
+      valid: true,
+      warnings: [],
+    });
+  });
+
   it('easyeda_schematic_validate_netlist should handle bridge error', async () => {
     const tool = registry.get('easyeda_schematic_validate_netlist');
     expect(tool).toBeDefined();

@@ -932,6 +932,116 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('design.erc excludes only pins with a strict native no-connect true state', async () => {
+    const pin = (pinNumber: string, noConnected: unknown) => ({
+      getState_PinNumber: () => pinNumber,
+      getState_NoConnected: () => noConnected,
+      getState_OtherProperty: () => ({}),
+    });
+    const missingStatePin = {
+      getState_PinNumber: () => '6',
+      getState_OtherProperty: () => ({}),
+    };
+    const comp = {
+      getState_Designator: () => 'U1',
+      getState_PrimitiveId: () => 'u1',
+      getAllPins: async () => [
+        pin('1', true),
+        pin('2', false),
+        pin('3', 'true'),
+        pin('4', 1),
+        pin('5', { value: true }),
+        missingStatePin,
+      ],
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [comp] },
+        SCH_Drc: { check: async () => [{ type: 'warn', count: 6 }] },
+      }),
+    );
+
+    const result = await dispatcher.dispatch('design.erc', {});
+
+    expect(result).toMatchObject({
+      warningCount: 6,
+      errorCount: 0,
+      passed: true,
+      inferredFloatingPins: [
+        { primitiveId: 'u1', designator: 'U1', pinNumber: '2' },
+        { primitiveId: 'u1', designator: 'U1', pinNumber: '3' },
+        { primitiveId: 'u1', designator: 'U1', pinNumber: '4' },
+        { primitiveId: 'u1', designator: 'U1', pinNumber: '5' },
+        { primitiveId: 'u1', designator: 'U1', pinNumber: '6' },
+      ],
+      detailSource: 'inferred_partial',
+    });
+  });
+
+  it('design.erc makes a cleared native no-connect pin eligible for inference again', async () => {
+    const state = { noConnected: true };
+    const pin = {
+      getState_PinNumber: () => '7',
+      getState_NoConnected: () => state.noConnected,
+      getState_OtherProperty: () => ({}),
+    };
+    const comp = {
+      getState_Designator: () => 'U2',
+      getState_PrimitiveId: () => 'u2',
+      getAllPins: async () => [pin],
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [comp] },
+        SCH_Drc: { check: async () => [] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('design.erc', {})).resolves.toMatchObject({
+      inferredFloatingPins: [],
+      detailSource: 'native_aggregate_only',
+    });
+
+    state.noConnected = false;
+
+    await expect(dispatcher.dispatch('design.erc', {})).resolves.toMatchObject({
+      inferredFloatingPins: [{ primitiveId: 'u2', designator: 'U2', pinNumber: '7' }],
+      detailSource: 'inferred_partial',
+    });
+  });
+
+  it('schematic.validateNetlist excludes confirmed no-connect pins without changing native ERC', async () => {
+    const connectedPin = {
+      getState_PinNumber: () => '1',
+      getState_NoConnected: () => false,
+      getState_OtherProperty: () => ({ net: 'NET_A' }),
+    };
+    const noConnectPin = {
+      getState_PinNumber: () => '2',
+      getState_NoConnected: () => true,
+      getState_OtherProperty: () => ({}),
+    };
+    const comp = {
+      getState_Designator: () => 'R1',
+      getState_PrimitiveId: () => 'r1',
+      getAllPins: async () => [connectedPin, noConnectPin],
+    };
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [comp] },
+        SCH_Drc: { check: async () => [{ type: 'warn', count: 2 }] },
+      }),
+    );
+
+    const result = await dispatcher.dispatch('schematic.validateNetlist', {});
+
+    expect(result).toMatchObject({
+      floatingPins: [],
+      nativeErc: { errorCount: 0, warningCount: 2, passed: true },
+      warnings: [],
+    });
+  });
+
   it('design.erc reports native_aggregate_only when no floating pins are found', async () => {
     const pinConnected = {
       getState_PinNumber: () => '1',

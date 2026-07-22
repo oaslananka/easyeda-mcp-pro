@@ -211,6 +211,28 @@ describe('DRC/ERC Tools', () => {
     expect(result?.detail_source).toBe('inferred_partial');
   });
 
+  it('easyeda_erc_run preserves native counts after no-connect filtering returns no inferred pins', async () => {
+    const tool = registry.get('easyeda_erc_run');
+    bridgeCall.mockResolvedValue({
+      violations: [{ description: '1 warning(s)', severity: 'warning' }],
+      totalViolations: 1,
+      errorCount: 0,
+      warningCount: 1,
+      inferredFloatingPins: [],
+      detailSource: 'native_aggregate_only',
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-no-connect' });
+
+    expect(result).toMatchObject({
+      error_count: 0,
+      warning_count: 1,
+      total_violations: 1,
+      inferred_floating_pins: [],
+      detail_source: 'native_aggregate_only',
+    });
+  });
+
   it('easyeda_erc_run handles empty violations', async () => {
     const tool = registry.get('easyeda_erc_run');
     expect(tool).toBeDefined();
