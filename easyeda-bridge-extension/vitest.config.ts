@@ -14,10 +14,10 @@ export default defineConfig({
       // index.ts and dispatcher-entry.ts. Only declaration files are excluded.
       exclude: ['src/**/*.d.ts'],
       thresholds: {
-        lines: 52,
-        statements: 51,
-        functions: 61,
-        branches: 46,
+        lines: 65,
+        statements: 65,
+        functions: 70,
+        branches: 50,
       },
     },
   },

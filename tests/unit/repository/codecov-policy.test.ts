@@ -37,10 +37,10 @@ describe('Codecov analytics policy', () => {
     expect(extensionVitestConfig).toContain("reporter: ['text', 'json-summary', 'lcov']");
     expect(extensionVitestConfig).toContain("include: ['src/**/*.ts']");
     expect(extensionVitestConfig).toContain('thresholds: {');
-    expect(extensionVitestConfig).toContain('lines: 52');
-    expect(extensionVitestConfig).toContain('statements: 51');
-    expect(extensionVitestConfig).toContain('functions: 61');
-    expect(extensionVitestConfig).toContain('branches: 46');
+    expect(extensionVitestConfig).toContain('lines: 65');
+    expect(extensionVitestConfig).toContain('statements: 65');
+    expect(extensionVitestConfig).toContain('functions: 70');
+    expect(extensionVitestConfig).toContain('branches: 50');
     expect(extensionVitestConfig).not.toContain("'src/index.ts'");
     expect(extensionVitestConfig).not.toContain("'src/dispatcher-entry.ts'");
     expect(packageJson.scripts?.['validate:codecov']).toContain('codecov.io/validate');
@@ -50,7 +50,7 @@ describe('Codecov analytics policy', () => {
     );
     const ratchet = readText('docs/coverage-ratchet.md');
     expect(ratchet).toContain('2026-07-23 extension baseline');
-    expect(ratchet).toContain('#337');
+    expect(ratchet).toContain('2026-07-23 extension lifecycle ratchet');
     expect(ratchet).toContain('Do not exclude `src/index.ts`');
   });
 
