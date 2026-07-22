@@ -115,6 +115,7 @@ describe('repository security tooling policy', () => {
       readText('.github/workflows/ci.yml') +
       readText('.github/workflows/agent-runtime-config.yml') +
       readText('.github/workflows/dependency-review.yml') +
+      readText('.github/workflows/dependency-advisory-monitor.yml') +
       readText('.github/workflows/deploy-docs.yml') +
       readText('.github/workflows/golden-benchmark.yml') +
       readText('.github/workflows/release-please.yml') +
@@ -157,6 +158,41 @@ describe('repository security tooling policy', () => {
       reviewBy: '2026-08-10',
       expiresOn: '2026-08-15',
     });
+  });
+
+  it('runs a least-privilege scheduled dependency advisory monitor', () => {
+    const workflow = readText('.github/workflows/dependency-advisory-monitor.yml');
+
+    expect(workflow).toContain('name: Dependency Advisory Monitor');
+    expect(workflow).toContain('schedule:');
+    expect(workflow).toContain("cron: '23 5 * * *'");
+    expect(workflow).toContain('workflow_dispatch:');
+    expect(workflow).toContain('pull_request:');
+    expect(workflow).toContain('permissions:');
+    expect(workflow).toContain('contents: read');
+    expect(workflow).not.toContain('issues: write');
+    expect(workflow).not.toContain('pull-requests: write');
+    expect(workflow).not.toContain('pull_request_target');
+    expect(workflow).toContain('actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0');
+    expect(workflow).toContain('pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093');
+    expect(workflow).toContain('actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e');
+    expect(workflow).toContain('actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a');
+    expect(workflow).toContain('persist-credentials: false');
+    expect(workflow).toContain("node-version: '24'");
+    expect(workflow).toContain('package-manager-cache: false');
+    expect(workflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
+    expect(workflow).toContain('pnpm security:audit --');
+    expect(workflow).toContain('--report-json reports/dependency-audit.json');
+    expect(workflow).toContain('--summary-file "$GITHUB_STEP_SUMMARY"');
+    expect(workflow).toContain('if: ${{ always() }}');
+    expect(workflow).toContain('reports/dependency-audit.json');
+    expect(workflow).toContain('if-no-files-found: error');
+    expect(workflow).not.toContain('gh issue create');
+
+    const guide = readText('docs/development/security-tooling.md');
+    expect(guide).toContain('05:23 UTC');
+    expect(guide).toContain('workflow_dispatch');
+    expect(guide).toContain('dependency-audit-report');
   });
 
   it('hardens release and benchmark dependency installation', () => {

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -79,13 +79,18 @@ const makeAllowlist = (overrides: Record<string, unknown> = {}) => ({
   ],
 });
 
-const runPolicy = (audit: unknown, allowlist: unknown) => {
+const createPolicyFixture = (audit: unknown, allowlist: unknown) => {
   const directory = mkdtempSync(resolve(tmpdir(), 'dependency-audit-policy-'));
   temporaryDirectories.push(directory);
   const auditPath = resolve(directory, 'audit.json');
   const allowlistPath = resolve(directory, 'allowlist.json');
   writeFileSync(auditPath, `${JSON.stringify(audit, null, 2)}\n`);
   writeFileSync(allowlistPath, `${JSON.stringify(allowlist, null, 2)}\n`);
+  return { directory, auditPath, allowlistPath };
+};
+
+const runPolicy = (audit: unknown, allowlist: unknown) => {
+  const { auditPath, allowlistPath } = createPolicyFixture(audit, allowlist);
 
   return spawnSync(
     process.execPath,
@@ -99,6 +104,38 @@ const runPolicy = (audit: unknown, allowlist: unknown) => {
       },
     },
   );
+};
+
+const runPolicyWithReports = (audit: unknown, allowlist: unknown) => {
+  const { directory, auditPath, allowlistPath } = createPolicyFixture(audit, allowlist);
+  const reportPath = resolve(directory, 'dependency-audit-report.json');
+  const summaryPath = resolve(directory, 'dependency-audit-summary.md');
+  const result = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      '--audit-json',
+      auditPath,
+      '--allowlist',
+      allowlistPath,
+      '--',
+      '--report-json',
+      reportPath,
+      '--summary-file',
+      summaryPath,
+    ],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DEPENDENCY_AUDIT_TODAY: '2026-07-22',
+        DEPENDENCY_AUDIT_GENERATED_AT: '2026-07-22T18:00:00.000Z',
+      },
+    },
+  );
+
+  return { result, reportPath, summaryPath };
 };
 
 afterEach(() => {
@@ -154,6 +191,64 @@ describe('dependency audit policy', () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('Dependency audit exception expired');
+  });
+
+  it('writes machine-readable and human-readable reports for allowed findings', () => {
+    const { result, reportPath, summaryPath } = runPolicyWithReports(makeAudit(), makeAllowlist());
+
+    expect(result.status).toBe(0);
+    const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
+      schemaVersion: number;
+      generatedAt: string;
+      status: string;
+      findings: Array<Record<string, unknown>>;
+      errors: string[];
+    };
+    expect(report).toMatchObject({
+      schemaVersion: 1,
+      generatedAt: '2026-07-22T18:00:00.000Z',
+      status: 'passed',
+      errors: [],
+    });
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        advisory: 'GHSA-frvp-7c67-39w9',
+        package: '@hono/node-server',
+        resolvedVersion: '1.19.14',
+        patchedVersions: '>=2.0.5',
+        paths: ['.>@modelcontextprotocol/sdk>@hono/node-server'],
+        policy: 'allowed',
+        trackingIssue: 334,
+      }),
+    ]);
+
+    const summary = readFileSync(summaryPath, 'utf8');
+    expect(summary).toContain('# Dependency advisory monitor');
+    expect(summary).toContain('✅ Policy passed');
+    expect(summary).toContain('GHSA-frvp-7c67-39w9');
+    expect(summary).toContain('@hono/node-server');
+    expect(summary).toContain('>=2.0.5');
+    expect(summary).toContain('.>@modelcontextprotocol/sdk>@hono/node-server');
+  });
+
+  it('writes failure evidence before rejecting an unexpected advisory', () => {
+    const { result, reportPath, summaryPath } = runPolicyWithReports(
+      makeAudit({ advisory: 'GHSA-aaaa-bbbb-cccc' }),
+      makeAllowlist(),
+    );
+
+    expect(result.status).toBe(1);
+    const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
+      status: string;
+      findings: Array<Record<string, unknown>>;
+      errors: string[];
+    };
+    expect(report.status).toBe('failed');
+    expect(report.findings).toEqual([expect.objectContaining({ policy: 'blocked' })]);
+    expect(report.errors.join('\n')).toContain('Unexpected dependency advisory');
+    const summary = readFileSync(summaryPath, 'utf8');
+    expect(summary).toContain('❌ Policy failed');
+    expect(summary).toContain('Unexpected dependency advisory');
   });
 
   it('rejects stale exceptions after the advisory disappears', () => {
