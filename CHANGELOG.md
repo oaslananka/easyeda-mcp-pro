@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.35.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.0...easyeda-mcp-pro-v0.35.1) (2026-07-22)
+
+
+### Bug Fixes
+
+* **deps:** remediate current dependency advisories ([#351](https://github.com/oaslananka/easyeda-mcp-pro/issues/351)) ([5eba1f9](https://github.com/oaslananka/easyeda-mcp-pro/commit/5eba1f9f5e573d8fad9eca83b58a6018868648fb))
+* **schematic:** honor native no-connect in floating-pin diagnostics ([#354](https://github.com/oaslananka/easyeda-mcp-pro/issues/354)) ([4d978a8](https://github.com/oaslananka/easyeda-mcp-pro/commit/4d978a8af6fb510d6816264b63246ba84667d3bc))
+
 ## [0.35.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.34.4...easyeda-mcp-pro-v0.35.0) (2026-07-21)
 
 
