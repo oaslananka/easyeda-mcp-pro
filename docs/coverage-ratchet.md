@@ -81,3 +81,29 @@ The tests also exposed and fixed two lifecycle/security defects:
 - an approval or tool request started on an old relay socket could complete after reconnect and send its result on the replacement session.
 
 Remote approval and tool responses are now bound to the socket that received the request and are dropped if that socket is no longer active. Deactivation closes both local and remote transports and clears their timers. Executable loader sources remain in the coverage denominator; no source exclusion was added to obtain the increase.
+
+## 2026-07-23 remote gateway ratchet
+
+Issue #338 added a real WebSocket relay harness plus multi-session concurrency tests for `src/remote/gateway.ts`. The suite now verifies malformed JSON/schema rejection, registration requirements, same-socket session replacement, user/session isolation, parallel execution across independent sessions, per-session serialization, approval metadata binding, cross-session response rejection, duplicate response rejection, timeout quarantine, and immediate in-flight cleanup when a session or socket closes.
+
+Measured with the server CI command on Node.js 24:
+
+```bash
+pnpm test:coverage:ci
+```
+
+| Metric     | Previous measured | New measured | Blocking module threshold |
+| ---------- | ----------------- | ------------ | ------------------------- |
+| Statements | 63.14%            | 81.58%       | —                         |
+| Branches   | 57.72%            | 70.47%       | 70%                       |
+| Functions  | 83.05%            | 91.52%       | —                         |
+| Lines      | 64.78%            | 84.59%       | 80%                       |
+
+Vitest now enforces the line and branch floors directly for `src/remote/gateway.ts`, in addition to the repository-wide thresholds. The tests exposed and fixed these relay boundary defects:
+
+- registering a second session on the same socket left the previous session connected;
+- approval and tool responses were accepted even when their `sessionId` did not match the socket's active session;
+- duplicate or unknown tool responses were silently ignored;
+- `session_closed` and socket close rejected in-flight requests with a generic extension error or only after their deadline.
+
+Re-registration now disconnects and rejects the old session before replacement. Relay responses must match the active session, unknown request IDs return `REQUEST_NOT_FOUND`, and socket/session teardown rejects pending requests immediately as `SESSION_DISCONNECTED` with HTTP-equivalent status 424. Different sessions remain concurrently dispatchable while requests targeting the same session remain serialized.

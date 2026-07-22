@@ -24,6 +24,10 @@ export default defineConfig({
         functions: 80,
         branches: 75,
         statements: 80,
+        'src/remote/gateway.ts': {
+          lines: 80,
+          branches: 70,
+        },
       },
     },
   },

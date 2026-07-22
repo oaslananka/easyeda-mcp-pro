@@ -162,9 +162,130 @@ describe('RemoteGateway session dispatch concurrency', () => {
     });
     expect(started).toEqual(['schematic.listComponents']);
     expect(closeConnectionCount).toBe(1);
+    expect(gateway.audit.recent(20)).toContainEqual(
+      expect.objectContaining({
+        event: 'remote.tool.failed',
+        sessionId: session.sessionId,
+        errorCode: 'REMOTE_EXTENSION_TIMEOUT',
+      }),
+    );
 
     releaseLateResponse?.();
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(started).toEqual(['schematic.listComponents']);
   });
+});
+
+it('allows different extension sessions to execute concurrently without crossing results', async () => {
+  const gateway = new RemoteGateway();
+  const identity = { userId: 'parallel-user', scopes: ['easyeda.read'] as const };
+  const releases = new Map<string, () => void>();
+  let activeDispatches = 0;
+  let maxActiveDispatches = 0;
+
+  const register = (name: string) =>
+    gateway.registerExtension({
+      connectionId: `conn-${name}`,
+      mode: 'hosted',
+      extensionVersion: '0.35.1',
+      activeProject: { projectName: name, documentType: 'schematic' },
+      dispatch: async (request: ToolRequestMessage): Promise<ToolResponseMessage> => {
+        activeDispatches += 1;
+        maxActiveDispatches = Math.max(maxActiveDispatches, activeDispatches);
+        await new Promise<void>((resolve) => releases.set(name, resolve));
+        activeDispatches -= 1;
+        return {
+          protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+          type: 'tool_response',
+          messageId: `response-${request.messageId}`,
+          sessionId: request.sessionId,
+          requestMessageId: request.messageId,
+          timestamp: new Date().toISOString(),
+          ok: true,
+          result: { projectName: name, sessionId: request.sessionId },
+          durationMs: 1,
+        };
+      },
+    });
+
+  const sessionA = register('Project A');
+  const sessionB = register('Project B');
+  for (const session of [sessionA, sessionB]) {
+    const code = gateway.createPairingCode({ identity, sessionId: session.sessionId });
+    expect(gateway.completePairing({ identity, code, sessionId: session.sessionId })).toBe(true);
+  }
+
+  const requestA = gateway.routeToolRequest({
+    identity,
+    sessionId: sessionA.sessionId,
+    toolName: 'schematic.listComponents',
+    riskLevel: 'read',
+    input: { expected: 'Project A' },
+  });
+  const requestB = gateway.routeToolRequest({
+    identity,
+    sessionId: sessionB.sessionId,
+    toolName: 'schematic.listComponents',
+    riskLevel: 'read',
+    input: { expected: 'Project B' },
+  });
+  await waitFor(() => releases.size === 2);
+
+  expect(activeDispatches).toBe(2);
+  expect(maxActiveDispatches).toBe(2);
+  releases.get('Project B')?.();
+  releases.get('Project A')?.();
+
+  await expect(requestA).resolves.toMatchObject({
+    ok: true,
+    sessionId: sessionA.sessionId,
+    result: { projectName: 'Project A', sessionId: sessionA.sessionId },
+  });
+  await expect(requestB).resolves.toMatchObject({
+    ok: true,
+    sessionId: sessionB.sessionId,
+    result: { projectName: 'Project B', sessionId: sessionB.sessionId },
+  });
+  expect(activeDispatches).toBe(0);
+});
+
+it('never routes an explicit session across paired user boundaries', async () => {
+  const gateway = new RemoteGateway();
+  const owner = { userId: 'session-owner', scopes: ['easyeda.read'] as const };
+  const attacker = { userId: 'different-user', scopes: ['easyeda.read'] as const };
+  let dispatchCount = 0;
+  const session = gateway.registerExtension({
+    connectionId: 'conn-owner-only',
+    mode: 'hosted',
+    extensionVersion: '0.35.1',
+    activeProject: { projectName: 'Owner Project', documentType: 'schematic' },
+    dispatch: async (request: ToolRequestMessage): Promise<ToolResponseMessage> => {
+      dispatchCount += 1;
+      return {
+        protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+        type: 'tool_response',
+        messageId: `response-${request.messageId}`,
+        sessionId: request.sessionId,
+        requestMessageId: request.messageId,
+        timestamp: new Date().toISOString(),
+        ok: true,
+        result: {},
+        durationMs: 1,
+      };
+    },
+  });
+  const code = gateway.createPairingCode({ identity: owner, sessionId: session.sessionId });
+  expect(gateway.completePairing({ identity: owner, code, sessionId: session.sessionId })).toBe(
+    true,
+  );
+
+  await expect(
+    gateway.routeToolRequest({
+      identity: attacker,
+      sessionId: session.sessionId,
+      toolName: 'schematic.listComponents',
+      riskLevel: 'read',
+    }),
+  ).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
+  expect(dispatchCount).toBe(0);
 });

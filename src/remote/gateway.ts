@@ -158,7 +158,7 @@ class RemoteDispatchTimeoutError extends Error {
 
 class RemoteSessionUnavailableError extends Error {
   constructor(readonly sessionId: string) {
-    super(`Remote extension session ${sessionId} disconnected before dispatch.`);
+    super(`Remote extension session ${sessionId} became unavailable during dispatch.`);
     this.name = 'RemoteSessionUnavailableError';
   }
 }
@@ -914,14 +914,40 @@ export class RemoteGateway {
       );
     };
 
+    const rejectPending = (error: Error): void => {
+      for (const handler of pending.values()) handler.reject(error);
+      pending.clear();
+    };
+
+    const disconnectCurrentSession = (): void => {
+      const currentSessionId = sessionId;
+      if (!currentSessionId) return;
+      this.disconnect(currentSessionId);
+      rejectPending(new RemoteSessionUnavailableError(currentSessionId));
+      sessionId = undefined;
+    };
+
+    const messageMatchesCurrentSession = (messageSessionId: string | undefined): boolean => {
+      if (messageSessionId === sessionId) return true;
+      send({
+        type: 'error',
+        code: 'SESSION_MISMATCH',
+        message: 'Relay message sessionId does not match the active socket session.',
+      });
+      return false;
+    };
+
     const dispatch: RemoteToolDispatcher = async (request) => {
-      if (ws.readyState !== ws.OPEN) throw new Error('Remote relay socket is closed.');
+      if (ws.readyState !== ws.OPEN) {
+        throw new RemoteSessionUnavailableError(request.sessionId);
+      }
       ws.send(JSON.stringify(request));
       return await new Promise<ToolResponseMessage>((resolve, reject) => {
+        const timeoutMs = request.deadlineMs ?? 30_000;
         const timeout = setTimeout(() => {
           pending.delete(request.messageId);
-          reject(new Error('Remote extension did not respond before the deadline.'));
-        }, request.deadlineMs ?? 30_000);
+          reject(new RemoteDispatchTimeoutError(timeoutMs));
+        }, timeoutMs);
         pending.set(request.messageId, {
           resolve: (response) => {
             clearTimeout(timeout);
@@ -957,6 +983,7 @@ export class RemoteGateway {
       }
 
       if (message.data.type === 'register_session') {
+        disconnectCurrentSession();
         const session = this.registerExtension({
           connectionId,
           mode: message.data.mode,
@@ -997,6 +1024,7 @@ export class RemoteGateway {
       }
 
       if (message.data.type === 'approval_result') {
+        if (!messageMatchesCurrentSession(message.data.sessionId)) return;
         const resolved = this.resolveApprovalFromExtension({
           sessionId,
           approvalId: message.data.approvalId,
@@ -1013,25 +1041,29 @@ export class RemoteGateway {
       }
 
       if (message.data.type === 'tool_response') {
+        if (!messageMatchesCurrentSession(message.data.sessionId)) return;
         const handler = pending.get(message.data.requestMessageId);
-        if (handler) {
-          pending.delete(message.data.requestMessageId);
-          handler.resolve(message.data);
+        if (!handler) {
+          send({
+            type: 'error',
+            code: 'REQUEST_NOT_FOUND',
+            message: 'Tool response did not match an active relay request.',
+          });
+          return;
         }
+        pending.delete(message.data.requestMessageId);
+        handler.resolve(message.data);
         return;
       }
 
       if (message.data.type === 'session_closed') {
-        this.disconnect(sessionId);
-        sessionId = undefined;
+        if (!messageMatchesCurrentSession(message.data.sessionId)) return;
+        disconnectCurrentSession();
       }
     });
 
     ws.on('close', () => {
-      if (sessionId) this.disconnect(sessionId);
-      for (const handler of pending.values())
-        handler.reject(new Error('Remote relay socket closed.'));
-      pending.clear();
+      disconnectCurrentSession();
     });
   }
 }
