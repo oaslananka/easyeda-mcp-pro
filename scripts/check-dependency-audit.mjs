@@ -149,50 +149,81 @@ const getToday = () => {
 const getGeneratedAt = () => {
   const value = process.env.DEPENDENCY_AUDIT_GENERATED_AT ?? new Date().toISOString();
   if (Number.isNaN(Date.parse(value))) {
-    throw new Error('DEPENDENCY_AUDIT_GENERATED_AT must be a valid ISO-8601 timestamp');
+    throw new TypeError('DEPENDENCY_AUDIT_GENERATED_AT must be a valid ISO-8601 timestamp');
   }
   return value;
 };
 
-const flattenFindings = (audit) => {
-  if (
-    !audit ||
-    typeof audit !== 'object' ||
-    !audit.advisories ||
-    typeof audit.advisories !== 'object'
-  ) {
-    throw new Error('pnpm audit JSON is missing the advisories object');
+const getAuditAdvisories = (audit) => {
+  if (!audit || typeof audit !== 'object' || Array.isArray(audit)) {
+    throw new TypeError('pnpm audit JSON must be an object');
+  }
+  const { advisories } = audit;
+  if (!advisories || typeof advisories !== 'object' || Array.isArray(advisories)) {
+    throw new TypeError('pnpm audit JSON is missing the advisories object');
+  }
+  return advisories;
+};
+
+const optionalString = (value) => (typeof value === 'string' ? value : '');
+
+const getAdvisoryMetadata = (advisory) => {
+  if (!advisory || typeof advisory !== 'object' || Array.isArray(advisory)) {
+    throw new TypeError('pnpm audit JSON contains an invalid advisory record');
   }
 
-  const findings = [];
-  for (const advisory of Object.values(audit.advisories)) {
-    const advisoryId = advisory?.github_advisory_id;
-    const packageName = advisory?.module_name;
-    const severity = advisory?.severity;
-    if (!advisoryId || !packageName || !severity || !Array.isArray(advisory.findings)) {
-      throw new Error('pnpm audit JSON contains an incomplete advisory record');
-    }
-    for (const finding of advisory.findings) {
-      if (typeof finding?.version !== 'string' || finding.version === '') {
-        throw new Error(`pnpm audit finding ${advisoryId} is missing a resolved version`);
-      }
-      findings.push({
-        advisory: advisoryId,
-        title: typeof advisory.title === 'string' ? advisory.title : '',
-        url: typeof advisory.url === 'string' ? advisory.url : '',
-        package: packageName,
-        severity,
-        resolvedVersion: finding.version,
-        vulnerableVersions:
-          typeof advisory.vulnerable_versions === 'string' ? advisory.vulnerable_versions : '',
-        patchedVersions:
-          typeof advisory.patched_versions === 'string' ? advisory.patched_versions : '',
-        paths: Array.isArray(finding.paths) ? finding.paths : [],
-      });
-    }
+  const advisoryId = advisory.github_advisory_id;
+  const packageName = advisory.module_name;
+  const severity = advisory.severity;
+  if (
+    typeof advisoryId !== 'string' ||
+    typeof packageName !== 'string' ||
+    typeof severity !== 'string' ||
+    !Array.isArray(advisory.findings)
+  ) {
+    throw new TypeError('pnpm audit JSON contains an incomplete advisory record');
   }
-  return findings;
+
+  return {
+    advisoryId,
+    packageName,
+    severity,
+    title: optionalString(advisory.title),
+    url: optionalString(advisory.url),
+    vulnerableVersions: optionalString(advisory.vulnerable_versions),
+    patchedVersions: optionalString(advisory.patched_versions),
+    findings: advisory.findings,
+  };
 };
+
+const normalizeFinding = (metadata, finding) => {
+  if (!finding || typeof finding !== 'object' || typeof finding.version !== 'string') {
+    throw new TypeError(`pnpm audit finding ${metadata.advisoryId} is missing a resolved version`);
+  }
+  if (finding.version === '') {
+    throw new TypeError(`pnpm audit finding ${metadata.advisoryId} is missing a resolved version`);
+  }
+
+  return {
+    advisory: metadata.advisoryId,
+    title: metadata.title,
+    url: metadata.url,
+    package: metadata.packageName,
+    severity: metadata.severity,
+    resolvedVersion: finding.version,
+    vulnerableVersions: metadata.vulnerableVersions,
+    patchedVersions: metadata.patchedVersions,
+    paths: Array.isArray(finding.paths) ? finding.paths : [],
+  };
+};
+
+const normalizeAdvisory = (advisory) => {
+  const metadata = getAdvisoryMetadata(advisory);
+  return metadata.findings.map((finding) => normalizeFinding(metadata, finding));
+};
+
+const flattenFindings = (audit) =>
+  Object.values(getAuditAdvisories(audit)).flatMap(normalizeAdvisory);
 
 const getFindingPolicyError = (finding, exception, today) => {
   if (finding.severity === 'high' || finding.severity === 'critical') {
@@ -273,7 +304,7 @@ const createReport = (audit, evaluation, generatedAt) => ({
 
 const escapeTableCell = (value) =>
   String(value ?? '')
-    .replaceAll('|', '\\|')
+    .replaceAll('|', String.raw`\|`)
     .replace(/\r?\n/g, '<br>');
 
 const createMarkdownSummary = (report) => {
