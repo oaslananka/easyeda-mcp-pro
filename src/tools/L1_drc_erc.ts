@@ -204,9 +204,9 @@ function registerDrcErcTools(
     name: 'easyeda_erc_run',
     title: 'Run electrical rule check',
     description:
-      'Run the native electrical rule check (ERC). Native counts are coarse; ' +
-      'inferred_floating_pins supplements them with located, unconnected pins from this ' +
-      "bridge's own inference (best-effort — other categories still need the DRC panel).",
+      'Run native ERC and supplement its coarse counts with inferred_floating_pins. Only a strict ' +
+      'native noConnected=true readback suppresses a pin; unavailable or malformed state remains ' +
+      'visible. Native counts remain authoritative for other categories.',
     profile: 'core',
     evidence: ['official-docs', 'runtime-probe'],
     risk: 'medium',

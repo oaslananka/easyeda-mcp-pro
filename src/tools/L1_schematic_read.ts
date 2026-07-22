@@ -1221,9 +1221,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_validate_netlist',
     title: 'Validate netlist',
     description:
-      'Validate the schematic netlist: inferred nets, connected refs/pins, floating pins, plus a ' +
-      'cross-check with native ERC (native_erc). `valid` needs BOTH the inference clean AND ' +
-      'native ERC 0 errors — inference alone false-positives when pins overlap without a wire.',
+      'Validate inferred nets and floating pins, then cross-check native ERC. A pin is excluded ' +
+      'from floating inference only when native noConnected readback is boolean true; unavailable ' +
+      'or malformed state stays visible. `valid` requires clean inference and zero native errors.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'low',
