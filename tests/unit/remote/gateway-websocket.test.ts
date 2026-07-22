@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { createServer, type Server } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
@@ -281,19 +282,64 @@ describe('RemoteGateway WebSocket relay', () => {
       code: 'APPROVAL_NOT_APPROVED',
       message: 'Remote approval is still pending user action.',
     });
+
+    harness.client.send(
+      envelope('approval_result', {
+        sessionId,
+        approvalId: first.approvalId,
+        result: 'approved',
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const routed = harness.gateway.routeToolRequest({
+      identity: writeIdentity,
+      sessionId,
+      toolName: 'schematic.addText',
+      riskLevel: 'write',
+      input: { content: 'relay fixture' },
+      approvalId: first.approvalId,
+    });
+    const request = await harness.client.waitFor((message) => message.type === 'tool_request');
+    harness.client.send(
+      toolResponse({
+        sessionId,
+        requestMessageId: String(request.messageId),
+        result: { approved: true },
+      }),
+    );
+    await expect(routed).resolves.toMatchObject({ ok: true, result: { approved: true } });
   });
 
   it('rejects in-flight requests immediately when the extension closes its session', async () => {
     const harness = await createHarness();
     const sessionId = await registerSession(harness);
-    const routed = harness.gateway.routeToolRequest({
-      identity: readIdentity,
-      sessionId,
-      toolName: 'schematic.listComponents',
-      riskLevel: 'read',
-      deadlineMs: 2_000,
-    });
+    let settled = false;
+    const routed = harness.gateway
+      .routeToolRequest({
+        identity: readIdentity,
+        sessionId,
+        toolName: 'schematic.listComponents',
+        riskLevel: 'read',
+        deadlineMs: 2_000,
+      })
+      .then((result) => {
+        settled = true;
+        return result;
+      });
     await harness.client.waitFor((message) => message.type === 'tool_request');
+
+    harness.client.send(
+      envelope('session_closed', {
+        sessionId: 'sess_wrong',
+        reason: 'disconnected',
+      }),
+    );
+    await expect(
+      harness.client.waitFor((message) => message.code === 'SESSION_MISMATCH'),
+    ).resolves.toMatchObject({ type: 'error', code: 'SESSION_MISMATCH' });
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    expect(settled).toBe(false);
 
     harness.client.send(
       envelope('session_closed', {
@@ -314,6 +360,68 @@ describe('RemoteGateway WebSocket relay', () => {
         errorCode: 'SESSION_DISCONNECTED',
       }),
     );
+  });
+
+  it('normalizes a dispatch attempted after the relay transport is already closed', async () => {
+    class FakeRelaySocket extends EventEmitter {
+      readonly OPEN = WebSocket.OPEN;
+      readyState = WebSocket.OPEN;
+      readonly sent: RelayRecord[] = [];
+
+      send(payload: string): void {
+        this.sent.push(JSON.parse(payload) as RelayRecord);
+      }
+
+      close(): void {
+        this.readyState = WebSocket.CLOSED;
+        this.emit('close');
+      }
+    }
+
+    const gateway = new RemoteGateway({
+      makeId: (() => {
+        let counter = 0;
+        return () => `closed-${++counter}`;
+      })(),
+    });
+    const socket = new FakeRelaySocket();
+    const pairingCode = gateway.createPairingCode({ identity: readIdentity });
+    const gatewayInternals = gateway as unknown as {
+      handleRelaySocket(ws: WebSocket): void;
+    };
+    gatewayInternals.handleRelaySocket(socket as unknown as WebSocket);
+    socket.emit(
+      'message',
+      Buffer.from(
+        JSON.stringify(
+          envelope('register_session', {
+            extensionVersion: '0.35.1',
+            mode: 'hosted',
+            capabilities: [],
+            activeProject: { projectName: 'Closed Relay', documentType: 'schematic' },
+            pairingCode,
+          }),
+        ),
+      ),
+    );
+    const registered = socket.sent.find((message) => message.type === 'session_registered');
+    const sessionId = String(registered?.sessionId ?? '');
+    expect(sessionId).toMatch(/^sess_/);
+
+    socket.readyState = WebSocket.CLOSED;
+    await expect(
+      gateway.routeToolRequest({
+        identity: readIdentity,
+        sessionId,
+        toolName: 'schematic.listComponents',
+        riskLevel: 'read',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      status: 424,
+      code: 'SESSION_DISCONNECTED',
+    });
+    gateway.disconnect(sessionId);
   });
 
   it('rejects in-flight requests immediately when the relay socket closes', async () => {

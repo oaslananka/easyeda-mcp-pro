@@ -94,10 +94,10 @@ pnpm test:coverage:ci
 
 | Metric     | Previous measured | New measured | Blocking module threshold |
 | ---------- | ----------------- | ------------ | ------------------------- |
-| Statements | 63.14%            | 81.58%       | —                         |
-| Branches   | 57.72%            | 70.47%       | 70%                       |
-| Functions  | 83.05%            | 91.52%       | —                         |
-| Lines      | 64.78%            | 84.59%       | 80%                       |
+| Statements | 63.14%            | 83.18%       | —                         |
+| Branches   | 57.72%            | 72.22%       | 70%                       |
+| Functions  | 83.05%            | 92.85%       | —                         |
+| Lines      | 64.78%            | 86.12%       | 80%                       |
 
 Vitest now enforces the line and branch floors directly for `src/remote/gateway.ts`, in addition to the repository-wide thresholds. The tests exposed and fixed these relay boundary defects:
 

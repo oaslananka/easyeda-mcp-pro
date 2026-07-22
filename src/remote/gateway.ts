@@ -943,21 +943,7 @@ export class RemoteGateway {
       }
       ws.send(JSON.stringify(request));
       return await new Promise<ToolResponseMessage>((resolve, reject) => {
-        const timeoutMs = request.deadlineMs ?? 30_000;
-        const timeout = setTimeout(() => {
-          pending.delete(request.messageId);
-          reject(new RemoteDispatchTimeoutError(timeoutMs));
-        }, timeoutMs);
-        pending.set(request.messageId, {
-          resolve: (response) => {
-            clearTimeout(timeout);
-            resolve(response);
-          },
-          reject: (error) => {
-            clearTimeout(timeout);
-            reject(error);
-          },
-        });
+        pending.set(request.messageId, { resolve, reject });
       });
     };
 
