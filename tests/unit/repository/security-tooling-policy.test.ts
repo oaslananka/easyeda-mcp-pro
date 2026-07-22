@@ -78,6 +78,7 @@ describe('repository security tooling policy', () => {
     expect(packageJson.scripts?.['security:snyk']).toBe(
       'pnpm security:snyk:oss && pnpm security:snyk:code',
     );
+    expect(packageJson.scripts?.['security:audit']).toBe('node scripts/check-dependency-audit.mjs');
     const workspace = readText('pnpm-workspace.yaml');
     expect(workspace).toContain('minimumReleaseAge: 4320');
     expect(workspace).toContain('minimumReleaseAgeStrict: true');
@@ -130,6 +131,32 @@ describe('repository security tooling policy', () => {
     expect(readText('.github/workflows/release-please.yml')).toContain(
       'if [[ "$RELEASE_CREATED" == "true" || -n "$MANUAL_TAG" ]]',
     );
+
+    const ciWorkflow = readText('.github/workflows/ci.yml');
+    const releaseWorkflow = readText('.github/workflows/release-please.yml');
+    expect(ciWorkflow).toContain('pnpm security:audit');
+    expect(releaseWorkflow).toContain('pnpm security:audit');
+    expect(ciWorkflow).not.toContain('pnpm audit --audit-level low');
+    expect(releaseWorkflow).not.toContain('pnpm audit --audit-level low');
+
+    const dependencyAuditAllowlist = JSON.parse(
+      readText('.github/dependency-audit-allowlist.json'),
+    ) as {
+      schemaVersion?: number;
+      exceptions?: Array<Record<string, unknown>>;
+    };
+    expect(dependencyAuditAllowlist.schemaVersion).toBe(1);
+    expect(dependencyAuditAllowlist.exceptions).toHaveLength(1);
+    expect(dependencyAuditAllowlist.exceptions?.[0]).toMatchObject({
+      advisory: 'GHSA-frvp-7c67-39w9',
+      package: '@hono/node-server',
+      versions: ['1.19.14'],
+      severity: 'moderate',
+      owner: '@oaslananka',
+      trackingIssue: 334,
+      reviewBy: '2026-08-10',
+      expiresOn: '2026-08-15',
+    });
   });
 
   it('hardens release and benchmark dependency installation', () => {

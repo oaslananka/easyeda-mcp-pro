@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "advisory": "GHSA-frvp-7c67-39w9",
+      "package": "@hono/node-server",
+      "versions": ["1.19.14"],
+      "severity": "moderate",
+      "owner": "@oaslananka",
+      "reason": "The advisory affects the optional serve-static subpath on Windows. easyeda-mcp-pro does not serve files through @hono/node-server.",
+      "reachability": "@modelcontextprotocol/sdk@1.29.0 imports getRequestListener from the package root for Node.js/Web Standard request conversion. The vulnerable serveStatic implementation is published as the separate @hono/node-server/serve-static export and is not imported by the SDK transport or this repository.",
+      "trackingIssue": 334,
+      "reviewBy": "2026-08-10",
+      "expiresOn": "2026-08-15"
+    }
+  ]
+}

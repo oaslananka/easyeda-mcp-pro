@@ -103,3 +103,25 @@ pull-request context and remains authoritative in GitHub.
 - Trivy reports Docker/configuration and image findings.
 - Snyk and SonarQube Cloud remain external integrations rather than duplicate local gates.
 - actionlint and zizmor run both locally and in CI so workflow regressions are caught before merge.
+
+## Dependency audit policy
+
+Run the same dependency advisory gate used by CI and release automation:
+
+```bash
+pnpm security:audit
+```
+
+The command evaluates the complete `pnpm audit --json` result. It does not hide findings with a
+blanket ignore flag. A moderate advisory may be accepted only through an exact entry in
+`.github/dependency-audit-allowlist.json`; high and critical advisories always fail. Every exception
+must name the affected package and resolved version, document reachability, link a tracking issue,
+and include both review and expiry dates. Unexpected, changed, escalated, expired, or stale entries
+fail closed.
+
+The current `GHSA-frvp-7c67-39w9` exception is limited to
+`@hono/node-server@1.19.14`. The advisory affects the separate
+`@hono/node-server/serve-static` Windows file-serving implementation. The MCP SDK imports only
+`getRequestListener` from the package root, and easyeda-mcp-pro does not expose static file serving
+through Hono. Issue #334 owns upstream remediation; the exception must be reviewed by 2026-08-10
+and is automatically rejected after 2026-08-15.

@@ -41,3 +41,23 @@ We choose **Renovate** as our dependency automation provider.
 Renovate is the **only** tool that opens automated dependency-update pull requests in this repository, for both npm packages (`renovate.json` default manager) and GitHub Actions (`matchManagers: ["github-actions"]` group). A `.github/dependabot.yml` version-update config is intentionally **not** present, so that two bots cannot open competing or duplicate update PRs for the same dependency.
 
 GitHub's platform-level Dependabot features — dependency graph, Dependabot alerts, and Dependabot security updates — remain **enabled** as vulnerability _detection_ (Settings > Security & analysis; see `docs/REPOSITORY_GOVERNANCE.md#5-maintainer-setup-checklist`). Those features do not require a `dependabot.yml` file; only Dependabot's _version-update_ PR feature does, and that is the piece this repository delegates to Renovate.
+
+## Addendum: time-bounded audit exceptions (2026-07-22)
+
+`pnpm security:audit` is the blocking dependency-audit command for pull requests and releases. It
+runs `pnpm audit --json` and rejects every finding unless an exact, repository-owned exception is
+present in `.github/dependency-audit-allowlist.json`.
+
+Exceptions are deliberately narrow and fail closed:
+
+- high and critical advisories can never be allowlisted;
+- the advisory ID, package, resolved version, and severity must all match;
+- each entry must record an owner, reachability rationale, tracking issue, review date, and expiry;
+- new, changed, escalated, expired, or stale exceptions fail CI;
+- broad audit suppression flags are not permitted.
+
+The initial exception tracks `GHSA-frvp-7c67-39w9` in #334. The affected Windows path-traversal
+logic belongs to the separate `@hono/node-server/serve-static` export. This repository and
+`@modelcontextprotocol/sdk@1.29.0` use the package-root `getRequestListener` export for HTTP request
+conversion and do not import or configure `serveStatic`. The exception is therefore temporary,
+reviewed on 2026-08-10, and expires on 2026-08-15 while the upstream SDK migration path is tracked.
