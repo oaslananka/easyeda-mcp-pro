@@ -125,3 +125,21 @@ The current `GHSA-frvp-7c67-39w9` exception is limited to
 `getRequestListener` from the package root, and easyeda-mcp-pro does not expose static file serving
 through Hono. Issue #334 owns upstream remediation; the exception must be reviewed by 2026-08-10
 and is automatically rejected after 2026-08-15.
+
+### Scheduled advisory monitoring
+
+The `Dependency Advisory Monitor` workflow runs every day at **05:23 UTC** and can also be started
+manually with `workflow_dispatch`. Pull requests that change the audit policy, dependency graph, or
+workflow run the same job for validation.
+
+The job first performs a frozen, script-disabled install so the committed pnpm lockfile and
+workspace supply-chain policy are evaluated before any advisory decision. It then runs
+`pnpm security:audit`, writes the human-readable result to the GitHub Job Summary, and uploads the
+machine-readable `dependency-audit-report` JSON artifact for 14 days. The report includes advisory
+IDs, affected packages, resolved dependency paths, installed versions, patched version ranges, and
+policy decisions.
+
+The workflow has read-only repository permission and never creates or updates issues. A repeated
+advisory therefore produces one failed workflow signal per run without duplicate public issue
+noise. Remediation remains tracked through the explicit issue referenced by a time-bounded audit
+exception.
