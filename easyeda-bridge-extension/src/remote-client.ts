@@ -230,15 +230,15 @@ export class RemoteRelayClient {
       return;
     }
     if (message.type === 'approval_request') {
-      void this.handleApprovalRequest(message);
+      void this.handleApprovalRequest(socket, message);
       return;
     }
     if (message.type === 'tool_request') {
-      void this.handleToolRequest(message);
+      void this.handleToolRequest(socket, message);
     }
   }
 
-  private async handleApprovalRequest(message: RemoteEnvelope): Promise<void> {
+  private async handleApprovalRequest(socket: WebSocket, message: RemoteEnvelope): Promise<void> {
     const approvalId = typeof message.approvalId === 'string' ? message.approvalId : '';
     const toolName = typeof message.toolName === 'string' ? message.toolName : '';
     const actionSummary =
@@ -274,18 +274,18 @@ export class RemoteRelayClient {
       this.pendingApprovalIds.delete(approvalId);
     }
 
-    this.send({
+    this.sendForSocket(socket, {
       type: 'approval_result',
       approvalId,
       result,
     });
   }
 
-  private async handleToolRequest(message: RemoteEnvelope): Promise<void> {
+  private async handleToolRequest(socket: WebSocket, message: RemoteEnvelope): Promise<void> {
     const startedAt = Date.now();
     const toolName = typeof message.toolName === 'string' ? message.toolName : '';
     if (!toolName) {
-      this.send({
+      this.sendForSocket(socket, {
         type: 'tool_response',
         requestMessageId: message.messageId,
         ok: false,
@@ -299,7 +299,7 @@ export class RemoteRelayClient {
       return;
     }
     if (!this.options.executeToolRequest) {
-      this.send({
+      this.sendForSocket(socket, {
         type: 'tool_response',
         requestMessageId: message.messageId,
         ok: false,
@@ -315,7 +315,7 @@ export class RemoteRelayClient {
 
     try {
       const result = await this.options.executeToolRequest(toolName, message.input);
-      this.send({
+      this.sendForSocket(socket, {
         type: 'tool_response',
         requestMessageId: message.messageId,
         ok: true,
@@ -323,7 +323,7 @@ export class RemoteRelayClient {
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      this.send({
+      this.sendForSocket(socket, {
         type: 'tool_response',
         requestMessageId: message.messageId,
         ok: false,
@@ -414,6 +414,11 @@ export class RemoteRelayClient {
   private send(payload: Record<string, unknown>): void {
     if (!this.socket) return;
     this.sendOnSocket(this.socket, payload);
+  }
+
+  private sendForSocket(socket: WebSocket, payload: Record<string, unknown>): void {
+    if (socket !== this.socket) return;
+    this.sendOnSocket(socket, payload);
   }
 
   private sendOnSocket(socket: WebSocket, payload: Record<string, unknown>): void {

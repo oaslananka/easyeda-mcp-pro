@@ -1505,6 +1505,8 @@ async function activateInternal(_status?: 'onStartupFinished', _arg?: string): P
 function deactivateInternal(): void {
   activationStarted = false;
   disconnectInternal(false);
+  remoteRelayClient?.disconnect('disconnected');
+  remoteRelayClient = null;
   const globalScope = globalThis as any;
   const existing = globalScope[PERSISTENT_RUNTIME_KEY] as PersistentRuntime | undefined;
   if (existing?.deactivate === deactivateInternal) {

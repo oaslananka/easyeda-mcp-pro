@@ -46,10 +46,12 @@ class FakeWebSocket {
   }
 }
 
-function makeClient(requestApproval = vi.fn(async () => 'approved' as const)) {
+function makeClient(
+  requestApproval = vi.fn(async () => 'approved' as const),
+  executeToolRequest = vi.fn(async () => ({ ok: true })),
+) {
   const log = vi.fn();
   const showToast = vi.fn();
-  const executeToolRequest = vi.fn(async () => ({ ok: true }));
   const client = new RemoteRelayClient({
     extensionVersion: '0.24.2',
     log,
@@ -243,5 +245,138 @@ describe('RemoteRelayClient resilience', () => {
       .filter((message) => message.type === 'approval_result');
     expect(decisions).toHaveLength(1);
     expect(decisions[0]).toMatchObject({ approvalId: 'appr_duplicate', result: 'rejected' });
+  });
+});
+
+describe('RemoteRelayClient approval session binding', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FakeWebSocket.instances = [];
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('ignores malformed approval requests without prompting or replying', async () => {
+    const { client, requestApproval } = makeClient();
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    socket.receive(
+      relayMessage('approval_request', {
+        approvalId: '',
+        toolName: '',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    );
+    await Promise.resolve();
+
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(
+      socket.sent
+        .map((data) => JSON.parse(data))
+        .filter((message) => message.type === 'approval_result'),
+    ).toHaveLength(0);
+  });
+
+  it('does not deliver a pending approval result on a replacement socket', async () => {
+    let resolveDecision: ((decision: 'approved') => void) | undefined;
+    const requestApproval = vi.fn(
+      async () =>
+        await new Promise<'approved'>((resolve) => {
+          resolveDecision = resolve;
+        }),
+    );
+    const { client } = makeClient(requestApproval);
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const originalSocket = FakeWebSocket.instances[0];
+    originalSocket.open();
+    originalSocket.receive(
+      relayMessage('approval_request', {
+        approvalId: 'appr_stale',
+        toolName: 'schematic.addText',
+        riskLevel: 'write',
+        actionSummary: 'Add a schematic note',
+        inputHash: 'hash',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+
+    originalSocket.close();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const replacementSocket = FakeWebSocket.instances[1];
+    replacementSocket.open();
+
+    resolveDecision?.('approved');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const approvalResults = [...originalSocket.sent, ...replacementSocket.sent]
+      .map((data) => JSON.parse(data) as Record<string, unknown>)
+      .filter((message) => message.type === 'approval_result');
+    expect(approvalResults).toHaveLength(0);
+  });
+
+  it('does not deliver a pending tool response on a replacement socket', async () => {
+    let resolveResult: ((result: { ok: true }) => void) | undefined;
+    const executeToolRequest = vi.fn(
+      async () =>
+        await new Promise<{ ok: true }>((resolve) => {
+          resolveResult = resolve;
+        }),
+    );
+    const { client } = makeClient(
+      vi.fn(async () => 'approved' as const),
+      executeToolRequest,
+    );
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const originalSocket = FakeWebSocket.instances[0];
+    originalSocket.open();
+    originalSocket.receive(
+      relayMessage('tool_request', {
+        toolName: 'schematic.listComponents',
+        input: {},
+      }),
+    );
+    await Promise.resolve();
+    expect(executeToolRequest).toHaveBeenCalledTimes(1);
+
+    originalSocket.close();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const replacementSocket = FakeWebSocket.instances[1];
+    replacementSocket.open();
+
+    resolveResult?.({ ok: true });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const responses = [...originalSocket.sent, ...replacementSocket.sent]
+      .map((data) => JSON.parse(data) as Record<string, unknown>)
+      .filter((message) => message.type === 'tool_response');
+    expect(responses).toHaveLength(0);
+  });
+
+  it('ignores approval messages received from a disconnected socket', async () => {
+    const { client, requestApproval } = makeClient();
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    client.disconnect('user_disabled');
+
+    socket.receive(
+      relayMessage('approval_request', {
+        approvalId: 'appr_disconnected',
+        toolName: 'schematic.addText',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    );
+    await Promise.resolve();
+
+    expect(requestApproval).not.toHaveBeenCalled();
   });
 });
