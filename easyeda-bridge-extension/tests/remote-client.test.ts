@@ -46,9 +46,11 @@ class FakeWebSocket {
   }
 }
 
+type ExecuteToolRequest = (toolName: string, input: unknown) => Promise<unknown>;
+
 function makeClient(
   requestApproval = vi.fn(async () => 'approved' as const),
-  executeToolRequest = vi.fn(async () => ({ ok: true })),
+  executeToolRequest: ExecuteToolRequest | null = vi.fn(async () => ({ ok: true })),
 ) {
   const log = vi.fn();
   const showToast = vi.fn();
@@ -57,7 +59,7 @@ function makeClient(
     log,
     showToast,
     readActiveProject: () => ({ projectName: 'Fixture', documentType: 'schematic' }),
-    executeToolRequest,
+    executeToolRequest: executeToolRequest ?? undefined,
     requestApproval,
     timers: createRuntimeTimers(() => undefined, globalThis as any, 'remote-test'),
     createWebSocket: (url) => new FakeWebSocket(url) as unknown as WebSocket,
@@ -320,6 +322,79 @@ describe('RemoteRelayClient approval session binding', () => {
       .map((data) => JSON.parse(data) as Record<string, unknown>)
       .filter((message) => message.type === 'approval_result');
     expect(approvalResults).toHaveLength(0);
+  });
+
+  it('returns a structured error when a tool request omits its name', async () => {
+    const { client } = makeClient();
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    socket.receive(relayMessage('tool_request', { input: {} }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const response = socket.sent
+      .map((data) => JSON.parse(data) as Record<string, unknown>)
+      .find((message) => message.type === 'tool_response');
+    expect(response).toMatchObject({
+      type: 'tool_response',
+      ok: false,
+      error: { code: 'REMOTE_TOOL_NAME_MISSING' },
+    });
+  });
+
+  it('returns a structured error when Remote Relay execution is disabled', async () => {
+    const { client } = makeClient(undefined, null);
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    socket.receive(
+      relayMessage('tool_request', {
+        toolName: 'schematic.listComponents',
+        input: {},
+      }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const response = socket.sent
+      .map((data) => JSON.parse(data) as Record<string, unknown>)
+      .find((message) => message.type === 'tool_response');
+    expect(response).toMatchObject({
+      type: 'tool_response',
+      ok: false,
+      error: { code: 'REMOTE_EXECUTION_NOT_ENABLED' },
+    });
+  });
+
+  it('serializes execution failures on the originating active socket', async () => {
+    const executeToolRequest = vi.fn(async () => {
+      throw Object.assign(new Error('fixture execution failed'), { code: 'FIXTURE_FAILURE' });
+    });
+    const { client } = makeClient(undefined, executeToolRequest);
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    socket.receive(
+      relayMessage('tool_request', {
+        toolName: 'schematic.listComponents',
+        input: {},
+      }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const response = socket.sent
+      .map((data) => JSON.parse(data) as Record<string, unknown>)
+      .find((message) => message.type === 'tool_response');
+    expect(response).toMatchObject({
+      type: 'tool_response',
+      ok: false,
+      error: { code: 'FIXTURE_FAILURE', message: 'fixture execution failed' },
+    });
   });
 
   it('does not deliver a pending tool response on a replacement socket', async () => {

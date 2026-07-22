@@ -68,12 +68,12 @@ pnpm test:extension:ci
 
 | Metric     | Previous measured | New measured | Previous threshold | New threshold |
 | ---------- | ----------------- | ------------ | ------------------ | ------------- |
-| Statements | 51.49%            | 66.98%       | 51%                | 65%           |
-| Branches   | 46.41%            | 54.91%       | 46%                | 50%           |
-| Functions  | 61.35%            | 81.25%       | 61%                | 70%           |
-| Lines      | 52.15%            | 68.67%       | 52%                | 65%           |
+| Statements | 51.49%            | 67.22%       | 51%                | 65%           |
+| Branches   | 46.41%            | 55.20%       | 46%                | 50%           |
+| Functions  | 61.35%            | 81.51%       | 61%                | 70%           |
+| Lines      | 52.15%            | 68.93%       | 52%                | 65%           |
 
-The direct loader harness raises `src/index.ts` itself to 63.47% statements, 45.64% branches, 72.54% functions, and 64.67% lines. `src/remote-client.ts` reaches 77.90% statements, 62.60% branches, 89.65% functions, and 80.79% lines.
+The direct loader harness raises `src/index.ts` itself to 63.47% statements, 45.64% branches, 72.54% functions, and 64.67% lines. `src/remote-client.ts` reaches 81.97% statements, 68.69% branches, 93.10% functions, and 85.43% lines.
 
 The tests also exposed and fixed two lifecycle/security defects:
 
