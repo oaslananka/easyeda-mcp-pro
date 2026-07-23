@@ -25,6 +25,12 @@
 - [ ] Permissions, fork behavior, and untrusted inputs were reviewed for workflow changes
 - [ ] Breaking changes and release impact are documented
 
+## Review disposition
+
+- [ ] Human reviews, inline conversations, bot/agent comments, and check annotations were inspected on the current head
+- [ ] Every actionable finding was fixed; false positives, duplicates, and accepted risks are explicitly dispositioned with evidence
+- [ ] Critical-path ownership and independent-review requirements were applied, or the current solo/emergency rationale is linked
+
 ## Related work
 
 Closes #<!-- issue number, when applicable -->

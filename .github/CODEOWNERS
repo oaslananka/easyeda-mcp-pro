@@ -1,16 +1,53 @@
 # CODEOWNERS for easyeda-mcp-pro
-# Documents ownership and routes review requests for key paths.
+#
+# CODEOWNERS routes review requests. In the current solo-maintainer mode it does
+# not create an independent approval by itself; the activation rule is defined
+# in docs/REPOSITORY_GOVERNANCE.md and config/repository-governance-policy.json.
 
-# Default owner for everything in the repository
+# Default owner
 * @oaslananka
 
-# Configuration and security files have an explicit maintainer owner
-/.github/ @oaslananka
+# Governance, security, and repository policy
+/.github/CODEOWNERS @oaslananka
+/.github/pull_request_template.md @oaslananka
+/.github/workflows/ @oaslananka
+/.github/dependency-audit-allowlist.json @oaslananka
+/.github/renovate.json @oaslananka
+/SECURITY.md @oaslananka
+/docs/REPOSITORY_GOVERNANCE.md @oaslananka
+/docs/SECURITY_ASSURANCE_CASE.md @oaslananka
+/docs/MAINTAINER_CONTINUITY.md @oaslananka
+/docs/OPENSSF_BEST_PRACTICES.md @oaslananka
+/config/repository-governance-policy.json @oaslananka
+
+# Release and supply-chain publication
 /package.json @oaslananka
 /pnpm-lock.yaml @oaslananka
 /pnpm-workspace.yaml @oaslananka
-/tsconfig.json @oaslananka
-/tsconfig.build.json @oaslananka
-/eslint.config.js @oaslananka
+/server.json @oaslananka
+/easyeda-bridge-extension/extension.json @oaslananka
 /release-please-config.json @oaslananka
 /.release-please-manifest.json @oaslananka
+/scripts/release-channel-policy.mjs @oaslananka
+/scripts/sync-versions.mjs @oaslananka
+/scripts/check-dependency-audit.mjs @oaslananka
+/Dockerfile @oaslananka
+
+# Remote HTTP, authentication, relay, and bridge protocol
+/src/server/transports/ @oaslananka
+/src/remote/ @oaslananka
+/src/bridge/ @oaslananka
+/src/config/env.ts @oaslananka
+/src/safety/ @oaslananka
+/src/utils/redaction.ts @oaslananka
+
+# Server-side write, mutation, and transaction paths
+/src/transactions/ @oaslananka
+/src/tools/L1_schematic_write.ts @oaslananka
+/src/tools/L1_schematic_batch.ts @oaslananka
+/src/tools/L1_pcb_write.ts @oaslananka
+/src/tools/L1_transactions.ts @oaslananka
+/src/tools/transaction.ts @oaslananka
+
+# EasyEDA extension loader, dispatcher, native mutation, and transport paths
+/easyeda-bridge-extension/src/ @oaslananka

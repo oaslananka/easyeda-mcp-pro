@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "defaultBranch": "main",
+  "verifiedAt": "2026-07-23",
+  "enforcementMode": "classic-branch-protection-solo-maintainer",
+  "repositoryRulesetsEnabled": false,
+  "eligibleMaintainers": 1,
+  "owners": ["@oaslananka"],
+  "independentReview": {
+    "currentRequiredApprovals": 0,
+    "activateAtEligibleMaintainers": 2,
+    "targetRequiredApprovals": 1,
+    "requireCodeOwnerReview": false,
+    "dismissStaleReviews": false,
+    "requireLastPushApproval": false,
+    "activationChanges": {
+      "requireCodeOwnerReview": true,
+      "dismissStaleReviews": true,
+      "requireLastPushApproval": true
+    }
+  },
+  "branchProtection": {
+    "strictStatusChecks": true,
+    "enforceAdmins": true,
+    "requireConversationResolution": true,
+    "requiredLinearHistory": false,
+    "squashOnlyMerge": true,
+    "allowForcePushes": false,
+    "allowDeletions": false,
+    "requiredChecks": [
+      "quality (24)",
+      "codeql",
+      "Socket Security: Project Report",
+      "dependency-review"
+    ]
+  },
+  "reviewDisposition": {
+    "botAndAgentCommentsRequired": true,
+    "checkAnnotationsRequired": true,
+    "unresolvedThreadsBlockMerge": true,
+    "explicitDispositionAllowed": true
+  },
+  "emergencyException": {
+    "publicRationaleRequired": true,
+    "securityEmbargoAllowed": true,
+    "requiredChecksRemainRequired": true,
+    "conversationResolutionRemainsRequired": true,
+    "followUpReviewBusinessDays": 2
+  }
+}
