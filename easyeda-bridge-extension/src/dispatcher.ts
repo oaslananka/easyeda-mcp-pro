@@ -6,28 +6,17 @@
 // injected DispatcherToolkit (see toolkit.ts) so the identical code works both
 // baked into the extension script scope and eval'd via AsyncFunction.
 
+import { createApiRuntime, type ApiRuntime } from './api-runtime.js';
 import {
   compactPrimitiveSummary,
-  getFunctionNames,
-  isAllowedApiClassName,
-  isAllowedApiPath,
-  normalizeApiClassName,
   normalizeStandalone,
   normalizeValue,
   readMember,
   readStateValue,
-  withClassNameVariants,
 } from './api-introspection.js';
 import { normalizeBinaryResult, type BinaryResultPayload } from './binary-result.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
-import {
-  isRecord,
-  log,
-  logRecoverableError,
-  readPath,
-  readPathParent,
-  type JsonValue,
-} from './utils.js';
+import { isRecord, log, logRecoverableError, readPath, type JsonValue } from './utils.js';
 
 // Injected at build time via esbuild --define; identifies this bundle build.
 declare const __MCP_DISPATCHER_BUILD_ID__: string | undefined;
@@ -117,52 +106,15 @@ const METHOD_LIST: readonly string[] = [
 // The toolkit for the active dispatcher instance. Set by createDispatcher();
 // a hot-swapped bundle is a fresh module scope, so instances never share it.
 let tk: DispatcherToolkit;
+let callFirst: ApiRuntime['callFirst'];
+let readFirstPath: ApiRuntime['readFirstPath'];
+let inspectApiInventory: ApiRuntime['inspectApiInventory'];
+let callAllowedApi: ApiRuntime['callAllowedApi'];
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
   const error = new Error(message);
   Object.assign(error, { code, suggestion, data });
   return error;
-}
-
-function getApiCandidates(): Array<{ name: string; root: unknown }> {
-  const candidates: Array<{ name: string; root: unknown }> = [];
-  const edaObj = tk.getEda();
-  if (edaObj) candidates.push({ name: 'eda', root: edaObj });
-  const EDAObj = tk.getEDA();
-  if (EDAObj) candidates.push({ name: 'EDA', root: EDAObj });
-  const apiObj = tk.getApi();
-  if (apiObj) candidates.push({ name: 'api', root: apiObj });
-  candidates.push({ name: 'globalThis', root: globalThis });
-  return candidates;
-}
-
-async function callFirst(paths: string[], ...args: unknown[]): Promise<unknown> {
-  const allPaths = withClassNameVariants(paths);
-
-  for (const candidate of getApiCandidates()) {
-    for (const path of allPaths) {
-      const fn = readPath<unknown>(candidate.root, path);
-      if (typeof fn === 'function') {
-        return await fn.apply(readPathParent(candidate.root, path), args);
-      }
-    }
-  }
-
-  throw newBridgeError(
-    'METHOD_NOT_FOUND',
-    `No EasyEDA API implementation found for ${paths.join(' or ')}`,
-    'Verify the bridge extension supports the installed EasyEDA Pro version.',
-  );
-}
-
-function readFirstPath<T>(paths: string[]): T | undefined {
-  for (const candidate of getApiCandidates()) {
-    for (const path of withClassNameVariants(paths)) {
-      const value = readPath<T>(candidate.root, path);
-      if (value !== undefined) return value;
-    }
-  }
-  return undefined;
 }
 
 function nativeScalarString(value: unknown): string {
@@ -1008,80 +960,6 @@ async function addCoordinateFallbackNets(
       logRecoverableError('failed to inspect schematic component pins for coordinate nets', error);
     }
   }
-}
-
-function inspectApiInventory(filter?: string): JsonValue {
-  const normalizedFilter = filter?.toLowerCase().trim();
-  const classMap = new Map<
-    string,
-    {
-      className: string;
-      runtimePaths: string[];
-      methods: string[];
-    }
-  >();
-
-  for (const candidate of getApiCandidates()) {
-    const root = candidate.root;
-    if (!isRecord(root)) continue;
-
-    for (const key of Object.getOwnPropertyNames(root)) {
-      const className = normalizeApiClassName(key);
-      if (!isAllowedApiClassName(className)) continue;
-      if (normalizedFilter && !className.toLowerCase().includes(normalizedFilter)) continue;
-
-      const value = readMember(root, key);
-      const methods = getFunctionNames(value).sort((a, b) => a.localeCompare(b));
-      const existing = classMap.get(className) ?? {
-        className,
-        runtimePaths: [],
-        methods: [],
-      };
-      existing.runtimePaths.push(`${candidate.name}.${key}`);
-      existing.methods = Array.from(new Set([...existing.methods, ...methods])).sort((a, b) =>
-        a.localeCompare(b),
-      );
-      classMap.set(className, existing);
-    }
-  }
-
-  const classes = Array.from(classMap.values()).sort((a, b) =>
-    a.className.localeCompare(b.className),
-  );
-  return {
-    classes: classes as unknown as JsonValue,
-    total: classes.length,
-  };
-}
-
-async function callAllowedApi(path: string, args: unknown[]): Promise<unknown> {
-  if (!isAllowedApiPath(path)) {
-    throw newBridgeError(
-      'UNAUTHORIZED',
-      `API path is not allowed: ${path}`,
-      'Use a documented EasyEDA API class method such as SCH_PrimitiveWire.getAll.',
-    );
-  }
-
-  for (const candidate of getApiCandidates()) {
-    for (const candidatePath of withClassNameVariants([path])) {
-      const fn = readPath<unknown>(candidate.root, candidatePath);
-      if (typeof fn !== 'function') continue;
-      const parent = readPathParent(candidate.root, candidatePath);
-      const result = await fn.apply(parent, args);
-      return {
-        path,
-        resolvedPath: `${candidate.name}.${candidatePath}`,
-        result: normalizeValue(result, 5),
-      };
-    }
-  }
-
-  throw newBridgeError(
-    'METHOD_NOT_FOUND',
-    `No EasyEDA API implementation found for ${path}`,
-    'Check easyeda_api_inventory for runtime-supported classes and methods.',
-  );
 }
 
 function readOtherPropertyValue(
@@ -4868,6 +4746,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
 
 export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
   tk = toolkit;
+  ({ callFirst, readFirstPath, inspectApiInventory, callAllowedApi } = createApiRuntime(
+    toolkit,
+    newBridgeError,
+  ));
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);
   return {
