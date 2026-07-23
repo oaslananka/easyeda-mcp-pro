@@ -92,8 +92,7 @@ Install **SonarQube for IDE** in the editor and bind this workspace to the Sonar
 `oaslananka_easyeda-mcp-pro` using **Connected Mode**. Connected Mode applies the same rules and
 new-code settings used by the pull-request Quality Gate while code is being edited.
 
-Do not add a local Sonar scanner to Git hooks. SonarQube Cloud analysis depends on branch and
-pull-request context and remains authoritative in GitHub.
+Do not add a local Sonar scanner to Git hooks. SonarQube Cloud uses GitHub App automatic analysis; the provider-owned `SonarCloud Code Analysis` check depends on branch and pull-request context and remains authoritative in GitHub. The blocking check identity and failure runbook are documented in [Changed-code quality gates](../QUALITY_GATES.md).
 
 ## CI ownership
 

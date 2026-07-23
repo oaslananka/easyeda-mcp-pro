@@ -62,20 +62,20 @@ The pull request must contain a compact disposition table when automated systems
 
 The live `main` protection and merge settings must match this table and the machine-readable policy. Branch protection is the canonical enforcement mechanism for `main`. **No repository ruleset currently overlaps** this protection; introducing a ruleset requires a separately reviewed migration that proves there is no duplicate, contradictory, or bypassing rule.
 
-| Setting                               | Required state                                                                   |
-| ------------------------------------- | -------------------------------------------------------------------------------- |
-| Pull request required                 | Enabled                                                                          |
-| Required approvals                    | `0` only while the documented solo-maintainer limitation exists                  |
-| Code-owner review                     | Disabled only while required approvals would deadlock the sole owner             |
-| Dismiss stale approvals               | Disabled while approvals are zero; enable with independent review enforcement    |
-| Require approval after latest push    | Disabled while approvals are zero; enable with independent review enforcement    |
-| Required checks                       | `quality (24)`, `codeql`, `Socket Security: Project Report`, `dependency-review` |
-| Strict/up-to-date status checks       | Enabled                                                                          |
-| Conversation resolution               | Enabled                                                                          |
-| Apply protection to administrators    | Enabled                                                                          |
-| Linear history                        | Enabled; repository merge settings permit squash merge only                      |
-| Force pushes and branch deletion      | Disabled                                                                         |
-| Automatic branch deletion after merge | Enabled                                                                          |
+| Setting                               | Required state                                                                                                                |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Pull request required                 | Enabled                                                                                                                       |
+| Required approvals                    | `0` only while the documented solo-maintainer limitation exists                                                               |
+| Code-owner review                     | Disabled only while required approvals would deadlock the sole owner                                                          |
+| Dismiss stale approvals               | Disabled while approvals are zero; enable with independent review enforcement                                                 |
+| Require approval after latest push    | Disabled while approvals are zero; enable with independent review enforcement                                                 |
+| Required checks                       | `quality (24)`, `codeql`, `Socket Security: Project Report`, `dependency-review`, `codecov/patch`, `SonarCloud Code Analysis` |
+| Strict/up-to-date status checks       | Enabled                                                                                                                       |
+| Conversation resolution               | Enabled                                                                                                                       |
+| Apply protection to administrators    | Enabled                                                                                                                       |
+| Linear history                        | Enabled; repository merge settings permit squash merge only                                                                   |
+| Force pushes and branch deletion      | Disabled                                                                                                                      |
+| Automatic branch deletion after merge | Enabled                                                                                                                       |
 
 A required-check name is a public interface. Renaming, replacing, adding, or removing one requires updating the workflow, branch protection, JSON policy, documentation, and repository-policy tests together. The setting change must be verified against the live GitHub API after merge.
 
@@ -118,7 +118,7 @@ The detailed rationale is recorded in [`docs/adr/0002-dependency-management.md`]
 
 ## Token governance
 
-Repository and environment secrets must be least-privilege, narrowly scoped, and rotated when ownership or exposure changes. Never hardcode or log a credential. Release and Codecov credentials are available only to trusted repository events; fork pull requests must complete their unprivileged test path without them.
+Repository and environment secrets must be least-privilege, narrowly scoped, and rotated when ownership or exposure changes. Never hardcode or log a credential. Release credentials are available only to trusted repository events. Codecov coverage uses `CODECOV_TOKEN` only on trusted events and a tokenless public-repository upload on fork and Dependabot pull requests. SonarQube Cloud uses GitHub App automatic analysis and requires no repository workflow secret. See [`QUALITY_GATES.md`](QUALITY_GATES.md).
 
 Credential incident handling is defined in [Security Policy](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/SECURITY.md), while secret-scanning configuration and false-positive policy are tracked separately.
 

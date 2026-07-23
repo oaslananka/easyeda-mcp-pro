@@ -13,6 +13,12 @@
 /CONTRIBUTING.md @oaslananka
 /docs/OPENSSF_BEST_PRACTICES.md @oaslananka
 /tests/unit/repository/governance-policy.test.ts @oaslananka
+/codecov.yml @oaslananka
+/config/quality-gates.json @oaslananka
+/docs/QUALITY_GATES.md @oaslananka
+/docs/CODECOV_ANALYTICS.md @oaslananka
+/tests/unit/repository/codecov-policy.test.ts @oaslananka
+/tests/unit/repository/quality-gates-policy.test.ts @oaslananka
 /.github/workflows/ @oaslananka
 /.github/dependency-audit-allowlist.json @oaslananka
 /.github/renovate.json @oaslananka

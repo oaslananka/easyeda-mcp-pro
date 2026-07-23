@@ -63,15 +63,15 @@ describe('Codecov analytics policy', () => {
     const gitignore = readText('.gitignore');
     const action = 'codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16';
 
-    expect(workflow.match(new RegExp(action, 'g'))).toHaveLength(4);
+    expect(workflow.match(new RegExp(action, 'g'))).toHaveLength(6);
     expect(workflow).toContain('run: node scripts/install-codecov-cli.mjs');
     expect(
       workflow.match(/binary: \$\{\{ runner\.temp \}\}\/codecov-cli\/codecovcli/g),
-    ).toHaveLength(4);
+    ).toHaveLength(6);
     expect(workflow).not.toContain('version: v11.3.1');
     expect(workflow).not.toContain('skip_validation: true');
     expect(workflow).not.toContain('use_pypi: true');
-    expect(workflow.match(/report_type: coverage/g)).toHaveLength(2);
+    expect(workflow.match(/report_type: coverage/g)).toHaveLength(4);
     expect(workflow.match(/report_type: test_results/g)).toHaveLength(2);
     expect(workflow.match(/token: \$\{\{ secrets\.CODECOV_TOKEN \}\}/g)).toHaveLength(4);
     expect(workflow).toContain('files: coverage/lcov.info');
@@ -82,7 +82,8 @@ describe('Codecov analytics policy', () => {
       'github.event.pull_request.head.repo.full_name == github.repository',
     );
     expect(workflow).not.toContain('@codecov/vite-plugin');
-    expect(workflow).toContain("github.actor != 'dependabot[bot]'");
+    expect(workflow).toContain("github.event.pull_request.user.login != 'dependabot[bot]'");
+    expect(workflow).not.toContain("github.actor == 'dependabot[bot]'");
     expect(workflow).toContain('fetch-depth: 0');
     expect(workflow).toContain('run: pnpm validate:codecov');
     expect(workflow).toContain(
@@ -114,15 +115,17 @@ describe('Codecov analytics policy', () => {
     expect(installer).toContain('Only the pinned Codecov GitHub release URL is allowed');
   });
 
-  it('starts Codecov statuses as informational and limits comments to changed coverage', () => {
+  it('blocks changed executable code below the documented patch target', () => {
     const config = readText('codecov.yml');
 
     expect(config).toContain('informational: true');
     expect(config).toContain('target: auto');
-    expect(config).not.toContain('target: 80%');
-    expect(config.match(/target: auto/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
-    expect(config.match(/threshold: 1%/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
-    expect(config).toContain('threshold: 1%');
+    expect(config).toContain('target: 80%');
+    expect(config).toContain('threshold: 2%');
+    expect(config).toContain('informational: false');
+    expect(config).toContain('only_pulls: true');
+    expect(config).toContain('if_ci_failed: error');
+    expect(config).toContain('if_not_found: failure');
     expect(config).toContain('require_changes: true');
     expect(config).toContain('server:');
     expect(config).toContain('extension:');

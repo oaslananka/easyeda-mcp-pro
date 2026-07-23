@@ -17,7 +17,7 @@ Vitest produces separate LCOV files so Codecov can show independent histories fo
 | MCP server               | `server`    | `coverage/lcov.info`                          |
 | EasyEDA bridge extension | `extension` | `easyeda-bridge-extension/coverage/lcov.info` |
 
-`codecov.yml` also defines matching Codecov components. Project and patch statuses use the current baseline (`target: auto`) with 1% tolerance and start as informational. This enforces the policy that new code should not materially reduce coverage without duplicating the repository's blocking Vitest thresholds.
+`codecov.yml` also defines matching Codecov components. Project coverage remains informational at the current baseline (`target: auto`) with 1% tolerance. The umbrella `codecov/patch` status is blocking at 80% with a two-percentage-point tolerance, fails when coverage is missing or CI fails, and applies only to pull requests. Separate `server` and `extension` flags and components preserve independent histories without filtering the umbrella patch status or hiding changed-line annotations. The rationale and triage process are in [Changed-code quality gates](QUALITY_GATES.md).
 
 Generate the reports locally with:
 
@@ -68,6 +68,6 @@ Every quality run validates `codecov.yml` through Codecov's validator before tes
 pnpm validate:codecov
 ```
 
-The workflow uses the repository `CODECOV_TOKEN` only for trusted pushes and same-repository pull requests. Fork and Dependabot pull requests still run tests, coverage generation, the deterministic size gate, and all other quality checks, but skip authenticated uploads because GitHub does not expose repository secrets to those runs.
+The workflow uses the repository `CODECOV_TOKEN` only for trusted pushes and same-repository pull requests. Fork and Dependabot pull requests still run tests and upload the two LCOV reports through Codecov's tokenless public-repository path. Authenticated JUnit Test Analytics and bundle uploads remain trusted-event only because GitHub does not expose repository secrets to untrusted runs.
 
 Before upload, `scripts/install-codecov-cli.mjs` downloads the exact Linux asset declared in `config/codecov-cli.json`. The installer restricts the source to the official Codecov GitHub release path, checks the expected byte length and SHA-256 digest, writes the executable atomically, and passes that verified local binary to the SHA-pinned Codecov Action. This avoids disabling validation when the Action's remote GPG-key bootstrap is unavailable.

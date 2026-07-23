@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "liveStateVerifiedAt": "2026-07-23",
+  "liveStateVerifiedAt": "2026-07-24",
   "owners": ["@oaslananka"],
   "criticalPaths": {
     "securityAndAutomation": [
@@ -19,7 +19,13 @@
       "/config/repository-governance.json",
       "/CONTRIBUTING.md",
       "/docs/OPENSSF_BEST_PRACTICES.md",
-      "/tests/unit/repository/governance-policy.test.ts"
+      "/tests/unit/repository/governance-policy.test.ts",
+      "/codecov.yml",
+      "/config/quality-gates.json",
+      "/docs/QUALITY_GATES.md",
+      "/docs/CODECOV_ANALYTICS.md",
+      "/tests/unit/repository/codecov-policy.test.ts",
+      "/tests/unit/repository/quality-gates-policy.test.ts"
     ],
     "release": [
       "/release-please-config.json",
@@ -57,7 +63,9 @@
       "quality (24)",
       "codeql",
       "Socket Security: Project Report",
-      "dependency-review"
+      "dependency-review",
+      "codecov/patch",
+      "SonarCloud Code Analysis"
     ],
     "strictStatusChecks": true,
     "requiredApprovals": 0,

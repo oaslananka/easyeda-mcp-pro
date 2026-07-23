@@ -185,6 +185,8 @@ The project target is at least 80% statement coverage where coverage tooling app
 
 ## 10. Pull Request Review Expectations
 
+Pull requests must also satisfy the provider-owned checks and failure-triage policy in [Changed-code quality gates](docs/QUALITY_GATES.md).
+
 A pull request should include:
 
 - a concise description of the change,

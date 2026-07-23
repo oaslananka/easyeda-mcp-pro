@@ -63,6 +63,8 @@ describe('repository governance policy', () => {
         'codeql',
         'Socket Security: Project Report',
         'dependency-review',
+        'codecov/patch',
+        'SonarCloud Code Analysis',
       ],
       strictStatusChecks: true,
       requiredApprovals: 0,
