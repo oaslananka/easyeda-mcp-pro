@@ -777,4 +777,26 @@ If the PR did not close #339 automatically, close it explicitly only after the c
 
 ## Execution Evidence
 
-Populate this section only with command output collected at the exact final PR head and post-merge `main`. Do not estimate values.
+Collected for implementation and compatibility-test commit `c91d480ce56a407a4f69269f63dc9fe202e29d8a` on Node.js 24.18.0 and pnpm 11.5.1:
+
+- Dispatcher source: 3,533 → 2,427 lines (-1,106).
+- Dispatcher reduction across #339: 5,041 → 2,427 lines (-2,614; 51.9%).
+- Extracted transaction module: 1,239 lines.
+- Public extension method list: 67 → 67, byte-for-byte unchanged.
+- Focused transaction factory/dispatcher parity: 149 tests passed.
+- Server suite: 150 files / 1,740 tests passed.
+- Extension suite: 23 files / 313 tests passed.
+- `schematic-transaction-operations.ts`: 100% statements / branches / functions / lines; LCOV 362/362 lines, 347/347 branches, and 62/62 functions.
+- Changed dispatcher compatibility fallback coverage: both branches exercised (LCOV branch counts 7/1); no partial changed branch remains locally.
+- `pnpm verify`: passed.
+- `pnpm test:extension:ci`: passed with 313 tests and 0 failures/errors.
+- Extension distribution and checksum verification: passed.
+- Packaged extension: 164,283 / 200,000 bytes.
+- Extension entry bundle: 226,998 / 260,000 bytes.
+- Dispatcher bundle: 166,584 / 185,000 bytes.
+- Dependency audit policy: passed with only the existing documented #334 advisory exception.
+- Exact branch delta from the rule-check merge: 5 files changed, 2,590 insertions, 1,140 deletions.
+- Verification used an external temporary directory to isolate Vite and checksum fixtures from shared `/tmp` state.
+- The original MSI checkout remains untouched on its stale `main` branch with the user-owned uncommitted `.mcp.json` deletion preserved.
+
+Post-merge `main` workflow, Sonar, Codecov, and security results will be appended after the final PR is merged.
