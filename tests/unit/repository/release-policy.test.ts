@@ -50,6 +50,8 @@ describe('release channel policy', () => {
     expect(workflow).toContain(
       "if: ${{ env.RELEASE_RUN == 'true' && env.RELEASE_CHANNEL == 'stable' }}",
     );
+    expect(workflow).not.toContain('continue-on-error: true');
+    expect(workflow).toContain('./mcp-publisher publish');
     expect(workflow).toContain('isPrerelease');
     expect(workflow).toContain(
       "enable=${{ needs.release-please.outputs.release_channel == 'stable' }}",

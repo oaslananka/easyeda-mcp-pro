@@ -238,9 +238,10 @@ jobs:
 
       - name: Publish to MCP Registry
         if: ${{ env.RELEASE_RUN == 'true' && env.RELEASE_CHANNEL == 'stable' }}
-        continue-on-error: true
         run: |
-          ./mcp-publisher login github-oidc && ./mcp-publisher publish || echo "Warning: failed to publish to MCP Registry; record and triage the stable-release follow-up."
+          set -euo pipefail
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
 
   docker:
     name: Publish release container
