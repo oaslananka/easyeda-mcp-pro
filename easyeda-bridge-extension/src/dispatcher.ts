@@ -15,11 +15,15 @@ import {
   readStateValue,
 } from './api-introspection.js';
 import { createBinaryResultNormalizer } from './binary-result-policy.js';
+import {
+  createBoardInspectionOperations,
+  type BoardInspectionOperations,
+} from './board-inspection.js';
 import { createCanvasOperations, type CanvasOperations } from './canvas-operations.js';
 import { createExportOperations, type ExportOperations } from './export-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
-import { isRecord, log, logRecoverableError, readPath, type JsonValue } from './utils.js';
+import { isRecord, log, logRecoverableError, type JsonValue } from './utils.js';
 
 // Injected at build time via esbuild --define; identifies this bundle build.
 declare const __MCP_DISPATCHER_BUILD_ID__: string | undefined;
@@ -108,6 +112,7 @@ let callFirst: ApiRuntime['callFirst'];
 let readFirstPath: ApiRuntime['readFirstPath'];
 let inspectApiInventory: ApiRuntime['inspectApiInventory'];
 let callAllowedApi: ApiRuntime['callAllowedApi'];
+let boardInspection: BoardInspectionOperations;
 let canvasOperations: CanvasOperations;
 let exportOperations: ExportOperations;
 let projectOperations: ProjectOperations;
@@ -2184,278 +2189,6 @@ async function inspectWiresApi(limit = 10, offset = 0): Promise<unknown> {
   };
 }
 
-async function requireActivePcbContext(): Promise<void> {
-  const dmtPcb = readFirstPath<any>(['DMT_Pcb', 'dmt_Pcb']);
-  if (!dmtPcb || typeof dmtPcb.getCurrentPcbInfo !== 'function') {
-    // Older EasyEDA builds may not expose DMT_Pcb. Preserve compatibility and
-    // let the concrete PCB API call decide whether the context is usable.
-    return;
-  }
-
-  let currentPcb: unknown;
-  try {
-    currentPcb = await dmtPcb.getCurrentPcbInfo();
-  } catch (error) {
-    throw newBridgeError(
-      'CONTEXT_UNAVAILABLE',
-      'PCB data is unavailable in the current editor context.',
-      'Open and focus a PCB document, then retry.',
-      { cause: errorMessage(error) },
-    );
-  }
-  if (!currentPcb) {
-    throw newBridgeError(
-      'CONTEXT_UNAVAILABLE',
-      'No active PCB document is focused.',
-      'Open and focus a PCB document, then retry.',
-    );
-  }
-}
-
-function isActivePcbLayerName(name: string, copperLayerCount: number): boolean {
-  const inner = /^Inner(\d+)$/i.exec(name);
-  if (inner) return Number(inner[1]) <= Math.max(0, copperLayerCount - 2);
-  // EasyEDA returns its entire layer catalogue (200 Custom slots and all 32
-  // possible inner layers) from getAllLayers(). Those catalogue placeholders
-  // are not layers in the active board. A renamed custom layer no longer
-  // matches this placeholder pattern and is retained.
-  if (/^Custom\d+$/i.test(name) || /^Dielectric\d+$/i.test(name)) return false;
-  return true;
-}
-
-async function readCopperLayerCount(pcbLayerClass: any): Promise<number> {
-  if (typeof pcbLayerClass?.getTheNumberOfCopperLayers !== 'function') return 0;
-  try {
-    const value = Number(await pcbLayerClass.getTheNumberOfCopperLayers());
-    return Number.isInteger(value) && value >= 2 ? value : 0;
-  } catch (error) {
-    logRecoverableError('failed to read copper layer count', error);
-    return 0;
-  }
-}
-
-async function listLayersApi(): Promise<unknown> {
-  await requireActivePcbContext();
-  const pcbLayerClass = readFirstPath<any>(['PCB_Layer', 'pcb_Layer']);
-  if (!pcbLayerClass || typeof pcbLayerClass.getAllLayers !== 'function') {
-    throw new Error('pcb_Layer class or getAllLayers method not found');
-  }
-  const copperLayerCount = await readCopperLayerCount(pcbLayerClass);
-  const rawLayers = await pcbLayerClass.getAllLayers();
-  const layers = Array.isArray(rawLayers) ? rawLayers : [];
-  return layers
-    .filter((layer: any) => isActivePcbLayerName(String(layer?.name ?? ''), copperLayerCount))
-    .map((layer: any, index: number) => ({
-      name: layer?.name || '',
-      type: layer?.type || '',
-      color: layer?.color || '',
-      visible: layer?.visible !== false,
-      order:
-        typeof layer?.order === 'number' && Number.isFinite(layer.order) && layer.order > 0
-          ? layer.order
-          : index,
-    }));
-}
-
-async function getStackupApi(): Promise<unknown> {
-  await requireActivePcbContext();
-  const pcbLayerClass = readFirstPath<any>(['PCB_Layer', 'pcb_Layer']);
-  if (!pcbLayerClass) {
-    throw new Error('pcb_Layer class not found');
-  }
-
-  const totalCopper = await readCopperLayerCount(pcbLayerClass);
-  let physicalStacking: any = null;
-  if (typeof pcbLayerClass.getCurrentPhysicalStackingConfiguration === 'function') {
-    try {
-      physicalStacking = await pcbLayerClass.getCurrentPhysicalStackingConfiguration();
-    } catch (error) {
-      logRecoverableError('failed to read physical stackup', error);
-    }
-  }
-
-  const rawLayers = Array.isArray(physicalStacking?.layers)
-    ? physicalStacking.layers
-    : Array.isArray(physicalStacking?.stackup)
-      ? physicalStacking.stackup
-      : [];
-  const layers = rawLayers.map((layer: any) => ({
-    name: layer?.name || '',
-    type: layer?.type || '',
-    thicknessMm: typeof layer?.thicknessMm === 'number' ? layer.thicknessMm : layer?.thickness,
-    material: layer?.material || '',
-    dielectricConstant:
-      typeof layer?.dielectricConstant === 'number' ? layer.dielectricConstant : layer?.dielectric,
-    copperWeightOz:
-      typeof layer?.copperWeightOz === 'number' ? layer.copperWeightOz : layer?.copperWeight,
-  }));
-  const boardThickness =
-    typeof physicalStacking?.thicknessMm === 'number'
-      ? physicalStacking.thicknessMm
-      : typeof physicalStacking?.thickness === 'number'
-        ? physicalStacking.thickness
-        : undefined;
-  const available = Boolean(physicalStacking && layers.length > 0);
-
-  return {
-    totalLayers: totalCopper,
-    boardThicknessMm: boardThickness,
-    layers,
-    available,
-    source: available ? 'physical_stackup' : 'copper_layer_count_only',
-  };
-}
-
-async function getDimensionsApi(): Promise<unknown> {
-  await requireActivePcbContext();
-  const globalObj = tk.getGlobal();
-  const pcbLineClass = readPath<any>(globalObj, 'pcb_PrimitiveLine');
-  const pcbArcClass = readPath<any>(globalObj, 'pcb_PrimitiveArc');
-  const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
-
-  let minX = Infinity,
-    maxX = -Infinity;
-  let minY = Infinity,
-    maxY = -Infinity;
-
-  const updateBBox = (x: number, y: number) => {
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  };
-
-  if (pcbLineClass && typeof pcbLineClass.getAll === 'function') {
-    try {
-      const lines = await pcbLineClass.getAll();
-      for (const l of lines || []) {
-        if (typeof l.getState_Layer === 'function' && l.getState_Layer() === 11) {
-          const points = typeof l.getState_Points === 'function' ? l.getState_Points() : [];
-          for (const p of points || []) {
-            updateBBox(p.x, p.y);
-          }
-        }
-      }
-    } catch (e) {
-      logRecoverableError('failed to read board outline lines', e);
-    }
-  }
-
-  if (pcbArcClass && typeof pcbArcClass.getAll === 'function') {
-    try {
-      const arcs = await pcbArcClass.getAll();
-      for (const a of arcs || []) {
-        if (typeof a.getState_Layer === 'function' && a.getState_Layer() === 11) {
-          const sx = typeof a.getState_StartX === 'function' ? a.getState_StartX() : 0;
-          const sy = typeof a.getState_StartY === 'function' ? a.getState_StartY() : 0;
-          const ex = typeof a.getState_EndX === 'function' ? a.getState_EndX() : 0;
-          const ey = typeof a.getState_EndY === 'function' ? a.getState_EndY() : 0;
-          updateBBox(sx, sy);
-          updateBBox(ex, ey);
-        }
-      }
-    } catch (e) {
-      logRecoverableError('failed to read board outline arcs', e);
-    }
-  }
-
-  const width = maxX > minX ? maxX - minX : 0;
-  const height = maxY > minY ? maxY - minY : 0;
-
-  let mountingHoles = 0;
-  if (pcbPadClass && typeof pcbPadClass.getAll === 'function') {
-    try {
-      const pads = await pcbPadClass.getAll();
-      for (const p of pads || []) {
-        const hType = typeof p.getState_HoleType === 'function' ? p.getState_HoleType() : '';
-        const hSize = typeof p.getState_HoleSize === 'function' ? p.getState_HoleSize() : 0;
-        if (hType === 'MountingHole' || hSize > 2) {
-          mountingHoles++;
-        }
-      }
-    } catch (e) {
-      logRecoverableError('failed to read mounting-hole pads', e);
-    }
-  }
-
-  const hasOutline = width > 0 && height > 0;
-  return {
-    widthMm: width,
-    heightMm: height,
-    shape: hasOutline ? 'custom' : undefined,
-    mountingHoleCount: mountingHoles,
-    areaMm2: width * height,
-    hasOutline,
-  };
-}
-
-async function getFeaturesApi(): Promise<unknown> {
-  await requireActivePcbContext();
-  const globalObj = tk.getGlobal();
-  const pcbViaClass = readPath<any>(globalObj, 'pcb_PrimitiveVia');
-  // Tracks are PCB_PrimitiveLine segments (confirmed live: PCB_PrimitivePolyline
-  // never accepts a valid create() call). 'pcb_PrimitiveTrack' does not exist in
-  // the runtime at all, so this count was always silently 0.
-  const pcbTrackClass = readPath<any>(globalObj, 'pcb_PrimitiveLine');
-  const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
-  const pcbPourClass = readPath<any>(globalObj, 'pcb_PrimitivePour');
-  const pcbCompClass = readPath<any>(globalObj, 'pcb_PrimitiveComponent');
-
-  let viasCount = 0;
-  let tracksCount = 0;
-  let padsCount = 0;
-  let zonesCount = 0;
-  let compsCount = 0;
-
-  try {
-    if (pcbViaClass && typeof pcbViaClass.getAll === 'function') {
-      viasCount = (await pcbViaClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count vias', e);
-  }
-
-  try {
-    if (pcbTrackClass && typeof pcbTrackClass.getAll === 'function') {
-      tracksCount = (await pcbTrackClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count tracks', e);
-  }
-
-  try {
-    if (pcbPadClass && typeof pcbPadClass.getAll === 'function') {
-      padsCount = (await pcbPadClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count pads', e);
-  }
-
-  try {
-    if (pcbPourClass && typeof pcbPourClass.getAll === 'function') {
-      zonesCount = (await pcbPourClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count zones', e);
-  }
-
-  try {
-    if (pcbCompClass && typeof pcbCompClass.getAll === 'function') {
-      compsCount = (await pcbCompClass.getAll())?.length || 0;
-    }
-  } catch (e) {
-    logRecoverableError('failed to count PCB components', e);
-  }
-
-  return {
-    vias: viasCount,
-    tracks: tracksCount,
-    zones: zonesCount,
-    pads: padsCount,
-    components: compsCount,
-  };
-}
-
 /**
  * Classes pcbDeletePrimitivesApi checks, in lookup order. Confirmed live
  * (2026-07-07): PCB_PrimitiveComponent.delete() returns `true` for ANY id,
@@ -2531,7 +2264,7 @@ async function pcbDeletePrimitivesApi(
  * than throw, since "no PCB open" is a normal state, not an error.
  */
 async function pcbListComponentsApi(limit?: number, offset = 0): Promise<unknown> {
-  await requireActivePcbContext();
+  await boardInspection.requireActivePcbContext();
   const pcbCompClass = readFirstPath<any>(['PCB_PrimitiveComponent', 'pcb_PrimitiveComponent']);
   if (!pcbCompClass || typeof pcbCompClass.getAll !== 'function') {
     return { total: 0, items: [] };
@@ -2561,7 +2294,7 @@ async function pcbListComponentsApi(limit?: number, offset = 0): Promise<unknown
 }
 
 async function pcbListTracksApi(limit?: number, offset = 0): Promise<unknown> {
-  await requireActivePcbContext();
+  await boardInspection.requireActivePcbContext();
   // Tracks are PCB_PrimitiveLine segments — see the pcb.addTrack case for why
   // PCB_PrimitivePolyline is not used (its create() never resolved live).
   const pcbLineClass = readFirstPath<any>(['PCB_PrimitiveLine', 'pcb_PrimitiveLine']);
@@ -2587,7 +2320,7 @@ async function pcbListTracksApi(limit?: number, offset = 0): Promise<unknown> {
 }
 
 async function pcbListViasApi(limit?: number, offset = 0): Promise<unknown> {
-  await requireActivePcbContext();
+  await boardInspection.requireActivePcbContext();
   const pcbViaClass = readFirstPath<any>(['PCB_PrimitiveVia', 'pcb_PrimitiveVia']);
   if (!pcbViaClass || typeof pcbViaClass.getAll !== 'function') {
     return { total: 0, items: [] };
@@ -4181,13 +3914,13 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       return { result: normalizeValue(result, 5) };
     }
     case 'board.listLayers':
-      return listLayersApi();
+      return boardInspection.listLayers();
     case 'board.getStackup':
-      return getStackupApi();
+      return boardInspection.getStackup();
     case 'board.getDimensions':
-      return getDimensionsApi();
+      return boardInspection.getDimensions();
     case 'board.getFeatures':
-      return getFeaturesApi();
+      return boardInspection.getFeatures();
     case 'board.exportGerbers':
       return exportOperations.exportGerbers(params);
     case 'pcb.exportRouteContext':
@@ -4590,6 +4323,11 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     toolkit,
     newBridgeError,
   ));
+  boardInspection = createBoardInspectionOperations({
+    readFirstPath,
+    getGlobal: () => toolkit.getGlobal(),
+    createBridgeError: newBridgeError,
+  });
   const normalizeBinaryResult = createBinaryResultNormalizer({
     getBridgeMaxPayloadSize: () => toolkit.getBridgeMaxPayloadSize(),
     createBridgeError: newBridgeError,
