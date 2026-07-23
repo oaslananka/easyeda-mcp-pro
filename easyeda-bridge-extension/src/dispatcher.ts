@@ -28,6 +28,10 @@ import {
 import { createPcbReadOperations, type PcbReadOperations } from './pcb-read-operations.js';
 import { createPcbWriteOperations, type PcbWriteOperations } from './pcb-write-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
+import {
+  createSchematicInspectionOperations,
+  type SchematicInspectionOperations,
+} from './schematic-inspection.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, logRecoverableError, type JsonValue } from './utils.js';
 
@@ -125,6 +129,7 @@ let pcbMutationOperations: PcbMutationOperations;
 let pcbReadOperations: PcbReadOperations;
 let pcbWriteOperations: PcbWriteOperations;
 let projectOperations: ProjectOperations;
+let schematicInspection: SchematicInspectionOperations;
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
   const error = new Error(message);
@@ -1025,187 +1030,6 @@ async function listComponentsApi(limit?: number, offset = 0): Promise<unknown> {
     });
   }
   return { total, items: result };
-}
-
-interface RawPrimitiveBBox {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
-
-/**
- * Real rendered (sheet-space) bounding box per primitive, via the runtime's own
- * SCH_Primitive.getPrimitivesBBox -- already rotation/mirror-aware since it reads
- * the live rendered geometry rather than recomputing it from origin+rotation.
- */
-async function primitiveBoundsApi(primitiveIds: unknown): Promise<unknown> {
-  const schPrimitiveClass = readFirstPath<any>(['SCH_Primitive', 'sch_Primitive']);
-  if (!schPrimitiveClass) {
-    throw new Error('SCH_Primitive class not found in EasyEDA Pro API');
-  }
-  const ids = Array.isArray(primitiveIds)
-    ? primitiveIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
-    : [];
-
-  const items: Array<{ primitiveId: string; bounds: RawPrimitiveBBox | null }> = [];
-  for (const id of ids) {
-    let bounds: RawPrimitiveBBox | null = null;
-    try {
-      bounds = (await schPrimitiveClass.getPrimitivesBBox([id])) ?? null;
-    } catch (err) {
-      logRecoverableError(`failed to read bounding box for primitive ${id}`, err);
-    }
-    items.push({ primitiveId: id, bounds });
-  }
-
-  let combined: RawPrimitiveBBox | null = null;
-  if (ids.length > 0) {
-    try {
-      combined = (await schPrimitiveClass.getPrimitivesBBox(ids)) ?? null;
-    } catch (err) {
-      logRecoverableError('failed to read combined bounding box', err);
-    }
-  }
-
-  return { items, combined };
-}
-
-type SheetInfoSource = 'current_page' | 'focused_document' | 'current_schematic_page_list';
-
-type SheetInfoAttempt = {
-  stage: string;
-  status: 'value' | 'empty' | 'unavailable';
-  error?: string;
-};
-
-function asNonEmptyRecord(value: unknown): Record<string, unknown> | undefined {
-  if (!isRecord(value) || Object.keys(value).length === 0) return undefined;
-  return value;
-}
-
-function asRecordArray(value: unknown): Array<Record<string, unknown>> {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is Record<string, unknown> => isRecord(item));
-}
-
-async function trySheetInfoCall(
-  stage: string,
-  paths: string[],
-  attempts: SheetInfoAttempt[],
-  ...args: unknown[]
-): Promise<unknown> {
-  try {
-    const value = normalizeValue(await callFirst(paths, ...args), 5);
-    const meaningful = Array.isArray(value)
-      ? value.length > 0
-      : Boolean(asNonEmptyRecord(value)) || (value !== null && value !== undefined);
-    attempts.push({ stage, status: meaningful ? 'value' : 'empty' });
-    return value;
-  } catch (error) {
-    attempts.push({
-      stage,
-      status: 'unavailable',
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return undefined;
-  }
-}
-
-async function getSchematicSheetInfoApi(): Promise<unknown> {
-  const attempts: SheetInfoAttempt[] = [];
-  let source: SheetInfoSource | undefined;
-
-  let currentPage = asNonEmptyRecord(
-    await trySheetInfoCall('current_page', ['DMT_Schematic.getCurrentSchematicPageInfo'], attempts),
-  );
-  if (currentPage) source = 'current_page';
-
-  let pages = asRecordArray(
-    await trySheetInfoCall(
-      'current_page_list',
-      ['DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo'],
-      attempts,
-    ),
-  );
-  if (pages.length === 0) {
-    pages = asRecordArray(
-      await trySheetInfoCall('all_page_list', ['DMT_Schematic.getAllSchematicPagesInfo'], attempts),
-    );
-  }
-
-  const focusedDocument = asNonEmptyRecord(
-    await trySheetInfoCall(
-      'focused_document',
-      ['DMT_SelectControl.getCurrentDocumentInfo'],
-      attempts,
-    ),
-  );
-  const focusedPageUuid =
-    typeof focusedDocument?.uuid === 'string' && focusedDocument.uuid.trim()
-      ? focusedDocument.uuid
-      : undefined;
-
-  let currentSchematic: Record<string, unknown> | undefined;
-  if (!currentPage || pages.length === 0) {
-    currentSchematic = asNonEmptyRecord(
-      await trySheetInfoCall(
-        'current_schematic',
-        ['DMT_Schematic.getCurrentSchematicInfo'],
-        attempts,
-      ),
-    );
-  }
-
-  if (!currentPage && focusedPageUuid) {
-    currentPage = asNonEmptyRecord(
-      await trySheetInfoCall(
-        'focused_document_page',
-        ['DMT_Schematic.getSchematicPageInfo'],
-        attempts,
-        focusedPageUuid,
-      ),
-    );
-    if (currentPage) source = 'focused_document';
-  }
-
-  const schematicPages = asRecordArray(currentSchematic?.page);
-  if (pages.length === 0 && schematicPages.length > 0) pages = schematicPages;
-
-  if (!currentPage && focusedPageUuid && pages.length > 0) {
-    currentPage = pages.find((page) => page.uuid === focusedPageUuid);
-    if (currentPage) source = 'focused_document';
-  }
-
-  if (!currentPage && pages.length === 1 && currentSchematic) {
-    currentPage = pages[0];
-    source = 'current_schematic_page_list';
-  }
-
-  const diagnostics = {
-    stage: 'focused_sheet_resolution',
-    currentPageAvailable: Boolean(currentPage),
-    pageListAvailable: pages.length > 0,
-    focusedDocumentAvailable: Boolean(focusedDocument),
-    attempts,
-  };
-
-  if (!currentPage) {
-    throw newBridgeError(
-      'SHEET_INFO_UNAVAILABLE',
-      'EasyEDA did not expose metadata for the focused schematic page.',
-      'Focus the schematic editor tab and retry. The diagnostics identify which runtime paths were empty or unavailable.',
-      diagnostics,
-    );
-  }
-
-  return {
-    currentPage,
-    pages,
-    source,
-    focusedDocument,
-    diagnostics,
-  };
 }
 
 async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
@@ -2962,9 +2786,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         typeof params.offset === 'number' ? params.offset : 0,
       );
     case 'schematic.getSheetInfo':
-      return getSchematicSheetInfoApi();
+      return schematicInspection.getSheetInfo();
     case 'schematic.primitiveBounds':
-      return primitiveBoundsApi(params.primitiveIds);
+      return schematicInspection.primitiveBounds(params.primitiveIds);
     case 'schematic.searchDevice':
       return callFirst(
         ['LIB_Device.search', 'lib_Device.search'],
@@ -3144,50 +2968,8 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.lineType ?? 0,
         params.fillStyle ?? 'none',
       );
-    case 'schematic.listRectangles': {
-      // Best-effort enumeration for the section-layout overlap check
-      // (src/workflows/section-layout.ts). Live-verified (2026-07-09): the
-      // plain 'X'/'Y' guess used by SCH_PrimitiveComponent/SCH_PrimitiveText
-      // does NOT hold here — a live readback returned width/height/rotation
-      // correctly but x/y were undefined. SCH_PrimitiveRectangle.create()'s
-      // own positional args are named TopLeftX/TopLeftY (see addRectangle
-      // above), and that's the key that actually resolves; X/Y kept as a
-      // fallback in case a future runtime version differs. Still degrades to
-      // "no overlap data" (not a crash) if both guesses are wrong.
-      //
-      // Y-sign note (live-verified 2026-07-09): a rectangle created with
-      // `y: 5000` reads back TopLeftY: -5000 — an exact sign flip, also
-      // observed on SCH_PrimitiveText the same way (created y:6000 -> read
-      // back y:-6000). SCH_PrimitiveComponent (pins) and SCH_PrimitiveWire
-      // (Line) showed no such flip across multiple live checks — this
-      // appears specific to these two annotation-layer primitive types, not
-      // a general coordinate-system quirk. Negate on the way out so callers
-      // (e.g. findOverlappingRectangles, which compares against pin-derived
-      // Y coordinates) see the same sign convention as everything else.
-      const schRectClass = readFirstPath<any>(['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle']);
-      if (!schRectClass || typeof schRectClass.getAll !== 'function') {
-        return { total: 0, items: [] };
-      }
-      let all: unknown[] = [];
-      try {
-        all = (await schRectClass.getAll()) || [];
-      } catch (e) {
-        logRecoverableError('failed to list rectangles', e);
-        all = [];
-      }
-      const items = all.map((r) => {
-        const rawY = safeGetState(r, 'TopLeftY') ?? safeGetState(r, 'Y');
-        return {
-          primitiveId: extractPrimitiveId(r) || String(safeGetState(r, 'PrimitiveId') ?? ''),
-          x: safeGetState(r, 'TopLeftX') ?? safeGetState(r, 'X'),
-          y: typeof rawY === 'number' ? -rawY : rawY,
-          width: safeGetState(r, 'Width'),
-          height: safeGetState(r, 'Height'),
-          rotation: safeGetState(r, 'Rotation'),
-        };
-      });
-      return { total: items.length, items };
-    }
+    case 'schematic.listRectangles':
+      return schematicInspection.listRectangles();
     case 'schematic.deletePrimitive':
       return deleteSchematicPrimitives(params.primitiveIds);
     case 'schematic.recreatePrimitiveSnapshot':
@@ -4084,6 +3866,13 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     createBridgeError: newBridgeError,
   });
   projectOperations = createProjectOperations({ callFirst });
+  schematicInspection = createSchematicInspectionOperations({
+    callFirst,
+    readFirstPath,
+    readState: safeGetState,
+    extractPrimitiveId,
+    createBridgeError: newBridgeError,
+  });
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);
   return {

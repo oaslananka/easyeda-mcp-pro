@@ -694,6 +694,25 @@ describe('createDispatcher', () => {
     expect(getSchematicPageInfo).toHaveBeenCalledWith('page-1');
   });
 
+  it('delegates schematic primitive bounds through the extracted inspection domain', async () => {
+    const getPrimitivesBBox = vi.fn(async (ids: string[]) =>
+      ids.length === 1
+        ? { minX: 1, maxX: 2, minY: 3, maxY: 4 }
+        : { minX: 1, maxX: 6, minY: 3, maxY: 8 },
+    );
+    const dispatcher = createDispatcher(makeToolkit({ SCH_Primitive: { getPrimitivesBBox } }));
+
+    await expect(
+      dispatcher.dispatch('schematic.primitiveBounds', { primitiveIds: ['p1', 'p2'] }),
+    ).resolves.toEqual({
+      items: [
+        { primitiveId: 'p1', bounds: { minX: 1, maxX: 2, minY: 3, maxY: 4 } },
+        { primitiveId: 'p2', bounds: { minX: 1, maxX: 2, minY: 3, maxY: 4 } },
+      ],
+      combined: { minX: 1, maxX: 6, minY: 3, maxY: 8 },
+    });
+  });
+
   it('schematic.getSheetInfo rejects an empty focused-sheet response with diagnostics', async () => {
     const dispatcher = createDispatcher(
       makeToolkit({
