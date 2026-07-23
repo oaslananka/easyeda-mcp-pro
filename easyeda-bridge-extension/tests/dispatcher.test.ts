@@ -1444,6 +1444,36 @@ describe('createDispatcher', () => {
     ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
   });
 
+  it('routes PCB zone creation and component modification through the extracted mutation domain', async () => {
+    const create = vi.fn(async () => ({ primitiveId: 'zone1' }));
+    const modify = vi.fn(async () => ({ primitiveId: 'component1' }));
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        PCB_PrimitivePour: { create },
+        PCB_PrimitiveComponent: { modify },
+      }),
+    );
+    const points = [
+      { x: 10, y: 20 },
+      { x: 30, y: 40 },
+    ];
+    const property = { x: 50, y: 60, rotation: 90 };
+
+    await dispatcher.dispatch('pcb.addZone', {
+      points,
+      layer: 1,
+      netName: 'GND',
+      clearance: 0.2,
+    });
+    await dispatcher.dispatch('pcb.modifyComponent', {
+      primitiveId: 'component1',
+      property,
+    });
+
+    expect(create).toHaveBeenCalledWith(points, 1, 'GND', 0.2);
+    expect(modify).toHaveBeenCalledWith('component1', property);
+  });
+
   // Live-verified (2026-07-07): SCH_PrimitiveCircle's field order was
   // recovered by reading the minified source of .modify() via .toString():
   // create(CenterX, CenterY, Radius, Color, FillColor, LineWidth, LineType,
