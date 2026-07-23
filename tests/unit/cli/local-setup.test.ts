@@ -100,6 +100,25 @@ describe('local setup CLI helpers', () => {
     expect(pnpmExecutableForPlatform('linux')).toBe('pnpm');
   });
 
+  it('resolves the default systemd unit path from XDG config or the user home', async () => {
+    await withEnv({ XDG_CONFIG_HOME: '/tmp/easyeda-xdg' }, async () => {
+      await expect(
+        inspectUserServiceRuntime({ platform: 'linux', unitText: null }),
+      ).resolves.toMatchObject({
+        installed: false,
+        unitPath: '/tmp/easyeda-xdg/systemd/user/easyeda-mcp-pro.service',
+      });
+    });
+
+    await withEnv({ XDG_CONFIG_HOME: undefined }, async () => {
+      const result = await inspectUserServiceRuntime({ platform: 'linux', unitText: null });
+      expect(result.installed).toBe(false);
+      expect(result.unitPath).toMatch(
+        /[\\/]\.config[\\/]systemd[\\/]user[\\/]easyeda-mcp-pro\.service$/,
+      );
+    });
+  });
+
   it('skips systemd inspection on non-Linux platforms', async () => {
     await expect(inspectUserServiceRuntime({ platform: 'win32' })).resolves.toMatchObject({
       applicable: false,
