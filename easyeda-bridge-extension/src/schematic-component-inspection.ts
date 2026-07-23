@@ -41,7 +41,7 @@ function resolveComponentDisplayValue(
   deviceName: string,
 ): string {
   const name = nativeScalarString(rawName).trim();
-  const expression = name.match(/^=\{(.+)\}$/);
+  const expression = /^=\{(.+)\}$/.exec(name);
   if (expression) {
     const propertyName = expression[1].trim();
     const propertyValue = readOtherPropertyValue(otherProperty, propertyName);
