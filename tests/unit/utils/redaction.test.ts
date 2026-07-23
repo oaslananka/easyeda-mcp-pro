@@ -14,9 +14,9 @@ describe('redactSecrets', () => {
   });
 
   it('should redact private keys', () => {
-    const result = redactSecrets(
-      '-----BEGIN PRIVATE KEY-----\nABCDEF1234\n-----END PRIVATE KEY-----',
-    );
+    const begin = ['-----BEGIN', 'PRIVATE KEY-----'].join(' ');
+    const end = ['-----END', 'PRIVATE KEY-----'].join(' ');
+    const result = redactSecrets(`${begin}\nABCDEF1234\n${end}`);
     expect(result).toContain('[REDACTED]');
     expect(result).not.toContain('ABCDEF1234');
   });

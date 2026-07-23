@@ -19,6 +19,10 @@
 /docs/CODECOV_ANALYTICS.md @oaslananka
 /tests/unit/repository/codecov-policy.test.ts @oaslananka
 /tests/unit/repository/quality-gates-policy.test.ts @oaslananka
+/config/secret-scanning-policy.json @oaslananka
+/docs/SECRET_RESPONSE.md @oaslananka
+/scripts/check-secret-hygiene.mjs @oaslananka
+/tests/unit/repository/secret-scanning-policy.test.ts @oaslananka
 /.github/workflows/ @oaslananka
 /.github/dependency-audit-allowlist.json @oaslananka
 /.github/renovate.json @oaslananka

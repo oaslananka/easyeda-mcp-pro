@@ -1,1 +1,3 @@
-685cd8b41ff23239b1de0ad0af0b2e3f589e023a:tests/unit/utils/redaction.test.ts:generic-api-key:6
+# No active suppressions.
+# Any future entry must use an exact Gitleaks fingerprint and be accompanied by
+# a technical rationale, owner, review date, and expiry date in the approving PR.

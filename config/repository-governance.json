@@ -25,7 +25,11 @@
       "/docs/QUALITY_GATES.md",
       "/docs/CODECOV_ANALYTICS.md",
       "/tests/unit/repository/codecov-policy.test.ts",
-      "/tests/unit/repository/quality-gates-policy.test.ts"
+      "/tests/unit/repository/quality-gates-policy.test.ts",
+      "/config/secret-scanning-policy.json",
+      "/docs/SECRET_RESPONSE.md",
+      "/scripts/check-secret-hygiene.mjs",
+      "/tests/unit/repository/secret-scanning-policy.test.ts"
     ],
     "release": [
       "/release-please-config.json",
