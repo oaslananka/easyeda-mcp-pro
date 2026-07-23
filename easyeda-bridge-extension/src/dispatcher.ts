@@ -14,8 +14,9 @@ import {
   readMember,
   readStateValue,
 } from './api-introspection.js';
-import { normalizeBinaryResult, type BinaryResultPayload } from './binary-result.js';
+import { createBinaryResultNormalizer } from './binary-result-policy.js';
 import { createCanvasOperations, type CanvasOperations } from './canvas-operations.js';
+import { createExportOperations, type ExportOperations } from './export-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, logRecoverableError, readPath, type JsonValue } from './utils.js';
@@ -28,11 +29,6 @@ const BUILD_ID =
     ? __MCP_DISPATCHER_BUILD_ID__
     : 'baked-dev';
 
-// Fraction of the server's advertised BRIDGE_MAX_PAYLOAD_SIZE we allow a single
-// binary (Blob/File) result to use, leaving headroom for base64 (~1.33x raw
-// bytes) plus JSON envelope overhead. Exceeding the server's actual limit closes
-// the whole WS connection, not just the offending call — so we self-limit first.
-const PAYLOAD_SAFETY_MARGIN = 0.6;
 /** Every bridge method handled by dispatch() below. Keep in lockstep with the
  *  switch cases AND the server's EasyedaApiMethodSchema (src/bridge/types.ts). */
 const METHOD_LIST: readonly string[] = [
@@ -113,6 +109,7 @@ let readFirstPath: ApiRuntime['readFirstPath'];
 let inspectApiInventory: ApiRuntime['inspectApiInventory'];
 let callAllowedApi: ApiRuntime['callAllowedApi'];
 let canvasOperations: CanvasOperations;
+let exportOperations: ExportOperations;
 let projectOperations: ProjectOperations;
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
@@ -499,42 +496,6 @@ async function findForeignNetCollision(
   }
 
   return null;
-}
-
-function isBinaryResultPayload(value: unknown): value is BinaryResultPayload {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    typeof (value as { base64?: unknown }).base64 === 'string' &&
-    typeof (value as { byteLength?: unknown }).byteLength === 'number'
-  );
-}
-
-/**
- * Wraps `normalizeBinaryResult`, additionally rejecting a payload that would
- * exceed the server's advertised BRIDGE_MAX_PAYLOAD_SIZE (via the toolkit)
- * before it is ever handed to send(). Sending an oversized WS frame closes
- * the whole connection (code 4009) rather than just failing this one call,
- * so we throw a normal, small, structured error instead — handleRequest()
- * turns it into an ok:false response.
- */
-async function normalizeBinaryResultSafely(
-  value: unknown,
-  fallbackFileName: string,
-): Promise<unknown> {
-  const normalized = await normalizeBinaryResult(value, fallbackFileName);
-  if (isBinaryResultPayload(normalized)) {
-    const maxPayloadSize = tk.getBridgeMaxPayloadSize();
-    const budget = Math.floor(maxPayloadSize * PAYLOAD_SAFETY_MARGIN);
-    if (normalized.byteLength > budget) {
-      throw newBridgeError(
-        'PAYLOAD_TOO_LARGE',
-        `"${normalized.fileName}" is ${normalized.byteLength} bytes, which exceeds the safe transport budget (${budget} bytes, derived from the server's BRIDGE_MAX_PAYLOAD_SIZE=${maxPayloadSize}).`,
-        'Increase BRIDGE_MAX_PAYLOAD_SIZE in the MCP server environment, or (for canvas captures) zoom to a smaller region.',
-      );
-    }
-  }
-  return normalized;
 }
 
 function summarizeWirePrimitive(wire: unknown): Record<string, JsonValue | undefined> {
@@ -4228,18 +4189,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'board.getFeatures':
       return getFeaturesApi();
     case 'board.exportGerbers':
-      return normalizeBinaryResultSafely(
-        await callFirst(['PCB_ManufactureData.getGerberFile'], params),
-        'gerbers.zip',
-      );
+      return exportOperations.exportGerbers(params);
     case 'pcb.exportRouteContext':
-      return normalizeBinaryResultSafely(
-        await callFirst(
-          ['PCB_ManufactureData.getDsnFile'],
-          typeof params.fileName === 'string' ? params.fileName : undefined,
-        ),
-        'route-context.dsn',
-      );
+      return exportOperations.exportRouteContext(params);
     case 'system.getStatus': {
       const globals: Record<string, unknown> = {};
       const edaObj = tk.getEda();
@@ -4452,30 +4404,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'design.drc':
       return runPcbDrcCheck();
     case 'export.pickPlace':
-      return normalizeBinaryResultSafely(
-        await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params),
-        `pick-place.${typeof params.format === 'string' ? params.format : 'csv'}`,
-      );
+      return exportOperations.exportPickPlace(params);
     case 'export.pdf':
-      return normalizeBinaryResultSafely(
-        await callFirst(
-          ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
-          params.what === 'board' ? params : { ...params, type: 'schematic' },
-        ),
-        'export.pdf',
-      );
+      return exportOperations.exportPdf(params);
     case 'export.netlist':
-      return normalizeBinaryResultSafely(
-        await callFirst(
-          [
-            'SCH_Netlist.getNetlist',
-            'SCH_ManufactureData.getNetlistFile',
-            'PCB_ManufactureData.getNetlistFile',
-          ],
-          params,
-        ),
-        `netlist.${typeof params.format === 'string' ? params.format : 'txt'}`,
-      );
+      return exportOperations.exportNetlist(params);
     case 'canvas.capture':
       return canvasOperations.capture(params);
     case 'canvas.captureRegion':
@@ -4657,11 +4590,16 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     toolkit,
     newBridgeError,
   ));
-  canvasOperations = createCanvasOperations({
-    callFirst,
-    normalizeBinaryResult: normalizeBinaryResultSafely,
+  const normalizeBinaryResult = createBinaryResultNormalizer({
+    getBridgeMaxPayloadSize: () => toolkit.getBridgeMaxPayloadSize(),
     createBridgeError: newBridgeError,
   });
+  canvasOperations = createCanvasOperations({
+    callFirst,
+    normalizeBinaryResult,
+    createBridgeError: newBridgeError,
+  });
+  exportOperations = createExportOperations({ callFirst, normalizeBinaryResult });
   projectOperations = createProjectOperations({ callFirst });
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);

@@ -62,6 +62,8 @@ export interface BinaryResultPayload {
   byteLength: number;
 }
 
+export type BinaryResultNormalizer = (value: unknown, fallbackFileName: string) => Promise<unknown>;
+
 /**
  * Convert any Blob/File dispatch result into a JSON-safe base64 payload; pass
  * through anything else (e.g. a plain netlist object) unchanged.

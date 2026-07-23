@@ -127,6 +127,51 @@ describe('createDispatcher', () => {
     expect(getManufactureData).toHaveBeenCalledWith(exportParams);
   });
 
+  it('delegates every binary export method through the extracted domain', async () => {
+    const getGerberFile = vi.fn(async (params: unknown) => ({ kind: 'gerbers', params }));
+    const getDsnFile = vi.fn(async (fileName: unknown) => ({ kind: 'dsn', fileName }));
+    const getPickAndPlaceFile = vi.fn(async (params: unknown) => ({ kind: 'pick-place', params }));
+    const getPdfFile = vi.fn(async (params: unknown) => ({ kind: 'pdf', params }));
+    const getNetlist = vi.fn(async (params: unknown) => ({ kind: 'netlist', params }));
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        PCB_ManufactureData: {
+          getGerberFile,
+          getDsnFile,
+          getPickAndPlaceFile,
+          getPdfFile,
+        },
+        SCH_Netlist: { getNetlist },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('board.exportGerbers', { layers: 'all' })).resolves.toEqual({
+      kind: 'gerbers',
+      params: { layers: 'all' },
+    });
+    await expect(
+      dispatcher.dispatch('pcb.exportRouteContext', { fileName: 'board.dsn' }),
+    ).resolves.toEqual({ kind: 'dsn', fileName: 'board.dsn' });
+    await expect(dispatcher.dispatch('export.pickPlace', { format: 'csv' })).resolves.toEqual({
+      kind: 'pick-place',
+      params: { format: 'csv' },
+    });
+    await expect(dispatcher.dispatch('export.pdf', { what: 'board' })).resolves.toEqual({
+      kind: 'pdf',
+      params: { what: 'board' },
+    });
+    await expect(dispatcher.dispatch('export.netlist', { format: 'spice' })).resolves.toEqual({
+      kind: 'netlist',
+      params: { format: 'spice' },
+    });
+
+    expect(getGerberFile).toHaveBeenCalledWith({ layers: 'all' });
+    expect(getDsnFile).toHaveBeenCalledWith('board.dsn');
+    expect(getPickAndPlaceFile).toHaveBeenCalledWith({ format: 'csv' });
+    expect(getPdfFile).toHaveBeenCalledWith({ what: 'board' });
+    expect(getNetlist).toHaveBeenCalledWith({ format: 'spice' });
+  });
+
   it('returns a dispatcher with a sorted, non-empty method list and a build id', () => {
     const dispatcher = createDispatcher(makeToolkit({}));
     expect(dispatcher.methodList.length).toBeGreaterThan(40);
