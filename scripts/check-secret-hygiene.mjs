@@ -48,12 +48,17 @@ export function scanText(text, source = '<memory>') {
 }
 
 export function resolveGitExecutable(platform = process.platform) {
-  const candidates =
-    platform === 'win32'
-      ? ['C:\\Program Files\\Git\\cmd\\git.exe', 'C:\\Program Files\\Git\\bin\\git.exe']
-      : platform === 'darwin'
-        ? ['/usr/bin/git', '/opt/homebrew/bin/git', '/usr/local/bin/git']
-        : ['/usr/bin/git', '/usr/local/bin/git', '/bin/git'];
+  let candidates;
+  if (platform === 'win32') {
+    candidates = [
+      String.raw`C:\Program Files\Git\cmd\git.exe`,
+      String.raw`C:\Program Files\Git\bin\git.exe`,
+    ];
+  } else if (platform === 'darwin') {
+    candidates = ['/usr/bin/git', '/opt/homebrew/bin/git', '/usr/local/bin/git'];
+  } else {
+    candidates = ['/usr/bin/git', '/usr/local/bin/git', '/bin/git'];
+  }
   const executable = candidates.find((candidate) => isAbsolute(candidate) && existsSync(candidate));
   if (!executable) {
     throw new Error(`Git executable was not found in the fixed allowlist for ${platform}.`);

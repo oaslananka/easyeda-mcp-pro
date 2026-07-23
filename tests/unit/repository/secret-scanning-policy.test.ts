@@ -124,8 +124,9 @@ describe('secret scanning and credential response policy', () => {
 
     expect(scanner).not.toContain("execFileSync('git'");
     expect(scanner).toContain("'/usr/bin/git'");
-    expect(scanner).toContain('Program Files');
+    expect(scanner).toContain('String.raw`C:\\Program Files\\Git\\cmd\\git.exe`');
     expect(scanner).toContain('git.exe');
+    expect(scanner).not.toContain("platform === 'darwin' ?");
     expect(scanner).toContain('.sort((left, right) => left.localeCompare(right))');
     expect(scanner).toContain('text.codePointAt(index)');
     expect(scanner).not.toContain('text.charCodeAt(index)');
