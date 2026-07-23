@@ -193,4 +193,4 @@ A pull request should include:
 - tests for new functionality or security-sensitive changes,
 - documentation updates when behavior, configuration, or public workflows change.
 
-For solo-maintainer operation, the maintainer may merge a pull request after required CI checks pass. For high-risk security, release, or credential changes, the maintainer should seek external review where practical before release.
+The authoritative ownership and review requirements are in [Repository Governance](docs/REPOSITORY_GOVERNANCE.md). Critical security, release, remote-transport, bridge, and mutation paths require independent human review whenever an eligible reviewer exists. The current solo-maintainer enforcement limitation must be stated publicly rather than represented as independent approval. Every bot and agent finding must be resolved or explicitly dispositioned before merge, and emergency exceptions require a public rationale, rollback target, and follow-up review within two business days.

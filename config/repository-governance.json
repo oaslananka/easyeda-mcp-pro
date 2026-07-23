@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "liveStateVerifiedAt": "2026-07-23",
+  "owners": ["@oaslananka"],
+  "criticalPaths": {
+    "securityAndAutomation": [
+      "/.github/CODEOWNERS",
+      "/.github/workflows/",
+      "/.github/dependency-audit-allowlist.json",
+      "/.github/renovate.json",
+      "/.gitleaksignore",
+      "/.semgrep.yml",
+      "/.semgrepignore",
+      "/SECURITY.md",
+      "/docs/REPOSITORY_GOVERNANCE.md",
+      "/docs/security-architecture.md",
+      "/docs/SECURITY_ASSURANCE_CASE.md",
+      "/.github/pull_request_template.md",
+      "/config/repository-governance.json",
+      "/CONTRIBUTING.md",
+      "/docs/OPENSSF_BEST_PRACTICES.md",
+      "/tests/unit/repository/governance-policy.test.ts"
+    ],
+    "release": [
+      "/release-please-config.json",
+      "/.release-please-manifest.json",
+      "/scripts/release-channel-policy.mjs",
+      "/docs/RELEASE_POLICY.md",
+      "/docs/RELEASE_PROCESS.md",
+      "/docs/RELEASE_VERIFICATION.md",
+      "/docs/release-ci-runbook.md"
+    ],
+    "remoteTransport": [
+      "/src/remote/",
+      "/src/server/transports/http.ts",
+      "/src/server/transports/oauth-resource-metadata.ts",
+      "/src/bridge/"
+    ],
+    "writePaths": [
+      "/src/transactions/",
+      "/src/tools/L1_pcb_write.ts",
+      "/src/tools/L1_schematic_write.ts",
+      "/src/tools/L1_schematic_batch.ts",
+      "/src/tools/L1_transactions.ts",
+      "/src/tools/transaction.ts",
+      "/easyeda-bridge-extension/src/dispatcher.ts",
+      "/easyeda-bridge-extension/src/pcb-write-operations.ts",
+      "/easyeda-bridge-extension/src/pcb-mutation-operations.ts",
+      "/easyeda-bridge-extension/src/schematic-transaction-operations.ts",
+      "/easyeda-bridge-extension/src/remote-client.ts",
+      "/easyeda-bridge-extension/src/connection-policy.ts",
+      "/easyeda-bridge-extension/src/index.ts"
+    ]
+  },
+  "branchProtection": {
+    "requiredChecks": [
+      "quality (24)",
+      "codeql",
+      "Socket Security: Project Report",
+      "dependency-review"
+    ],
+    "strictStatusChecks": true,
+    "requiredApprovals": 0,
+    "requireCodeOwnerReviews": false,
+    "dismissStaleReviews": false,
+    "requireLastPushApproval": false,
+    "requireConversationResolution": true,
+    "enforceAdmins": true,
+    "requireLinearHistory": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  },
+  "repositoryRulesets": {
+    "active": false,
+    "authority": "main-branch-protection",
+    "reason": "No repository ruleset currently overlaps the main branch protection policy."
+  },
+  "reviewPolicy": {
+    "independentReview": "required-when-eligible-reviewer-exists",
+    "soloMaintainerLimitation": "publicly-documented",
+    "automatedFindingDisposition": "resolve-or-explicitly-disposition",
+    "emergencyException": "public-rationale-and-follow-up-review"
+  }
+}

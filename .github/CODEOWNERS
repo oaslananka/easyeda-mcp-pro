@@ -1,16 +1,65 @@
 # CODEOWNERS for easyeda-mcp-pro
-# Documents ownership and routes review requests for key paths.
+# The repository currently has one write-capable maintainer. These entries make
+# critical-path ownership explicit and will route mandatory code-owner review
+# when a second eligible maintainer is added and that protection is enabled.
 
-# Default owner for everything in the repository
+# Default owner
 * @oaslananka
 
-# Configuration and security files have an explicit maintainer owner
-/.github/ @oaslananka
+# Security policy, automation, and repository controls
+/.github/CODEOWNERS @oaslananka
+/.github/pull_request_template.md @oaslananka
+/config/repository-governance.json @oaslananka
+/CONTRIBUTING.md @oaslananka
+/docs/OPENSSF_BEST_PRACTICES.md @oaslananka
+/tests/unit/repository/governance-policy.test.ts @oaslananka
+/.github/workflows/ @oaslananka
+/.github/dependency-audit-allowlist.json @oaslananka
+/.github/renovate.json @oaslananka
+/.gitleaksignore @oaslananka
+/.semgrep.yml @oaslananka
+/.semgrepignore @oaslananka
+/SECURITY.md @oaslananka
+/docs/REPOSITORY_GOVERNANCE.md @oaslananka
+/docs/security-architecture.md @oaslananka
+/docs/SECURITY_ASSURANCE_CASE.md @oaslananka
+
+# Release policy, automation, and evidence
+/release-please-config.json @oaslananka
+/.release-please-manifest.json @oaslananka
+/scripts/release-channel-policy.mjs @oaslananka
+/docs/RELEASE_POLICY.md @oaslananka
+/docs/RELEASE_PROCESS.md @oaslananka
+/docs/RELEASE_VERIFICATION.md @oaslananka
+/docs/release-ci-runbook.md @oaslananka
+
+# Remote transport, authentication, bridge, and session routing
+/src/remote/ @oaslananka
+/src/server/transports/http.ts @oaslananka
+/src/server/transports/oauth-resource-metadata.ts @oaslananka
+/src/bridge/ @oaslananka
+
+# Server-side mutation and transaction boundaries
+/src/transactions/ @oaslananka
+/src/tools/L1_pcb_write.ts @oaslananka
+/src/tools/L1_schematic_write.ts @oaslananka
+/src/tools/L1_schematic_batch.ts @oaslananka
+/src/tools/L1_transactions.ts @oaslananka
+/src/tools/transaction.ts @oaslananka
+
+# EasyEDA extension transport and write paths
+/easyeda-bridge-extension/src/dispatcher.ts @oaslananka
+/easyeda-bridge-extension/src/pcb-write-operations.ts @oaslananka
+/easyeda-bridge-extension/src/pcb-mutation-operations.ts @oaslananka
+/easyeda-bridge-extension/src/schematic-transaction-operations.ts @oaslananka
+/easyeda-bridge-extension/src/remote-client.ts @oaslananka
+/easyeda-bridge-extension/src/connection-policy.ts @oaslananka
+/easyeda-bridge-extension/src/index.ts @oaslananka
+
+# Core build and dependency configuration
 /package.json @oaslananka
 /pnpm-lock.yaml @oaslananka
 /pnpm-workspace.yaml @oaslananka
 /tsconfig.json @oaslananka
 /tsconfig.build.json @oaslananka
 /eslint.config.js @oaslananka
-/release-please-config.json @oaslananka
-/.release-please-manifest.json @oaslananka
