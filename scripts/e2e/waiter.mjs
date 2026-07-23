@@ -170,7 +170,7 @@ if (connected) {
     );
     await sleep(1000);
     const r = buf.slice(p, p + 1000);
-    console.log(`${method}:`, r.slice(0, 300));
+    console.log('%s: %s', method, r.slice(0, 300));
   }
 }
 

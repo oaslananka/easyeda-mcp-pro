@@ -1,16 +1,23 @@
 import { existsSync, readFileSync, statSync } from 'fs';
 import { execFileSync } from 'child_process';
-import { join } from 'path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import { CHECKSUM_MANIFEST_NAME, verifyChecksumManifest } from './checksums.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const root = join(__dirname, '..');
+const root = resolve(__dirname, '..');
 
 const required = ['dist/index.js', 'extension.json', 'images/logo.png'];
 const marketplaceSourceFiles = ['README.md', 'CHANGELOG.md'];
+
+function resolvePathWithinRoot(candidate) {
+  const resolvedPath = resolve(root, candidate);
+  const relativePath = relative(root, resolvedPath);
+  const pathSegments = relativePath.split(sep);
+  if (!relativePath || isAbsolute(relativePath) || pathSegments[0] === '..') return undefined;
+  return resolvedPath;
+}
 
 function readPngDimensions(path) {
   const buffer = readFileSync(path);
@@ -79,7 +86,13 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const entry = typeof manifest.entry === 'string' ? manifest.entry : '';
 const normalizedEntry = entry.replace(/^\.\//, '');
 const entryCandidates = [normalizedEntry, `${normalizedEntry}.js`];
-if (!entry || !entryCandidates.some((candidate) => existsSync(join(root, candidate)))) {
+const entryCandidatePaths = entryCandidates.map(resolvePathWithinRoot);
+const entryEscapesRoot = entryCandidatePaths.includes(undefined);
+if (
+  !entry ||
+  entryEscapesRoot ||
+  !entryCandidatePaths.some((candidate) => candidate !== undefined && existsSync(candidate))
+) {
   console.error(`INVALID ENTRY: ${entry || '<missing>'}`);
   ok = false;
 } else {

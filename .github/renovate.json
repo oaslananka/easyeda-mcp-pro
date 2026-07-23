@@ -53,5 +53,5 @@
       "commitMessagePrefix": "chore(deps):"
     }
   ],
-  "minimumReleaseAge": "3 days"
+  "minimumReleaseAge": "7 days"
 }

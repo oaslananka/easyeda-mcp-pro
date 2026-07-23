@@ -28,7 +28,7 @@ describe('dependency updater ownership', () => {
   it('delays fresh releases and keeps the dependency dashboard plus vulnerability alerts enabled', () => {
     const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig;
 
-    expect(config.minimumReleaseAge).toBe('3 days');
+    expect(config.minimumReleaseAge).toBe('7 days');
     expect(config.dependencyDashboard).toBe(true);
     expect(config.osvVulnerabilityAlerts).toBe(true);
   });

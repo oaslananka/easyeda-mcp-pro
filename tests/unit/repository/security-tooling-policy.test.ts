@@ -80,12 +80,17 @@ describe('repository security tooling policy', () => {
     );
     expect(packageJson.scripts?.['security:audit']).toBe('node scripts/check-dependency-audit.mjs');
     const workspace = readText('pnpm-workspace.yaml');
-    expect(workspace).toContain('minimumReleaseAge: 4320');
+    expect(workspace).toContain('minimumReleaseAge: 10080');
+    expect(workspace).toContain('minimumReleaseAgeExclude:');
+    expect(workspace).toContain('fast-uri@3.1.4');
+    expect(workspace).toContain('hono@4.12.31');
     expect(workspace).toContain('minimumReleaseAgeStrict: true');
     expect(workspace).toContain('minimumReleaseAgeIgnoreMissingTime: false');
+    expect(workspace).toContain('trustPolicy: no-downgrade');
     expect(workspace).toContain('trustLockfile: false');
     expect(workspace).toContain('blockExoticSubdeps: true');
     expect(workspace).toContain('body-parser: 2.3.0');
+    expect(readText('.npmrc')).toContain('min-release-age=7');
   });
 
   it('runs Semgrep, workflow hardening, and Trivy as separate CI concerns', () => {
@@ -196,9 +201,32 @@ describe('repository security tooling policy', () => {
     expect(guide).toContain('dependency-audit-report');
   });
 
-  it('hardens release and benchmark dependency installation', () => {
+  it('hardens CI, release, documentation, and container dependency installation', () => {
+    const ciWorkflow = readText('.github/workflows/ci.yml');
+    const docsWorkflow = readText('.github/workflows/deploy-docs.yml');
     const releaseWorkflow = readText('.github/workflows/release-please.yml');
     const benchmarkWorkflow = readText('.github/workflows/golden-benchmark.yml');
+    const scorecardWorkflow = readText('.github/workflows/scorecard.yml');
+    const dockerfile = readText('Dockerfile');
+
+    expect(ciWorkflow.match(/pnpm install --frozen-lockfile --ignore-scripts/g)).toHaveLength(3);
+    expect(docsWorkflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
+    expect(releaseWorkflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
+    expect(dockerfile).toContain('RUN pnpm install --frozen-lockfile --ignore-scripts');
+    expect(scorecardWorkflow).not.toContain('permissions: read-all');
+    expect(releaseWorkflow).toContain('curl --fail --silent --show-error --location \\');
+    expect(releaseWorkflow).toContain("--proto '=https' --tlsv1.2 \\");
+    expect(releaseWorkflow).toContain(
+      '--output "$ASSET" "${BASE}/${MCP_PUBLISHER_VERSION}/${ASSET}"',
+    );
+
+    const verifyDist = readText('easyeda-bridge-extension/scripts/verify-dist.mjs');
+    expect(verifyDist).toContain('function resolvePathWithinRoot(candidate)');
+    expect(verifyDist).toContain("pathSegments[0] === '..'");
+    expect(verifyDist).toContain('entryEscapesRoot');
+
+    const e2eWaiter = readText('scripts/e2e/waiter.mjs');
+    expect(e2eWaiter).toContain("console.log('%s: %s', method, r.slice(0, 300));");
 
     expect(releaseWorkflow).toContain(
       'uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610',

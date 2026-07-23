@@ -17,7 +17,7 @@ COPY scripts/check-runtime.mjs ./scripts/check-runtime.mjs
 RUN node scripts/check-runtime.mjs --require-pnpm
 
 # Install dependencies (including devDependencies for build)
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Copy tsconfig and source directories
 COPY tsconfig.json tsconfig.build.json ./
