@@ -712,6 +712,8 @@ required by EasyEDA Pro.
 
 Installation: Open EasyEDA Pro → **Settings** → **Extensions** → **Extension Manager...** → **Import Extension**, then select the `.eext` file. Make sure **Allow External Interaction** is enabled for the extension.
 
+For local bridge development, an experimental loopback-only CDP transport is documented in the [CDP Bridge guide](docs/guide/cdp-bridge.md). The extension remains the recommended transport for normal use. Public delivery targets and milestone lifecycle rules are maintained in the [roadmap](docs/ROADMAP.md).
+
 ---
 
 ## Agent plugin and skills

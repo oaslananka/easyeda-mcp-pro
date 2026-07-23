@@ -9,6 +9,7 @@ export default defineConfig({
     logo: '/logo.png',
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
+      { text: 'Roadmap', link: '/ROADMAP' },
       { text: 'Tools Reference', link: '/reference/tools' },
       { text: 'Resources & Prompts', link: '/reference/resources-prompts' },
       { text: 'EasyEDA Compatibility', link: '/reference/easyeda-compatibility' },
@@ -56,6 +57,8 @@ export default defineConfig({
         items: [
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Configuration', link: '/guide/configuration' },
+          { text: 'CDP Bridge (Experimental)', link: '/guide/cdp-bridge' },
+          { text: 'Roadmap', link: '/ROADMAP' },
           { text: 'Troubleshooting', link: '/guide/troubleshooting' },
           { text: 'Best Practices Badge', link: '/BEST_PRACTICES_BADGE' },
         ],

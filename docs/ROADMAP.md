@@ -2,6 +2,27 @@
 
 This roadmap describes the intended direction for `easyeda-mcp-pro` for the next 12 months. It is not a promise of delivery; it is a planning document for users, contributors, and OpenSSF Best Practices evidence.
 
+## Active delivery milestones
+
+| Milestone                                                                  | Target date       | Public tracker                                                        | Outcome                                                                                                        |
+| -------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **v0.37.0 — Maintainability and operational consistency**                  | 26 August 2026    | [Epic #349](https://github.com/oaslananka/easyeda-mcp-pro/issues/349) | Deterministic automation, accurate repository state, and an incremental dispatcher decomposition.              |
+| **v1.0 readiness — Governance, release quality, and ecosystem confidence** | 16 September 2026 | [Epic #350](https://github.com/oaslananka/easyeda-mcp-pro/issues/350) | Public governance, release, quality, security, and compatibility evidence suitable for a stable v1.0 decision. |
+
+Target dates are planning goals, not release guarantees.
+
+## Milestone and branch lifecycle
+
+Version-bound milestones use the title pattern `v<target> — <outcome>`. Readiness programs that span several prereleases use a clear outcome title such as `v1.0 readiness — <outcome>`.
+
+A milestone stays open only while it represents future work. Maintainers close a milestone after its release has shipped and it has no open issues; issue assignments, descriptions, and historical discussion remain intact. Completed work is not moved merely to make progress percentages look cleaner.
+
+Each active milestone has one public epic whose checklist links the deliverable issues. The epic and its child issues share the same milestone so the roadmap can be read from either view.
+
+Remote branches are retained only while they contain active, unmerged work or support an open pull request. Before deleting a stale branch, maintainers verify patch equivalence and preserve any unique, still-valid code or documentation on `main`.
+
+The release automation branch `release-please--branches--main--components--easyeda-mcp-pro` is exempt from stale-branch cleanup while it backs an active release pull request. It may be removed after that pull request is merged or closed.
+
 ## Project scope
 
 `easyeda-mcp-pro` is a production-oriented MCP server for EasyEDA Pro. Its scope is controlled hardware-design assistance: schematic inspection, BOM workflows, safe manufacturing exports, supplier lookup, diagnostics, and security-conscious AI-assisted review.
@@ -50,15 +71,6 @@ The latest npm and GitHub release is the actively maintained release. Older vers
 - Replacing human engineering review for manufacturability or safety-critical design decisions.
 - Enabling remote HTTP exposure without explicit authentication and allowed-origin controls.
 
-## v0.18.0 — Remote MCP Gateway & self-hosted tunnels
+## Shipped roadmap history
 
-Planned milestone for hosted and self-hosted remote MCP usage:
-
-- hosted Remote MCP Gateway endpoint design;
-- extension Remote Relay Mode;
-- pairing and session routing;
-- remote auth, scopes, approval policy, audit, and observability;
-- self-hosted remote setup using user-owned domains, tunnels, reverse proxies, or VPS deployments;
-- Claude Web connector and ChatGPT Apps SDK integration guidance.
-
-See [Remote MCP modes](./REMOTE_MCP_MODES.md), [remote security model](./REMOTE_SECURITY_MODEL.md), and [extension relay protocol](./EXTENSION_RELAY_PROTOCOL.md).
+Versioned work that has already shipped is represented by closed GitHub milestones, the [changelog](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CHANGELOG.md), and GitHub Releases. Remote MCP Gateway and self-hosted tunnel work originally planned for v0.18.0 is documented in [Remote MCP modes](./REMOTE_MCP_MODES.md), the [remote security model](./REMOTE_SECURITY_MODEL.md), and the [extension relay protocol](./EXTENSION_RELAY_PROTOCOL.md).
