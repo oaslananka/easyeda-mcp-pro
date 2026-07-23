@@ -4,9 +4,14 @@ packages:
 
 allowBuilds:
   esbuild: true
-minimumReleaseAge: 4320
+minimumReleaseAge: 10080
+# Exact-version exceptions for the reviewed security overrides from #333/#334.
+minimumReleaseAgeExclude:
+  - fast-uri@3.1.4
+  - hono@4.12.31
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
+trustPolicy: no-downgrade
 trustLockfile: false
 blockExoticSubdeps: true
 

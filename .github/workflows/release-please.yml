@@ -84,7 +84,7 @@ jobs:
           package-manager-cache: false
       - name: Install dependencies
         if: ${{ env.RELEASE_RUN == 'true' }}
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Verify runtime policy
         if: ${{ env.RELEASE_RUN == 'true' }}
@@ -183,7 +183,9 @@ jobs:
           ARCH="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
           ASSET="mcp-publisher_${OS}_${ARCH}.tar.gz"
           BASE="https://github.com/modelcontextprotocol/registry/releases/download"
-          curl -sSLO "${BASE}/${MCP_PUBLISHER_VERSION}/${ASSET}"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            --output "$ASSET" "${BASE}/${MCP_PUBLISHER_VERSION}/${ASSET}"
           tar xzf mcp-publisher_*.tar.gz mcp-publisher
           chmod +x mcp-publisher
 

@@ -35,7 +35,7 @@ jobs:
           node-version: '24.18.0'
 
           package-manager-cache: false
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify runtime policy
         run: pnpm runtime:check
       - name: Validate Codecov configuration
@@ -176,7 +176,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
           package-manager-cache: false
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify runtime policy
         run: pnpm runtime:check
       - run: pnpm typecheck
@@ -207,7 +207,7 @@ jobs:
           node-version: '24.18.0'
 
           package-manager-cache: false
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify runtime policy
         run: pnpm runtime:check
 
