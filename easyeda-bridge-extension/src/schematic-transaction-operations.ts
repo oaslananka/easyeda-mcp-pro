@@ -58,6 +58,119 @@ interface TextPrimitiveRead {
 
 type SchematicPoint = { x: number; y: number };
 
+interface TextSnapshotRead {
+  candidateFound: boolean;
+  snapshot?: SchematicPrimitiveSnapshot;
+}
+
+type ModifyAttempt = { handled: false } | { handled: true; value: unknown };
+
+const NOT_HANDLED: ModifyAttempt = { handled: false };
+
+const COMPONENT_CLASS_PATHS = [
+  'SCH_PrimitiveComponent',
+  'SCH_PrimitiveComponent3',
+  'sch_PrimitiveComponent',
+];
+const WIRE_CLASS_PATHS = ['SCH_PrimitiveWire', 'SCH_PrimitiveWire3', 'sch_PrimitiveWire'];
+const TEXT_CLASS_PATHS = ['SCH_PrimitiveText', 'sch_PrimitiveText'];
+const RECTANGLE_CLASS_PATHS = ['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle'];
+const CIRCLE_CLASS_PATHS = ['SCH_PrimitiveCircle', 'sch_PrimitiveCircle'];
+const POLYGON_CLASS_PATHS = ['SCH_PrimitivePolygon', 'sch_PrimitivePolygon'];
+
+function handled(value: unknown): ModifyAttempt {
+  return { handled: true, value };
+}
+
+function pointKey(point: SchematicPoint): string {
+  return `${Math.round(point.x * 1000) / 1000},${Math.round(point.y * 1000) / 1000}`;
+}
+
+function compactDefinedRecord(input: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined) output[key] = value;
+  }
+  return output;
+}
+
+function componentKindFromType(componentType: string): SchematicPrimitiveSnapshotKind {
+  if (componentType === 'netflag') return 'netflag';
+  if (componentType === 'netport') return 'netport';
+  return 'component';
+}
+
+function schematicPrimitiveClassPaths(kind: SchematicPrimitiveSnapshotKind): string[] {
+  switch (kind) {
+    case 'component':
+    case 'netflag':
+    case 'netport':
+      return COMPONENT_CLASS_PATHS;
+    case 'wire':
+      return WIRE_CLASS_PATHS;
+    case 'text':
+      return TEXT_CLASS_PATHS;
+    case 'rectangle':
+      return RECTANGLE_CLASS_PATHS;
+    case 'circle':
+      return CIRCLE_CLASS_PATHS;
+    case 'polygon':
+      return POLYGON_CLASS_PATHS;
+  }
+}
+
+async function primitiveExistsInClass(primitiveClass: any, primitiveId: string): Promise<boolean> {
+  if (typeof primitiveClass.get === 'function') {
+    try {
+      return Boolean(await primitiveClass.get(primitiveId));
+    } catch {
+      return false;
+    }
+  }
+  if (typeof primitiveClass.getAllPrimitiveId === 'function') {
+    try {
+      return ((await primitiveClass.getAllPrimitiveId()) || []).includes(primitiveId);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+function supportsGetAndModify(primitiveClass: any): boolean {
+  return (
+    Boolean(primitiveClass) &&
+    typeof primitiveClass.get === 'function' &&
+    typeof primitiveClass.modify === 'function'
+  );
+}
+
+function supportsTextModify(primitiveClass: any): boolean {
+  return (
+    Boolean(primitiveClass) &&
+    typeof primitiveClass.modify === 'function' &&
+    (typeof primitiveClass.getAll === 'function' || typeof primitiveClass.get === 'function')
+  );
+}
+
+function componentMoveOrigin(
+  oldX: unknown,
+  oldY: unknown,
+  property: Record<string, unknown>,
+): SchematicPoint | undefined {
+  const changesCoordinate = typeof property.x === 'number' || typeof property.y === 'number';
+  const differsFromCurrent = property.x !== oldX || property.y !== oldY;
+  if (
+    typeof oldX === 'number' &&
+    typeof oldY === 'number' &&
+    changesCoordinate &&
+    differsFromCurrent
+  ) {
+    return { x: oldX, y: oldY };
+  }
+  return undefined;
+}
+
 export function createSchematicTransactionOperations(
   dependencies: SchematicTransactionDependencies,
 ): SchematicTransactionOperations {
@@ -92,10 +205,6 @@ export function createSchematicTransactionOperations(
     return dependencies.getCachedTextAlignMode(primitiveId);
   }
 
-  function pointKey(point: SchematicPoint): string {
-    return `${Math.round(point.x * 1000) / 1000},${Math.round(point.y * 1000) / 1000}`;
-  }
-
   async function applyNetFlagState(
     current: unknown,
     primitiveId: string,
@@ -119,14 +228,6 @@ export function createSchematicTransactionOperations(
       await c.done();
     }
     return { primitiveId, componentType: readComponentType(current), applied };
-  }
-
-  function compactDefinedRecord(input: Record<string, unknown>): Record<string, unknown> {
-    const output: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(input)) {
-      if (value !== undefined) output[key] = value;
-    }
-    return output;
   }
 
   async function readPrimitiveFromClass(
@@ -247,28 +348,6 @@ export function createSchematicTransactionOperations(
       otherProperty:
         (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {},
     });
-  }
-
-  const COMPONENT_CLASS_PATHS = [
-    'SCH_PrimitiveComponent',
-    'SCH_PrimitiveComponent3',
-    'sch_PrimitiveComponent',
-  ];
-  const WIRE_CLASS_PATHS = ['SCH_PrimitiveWire', 'SCH_PrimitiveWire3', 'sch_PrimitiveWire'];
-  const TEXT_CLASS_PATHS = ['SCH_PrimitiveText', 'sch_PrimitiveText'];
-  const RECTANGLE_CLASS_PATHS = ['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle'];
-  const CIRCLE_CLASS_PATHS = ['SCH_PrimitiveCircle', 'sch_PrimitiveCircle'];
-  const POLYGON_CLASS_PATHS = ['SCH_PrimitivePolygon', 'sch_PrimitivePolygon'];
-
-  interface TextSnapshotRead {
-    candidateFound: boolean;
-    snapshot?: SchematicPrimitiveSnapshot;
-  }
-
-  function componentKindFromType(componentType: string): SchematicPrimitiveSnapshotKind {
-    if (componentType === 'netflag') return 'netflag';
-    if (componentType === 'netport') return 'netport';
-    return 'component';
   }
 
   function componentSnapshot(primitiveId: string, current: unknown): SchematicPrimitiveSnapshot {
@@ -537,25 +616,6 @@ export function createSchematicTransactionOperations(
     };
   }
 
-  function schematicPrimitiveClassPaths(kind: SchematicPrimitiveSnapshotKind): string[] {
-    switch (kind) {
-      case 'component':
-      case 'netflag':
-      case 'netport':
-        return ['SCH_PrimitiveComponent', 'SCH_PrimitiveComponent3', 'sch_PrimitiveComponent'];
-      case 'wire':
-        return ['SCH_PrimitiveWire', 'SCH_PrimitiveWire3', 'sch_PrimitiveWire'];
-      case 'text':
-        return ['SCH_PrimitiveText', 'sch_PrimitiveText'];
-      case 'rectangle':
-        return ['SCH_PrimitiveRectangle', 'sch_PrimitiveRectangle'];
-      case 'circle':
-        return ['SCH_PrimitiveCircle', 'sch_PrimitiveCircle'];
-      case 'polygon':
-        return ['SCH_PrimitivePolygon', 'sch_PrimitivePolygon'];
-    }
-  }
-
   function parseSchematicPrimitiveKind(value: unknown): SchematicPrimitiveSnapshotKind {
     const allowed = new Set<SchematicPrimitiveSnapshotKind>([
       'component',
@@ -635,27 +695,6 @@ export function createSchematicTransactionOperations(
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
     return { primitiveKind, primitiveIds: Array.from(new Set(primitiveIds)) };
-  }
-
-  async function primitiveExistsInClass(
-    primitiveClass: any,
-    primitiveId: string,
-  ): Promise<boolean> {
-    if (typeof primitiveClass.get === 'function') {
-      try {
-        return Boolean(await primitiveClass.get(primitiveId));
-      } catch {
-        return false;
-      }
-    }
-    if (typeof primitiveClass.getAllPrimitiveId === 'function') {
-      try {
-        return ((await primitiveClass.getAllPrimitiveId()) || []).includes(primitiveId);
-      } catch {
-        return false;
-      }
-    }
-    return false;
   }
 
   async function deleteSchematicPrimitives(
@@ -932,232 +971,241 @@ export function createSchematicTransactionOperations(
     return outcome;
   }
 
+  async function readModificationCurrent(
+    primitiveClass: any,
+    primitiveId: string,
+    className: string,
+  ): Promise<unknown> {
+    try {
+      return await primitiveClass.get(primitiveId);
+    } catch (error) {
+      logRecoverableError(`${className}.get(${primitiveId}) failed`, error);
+      return undefined;
+    }
+  }
+
+  function componentModificationProperties(
+    current: unknown,
+    property: Record<string, unknown>,
+  ): { merged: Record<string, unknown>; oldX: unknown; oldY: unknown } {
+    const existingOther =
+      (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
+    const incomingOther = property.otherProperty as Record<string, unknown> | undefined;
+    const oldX = safeGetState(current, 'X');
+    const oldY = safeGetState(current, 'Y');
+    return {
+      oldX,
+      oldY,
+      merged: {
+        x: oldX,
+        y: oldY,
+        rotation: safeGetState(current, 'Rotation'),
+        mirror: safeGetState(current, 'Mirror'),
+        addIntoBom: safeGetState(current, 'AddIntoBom'),
+        addIntoPcb: safeGetState(current, 'AddIntoPcb'),
+        designator: safeGetState(current, 'Designator'),
+        name: safeGetState(current, 'Name'),
+        uniqueId: safeGetState(current, 'UniqueId'),
+        manufacturer: safeGetState(current, 'Manufacturer'),
+        manufacturerId: safeGetState(current, 'ManufacturerId'),
+        supplier: safeGetState(current, 'Supplier'),
+        supplierId: safeGetState(current, 'SupplierId'),
+        ...property,
+        otherProperty: incomingOther ? { ...existingOther, ...incomingOther } : existingOther,
+      },
+    };
+  }
+
+  async function tryModifyComponent(
+    primitiveId: string,
+    property: Record<string, unknown>,
+  ): Promise<ModifyAttempt> {
+    const primitiveClass = readFirstPath<any>(COMPONENT_CLASS_PATHS);
+    if (!supportsGetAndModify(primitiveClass)) return NOT_HANDLED;
+
+    const current = await readModificationCurrent(
+      primitiveClass,
+      primitiveId,
+      'SCH_PrimitiveComponent',
+    );
+    if (!current) return NOT_HANDLED;
+
+    const componentType = readComponentType(current);
+    if (componentType === 'netflag' || componentType === 'netport') {
+      return handled(await applyNetFlagState(current, primitiveId, property));
+    }
+
+    const { merged, oldX, oldY } = componentModificationProperties(current, property);
+    const moveOrigin = componentMoveOrigin(oldX, oldY, property);
+    const oldPinPoints = moveOrigin ? await getComponentPinCoordinates(primitiveId) : [];
+    const result = await primitiveClass.modify(primitiveId, merged);
+    const followResult = { movedWireIds: [] as string[], failedWireIds: [] as string[] };
+
+    if (moveOrigin && oldPinPoints.length > 0) {
+      const dx = (merged.x as number) - moveOrigin.x;
+      const dy = (merged.y as number) - moveOrigin.y;
+      Object.assign(followResult, await followConnectedWires(oldPinPoints, dx, dy));
+    }
+
+    return handled({
+      result,
+      followedWireIds: followResult.movedWireIds,
+      wireFollowFailures: followResult.failedWireIds,
+    });
+  }
+
+  async function tryModifyWire(
+    primitiveId: string,
+    property: Record<string, unknown>,
+  ): Promise<ModifyAttempt> {
+    const primitiveClass = readFirstPath<any>(WIRE_CLASS_PATHS);
+    if (!supportsGetAndModify(primitiveClass)) return NOT_HANDLED;
+
+    const current = await readModificationCurrent(primitiveClass, primitiveId, 'SCH_PrimitiveWire');
+    if (!current) return NOT_HANDLED;
+
+    return handled(
+      await primitiveClass.modify(primitiveId, {
+        line: safeGetState(current, 'Line'),
+        net: safeGetState(current, 'Net'),
+        color: safeGetState(current, 'Color'),
+        lineWidth: safeGetState(current, 'LineWidth'),
+        lineType: safeGetState(current, 'LineType'),
+        ...property,
+      }),
+    );
+  }
+
+  function textModificationProperties(
+    text: TextPrimitiveRead,
+    property: Record<string, unknown>,
+    alignMode: PublicTextAlignMode,
+  ): Record<string, unknown> {
+    const incoming: Record<string, unknown> = { ...property };
+    if (incoming.color !== undefined) incoming.textColor = incoming.color;
+    if (incoming.underline !== undefined) incoming.underLine = incoming.underline;
+    delete incoming.color;
+    delete incoming.underline;
+    incoming.alignMode = alignMode;
+
+    return {
+      x: readTextState(text, 'X'),
+      y: readTextState(text, 'Y'),
+      content: readTextState(text, 'Content'),
+      rotation: readTextState(text, 'Rotation'),
+      textColor: readTextState(text, 'TextColor') ?? readTextState(text, 'Color'),
+      fontName: readTextState(text, 'FontName'),
+      fontSize: readTextState(text, 'FontSize'),
+      bold: readTextState(text, 'Bold'),
+      italic: readTextState(text, 'Italic'),
+      underLine: readTextState(text, 'UnderLine'),
+      ...incoming,
+    };
+  }
+
+  async function tryModifyText(
+    primitiveId: string,
+    property: Record<string, unknown>,
+  ): Promise<ModifyAttempt> {
+    const primitiveClass = readFirstPath<any>(TEXT_CLASS_PATHS);
+    if (!supportsTextModify(primitiveClass)) return NOT_HANDLED;
+
+    const text = await readTextPrimitiveFromClass(TEXT_CLASS_PATHS, primitiveId);
+    if (!text) return NOT_HANDLED;
+
+    let requestedAlignMode: PublicTextAlignMode | undefined;
+    if (Object.prototype.hasOwnProperty.call(property, 'alignMode')) {
+      requestedAlignMode = requirePublicTextAlignMode(property.alignMode);
+    }
+    const alignMode = requestedAlignMode ?? resolvePublicTextAlignMode(text, primitiveId);
+    if (alignMode === undefined) {
+      throw newBridgeError(
+        'UNSUPPORTED_RUNTIME',
+        `Text ${primitiveId} did not expose a public alignMode`,
+        'Read the text after reloading the document, or provide alignMode explicitly using a value from 1 through 9.',
+      );
+    }
+
+    const result = await primitiveClass.modify(
+      primitiveId,
+      textModificationProperties(text, property, alignMode),
+    );
+    const resultAlignMode = asPublicTextAlignMode(safeGetState(result, 'AlignMode'));
+    dependencies.setCachedTextAlignMode(primitiveId, resultAlignMode ?? alignMode);
+    return handled(result);
+  }
+
+  async function tryModifyCircle(
+    primitiveId: string,
+    property: Record<string, unknown>,
+  ): Promise<ModifyAttempt> {
+    const primitiveClass = readFirstPath<any>(CIRCLE_CLASS_PATHS);
+    if (!supportsGetAndModify(primitiveClass)) return NOT_HANDLED;
+
+    const current = await readModificationCurrent(
+      primitiveClass,
+      primitiveId,
+      'SCH_PrimitiveCircle',
+    );
+    if (!current) return NOT_HANDLED;
+
+    return handled(
+      await primitiveClass.modify(primitiveId, {
+        centerX: safeGetState(current, 'CenterX'),
+        centerY: safeGetState(current, 'CenterY'),
+        radius: safeGetState(current, 'Radius'),
+        color: safeGetState(current, 'Color'),
+        fillColor: safeGetState(current, 'FillColor'),
+        lineWidth: safeGetState(current, 'LineWidth'),
+        lineType: safeGetState(current, 'LineType'),
+        fillStyle: safeGetState(current, 'FillStyle'),
+        ...property,
+      }),
+    );
+  }
+
+  async function tryModifyPolygon(
+    primitiveId: string,
+    property: Record<string, unknown>,
+  ): Promise<ModifyAttempt> {
+    const primitiveClass = readFirstPath<any>(POLYGON_CLASS_PATHS);
+    if (!supportsGetAndModify(primitiveClass)) return NOT_HANDLED;
+
+    const current = await readModificationCurrent(
+      primitiveClass,
+      primitiveId,
+      'SCH_PrimitivePolygon',
+    );
+    if (!current) return NOT_HANDLED;
+
+    return handled(
+      await primitiveClass.modify(primitiveId, {
+        line: safeGetState(current, 'Line'),
+        color: safeGetState(current, 'Color'),
+        fillColor: safeGetState(current, 'FillColor'),
+        lineWidth: safeGetState(current, 'LineWidth'),
+        lineType: safeGetState(current, 'LineType'),
+        ...property,
+      }),
+    );
+  }
+
   async function modifyPrimitive(
     primitiveId: string,
     property: Record<string, unknown>,
   ): Promise<unknown> {
-    // The native SCH_PrimitiveComponent.modify/SCH_PrimitiveWire.modify APIs
-    // reset any property field omitted from the call rather than leaving it
-    // unchanged (e.g. passing only `{ designator }` wipes manufacturer/
-    // supplier/otherProperty). To make partial updates behave like partial
-    // updates, snapshot the primitive's current state first and merge the
-    // caller's partial property over it before writing.
-    const schCompClass = readFirstPath<any>([
-      'SCH_PrimitiveComponent',
-      'SCH_PrimitiveComponent3',
-      'sch_PrimitiveComponent',
-    ]);
-    if (
-      schCompClass &&
-      typeof schCompClass.get === 'function' &&
-      typeof schCompClass.modify === 'function'
-    ) {
-      let current: unknown;
-      try {
-        current = await schCompClass.get(primitiveId);
-      } catch (e) {
-        logRecoverableError(`SCH_PrimitiveComponent.get(${primitiveId}) failed`, e);
-      }
-      if (current) {
-        // Net flags / net ports are components too, but the modify() wrapper
-        // refuses them. Reposition them via the low-level setState path so
-        // modify_primitive can move a VCC/GND flag's label off a crowded pin.
-        const ct = readComponentType(current);
-        if (ct === 'netflag' || ct === 'netport') {
-          return applyNetFlagState(current, primitiveId, property);
-        }
-        const existingOther =
-          (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
-        const incomingOther = property.otherProperty as Record<string, unknown> | undefined;
-        const oldX = safeGetState(current, 'X');
-        const oldY = safeGetState(current, 'Y');
-        const merged: Record<string, unknown> = {
-          x: oldX,
-          y: oldY,
-          rotation: safeGetState(current, 'Rotation'),
-          mirror: safeGetState(current, 'Mirror'),
-          addIntoBom: safeGetState(current, 'AddIntoBom'),
-          addIntoPcb: safeGetState(current, 'AddIntoPcb'),
-          designator: safeGetState(current, 'Designator'),
-          name: safeGetState(current, 'Name'),
-          uniqueId: safeGetState(current, 'UniqueId'),
-          manufacturer: safeGetState(current, 'Manufacturer'),
-          manufacturerId: safeGetState(current, 'ManufacturerId'),
-          supplier: safeGetState(current, 'Supplier'),
-          supplierId: safeGetState(current, 'SupplierId'),
-          ...property,
-          otherProperty: incomingOther ? { ...existingOther, ...incomingOther } : existingOther,
-        };
-
-        // A position change leaves this component's wires behind at their old
-        // absolute coordinates unless we explicitly move them too — capture
-        // the pins' pre-move coordinates now, before the underlying primitive
-        // moves out from under them.
-        const movingPosition =
-          typeof oldX === 'number' &&
-          typeof oldY === 'number' &&
-          (typeof property.x === 'number' || typeof property.y === 'number') &&
-          (property.x !== oldX || property.y !== oldY);
-        const oldPinPoints = movingPosition ? await getComponentPinCoordinates(primitiveId) : [];
-
-        const modifyResult = await schCompClass.modify(primitiveId, merged);
-
-        let followedWireIds: string[] = [];
-        let wireFollowFailures: string[] = [];
-        if (movingPosition && oldPinPoints.length > 0) {
-          const dx = (merged.x as number) - oldX;
-          const dy = (merged.y as number) - oldY;
-          const followed = await followConnectedWires(oldPinPoints, dx, dy);
-          followedWireIds = followed.movedWireIds;
-          wireFollowFailures = followed.failedWireIds;
-        }
-
-        return { result: modifyResult, followedWireIds, wireFollowFailures };
-      }
+    const handlers = [
+      tryModifyComponent,
+      tryModifyWire,
+      tryModifyText,
+      tryModifyCircle,
+      tryModifyPolygon,
+    ];
+    for (const handler of handlers) {
+      const attempt = await handler(primitiveId, property);
+      if (attempt.handled) return attempt.value;
     }
 
-    const schWireClass = readFirstPath<any>(['SCH_PrimitiveWire', 'sch_PrimitiveWire']);
-    if (
-      schWireClass &&
-      typeof schWireClass.get === 'function' &&
-      typeof schWireClass.modify === 'function'
-    ) {
-      let current: unknown;
-      try {
-        current = await schWireClass.get(primitiveId);
-      } catch (e) {
-        logRecoverableError(`SCH_PrimitiveWire.get(${primitiveId}) failed`, e);
-      }
-      if (current) {
-        const merged: Record<string, unknown> = {
-          line: safeGetState(current, 'Line'),
-          net: safeGetState(current, 'Net'),
-          color: safeGetState(current, 'Color'),
-          lineWidth: safeGetState(current, 'LineWidth'),
-          lineType: safeGetState(current, 'LineType'),
-          ...property,
-        };
-        return schWireClass.modify(primitiveId, merged);
-      }
-    }
-
-    // Text primitives previously fell through to the generic fallback below,
-    // which blindly tries SCH_PrimitiveComponent.modify()/SCH_PrimitiveWire.modify()
-    // on a text primitiveId neither class recognizes — surfacing as an
-    // upstream API error (or a silent no-op) instead of actually editing the
-    // text. Field names (Content, TextColor, FontName, ...) mirror
-    // schematic.addText's create() argument order above.
-    const schTextClass = readFirstPath<any>(['SCH_PrimitiveText', 'sch_PrimitiveText']);
-    if (
-      schTextClass &&
-      typeof schTextClass.modify === 'function' &&
-      (typeof schTextClass.getAll === 'function' || typeof schTextClass.get === 'function')
-    ) {
-      const text = await readTextPrimitiveFromClass(
-        ['SCH_PrimitiveText', 'sch_PrimitiveText'],
-        primitiveId,
-      );
-      if (text) {
-        const incoming: Record<string, unknown> = { ...property };
-        const requestedAlignMode = Object.prototype.hasOwnProperty.call(incoming, 'alignMode')
-          ? requirePublicTextAlignMode(incoming.alignMode)
-          : undefined;
-        const currentAlignMode = resolvePublicTextAlignMode(text, primitiveId);
-        const alignMode = requestedAlignMode ?? currentAlignMode;
-        if (alignMode === undefined) {
-          throw newBridgeError(
-            'UNSUPPORTED_RUNTIME',
-            `Text ${primitiveId} did not expose a public alignMode`,
-            'Read the text after reloading the document, or provide alignMode explicitly using a value from 1 through 9.',
-          );
-        }
-
-        if (incoming.color !== undefined) incoming.textColor = incoming.color;
-        if (incoming.underline !== undefined) incoming.underLine = incoming.underline;
-        delete incoming.color;
-        delete incoming.underline;
-        incoming.alignMode = alignMode;
-
-        const merged: Record<string, unknown> = {
-          x: readTextState(text, 'X'),
-          y: readTextState(text, 'Y'),
-          content: readTextState(text, 'Content'),
-          rotation: readTextState(text, 'Rotation'),
-          textColor: readTextState(text, 'TextColor') ?? readTextState(text, 'Color'),
-          fontName: readTextState(text, 'FontName'),
-          fontSize: readTextState(text, 'FontSize'),
-          bold: readTextState(text, 'Bold'),
-          italic: readTextState(text, 'Italic'),
-          underLine: readTextState(text, 'UnderLine'),
-          ...incoming,
-        };
-        const result = await schTextClass.modify(primitiveId, merged);
-        const resultAlignMode = asPublicTextAlignMode(safeGetState(result, 'AlignMode'));
-        dependencies.setCachedTextAlignMode(primitiveId, resultAlignMode ?? alignMode);
-        return result;
-      }
-    }
-
-    // Circle/Polygon had the same fall-through-to-wrong-handler gap as Text
-    // above. Field names mirror their respective create() argument order
-    // (schematic.addCircle/addPolygon), which was itself recovered by
-    // reading .modify()'s minified source via .toString() — see the
-    // comments on those create() cases.
-    const schCircleClass = readFirstPath<any>(['SCH_PrimitiveCircle', 'sch_PrimitiveCircle']);
-    if (
-      schCircleClass &&
-      typeof schCircleClass.get === 'function' &&
-      typeof schCircleClass.modify === 'function'
-    ) {
-      let current: unknown;
-      try {
-        current = await schCircleClass.get(primitiveId);
-      } catch (e) {
-        logRecoverableError(`SCH_PrimitiveCircle.get(${primitiveId}) failed`, e);
-      }
-      if (current) {
-        const merged: Record<string, unknown> = {
-          centerX: safeGetState(current, 'CenterX'),
-          centerY: safeGetState(current, 'CenterY'),
-          radius: safeGetState(current, 'Radius'),
-          color: safeGetState(current, 'Color'),
-          fillColor: safeGetState(current, 'FillColor'),
-          lineWidth: safeGetState(current, 'LineWidth'),
-          lineType: safeGetState(current, 'LineType'),
-          fillStyle: safeGetState(current, 'FillStyle'),
-          ...property,
-        };
-        return schCircleClass.modify(primitiveId, merged);
-      }
-    }
-
-    const schPolygonClass = readFirstPath<any>(['SCH_PrimitivePolygon', 'sch_PrimitivePolygon']);
-    if (
-      schPolygonClass &&
-      typeof schPolygonClass.get === 'function' &&
-      typeof schPolygonClass.modify === 'function'
-    ) {
-      let current: unknown;
-      try {
-        current = await schPolygonClass.get(primitiveId);
-      } catch (e) {
-        logRecoverableError(`SCH_PrimitivePolygon.get(${primitiveId}) failed`, e);
-      }
-      if (current) {
-        const merged: Record<string, unknown> = {
-          line: safeGetState(current, 'Line'),
-          color: safeGetState(current, 'Color'),
-          fillColor: safeGetState(current, 'FillColor'),
-          lineWidth: safeGetState(current, 'LineWidth'),
-          lineType: safeGetState(current, 'LineType'),
-          ...property,
-        };
-        return schPolygonClass.modify(primitiveId, merged);
-      }
-    }
-
-    // Fallback for primitive types this runtime doesn't expose get() for —
-    // best-effort passthrough, same as the previous behavior.
     return callFirst(
       [
         'SCH_PrimitiveComponent.modify',
