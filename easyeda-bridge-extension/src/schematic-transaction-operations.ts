@@ -86,6 +86,39 @@ function pointKey(point: SchematicPoint): string {
   return `${Math.round(point.x * 1000) / 1000},${Math.round(point.y * 1000) / 1000}`;
 }
 
+/**
+ * Given a wire's raw `Line` state (flat number[] or [x,y][] pairs), translate
+ * only the points matching `targetKeys` by (dx, dy), preserving the original
+ * shape. Returns null if nothing matched.
+ */
+function shiftWireLine(
+  rawLine: unknown,
+  targetKeys: Set<string>,
+  dx: number,
+  dy: number,
+): { line: unknown } | null {
+  if (!Array.isArray(rawLine) || rawLine.length === 0) return null;
+  let changed = false;
+  if (Array.isArray(rawLine[0])) {
+    const updated = (rawLine as number[][]).map((pair) => {
+      if (!Array.isArray(pair) || pair.length < 2) return pair;
+      const [x, y, ...rest] = pair;
+      if (!targetKeys.has(pointKey({ x, y }))) return pair;
+      changed = true;
+      return [x + dx, y + dy, ...rest];
+    });
+    return changed ? { line: updated } : null;
+  }
+  const flat = (rawLine as number[]).slice();
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    if (!targetKeys.has(pointKey({ x: flat[i], y: flat[i + 1] }))) continue;
+    flat[i] += dx;
+    flat[i + 1] += dy;
+    changed = true;
+  }
+  return changed ? { line: flat } : null;
+}
+
 function compactDefinedRecord(input: Record<string, unknown>): Record<string, unknown> {
   const output: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -875,40 +908,6 @@ export function createSchematicTransactionOperations(
       }
     }
     return points;
-  }
-
-  /**
-   * Given a wire's raw `Line` state (flat number[] or [x,y][] pairs — see
-   * normalizeWireLine), translate only the points matching `targetKeys` by
-   * (dx, dy), preserving the original shape. Returns null if nothing matched
-   * (so callers can skip writing wires that weren't touched by the move).
-   */
-  function shiftWireLine(
-    rawLine: unknown,
-    targetKeys: Set<string>,
-    dx: number,
-    dy: number,
-  ): { line: unknown } | null {
-    if (!Array.isArray(rawLine) || rawLine.length === 0) return null;
-    let changed = false;
-    if (Array.isArray(rawLine[0])) {
-      const updated = (rawLine as number[][]).map((pair) => {
-        if (!Array.isArray(pair) || pair.length < 2) return pair;
-        const [x, y, ...rest] = pair;
-        if (!targetKeys.has(pointKey({ x, y }))) return pair;
-        changed = true;
-        return [x + dx, y + dy, ...rest];
-      });
-      return changed ? { line: updated } : null;
-    }
-    const flat = (rawLine as number[]).slice();
-    for (let i = 0; i + 1 < flat.length; i += 2) {
-      if (!targetKeys.has(pointKey({ x: flat[i], y: flat[i + 1] }))) continue;
-      flat[i] += dx;
-      flat[i + 1] += dy;
-      changed = true;
-    }
-    return changed ? { line: flat } : null;
   }
 
   /**
