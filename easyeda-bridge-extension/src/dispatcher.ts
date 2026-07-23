@@ -20,6 +20,10 @@ import {
   type BoardInspectionOperations,
 } from './board-inspection.js';
 import { createCanvasOperations, type CanvasOperations } from './canvas-operations.js';
+import {
+  createDesignRuleCheckOperations,
+  type DesignRuleCheckOperations,
+} from './design-rule-check-operations.js';
 import { createExportOperations, type ExportOperations } from './export-operations.js';
 import {
   createPcbMutationOperations,
@@ -128,6 +132,7 @@ let inspectApiInventory: ApiRuntime['inspectApiInventory'];
 let callAllowedApi: ApiRuntime['callAllowedApi'];
 let boardInspection: BoardInspectionOperations;
 let canvasOperations: CanvasOperations;
+let designRuleCheckOperations: DesignRuleCheckOperations;
 let exportOperations: ExportOperations;
 let pcbMutationOperations: PcbMutationOperations;
 let pcbReadOperations: PcbReadOperations;
@@ -2316,212 +2321,8 @@ async function connectPinToNetImpl(
   return { primitiveId: createdId, endpoint };
 }
 
-function normalizeDrcSeverity(raw: unknown): 'error' | 'warning' | 'info' {
-  const s = String(raw ?? '').toLowerCase();
-  if (s.includes('fatal') || s.includes('error')) return 'error';
-  if (s.includes('warn')) return 'warning';
-  return 'info';
-}
-
-function normalizeDrcViolation(item: unknown): Record<string, unknown> {
-  const obj: Record<string, unknown> = item && typeof item === 'object' ? { ...item } : {};
-  const explanation =
-    obj.explanation && typeof obj.explanation === 'object'
-      ? (obj.explanation as Record<string, unknown>).str
-      : undefined;
-  const message =
-    obj.message ?? obj.msg ?? obj.description ?? obj.text ?? obj.detail ?? explanation ?? item;
-  const severitySource = [
-    obj.level,
-    obj.severity,
-    obj.type,
-    obj.errorLevel,
-    obj.errorType,
-    obj.errorObjType,
-    obj.name,
-    obj.ruleName,
-  ]
-    .filter((value) => value !== undefined && value !== null)
-    .join(' ');
-  const posSource =
-    obj.position && typeof obj.position === 'object'
-      ? (obj.position as Record<string, unknown>)
-      : obj.location && typeof obj.location === 'object'
-        ? (obj.location as Record<string, unknown>)
-        : obj;
-  const x = posSource.x;
-  const y = posSource.y;
-  return {
-    rule: String(
-      obj.rule ??
-        obj.ruleName ??
-        obj.ruleTypeName ??
-        obj.errorType ??
-        obj.name ??
-        obj.type ??
-        'unknown',
-    ),
-    description: typeof message === 'string' ? message : JSON.stringify(message),
-    severity: normalizeDrcSeverity(severitySource),
-    net: obj.net ?? obj.netName ?? undefined,
-    component: obj.component ?? obj.ref ?? obj.designator ?? obj.primitiveId ?? undefined,
-    location:
-      typeof x === 'number' && typeof y === 'number'
-        ? { x, y, layer: obj.layer as string | undefined }
-        : undefined,
-  };
-}
-
-function normalizeDrcAggregate(
-  item: unknown,
-): { severity: 'error' | 'warning' | 'info'; count: number } | null {
-  const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
-  if (!obj || typeof obj.count !== 'number') return null;
-  const severitySource = [
-    obj.type,
-    obj.severity,
-    obj.level,
-    obj.errorType,
-    obj.errorObjType,
-    obj.name,
-    Array.isArray(obj.title) ? obj.title.join(' ') : obj.title,
-  ]
-    .filter((value) => value !== undefined && value !== null)
-    .join(' ');
-  return { severity: normalizeDrcSeverity(severitySource), count: obj.count };
-}
-
-function hasDrcLeafDetail(obj: Record<string, unknown>): boolean {
-  return [
-    'message',
-    'msg',
-    'description',
-    'text',
-    'detail',
-    'explanation',
-    'errorType',
-    'errorObjType',
-    'rule',
-    'ruleName',
-    'ruleTypeName',
-  ].some((key) => obj[key] !== undefined);
-}
-
-function normalizeDrcNode(item: unknown): {
-  violations: Array<Record<string, unknown>>;
-  aggregates: Array<{ severity: 'error' | 'warning' | 'info'; count: number }>;
-} {
-  const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
-  if (!obj) return { violations: [normalizeDrcViolation(item)], aggregates: [] };
-
-  const children = Array.isArray(obj.list) ? obj.list : [];
-  if (children.length > 0) {
-    const normalizedChildren = children.map(normalizeDrcNode);
-    const violations = normalizedChildren.flatMap((entry) => entry.violations);
-    const aggregates = normalizedChildren.flatMap((entry) => entry.aggregates);
-    if (violations.length > 0 || aggregates.length > 0) return { violations, aggregates };
-  }
-
-  if (hasDrcLeafDetail(obj)) {
-    return { violations: [normalizeDrcViolation(obj)], aggregates: [] };
-  }
-  const aggregate = normalizeDrcAggregate(obj);
-  return { violations: [], aggregates: aggregate ? [aggregate] : [] };
-}
-
-/**
- * Runs the native SCH_Drc.check/PCB_Drc.check API correctly. EasyEDA has two
- * observed verbose return shapes: flat aggregates (`{type,count}`) and nested
- * UI trees (`{name,count,list:[...]}`). The latter is used by PCB netlist
- * mismatch checks, so the tree must be recursively flattened rather than
- * stringified as one informational item.
- */
-async function runDrcCheck(classPaths: string[]): Promise<{
-  violations: Array<Record<string, unknown>>;
-  totalViolations: number;
-  errorCount: number;
-  warningCount: number;
-  passed: boolean;
-}> {
-  const raw = await callFirst(classPaths, true, true, true);
-  const items = Array.isArray(raw) ? raw : [];
-  const normalized = items.map(normalizeDrcNode);
-  const detailedViolations = normalized.flatMap((entry) => entry.violations);
-  const aggregates = normalized.flatMap((entry) => entry.aggregates);
-  const aggregateViolations = aggregates
-    .filter((entry) => entry.count > 0)
-    .map((entry) => ({
-      rule: 'aggregate',
-      description:
-        `${entry.count} ${entry.severity}(s) reported by EasyEDA's native design/electrical rule ` +
-        'check. Per-violation detail is only shown in EasyEDA Pro when the API returns aggregate counts.',
-      severity: entry.severity,
-    }));
-  const violations = [...detailedViolations, ...aggregateViolations];
-  const errorCount =
-    detailedViolations.filter((entry) => entry.severity === 'error').length +
-    aggregates
-      .filter((entry) => entry.severity === 'error')
-      .reduce((sum, entry) => sum + entry.count, 0);
-  const warningCount =
-    detailedViolations.filter((entry) => entry.severity === 'warning').length +
-    aggregates
-      .filter((entry) => entry.severity === 'warning')
-      .reduce((sum, entry) => sum + entry.count, 0);
-  const totalViolations =
-    detailedViolations.length + aggregates.reduce((sum, entry) => sum + entry.count, 0);
-  return {
-    violations,
-    totalViolations,
-    errorCount,
-    warningCount,
-    passed: errorCount === 0,
-  };
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** Run PCB DRC only when a PCB canvas is available, translating EasyEDA's
- * opaque message-bus failure into a stable bridge error. The public MCP tool
- * already maps this error to `not_available: true`; callers of the bridge API
- * now receive an actionable code/suggestion instead of a localized runtime
- * string. */
-async function runPcbDrcCheck(): ReturnType<typeof runDrcCheck> {
-  try {
-    return await runDrcCheck(['PCB_Drc.check']);
-  } catch (error) {
-    throw newBridgeError(
-      'CONTEXT_UNAVAILABLE',
-      'PCB DRC is unavailable in the current editor context.',
-      'Open and focus a PCB document, then retry design.drc.',
-      { cause: errorMessage(error) },
-    );
-  }
-}
-
-/** Generic rule-check chooses the active canvas by trying PCB first and then
- * schematic. EasyEDA exposes both classes globally even when their canvas is
- * not active, so class presence alone is not a reliable context signal. */
-async function runRuleCheckForActiveCanvas(): ReturnType<typeof runDrcCheck> {
-  let pcbError: unknown;
-  try {
-    return await runDrcCheck(['PCB_Drc.check']);
-  } catch (error) {
-    pcbError = error;
-    logRecoverableError('design.ruleCheck: PCB DRC unavailable; trying schematic ERC/DRC', error);
-  }
-  try {
-    return await runDrcCheck(['SCH_Drc.check']);
-  } catch (schematicError) {
-    throw newBridgeError(
-      'CONTEXT_UNAVAILABLE',
-      'No active PCB or schematic canvas is available for design.ruleCheck.',
-      'Open and focus a PCB or schematic document, then retry.',
-      { pcbCause: errorMessage(pcbError), schematicCause: errorMessage(schematicError) },
-    );
-  }
 }
 
 /**
@@ -3360,7 +3161,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // cannot be a false positive (this is the authoritative source).
       let nativeErc: { errorCount: number; warningCount: number; passed: boolean } | undefined;
       try {
-        const drc = await runDrcCheck(['SCH_Drc.check']);
+        const drc = await designRuleCheckOperations.runSchematicCheck();
         nativeErc = {
           errorCount: drc.errorCount,
           warningCount: drc.warningCount,
@@ -3608,35 +3409,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'inventory.getPrice':
       return null;
     case 'design.ruleCheck':
-      return runRuleCheckForActiveCanvas();
-    case 'design.erc': {
-      const result = await runDrcCheck(['SCH_Drc.check']);
-      // SCH_Drc.check()'s verbose mode only ever returns per-severity
-      // aggregates (confirmed live twice: a schematic with exactly one
-      // floating-pin part produced exactly [{type:"warn",count:1}], no
-      // location/net/component fields at any depth). Floating pins are the
-      // one ERC category our own connectivity inference can locate
-      // independently, so surface them as a best-effort supplement —
-      // clearly not a full decomposition of the native count, since other
-      // ERC categories (short circuits, conflicting pin types, etc.) have
-      // no inference-based equivalent.
-      try {
-        const { floatingPins } = await findFloatingPinsApi();
-        return {
-          ...result,
-          inferredFloatingPins: floatingPins,
-          detailSource:
-            floatingPins.length > 0
-              ? ('inferred_partial' as const)
-              : ('native_aggregate_only' as const),
-        };
-      } catch (e) {
-        logRecoverableError('design.erc: floating-pin inference failed', e);
-        return { ...result, inferredFloatingPins: [], detailSource: 'native_aggregate_only' };
-      }
-    }
+      return designRuleCheckOperations.runRuleCheck();
+    case 'design.erc':
+      return designRuleCheckOperations.runErc();
     case 'design.drc':
-      return runPcbDrcCheck();
+      return designRuleCheckOperations.runDrc();
     case 'export.pickPlace':
       return exportOperations.exportPickPlace(params);
     case 'export.pdf':
@@ -3711,6 +3488,13 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     callFirst,
     normalizeBinaryResult,
     createBridgeError: newBridgeError,
+  });
+  designRuleCheckOperations = createDesignRuleCheckOperations({
+    callFirst,
+    createBridgeError: newBridgeError,
+    logRecoverableError,
+    errorMessage,
+    findFloatingPins: findFloatingPinsApi,
   });
   exportOperations = createExportOperations({ callFirst, normalizeBinaryResult });
   pcbReadOperations = createPcbReadOperations({
