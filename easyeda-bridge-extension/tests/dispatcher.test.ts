@@ -741,6 +741,30 @@ describe('createDispatcher', () => {
     expect(importChanges).not.toHaveBeenCalled();
   });
 
+  it('system.apiInventory excludes runtime classes outside the API allowlist', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: { getAll: async () => [] },
+        SYS_Shell: { exec: async () => true },
+      }),
+    );
+
+    const result = (await dispatcher.dispatch('system.apiInventory', {
+      filter: 'primitivewire',
+    })) as { classes: Array<{ className: string; methods: string[] }>; total: number };
+
+    expect(result).toEqual({
+      classes: [
+        {
+          className: 'SCH_PrimitiveWire',
+          runtimePaths: ['eda.SCH_PrimitiveWire'],
+          methods: ['getAll'],
+        },
+      ],
+      total: 1,
+    });
+  });
+
   it('rejects api.call paths outside the allowed class prefixes', async () => {
     const dispatcher = createDispatcher(makeToolkit({}));
     await expect(

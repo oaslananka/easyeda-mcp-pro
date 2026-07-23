@@ -6,6 +6,18 @@
 // injected DispatcherToolkit (see toolkit.ts) so the identical code works both
 // baked into the extension script scope and eval'd via AsyncFunction.
 
+import {
+  compactPrimitiveSummary,
+  getFunctionNames,
+  isAllowedApiClassName,
+  isAllowedApiPath,
+  normalizeApiClassName,
+  normalizeStandalone,
+  normalizeValue,
+  readMember,
+  readStateValue,
+  withClassNameVariants,
+} from './api-introspection.js';
 import { normalizeBinaryResult, type BinaryResultPayload } from './binary-result.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import {
@@ -30,14 +42,6 @@ const BUILD_ID =
 // bytes) plus JSON envelope overhead. Exceeding the server's actual limit closes
 // the whole WS connection, not just the offending call — so we self-limit first.
 const PAYLOAD_SAFETY_MARGIN = 0.6;
-const API_CLASS_PREFIXES = ['DMT_', 'SCH_', 'PCB_', 'LIB_'] as const;
-const DENIED_API_METHODS = new Set([
-  'constructor',
-  'prototype',
-  '__defineGetter__',
-  '__defineSetter__',
-]);
-
 /** Every bridge method handled by dispatch() below. Keep in lockstep with the
  *  switch cases AND the server's EasyedaApiMethodSchema (src/bridge/types.ts). */
 const METHOD_LIST: readonly string[] = [
@@ -635,173 +639,6 @@ async function waitForCanvasPaint(): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
 
-function withClassNameVariants(paths: string[]): string[] {
-  const variants: string[] = [];
-  for (const path of paths) {
-    variants.push(path);
-    const parts = path.split('.');
-    const className = parts[0];
-    if (!className) continue;
-
-    const rest = parts.slice(1).join('.');
-    const suffix = rest ? `.${rest}` : '';
-    const lowerPrefixMatch = className.match(/^([a-z]+)_(.+)$/);
-    const upperPrefixMatch = className.match(/^([A-Z]+)_(.+)$/);
-
-    if (lowerPrefixMatch?.[1] && lowerPrefixMatch[2]) {
-      variants.push(`${lowerPrefixMatch[1].toUpperCase()}_${lowerPrefixMatch[2]}${suffix}`);
-    }
-
-    if (upperPrefixMatch?.[1] && upperPrefixMatch[2]) {
-      variants.push(`${upperPrefixMatch[1].toLowerCase()}_${upperPrefixMatch[2]}${suffix}`);
-    }
-  }
-
-  return [...new Set(variants)];
-}
-
-function normalizeApiClassName(className: string): string {
-  const match = className.match(/^([a-z]+)_(.+)$/);
-  if (!match?.[1] || !match[2]) return className;
-  return `${match[1].toUpperCase()}_${match[2]}`;
-}
-
-function isAllowedApiPath(path: string): boolean {
-  const parts = path.split('.');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
-  const [className, methodName] = parts;
-  if (DENIED_API_METHODS.has(methodName) || methodName.startsWith('__')) return false;
-  if (!/^[A-Za-z]+_[A-Za-z0-9]+$/.test(className)) return false;
-  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(methodName)) return false;
-  return API_CLASS_PREFIXES.some((prefix) => normalizeApiClassName(className).startsWith(prefix));
-}
-
-function getAllPropertyNames(value: unknown): string[] {
-  const names: string[] = [];
-  let cursor = value;
-  let depth = 0;
-  while (isRecord(cursor) && cursor !== Object.prototype && depth < 8) {
-    try {
-      names.push(...Object.getOwnPropertyNames(cursor));
-    } catch (error) {
-      logRecoverableError('failed to read API property names', error);
-      break;
-    }
-    try {
-      cursor = Object.getPrototypeOf(cursor);
-    } catch (error) {
-      logRecoverableError('failed to read API property prototype', error);
-      break;
-    }
-    depth += 1;
-  }
-  return Array.from(new Set(names)).filter(
-    (name) => !['length', 'name', 'prototype', 'constructor'].includes(name),
-  );
-}
-
-function getFunctionNames(value: unknown): string[] {
-  return getAllPropertyNames(value).filter((name) => {
-    const member = readMember(value, name);
-    return typeof member === 'function';
-  });
-}
-
-function readMember(source: unknown, key: string): unknown {
-  if (!isRecord(source) || !(key in source)) return undefined;
-  try {
-    return source[key];
-  } catch (error) {
-    logRecoverableError(`failed to read API member ${key}`, error);
-    return undefined;
-  }
-}
-
-function normalizeValue(value: unknown, depth = 3, seen = new WeakSet<object>()): JsonValue {
-  if (
-    value === null ||
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  ) {
-    return value;
-  }
-  if (value === undefined) return null;
-  if (typeof value === 'function')
-    return `[Function ${(value as { name?: string }).name ?? 'anonymous'}]`;
-  if (typeof value !== 'object') return String(value);
-  if (seen.has(value)) return '[Circular]';
-  if (depth <= 0) return '[MaxDepth]';
-
-  seen.add(value);
-  try {
-    if (Array.isArray(value)) {
-      return value.map((item) => normalizeValue(item, depth - 1, seen));
-    }
-
-    const output: Record<string, JsonValue | undefined> = {};
-    const ctorName = (value as { constructor?: { name?: string } }).constructor?.name;
-    if (ctorName && ctorName !== 'Object') output.__class = ctorName;
-
-    const getterNames = getFunctionNames(value).filter((name) => name.startsWith('getState_'));
-    if (getterNames.length > 0) {
-      const state: Record<string, JsonValue | undefined> = {};
-      for (const getterName of getterNames) {
-        const getter = readMember(value, getterName);
-        if (typeof getter !== 'function') continue;
-        try {
-          state[getterName.replace(/^getState_/, '')] = normalizeValue(
-            getter.call(value),
-            depth - 1,
-            seen,
-          );
-        } catch (error) {
-          state[getterName.replace(/^getState_/, '')] = `ERROR: ${String(error)}`;
-        }
-      }
-      output.state = state;
-    }
-
-    const methodNames = getFunctionNames(value);
-    if (methodNames.length > 0) output.__methods = methodNames;
-
-    for (const key of Object.keys(value)) {
-      output[key] = normalizeValue((value as Record<string, unknown>)[key], depth - 1, seen);
-    }
-
-    return output;
-  } finally {
-    // Track only the active recursion path. Repeated references are valid data;
-    // only a reference back into the current path is a true cycle.
-    seen.delete(value);
-  }
-}
-
-function normalizeStandalone(value: unknown, depth = 4): JsonValue {
-  return normalizeValue(value, depth, new WeakSet<object>());
-}
-
-function readStateValue(source: unknown, stateName: string, depth = 4): JsonValue | undefined {
-  const getter = readMember(source, `getState_${stateName}`);
-  if (typeof getter !== 'function') return undefined;
-  try {
-    return normalizeStandalone(getter.call(source), depth);
-  } catch (error) {
-    return `ERROR: ${String(error)}`;
-  }
-}
-
-function compactPrimitiveSummary(
-  value: unknown,
-  stateNames: string[],
-): Record<string, JsonValue | undefined> {
-  const state: Record<string, JsonValue | undefined> = {};
-  for (const stateName of stateNames) {
-    state[stateName] = readStateValue(value, stateName, 5);
-  }
-  return state;
-}
-
 function summarizeWirePrimitive(wire: unknown): Record<string, JsonValue | undefined> {
   const normalized = normalizeStandalone(wire, 4);
   const output: Record<string, JsonValue | undefined> = isRecord(normalized)
@@ -1190,7 +1027,7 @@ function inspectApiInventory(filter?: string): JsonValue {
 
     for (const key of Object.getOwnPropertyNames(root)) {
       const className = normalizeApiClassName(key);
-      if (!API_CLASS_PREFIXES.some((prefix) => className.startsWith(prefix))) continue;
+      if (!isAllowedApiClassName(className)) continue;
       if (normalizedFilter && !className.toLowerCase().includes(normalizedFilter)) continue;
 
       const value = readMember(root, key);
