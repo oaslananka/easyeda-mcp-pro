@@ -43,6 +43,30 @@ function normalizeSeverity(raw: string): DrcSeverity {
   return 'info';
 }
 
+function scalarString(value: unknown): string | undefined {
+  return typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+    ? String(value)
+    : undefined;
+}
+
+function joinScalarValues(values: unknown[]): string {
+  return values
+    .map(scalarString)
+    .filter((value): value is string => value !== undefined)
+    .join(' ');
+}
+
+function firstScalarValue(values: unknown[]): string {
+  for (const value of values) {
+    const scalar = scalarString(value);
+    if (scalar !== undefined) return scalar;
+  }
+  return 'unknown';
+}
+
 function normalizeViolation(item: unknown): Record<string, unknown> {
   const obj: Record<string, unknown> = item && typeof item === 'object' ? { ...item } : {};
   const explanation =
@@ -51,7 +75,7 @@ function normalizeViolation(item: unknown): Record<string, unknown> {
       : undefined;
   const message =
     obj.message ?? obj.msg ?? obj.description ?? obj.text ?? obj.detail ?? explanation ?? item;
-  const severitySource = [
+  const severitySource = joinScalarValues([
     obj.level,
     obj.severity,
     obj.type,
@@ -60,25 +84,22 @@ function normalizeViolation(item: unknown): Record<string, unknown> {
     obj.errorObjType,
     obj.name,
     obj.ruleName,
-  ]
-    .filter((value) => value !== undefined && value !== null)
-    .join(' ');
-  const position =
-    obj.position && typeof obj.position === 'object'
-      ? (obj.position as Record<string, unknown>)
-      : obj.location && typeof obj.location === 'object'
-        ? (obj.location as Record<string, unknown>)
-        : obj;
+  ]);
+  let position = obj;
+  if (obj.position && typeof obj.position === 'object') {
+    position = obj.position as Record<string, unknown>;
+  } else if (obj.location && typeof obj.location === 'object') {
+    position = obj.location as Record<string, unknown>;
+  }
   return {
-    rule: String(
-      obj.rule ??
-        obj.ruleName ??
-        obj.ruleTypeName ??
-        obj.errorType ??
-        obj.name ??
-        obj.type ??
-        'unknown',
-    ),
+    rule: firstScalarValue([
+      obj.rule,
+      obj.ruleName,
+      obj.ruleTypeName,
+      obj.errorType,
+      obj.name,
+      obj.type,
+    ]),
     description: typeof message === 'string' ? message : JSON.stringify(message),
     severity: normalizeSeverity(severitySource),
     net: obj.net ?? obj.netName ?? undefined,
@@ -94,17 +115,16 @@ function normalizeAggregate(
   obj: Record<string, unknown>,
 ): { severity: DrcSeverity; count: number } | null {
   if (typeof obj.count !== 'number') return null;
-  const source = [
+  const title = Array.isArray(obj.title) ? joinScalarValues(obj.title) : obj.title;
+  const source = joinScalarValues([
     obj.type,
     obj.severity,
     obj.level,
     obj.errorType,
     obj.errorObjType,
     obj.name,
-    Array.isArray(obj.title) ? obj.title.join(' ') : obj.title,
-  ]
-    .filter((value) => value !== undefined && value !== null)
-    .join(' ');
+    title,
+  ]);
   return { severity: normalizeSeverity(source), count: obj.count };
 }
 

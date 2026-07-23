@@ -122,6 +122,49 @@ describe('design rule-check operations', () => {
     ]);
   });
 
+  it('ignores object-valued severity and rule fields instead of leaking object stringification', async () => {
+    const { operations, callFirst } = createSubject();
+    callFirst.mockResolvedValue([
+      {
+        message: 'safe leaf',
+        level: { unsafe: true },
+        severity: { unsafe: true },
+        rule: { unsafe: true },
+        ruleName: { unsafe: true },
+        ruleTypeName: 'safe-rule',
+      },
+    ]);
+
+    await expect(operations.runDrc()).resolves.toMatchObject({
+      violations: [
+        expect.objectContaining({
+          rule: 'safe-rule',
+          description: 'safe leaf',
+          severity: 'info',
+        }),
+      ],
+    });
+  });
+
+  it('uses only scalar aggregate title values for severity classification', async () => {
+    const { operations, callFirst } = createSubject();
+    callFirst.mockResolvedValue([
+      {
+        type: { unsafe: true },
+        severity: { unsafe: true },
+        title: [{ unsafe: true }, 'WARN', 42],
+        count: 2,
+      },
+    ]);
+
+    await expect(operations.runDrc()).resolves.toMatchObject({
+      totalViolations: 2,
+      warningCount: 2,
+      passed: true,
+      violations: [expect.objectContaining({ severity: 'warning' })],
+    });
+  });
+
   it('handles nested aggregate-only and empty trees, zero counts, and title variants', async () => {
     const { operations, callFirst } = createSubject();
     callFirst.mockResolvedValue([
