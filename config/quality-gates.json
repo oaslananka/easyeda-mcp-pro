@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "lastVerifiedAt": "2026-07-24",
+  "requiredPullRequestChecks": [
+    {
+      "context": "codecov/patch",
+      "appId": 254,
+      "provider": "Codecov"
+    },
+    {
+      "context": "SonarCloud Code Analysis",
+      "appId": 12526,
+      "provider": "SonarQube Cloud"
+    }
+  ],
+  "codecov": {
+    "patchTargetPercent": 80,
+    "thresholdPercent": 2,
+    "trustedSecret": "CODECOV_TOKEN",
+    "forkUploadMode": "tokenless-public-repository",
+    "components": {
+      "server": {
+        "flag": "server",
+        "path": "src/"
+      },
+      "extension": {
+        "flag": "extension",
+        "path": "easyeda-bridge-extension/src/"
+      }
+    }
+  },
+  "sonarQubeCloud": {
+    "projectKey": "oaslananka_easyeda-mcp-pro",
+    "analysisMethod": "github-app-automatic-analysis",
+    "checkContext": "SonarCloud Code Analysis",
+    "repositorySecretRequired": false
+  }
+}

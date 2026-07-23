@@ -13,12 +13,12 @@ coverage:
           - extension
     patch:
       default:
-        target: auto
-        threshold: 1%
-        informational: true
-        flags:
-          - server
-          - extension
+        target: 80%
+        threshold: 2%
+        informational: false
+        only_pulls: true
+        if_ci_failed: error
+        if_not_found: failure
 
 comment:
   layout: 'reach,diff,flags,files,components'
@@ -45,9 +45,10 @@ component_management:
         threshold: 1%
         informational: true
       - type: patch
-        target: auto
-        threshold: 1%
-        informational: true
+        target: 80%
+        threshold: 2%
+        informational: false
+        only_pulls: true
   individual_components:
     - component_id: server
       name: MCP Server
