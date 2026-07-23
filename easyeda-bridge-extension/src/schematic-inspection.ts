@@ -50,6 +50,43 @@ function nativeScalarString(value: unknown): string {
     : '';
 }
 
+function readFocusedPageUuid(
+  focusedDocument: Record<string, unknown> | undefined,
+): string | undefined {
+  const uuid = focusedDocument?.uuid;
+  return typeof uuid === 'string' && uuid.trim() ? uuid : undefined;
+}
+
+function mergeSchematicPages(
+  pages: Array<Record<string, unknown>>,
+  currentSchematic: Record<string, unknown> | undefined,
+): Array<Record<string, unknown>> {
+  if (pages.length > 0) return pages;
+  const schematicPages = asRecordArray(currentSchematic?.page);
+  return schematicPages.length > 0 ? schematicPages : pages;
+}
+
+function resolveCurrentPage(
+  currentPage: Record<string, unknown> | undefined,
+  focusedDocumentPage: Record<string, unknown> | undefined,
+  focusedPageUuid: string | undefined,
+  pages: Array<Record<string, unknown>>,
+  currentSchematic: Record<string, unknown> | undefined,
+): { currentPage?: Record<string, unknown>; source?: SheetInfoSource } {
+  if (currentPage) return { currentPage, source: 'current_page' };
+  if (focusedDocumentPage) {
+    return { currentPage: focusedDocumentPage, source: 'focused_document' };
+  }
+  const matchedPage = focusedPageUuid
+    ? pages.find((page) => page.uuid === focusedPageUuid)
+    : undefined;
+  if (matchedPage) return { currentPage: matchedPage, source: 'focused_document' };
+  if (pages.length === 1 && currentSchematic) {
+    return { currentPage: pages[0], source: 'current_schematic_page_list' };
+  }
+  return {};
+}
+
 export function createSchematicInspectionOperations({
   callFirst,
   readFirstPath,
@@ -130,13 +167,6 @@ export function createSchematicInspectionOperations({
     );
   }
 
-  function readFocusedPageUuid(
-    focusedDocument: Record<string, unknown> | undefined,
-  ): string | undefined {
-    const uuid = focusedDocument?.uuid;
-    return typeof uuid === 'string' && uuid.trim() ? uuid : undefined;
-  }
-
   async function readCurrentSchematicIfNeeded(
     currentPage: Record<string, unknown> | undefined,
     pages: Array<Record<string, unknown>>,
@@ -166,36 +196,6 @@ export function createSchematicInspectionOperations({
         focusedPageUuid,
       ),
     );
-  }
-
-  function mergeSchematicPages(
-    pages: Array<Record<string, unknown>>,
-    currentSchematic: Record<string, unknown> | undefined,
-  ): Array<Record<string, unknown>> {
-    if (pages.length > 0) return pages;
-    const schematicPages = asRecordArray(currentSchematic?.page);
-    return schematicPages.length > 0 ? schematicPages : pages;
-  }
-
-  function resolveCurrentPage(
-    currentPage: Record<string, unknown> | undefined,
-    focusedDocumentPage: Record<string, unknown> | undefined,
-    focusedPageUuid: string | undefined,
-    pages: Array<Record<string, unknown>>,
-    currentSchematic: Record<string, unknown> | undefined,
-  ): { currentPage?: Record<string, unknown>; source?: SheetInfoSource } {
-    if (currentPage) return { currentPage, source: 'current_page' };
-    if (focusedDocumentPage) {
-      return { currentPage: focusedDocumentPage, source: 'focused_document' };
-    }
-    const matchedPage = focusedPageUuid
-      ? pages.find((page) => page.uuid === focusedPageUuid)
-      : undefined;
-    if (matchedPage) return { currentPage: matchedPage, source: 'focused_document' };
-    if (pages.length === 1 && currentSchematic) {
-      return { currentPage: pages[0], source: 'current_schematic_page_list' };
-    }
-    return {};
   }
 
   async function getSheetInfo(): Promise<unknown> {
