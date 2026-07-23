@@ -29,6 +29,10 @@ import { createPcbReadOperations, type PcbReadOperations } from './pcb-read-oper
 import { createPcbWriteOperations, type PcbWriteOperations } from './pcb-write-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
 import {
+  createSchematicComponentInspectionOperations,
+  type SchematicComponentInspectionOperations,
+} from './schematic-component-inspection.js';
+import {
   createSchematicInspectionOperations,
   type SchematicInspectionOperations,
 } from './schematic-inspection.js';
@@ -129,6 +133,7 @@ let pcbMutationOperations: PcbMutationOperations;
 let pcbReadOperations: PcbReadOperations;
 let pcbWriteOperations: PcbWriteOperations;
 let projectOperations: ProjectOperations;
+let schematicComponentInspection: SchematicComponentInspectionOperations;
 let schematicInspection: SchematicInspectionOperations;
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
@@ -886,150 +891,6 @@ async function addCoordinateFallbackNets(
       logRecoverableError('failed to inspect schematic component pins for coordinate nets', error);
     }
   }
-}
-
-function readOtherPropertyValue(
-  otherProperty: Record<string, unknown> | undefined,
-  key: string,
-): string | undefined {
-  if (!otherProperty) return undefined;
-  const exact = otherProperty[key];
-  if (exact !== undefined && exact !== null && String(exact).trim()) return String(exact);
-  const normalizedKey = key.trim().toLowerCase();
-  for (const [candidateKey, candidateValue] of Object.entries(otherProperty)) {
-    if (
-      candidateKey.trim().toLowerCase() === normalizedKey &&
-      candidateValue !== undefined &&
-      candidateValue !== null &&
-      String(candidateValue).trim()
-    ) {
-      return String(candidateValue);
-    }
-  }
-  return undefined;
-}
-
-/** Resolve EasyEDA display expressions such as `={Value}` to their actual
- * component metadata. Library-created parts commonly store the expression in
- * Name while the concrete value lives in OtherProperty or ManufacturerId. */
-function resolveComponentDisplayValue(
-  rawName: unknown,
-  otherProperty: Record<string, unknown> | undefined,
-  manufacturerId: string,
-  deviceName: string,
-): string {
-  const name = typeof rawName === 'string' ? rawName.trim() : '';
-  const expression = /^=\{(.+)\}$/.exec(name);
-  if (expression) {
-    const propertyName = expression[1].trim();
-    const propertyValue = readOtherPropertyValue(otherProperty, propertyName);
-    if (propertyValue) return propertyValue;
-    if (propertyName.toLowerCase() === 'manufacturer part' && manufacturerId) {
-      return manufacturerId;
-    }
-    return manufacturerId || deviceName || name;
-  }
-  if (name) return name;
-  return readOtherPropertyValue(otherProperty, 'Value') || manufacturerId || deviceName || '';
-}
-
-function isSchematicBomComponent(component: unknown): boolean {
-  const componentType = readComponentType(component);
-  if (componentType === 'sheet' || componentType === 'netflag' || componentType === 'netport') {
-    return false;
-  }
-  const device = safeGetState(component, 'Component');
-  const deviceName = isRecord(device) ? String(device.name ?? '') : '';
-  return !deviceName.startsWith('Drawing-Symbol_');
-}
-
-async function listComponentsApi(limit?: number, offset = 0): Promise<unknown> {
-  const schCompClass = readFirstPath<any>([
-    'SCH_PrimitiveComponent',
-    'SCH_PrimitiveComponent3',
-    'sch_PrimitiveComponent',
-  ]);
-  const libFpClass = readFirstPath<any>(['LIB_Footprint', 'lib_Footprint']);
-
-  if (!schCompClass) {
-    throw new Error('SCH_PrimitiveComponent class not found in EasyEDA Pro API');
-  }
-
-  const allComps = (await schCompClass.getAll(undefined, true)) || [];
-  const bomComps = allComps.filter((component: unknown) => isSchematicBomComponent(component));
-  const total = bomComps.length;
-  const start = Math.max(0, offset);
-  const end = typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
-  const comps = bomComps.slice(start, end);
-  const result: any[] = [];
-
-  for (const c of comps || []) {
-    const ref = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
-    const lcsc = typeof c.getState_SupplierId === 'function' ? c.getState_SupplierId() : '';
-    const mfr = typeof c.getState_Manufacturer === 'function' ? c.getState_Manufacturer() : '';
-    const mfrId =
-      typeof c.getState_ManufacturerId === 'function' ? c.getState_ManufacturerId() : '';
-    const comp = typeof c.getState_Component === 'function' ? c.getState_Component() : undefined;
-    const sym = typeof c.getState_Symbol === 'function' ? c.getState_Symbol() : undefined;
-    const other =
-      typeof c.getState_OtherProperty === 'function' && isRecord(c.getState_OtherProperty())
-        ? (c.getState_OtherProperty() as Record<string, unknown>)
-        : undefined;
-    const rawName = typeof c.getState_Name === 'function' ? c.getState_Name() : '';
-    const val = resolveComponentDisplayValue(rawName, other, String(mfrId || ''), comp?.name ?? '');
-
-    let fp = '';
-    if (typeof c.getState_Footprint === 'function') {
-      const fpInfo = c.getState_Footprint();
-      if (isRecord(fpInfo)) {
-        // The live runtime already exposes the resolved footprint name here;
-        // prefer it and avoid a redundant library lookup that may fail offline.
-        if (typeof fpInfo.name === 'string' && fpInfo.name.trim()) fp = fpInfo.name;
-        if (!fp && fpInfo.uuid && libFpClass) {
-          try {
-            const fpObj = await libFpClass.get(fpInfo.uuid, fpInfo.libraryUuid);
-            if (fpObj) fp = fpObj.name || '';
-          } catch (e) {
-            logRecoverableError('failed to resolve component footprint', e);
-          }
-        }
-      }
-    }
-
-    if (!fp) {
-      fp =
-        readOtherPropertyValue(other, 'Footprint') ||
-        readOtherPropertyValue(other, 'Supplier Footprint') ||
-        '';
-    }
-    const ds =
-      readOtherPropertyValue(other, 'Datasheet') ||
-      readOtherPropertyValue(other, 'datasheet') ||
-      '';
-
-    // Device identity — needed to re-place / clone a part. `Component` holds the
-    // device uuid+libraryUuid (a valid place_component deviceItem within THIS
-    // project; for a clean project, re-resolve via lcsc/manufacturerId/name).
-    // `Symbol` names the schematic symbol used.
-    result.push({
-      primitiveId: safeGetState(c, 'PrimitiveId') ?? '',
-      reference: ref,
-      value: val,
-      footprint: fp,
-      lcsc: lcsc,
-      manufacturer: mfr,
-      manufacturerId: mfrId,
-      datasheet: ds,
-      deviceUuid: comp?.uuid ?? '',
-      deviceLibraryUuid: comp?.libraryUuid ?? '',
-      deviceName: comp?.name ?? '',
-      symbolName: sym?.name ?? '',
-      x: safeGetState(c, 'X'),
-      y: safeGetState(c, 'Y'),
-      rotation: safeGetState(c, 'Rotation'),
-    });
-  }
-  return { total, items: result };
 }
 
 async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
@@ -2023,7 +1884,7 @@ async function inspectWiresApi(limit = 10, offset = 0): Promise<unknown> {
 }
 
 async function generateBomApi(params: any): Promise<unknown> {
-  const comps = ((await listComponentsApi()) as { items: any[] }).items;
+  const comps = ((await schematicComponentInspection.listComponents()) as { items: any[] }).items;
   const groupBy = params.groupBy || 'value';
   const groups = new Map<string, any>();
 
@@ -2781,7 +2642,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'schematic.listPrimitiveIds':
       return listSchematicPrimitiveIds(params.primitiveKind);
     case 'schematic.listComponents':
-      return listComponentsApi(
+      return schematicComponentInspection.listComponents(
         typeof params.limit === 'number' ? params.limit : undefined,
         typeof params.offset === 'number' ? params.offset : 0,
       );
@@ -3738,7 +3599,8 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'bom.generate':
       return generateBomApi(params);
     case 'bom.validate': {
-      const comps = ((await listComponentsApi()) as { items: any[] }).items;
+      const comps = ((await schematicComponentInspection.listComponents()) as { items: any[] })
+        .items;
       return { totalParts: comps.length, missing: [], obsolete: [], alternates: [] };
     }
     case 'inventory.search':
@@ -3866,6 +3728,10 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     createBridgeError: newBridgeError,
   });
   projectOperations = createProjectOperations({ callFirst });
+  schematicComponentInspection = createSchematicComponentInspectionOperations({
+    readFirstPath,
+    readState: safeGetState,
+  });
   schematicInspection = createSchematicInspectionOperations({
     callFirst,
     readFirstPath,
