@@ -777,7 +777,7 @@ If the PR did not close #339 automatically, close it explicitly only after the c
 
 ## Execution Evidence
 
-Collected for implementation commit `3ae770242f7650723671fe025a7f0d6537e4209b` on Node.js 24.18.0 and pnpm 11.5.1:
+Collected for implementation commit `47107f37534af552003f9ab7a96a3bd53204a96a` on Node.js 24.18.0 and pnpm 11.5.1:
 
 - Dispatcher source: 3,533 → 2,427 lines (-1,106).
 - Dispatcher reduction across #339: 5,041 → 2,427 lines (-2,614; 51.9%).
