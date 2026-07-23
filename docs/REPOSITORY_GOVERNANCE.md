@@ -1,142 +1,135 @@
 # Repository Governance
 
-This document outlines the governance model, security standards, branch protection rules, and dependency management policies for the `easyeda-mcp-pro` repository.
+This document is the authoritative ownership, review, branch-protection, and emergency-maintenance policy for `easyeda-mcp-pro`. The machine-readable baseline is [`config/repository-governance.json`](../config/repository-governance.json), and `.github/CODEOWNERS` must stay consistent with it.
 
----
-
-## 0. Governance Model
+## Governance model
 
 `easyeda-mcp-pro` currently uses a solo-maintainer governance model. The project owner and lead maintainer is Osman Aslan (`@oaslananka`). The lead maintainer has final decision authority for roadmap scope, issue triage, merge decisions, release timing, security response, and OpenSSF BadgeApp self-certification.
 
-The project accepts public collaboration through GitHub issues, pull requests, discussions, and private GitHub Security Advisories. When external contributors submit changes, the maintainer reviews the change, requires CI to pass, and may request revisions before merge.
+Public collaboration happens through GitHub issues, pull requests, discussions, and private GitHub Security Advisories. Changes are merged only through pull requests after the applicable automated gates and review requirements pass.
 
-High-risk changes should receive extra review where practical, even though the repository does not currently require a second approver. High-risk changes include authentication, bridge command execution, supplier API credentials, release automation, dependency security policy, and GitHub Actions permissions.
+| Role             | Current holder              | Responsibilities                                                                                                              |
+| ---------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Lead maintainer  | Osman Aslan (`@oaslananka`) | Final project decisions, issue triage, PR merge decisions, repository settings, and governance evidence.                      |
+| Release manager  | Osman Aslan (`@oaslananka`) | Release Please review, GitHub Releases, npm/GHCR publication, bridge artifacts, provenance, and rollback.                     |
+| Security contact | Osman Aslan (`@oaslananka`) | Private vulnerability intake, triage, credential rotation, coordinated disclosure, advisory publication, and reporter credit. |
+| Contributor      | Any GitHub contributor      | Submit focused issues and PRs, sign off non-trivial commits, add tests, and provide review evidence.                          |
 
-## Roles and Responsibilities
+## Critical-path ownership
 
-| Role             | Current holder              | Responsibilities                                                                                                            |
-| ---------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Lead maintainer  | Osman Aslan (`@oaslananka`) | Final project decisions, roadmap, issue triage, PR merge decisions, security response, releases, OpenSSF BadgeApp evidence. |
-| Release manager  | Osman Aslan (`@oaslananka`) | Release Please review, GitHub Releases, npm publishing, bridge extension artifacts, release verification.                   |
-| Security contact | Osman Aslan (`@oaslananka`) | Private vulnerability intake, triage, coordinated disclosure, advisory publication, reporter credit.                        |
-| Contributor      | Any GitHub contributor      | Submit issues/PRs, follow DCO/sign-off expectations, add tests/docs for changes.                                            |
+The following paths have a higher review burden than ordinary documentation or isolated tests. `.github/CODEOWNERS` names `@oaslananka` explicitly for every listed pattern; the JSON policy test prevents those entries from silently drifting.
 
-If another active maintainer is added, this table should be updated and branch protection should be revisited to require at least one independent approval for high-risk changes.
+| Critical area                 | Covered paths                                                                                                                                        | Owner         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Security and automation       | GitHub workflows, CODEOWNERS, dependency allowlist, Renovate, Gitleaks, Semgrep, security policy, governance, security architecture, assurance case  | `@oaslananka` |
+| Release                       | Release Please configuration, release channel policy, release policy/process/verification, and release CI runbook                                    | `@oaslananka` |
+| Remote transport and bridge   | `src/remote`, HTTP/OAuth transports, and `src/bridge`                                                                                                | `@oaslananka` |
+| Mutation and transaction code | Server transaction/write tools plus extension dispatcher, remote client, connection policy, PCB mutation/write, and schematic transaction operations | `@oaslananka` |
 
----
+A change is critical-path work when it modifies one of the policy patterns, changes workflow permissions or secret access, changes authentication/authorization, changes release publication, or changes a design-mutation boundary.
 
-## 1. Branch Protection Policy (main branch)
+## Independent human review
 
-To enforce code quality, security, and a clean history, the `main` branch must have the following protection rules configured in GitHub (**Settings > Branches > Add rule**):
+**Independent human review is required for critical-path changes whenever an eligible reviewer exists.** An eligible reviewer is a human other than the PR author who has repository review access and enough domain context to evaluate the affected risk. Bot approval, agent output, and the author's own self-review are not independent approval.
 
-| Rule Setting                                     | Status                                | Rationale                                                                                                                                    |
-| :----------------------------------------------- | :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Require a pull request before merging**        | **Enabled**                           | Prevents direct pushes to the production branch.                                                                                             |
-| **Require approvals**                            | **Disabled for solo maintainer**      | Required reviews are not enforced while the repository has a single maintainer; required checks and conversation resolution remain enforced. |
-| **Dismiss stale pull request approvals...**      | **N/A while approvals are disabled**  | Re-enable if the repository adds another active maintainer and mandatory reviews return.                                                     |
-| **Require status checks to pass before merging** | **Enabled**                           | Enforces automated quality checks.                                                                                                           |
-| _Status Check:_ `quality (24)`                   | **Required**                          | Ensures the codebase builds, lints, tests, audits, and verifies docs on Node 24.                                                             |
-| _Status Check:_ `codeql`                         | **Required**                          | Ensures static application security analysis (SAST) passes.                                                                                  |
-| **Require branches to be up to date...**         | **Enabled**                           | Enforces strict branch testing against the latest `main` commit.                                                                             |
-| **Require conversation resolution...**           | **Enabled**                           | Ensures all review comments are addressed.                                                                                                   |
-| **Require linear history**                       | **Enabled through squash-only merge** | Merge commits and rebase merges are disabled; PRs use squash merge for a linear, revertable history.                                         |
-| **Do not allow force pushes**                    | **Enforced**                          | Prevents history rewriting on `main`.                                                                                                        |
-| **Do not allow deletions**                       | **Enforced**                          | Prevents accidental deletion of the `main` branch.                                                                                           |
+### Current solo-maintainer enforcement limitation
 
----
+The repository currently has one write-capable maintainer. GitHub cannot require one independent approval or a code-owner approval without deadlocking every owner-authored maintenance PR. The live branch protection therefore records zero required approvals and does not yet enforce code-owner approval. This solo-maintainer enforcement limitation is public and must not be represented as independent review.
 
-## 2. Dependency Management Policy (Renovate)
+Until a second eligible maintainer is added, a critical-path PR must include:
 
-We use **Renovate** to keep our software supply chain up to date while mitigating security risks. Renovate is the sole tool that opens automated dependency-update pull requests, for both npm packages and GitHub Actions; no `.github/dependabot.yml` version-update config is maintained, so that two bots cannot propose conflicting updates for the same dependency. GitHub's platform-level Dependabot alerts and Dependabot security updates (vulnerability detection, not update PRs) remain enabled separately — see the checklist in section 5. Details and rationale are recorded in [`docs/adr/0002-dependency-management.md`](./adr/0002-dependency-management.md).
+1. a high-risk classification and rollback plan;
+2. exact local and CI evidence;
+3. an author self-review covering permissions, secrets, fork behavior, native mutation behavior, and release impact as applicable;
+4. disposition of every bot, agent, and human finding; and
+5. external review when a suitable reviewer is practically available, especially before a stable release.
 
-### Automerge Rules
+When a second eligible maintainer is granted review access, the repository administrator must update branch protection and `config/repository-governance.json` in the same tracked change to require at least one approval, require code-owner review, dismiss stale approvals, and require approval after the latest push.
 
-- **Patch/Minor devDependencies**: Automatically merged if CI passes. This covers development utilities (e.g., eslint, prettier, tsx) that do not affect the production runtime.
-- **Runtime Dependencies**: Never auto-merged. All upgrades for core runtime packages (e.g., `@modelcontextprotocol/sdk`, `zod`, `jose`, `ws`, `undici`) must be manually reviewed and tested.
-- **Major Updates**: Never auto-merged. Major updates require approval on the Renovate **Dependency Dashboard** or manual PR review.
+## Bot and agent findings
 
-### Security Controls
+Bot and agent findings are evidence, not automatic approval. Before merge:
 
-- **Minimum Release Age**: NPM dependencies must be released for at least **3 days** before Renovate creates a PR, preventing zero-day dependency poisoning.
-- **Vulnerability Alerts**: Renovate is configured with `osvVulnerabilityAlerts: true` to prioritize patching known CVEs.
-- **Weekly Maintenance**: Lockfile maintenance runs weekly (Mondays before 5 AM) to keep sub-dependencies clean and deduplicated.
+- resolve every actionable inline review thread;
+- fix valid findings and rerun the affected checks;
+- explicitly disposition false positives, accepted risks, and non-applicable suggestions with a technical rationale and evidence link;
+- inspect top-level comments from SonarQube Cloud, Codecov, DeepScan, Socket, Semgrep, CodeQL, Trivy, dependency review, and any coding agent even when the check conclusion is green; and
+- do not merge while a finding is unexplained, a review thread is unresolved, or a required check refers to an older head SHA.
 
----
+The pull request must contain a compact disposition table when automated systems report findings. “Check passed” is not a substitute for reviewing the check's annotations or comment body.
 
-## 3. GitHub Actions Security Model
+## Main branch protection baseline
 
-To prevent token leakage and unauthorized workflows:
+The live `main` protection and merge settings must match this table and the machine-readable policy. Branch protection is the canonical enforcement mechanism for `main`. **No repository ruleset currently overlaps** this protection; introducing a ruleset requires a separately reviewed migration that proves there is no duplicate, contradictory, or bypassing rule.
 
-1. **SHA Pinning**: All GitHub Actions references must be pinned to full 40-character commit SHAs (e.g., `actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10`), with a tag version comment next to them.
-2. **Least Privilege**: Workflows default to `permissions: contents: read`. Only the release workflow has elevated permissions (`contents: write`, `pull-requests: write`, `issues: write`, `id-token: write`), which are restricted to the specific jobs that need them.
-3. **Concurrency**: All workflows define `concurrency` to cancel in-progress runs on the same branch/tag, optimizing resource usage.
+| Setting                               | Required state                                                                   |
+| ------------------------------------- | -------------------------------------------------------------------------------- |
+| Pull request required                 | Enabled                                                                          |
+| Required approvals                    | `0` only while the documented solo-maintainer limitation exists                  |
+| Code-owner review                     | Disabled only while required approvals would deadlock the sole owner             |
+| Dismiss stale approvals               | Disabled while approvals are zero; enable with independent review enforcement    |
+| Require approval after latest push    | Disabled while approvals are zero; enable with independent review enforcement    |
+| Required checks                       | `quality (24)`, `codeql`, `Socket Security: Project Report`, `dependency-review` |
+| Strict/up-to-date status checks       | Enabled                                                                          |
+| Conversation resolution               | Enabled                                                                          |
+| Apply protection to administrators    | Enabled                                                                          |
+| Linear history                        | Enabled; repository merge settings permit squash merge only                      |
+| Force pushes and branch deletion      | Disabled                                                                         |
+| Automatic branch deletion after merge | Enabled                                                                          |
 
----
+A required-check name is a public interface. Renaming, replacing, adding, or removing one requires updating the workflow, branch protection, JSON policy, documentation, and repository-policy tests together. The setting change must be verified against the live GitHub API after merge.
 
-## 4. Token Governance
+## Emergency exception
 
-- **NPM Token**: A repository secret named `NPM_TOKEN` (granularity: publish-only) must be configured to allow automated publishing.
-- **Release Please PR Triggering**:
-  By default, when `GITHUB_TOKEN` is used, GitHub Actions will _not_ trigger workflows on pull requests created by Release Please. If you want CI/CD checks to run on Release Please PRs, you must:
-  1. Generate a **Fine-grained Personal Access Token (PAT)** with:
-     - Repository access: `easyeda-mcp-pro` only
-     - Permissions: `contents: write`, `pull-requests: write`
-  2. Save this token as a repository secret named `RELEASE_PLEASE_TOKEN`.
-  3. Update `release-please.yml` to use <code v-pre>token: ${{ secrets.RELEASE_PLEASE_TOKEN }}</code>.
+An **Emergency exception** exists only for an active security incident, data-loss or unsafe-mutation risk, broken stable installation, or repository/release-system outage that prevents the normal protected-PR path. Time pressure alone is not an emergency.
 
-  _Never hardcode or log any tokens in files or script outputs._
+Use the normal pull-request path whenever it remains technically possible. If an administrator must temporarily change or bypass a governance control, the maintainer must create a public rationale before the change or as soon as disclosure is safe. The evidence must record:
 
----
+- incident and user impact;
+- exact control changed or bypassed and why no safer path worked;
+- author, approver or solo-maintainer limitation, and accountable owner;
+- all automated gates that ran and every gate that could not run;
+- known-good rollback target and restoration command or setting; and
+- a follow-up review owner and deadline within **two business days**.
 
-## 5. Maintainer Setup Checklist
+Restore normal protection immediately after the emergency action. Every waived review or non-automated check requires a follow-up issue. Security-sensitive details may start in a private advisory, but the eventual public record must explain the exception without exposing exploitable secrets.
 
-Repository administrators should go through the following settings checklist to align the live repository with this governance document:
+Release-specific emergency publication additionally follows [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
 
-- [ ] **Configure Branch Protection**: Go to **Settings > Branches** and add a protection rule for `main` enforcing:
-  - Require a pull request before merging.
-  - Do not require approval while the repository is in solo-maintainer mode.
-  - Re-enable stale-review dismissal when required reviews are restored.
-  - Require status checks to pass before merging (`quality (24)`, `codeql`, Socket/DeepScan checks where enabled).
-  - Require branches to be up to date before merging.
-  - Require conversation resolution before merging.
-  - Require linear history.
-  - Do not allow force pushes or deletions.
-- [ ] **Enable Security Features**: Go to **Settings > Security & analysis** and enable:
-  - Dependency graph.
-  - Dependabot alerts.
-  - Dependabot security updates.
-  - Secret scanning.
-  - Push protection (to prevent committing secrets).
-- [ ] **Configure NPM Credentials**: Go to **Settings > Secrets and variables > Actions** and add `NPM_TOKEN` under Repository Secrets.
-- [ ] **Configure Release Please Token** (Optional): If running CI checks on Release Please PRs is required, add `RELEASE_PLEASE_TOKEN` (fine-grained PAT) to Repository Secrets.
-- [ ] **Enable GitHub Discussions** (Optional): Enable under General settings to provide community support.
+## Dependency management
 
----
+Renovate is the sole automated dependency-update PR source for npm packages and GitHub Actions. Platform Dependabot alerts and security updates remain enabled for vulnerability detection.
 
-## 6. Issue Triage and Label Taxonomy
+- Patch/minor devDependency updates may auto-merge only after all required checks pass.
+- Runtime dependency and major-version updates require manual maintainer review.
+- npm updates observe the configured minimum release age and vulnerability prioritization.
+- Lockfile maintenance runs on the documented schedule.
+- Dependency exceptions require a repository-tracked allowlist entry with owner, review date, and expiry.
 
-The public issue process is documented in [`docs/ISSUE_TRIAGE.md`](./ISSUE_TRIAGE.md). New issues should include:
+The detailed rationale is recorded in [`docs/adr/0002-dependency-management.md`](adr/0002-dependency-management.md).
 
-- affected area (`area:*`)
-- priority (`priority:P0` through `priority:P2`)
-- risk class when relevant (`risk:*`)
-- expected behavior and acceptance criteria
-- reproduction or validation evidence
+## GitHub Actions security model
 
-Roadmap issues must not be closed only because related documentation exists. Close them only when the acceptance criteria have been implemented, verified, and linked in the closing comment.
+1. Actions are pinned to full 40-character commit SHAs.
+2. Workflows default to `contents: read`; elevated permissions are job-scoped and justified.
+3. Untrusted fork code does not receive repository secrets or privileged upload credentials.
+4. Release publication uses environment/channel guards and OIDC/provenance where supported.
+5. Workflow changes are critical-path changes and require the review evidence described above.
 
----
+## Token governance
 
-## 7. Continuity and Bus Factor
+Repository and environment secrets must be least-privilege, narrowly scoped, and rotated when ownership or exposure changes. Never hardcode or log a credential. Release and Codecov credentials are available only to trusted repository events; fork pull requests must complete their unprivileged test path without them.
 
-Maintainer continuity is documented in [`docs/MAINTAINER_CONTINUITY.md`](./MAINTAINER_CONTINUITY.md). The project is currently a solo-maintainer project, so the bus factor is one. That risk is explicitly documented rather than hidden.
+Credential incident handling is defined in [Security Policy](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/SECURITY.md), while secret-scanning configuration and false-positive policy are tracked separately.
 
-Before claiming a stronger OpenSSF bus-factor posture, the project should add at least one trusted backup maintainer or successor path with enough access to triage issues, merge fixes, publish emergency releases, rotate credentials, and update security advisories.
+## Issue closure and evidence
 
----
+The public issue process is documented in [`ISSUE_TRIAGE.md`](ISSUE_TRIAGE.md). Roadmap issues close only when their acceptance criteria are implemented, the live settings are verified, required checks pass on the merge SHA, and a closing evidence comment links the relevant PR and settings evidence.
 
-## 8. OpenSSF Evidence Maintenance
+## Continuity
 
-OpenSSF evidence is tracked in [`docs/OPENSSF_BEST_PRACTICES.md`](./OPENSSF_BEST_PRACTICES.md). BadgeApp answers must not be marked as `Met` unless the linked evidence accurately describes the live repository.
+Maintainer continuity is documented in [`MAINTAINER_CONTINUITY.md`](MAINTAINER_CONTINUITY.md). The current bus factor is one and is not hidden. A backup maintainer must have enough access and documented recovery context to triage issues, merge fixes, publish emergency releases, rotate credentials, and update security advisories before the project claims a stronger bus-factor posture.
 
-When governance, release, security, or continuity processes change, update this document and the OpenSSF evidence map in the same pull request.
+## OpenSSF evidence maintenance
+
+OpenSSF evidence is tracked in [`OPENSSF_BEST_PRACTICES.md`](OPENSSF_BEST_PRACTICES.md). Governance, review, release, security, or continuity changes must update the relevant public evidence and policy tests in the same pull request.

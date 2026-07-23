@@ -50,6 +50,8 @@ The maintainer follows this process for private vulnerability reports:
 6. **Publish** advisory details after a fixed version is available, unless disclosure would create unnecessary user risk.
 7. **Credit** the reporter unless they request anonymity.
 
+Critical security, workflow, release, bridge, remote-transport, and mutation changes follow [Repository Governance](docs/REPOSITORY_GOVERNANCE.md). Independent human review is required whenever an eligible reviewer exists. Any emergency governance exception must record the public rationale, exact control changed, rollback target, and a follow-up review within two business days; exploit-sensitive details may remain in a private advisory until disclosure is safe.
+
 Target timelines:
 
 | Severity | Target fix or mitigation window after triage confirmation |
