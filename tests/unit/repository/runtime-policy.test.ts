@@ -125,7 +125,12 @@ describe('repository runtime policy', () => {
 
   it('pins the Docker builder and runner to the same Node patch and pnpm version', () => {
     const dockerfile = read('Dockerfile');
-    expect(dockerfile.match(/FROM node:24\.18\.0-alpine@sha256:/g)).toHaveLength(2);
+    expect(
+      dockerfile.match(
+        /FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd/g,
+      ),
+    ).toHaveLength(2);
+    expect(dockerfile.match(/# node:24\.18\.0-alpine/g)).toHaveLength(2);
     expect(dockerfile).toContain('corepack prepare pnpm@11.5.1 --activate');
     expect(dockerfile).toContain('RUN node scripts/check-runtime.mjs --require-pnpm');
   });

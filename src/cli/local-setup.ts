@@ -308,7 +308,7 @@ function firstCommandToken(command: string): string | undefined {
     const end = command.indexOf('"', 1);
     return end > 1 ? command.slice(1, end) : undefined;
   }
-  return command.match(/^\S+/)?.[0];
+  return /^\S+/.exec(command)?.[0];
 }
 
 export async function inspectUserServiceRuntime(
@@ -581,12 +581,15 @@ export function formatDoctorReport(report: DoctorReport, options?: { fix?: boole
   const remoteBackendStr = report.remoteBackend
     ? `${report.remoteBackend.backend} / transport=${report.remoteBackend.transport} / session=${report.remoteBackend.remoteSessionConfigured ? 'configured' : 'per-request'} / oauth=${report.remoteBackend.oauthEnabled ? 'enabled' : 'disabled'}${report.remoteBackend.warnings.length ? ` / warnings=${report.remoteBackend.warnings.length}` : ''}`
     : 'Unknown remote backend configuration';
+  let pnpmStatus = 'MISSING';
+  if (report.pnpmVersion) pnpmStatus = report.pnpmSupported ? 'OK' : 'UNSUPPORTED';
+  const pnpmVersionSuffix = report.pnpmVersion ? ` ${report.pnpmVersion}` : '';
 
   const lines = [
     'easyeda-mcp-pro doctor',
     '',
     `Node.js: ${report.nodeSupported ? 'OK' : 'UNSUPPORTED'} ${report.nodeVersion} (required: 24.x; pinned: ${PINNED_NODE_VERSION})`,
-    `pnpm: ${report.pnpmVersion ? (report.pnpmSupported ? 'OK' : 'UNSUPPORTED') + ' ' + report.pnpmVersion : 'MISSING'} (required: ${PINNED_PNPM_VERSION})`,
+    `pnpm: ${pnpmStatus}${pnpmVersionSuffix} (required: ${PINNED_PNPM_VERSION})`,
     `Environment: ${status(report.envValid)}${report.envIssues.length ? ` ${report.envIssues.join('; ')}` : ''}`,
     `MCP server entry: ${status(report.setup.serverEntryExists)} ${report.setup.serverEntryPath}`,
     `EasyEDA extension package: ${status(report.setup.extensionPackageExists)} ${report.setup.extensionPackagePath}`,

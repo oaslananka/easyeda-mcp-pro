@@ -9,9 +9,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const policy = JSON.parse(readFileSync(resolve(repoRoot, 'config/runtime-policy.json'), 'utf8'));
 
 export function normalizeVersion(value) {
-  const match = String(value ?? '')
-    .trim()
-    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(String(value ?? '').trim());
   return match ? `${match[1]}.${match[2]}.${match[3]}` : null;
 }
 
@@ -45,7 +43,7 @@ function detectPnpmVersion() {
   if (override !== undefined) return override;
 
   const userAgent = process.env.npm_config_user_agent ?? '';
-  const match = userAgent.match(/(?:^|\s)pnpm\/([^\s]+)/);
+  const match = /(?:^|\s)pnpm\/([^\s]+)/.exec(userAgent);
   if (match?.[1]) return match[1];
 
   try {
