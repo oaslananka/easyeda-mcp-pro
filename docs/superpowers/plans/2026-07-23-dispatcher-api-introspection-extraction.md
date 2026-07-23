@@ -431,8 +431,9 @@ git commit -m "docs(plan): record dispatcher extraction strategy"
 - Extracted-module coverage: 100% statements, branches, functions, and lines in the full extension coverage run.
 - Public method contract: the extension still reports the same 67 sorted bridge methods; the repository method-list parity test passes.
 - Dispatcher source size: 5,041 lines on `main` → 4,878 lines after extraction (163-line reduction).
-- Built dispatcher bundle: 151,308 bytes on `main` → 151,445 bytes (+137 bytes, approximately +0.09%).
-- Packaged extension: 160,515 bytes on `main` → 160,489 bytes (-26 bytes); the repository size budget passes.
+- Built dispatcher bundle: 151,308 bytes on `main` → 151,841 bytes (+533 bytes, approximately +0.35%).
+- Packaged extension: 160,515 bytes on `main` → 160,594 bytes (+79 bytes, approximately +0.05%); the repository size budget passes.
 - Full extension suite: 10 files / 152 tests pass.
+- Sonar follow-up: the initial PR scan reported three new issues (regex style, cognitive complexity, and ambiguous scalar stringification); the normalization flow was split into bounded helpers and bigint/symbol conversion was made explicit before the final verification run.
 - Full server suite: 150 files / 1,740 tests pass.
 - Full `pnpm verify` passes runtime preflight, formatting, root and extension typecheck, ESLint, tool/profile metadata, server and extension tests, both builds, extension packaging/checksums, metadata alignment, generated compatibility validation, and VitePress documentation.
