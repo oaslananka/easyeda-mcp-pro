@@ -15,6 +15,7 @@ import {
   readStateValue,
 } from './api-introspection.js';
 import { normalizeBinaryResult, type BinaryResultPayload } from './binary-result.js';
+import { createCanvasOperations, type CanvasOperations } from './canvas-operations.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, logRecoverableError, readPath, type JsonValue } from './utils.js';
 
@@ -110,6 +111,7 @@ let callFirst: ApiRuntime['callFirst'];
 let readFirstPath: ApiRuntime['readFirstPath'];
 let inspectApiInventory: ApiRuntime['inspectApiInventory'];
 let callAllowedApi: ApiRuntime['callAllowedApi'];
+let canvasOperations: CanvasOperations;
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
   const error = new Error(message);
@@ -531,64 +533,6 @@ async function normalizeBinaryResultSafely(
     }
   }
   return normalized;
-}
-
-interface CanvasRegion {
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-}
-
-function normalizeCanvasRegion(value: CanvasRegion): CanvasRegion {
-  const coordinates = [value.left, value.right, value.top, value.bottom];
-  if (!coordinates.every(Number.isFinite)) {
-    throw newBridgeError(
-      'INVALID_PARAMS',
-      'Capture region coordinates must be finite numbers.',
-      'Provide finite left, right, top, and bottom document coordinates.',
-    );
-  }
-
-  const region = {
-    left: Math.min(value.left, value.right),
-    right: Math.max(value.left, value.right),
-    top: Math.max(value.top, value.bottom),
-    bottom: Math.min(value.top, value.bottom),
-  };
-  if (region.left === region.right || region.top === region.bottom) {
-    throw newBridgeError(
-      'INVALID_PARAMS',
-      'Capture region must have non-zero width and height.',
-      'Expand the bounds around the component before capturing it.',
-    );
-  }
-  return region;
-}
-
-async function waitForCanvasPaint(): Promise<void> {
-  const requestFrame = (globalThis as { requestAnimationFrame?: (callback: () => void) => number })
-    .requestAnimationFrame;
-  if (typeof requestFrame === 'function') {
-    await new Promise<void>((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        resolve();
-      };
-      // A minimized/background Electron window can suspend animation frames.
-      // Keep capture bounded instead of waiting indefinitely for repaint.
-      const timeout = setTimeout(finish, 75);
-      requestFrame.call(globalThis, () => requestFrame.call(globalThis, finish));
-    });
-    return;
-  }
-
-  // Vitest/Node and older extension shells may not expose requestAnimationFrame.
-  // A macrotask still lets an asynchronously scheduled canvas update settle.
-  await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
 
 function summarizeWirePrimitive(wire: unknown): Record<string, JsonValue | undefined> {
@@ -4539,42 +4483,12 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         ),
         `netlist.${typeof params.format === 'string' ? params.format : 'txt'}`,
       );
-    case 'canvas.capture': {
-      const tabId = typeof params.tabId === 'string' ? params.tabId : undefined;
-      const blob = await callFirst(['DMT_EditorControl.getCurrentRenderedAreaImage'], tabId);
-      return normalizeBinaryResultSafely(blob, 'capture.png');
-    }
-    case 'canvas.captureRegion': {
-      const { tabId } = params as { tabId?: string };
-      const region = normalizeCanvasRegion(params as unknown as CanvasRegion);
-      const zoomed = await callFirst(
-        ['DMT_EditorControl.zoomToRegion'],
-        region.left,
-        region.right,
-        region.top,
-        region.bottom,
-        tabId,
-      );
-      if (zoomed === false) {
-        throw newBridgeError(
-          'EASYEDA_API_ERROR',
-          'EasyEDA could not zoom to the requested capture region.',
-          'Verify that the target tab is open and the region uses document/canvas coordinates.',
-        );
-      }
-      await waitForCanvasPaint();
-      const blob = await callFirst(['DMT_EditorControl.getCurrentRenderedAreaImage'], tabId);
-      return normalizeBinaryResultSafely(blob, 'capture-region.png');
-    }
-    case 'canvas.locate': {
-      const { x, y, scaleRatio, tabId } = params as {
-        x?: number;
-        y?: number;
-        scaleRatio?: number;
-        tabId?: string;
-      };
-      return callFirst(['DMT_EditorControl.zoomTo'], x, y, scaleRatio, tabId);
-    }
+    case 'canvas.capture':
+      return canvasOperations.capture(params);
+    case 'canvas.captureRegion':
+      return canvasOperations.captureRegion(params);
+    case 'canvas.locate':
+      return canvasOperations.locate(params);
     case 'library.getDeviceByLcscId': {
       const lcscId = String(params.lcscId ?? '');
       const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
@@ -4750,6 +4664,11 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     toolkit,
     newBridgeError,
   ));
+  canvasOperations = createCanvasOperations({
+    callFirst,
+    normalizeBinaryResult: normalizeBinaryResultSafely,
+    createBridgeError: newBridgeError,
+  });
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);
   return {

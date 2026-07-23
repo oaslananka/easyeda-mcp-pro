@@ -834,6 +834,37 @@ describe('createDispatcher', () => {
     ]);
   });
 
+  it('delegates canvas capture and locate through the extracted domain', async () => {
+    const getCurrentRenderedAreaImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
+    const zoomTo = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_EditorControl: { getCurrentRenderedAreaImage, zoomTo },
+      }),
+    );
+
+    const capture = (await dispatcher.dispatch('canvas.capture', { tabId: 'tab-1' })) as {
+      base64: string;
+      fileName: string;
+      byteLength: number;
+    };
+    const located = await dispatcher.dispatch('canvas.locate', {
+      x: 12,
+      y: -4,
+      scaleRatio: 2,
+      tabId: 'tab-2',
+    });
+
+    expect(getCurrentRenderedAreaImage).toHaveBeenCalledWith('tab-1');
+    expect(capture).toMatchObject({
+      base64: Buffer.from('png').toString('base64'),
+      fileName: 'capture.png',
+      byteLength: 3,
+    });
+    expect(zoomTo).toHaveBeenCalledWith(12, -4, 2, 'tab-2');
+    expect(located).toBe(true);
+  });
+
   it('canvas.captureRegion normalizes bounds before capturing the settled viewport', async () => {
     const callOrder: string[] = [];
     const zoomToRegion = vi.fn(async () => {
