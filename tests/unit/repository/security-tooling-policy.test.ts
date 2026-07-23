@@ -135,7 +135,10 @@ describe('repository security tooling policy', () => {
       'MANUAL_TAG: ${{ github.event.inputs.tag_name }}',
     );
     expect(readText('.github/workflows/release-please.yml')).toContain(
-      'if [[ "$RELEASE_CREATED" == "true" || -n "$MANUAL_TAG" ]]',
+      "if: github.event_name == 'push'",
+    );
+    expect(readText('.github/workflows/release-please.yml')).toContain(
+      'run: node scripts/release-channel-policy.mjs',
     );
 
     const ciWorkflow = readText('.github/workflows/ci.yml');

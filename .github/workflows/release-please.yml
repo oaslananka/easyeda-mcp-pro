@@ -7,8 +7,20 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name to publish manually (e.g. easyeda-mcp-pro-v0.4.0)'
-        required: false
+        description: 'Existing tag to publish (stable: easyeda-mcp-pro-vX.Y.Z; prerelease: easyeda-mcp-pro-vX.Y.Z-rc.N)'
+        required: true
+        type: string
+      release_channel:
+        description: 'Publication channel; must match the tag format'
+        required: true
+        default: prerelease
+        type: choice
+        options:
+          - stable
+          - prerelease
+      evidence_url:
+        description: 'Public issue or PR with release verification, soak, and rollback evidence'
+        required: true
         type: string
 
 concurrency:
@@ -20,20 +32,30 @@ permissions:
 
 jobs:
   release-please:
+    name: Prepare and publish release
     if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write
-      attestations: write
+      contents: write # Release Please tags/releases and asset uploads.
+      pull-requests: write # Release Please creates and updates the stable release PR.
+      issues: write # Release Please maintains release labels and linked issue metadata.
+      id-token: write # npm provenance, artifact attestations, and stable MCP Registry OIDC.
+      attestations: write # Publish build provenance for release artifacts.
     outputs:
-      release_created: ${{ steps.release.outputs.release_created || github.event.inputs.tag_name }}
-      tag_name: ${{ steps.release.outputs.tag_name || github.event.inputs.tag_name }}
+      release_created: ${{ steps.status.outputs.release_run }}
+      tag_name: ${{ steps.status.outputs.release_tag }}
+      release_channel: ${{ steps.status.outputs.release_channel }}
     steps:
+      # actions/checkout v7.0.0
+      - name: Checkout release policy
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       # googleapis/release-please-action v5.0.0
       - name: Run Release Please
+        if: github.event_name == 'push'
         id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7
         with:
@@ -44,28 +66,21 @@ jobs:
       - name: Set Release Status
         id: status
         env:
+          EVENT_NAME: ${{ github.event_name }}
           RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
-          MANUAL_TAG: ${{ github.event.inputs.tag_name }}
           GENERATED_TAG: ${{ steps.release.outputs.tag_name }}
-        run: |
-          set -euo pipefail
-          if [[ "$RELEASE_CREATED" == "true" || -n "$MANUAL_TAG" ]]; then
-            RELEASE_TAG="${MANUAL_TAG:-$GENERATED_TAG}"
-            if [[ ! "$RELEASE_TAG" =~ ^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-              echo "Invalid release tag format" >&2
-              exit 1
-            fi
-            printf 'RELEASE_RUN=true\n' >> "$GITHUB_ENV"
-            printf 'RELEASE_TAG=%s\n' "$RELEASE_TAG" >> "$GITHUB_ENV"
-          else
-            printf 'RELEASE_RUN=false\n' >> "$GITHUB_ENV"
-          fi
+          MANUAL_TAG: ${{ github.event.inputs.tag_name }}
+          MANUAL_CHANNEL: ${{ github.event.inputs.release_channel }}
+          EVIDENCE_URL: ${{ github.event.inputs.evidence_url }}
+        run: node scripts/release-channel-policy.mjs
 
       # actions/checkout v7.0.0
-      - name: Checkout Code
+      - name: Checkout release tag
         if: ${{ env.RELEASE_RUN == 'true' }}
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
+          ref: ${{ steps.status.outputs.release_tag }}
+          fetch-depth: 0
           persist-credentials: false
 
       # pnpm/action-setup v4.0.0
@@ -80,8 +95,36 @@ jobs:
         with:
           node-version: '24.18.0'
           registry-url: 'https://registry.npmjs.org'
-
           package-manager-cache: false
+
+      - name: Validate release metadata
+        if: ${{ env.RELEASE_RUN == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          EXPECTED_VERSION="${RELEASE_TAG#easyeda-mcp-pro-v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "Tag version $EXPECTED_VERSION does not match package.json $PACKAGE_VERSION." >&2
+            exit 1
+          fi
+
+          RELEASE_JSON="$(gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease)"
+          if [[ "$(jq -r '.isDraft' <<<"$RELEASE_JSON")" == "true" ]]; then
+            echo "Release $RELEASE_TAG is still a draft." >&2
+            exit 1
+          fi
+          ACTUAL_PRERELEASE="$(jq -r '.isPrerelease' <<<"$RELEASE_JSON")"
+          EXPECTED_PRERELEASE="false"
+          if [[ "$RELEASE_CHANNEL" == "prerelease" ]]; then
+            EXPECTED_PRERELEASE="true"
+          fi
+          if [[ "$ACTUAL_PRERELEASE" != "$EXPECTED_PRERELEASE" ]]; then
+            echo "GitHub release prerelease classification does not match $RELEASE_CHANNEL." >&2
+            exit 1
+          fi
+
       - name: Install dependencies
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -103,6 +146,7 @@ jobs:
           pnpm verify:tool-coverage
           pnpm test
           pnpm test:coverage
+          pnpm test:extension:ci
           pnpm generate:tools-doc
           git diff --exit-code docs/reference/tools.md
           pnpm check:metadata
@@ -115,6 +159,7 @@ jobs:
           pnpm check:metadata
           pnpm build:extension
           pnpm verify:extension
+          pnpm check:extension-size
 
       - name: Generate CycloneDX SBOM
         if: ${{ env.RELEASE_RUN == 'true' }}
@@ -157,12 +202,14 @@ jobs:
       - name: Publish to npm
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: |
-          PKG_NAME=$(node -p "require('./package.json').name")
-          PKG_VERSION=$(node -p "require('./package.json').version")
+          set -euo pipefail
+          PKG_NAME="$(node -p "require('./package.json').name")"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
           if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
-            echo "⚠️ Version ${PKG_VERSION} of ${PKG_NAME} is already published. Skipping publish."
+            echo "Version ${PKG_VERSION} is already published; restoring the ${NPM_DIST_TAG} dist-tag."
+            npm dist-tag add "${PKG_NAME}@${PKG_VERSION}" "$NPM_DIST_TAG"
           else
-            npm publish --provenance
+            npm publish --provenance --tag "$NPM_DIST_TAG"
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -172,11 +219,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ env.RELEASE_TAG }}" easyeda-bridge-extension.eext --clobber
-          gh release upload "${{ env.RELEASE_TAG }}" sbom.json --clobber
+          gh release upload "$RELEASE_TAG" easyeda-bridge-extension.eext --clobber
+          gh release upload "$RELEASE_TAG" sbom.json --clobber
 
       - name: Install mcp-publisher
-        if: ${{ env.RELEASE_RUN == 'true' }}
+        if: ${{ env.RELEASE_RUN == 'true' && env.RELEASE_CHANNEL == 'stable' }}
         run: |
           MCP_PUBLISHER_VERSION="v1.7.9"
           OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -190,22 +237,24 @@ jobs:
           chmod +x mcp-publisher
 
       - name: Publish to MCP Registry
-        if: ${{ env.RELEASE_RUN == 'true' }}
+        if: ${{ env.RELEASE_RUN == 'true' && env.RELEASE_CHANNEL == 'stable' }}
         continue-on-error: true
         run: |
-          ./mcp-publisher login github-oidc && ./mcp-publisher publish || echo "⚠️ Warning: Failed to publish to MCP Registry. Ensure your repository is registered."
+          ./mcp-publisher login github-oidc && ./mcp-publisher publish || echo "Warning: failed to publish to MCP Registry; record and triage the stable-release follow-up."
 
   docker:
-    if: (github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops') && needs.release-please.outputs.release_created
+    name: Publish release container
+    if: (github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops') && needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     needs: release-please
     permissions:
       contents: read
-      packages: write
+      packages: write # Publish exact and channel-safe GHCR tags.
     steps:
       # actions/checkout v7.0.0
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
           persist-credentials: false
 
       - name: Log in to GitHub Container Registry
@@ -219,10 +268,17 @@ jobs:
         id: clean_version
         env:
           RAW_TAG: ${{ needs.release-please.outputs.tag_name }}
+          RELEASE_CHANNEL: ${{ needs.release-please.outputs.release_channel }}
         run: |
           set -euo pipefail
-          if [[ ! "$RAW_TAG" =~ ^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid release tag format" >&2
+          STABLE_RE='^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+$'
+          PRERELEASE_RE='^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$'
+          if [[ "$RELEASE_CHANNEL" == "stable" && ! "$RAW_TAG" =~ $STABLE_RE ]]; then
+            echo "Stable Docker publication requires easyeda-mcp-pro-vX.Y.Z." >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_CHANNEL" == "prerelease" && ! "$RAW_TAG" =~ $PRERELEASE_RE ]]; then
+            echo "Prerelease Docker publication requires easyeda-mcp-pro-vX.Y.Z-rc.N." >&2
             exit 1
           fi
           CLEAN_VER="${RAW_TAG##*v}"
@@ -230,7 +286,8 @@ jobs:
           if [[ "$CLEAN_VER" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
             echo "major_minor=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
           else
-            echo "major_minor=${CLEAN_VER}" >> "$GITHUB_OUTPUT"
+            echo "Invalid release version" >&2
+            exit 1
           fi
 
       - name: Extract metadata for Docker
@@ -240,8 +297,9 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=${{ steps.clean_version.outputs.version }}
-            type=raw,value=${{ steps.clean_version.outputs.major_minor }}
-            type=raw,value=latest
+            type=raw,value=${{ steps.clean_version.outputs.major_minor }},enable=${{ needs.release-please.outputs.release_channel == 'stable' }}
+            type=raw,value=latest,enable=${{ needs.release-please.outputs.release_channel == 'stable' }}
+            type=raw,value=next,enable=${{ needs.release-please.outputs.release_channel == 'prerelease' }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
