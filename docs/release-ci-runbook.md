@@ -16,18 +16,20 @@ How to triage and resolve failed CI checks, release-please PRs, and dependency P
 
 The following gates must pass on main, release PRs, and dependency PRs:
 
-| Gate                | Command                    | Priority                     |
-| ------------------- | -------------------------- | ---------------------------- |
-| Format check        | `pnpm format:check`        | Must pass                    |
-| TypeScript check    | `pnpm typecheck`           | Must pass                    |
-| Extension typecheck | `pnpm typecheck:extension` | Must pass                    |
-| Lint                | `pnpm lint`                | Must pass with zero warnings |
-| Unit tests          | `pnpm test`                | Must pass                    |
-| Build               | `pnpm build`               | Must pass                    |
-| Extension build     | `pnpm build:extension`     | Must pass                    |
-| Extension verify    | `pnpm verify:extension`    | Must pass                    |
-| CodeQL              | (CI only)                  | Must pass                    |
-| Docker build        | (CI only)                  | Must pass if release created |
+| Gate                | Command                     | Priority                     |
+| ------------------- | --------------------------- | ---------------------------- |
+| Format check        | `pnpm format:check`         | Must pass                    |
+| TypeScript check    | `pnpm typecheck`            | Must pass                    |
+| Extension typecheck | `pnpm typecheck:extension`  | Must pass                    |
+| Lint                | `pnpm lint`                 | Must pass with zero warnings |
+| Unit tests          | `pnpm test`                 | Must pass                    |
+| Build               | `pnpm build`                | Must pass                    |
+| Extension build     | `pnpm build:extension`      | Must pass                    |
+| Extension tests     | `pnpm test:extension:ci`    | Must pass                    |
+| Extension verify    | `pnpm verify:extension`     | Must pass                    |
+| Extension size      | `pnpm check:extension-size` | Must pass                    |
+| CodeQL              | (CI only)                   | Must pass                    |
+| Docker build        | (CI only)                   | Must pass if release created |
 
 ## Common Failure Modes
 
@@ -133,21 +135,41 @@ The [Dependency Dashboard](https://github.com/oaslananka/easyeda-mcp-pro/issues/
 
 ## Manual Release Procedure
 
-To create a release manually (when release-please is blocked or you need an immediate patch):
+Normal stable releases are created by merging the Release Please PR. Manual dispatch is reserved for numbered prereleases and the documented emergency stable path in the [Release Policy](RELEASE_POLICY.md).
 
-1. Ensure main branch CI is green.
-2. Run the release workflow manually:
+### Numbered prerelease
+
+1. Merge a reviewed candidate PR whose version is `X.Y.Z-rc.N` and whose public issue/PR contains soak, verification, live-validation, and rollback evidence.
+2. Create the annotated tag and a non-draft GitHub prerelease for the exact candidate commit.
+3. Dispatch the release workflow:
 
    ```bash
-   gh workflow run release-please.yml --ref main \
-     -f tag_name=easyeda-mcp-pro-v0.X.Y
+   TAG=easyeda-mcp-pro-vX.Y.Z-rc.N
+   EVIDENCE=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER
+
+   git tag -a "$TAG" -m "$TAG"
+   git push origin "$TAG"
+   gh release create "$TAG" --verify-tag --prerelease --generate-notes
+   gh workflow run release-please.yml --ref "$TAG" \
+     -f tag_name="$TAG" \
+     -f release_channel=prerelease \
+     -f evidence_url="$EVIDENCE"
    ```
 
-3. Verify the release completes:
-   - New npm version published with provenance
-   - Docker image pushed to ghcr.io
-   - Release created on GitHub with assets (SBOM, .eext extension)
-   - MCP Registry updated (if registered)
+4. Verify npm `next`, GHCR `next`, exact-version assets, SBOM, provenance, and attestations. Confirm npm/GHCR `latest` did not move and the MCP Registry was skipped.
+
+### Emergency stable dispatch
+
+Use only when the Release Policy's Emergency patch criteria are met. The stable-format tag and non-prerelease GitHub Release must already exist, and the evidence URL must identify the incident and rollback target:
+
+```bash
+gh workflow run release-please.yml --ref easyeda-mcp-pro-vX.Y.Z \
+  -f tag_name=easyeda-mcp-pro-vX.Y.Z \
+  -f release_channel=stable \
+  -f evidence_url=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER
+```
+
+The workflow rejects a channel/tag mismatch, package-version mismatch, draft release, incorrect GitHub prerelease classification, or evidence URL outside this repository.
 
 ## Verifying Release Safety
 
@@ -158,9 +180,10 @@ Before deciding a release is safe:
 - [ ] `pnpm typecheck` passes
 - [ ] `pnpm typecheck:extension` passes
 - [ ] `pnpm lint` has 0 errors (warnings OK)
-- [ ] `pnpm test` passes
+- [ ] `pnpm test` and `pnpm test:coverage` pass
+- [ ] `pnpm test:extension:ci` passes
 - [ ] `pnpm build` produces clean output
-- [ ] `pnpm build:extension` and `pnpm verify:extension` pass
+- [ ] `pnpm build:extension`, `pnpm verify:extension`, and `pnpm check:extension-size` pass
 - [ ] No open security alerts for critical vulnerabilities
 - [ ] All required status checks are passing on main
 
@@ -177,8 +200,9 @@ Before deciding a release is safe:
 For every public release, verify:
 
 ```bash
-npm view easyeda-mcp-pro version dist-tags.latest time.modified --json
+npm view easyeda-mcp-pro version dist-tags time.modified --json
 gh release view easyeda-mcp-pro-vX.Y.Z --json tagName,isDraft,isPrerelease,assets
+gh release view easyeda-mcp-pro-vX.Y.Z-rc.N --json tagName,isDraft,isPrerelease,assets
 ```
 
 Expected release assets:
@@ -190,7 +214,7 @@ Expected workflow evidence:
 
 - npm publish uses provenance when supported by npm/GitHub Actions
 - GitHub release includes build provenance attestation
-- GHCR image tags include the exact version, minor tag, and `latest`
+- stable GHCR images include the exact version, minor tag, and `latest`; prereleases include the exact version and `next` only
 - `pnpm verify:extension` reports marketplace metadata, documentation, logo, checksum, and phone-like-content checks
 
 If any asset is missing, do not promote the release as marketplace-ready. Re-run or fix the release workflow before announcing the version.

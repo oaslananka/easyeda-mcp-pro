@@ -908,8 +908,8 @@ See [Security Architecture & Threat Model](docs/security-architecture.md) for th
 This repository uses automated workflows to manage dependencies and releases:
 
 - **Renovate**: Automatically scans and updates dependencies based on rules configured in [.github/renovate.json](.github/renovate.json). For details on PR policies and automerging, see [Repository Governance](docs/REPOSITORY_GOVERNANCE.md).
-- **Release Please**: Automatically bumps package versions, updates files (like `package.json`, `server.json`, `extension.json`), and generates `CHANGELOG.md` upon merging Release PRs. For the full release procedure and Conventional Commit conventions, see [Release Process](docs/RELEASE_PROCESS.md).
-- **Secure Publishing**: The release workflow builds all assets (including `easyeda-bridge-extension.eext`), publishes to the NPM registry with cryptographic provenance, and uploads assets directly to the GitHub release.
+- **Release Please**: Automates stable version bumps, release metadata, and `CHANGELOG.md`. Numbered `rc.N` candidates use the isolated prerelease path. See the [Release Policy](docs/RELEASE_POLICY.md) and [Release Process](docs/RELEASE_PROCESS.md).
+- **Secure Publishing**: The release workflow rebuilds and verifies all assets, publishes npm with provenance to channel-safe `latest` or `next` dist-tags, uploads the extension and SBOM to the matching GitHub Release, and keeps GHCR/MCP Registry promotion aligned with the selected channel.
 
 ---
 
