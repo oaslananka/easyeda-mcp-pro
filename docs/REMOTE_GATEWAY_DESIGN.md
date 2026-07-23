@@ -59,7 +59,7 @@ MCP response
 
 These variables are implemented by the current runtime:
 
-```env
+```dotenv
 TRANSPORT=http
 HTTP_HOST=0.0.0.0
 HTTP_PORT=3000
@@ -78,7 +78,7 @@ an explicit non-wildcard origin allowlist.
 
 The routed MCP path is enabled explicitly. Local bridge mode remains the default.
 
-```env
+```dotenv
 TRANSPORT=http
 MCP_BRIDGE_BACKEND=remote_relay
 MCP_REMOTE_SESSION_ID=session-id-if-fixed

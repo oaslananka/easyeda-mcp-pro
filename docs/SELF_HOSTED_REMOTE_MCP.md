@@ -31,7 +31,7 @@ Open EasyEDA Web project
 
 Use the implemented HTTP/OAuth settings below for the current server runtime:
 
-```env
+```dotenv
 TRANSPORT=http
 HTTP_HOST=127.0.0.1
 HTTP_PORT=3000
@@ -57,7 +57,7 @@ of `NODE_ENV`; a tunnel or CORS policy alone is not an authentication boundary.
 
 Use the explicit backend selector when testing the paired outbound relay path:
 
-```env
+```dotenv
 TRANSPORT=http
 MCP_BRIDGE_BACKEND=remote_relay
 MCP_REMOTE_SESSION_ID=

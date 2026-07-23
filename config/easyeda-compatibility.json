@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "lastReviewed": "2026-07-23",
+  "reviewPolicyDays": 90,
+  "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-23",
+      "status": "live-validated",
+      "validatedAt": "2026-07-23T01:01:52+03:00",
+      "reviewBy": "2026-10-21",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-28-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "0.35.0",
+        "releaseContainingFixes": "0.35.1",
+        "commit": "4d978a8"
+      },
+      "extension": {
+        "installedPackageVersion": "0.35.1",
+        "loaderReportedVersion": "0.35.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "34f1dcf29ebdf3cf",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "TestMcp",
+        "schematic": "Schematic1",
+        "page": "P1",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "production-bridge-cold-start",
+          "name": "Production bridge cold start",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The baked dispatcher connected on local bridge port 49620 with hot-swap compiled and runtime flags disabled, 67 methods, and a matching method registry hash.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/354",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/331"
+          ]
+        },
+        {
+          "id": "native-no-connect-diagnostics",
+          "name": "Native no-connect diagnostics",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "A real wire was removed from the disposable schematic, the two newly floating pins were observed, an EasyEDA native no-connect marker excluded only the marked pin from MCP-inferred diagnostics, and clearing the marker restored the finding.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/354",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/331"
+          ]
+        },
+        {
+          "id": "fixture-rollback-and-erc-baseline",
+          "name": "Fixture rollback and ERC baseline",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The test wire and pin state were restored, the project was saved, the final model returned to seven nets with zero inferred floating pins, and native ERC returned to three warnings with zero errors.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/354"]
+        },
+        {
+          "id": "extension-lifecycle-and-approval-reconnect",
+          "name": "Extension lifecycle and approval reconnect safety",
+          "evidenceLevel": "fake-runtime",
+          "status": "passed",
+          "summary": "Source-level tests cover port exhaustion, reconnect suppression, stale sockets, approval timeout and rejection, session replacement, and shutdown cleanup.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/356",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/337"
+          ],
+          "limitation": "Executed with deterministic EasyEDA API and socket fakes; not a hosted relay dogfood run."
+        },
+        {
+          "id": "remote-relay-session-isolation",
+          "name": "Remote Relay session isolation",
+          "evidenceLevel": "fake-runtime",
+          "status": "passed",
+          "summary": "Real loopback WebSocket tests cover malformed frames, cross-session responses, duplicate identifiers, parallel independent sessions, timeout quarantine, and close-time pending request cleanup.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/357",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/338"
+          ],
+          "limitation": "The WebSocket transport is real, but the paired EasyEDA extension and public hosted endpoint are test fixtures."
+        },
+        {
+          "id": "server-extension-ci-matrix",
+          "name": "Server and extension CI matrix",
+          "evidenceLevel": "ci",
+          "status": "passed",
+          "summary": "Linux, Windows, and macOS test jobs, CodeQL, Semgrep, SonarQube Cloud, dependency review, container smoke, and patch coverage passed on the merged reliability changes.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/357"]
+        }
+      ],
+      "knownLimitations": [
+        "Remote Relay reconnect and session isolation have not yet been dogfooded through a public hosted endpoint with a real EasyEDA Pro extension session.",
+        "The no-connect behavior test used a temporary development dispatcher; the baked production dispatcher was validated separately through a clean cold start.",
+        "The user-level service installer was not part of this compatibility pass; Node path drift discovered on the validation workstation is tracked by issue #340.",
+        "This live record applies to Ubuntu x86_64. Windows and macOS require separate exact-version live records before equivalent claims are made."
+      ]
+    }
+  ]
+}

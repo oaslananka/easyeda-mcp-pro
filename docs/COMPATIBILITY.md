@@ -2,6 +2,8 @@
 
 This document lists the tested and supported versions, environments, and clients for `easyeda-mcp-pro`.
 
+Version ranges in this overview are support-policy targets, not exact live-validation claims. The generated [EasyEDA exact-version evidence matrix](./reference/easyeda-compatibility.md) is the source of truth for live runtime claims, review dates, and known limitations.
+
 ---
 
 ## 1. Runtime & Environment
@@ -17,13 +19,13 @@ This document lists the tested and supported versions, environments, and clients
 
 ## 2. EasyEDA Pro Versions
 
-| EasyEDA Pro Version         | Tested Status        | Notes                                                                                                                                                                                                                      |
-| :-------------------------- | :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **v3.2.x** (Desktop / Web)  | **Supported**        | Requires **Allow External Interaction**. Some v3.2 runtimes accept `SYS_WebSocket.register()` without reporting open; the bridge safely closes that handle and retries with `SYS_WebSocket.create()` or browser WebSocket. |
-| **v2.2.x** (Desktop / Web)  | **Verified**         | Primary development target. Full compatibility.                                                                                                                                                                            |
-| **v2.1.x**                  | **Needs Validation** | Mostly compatible, but some schematic APIs may be missing.                                                                                                                                                                 |
-| **v2.0.x**                  | **Needs Validation** | Underlying extension APIs might not expose required methods.                                                                                                                                                               |
-| **v1.x** (Standard Edition) | **Unsupported**      | Standard edition does not support the Pro extension platform.                                                                                                                                                              |
+| EasyEDA Pro Version         | Tested Status                 | Notes                                                                                                                                                                                                                      |
+| :-------------------------- | :---------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **v3.2.x** (Desktop / Web)  | **Supported**                 | Requires **Allow External Interaction**. Some v3.2 runtimes accept `SYS_WebSocket.register()` without reporting open; the bridge safely closes that handle and retries with `SYS_WebSocket.create()` or browser WebSocket. |
+| **v2.2.x** (Desktop / Web)  | **Evidence refresh required** | Legacy development target; add a current exact-version live record before making a release claim.                                                                                                                          |
+| **v2.1.x**                  | **Needs Validation**          | Mostly compatible, but some schematic APIs may be missing.                                                                                                                                                                 |
+| **v2.0.x**                  | **Needs Validation**          | Underlying extension APIs might not expose required methods.                                                                                                                                                               |
+| **v1.x** (Standard Edition) | **Unsupported**               | Standard edition does not support the Pro extension platform.                                                                                                                                                              |
 
 ---
 
