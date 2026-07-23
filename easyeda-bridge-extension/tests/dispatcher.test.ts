@@ -1763,9 +1763,7 @@ describe('createDispatcher', () => {
       getState_OtherProperty: () => ({}),
     });
     const getAll = vi.fn(async () => [makeBomPart('r1', 'R1'), makeBomPart('r2', 'R2')]);
-    const dispatcher = createDispatcher(
-      makeToolkit({ SCH_PrimitiveComponent: { getAll } }),
-    );
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveComponent: { getAll } }));
 
     await expect(dispatcher.dispatch('bom.generate', { groupBy: 'value' })).resolves.toEqual([
       {
