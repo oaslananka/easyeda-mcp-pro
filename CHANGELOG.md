@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.1...easyeda-mcp-pro-v0.35.2) (2026-07-23)
+
+
+### Bug Fixes
+
+* **devex:** enforce supported automation runtime ([#359](https://github.com/oaslananka/easyeda-mcp-pro/issues/359)) ([581963c](https://github.com/oaslananka/easyeda-mcp-pro/commit/581963c506bfacc60223956383a240cb5de0e0aa))
+
 ## [0.35.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.0...easyeda-mcp-pro-v0.35.1) (2026-07-22)
 
 
