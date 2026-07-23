@@ -1,6 +1,5 @@
 import type { ApiRuntime, BridgeErrorFactory } from './api-runtime.js';
-
-export type BinaryResultNormalizer = (value: unknown, fallbackFileName: string) => Promise<unknown>;
+import type { BinaryResultNormalizer } from './binary-result.js';
 
 export interface CanvasAnimationRoot {
   requestAnimationFrame?: (callback: () => void) => number;
