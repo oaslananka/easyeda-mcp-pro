@@ -87,7 +87,7 @@ const entry = typeof manifest.entry === 'string' ? manifest.entry : '';
 const normalizedEntry = entry.replace(/^\.\//, '');
 const entryCandidates = [normalizedEntry, `${normalizedEntry}.js`];
 const entryCandidatePaths = entryCandidates.map(resolvePathWithinRoot);
-const entryEscapesRoot = entryCandidatePaths.some((candidate) => candidate === undefined);
+const entryEscapesRoot = entryCandidatePaths.includes(undefined);
 if (
   !entry ||
   entryEscapesRoot ||
