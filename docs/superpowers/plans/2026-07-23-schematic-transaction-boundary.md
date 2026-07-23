@@ -777,4 +777,25 @@ If the PR did not close #339 automatically, close it explicitly only after the c
 
 ## Execution Evidence
 
-Populate this section only with command output collected at the exact final PR head and post-merge `main`. Do not estimate values.
+Collected at implementation head `1a7a5c41128eb815748b2e71ad30ce2f5a60c19f` on Node.js 24.18.0 and pnpm 11.5.1:
+
+- Dispatcher source: 3,533 → 2,427 lines (-1,106).
+- Dispatcher reduction across #339: 5,041 → 2,427 lines (-2,614; 51.9%).
+- Extracted transaction module: 1,192 lines.
+- Public extension method list: 67 → 67.
+- Focused transaction factory/dispatcher parity: 148 tests passed.
+- Server suite: 150 files / 1,740 tests passed.
+- Extension suite: 23 files / 312 tests passed.
+- `schematic-transaction-operations.ts`: 100% statements / branches / functions / lines.
+- `pnpm verify`: passed.
+- `pnpm test:extension:ci`: passed.
+- Extension distribution and checksum verification: passed.
+- Packaged extension: 163,883 / 200,000 bytes.
+- Extension entry bundle: 226,461 / 260,000 bytes.
+- Dispatcher bundle: 166,047 / 185,000 bytes.
+- Dependency audit policy: passed with only the existing documented #334 advisory exception.
+- Exact branch delta from the rule-check merge: 3 files changed, 2,507 insertions, 1,139 deletions.
+- MSI verification used the external temporary directory `/tmp/easyeda-mcp-pro-issue-339-transaction-tests` to avoid both repository-format scanning and the pre-existing shared `/tmp/easyeda-bridge-extension.*` ownership collision.
+- The original MSI checkout remains untouched at its stale `main` branch with the user-owned uncommitted `.mcp.json` deletion preserved.
+
+Post-merge `main` workflow, Sonar, Codecov, and security results will be appended after the final PR is merged.
