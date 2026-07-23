@@ -306,7 +306,7 @@ describe('schematic inspection operations', () => {
         getState_X: () => 50,
         getState_Y: () => 'unknown-y',
       },
-      {},
+      { getState_PrimitiveId: () => ({ unsafe: true }) },
     ];
     const { operations } = makeOperations({
       SCH_PrimitiveRectangle: { getAll: async () => rectangles },

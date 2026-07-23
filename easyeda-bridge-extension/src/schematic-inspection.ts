@@ -41,6 +41,15 @@ function asRecordArray(value: unknown): Array<Record<string, unknown>> {
   return value.filter((item): item is Record<string, unknown> => isRecord(item));
 }
 
+function nativeScalarString(value: unknown): string {
+  return typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+    ? String(value)
+    : '';
+}
+
 export function createSchematicInspectionOperations({
   callFirst,
   readFirstPath,
@@ -105,36 +114,100 @@ export function createSchematicInspectionOperations({
     }
   }
 
-  async function getSheetInfo(): Promise<unknown> {
-    const attempts: SheetInfoAttempt[] = [];
-    let source: SheetInfoSource | undefined;
-
-    let currentPage = asNonEmptyRecord(
-      await trySheetInfoCall(
-        'current_page',
-        ['DMT_Schematic.getCurrentSchematicPageInfo'],
-        attempts,
-      ),
-    );
-    if (currentPage) source = 'current_page';
-
-    let pages = asRecordArray(
+  async function readSheetPages(
+    attempts: SheetInfoAttempt[],
+  ): Promise<Array<Record<string, unknown>>> {
+    const currentPages = asRecordArray(
       await trySheetInfoCall(
         'current_page_list',
         ['DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo'],
         attempts,
       ),
     );
-    if (pages.length === 0) {
-      pages = asRecordArray(
-        await trySheetInfoCall(
-          'all_page_list',
-          ['DMT_Schematic.getAllSchematicPagesInfo'],
-          attempts,
-        ),
-      );
-    }
+    if (currentPages.length > 0) return currentPages;
+    return asRecordArray(
+      await trySheetInfoCall('all_page_list', ['DMT_Schematic.getAllSchematicPagesInfo'], attempts),
+    );
+  }
 
+  function readFocusedPageUuid(
+    focusedDocument: Record<string, unknown> | undefined,
+  ): string | undefined {
+    const uuid = focusedDocument?.uuid;
+    return typeof uuid === 'string' && uuid.trim() ? uuid : undefined;
+  }
+
+  async function readCurrentSchematicIfNeeded(
+    currentPage: Record<string, unknown> | undefined,
+    pages: Array<Record<string, unknown>>,
+    attempts: SheetInfoAttempt[],
+  ): Promise<Record<string, unknown> | undefined> {
+    if (currentPage && pages.length > 0) return undefined;
+    return asNonEmptyRecord(
+      await trySheetInfoCall(
+        'current_schematic',
+        ['DMT_Schematic.getCurrentSchematicInfo'],
+        attempts,
+      ),
+    );
+  }
+
+  async function readFocusedDocumentPage(
+    currentPage: Record<string, unknown> | undefined,
+    focusedPageUuid: string | undefined,
+    attempts: SheetInfoAttempt[],
+  ): Promise<Record<string, unknown> | undefined> {
+    if (currentPage || !focusedPageUuid) return undefined;
+    return asNonEmptyRecord(
+      await trySheetInfoCall(
+        'focused_document_page',
+        ['DMT_Schematic.getSchematicPageInfo'],
+        attempts,
+        focusedPageUuid,
+      ),
+    );
+  }
+
+  function mergeSchematicPages(
+    pages: Array<Record<string, unknown>>,
+    currentSchematic: Record<string, unknown> | undefined,
+  ): Array<Record<string, unknown>> {
+    if (pages.length > 0) return pages;
+    const schematicPages = asRecordArray(currentSchematic?.page);
+    return schematicPages.length > 0 ? schematicPages : pages;
+  }
+
+  function resolveCurrentPage(
+    currentPage: Record<string, unknown> | undefined,
+    focusedDocumentPage: Record<string, unknown> | undefined,
+    focusedPageUuid: string | undefined,
+    pages: Array<Record<string, unknown>>,
+    currentSchematic: Record<string, unknown> | undefined,
+  ): { currentPage?: Record<string, unknown>; source?: SheetInfoSource } {
+    if (currentPage) return { currentPage, source: 'current_page' };
+    if (focusedDocumentPage) {
+      return { currentPage: focusedDocumentPage, source: 'focused_document' };
+    }
+    const matchedPage = focusedPageUuid
+      ? pages.find((page) => page.uuid === focusedPageUuid)
+      : undefined;
+    if (matchedPage) return { currentPage: matchedPage, source: 'focused_document' };
+    if (pages.length === 1 && currentSchematic) {
+      return { currentPage: pages[0], source: 'current_schematic_page_list' };
+    }
+    return {};
+  }
+
+  async function getSheetInfo(): Promise<unknown> {
+    const attempts: SheetInfoAttempt[] = [];
+    const initialCurrentPage = asNonEmptyRecord(
+      await trySheetInfoCall(
+        'current_page',
+        ['DMT_Schematic.getCurrentSchematicPageInfo'],
+        attempts,
+      ),
+    );
+    const initialPages = await readSheetPages(attempts);
     const focusedDocument = asNonEmptyRecord(
       await trySheetInfoCall(
         'focused_document',
@@ -142,56 +215,34 @@ export function createSchematicInspectionOperations({
         attempts,
       ),
     );
-    const focusedPageUuid =
-      typeof focusedDocument?.uuid === 'string' && focusedDocument.uuid.trim()
-        ? focusedDocument.uuid
-        : undefined;
-
-    let currentSchematic: Record<string, unknown> | undefined;
-    if (!currentPage || pages.length === 0) {
-      currentSchematic = asNonEmptyRecord(
-        await trySheetInfoCall(
-          'current_schematic',
-          ['DMT_Schematic.getCurrentSchematicInfo'],
-          attempts,
-        ),
-      );
-    }
-
-    if (!currentPage && focusedPageUuid) {
-      currentPage = asNonEmptyRecord(
-        await trySheetInfoCall(
-          'focused_document_page',
-          ['DMT_Schematic.getSchematicPageInfo'],
-          attempts,
-          focusedPageUuid,
-        ),
-      );
-      if (currentPage) source = 'focused_document';
-    }
-
-    const schematicPages = asRecordArray(currentSchematic?.page);
-    if (pages.length === 0 && schematicPages.length > 0) pages = schematicPages;
-
-    if (!currentPage && focusedPageUuid && pages.length > 0) {
-      currentPage = pages.find((page) => page.uuid === focusedPageUuid);
-      if (currentPage) source = 'focused_document';
-    }
-
-    if (!currentPage && pages.length === 1 && currentSchematic) {
-      currentPage = pages[0];
-      source = 'current_schematic_page_list';
-    }
-
+    const focusedPageUuid = readFocusedPageUuid(focusedDocument);
+    const currentSchematic = await readCurrentSchematicIfNeeded(
+      initialCurrentPage,
+      initialPages,
+      attempts,
+    );
+    const focusedDocumentPage = await readFocusedDocumentPage(
+      initialCurrentPage,
+      focusedPageUuid,
+      attempts,
+    );
+    const pages = mergeSchematicPages(initialPages, currentSchematic);
+    const resolution = resolveCurrentPage(
+      initialCurrentPage,
+      focusedDocumentPage,
+      focusedPageUuid,
+      pages,
+      currentSchematic,
+    );
     const diagnostics = {
       stage: 'focused_sheet_resolution',
-      currentPageAvailable: Boolean(currentPage),
+      currentPageAvailable: Boolean(resolution.currentPage),
       pageListAvailable: pages.length > 0,
       focusedDocumentAvailable: Boolean(focusedDocument),
       attempts,
     };
 
-    if (!currentPage) {
+    if (!resolution.currentPage) {
       throw createBridgeError(
         'SHEET_INFO_UNAVAILABLE',
         'EasyEDA did not expose metadata for the focused schematic page.',
@@ -201,9 +252,9 @@ export function createSchematicInspectionOperations({
     }
 
     return {
-      currentPage,
+      currentPage: resolution.currentPage,
       pages,
-      source,
+      source: resolution.source,
       focusedDocument,
       diagnostics,
     };
@@ -236,7 +287,7 @@ export function createSchematicInspectionOperations({
       const rawY = readState(rectangle, 'TopLeftY') ?? readState(rectangle, 'Y');
       return {
         primitiveId:
-          extractPrimitiveId(rectangle) || String(readState(rectangle, 'PrimitiveId') ?? ''),
+          extractPrimitiveId(rectangle) || nativeScalarString(readState(rectangle, 'PrimitiveId')),
         x: readState(rectangle, 'TopLeftX') ?? readState(rectangle, 'X'),
         y: typeof rawY === 'number' ? -rawY : rawY,
         width: readState(rectangle, 'Width'),
