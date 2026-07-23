@@ -275,4 +275,49 @@ describe('schematic component inspection operations', () => {
 
     await expect(operations.listComponents()).resolves.toEqual({ total: 0, items: [] });
   });
+
+  it('covers empty metadata and non-record footprint lookup fallbacks without inventing values', async () => {
+    const part = (state: Record<string, unknown>) =>
+      makeStateful({ ComponentType: 'part', ...state });
+    const { operations } = makeOperations({
+      SCH_PrimitiveComponent: {
+        getAll: async () => [
+          part({
+            PrimitiveId: 'device-fallback',
+            Component: { name: 'DEV-FALLBACK' },
+            Name: '={Unknown}',
+          }),
+          part({
+            PrimitiveId: 'expression-fallback',
+            Component: { name: '' },
+            Name: '={Unknown}',
+            OtherProperty: {},
+          }),
+          part({
+            PrimitiveId: 'empty-value',
+            Component: { name: '' },
+            Name: '',
+            OtherProperty: {},
+          }),
+          part({
+            PrimitiveId: 'non-record-footprint',
+            Component: { name: 'Device' },
+            Name: 'Device',
+            Footprint: { uuid: 'fp', libraryUuid: 'lib' },
+            OtherProperty: { 'Supplier Footprint': 'FALLBACK-FP' },
+          }),
+        ],
+      },
+      LIB_Footprint: { get: async () => 'not-a-record' },
+    });
+
+    await expect(operations.listComponents()).resolves.toMatchObject({
+      items: [
+        { primitiveId: 'device-fallback', value: 'DEV-FALLBACK' },
+        { primitiveId: 'expression-fallback', value: '={Unknown}' },
+        { primitiveId: 'empty-value', value: '' },
+        { primitiveId: 'non-record-footprint', footprint: 'FALLBACK-FP' },
+      ],
+    });
+  });
 });
