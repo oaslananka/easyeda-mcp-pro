@@ -6,8 +6,17 @@
 
 ## Prerequisites
 
-- **Node.js**: `>=24` and `<27`
-- **pnpm**: `>=11` (only required for building from source)
+- **Node.js**: 24.x, with `24.18.0` pinned for repository automation
+- **pnpm**: exactly `11.5.1` when building from source
+
+```bash
+nvm install 24.18.0
+nvm use 24.18.0
+corepack enable
+corepack prepare pnpm@11.5.1 --activate
+node scripts/check-runtime.mjs --require-pnpm
+```
+
 - **EasyEDA Pro**: Installed on your system
 
 ---

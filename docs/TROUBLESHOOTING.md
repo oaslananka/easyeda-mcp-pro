@@ -12,9 +12,19 @@ The AI client (e.g. Claude Desktop or Cursor) displays an error: `"Failed to sta
 
 ### Resolving Node.js and Command Conflicts:
 
-1. **Wrong Node.js version**: Ensure your system path uses **Node.js >= 24**. Run `node -v` to verify.
+1. **Wrong runtime**: Use Node.js **24.x**; repository automation is pinned to **24.18.0** and pnpm **11.5.1**. Run `node -v`, `pnpm --version`, and `node scripts/check-runtime.mjs --require-pnpm` to verify.
 2. **Global `npx` not found**: If `npx` is not in the system PATH, specify the absolute path to `node` and pointing to `dist/index.js` instead.
 3. **Execution Policy (Windows)**: In Windows PowerShell, if scripts are disabled, use `.cmd` commands or run from command prompt (`cmd`).
+4. **Restore the pinned local toolchain**:
+
+   ```bash
+   nvm install 24.18.0
+   nvm use 24.18.0
+   corepack enable
+   corepack prepare pnpm@11.5.1 --activate
+   ```
+
+5. **Stale user service**: `doctor --fix` inspects `easyeda-mcp-pro.service`. If its absolute `ExecStart` Node path no longer exists, stop/disable that unit and rerun MCP client setup under Node 24.18.0 instead of leaving `Restart=on-failure` in a restart loop.
 
 ---
 

@@ -1,5 +1,5 @@
 # ── Multi-stage Build Stage ───────────────────────────────────
-# node:24-alpine
+# node:24.18.0-alpine
 FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS builder
 
 # Enable corepack for pnpm
@@ -10,6 +10,11 @@ WORKDIR /app
 # Copy root workspace and package manifests
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY easyeda-bridge-extension/package.json ./easyeda-bridge-extension/
+COPY config/runtime-policy.json ./config/runtime-policy.json
+COPY scripts/check-runtime.mjs ./scripts/check-runtime.mjs
+
+# Fail before dependency installation when the builder runtime drifts.
+RUN node scripts/check-runtime.mjs --require-pnpm
 
 # Install dependencies (including devDependencies for build)
 RUN pnpm install --frozen-lockfile
@@ -28,7 +33,7 @@ RUN pnpm build:extension
 RUN CI=true pnpm install --prod --ignore-scripts
 
 # ── Production Runner Stage ────────────────────────────────────
-# node:24-alpine
+# node:24.18.0-alpine
 FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runner
 
 WORKDIR /app

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "node": {
+    "supportedMajor": 24,
+    "pinnedVersion": "24.18.0"
+  },
+  "pnpm": {
+    "pinnedVersion": "11.5.1"
+  }
+}

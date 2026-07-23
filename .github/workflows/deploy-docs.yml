@@ -42,11 +42,14 @@ jobs:
         # actions/setup-node v4.0.2
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
-          node-version: 24
+          node-version: '24.18.0'
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify runtime policy
+        run: pnpm runtime:check
 
       - name: Generate tools reference documentation
         run: pnpm generate:tools-doc

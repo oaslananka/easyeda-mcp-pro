@@ -14,9 +14,12 @@ import { loadEnvConfig } from './config/env.js';
 import { createServer } from './server/factory.js';
 import { createHttpTransport } from './server/transports/http.js';
 import { RemoteGateway } from './remote/gateway.js';
+import { assertSupportedNodeRuntime } from './runtime/policy.js';
 
 async function main() {
   const cli = parseCliArgs(process.argv.slice(2));
+
+  if (!['doctor', 'help', 'version'].includes(cli.command)) assertSupportedNodeRuntime();
 
   if (cli.command === 'init') {
     await runInteractiveInit();

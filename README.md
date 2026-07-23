@@ -129,8 +129,19 @@ The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling re
 
 ## Prerequisites
 
-- **Node.js** >=24 <27 (required for the latest JavaScript features)
-- **pnpm** >=11 (for local development; the npm package is self-contained)
+- **Node.js**: Node.js 24.x is required; repository automation is pinned to **24.18.0**.
+- **pnpm**: local development and automation require exactly **11.5.1**.
+
+Prepare the supported runtime before installing dependencies:
+
+```bash
+nvm install 24.18.0
+nvm use 24.18.0
+corepack enable
+corepack prepare pnpm@11.5.1 --activate
+node scripts/check-runtime.mjs --require-pnpm
+```
+
 - **EasyEDA Pro** with the bundled bridge extension installed and running
 - For supplier integration: API credentials from JLCPCB, LCSC, Mouser, or DigiKey
 
@@ -770,8 +781,19 @@ qualified human review before purchase, fabrication, or assembly.
 
 ### Prerequisites
 
-- **Node.js** >=24 <27
-- **pnpm** >=11
+- **Node.js**: Node.js 24.x is required; repository automation is pinned to **24.18.0**.
+- **pnpm**: local development and automation require exactly **11.5.1**.
+
+Prepare the supported runtime before installing dependencies:
+
+```bash
+nvm install 24.18.0
+nvm use 24.18.0
+corepack enable
+corepack prepare pnpm@11.5.1 --activate
+node scripts/check-runtime.mjs --require-pnpm
+```
+
 - **Go Task** (optional, for Taskfile commands)
 
 ### Quick Start
