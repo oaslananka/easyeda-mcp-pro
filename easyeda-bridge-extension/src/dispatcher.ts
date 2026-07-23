@@ -22,6 +22,7 @@ import {
 import { createCanvasOperations, type CanvasOperations } from './canvas-operations.js';
 import { createExportOperations, type ExportOperations } from './export-operations.js';
 import { createPcbReadOperations, type PcbReadOperations } from './pcb-read-operations.js';
+import { createPcbWriteOperations, type PcbWriteOperations } from './pcb-write-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, logRecoverableError, type JsonValue } from './utils.js';
@@ -117,6 +118,7 @@ let boardInspection: BoardInspectionOperations;
 let canvasOperations: CanvasOperations;
 let exportOperations: ExportOperations;
 let pcbReadOperations: PcbReadOperations;
+let pcbWriteOperations: PcbWriteOperations;
 let projectOperations: ProjectOperations;
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
@@ -4003,118 +4005,14 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
       return callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
     }
-    case 'pcb.addTrack': {
-      // PCB_PrimitivePolyline.create's real argument order could not be
-      // determined live (every points/layer/width/net permutation tried
-      // against the runtime rejected with a generic "cannot create polygon
-      // primitive" error). PCB_PrimitiveLine.create's signature WAS resolved
-      // live by passing 8 distinguishable values and reading back
-      // getState_*: create(net, layer, startX, startY, endX, endY,
-      // lineWidth, locked) — note net comes FIRST, unlike the previous
-      // (points, layer, width, net) call this replaces. A multi-point track
-      // is drawn as one PCB_PrimitiveLine segment per consecutive point
-      // pair, all sharing netName so they merge into one electrical track
-      // (same coordinate-driven merge model as schematic wires).
-      const rawPoints: Array<{ x: number; y: number }> = Array.isArray(params.points)
-        ? params.points
-        : [];
-      if (rawPoints.length < 2) {
-        throw newBridgeError(
-          'INVALID_PARAMS',
-          'pcb.addTrack requires at least 2 points',
-          'Provide a points array with at least a start and end coordinate.',
-        );
-      }
-      const netName = params.netName as string | undefined;
-      const layer = params.layer;
-      const width = params.width;
-      const createdIds: string[] = [];
-      for (let i = 1; i < rawPoints.length; i += 1) {
-        const start = rawPoints[i - 1];
-        const end = rawPoints[i];
-        const created = await callFirst(
-          ['PCB_PrimitiveLine.create', 'pcb_PrimitiveLine.create'],
-          netName,
-          layer,
-          start.x,
-          start.y,
-          end.x,
-          end.y,
-          width,
-          false,
-        );
-        createdIds.push(extractPrimitiveId(created));
-      }
-      return { primitiveId: createdIds[0], primitiveIds: createdIds };
-    }
+    case 'pcb.addTrack':
+      return pcbWriteOperations.addTrack(params);
     case 'pcb.addText':
-      // PCB_PrimitiveString.create's field order was recovered
-      // (2026-07-07) by reading the minified source of .modify() via
-      // .toString() — its destructured input object gives the exact
-      // positional order: create(Layer, X, Y, Text, FontFamily, FontSize,
-      // LineWidth, AlignMode, Rotation, Reverse, Expansion, Mirror,
-      // PrimitiveLock) — 13 args, confirmed live via readback on the Top
-      // Silkscreen layer. fontFamily must be a name the runtime's font
-      // list actually contains (validated internally); the default below
-      // ("NotoSansMonoCJKsc-Regular") was live-verified to work.
-      return callFirst(
-        ['PCB_PrimitiveString.create', 'pcb_PrimitiveString.create'],
-        params.layer,
-        params.x,
-        params.y,
-        params.text,
-        params.fontFamily ?? 'NotoSansMonoCJKsc-Regular',
-        params.fontSize ?? 1,
-        params.lineWidth ?? 0.15,
-        params.alignMode ?? 0,
-        params.rotation ?? 0,
-        params.reverse ?? false,
-        params.expansion ?? 0,
-        params.mirror ?? false,
-        params.locked ?? false,
-      );
+      return pcbWriteOperations.addText(params);
     case 'pcb.addSilkscreenLine':
-      // Reuses PCB_PrimitiveLine.create (the same primitive pcb.addTrack
-      // draws copper tracks with) but with an empty net name and a
-      // non-copper layer — a purely decorative/organizational line (e.g.
-      // silkscreen section dividers) rather than an electrical connection.
-      // Signature confirmed live (2026-07-07): create(net, layer, startX,
-      // startY, endX, endY, lineWidth, locked).
-      return callFirst(
-        ['PCB_PrimitiveLine.create', 'pcb_PrimitiveLine.create'],
-        '',
-        params.layer,
-        params.startX,
-        params.startY,
-        params.endX,
-        params.endY,
-        params.lineWidth ?? 0.2,
-        false,
-      );
+      return pcbWriteOperations.addSilkscreenLine(params);
     case 'pcb.addVia':
-      // PCB_PrimitiveVia.create's real argument order was resolved live by
-      // passing 9 distinguishable values and reading back getState_*:
-      // create(net, x, y, holeDiameter, diameter, viaType,
-      // designRuleBlindViaName, locked, solderMaskExpansion) — note net
-      // comes FIRST and hole/outer diameter are SWAPPED relative to the
-      // previous (x, y, outerDiameter, holeSize, net) call this replaces,
-      // which silently wrote garbage (net into X, diameter into Y, etc.)
-      // while still reporting success. holeDiameter/diameter are passed
-      // through in whatever native unit the caller supplies (unconverted,
-      // same as x/y) — the exact real-world unit was not independently
-      // cross-checked against a known physical dimension.
-      return callFirst(
-        ['PCB_PrimitiveVia.create', 'pcb_PrimitiveVia.create'],
-        params.netName,
-        params.x,
-        params.y,
-        params.holeSize,
-        params.outerDiameter,
-        0,
-        '',
-        false,
-        undefined,
-      );
+      return pcbWriteOperations.addVia(params);
     case 'pcb.addZone':
       return callFirst(
         ['PCB_PrimitivePour.create', 'PCB_ComplexPolygon.create', 'pcb_PrimitivePour.create'],
@@ -4192,6 +4090,11 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     requireActivePcbContext: () => boardInspection.requireActivePcbContext(),
     readFirstPath,
     readState: safeGetState,
+  });
+  pcbWriteOperations = createPcbWriteOperations({
+    callFirst,
+    extractPrimitiveId,
+    createBridgeError: newBridgeError,
   });
   projectOperations = createProjectOperations({ callFirst });
   textAlignModeCache.clear();
