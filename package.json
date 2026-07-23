@@ -35,19 +35,21 @@
     "dist",
     "easyeda-bridge-extension.eext",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "config/runtime-policy.json",
+    "scripts/check-runtime.mjs"
   ],
   "packageManager": "pnpm@11.5.1",
   "engines": {
-    "node": ">=24 <27",
-    "pnpm": ">=11"
+    "node": ">=24 <25",
+    "pnpm": "11.5.1"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension build:watch",
     "dev:hotloop": "BRIDGE_HOT_SWAP_ENABLED=true BRIDGE_HOT_SWAP_WATCH=easyeda-bridge-extension/dist/dispatcher.js TOOL_PROFILE=dev tsx watch src/index.ts",
     "clean": "node scripts/clean.mjs",
-    "prebuild": "node scripts/sync-versions.mjs",
+    "prebuild": "pnpm runtime:check && node scripts/sync-versions.mjs",
     "build": "pnpm clean && tsc -p tsconfig.build.json",
     "build:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension build",
     "setup:local": "pnpm build && pnpm build:extension && node dist/index.js --setup-local",
@@ -92,7 +94,20 @@
     "test:extension:ci": "node -e \"require('node:fs').mkdirSync('reports',{recursive:true})\" && pnpm --filter @easyeda-mcp-pro/bridge-extension exec vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=../reports/extension.junit.xml",
     "check:extension-size": "node scripts/check-extension-size-budget.mjs",
     "validate:codecov": "curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors --data-binary @codecov.yml https://codecov.io/validate",
-    "analyze:extension-bundle:ci": "bundle-analyzer easyeda-bridge-extension/dist --bundle-name=easyeda-bridge-extension --upload-token=$CODECOV_TOKEN --ignore-patterns='*.map' --ignore-patterns='*.json'"
+    "analyze:extension-bundle:ci": "bundle-analyzer easyeda-bridge-extension/dist --bundle-name=easyeda-bridge-extension --upload-token=$CODECOV_TOKEN --ignore-patterns='*.map' --ignore-patterns='*.json'",
+    "runtime:check": "node scripts/check-runtime.mjs --require-pnpm",
+    "preverify": "pnpm runtime:check",
+    "prepack": "pnpm runtime:check",
+    "pretest": "pnpm runtime:check",
+    "pretest:extension": "pnpm runtime:check",
+    "predev": "pnpm runtime:check",
+    "predev:extension": "pnpm runtime:check",
+    "predev:hotloop": "pnpm runtime:check",
+    "presetup:local": "pnpm runtime:check",
+    "pretest:watch": "pnpm runtime:check",
+    "pretest:coverage": "pnpm runtime:check",
+    "pretest:coverage:ci": "pnpm runtime:check",
+    "pretest:extension:ci": "pnpm runtime:check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

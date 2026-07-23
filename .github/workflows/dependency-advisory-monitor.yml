@@ -42,11 +42,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
-          node-version: '24'
+          node-version: '24.18.0'
           package-manager-cache: false
 
       - name: Verify frozen lockfile and supply-chain policy
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Verify runtime policy
+        run: pnpm runtime:check
 
       - name: Evaluate dependency advisories
         run: >-

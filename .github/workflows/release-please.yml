@@ -78,13 +78,17 @@ jobs:
         if: ${{ env.RELEASE_RUN == 'true' }}
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
-          node-version: '24'
+          node-version: '24.18.0'
           registry-url: 'https://registry.npmjs.org'
 
           package-manager-cache: false
       - name: Install dependencies
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: pnpm install --frozen-lockfile
+
+      - name: Verify runtime policy
+        if: ${{ env.RELEASE_RUN == 'true' }}
+        run: pnpm runtime:check
 
       - name: Verify Quality Gates
         if: ${{ env.RELEASE_RUN == 'true' }}

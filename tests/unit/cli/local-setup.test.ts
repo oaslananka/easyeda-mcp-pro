@@ -2,10 +2,13 @@ import * as net from 'node:net';
 import { describe, expect, it } from 'vitest';
 import {
   createDoctorReport,
+  evaluateNodeRuntime,
+  evaluatePnpmRuntime,
   formatDoctorReport,
   formatHelp,
   formatSetupLocalReport,
   formatVersion,
+  inspectUserServiceRuntime,
   parseCliArgs,
   type DoctorReport,
 } from '../../../src/cli/local-setup.js';
@@ -78,22 +81,139 @@ describe('local setup CLI helpers', () => {
     expect(parseCliArgs(['--doctor'])).toEqual({ command: 'doctor', doctorFix: false });
   });
 
-  it('formats MCP client auto-start setup instructions', () => {
-    const report = formatSetupLocalReport({
-      packageName: 'easyeda-mcp-pro',
-      packageVersion: '0.3.2',
-      packageRoot: 'C:\\repo',
-      serverEntryPath: 'C:\\repo\\dist\\index.js',
-      extensionPackagePath: 'C:\\repo\\easyeda-bridge-extension.eext',
-      serverEntryExists: true,
-      extensionPackageExists: true,
+  it('accepts only Node 24 and exact pnpm 11.5.1 for repository automation', () => {
+    expect(evaluateNodeRuntime('24.18.0')).toMatchObject({ supported: true });
+    expect(evaluateNodeRuntime('24.99.0')).toMatchObject({ supported: true });
+    expect(evaluateNodeRuntime('23.11.1')).toMatchObject({ supported: false });
+    expect(evaluateNodeRuntime('26.0.0')).toMatchObject({ supported: false });
+    expect(evaluatePnpmRuntime('11.5.1')).toMatchObject({ supported: true });
+    expect(evaluatePnpmRuntime('11.5.2')).toMatchObject({ supported: false });
+    expect(evaluatePnpmRuntime(null)).toMatchObject({ supported: false });
+  });
+
+  it('skips systemd inspection on non-Linux platforms', async () => {
+    await expect(inspectUserServiceRuntime({ platform: 'win32' })).resolves.toMatchObject({
+      applicable: false,
+      installed: false,
+      issues: [],
+    });
+  });
+
+  it('reports missing and malformed systemd ExecStart commands', async () => {
+    const missing = await inspectUserServiceRuntime({
+      platform: 'linux',
+      unitPath: '/home/test/.config/systemd/user/easyeda-mcp-pro.service',
+      unitText: '[Service]\nRestart=on-failure',
+    });
+    expect(missing.issues).toEqual(['User service has no ExecStart command.']);
+
+    const malformed = await inspectUserServiceRuntime({
+      platform: 'linux',
+      unitPath: '/home/test/.config/systemd/user/easyeda-mcp-pro.service',
+      unitText: '[Service]\nExecStart="/unterminated node path',
+    });
+    expect(malformed.issues).toEqual(['User service ExecStart command could not be parsed.']);
+  });
+
+  it('reads the service Node version and handles an unreadable executable', async () => {
+    const healthy = await inspectUserServiceRuntime({
+      platform: 'linux',
+      unitPath: '/home/test/.config/systemd/user/easyeda-mcp-pro.service',
+      unitText: `[Service]\nExecStart="${process.execPath}" /srv/easyeda/dist/index.js`,
+    });
+    expect(healthy).toMatchObject({
+      nodePath: process.execPath,
+      nodePathExists: true,
+      nodeVersion: process.versions.node,
+      nodeSupported: true,
+      issues: [],
     });
 
-    expect(report).toContain('"command": "node"');
+    const unreadable = await inspectUserServiceRuntime({
+      platform: 'linux',
+      unitPath: '/home/test/.config/systemd/user/easyeda-mcp-pro.service',
+      unitText:
+        '[Service]\nExecStart=/missing-but-reported-present/node /srv/easyeda/dist/index.js',
+      executableExists: () => true,
+    });
+    expect(unreadable).toMatchObject({
+      nodePathExists: true,
+      nodeVersion: null,
+      nodeSupported: false,
+    });
+    expect(unreadable.issues.join(' ')).toContain('Unable to read Node.js version');
+  });
+
+  it('detects a stale systemd ExecStart Node path before service enablement', async () => {
+    const service = await inspectUserServiceRuntime({
+      platform: 'linux',
+      unitPath: '/home/test/.config/systemd/user/easyeda-mcp-pro.service',
+      unitText: [
+        '[Service]',
+        'ExecStart=/usr/local/bin/node /home/test/easyeda-mcp-pro/dist/index.js',
+        'Restart=on-failure',
+        'RestartSec=2',
+      ].join('\n'),
+      executableExists: () => false,
+      readNodeVersion: async () => null,
+    });
+
+    expect(service).toMatchObject({
+      installed: true,
+      nodePath: '/usr/local/bin/node',
+      nodePathExists: false,
+      nodeSupported: false,
+    });
+    expect(service.issues.join(' ')).toContain('ExecStart Node executable does not exist');
+    expect(service.issues.join(' ')).toContain('restart loop');
+  });
+
+  it('accepts a supported systemd runtime and rejects unsupported Node 26', async () => {
+    const base = {
+      platform: 'linux' as const,
+      unitPath: '/home/test/.config/systemd/user/easyeda-mcp-pro.service',
+      unitText: '[Service]\nExecStart="/home/test/node 24/bin/node" /srv/easyeda/dist/index.js',
+      executableExists: () => true,
+    };
+    const supported = await inspectUserServiceRuntime({
+      ...base,
+      readNodeVersion: async () => '24.18.0',
+    });
+    expect(supported).toMatchObject({
+      nodePath: '/home/test/node 24/bin/node',
+      nodePathExists: true,
+      nodeVersion: '24.18.0',
+      nodeSupported: true,
+      issues: [],
+    });
+
+    const unsupported = await inspectUserServiceRuntime({
+      ...base,
+      readNodeVersion: async () => '26.0.0',
+    });
+    expect(unsupported.nodeSupported).toBe(false);
+    expect(unsupported.issues.join(' ')).toContain('requires Node.js 24.x');
+  });
+
+  it('formats MCP client auto-start setup instructions', () => {
+    const report = formatSetupLocalReport(
+      {
+        packageName: 'easyeda-mcp-pro',
+        packageVersion: '0.3.2',
+        packageRoot: 'C:\\repo',
+        serverEntryPath: 'C:\\repo\\dist\\index.js',
+        extensionPackagePath: 'C:\\repo\\easyeda-bridge-extension.eext',
+        serverEntryExists: true,
+        extensionPackageExists: true,
+      },
+      'C:\\runtime\\node.exe',
+    );
+
+    expect(report).toContain('"command": "C:\\\\runtime\\\\node.exe"');
     expect(report).toContain('"C:\\\\repo\\\\dist\\\\index.js"');
     expect(report).toContain('"command": "npx"');
     expect(report).toContain('easyeda-bridge-extension.eext');
-    expect(report).toContain('Do not run node dist/index.js manually');
+    expect(report).toContain('Rerun setup after replacing or moving this Node runtime');
   });
 
   it('formats doctor output with bridge status', () => {
@@ -114,6 +234,7 @@ describe('local setup CLI helpers', () => {
       bridgeHost: '127.0.0.1',
       bridgePorts: [{ port: 18601, reachable: true }],
       pnpmVersion: '9.0.0',
+      pnpmSupported: false,
       toolCounts: { profile: 'core', enabled: 10, total: 20 },
       vendorsConfigured: { JLCPCB: false, LCSC: true },
       vendorDiagnostics: {
@@ -165,6 +286,7 @@ describe('local setup CLI helpers', () => {
       nodeVersion: '18.19.0',
       nodeSupported: false,
       pnpmVersion: null,
+      pnpmSupported: false,
       envValid: false,
       envIssues: ['BRIDGE_PORT: Expected number, received string'],
       bridgeHost: '127.0.0.1',
@@ -193,8 +315,8 @@ describe('local setup CLI helpers', () => {
     const output = formatDoctorReport(report, { fix: true });
 
     expect(output).toContain('Suggested fixes:');
-    expect(output).toContain('nvm install 24 && nvm use 24');
-    expect(output).toContain('npm install -g pnpm');
+    expect(output).toContain('nvm install 24.18.0 && nvm use 24.18.0');
+    expect(output).toContain('corepack prepare pnpm@11.5.1 --activate');
     expect(output).toContain('Fix: set/correct BRIDGE_PORT: Expected number, received string');
     expect(output).toContain('pnpm build');
     expect(output).toContain('pnpm build:extension');
@@ -218,7 +340,8 @@ describe('local setup CLI helpers', () => {
       },
       nodeVersion: '24.16.0',
       nodeSupported: true,
-      pnpmVersion: '11.0.0',
+      pnpmVersion: '11.5.1',
+      pnpmSupported: true,
       envValid: true,
       envIssues: [],
       bridgeHost: '127.0.0.1',
@@ -251,6 +374,46 @@ describe('local setup CLI helpers', () => {
     const fallbackOutput = formatDoctorReport(fallbackReport, { fix: true });
     expect(fallbackOutput).toContain('reachable on a fallback port (49621)');
     expect(fallbackOutput).toContain('BRIDGE_PORT=49621');
+  });
+
+  it('formats stale user-service runtime diagnostics and recovery', () => {
+    const report: DoctorReport = {
+      setup: {
+        packageName: 'easyeda-mcp-pro',
+        packageVersion: '0.35.1',
+        packageRoot: '/repo',
+        serverEntryPath: '/repo/dist/index.js',
+        extensionPackagePath: '/repo/easyeda-bridge-extension.eext',
+        serverEntryExists: true,
+        extensionPackageExists: true,
+      },
+      nodeVersion: '24.18.0',
+      nodeSupported: true,
+      pnpmVersion: '11.5.1',
+      pnpmSupported: true,
+      envValid: true,
+      envIssues: [],
+      bridgeHost: '127.0.0.1',
+      bridgePorts: [{ port: 49620, reachable: false }],
+      vendorsConfigured: {},
+      userServiceRuntime: {
+        applicable: true,
+        installed: true,
+        unitPath: '/home/test/.config/systemd/user/easyeda-mcp-pro.service',
+        execStart: '/usr/local/bin/node /repo/dist/index.js',
+        nodePath: '/usr/local/bin/node',
+        nodePathExists: false,
+        nodeVersion: null,
+        nodeSupported: false,
+        issues: ['ExecStart Node executable does not exist: /usr/local/bin/node.'],
+      },
+    };
+
+    const output = formatDoctorReport(report, { fix: true });
+    expect(output).toContain('pnpm: OK 11.5.1 (required: 11.5.1)');
+    expect(output).toContain('User service runtime: BROKEN /usr/local/bin/node');
+    expect(output).toContain('systemctl --user disable --now easyeda-mcp-pro.service');
+    expect(output).toContain('Rerun your MCP client setup');
   });
 
   it('prints concise help', () => {

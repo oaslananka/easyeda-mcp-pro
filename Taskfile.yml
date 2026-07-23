@@ -4,31 +4,37 @@ tasks:
   install:
     desc: Install dependencies
     cmds:
+      - node scripts/check-runtime.mjs --require-pnpm
       - pnpm install
 
   lint:
     desc: Run ESLint
     cmds:
+      - node scripts/check-runtime.mjs --require-pnpm
       - pnpm lint
 
   format:
     desc: Check formatting with Prettier
     cmds:
+      - node scripts/check-runtime.mjs --require-pnpm
       - pnpm format:check
 
   typecheck:
     desc: Run TypeScript type checking
     cmds:
+      - node scripts/check-runtime.mjs --require-pnpm
       - pnpm typecheck
 
   test:
     desc: Run tests
     cmds:
+      - node scripts/check-runtime.mjs --require-pnpm
       - pnpm test
 
   build:
     desc: Build the project
     cmds:
+      - node scripts/check-runtime.mjs --require-pnpm
       - pnpm build
 
   verify:

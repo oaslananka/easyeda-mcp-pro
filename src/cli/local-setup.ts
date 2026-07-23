@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { connect as createConnection } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +15,14 @@ import {
   type EnvConfig,
 } from '../config/env.js';
 import { parsePortScanSpec } from '../bridge/manager.js';
+import {
+  evaluateNodeRuntime,
+  evaluatePnpmRuntime,
+  PINNED_NODE_VERSION,
+  PINNED_PNPM_VERSION,
+} from '../runtime/policy.js';
+
+export { evaluateNodeRuntime, evaluatePnpmRuntime } from '../runtime/policy.js';
 
 type CliCommand =
   'server' | 'setup-local' | 'setup' | 'extension' | 'doctor' | 'help' | 'version' | 'init';
@@ -64,11 +73,25 @@ export interface RemoteBackendDoctorStatus {
   warnings: string[];
 }
 
+export interface UserServiceRuntimeStatus {
+  applicable: boolean;
+  installed: boolean;
+  unitPath: string;
+  execStart?: string;
+  nodePath?: string;
+  nodePathExists?: boolean;
+  nodeVersion?: string | null;
+  nodeSupported?: boolean;
+  issues: string[];
+}
+
 export interface DoctorReport {
   setup: LocalSetupInfo;
   nodeVersion: string;
   nodeSupported: boolean;
   pnpmVersion: string | null;
+  pnpmSupported: boolean;
+  userServiceRuntime?: UserServiceRuntimeStatus;
   envValid: boolean;
   envIssues: string[];
   bridgeHost: string;
@@ -230,7 +253,10 @@ function getLocalSetupInfo(packageRoot = resolvePackageRoot()): LocalSetupInfo {
   };
 }
 
-export function formatSetupLocalReport(setup = getLocalSetupInfo()): string {
+export function formatSetupLocalReport(
+  setup = getLocalSetupInfo(),
+  nodeExecutablePath = process.execPath,
+): string {
   return [
     'easyeda-mcp-pro local setup',
     '',
@@ -242,7 +268,7 @@ export function formatSetupLocalReport(setup = getLocalSetupInfo()): string {
     stringifyConfig({
       mcpServers: {
         'easyeda-mcp-pro': {
-          command: 'node',
+          command: nodeExecutablePath,
           args: [setup.serverEntryPath],
         },
       },
@@ -262,11 +288,117 @@ export function formatSetupLocalReport(setup = getLocalSetupInfo()): string {
     '1. Install or reload the EasyEDA extension package above.',
     '2. Add one MCP config block to your MCP client.',
     '3. Open an EasyEDA Pro project, then use MCP Bridge > Connect.',
-    '4. Do not run node dist/index.js manually when your MCP client auto-starts it.',
+    `4. Rerun setup after replacing or moving this Node runtime: ${nodeExecutablePath}`,
   ].join('\n');
 }
 
 const execFileAsync = promisify(execFile);
+
+function parseSystemdExecStart(unitText: string): string | undefined {
+  const line = unitText
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith('ExecStart='));
+  if (!line) return undefined;
+  return line.slice('ExecStart='.length).trim() || undefined;
+}
+
+function firstCommandToken(command: string): string | undefined {
+  if (command.startsWith('"')) {
+    const end = command.indexOf('"', 1);
+    return end > 1 ? command.slice(1, end) : undefined;
+  }
+  return command.match(/^\S+/)?.[0];
+}
+
+export async function inspectUserServiceRuntime(
+  options: {
+    platform?: NodeJS.Platform;
+    unitPath?: string;
+    unitText?: string | null;
+    executableExists?: (path: string) => boolean;
+    readNodeVersion?: (path: string) => Promise<string | null>;
+  } = {},
+): Promise<UserServiceRuntimeStatus> {
+  const platform = options.platform ?? process.platform;
+  const unitPath =
+    options.unitPath ??
+    join(
+      process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'),
+      'systemd',
+      'user',
+      'easyeda-mcp-pro.service',
+    );
+  if (platform !== 'linux') {
+    return { applicable: false, installed: false, unitPath, issues: [] };
+  }
+
+  const installed =
+    options.unitText !== undefined ? options.unitText !== null : existsSync(unitPath);
+  if (!installed) return { applicable: true, installed: false, unitPath, issues: [] };
+
+  const unitText = options.unitText ?? readFileSync(unitPath, 'utf8');
+  const execStart = parseSystemdExecStart(unitText);
+  const issues: string[] = [];
+  if (!execStart) {
+    issues.push('User service has no ExecStart command.');
+    return { applicable: true, installed: true, unitPath, issues };
+  }
+
+  const nodePath = firstCommandToken(execStart);
+  if (!nodePath) {
+    issues.push('User service ExecStart command could not be parsed.');
+    return { applicable: true, installed: true, unitPath, execStart, issues };
+  }
+
+  const executableExists = options.executableExists ?? existsSync;
+  const nodePathExists = executableExists(nodePath);
+  if (!nodePathExists) {
+    issues.push(`ExecStart Node executable does not exist: ${nodePath}.`);
+    if (/^Restart=on-failure$/m.test(unitText)) {
+      issues.push('Restart=on-failure can turn this missing executable into a restart loop.');
+    }
+    return {
+      applicable: true,
+      installed: true,
+      unitPath,
+      execStart,
+      nodePath,
+      nodePathExists,
+      nodeVersion: null,
+      nodeSupported: false,
+      issues,
+    };
+  }
+
+  const readNodeVersion =
+    options.readNodeVersion ??
+    (async (path: string) => {
+      try {
+        const { stdout } = await execFileAsync(path, ['--version']);
+        return stdout.trim().replace(/^v/, '');
+      } catch {
+        return null;
+      }
+    });
+  const nodeVersion = await readNodeVersion(nodePath);
+  const nodeSupported = nodeVersion ? evaluateNodeRuntime(nodeVersion).supported : false;
+  if (!nodeVersion) issues.push(`Unable to read Node.js version from ${nodePath}.`);
+  else if (!nodeSupported)
+    issues.push(`User service requires Node.js 24.x but ${nodePath} reports ${nodeVersion}.`);
+
+  return {
+    applicable: true,
+    installed: true,
+    unitPath,
+    execStart,
+    nodePath,
+    nodePathExists,
+    nodeVersion,
+    nodeSupported,
+    issues,
+  };
+}
 
 export async function createDoctorReport(
   packageRoot = resolvePackageRoot(),
@@ -286,11 +418,17 @@ export async function createDoctorReport(
 
   let pnpmVersion = null;
   try {
-    const { stdout } = await execFileAsync('pnpm', ['--version']);
+    const { stdout } = await execFileAsync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', [
+      '--version',
+    ]);
     pnpmVersion = stdout.trim();
   } catch {
     // Ignore if pnpm is not found
   }
+
+  const nodeEvaluation = evaluateNodeRuntime(process.versions.node);
+  const pnpmEvaluation = evaluatePnpmRuntime(pnpmVersion);
+  const userServiceRuntime = await inspectUserServiceRuntime();
 
   let toolCounts = undefined;
   if (env.config) {
@@ -313,8 +451,10 @@ export async function createDoctorReport(
   return {
     setup,
     nodeVersion: process.versions.node,
-    nodeSupported: isSupportedNodeVersion(process.versions.node),
+    nodeSupported: nodeEvaluation.supported,
     pnpmVersion,
+    pnpmSupported: pnpmEvaluation.supported,
+    userServiceRuntime,
     envValid: env.issues.length === 0,
     envIssues: env.issues,
     bridgeHost,
@@ -332,17 +472,27 @@ function buildSuggestedFixes(report: DoctorReport): string[] {
   const reachable = report.bridgePorts.find((port) => port.reachable);
 
   if (!report.nodeSupported) {
-    const major = Number(report.nodeVersion.split('.')[0]);
     fixes.push(
-      `Node.js ${report.nodeVersion} is not supported (need >=24 <27, found major ${Number.isFinite(major) ? major : '?'}).`,
-      '  Fix: nvm install 24 && nvm use 24   (or upgrade Node.js from https://nodejs.org)',
+      `Node.js ${report.nodeVersion} is not supported (required: 24.x; pinned: ${PINNED_NODE_VERSION}).`,
+      `  Fix: nvm install ${PINNED_NODE_VERSION} && nvm use ${PINNED_NODE_VERSION}   (or install the pinned Node.js runtime from https://nodejs.org)`,
     );
   }
 
-  if (!report.pnpmVersion) {
+  if (!report.pnpmSupported) {
     fixes.push(
-      'pnpm was not found on PATH.',
-      '  Fix: npm install -g pnpm   (only needed for local development, not for npx usage)',
+      report.pnpmVersion
+        ? `pnpm ${report.pnpmVersion} is not supported (required: ${PINNED_PNPM_VERSION}).`
+        : 'pnpm was not found on PATH.',
+      '  Fix: corepack enable',
+      `  Fix: corepack prepare pnpm@${PINNED_PNPM_VERSION} --activate`,
+    );
+  }
+
+  if (report.userServiceRuntime?.installed && report.userServiceRuntime.issues.length > 0) {
+    fixes.push(
+      ...report.userServiceRuntime.issues,
+      '  Fix: systemctl --user disable --now easyeda-mcp-pro.service',
+      '  Fix: Rerun your MCP client setup under the supported Node.js runtime; do not preserve a stale absolute ExecStart path.',
     );
   }
 
@@ -435,11 +585,17 @@ export function formatDoctorReport(report: DoctorReport, options?: { fix?: boole
   const lines = [
     'easyeda-mcp-pro doctor',
     '',
-    `Node.js: ${status(report.nodeSupported)} ${report.nodeVersion} (supported: >=24 <27)`,
-    `pnpm: ${report.pnpmVersion ? 'OK ' + report.pnpmVersion : 'MISSING'}`,
+    `Node.js: ${report.nodeSupported ? 'OK' : 'UNSUPPORTED'} ${report.nodeVersion} (required: 24.x; pinned: ${PINNED_NODE_VERSION})`,
+    `pnpm: ${report.pnpmVersion ? (report.pnpmSupported ? 'OK' : 'UNSUPPORTED') + ' ' + report.pnpmVersion : 'MISSING'} (required: ${PINNED_PNPM_VERSION})`,
     `Environment: ${status(report.envValid)}${report.envIssues.length ? ` ${report.envIssues.join('; ')}` : ''}`,
     `MCP server entry: ${status(report.setup.serverEntryExists)} ${report.setup.serverEntryPath}`,
     `EasyEDA extension package: ${status(report.setup.extensionPackageExists)} ${report.setup.extensionPackagePath}`,
+    ...(report.userServiceRuntime?.installed
+      ? [
+          `User service runtime: ${report.userServiceRuntime.issues.length === 0 ? 'OK' : 'BROKEN'} ${report.userServiceRuntime.nodePath ?? report.userServiceRuntime.execStart ?? report.userServiceRuntime.unitPath}`,
+          ...report.userServiceRuntime.issues.map((issue) => `User service warning: ${issue}`),
+        ]
+      : []),
     `Bridge server: ${reachable ? 'OK' : 'INFO'} ${bridgeStatus}`,
     `Remote backend: ${remoteBackendStr}`,
     ...(report.remoteBackend?.warnings.length
@@ -537,11 +693,6 @@ function readPackageInfo(packageRoot: string): PackageInfo {
     name: parsed.name ?? 'easyeda-mcp-pro',
     version: parsed.version ?? '0.0.0',
   };
-}
-
-function isSupportedNodeVersion(version: string): boolean {
-  const major = Number(version.split('.')[0]);
-  return Number.isInteger(major) && major >= 24 && major < 27;
 }
 
 function status(ok: boolean): string {

@@ -8,12 +8,22 @@ Version ranges in this overview are support-policy targets, not exact live-valid
 
 ## 1. Runtime & Environment
 
-| Environment | Supported Versions | Tested Status | Notes                                             |
-| :---------- | :----------------- | :------------ | :------------------------------------------------ |
-| **Node.js** | `>= 24 < 27`       | **Verified**  | Uses native ESModules features and `node:sqlite`. |
-| **pnpm**    | `>= 11`            | **Verified**  | Standard package manager for workspace builds.    |
-| **npm**     | `*`                | **Verified**  | Supported via `npx` execution.                    |
-| **Docker**  | `v20.x` or newer   | **Verified**  | Fully containerized execution using alpine/node.  |
+| Environment | Supported Versions        | Tested Status | Notes                                                          |
+| :---------- | :------------------------ | :------------ | :------------------------------------------------------------- |
+| **Node.js** | `24.x` (pinned `24.18.0`) | **Enforced**  | Startup and automation preflights reject other major versions. |
+| **pnpm**    | `11.5.1`                  | **Enforced**  | Exact package manager used by repository automation.           |
+| **npm**     | `*`                       | **Verified**  | Supported via `npx` execution.                                 |
+| **Docker**  | `v20.x` or newer          | **Verified**  | Fully containerized execution using alpine/node.               |
+
+Restore the repository toolchain with:
+
+```bash
+nvm install 24.18.0
+nvm use 24.18.0
+corepack enable
+corepack prepare pnpm@11.5.1 --activate
+node scripts/check-runtime.mjs --require-pnpm
+```
 
 ---
 

@@ -77,6 +77,14 @@ interface GatewayHarness {
 
 const harnesses: GatewayHarness[] = [];
 
+async function waitForCondition(check: () => boolean, timeoutMs = 1_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!check()) {
+    if (Date.now() >= deadline) throw new Error('Timed out waiting for relay state.');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 async function createHarness(): Promise<GatewayHarness> {
   let counter = 0;
   const gateway = new RemoteGateway({ makeId: () => `id-${++counter}` });
@@ -290,7 +298,9 @@ describe('RemoteGateway WebSocket relay', () => {
         result: 'approved',
       }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitForCondition(
+      () => harness.gateway.approvals.get(first.approvalId)?.decision === 'approved',
+    );
 
     const routed = harness.gateway.routeToolRequest({
       identity: writeIdentity,
