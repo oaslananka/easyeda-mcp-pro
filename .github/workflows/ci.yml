@@ -16,6 +16,8 @@ env:
 
 jobs:
   quality:
+    # Keep this context stable because main branch protection requires `quality (24)`.
+    name: quality (24)
     if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     runs-on: ubuntu-latest
     strategy:
@@ -146,9 +148,9 @@ jobs:
           docker exec "$cid" node -e "const r = await fetch('http://127.0.0.1:3000/healthz'); if (!r.ok) process.exit(1); console.log(await r.text());"
 
   test-matrix:
-    # Lean build + unit-test coverage across the supported Node range and
-    # across platforms. The heavy `quality` job (docker smoke, docs, coverage)
-    # stays on ubuntu + Node 24; this job adds Node 26 and Windows/macOS so
+    # Lean build + unit-test coverage across the supported platforms.
+    # The heavy `quality` job (docker smoke, docs, coverage) stays on Ubuntu;
+    # this job runs the pinned Node runtime on Linux, Windows, and macOS so
     # path-separator and file-handling regressions in the CLI/extension
     # packaging get caught without duplicating the whole quality pipeline.
     if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'

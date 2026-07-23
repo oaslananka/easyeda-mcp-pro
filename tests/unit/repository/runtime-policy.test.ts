@@ -117,7 +117,9 @@ describe('repository runtime policy', () => {
 
     expect(workflows.match(/24\.18\.0/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
     expect(workflows).not.toMatch(/node-version:\s*['"]?(?:24|26)['"]?\s*$/m);
-    expect(read('.github/workflows/ci.yml')).toContain("node-version: ['24.18.0']");
+    const ciWorkflow = read('.github/workflows/ci.yml');
+    expect(ciWorkflow).toContain('name: quality (24)');
+    expect(ciWorkflow).toContain("node-version: ['24.18.0']");
     expect(read('.github/workflows/ci.yml')).toContain("node-version: '24.18.0'");
     expect(read('.github/workflows/ci.yml')).not.toContain("node-version: '26'");
     expect(workflows.match(/run: pnpm runtime:check/g)?.length ?? 0).toBeGreaterThanOrEqual(7);
