@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -17,14 +17,14 @@ const rules = [
     ruleId: 'credential-bearing-uri',
     description: 'Connection URI containing embedded credentials',
     regex:
-      /\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis(?:s)?)\:\/\/[^\s/:@]+:[^\s/@]+@[^\s]+/gi,
+      /\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis(?:s)?):\/\/[^\s/:@]+:[^\s/@]+@[^\s]+/gi,
   },
 ];
 
 function lineForOffset(text, offset) {
   let line = 1;
   for (let index = 0; index < offset; index += 1) {
-    if (text.charCodeAt(index) === 10) line += 1;
+    if (text.codePointAt(index) === 10) line += 1;
   }
   return line;
 }
@@ -47,8 +47,22 @@ export function scanText(text, source = '<memory>') {
   return findings;
 }
 
+export function resolveGitExecutable(platform = process.platform) {
+  const candidates =
+    platform === 'win32'
+      ? ['C:\\Program Files\\Git\\cmd\\git.exe', 'C:\\Program Files\\Git\\bin\\git.exe']
+      : platform === 'darwin'
+        ? ['/usr/bin/git', '/opt/homebrew/bin/git', '/usr/local/bin/git']
+        : ['/usr/bin/git', '/usr/local/bin/git', '/bin/git'];
+  const executable = candidates.find((candidate) => isAbsolute(candidate) && existsSync(candidate));
+  if (!executable) {
+    throw new Error(`Git executable was not found in the fixed allowlist for ${platform}.`);
+  }
+  return executable;
+}
+
 function listTrackedFiles(repoRoot) {
-  const output = execFileSync('git', ['ls-files', '-z'], {
+  const output = execFileSync(resolveGitExecutable(), ['ls-files', '-z'], {
     cwd: repoRoot,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -90,7 +104,7 @@ function collectFiles(repoRoot) {
     walkFiles(resolve(repoRoot, candidate), files);
   }
 
-  return [...files].sort();
+  return [...files].sort((left, right) => left.localeCompare(right));
 }
 
 export function scanRepository(repoRoot = defaultRepoRoot) {

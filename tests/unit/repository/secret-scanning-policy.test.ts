@@ -119,6 +119,18 @@ describe('secret scanning and credential response policy', () => {
     expect(scanText('postgresql://database.invalid/app', 'safe.txt')).toEqual([]);
   });
 
+  it('uses a fixed Git executable allowlist and deterministic file ordering', () => {
+    const scanner = readText('scripts/check-secret-hygiene.mjs');
+
+    expect(scanner).not.toContain("execFileSync('git'");
+    expect(scanner).toContain("'/usr/bin/git'");
+    expect(scanner).toContain('Program Files');
+    expect(scanner).toContain('git.exe');
+    expect(scanner).toContain('.sort((left, right) => left.localeCompare(right))');
+    expect(scanner).toContain('text.codePointAt(index)');
+    expect(scanner).not.toContain('text.charCodeAt(index)');
+  });
+
   it('runs the deterministic hygiene scanner after generated builds', () => {
     const packageJson = JSON.parse(readText('package.json')) as {
       scripts?: Record<string, string>;
