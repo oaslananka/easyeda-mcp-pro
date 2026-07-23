@@ -268,6 +268,57 @@ describe('schematic component inspection operations', () => {
     });
   });
 
+  it('keeps sparse and malformed native metadata within scalar compatibility fallbacks', async () => {
+    const part = (state: Record<string, unknown>) =>
+      makeStateful({ ComponentType: 'part', ...state });
+    const footprintGet = vi.fn(async () => 'not-a-record');
+    const { operations } = makeOperations({
+      SCH_PrimitiveComponent: {
+        getAll: async () => [
+          part({
+            PrimitiveId: 'device-only',
+            Component: { name: 'DEVICE' },
+            Name: '={Unknown}',
+            ManufacturerId: '',
+            OtherProperty: {},
+          }),
+          part({
+            PrimitiveId: 'expression-only',
+            Component: {},
+            Name: '={Unknown}',
+            ManufacturerId: '',
+            OtherProperty: {},
+          }),
+          part({
+            PrimitiveId: 'empty',
+            Component: {},
+            Name: '',
+            ManufacturerId: '',
+          }),
+          part({
+            PrimitiveId: 'malformed-footprint',
+            Component: { name: 'F' },
+            Name: 'F',
+            Footprint: { uuid: 'fp', libraryUuid: 'lib' },
+            OtherProperty: { 'Supplier Footprint': 'SOIC-8' },
+          }),
+        ],
+      },
+      LIB_Footprint: { get: footprintGet },
+    });
+
+    await expect(operations.listComponents()).resolves.toMatchObject({
+      total: 4,
+      items: [
+        { primitiveId: 'device-only', value: 'DEVICE' },
+        { primitiveId: 'expression-only', value: '={Unknown}' },
+        { primitiveId: 'empty', value: '', footprint: '' },
+        { primitiveId: 'malformed-footprint', footprint: 'SOIC-8' },
+      ],
+    });
+    expect(footprintGet).toHaveBeenCalledWith('fp', 'lib');
+  });
+
   it('normalizes a null native collection to an empty result', async () => {
     const { operations } = makeOperations({
       SCH_PrimitiveComponent: { getAll: async () => null },
