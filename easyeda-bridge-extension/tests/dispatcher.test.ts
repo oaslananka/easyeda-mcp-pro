@@ -1749,6 +1749,42 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('routes BOM generation and validation through schematic component inspection', async () => {
+    const makeBomPart = (primitiveId: string, reference: string) => ({
+      getState_PrimitiveId: () => primitiveId,
+      getState_ComponentType: () => 'part',
+      getState_Component: () => ({ uuid: `${primitiveId}-dev`, libraryUuid: 'lib', name: 'RES' }),
+      getState_Designator: () => reference,
+      getState_Name: () => '1k',
+      getState_Footprint: () => ({ name: 'R0805' }),
+      getState_SupplierId: () => 'C17513',
+      getState_Manufacturer: () => 'Example',
+      getState_ManufacturerId: () => 'RES-1K',
+      getState_OtherProperty: () => ({}),
+    });
+    const getAll = vi.fn(async () => [makeBomPart('r1', 'R1'), makeBomPart('r2', 'R2')]);
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveComponent: { getAll } }));
+
+    await expect(dispatcher.dispatch('bom.generate', { groupBy: 'value' })).resolves.toEqual([
+      {
+        reference: 'R1, R2',
+        value: '1k',
+        footprint: 'R0805',
+        lcsc: 'C17513',
+        quantity: 2,
+        manufacturer: 'Example',
+      },
+    ]);
+    await expect(dispatcher.dispatch('bom.validate', {})).resolves.toEqual({
+      totalParts: 2,
+      missing: [],
+      obsolete: [],
+      alternates: [],
+    });
+    expect(getAll).toHaveBeenNthCalledWith(1, undefined, true);
+    expect(getAll).toHaveBeenNthCalledWith(2, undefined, true);
+  });
+
   // PCB readback: field names below are the getState_* getters observed live
   // on real primitives created via the fixed pcb.addVia/pcb.addTrack and a
   // manually-placed footprint (2026-07-07), not guessed.
