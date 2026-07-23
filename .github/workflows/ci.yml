@@ -57,7 +57,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: node scripts/install-codecov-cli.mjs --output "${RUNNER_TEMP}/codecov-cli/codecovcli"
       - name: Upload server coverage to Codecov (trusted)
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -69,7 +69,7 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload server coverage to Codecov (tokenless fork)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.actor == 'dependabot[bot]') }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -80,7 +80,7 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (trusted)
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -92,7 +92,7 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (tokenless fork)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.actor == 'dependabot[bot]') }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -103,7 +103,7 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload server test results to Codecov
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -115,7 +115,7 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload extension test results to Codecov
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -132,7 +132,7 @@ jobs:
       - run: pnpm check:extension-size
       - name: Upload extension bundle analysis to Codecov (informational)
         continue-on-error: true
-        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: pnpm analyze:extension-bundle:ci

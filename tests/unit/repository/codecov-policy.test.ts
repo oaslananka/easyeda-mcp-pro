@@ -82,7 +82,8 @@ describe('Codecov analytics policy', () => {
       'github.event.pull_request.head.repo.full_name == github.repository',
     );
     expect(workflow).not.toContain('@codecov/vite-plugin');
-    expect(workflow).toContain("github.actor != 'dependabot[bot]'");
+    expect(workflow).toContain("github.event.pull_request.user.login != 'dependabot[bot]'");
+    expect(workflow).not.toContain("github.actor == 'dependabot[bot]'");
     expect(workflow).toContain('fetch-depth: 0');
     expect(workflow).toContain('run: pnpm validate:codecov');
     expect(workflow).toContain(

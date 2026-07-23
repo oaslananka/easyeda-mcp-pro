@@ -97,7 +97,8 @@ describe('changed-code quality gate policy', () => {
     expect(workflow).toContain(
       'github.event.pull_request.head.repo.full_name != github.repository',
     );
-    expect(workflow).toContain("github.actor == 'dependabot[bot]'");
+    expect(workflow).toContain("github.event.pull_request.user.login == 'dependabot[bot]'");
+    expect(workflow).not.toContain("github.actor == 'dependabot[bot]'");
     expect(workflow.match(/token: \$\{\{ secrets\.CODECOV_TOKEN \}\}/g)).toHaveLength(4);
 
     const tokenlessServer = workflow.slice(
