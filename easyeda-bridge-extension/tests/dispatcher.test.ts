@@ -2571,6 +2571,19 @@ describe('createDispatcher', () => {
       expect(getAllPinsByPrimitiveId).not.toHaveBeenCalled();
       expect(wireModify).not.toHaveBeenCalled();
     });
+
+    it('uses an empty property object when compatibility callers omit property', async () => {
+      const modify = vi.fn(async () => true);
+      const get = vi.fn(async () => fakeComponent({ Designator: 'C1' }));
+      const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveComponent: { get, modify } }));
+
+      await dispatcher.dispatch('schematic.modifyPrimitive', { primitiveId: 'comp1' });
+
+      expect(modify).toHaveBeenCalledWith(
+        'comp1',
+        expect.objectContaining({ x: 100, y: 100, designator: 'C1' }),
+      );
+    });
   });
 
   describe('schematic.modifyPrimitive on text primitives', () => {
