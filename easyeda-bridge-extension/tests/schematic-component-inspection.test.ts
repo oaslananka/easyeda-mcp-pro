@@ -326,5 +326,4 @@ describe('schematic component inspection operations', () => {
 
     await expect(operations.listComponents()).resolves.toEqual({ total: 0, items: [] });
   });
-
 });
