@@ -74,7 +74,9 @@ function validateSource(source) {
 }
 
 function escapeCell(value) {
-  return String(value).replaceAll('|', '\\|').replaceAll('\n', ' ');
+  return String(value)
+    .replaceAll('|', String.raw`\|`)
+    .replaceAll('\n', ' ');
 }
 
 function evidenceLabel(url) {
@@ -233,8 +235,10 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().catch((error) => {
+  try {
+    await main();
+  } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
-  });
+  }
 }
