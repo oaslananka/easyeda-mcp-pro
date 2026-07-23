@@ -1,6 +1,6 @@
 # Supply Chain Verification
 
-This project publishes npm packages, GitHub Release assets, SBOMs, build provenance attestations, and GHCR images through GitHub Actions.
+This project publishes npm packages, GitHub Release assets, SBOMs, build provenance attestations, and GHCR images through GitHub Actions. Channel selection and promotion rules are defined by the [Release Policy](RELEASE_POLICY.md).
 
 ## Release assets
 
@@ -12,19 +12,21 @@ Each public release should contain:
 ## npm package verification
 
 ```bash
-npm view easyeda-mcp-pro version dist-tags.latest time.modified --json
-npm view easyeda-mcp-pro dist.integrity dist.tarball --json
+npm view easyeda-mcp-pro version dist-tags time.modified --json
+npm view easyeda-mcp-pro@latest dist.integrity dist.tarball --json
+npm view easyeda-mcp-pro@next dist.integrity dist.tarball --json
 ```
 
-The `latest` dist-tag must match the GitHub Release version before users are asked to upgrade.
+For stable releases, npm `latest` must match the non-prerelease GitHub Release. For numbered release candidates, npm `next` must match the GitHub prerelease while `latest` remains unchanged.
 
 ## GitHub Release verification
 
 ```bash
 gh release view easyeda-mcp-pro-vX.Y.Z --json tagName,isDraft,isPrerelease,assets
+gh release view easyeda-mcp-pro-vX.Y.Z-rc.N --json tagName,isDraft,isPrerelease,assets
 ```
 
-The release must not be draft or prerelease for stable instructions. The extension asset must be present and non-empty.
+A stable release must be non-draft and non-prerelease. A numbered candidate must be non-draft and marked prerelease. Both channels require a non-empty extension asset and `sbom.json`.
 
 ## Extension package verification
 
@@ -39,7 +41,11 @@ The verifier checks required package files, manifest metadata, logo dimensions, 
 
 ## Container verification
 
-The GHCR package should publish the exact version tag, the minor version tag, and `latest` after the Docker job completes.
+Stable GHCR publication must provide the exact version, `X.Y`, and `latest` tags. A prerelease must provide only its exact `X.Y.Z-rc.N` tag and the moving `next` tag; it must not move `latest` or the stable minor tag.
+
+## MCP Registry verification
+
+The MCP Registry is a stable-only publication target. Confirm that a stable release is present after successful publication and that a prerelease did not update the registry entry.
 
 ## Maintainer rule
 

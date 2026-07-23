@@ -111,13 +111,12 @@ We use [Conventional Commits](https://www.conventionalcommits.org/) to track cha
 
 ## 5. Release Please Lifecycle
 
-1. When conventional commits are merged into `main`, Release Please will create/update a **Release PR** that increments version numbers and appends to `CHANGELOG.md`.
-2. Do **not** manually edit the Release PR contents or tag the release yourself.
-3. Once the Release PR is merged into `main`, GitHub Actions automatically:
-   - Tags the commit and creates a GitHub Release.
-   - Re-verifies all quality gates.
-   - Publishes to npm with cryptographic provenance.
-   - Uploads the compiled `easyeda-bridge-extension.eext` package to the GitHub Release.
+The authoritative channel, soak, live-validation, emergency, and rollback requirements are in the [Release Policy](docs/RELEASE_POLICY.md).
+
+1. Conventional commits merged into `main` create or update a stable **Release PR** through Release Please.
+2. Do not manually edit or tag the normal stable release. Merge only after the documented evidence and soak requirements are complete.
+3. Numbered `X.Y.Z-rc.N` candidates use the reviewed manual prerelease procedure; they publish to npm/GHCR `next` and never move stable tags.
+4. Every release workflow re-verifies quality/security gates, builds and verifies the EasyEDA extension, creates SBOM/provenance evidence, and publishes only to the selected channel.
 
 ---
 

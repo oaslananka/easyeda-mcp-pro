@@ -2,14 +2,13 @@
 
 This document explains how `easyeda-mcp-pro` releases are produced and how users can verify release integrity.
 
+Channel selection, soak periods, live-validation requirements, and rollback ownership are defined by the authoritative [Release Policy](RELEASE_POLICY.md).
+
 ## Release channels
 
-The project publishes release artifacts through:
+Stable releases use `easyeda-mcp-pro-vX.Y.Z`, a non-prerelease GitHub Release, npm `latest`, stable GHCR moving tags, and the MCP Registry. Numbered candidates use `easyeda-mcp-pro-vX.Y.Z-rc.N`, a GitHub prerelease, npm `next`, and GHCR `next`; they do not publish to the MCP Registry or move stable tags.
 
-- npm package: `easyeda-mcp-pro`
-- GitHub Releases
-- Git tags created by the release workflow
-- bundled EasyEDA bridge extension artifact attached to GitHub Releases
+Both channels publish the npm package, GitHub Release assets, SBOM, provenance/attestation evidence, and bundled EasyEDA bridge extension.
 
 ## Automated release process
 
@@ -81,6 +80,7 @@ For npm provenance, inspect the package page or package metadata for provenance 
 
 ```bash
 npm view easyeda-mcp-pro@latest version dist.integrity
+npm view easyeda-mcp-pro dist-tags --json
 ```
 
 For GitHub artifact attestations, download the released artifact and verify it against this repository:
@@ -91,10 +91,11 @@ gh attestation verify easyeda-bridge-extension.eext --repo oaslananka/easyeda-mc
 
 ## Signed tag policy
 
-Release tags are created by Release Please. GPG-signed release tags are not the primary signing mechanism; provenance and artifact attestations are. If the project later adds manual or automated GPG-signed tags, document the public key and verification process in this file.
+Stable release tags are created by Release Please. Numbered prerelease tags are annotated tags created by the release manager for the exact reviewed candidate commit. GPG-signed tags are not the primary signing mechanism; npm provenance and GitHub artifact attestations are. If the project later adds GPG-signed tags, document the public key and verification process in this file.
 
 ## Related files
 
+- [Release Policy](RELEASE_POLICY.md)
 - [`docs/RELEASE_PROCESS.md`](./RELEASE_PROCESS.md)
 - [`CHANGELOG.md`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CHANGELOG.md)
 - [GitHub Releases](https://github.com/oaslananka/easyeda-mcp-pro/releases)
