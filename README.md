@@ -895,7 +895,7 @@ See [Security Architecture & Threat Model](docs/security-architecture.md) for th
 - **Rate limiting**: Per-IP sliding window rate limiter on HTTP transport (default 100 req/min)
 - **Path traversal protection**: All file export paths validated against `ARTIFACT_DIR`
 - **Secret redaction**: API keys, tokens, passwords are redacted from logs and diagnostic output
-- **Branch protection**: Governance policy requires code reviews and status checks on the `main` branch (see [Repository Governance](docs/REPOSITORY_GOVERNANCE.md))
+- **Branch protection**: `main` requires protected pull requests, strict status checks, administrator enforcement, and conversation resolution. The current solo-maintainer review mode and two-maintainer independent-review activation rule are documented in [Repository Governance](docs/REPOSITORY_GOVERNANCE.md).
 - **Code scanning**: CodeQL analysis runs on every push and PR (security-extended + security-and-quality queries)
 - **Dependency management**: Renovate automatically updates dependencies with security patches
 - **Supply-chain hygiene**: pnpm workspace build, pinned GitHub Actions, and no native SQLite addon dependency

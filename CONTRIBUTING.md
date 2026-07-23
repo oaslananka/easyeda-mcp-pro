@@ -2,6 +2,8 @@
 
 Welcome! We appreciate your contributions to `easyeda-mcp-pro`. Please review these guidelines to ensure a smooth contribution process.
 
+Critical-path ownership, review modes, bot/agent disposition, and emergency exceptions are defined in [Repository Governance](docs/REPOSITORY_GOVERNANCE.md).
+
 ---
 
 ## 1. Local Development Setup
@@ -193,4 +195,4 @@ A pull request should include:
 - tests for new functionality or security-sensitive changes,
 - documentation updates when behavior, configuration, or public workflows change.
 
-For solo-maintainer operation, the maintainer may merge a pull request after required CI checks pass. For high-risk security, release, or credential changes, the maintainer should seek external review where practical before release.
+For solo-maintainer operation, the maintainer may merge after the protected checks pass, conversations are resolved, and every bot/agent/check annotation is fixed or explicitly dispositioned. Critical-path changes follow the additional ownership, current solo-mode self-review, two-maintainer activation, and emergency rules in [Repository Governance](docs/REPOSITORY_GOVERNANCE.md).

@@ -15,6 +15,8 @@ Please report vulnerabilities privately via [GitHub Security Advisories](https:/
 
 **Do not disclose security-relevant issues publicly.** We aim to acknowledge reports within 48 hours and release a fix within 7 days of triage confirmation.
 
+Critical-path ownership, protected review, emergency exceptions, and the embargo-safe public follow-up requirement are defined in [Repository Governance](docs/REPOSITORY_GOVERNANCE.md).
+
 ## Scope
 
 - Credential leakage via env/config exposure

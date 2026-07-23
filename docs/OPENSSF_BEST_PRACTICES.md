@@ -77,7 +77,7 @@ This file is a copy-ready evidence map for OpenSSF Best Practices self-certifica
 | `crypto_credential_agility`       | Met                                         | Credentials are supplied through environment variables/secrets, not compiled into code.                                                                           |
 | `signed_releases`                 | Not yet fully met                           | <https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/RELEASE_VERIFICATION.md#signed-release-status>                                                      |
 | `version_tags_signed`             | Suggested, not yet fully met                | <https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/RELEASE_VERIFICATION.md#planned-signed-tag-policy>                                                  |
-| `hardening`                       | Met                                         | Security headers, OAuth, branch protection, secret scanning, and safe defaults.                                                                                   |
+| `hardening`                       | Met                                         | Security headers, OAuth, protected PRs, [critical-path governance](./REPOSITORY_GOVERNANCE.md), secret scanning, and safe defaults.                               |
 | `assurance_case`                  | Met                                         | <https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/SECURITY_ASSURANCE_CASE.md>                                                                         |
 
 ## BadgeApp helper

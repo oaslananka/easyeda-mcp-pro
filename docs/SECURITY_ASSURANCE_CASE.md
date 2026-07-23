@@ -41,14 +41,14 @@ The main threats are documented in `docs/security-architecture.md` and include:
 
 ## Trust boundaries
 
-| Boundary                      | Trust transition                                     | Control                                                                               |
-| ----------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| MCP client to server          | user/AI request enters server process                | schema validation, tool profile filtering, scope checks                               |
-| Server to EasyEDA bridge      | MCP tool requests become bridge protocol messages    | bridge pairing, write confirmation, documented API allowlists                         |
-| Server to filesystem          | generated BOM/export/log/cache artifacts are written | path constraints, controlled data directory, explicit export tools                    |
-| Server to supplier APIs       | local BOM data becomes vendor lookup requests        | opt-in credentials, redacted logs, no automatic paid ordering by default              |
-| HTTP clients to MCP server    | network traffic enters remote transport              | loopback default, OAuth/JWKS support, allowed origins, rate limits                    |
-| Maintainer to release channel | source changes become npm/GitHub release artifacts   | branch protection, CI quality checks, CodeQL, dependency monitoring, release workflow |
+| Boundary                      | Trust transition                                     | Control                                                                                                  |
+| ----------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| MCP client to server          | user/AI request enters server process                | schema validation, tool profile filtering, scope checks                                                  |
+| Server to EasyEDA bridge      | MCP tool requests become bridge protocol messages    | bridge pairing, write confirmation, documented API allowlists                                            |
+| Server to filesystem          | generated BOM/export/log/cache artifacts are written | path constraints, controlled data directory, explicit export tools                                       |
+| Server to supplier APIs       | local BOM data becomes vendor lookup requests        | opt-in credentials, redacted logs, no automatic paid ordering by default                                 |
+| HTTP clients to MCP server    | network traffic enters remote transport              | loopback default, OAuth/JWKS support, allowed origins, rate limits                                       |
+| Maintainer to release channel | source changes become npm/GitHub release artifacts   | CODEOWNERS routing, protected PRs, current-head review disposition, CI/security checks, release workflow |
 
 ## Secure design principles applied
 
@@ -74,17 +74,18 @@ The main threats are documented in `docs/security-architecture.md` and include:
 | Vulnerable dependencies              | Dependabot alerts, Renovate, Socket, `pnpm audit`, CodeQL, lockfile review.                                                                                                                                                                                                                                                                              |
 | Insecure default configuration       | non-loopback HTTP without complete OAuth and an explicit non-wildcard origin allowlist is rejected in every environment; production adds further dangerous-feature checks.                                                                                                                                                                               |
 | Insufficient tests                   | CI runs typecheck, lint, tests, coverage, evals, docs, metadata, and extension verification.                                                                                                                                                                                                                                                             |
-| Unreviewed releases                  | Release Please, protected `main`, required checks, npm provenance, and release workflow gates.                                                                                                                                                                                                                                                           |
+| Unreviewed releases                  | Release Please, protected `main`, critical-path ownership, bot/agent disposition, required checks, npm provenance, and release workflow gates.                                                                                                                                                                                                           |
 
 ## Evidence
 
 - Security architecture: [`docs/security-architecture.md`](./security-architecture.md)
 - Safety model: [`docs/SAFETY_MODEL.md`](./SAFETY_MODEL.md)
 - Vendor terms: [`docs/vendor-terms.md`](./vendor-terms.md)
+- Repository governance: [`docs/REPOSITORY_GOVERNANCE.md`](./REPOSITORY_GOVERNANCE.md)
 - Release verification: [`docs/RELEASE_VERIFICATION.md`](./RELEASE_VERIFICATION.md)
 - Supply chain verification: [`docs/supply-chain-verification.md`](./supply-chain-verification.md)
 - CI workflow: [`.github/workflows/ci.yml`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/.github/workflows/ci.yml)
-- Dependency automation: [`.github/dependabot.yml`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/.github/dependabot.yml), [`.github/renovate.json`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/.github/renovate.json)
+- Dependency automation: [`.github/renovate.json`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/.github/renovate.json); GitHub Dependabot alerts/security updates remain platform-level detection controls.
 
 ## Residual risks
 
