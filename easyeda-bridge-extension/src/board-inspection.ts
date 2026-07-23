@@ -31,6 +31,103 @@ function isActivePcbLayerName(name: string, copperLayerCount: number): boolean {
   return true;
 }
 
+async function readCopperLayerCount(pcbLayerClass: any): Promise<number> {
+  if (typeof pcbLayerClass?.getTheNumberOfCopperLayers !== 'function') return 0;
+  try {
+    const value = Number(await pcbLayerClass.getTheNumberOfCopperLayers());
+    return Number.isInteger(value) && value >= 2 ? value : 0;
+  } catch (error) {
+    logRecoverableError('failed to read copper layer count', error);
+    return 0;
+  }
+}
+
+function selectPhysicalStackupLayers(physicalStacking: any): any[] {
+  if (Array.isArray(physicalStacking?.layers)) return physicalStacking.layers;
+  if (Array.isArray(physicalStacking?.stackup)) return physicalStacking.stackup;
+  return [];
+}
+
+function readBoardThickness(physicalStacking: any): number | undefined {
+  if (typeof physicalStacking?.thicknessMm === 'number') return physicalStacking.thicknessMm;
+  if (typeof physicalStacking?.thickness === 'number') return physicalStacking.thickness;
+  return undefined;
+}
+
+interface BoundingBox {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+function createEmptyBoundingBox(): BoundingBox {
+  return {
+    minX: Infinity,
+    maxX: -Infinity,
+    minY: Infinity,
+    maxY: -Infinity,
+  };
+}
+
+function updateBoundingBox(bounds: BoundingBox, x: number, y: number): void {
+  if (x < bounds.minX) bounds.minX = x;
+  if (x > bounds.maxX) bounds.maxX = x;
+  if (y < bounds.minY) bounds.minY = y;
+  if (y > bounds.maxY) bounds.maxY = y;
+}
+
+async function addOutlineLineBounds(pcbLineClass: any, bounds: BoundingBox): Promise<void> {
+  if (!pcbLineClass || typeof pcbLineClass.getAll !== 'function') return;
+  try {
+    const lines = await pcbLineClass.getAll();
+    for (const line of lines || []) {
+      if (typeof line.getState_Layer !== 'function' || line.getState_Layer() !== 11) continue;
+      const points = typeof line.getState_Points === 'function' ? line.getState_Points() : [];
+      for (const point of points || []) {
+        updateBoundingBox(bounds, point.x, point.y);
+      }
+    }
+  } catch (error) {
+    logRecoverableError('failed to read board outline lines', error);
+  }
+}
+
+async function addOutlineArcBounds(pcbArcClass: any, bounds: BoundingBox): Promise<void> {
+  if (!pcbArcClass || typeof pcbArcClass.getAll !== 'function') return;
+  try {
+    const arcs = await pcbArcClass.getAll();
+    for (const arc of arcs || []) {
+      if (typeof arc.getState_Layer !== 'function' || arc.getState_Layer() !== 11) continue;
+      const startX = typeof arc.getState_StartX === 'function' ? arc.getState_StartX() : 0;
+      const startY = typeof arc.getState_StartY === 'function' ? arc.getState_StartY() : 0;
+      const endX = typeof arc.getState_EndX === 'function' ? arc.getState_EndX() : 0;
+      const endY = typeof arc.getState_EndY === 'function' ? arc.getState_EndY() : 0;
+      updateBoundingBox(bounds, startX, startY);
+      updateBoundingBox(bounds, endX, endY);
+    }
+  } catch (error) {
+    logRecoverableError('failed to read board outline arcs', error);
+  }
+}
+
+async function countMountingHoles(pcbPadClass: any): Promise<number> {
+  if (!pcbPadClass || typeof pcbPadClass.getAll !== 'function') return 0;
+  try {
+    let mountingHoles = 0;
+    const pads = await pcbPadClass.getAll();
+    for (const pad of pads || []) {
+      const holeType = typeof pad.getState_HoleType === 'function' ? pad.getState_HoleType() : '';
+      const holeSize = typeof pad.getState_HoleSize === 'function' ? pad.getState_HoleSize() : 0;
+      if (holeType === 'MountingHole' || holeSize > 2) mountingHoles++;
+    }
+    return mountingHoles;
+  } catch (error) {
+    logRecoverableError('failed to read mounting-hole pads', error);
+    return 0;
+  }
+}
+
 export function createBoardInspectionOperations({
   readFirstPath,
   getGlobal,
@@ -61,17 +158,6 @@ export function createBoardInspectionOperations({
         'No active PCB document is focused.',
         'Open and focus a PCB document, then retry.',
       );
-    }
-  }
-
-  async function readCopperLayerCount(pcbLayerClass: any): Promise<number> {
-    if (typeof pcbLayerClass?.getTheNumberOfCopperLayers !== 'function') return 0;
-    try {
-      const value = Number(await pcbLayerClass.getTheNumberOfCopperLayers());
-      return Number.isInteger(value) && value >= 2 ? value : 0;
-    } catch (error) {
-      logRecoverableError('failed to read copper layer count', error);
-      return 0;
     }
   }
 
@@ -115,11 +201,7 @@ export function createBoardInspectionOperations({
       }
     }
 
-    const rawLayers = Array.isArray(physicalStacking?.layers)
-      ? physicalStacking.layers
-      : Array.isArray(physicalStacking?.stackup)
-        ? physicalStacking.stackup
-        : [];
+    const rawLayers = selectPhysicalStackupLayers(physicalStacking);
     const layers = rawLayers.map((layer: any) => ({
       name: layer?.name || '',
       type: layer?.type || '',
@@ -132,12 +214,7 @@ export function createBoardInspectionOperations({
       copperWeightOz:
         typeof layer?.copperWeightOz === 'number' ? layer.copperWeightOz : layer?.copperWeight,
     }));
-    const boardThickness =
-      typeof physicalStacking?.thicknessMm === 'number'
-        ? physicalStacking.thicknessMm
-        : typeof physicalStacking?.thickness === 'number'
-          ? physicalStacking.thickness
-          : undefined;
+    const boardThickness = readBoardThickness(physicalStacking);
     const available = Boolean(physicalStacking && layers.length > 0);
 
     return {
@@ -155,75 +232,16 @@ export function createBoardInspectionOperations({
     const pcbLineClass = readPath<any>(globalObj, 'pcb_PrimitiveLine');
     const pcbArcClass = readPath<any>(globalObj, 'pcb_PrimitiveArc');
     const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
+    const bounds = createEmptyBoundingBox();
 
-    let minX = Infinity,
-      maxX = -Infinity;
-    let minY = Infinity,
-      maxY = -Infinity;
+    await addOutlineLineBounds(pcbLineClass, bounds);
+    await addOutlineArcBounds(pcbArcClass, bounds);
 
-    const updateBBox = (x: number, y: number) => {
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    };
-
-    if (pcbLineClass && typeof pcbLineClass.getAll === 'function') {
-      try {
-        const lines = await pcbLineClass.getAll();
-        for (const line of lines || []) {
-          if (typeof line.getState_Layer === 'function' && line.getState_Layer() === 11) {
-            const points = typeof line.getState_Points === 'function' ? line.getState_Points() : [];
-            for (const point of points || []) {
-              updateBBox(point.x, point.y);
-            }
-          }
-        }
-      } catch (error) {
-        logRecoverableError('failed to read board outline lines', error);
-      }
-    }
-
-    if (pcbArcClass && typeof pcbArcClass.getAll === 'function') {
-      try {
-        const arcs = await pcbArcClass.getAll();
-        for (const arc of arcs || []) {
-          if (typeof arc.getState_Layer === 'function' && arc.getState_Layer() === 11) {
-            const startX = typeof arc.getState_StartX === 'function' ? arc.getState_StartX() : 0;
-            const startY = typeof arc.getState_StartY === 'function' ? arc.getState_StartY() : 0;
-            const endX = typeof arc.getState_EndX === 'function' ? arc.getState_EndX() : 0;
-            const endY = typeof arc.getState_EndY === 'function' ? arc.getState_EndY() : 0;
-            updateBBox(startX, startY);
-            updateBBox(endX, endY);
-          }
-        }
-      } catch (error) {
-        logRecoverableError('failed to read board outline arcs', error);
-      }
-    }
-
-    const width = maxX > minX ? maxX - minX : 0;
-    const height = maxY > minY ? maxY - minY : 0;
-
-    let mountingHoles = 0;
-    if (pcbPadClass && typeof pcbPadClass.getAll === 'function') {
-      try {
-        const pads = await pcbPadClass.getAll();
-        for (const pad of pads || []) {
-          const holeType =
-            typeof pad.getState_HoleType === 'function' ? pad.getState_HoleType() : '';
-          const holeSize =
-            typeof pad.getState_HoleSize === 'function' ? pad.getState_HoleSize() : 0;
-          if (holeType === 'MountingHole' || holeSize > 2) {
-            mountingHoles++;
-          }
-        }
-      } catch (error) {
-        logRecoverableError('failed to read mounting-hole pads', error);
-      }
-    }
-
+    const width = bounds.maxX > bounds.minX ? bounds.maxX - bounds.minX : 0;
+    const height = bounds.maxY > bounds.minY ? bounds.maxY - bounds.minY : 0;
+    const mountingHoles = await countMountingHoles(pcbPadClass);
     const hasOutline = width > 0 && height > 0;
+
     return {
       widthMm: width,
       heightMm: height,
