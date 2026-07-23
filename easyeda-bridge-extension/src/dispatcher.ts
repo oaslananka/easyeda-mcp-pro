@@ -16,6 +16,7 @@ import {
 } from './api-introspection.js';
 import { normalizeBinaryResult, type BinaryResultPayload } from './binary-result.js';
 import { createCanvasOperations, type CanvasOperations } from './canvas-operations.js';
+import { createProjectOperations, type ProjectOperations } from './project-operations.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, logRecoverableError, readPath, type JsonValue } from './utils.js';
 
@@ -112,6 +113,7 @@ let readFirstPath: ApiRuntime['readFirstPath'];
 let inspectApiInventory: ApiRuntime['inspectApiInventory'];
 let callAllowedApi: ApiRuntime['callAllowedApi'];
 let canvasOperations: CanvasOperations;
+let projectOperations: ProjectOperations;
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
   const error = new Error(message);
@@ -3371,20 +3373,11 @@ async function findFloatingPinsApi(): Promise<{
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
   switch (method) {
     case 'project.open':
-      return callFirst(['dmt_Project.openProject', 'project.open'], params.projectId);
+      return projectOperations.open(params);
     case 'project.save':
-      return callFirst([
-        'dmt_Workspace.saveAll',
-        'dmt_Workspace.saveActiveDocument',
-        'sch_Document.save',
-        'pcb_Document.save',
-        'pnl_Document.save',
-      ]);
+      return projectOperations.save(params);
     case 'project.export':
-      return callFirst(
-        ['PCB_ManufactureData.getManufactureData', 'SCH_ManufactureData.getExportDocumentFile'],
-        params,
-      );
+      return projectOperations.export(params);
     case 'schematic.listNets':
       return listNetsApi();
     case 'schematic.getNetDetail': {
@@ -4669,6 +4662,7 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     normalizeBinaryResult: normalizeBinaryResultSafely,
     createBridgeError: newBridgeError,
   });
+  projectOperations = createProjectOperations({ callFirst });
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);
   return {

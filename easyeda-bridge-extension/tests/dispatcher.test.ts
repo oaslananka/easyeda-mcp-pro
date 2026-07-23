@@ -99,6 +99,34 @@ function fakeSchematicPart(
 }
 
 describe('createDispatcher', () => {
+  it('delegates project open, save, and export through the extracted domain', async () => {
+    const openProject = vi.fn(async () => 'opened');
+    const saveAll = vi.fn(async () => 'saved');
+    const getManufactureData = vi.fn(async (params: unknown) => ({ exported: params }));
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        dmt_Project: { openProject },
+        dmt_Workspace: { saveAll },
+        PCB_ManufactureData: { getManufactureData },
+      }),
+    );
+    const exportParams = { projectId: 'project-1', format: 'zip' };
+
+    await expect(dispatcher.dispatch('project.open', { projectId: 'project-1' })).resolves.toBe(
+      'opened',
+    );
+    await expect(dispatcher.dispatch('project.save', { projectId: 'project-1' })).resolves.toBe(
+      'saved',
+    );
+    await expect(dispatcher.dispatch('project.export', exportParams)).resolves.toEqual({
+      exported: exportParams,
+    });
+
+    expect(openProject).toHaveBeenCalledWith('project-1');
+    expect(saveAll).toHaveBeenCalledWith();
+    expect(getManufactureData).toHaveBeenCalledWith(exportParams);
+  });
+
   it('returns a dispatcher with a sorted, non-empty method list and a build id', () => {
     const dispatcher = createDispatcher(makeToolkit({}));
     expect(dispatcher.methodList.length).toBeGreaterThan(40);
