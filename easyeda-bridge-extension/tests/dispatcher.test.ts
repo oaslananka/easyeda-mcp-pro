@@ -1305,6 +1305,54 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('delegates board dimensions and feature summaries through the extracted domain', async () => {
+    const lineGetAll = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          getState_Layer: () => 11,
+          getState_Points: () => [
+            { x: 0, y: 0 },
+            { x: 10, y: 5 },
+          ],
+        },
+      ])
+      .mockResolvedValueOnce([1, 2, 3]);
+    const padGetAll = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { getState_HoleType: () => 'MountingHole', getState_HoleSize: () => 1 },
+      ])
+      .mockResolvedValueOnce([1, 2]);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
+        pcb_PrimitiveLine: { getAll: lineGetAll },
+        pcb_PrimitiveArc: { getAll: async () => [] },
+        pcb_PrimitivePad: { getAll: padGetAll },
+        pcb_PrimitiveVia: { getAll: async () => [1] },
+        pcb_PrimitivePour: { getAll: async () => [1, 2, 3, 4] },
+        pcb_PrimitiveComponent: { getAll: async () => [1, 2, 3, 4, 5] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('board.getDimensions', {})).resolves.toEqual({
+      widthMm: 10,
+      heightMm: 5,
+      shape: 'custom',
+      mountingHoleCount: 1,
+      areaMm2: 50,
+      hasOutline: true,
+    });
+    await expect(dispatcher.dispatch('board.getFeatures', {})).resolves.toEqual({
+      vias: 1,
+      tracks: 3,
+      zones: 4,
+      pads: 2,
+      components: 5,
+    });
+  });
+
   it('PCB list methods reject an inactive PCB context before calling primitive APIs', async () => {
     const getAll = vi.fn(async () => []);
     const dispatcher = createDispatcher(
