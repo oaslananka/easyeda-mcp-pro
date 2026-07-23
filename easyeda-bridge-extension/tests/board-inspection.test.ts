@@ -321,6 +321,120 @@ describe('board inspection operations', () => {
     });
   });
 
+  it('preserves a non-Error PCB context failure as bridge error cause text', async () => {
+    const { operations } = makeOperations({
+      DMT_Pcb: {
+        getCurrentPcbInfo: async () => Promise.reject('message bus unavailable'),
+      },
+    });
+
+    await expect(operations.requireActivePcbContext()).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      data: { cause: 'message bus unavailable' },
+    });
+  });
+
+  it('normalizes absent layer metadata and stackup APIs without inventing values', async () => {
+    const getAllLayers = vi.fn(async () => [undefined]);
+    const { operations } = makeOperations({
+      DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
+      PCB_Layer: { getAllLayers },
+    });
+
+    await expect(operations.listLayers()).resolves.toEqual([
+      { name: '', type: '', color: '', visible: true, order: 0 },
+    ]);
+    await expect(operations.getStackup()).resolves.toEqual({
+      totalLayers: 0,
+      boardThicknessMm: undefined,
+      layers: [],
+      available: false,
+      source: 'copper_layer_count_only',
+    });
+  });
+
+  it('normalizes an undefined physical stackup layer without inventing fields', async () => {
+    const { operations } = makeOperations({
+      DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
+      PCB_Layer: {
+        getTheNumberOfCopperLayers: async () => 2,
+        getCurrentPhysicalStackingConfiguration: async () => ({ layers: [undefined] }),
+      },
+    });
+
+    await expect(operations.getStackup()).resolves.toEqual({
+      totalLayers: 2,
+      boardThicknessMm: undefined,
+      layers: [
+        {
+          name: '',
+          type: '',
+          thicknessMm: undefined,
+          material: '',
+          dielectricConstant: undefined,
+          copperWeightOz: undefined,
+        },
+      ],
+      available: true,
+      source: 'physical_stackup',
+    });
+  });
+
+  it('contains absent, null, and partial primitive dimension data', async () => {
+    const root: Record<string, unknown> = {};
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
+      root,
+    );
+    const emptyDimensions = {
+      widthMm: 0,
+      heightMm: 0,
+      shape: undefined,
+      mountingHoleCount: 0,
+      areaMm2: 0,
+      hasOutline: false,
+    };
+
+    await expect(operations.getDimensions()).resolves.toEqual(emptyDimensions);
+
+    root.pcb_PrimitiveLine = { getAll: async () => null };
+    root.pcb_PrimitiveArc = { getAll: async () => null };
+    root.pcb_PrimitivePad = { getAll: async () => null };
+    await expect(operations.getDimensions()).resolves.toEqual(emptyDimensions);
+
+    root.pcb_PrimitiveLine = {
+      getAll: async () => [
+        {},
+        { getState_Layer: () => 11 },
+        { getState_Layer: () => 11, getState_Points: () => null },
+      ],
+    };
+    root.pcb_PrimitiveArc = {
+      getAll: async () => [{}, { getState_Layer: () => 11 }],
+    };
+    root.pcb_PrimitivePad = { getAll: async () => [{}] };
+    await expect(operations.getDimensions()).resolves.toEqual(emptyDimensions);
+  });
+
+  it('contains absent feature classes and null feature collections', async () => {
+    const root: Record<string, unknown> = {};
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
+      root,
+    );
+    const emptyFeatures = { vias: 0, tracks: 0, zones: 0, pads: 0, components: 0 };
+
+    await expect(operations.getFeatures()).resolves.toEqual(emptyFeatures);
+
+    const nullCollection = { getAll: async () => null };
+    root.pcb_PrimitiveVia = nullCollection;
+    root.pcb_PrimitiveLine = nullCollection;
+    root.pcb_PrimitivePad = nullCollection;
+    root.pcb_PrimitivePour = nullCollection;
+    root.pcb_PrimitiveComponent = nullCollection;
+    await expect(operations.getFeatures()).resolves.toEqual(emptyFeatures);
+  });
+
   it('contains every individual feature-count failure', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const failing = { getAll: async () => Promise.reject(new Error('count failed')) };
