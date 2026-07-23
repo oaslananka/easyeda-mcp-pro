@@ -294,6 +294,10 @@ export function formatSetupLocalReport(
 
 const execFileAsync = promisify(execFile);
 
+export function pnpmExecutableForPlatform(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+}
+
 function parseSystemdExecStart(unitText: string): string | undefined {
   const line = unitText
     .split(/\r?\n/)
@@ -418,7 +422,7 @@ export async function createDoctorReport(
 
   let pnpmVersion = null;
   try {
-    const { stdout } = await execFileAsync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', [
+    const { stdout } = await execFileAsync(pnpmExecutableForPlatform(process.platform), [
       '--version',
     ]);
     pnpmVersion = stdout.trim();
