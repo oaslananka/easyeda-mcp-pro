@@ -427,13 +427,14 @@ git commit -m "docs(plan): record dispatcher extraction strategy"
 ## Execution evidence
 
 - TDD RED: the focused test failed because `src/api-introspection.ts` did not exist; the existing dispatcher integration baseline remained 88/88 green.
-- Focused parity: 9 API-introspection tests and all 88 dispatcher integration tests pass.
+- Focused parity: 9 API-introspection tests and all 89 dispatcher integration tests pass.
 - Extracted-module coverage: 100% statements, branches, functions, and lines in the full extension coverage run.
 - Public method contract: the extension still reports the same 67 sorted bridge methods; the repository method-list parity test passes.
 - Dispatcher source size: 5,041 lines on `main` → 4,878 lines after extraction (163-line reduction).
 - Built dispatcher bundle: 151,308 bytes on `main` → 151,841 bytes (+533 bytes, approximately +0.35%).
 - Packaged extension: 160,515 bytes on `main` → 160,594 bytes (+79 bytes, approximately +0.05%); the repository size budget passes.
-- Full extension suite: 10 files / 152 tests pass.
+- Full extension suite: 10 files / 153 tests pass.
 - Sonar follow-up: the initial PR scan reported three new issues (regex style, cognitive complexity, and ambiguous scalar stringification); the normalization flow was split into bounded helpers and bigint/symbol conversion was made explicit before the final verification run.
+- Codecov follow-up: the initial patch report identified the delegated `system.apiInventory` allowlist line as uncovered; a dispatcher contract test now proves both allowed-class inclusion and `SYS_*` exclusion (`DA:1030=160`, branches `159/1`).
 - Full server suite: 150 files / 1,740 tests pass.
 - Full `pnpm verify` passes runtime preflight, formatting, root and extension typecheck, ESLint, tool/profile metadata, server and extension tests, both builds, extension packaging/checksums, metadata alignment, generated compatibility validation, and VitePress documentation.
