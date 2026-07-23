@@ -220,6 +220,7 @@ git -c user.name='Osman Aslan' -c user.email='info@oaslananka.dev' \
   - `DesignRuleCheckOperations.runDrc()`
   - `DesignRuleCheckOperations.runErc()`
   - `DesignRuleCheckOperations.runRuleCheck()`
+  - `DesignRuleCheckOperations.runSchematicCheck()` for the existing `schematic.validateNetlist` native cross-check
 
 - [ ] **Step 1: Add the complete module implementation**
 
@@ -560,7 +561,7 @@ runPcbDrcCheck;
 runRuleCheckForActiveCanvas;
 ```
 
-Keep `errorMessage`, `findFloatingPinsApi`, `isConfirmedNativeNoConnect`, and connectivity inference in the dispatcher because they remain cross-domain dependencies.
+Keep `errorMessage`, `findFloatingPinsApi`, `isConfirmedNativeNoConnect`, and connectivity inference in the dispatcher because they remain cross-domain dependencies. Route `schematic.validateNetlist` through `designRuleCheckOperations.runSchematicCheck()` so it does not retain a duplicate normalizer.
 
 - [ ] **Step 4: Add dispatcher delegation parity assertions**
 

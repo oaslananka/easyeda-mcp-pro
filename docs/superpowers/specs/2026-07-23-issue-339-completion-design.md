@@ -36,6 +36,7 @@ The extracted module owns:
 - generic active-canvas fallback from PCB DRC to schematic ERC/DRC
 - stable `CONTEXT_UNAVAILABLE` errors with existing messages, suggestions, and cause data
 - `design.erc` orchestration for best-effort inferred floating-pin detail
+- a typed native schematic-check operation reused by `schematic.validateNetlist` without duplicating normalization logic
 
 The extracted module does not own schematic net inference or floating-pin discovery. The dispatcher injects the existing `findFloatingPinsApi` behavior as a typed dependency so this pull request changes ownership, not connectivity semantics.
 
@@ -119,7 +120,7 @@ The dispatcher remains responsible for:
 - owning cross-domain callbacks that are not part of the extracted boundary
 - clearing dispatcher-instance caches during initialization
 
-The rule-check module receives callbacks for native API calls, bridge-error creation, recoverable logging, error-message normalization, and floating-pin discovery.
+The rule-check module receives callbacks for native API calls, bridge-error creation, recoverable logging, error-message normalization, and floating-pin discovery. Besides the three public delegates, it exposes an internal `runSchematicCheck()` operation so `schematic.validateNetlist` can preserve its native ERC cross-check through the same normalization boundary.
 
 The transaction module receives callbacks for API path resolution, native calls, bridge-error creation, recoverable logging, primitive state reads, primitive ID extraction, and the connected-wire helper dependencies required to preserve current behavior. Helpers should move with the domain when they have no remaining non-transaction consumers. Helpers shared with non-transaction schematic operations remain in the dispatcher and are injected.
 
