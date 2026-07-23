@@ -1,6 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = resolve(import.meta.dirname, '../../..');
@@ -100,16 +100,14 @@ describe('EasyEDA compatibility evidence policy', () => {
     }
   });
 
-  it('generates the public matrix deterministically and blocks stale docs', async () => {
-    const generator = (await import(
-      pathToFileURL(resolve(repoRoot, 'scripts/generate-easyeda-compatibility.mjs')).href
-    )) as {
-      renderCompatibilityMarkdown(source: CompatibilitySource): Promise<string>;
-    };
-    const source = JSON.parse(read('config/easyeda-compatibility.json')) as CompatibilitySource;
-    expect(read('docs/reference/easyeda-compatibility.md')).toBe(
-      await generator.renderCompatibilityMarkdown(source),
-    );
+  it('generates the public matrix deterministically and blocks stale docs', () => {
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [resolve(repoRoot, 'scripts/generate-easyeda-compatibility.mjs'), '--check'],
+        { cwd: repoRoot, encoding: 'utf8', stdio: 'pipe' },
+      ),
+    ).not.toThrow();
 
     const packageJson = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
     expect(packageJson.scripts['generate:compatibility']).toContain(
