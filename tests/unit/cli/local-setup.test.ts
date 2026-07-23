@@ -106,7 +106,7 @@ describe('local setup CLI helpers', () => {
         inspectUserServiceRuntime({ platform: 'linux', unitText: null }),
       ).resolves.toMatchObject({
         installed: false,
-        unitPath: '/tmp/easyeda-xdg/systemd/user/easyeda-mcp-pro.service',
+        unitPath: join('/tmp/easyeda-xdg', 'systemd', 'user', 'easyeda-mcp-pro.service'),
       });
     });
 
