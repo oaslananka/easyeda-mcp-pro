@@ -21,6 +21,10 @@ import {
 } from './board-inspection.js';
 import { createCanvasOperations, type CanvasOperations } from './canvas-operations.js';
 import { createExportOperations, type ExportOperations } from './export-operations.js';
+import {
+  createPcbMutationOperations,
+  type PcbMutationOperations,
+} from './pcb-mutation-operations.js';
 import { createPcbReadOperations, type PcbReadOperations } from './pcb-read-operations.js';
 import { createPcbWriteOperations, type PcbWriteOperations } from './pcb-write-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
@@ -117,6 +121,7 @@ let callAllowedApi: ApiRuntime['callAllowedApi'];
 let boardInspection: BoardInspectionOperations;
 let canvasOperations: CanvasOperations;
 let exportOperations: ExportOperations;
+let pcbMutationOperations: PcbMutationOperations;
 let pcbReadOperations: PcbReadOperations;
 let pcbWriteOperations: PcbWriteOperations;
 let projectOperations: ProjectOperations;
@@ -4014,33 +4019,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     case 'pcb.addVia':
       return pcbWriteOperations.addVia(params);
     case 'pcb.addZone':
-      return callFirst(
-        ['PCB_PrimitivePour.create', 'PCB_ComplexPolygon.create', 'pcb_PrimitivePour.create'],
-        params.points,
-        params.layer,
-        params.netName,
-        params.clearance,
-      );
-    case 'pcb.deleteComponent': {
-      // Returns full per-id status rather than throwing on partial failure:
-      // the bridge transport only preserves an error's message (not its data
-      // payload) back to the MCP tool layer, so structured deleted/notFound
-      // detail would be lost if this threw instead.
-      const ids = Array.isArray(params.primitiveIds) ? (params.primitiveIds as string[]) : [];
-      const result = await pcbReadOperations.deletePrimitives(ids);
-      return {
-        success: result.notFound.length === 0,
-        deletedCount: result.deleted.length,
-        deleted: result.deleted,
-        notFound: result.notFound,
-      };
-    }
+      return pcbMutationOperations.addZone(params);
+    case 'pcb.deleteComponent':
+      return pcbMutationOperations.deleteComponents(params);
     case 'pcb.modifyComponent':
-      return callFirst(
-        ['PCB_PrimitiveComponent.modify', 'pcb_PrimitiveComponent.modify'],
-        params.primitiveId,
-        params.property,
-      );
+      return pcbMutationOperations.modifyComponent(params);
     case 'pcb.listComponents':
       return pcbReadOperations.listComponents(
         typeof params.limit === 'number' ? params.limit : undefined,
@@ -4090,6 +4073,10 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     requireActivePcbContext: () => boardInspection.requireActivePcbContext(),
     readFirstPath,
     readState: safeGetState,
+  });
+  pcbMutationOperations = createPcbMutationOperations({
+    callFirst,
+    deletePrimitives: (ids) => pcbReadOperations.deletePrimitives(ids),
   });
   pcbWriteOperations = createPcbWriteOperations({
     callFirst,
