@@ -21,6 +21,7 @@ import {
 } from './board-inspection.js';
 import { createCanvasOperations, type CanvasOperations } from './canvas-operations.js';
 import { createExportOperations, type ExportOperations } from './export-operations.js';
+import { createPcbReadOperations, type PcbReadOperations } from './pcb-read-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, logRecoverableError, type JsonValue } from './utils.js';
@@ -115,6 +116,7 @@ let callAllowedApi: ApiRuntime['callAllowedApi'];
 let boardInspection: BoardInspectionOperations;
 let canvasOperations: CanvasOperations;
 let exportOperations: ExportOperations;
+let pcbReadOperations: PcbReadOperations;
 let projectOperations: ProjectOperations;
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
@@ -2189,158 +2191,6 @@ async function inspectWiresApi(limit = 10, offset = 0): Promise<unknown> {
   };
 }
 
-/**
- * Classes pcbDeletePrimitivesApi checks, in lookup order. Confirmed live
- * (2026-07-07): PCB_PrimitiveComponent.delete() returns `true` for ANY id,
- * including ids belonging to other primitive types or ids that don't exist
- * at all — it does not validate ownership. The previous pcb.deleteComponent
- * implementation called only this method, so deleting a via or track
- * primitiveId silently did nothing while reporting success. PCB_Primitive's
- * own getPrimitiveTypeByPrimitiveId() is an empty stub in this runtime
- * (`async getPrimitiveTypeByPrimitiveId(t){}`) and cannot be used to route
- * by type, so each candidate class's real membership is checked directly via
- * getAllPrimitiveId() before calling its delete().
- */
-const PCB_DELETABLE_CLASSES = [
-  'PCB_PrimitiveComponent',
-  'PCB_PrimitiveVia',
-  'PCB_PrimitiveLine',
-  'PCB_PrimitivePad',
-  'PCB_PrimitivePolyline',
-  'PCB_PrimitivePour',
-  'PCB_PrimitiveArc',
-  'PCB_PrimitiveAttribute',
-  'PCB_PrimitiveDimension',
-  'PCB_PrimitiveFill',
-  'PCB_PrimitiveImage',
-  'PCB_PrimitiveObject',
-  'PCB_PrimitivePoured',
-  'PCB_PrimitiveRegion',
-  'PCB_PrimitiveString',
-] as const;
-
-async function pcbDeletePrimitivesApi(
-  primitiveIds: string[],
-): Promise<{ deleted: string[]; notFound: string[] }> {
-  const remaining = new Set(primitiveIds);
-  const deleted: string[] = [];
-
-  for (const className of PCB_DELETABLE_CLASSES) {
-    if (remaining.size === 0) break;
-    const cls = readFirstPath<any>([className]);
-    if (!cls || typeof cls.getAllPrimitiveId !== 'function' || typeof cls.delete !== 'function') {
-      continue;
-    }
-    let ownedIds: Set<string>;
-    try {
-      ownedIds = new Set((await cls.getAllPrimitiveId()) ?? []);
-    } catch (e) {
-      logRecoverableError(`pcb.deleteComponent: ${className}.getAllPrimitiveId failed`, e);
-      continue;
-    }
-    const matches = [...remaining].filter((id) => ownedIds.has(id));
-    if (matches.length === 0) continue;
-    try {
-      await cls.delete(matches);
-      for (const id of matches) {
-        remaining.delete(id);
-        deleted.push(id);
-      }
-    } catch (e) {
-      logRecoverableError(`pcb.deleteComponent: ${className}.delete failed`, e);
-    }
-  }
-
-  return { deleted, notFound: [...remaining] };
-}
-
-/**
- * PCB readback: list placed components, tracks, and vias. Field names below
- * are taken from getState_* getters observed live on real primitives
- * (created via the fixed pcb.addVia/pcb.addTrack and a manually-placed
- * footprint) — not guessed, unlike the schematic reflection-based readers.
- * Requires an active/focused PCB tab in EasyEDA Pro; DMT_Pcb.getCurrentPcbInfo()
- * returns null otherwise and these calls will return an empty list rather
- * than throw, since "no PCB open" is a normal state, not an error.
- */
-async function pcbListComponentsApi(limit?: number, offset = 0): Promise<unknown> {
-  await boardInspection.requireActivePcbContext();
-  const pcbCompClass = readFirstPath<any>(['PCB_PrimitiveComponent', 'pcb_PrimitiveComponent']);
-  if (!pcbCompClass || typeof pcbCompClass.getAll !== 'function') {
-    return { total: 0, items: [] };
-  }
-  const all = (await pcbCompClass.getAll()) || [];
-  const total = all.length;
-  const start = Math.max(0, offset);
-  const end = typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
-  const items = all.slice(start, end).map((c: any) => {
-    const footprint = safeGetState(c, 'Footprint') as Record<string, unknown> | undefined;
-    const component = safeGetState(c, 'Component') as Record<string, unknown> | undefined;
-    return {
-      primitiveId: safeGetState(c, 'PrimitiveId') ?? '',
-      designator: safeGetState(c, 'Designator') ?? '',
-      footprintName: footprint?.name ?? '',
-      footprintUuid: footprint?.uuid ?? '',
-      footprintLibraryUuid: footprint?.libraryUuid ?? '',
-      deviceName: component?.name ?? '',
-      x: safeGetState(c, 'X'),
-      y: safeGetState(c, 'Y'),
-      rotation: safeGetState(c, 'Rotation'),
-      layer: safeGetState(c, 'Layer'),
-      locked: safeGetState(c, 'PrimitiveLock') ?? false,
-    };
-  });
-  return { total, items };
-}
-
-async function pcbListTracksApi(limit?: number, offset = 0): Promise<unknown> {
-  await boardInspection.requireActivePcbContext();
-  // Tracks are PCB_PrimitiveLine segments — see the pcb.addTrack case for why
-  // PCB_PrimitivePolyline is not used (its create() never resolved live).
-  const pcbLineClass = readFirstPath<any>(['PCB_PrimitiveLine', 'pcb_PrimitiveLine']);
-  if (!pcbLineClass || typeof pcbLineClass.getAll !== 'function') {
-    return { total: 0, items: [] };
-  }
-  const all = (await pcbLineClass.getAll()) || [];
-  const total = all.length;
-  const start = Math.max(0, offset);
-  const end = typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
-  const items = all.slice(start, end).map((l: any) => ({
-    primitiveId: safeGetState(l, 'PrimitiveId') ?? '',
-    net: safeGetState(l, 'Net') ?? '',
-    layer: safeGetState(l, 'Layer'),
-    startX: safeGetState(l, 'StartX'),
-    startY: safeGetState(l, 'StartY'),
-    endX: safeGetState(l, 'EndX'),
-    endY: safeGetState(l, 'EndY'),
-    width: safeGetState(l, 'LineWidth'),
-    locked: safeGetState(l, 'PrimitiveLock') ?? false,
-  }));
-  return { total, items };
-}
-
-async function pcbListViasApi(limit?: number, offset = 0): Promise<unknown> {
-  await boardInspection.requireActivePcbContext();
-  const pcbViaClass = readFirstPath<any>(['PCB_PrimitiveVia', 'pcb_PrimitiveVia']);
-  if (!pcbViaClass || typeof pcbViaClass.getAll !== 'function') {
-    return { total: 0, items: [] };
-  }
-  const all = (await pcbViaClass.getAll()) || [];
-  const total = all.length;
-  const start = Math.max(0, offset);
-  const end = typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
-  const items = all.slice(start, end).map((v: any) => ({
-    primitiveId: safeGetState(v, 'PrimitiveId') ?? '',
-    net: safeGetState(v, 'Net') ?? '',
-    x: safeGetState(v, 'X'),
-    y: safeGetState(v, 'Y'),
-    holeDiameter: safeGetState(v, 'HoleDiameter'),
-    diameter: safeGetState(v, 'Diameter'),
-    locked: safeGetState(v, 'PrimitiveLock') ?? false,
-  }));
-  return { total, items };
-}
-
 async function generateBomApi(params: any): Promise<unknown> {
   const comps = ((await listComponentsApi()) as { items: any[] }).items;
   const groupBy = params.groupBy || 'value';
@@ -4279,7 +4129,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // payload) back to the MCP tool layer, so structured deleted/notFound
       // detail would be lost if this threw instead.
       const ids = Array.isArray(params.primitiveIds) ? (params.primitiveIds as string[]) : [];
-      const result = await pcbDeletePrimitivesApi(ids);
+      const result = await pcbReadOperations.deletePrimitives(ids);
       return {
         success: result.notFound.length === 0,
         deletedCount: result.deleted.length,
@@ -4294,17 +4144,17 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.property,
       );
     case 'pcb.listComponents':
-      return pcbListComponentsApi(
+      return pcbReadOperations.listComponents(
         typeof params.limit === 'number' ? params.limit : undefined,
         typeof params.offset === 'number' ? params.offset : 0,
       );
     case 'pcb.listTracks':
-      return pcbListTracksApi(
+      return pcbReadOperations.listTracks(
         typeof params.limit === 'number' ? params.limit : undefined,
         typeof params.offset === 'number' ? params.offset : 0,
       );
     case 'pcb.listVias':
-      return pcbListViasApi(
+      return pcbReadOperations.listVias(
         typeof params.limit === 'number' ? params.limit : undefined,
         typeof params.offset === 'number' ? params.offset : 0,
       );
@@ -4338,6 +4188,11 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     createBridgeError: newBridgeError,
   });
   exportOperations = createExportOperations({ callFirst, normalizeBinaryResult });
+  pcbReadOperations = createPcbReadOperations({
+    requireActivePcbContext: () => boardInspection.requireActivePcbContext(),
+    readFirstPath,
+    readState: safeGetState,
+  });
   projectOperations = createProjectOperations({ callFirst });
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);
