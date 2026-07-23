@@ -648,4 +648,21 @@ PR body must use `Refs #339`, not a closing keyword, and include test, coverage,
 
 ## Execution Evidence
 
-Populate this section only with command output collected at the exact PR head. Do not estimate values.
+Collected at implementation head `57300ac26b28b4a3a8bcb64a4cdebbca6c436d03` on Node.js 24.18.0 and pnpm 11.5.1:
+
+- Dispatcher source: 3,749 → 3,533 lines (-216).
+- Extracted module: 252 lines.
+- Public extension method list: 67 → 67.
+- Focused rule-check/domain parity: 108 tests passed.
+- Server suite: 150 files / 1,740 tests passed.
+- Extension suite: 22 files / 258 tests passed.
+- `design-rule-check-operations.ts`: 100% statements / branches / functions / lines.
+- `pnpm verify`: passed.
+- `pnpm test:extension:ci`: passed.
+- Extension distribution verification: passed.
+- Packaged extension: 163,723 / 200,000 bytes.
+- Extension entry bundle: 223,192 / 260,000 bytes.
+- Dispatcher bundle: 162,778 / 185,000 bytes.
+- Dependency audit policy: passed with only the existing documented #334 advisory exception.
+- No peer-dependency validation script is defined in the repository package scripts.
+- MSI checksum fixtures were run with a worktree-local `TMPDIR` to avoid the pre-existing shared `/tmp/easyeda-bridge-extension.*` ownership collision; no repository behavior was changed for that environment issue.
