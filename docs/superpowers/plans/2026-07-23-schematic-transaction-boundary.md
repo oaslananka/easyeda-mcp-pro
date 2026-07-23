@@ -781,7 +781,7 @@ Collected for implementation commit `47107f37534af552003f9ab7a96a3bd53204a96a` o
 
 - Dispatcher source: 3,533 → 2,427 lines (-1,106).
 - Dispatcher reduction across #339: 5,041 → 2,427 lines (-2,614; 51.9%).
-- Extracted transaction module: 1,240 lines.
+- Extracted transaction module: 1,239 lines.
 - Public extension method list: 67 → 67, byte-for-byte unchanged.
 - Focused transaction factory/dispatcher parity: 148 tests passed.
 - Server suite: 150 files / 1,740 tests passed.
@@ -790,11 +790,11 @@ Collected for implementation commit `47107f37534af552003f9ab7a96a3bd53204a96a` o
 - `pnpm verify`: passed.
 - `pnpm test:extension:ci`: passed with 312 tests and 0 failures/errors.
 - Extension distribution and checksum verification: passed.
-- Packaged extension: 164,221 / 200,000 bytes.
-- Extension entry bundle: 227,042 / 260,000 bytes.
-- Dispatcher bundle: 166,628 / 185,000 bytes.
+- Packaged extension: 164,283 / 200,000 bytes.
+- Extension entry bundle: 226,998 / 260,000 bytes.
+- Dispatcher bundle: 166,584 / 185,000 bytes.
 - Dependency audit policy: passed with only the existing documented #334 advisory exception.
-- Exact branch delta from the rule-check merge: 4 files changed, 2,577 insertions, 1,140 deletions.
+- Exact branch delta from the rule-check merge: 4 files changed, 2,576 insertions, 1,140 deletions.
 - Verification used an external temporary directory to isolate Vite and checksum fixtures from shared `/tmp` state.
 - The original MSI checkout remains untouched on its stale `main` branch with the user-owned uncommitted `.mcp.json` deletion preserved.
 
