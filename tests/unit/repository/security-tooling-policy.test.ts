@@ -123,7 +123,7 @@ describe('repository security tooling policy', () => {
     expect(requirementEntries.length).toBeGreaterThanOrEqual(8);
     expect(preCommitRequirements).toContain('pre-commit==4.6.0');
     for (const entry of requirementEntries) {
-      expect(entry.split('\n')[0]).toMatch(/==[^\s]+ \\$/);
+      expect(entry.split('\n')[0]?.replace(/\r$/, '')).toMatch(/==[^\s]+ \\$/);
       expect(entry).toContain('--hash=sha256:');
     }
     expect(workflow).toContain('container-security:');
