@@ -6,6 +6,7 @@
     "securityAndAutomation": [
       "/.github/CODEOWNERS",
       "/.github/workflows/",
+      "/.github/requirements/",
       "/.github/dependency-audit-allowlist.json",
       "/.github/renovate.json",
       "/.gitleaksignore",

@@ -24,6 +24,7 @@
 /scripts/check-secret-hygiene.mjs @oaslananka
 /tests/unit/repository/secret-scanning-policy.test.ts @oaslananka
 /.github/workflows/ @oaslananka
+/.github/requirements/ @oaslananka
 /.github/dependency-audit-allowlist.json @oaslananka
 /.github/renovate.json @oaslananka
 /.gitleaksignore @oaslananka
