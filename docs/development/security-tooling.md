@@ -121,12 +121,11 @@ must name the affected package and resolved version, document reachability, link
 and include both review and expiry dates. Unexpected, changed, escalated, expired, or stale entries
 fail closed.
 
-The current `GHSA-frvp-7c67-39w9` exception is limited to
-`@hono/node-server@1.19.14`. The advisory affects the separate
-`@hono/node-server/serve-static` Windows file-serving implementation. The MCP SDK imports only
-`getRequestListener` from the package root, and easyeda-mcp-pro does not expose static file serving
-through Hono. Issue #334 owns upstream remediation; the exception must be reviewed by 2026-08-10
-and is automatically rejected after 2026-08-15.
+There are currently no active dependency-audit exceptions. The former
+`GHSA-frvp-7c67-39w9` exception for `@hono/node-server@1.19.14` was removed in #382 after the
+workspace pinned the transitive adapter to patched `@hono/node-server@2.0.10` and the complete MCP
+HTTP, Remote Relay, platform, and security verification matrix passed. The exact override remains
+in `pnpm-workspace.yaml` until the production MCP SDK v1 line publishes a patched dependency range.
 
 ### Scheduled advisory monitoring
 

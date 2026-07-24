@@ -56,8 +56,9 @@ Exceptions are deliberately narrow and fail closed:
 - new, changed, escalated, expired, or stale exceptions fail CI;
 - broad audit suppression flags are not permitted.
 
-The initial exception tracks `GHSA-frvp-7c67-39w9` in #334. The affected Windows path-traversal
-logic belongs to the separate `@hono/node-server/serve-static` export. This repository and
-`@modelcontextprotocol/sdk@1.29.0` use the package-root `getRequestListener` export for HTTP request
-conversion and do not import or configure `serveStatic`. The exception is therefore temporary,
-reviewed on 2026-08-10, and expires on 2026-08-15 while the upstream SDK migration path is tracked.
+The first exception tracked `GHSA-frvp-7c67-39w9` in #334 because the affected Windows
+path-traversal logic was isolated to the separate `@hono/node-server/serve-static` export and the
+repository used only the package-root `getRequestListener` path through
+`@modelcontextprotocol/sdk@1.29.0`. Issue #382 removed that exception after pinning the transitive
+adapter to patched `@hono/node-server@2.0.10` and proving MCP HTTP and Remote Relay compatibility.
+There are currently no active dependency-audit exceptions.
