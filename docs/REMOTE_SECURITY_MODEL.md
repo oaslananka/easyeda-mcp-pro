@@ -1,5 +1,10 @@
 # Remote MCP security model
 
+> **Status authority:** [Canonical Remote Relay status](./REMOTE_RELAY_STATUS.md) is the
+> authoritative source for current maturity and outstanding gates. This document describes a
+> protocol, test plan, observability model, or security boundary and does not independently upgrade
+> the relay beyond Experimental.
+
 **Current status:** this document specifies the required security model for the
 pairing/relay routing path once it is wired to real MCP tool calls. That integration
 does not exist yet — see `docs/REMOTE_RELEASE_READINESS.md`. Today, real tool calls

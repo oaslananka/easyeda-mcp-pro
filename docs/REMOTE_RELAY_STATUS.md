@@ -45,6 +45,14 @@ A server configured with `MCP_BRIDGE_BACKEND=remote_relay` routes MCP tool calls
 
 A release or README must not upgrade the maturity label while any mandatory Beta gate lacks evidence. Documentation or fake-extension tests alone cannot clear the live EasyEDA relay dogfood gate.
 
+## Tracked completion gates
+
+- [#391 — next patch-release stabilization](https://github.com/oaslananka/easyeda-mcp-pro/issues/391) owns publication, rollback, and final release evidence.
+- [#392 — exact EasyEDA runtime compatibility](https://github.com/oaslananka/easyeda-mcp-pro/issues/392) owns disposable-project live validation for the candidate commit.
+- [#399 — independent review and continuity](https://github.com/oaslananka/easyeda-mcp-pro/issues/399) owns the real second-maintainer and successor evidence.
+
+These issues are intentionally open until their external evidence exists; documentation changes cannot self-certify them.
+
 ## Status vocabulary
 
 - **Planned:** design only; no callable path.

@@ -16,6 +16,22 @@ corepack prepare pnpm@11.5.1 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 
+### pnpm store and cache expectations
+
+CI keeps the pnpm store outside the checkout. Local contributors may do the same with their normal
+user-level pnpm store, or may deliberately use a repository-local store while reproducing CI/install
+behavior:
+
+```bash
+pnpm config set store-dir .pnpm-store
+pnpm install --frozen-lockfile
+```
+
+The repository-local store is ignored by Git, Prettier, and hygiene scans, so it does not pollute
+repository-wide checks. Never commit package-manager cache content. Remove `.pnpm-store/` when a clean
+dependency reinstall is required, and restore your preferred store setting afterward if the command
+was intended only for a one-off reproduction.
+
 ```bash
 # Clone the repository
 git clone https://github.com/oaslananka/easyeda-mcp-pro.git

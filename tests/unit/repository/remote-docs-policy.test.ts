@@ -16,17 +16,33 @@ describe('Remote Relay documentation policy', () => {
     expect(status).toContain('Live EasyEDA relay dogfood');
   });
 
-  it('routes status claims in older documents to the canonical page', () => {
+  it('routes status claims in every remote document to the canonical page', () => {
     for (const path of [
+      'docs/EXTENSION_RELAY_PROTOCOL.md',
       'docs/REMOTE_GATEWAY_DESIGN.md',
       'docs/REMOTE_MCP_MODES.md',
+      'docs/REMOTE_MCP_TEST_PLAN.md',
+      'docs/REMOTE_OBSERVABILITY.md',
       'docs/REMOTE_RELEASE_READINESS.md',
+      'docs/REMOTE_SECURITY_MODEL.md',
       'docs/SELF_HOSTED_REMOTE_MCP.md',
     ]) {
       expect(read(path), path).toContain(
         '[Canonical Remote Relay status](./REMOTE_RELAY_STATUS.md)',
       );
     }
+  });
+
+  it('links every outstanding external gate to its tracking issue', () => {
+    const status = read('docs/REMOTE_RELAY_STATUS.md');
+    for (const issue of ['#391', '#392', '#399']) {
+      expect(status).toContain(
+        `https://github.com/oaslananka/easyeda-mcp-pro/issues/${issue.slice(1)}`,
+      );
+    }
+    expect(read('docs/REMOTE_SECURITY_MODEL.md')).not.toContain(
+      'That integration does not exist yet',
+    );
   });
 
   it('links the canonical status page from VitePress navigation', () => {

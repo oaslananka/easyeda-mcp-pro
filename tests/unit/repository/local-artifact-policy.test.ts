@@ -15,4 +15,14 @@ describe('local repository artifact policy', () => {
       expect(entries).toContain('.pnpm-store/');
     }
   });
+
+  it('documents supported external and repository-local pnpm store behavior', () => {
+    const contributing = read('CONTRIBUTING.md');
+    expect(contributing).toContain('### pnpm store and cache expectations');
+    expect(contributing).toContain('pnpm config set store-dir .pnpm-store');
+    expect(contributing).toContain(
+      'The repository-local store is ignored by Git, Prettier, and hygiene scans',
+    );
+    expect(contributing).toContain('CI keeps the pnpm store outside the checkout');
+  });
 });

@@ -46,3 +46,31 @@ Every behavior change follows red-green TDD. Targeted tests run first, then rele
 ## Delivery and issue closure
 
 Each issue is closed only when its acceptance criteria are evidenced by committed code, tests, documentation, or an externally verifiable governance/runtime result. Issues requiring a human maintainer or live GUI remain open with precise blocker evidence; they are not marked complete by documentation alone.
+
+## Maintainability outcomes
+
+The remediation used bounded extractions instead of broad rewrites:
+
+- `easyeda-bridge-extension/src/pcb-primitive-state.ts` owns live-wrapper state lookup, board-outline
+  layer normalization, and finite-number handling. `board-inspection.ts` remains responsible for
+  board-level aggregation and public result shaping.
+- `src/tools/diagnostics-feature-report.ts` owns the three public diagnostics flag views.
+  `L0_diagnostics_core.ts` remains responsible for registering tools and composing diagnostics
+  payloads.
+
+No public MCP tool name, input schema, output schema, or relay envelope changed. Existing extension
+method parity, registry coverage, package-size budgets, and generated references remained green.
+
+### Remaining hotspot register
+
+The following large modules remain intentional follow-up candidates rather than being mixed into this
+security/release remediation:
+
+- `easyeda-bridge-extension/src/dispatcher.ts` — dispatcher orchestration and compatibility routing;
+- `src/tools/L2_workflows.ts` — compound workflow definitions;
+- `src/tools/L1_schematic_read.ts` and `src/tools/L1_schematic_write.ts` — schematic tool families;
+- `easyeda-bridge-extension/src/index.ts` — loader and connection lifecycle;
+- `src/remote/gateway.ts` — relay orchestration and approval lifecycle.
+
+Future decomposition must begin with characterization tests, preserve bridge/MCP contracts, and avoid
+splitting code solely to satisfy a line-count target.

@@ -498,18 +498,23 @@ Enable suppliers by setting their credentials. All suppliers are disabled by def
 - **Mouser**: `MOUSER_ENABLED=true` + API key
 - **DigiKey**: `DIGIKEY_ENABLED=true` + OAuth2 client ID/secret
 
-### AI Assistance (experimental)
+### Reserved AI configuration
 
-Configure an AI provider for LLM-assisted design review:
+No in-process AI provider client is currently implemented. The `AI_*` variables remain accepted for
+configuration compatibility but are reported as `reserved`, are always ineffective, and must not be
+used to infer that the server sends design data to an AI provider. Do not supply an API key.
 
-| Variable                    | Default | Description                                     |
-| --------------------------- | ------- | ----------------------------------------------- |
-| `AI_PROVIDER`               | `none`  | `anthropic`, `openai`, `openrouter`, or `local` |
-| `AI_MODEL`                  | `''`    | Model name (e.g., `claude-sonnet-4-20250514`)   |
-| `AI_API_KEY`                | `''`    | AI provider API key                             |
-| `AI_MAX_TOKENS`             | `8000`  | Max tokens per AI response                      |
-| `AI_TIMEOUT_MS`             | `60000` | AI request timeout in ms                        |
-| `AI_ALLOW_DESIGN_MUTATIONS` | `false` | Allow AI to modify schematic/board designs      |
+| Variable                    | Default | Current behavior                                      |
+| --------------------------- | ------- | ----------------------------------------------------- |
+| `AI_PROVIDER`               | `none`  | Reserved; no provider client is invoked               |
+| `AI_MODEL`                  | `''`    | Reserved; no model is selected                        |
+| `AI_API_KEY`                | `''`    | Reserved; no credential consumer exists               |
+| `AI_MAX_TOKENS`             | `8000`  | Reserved compatibility setting                        |
+| `AI_TIMEOUT_MS`             | `60000` | Reserved compatibility setting                        |
+| `AI_ALLOW_DESIGN_MUTATIONS` | `false` | Reserved; cannot enable AI-originated design mutation |
+
+Use `easyeda_get_feature_flags` or `easyeda_get_capabilities` to inspect `configured`, `effective`,
+and `maturity` values for optional settings.
 
 ### HTTP transport
 

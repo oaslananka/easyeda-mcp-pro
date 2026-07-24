@@ -102,21 +102,21 @@
         },
         {
           "name": "MCP_TASKS_ENABLED",
-          "description": "Enable experimental MCP tasks",
+          "description": "Reserved; currently non-functional: parsed for compatibility, but the server does not advertise or execute MCP Tasks.",
           "isRequired": false,
           "format": "boolean",
           "default": "false"
         },
         {
           "name": "MCP_APPS_ENABLED",
-          "description": "Enable experimental MCP apps",
+          "description": "Reserved; currently non-functional: parsed for compatibility, but no MCP Apps UI or resource runtime is registered.",
           "isRequired": false,
           "format": "boolean",
           "default": "false"
         },
         {
           "name": "MCP_V2_EXPERIMENTAL",
-          "description": "Enable experimental MCP v2 features",
+          "description": "Reserved; currently non-functional: does not change MCP protocol negotiation.",
           "isRequired": false,
           "format": "boolean",
           "default": "false"
@@ -236,20 +236,20 @@
         },
         {
           "name": "AI_PROVIDER",
-          "description": "AI provider (none, anthropic, openai, openrouter, local)",
+          "description": "Reserved; currently non-functional: no in-process AI provider client is invoked.",
           "isRequired": false,
           "default": "none"
         },
         {
           "name": "AI_MODEL",
-          "description": "AI model name",
+          "description": "Reserved; currently non-functional: retained for future provider integration only.",
           "isRequired": false,
           "format": "string",
           "default": ""
         },
         {
           "name": "AI_API_KEY",
-          "description": "AI provider API key",
+          "description": "Reserved; currently non-functional: do not supply credentials because no provider client consumes them.",
           "isRequired": false,
           "format": "string",
           "default": "",
@@ -271,7 +271,7 @@
         },
         {
           "name": "AI_ALLOW_DESIGN_MUTATIONS",
-          "description": "Allow AI to modify designs",
+          "description": "Reserved; currently non-functional: cannot enable AI-originated design mutation.",
           "isRequired": false,
           "format": "boolean",
           "default": "false"
@@ -451,7 +451,7 @@
         },
         {
           "name": "OTEL_ENABLED",
-          "description": "Enable OpenTelemetry",
+          "description": "Reserved; currently non-functional: no OTLP exporter is started.",
           "isRequired": false,
           "format": "boolean",
           "default": "false"
@@ -465,7 +465,7 @@
         },
         {
           "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
-          "description": "OpenTelemetry OTLP endpoint",
+          "description": "Reserved; currently non-functional: retained for a future OTLP exporter.",
           "isRequired": false,
           "format": "string",
           "default": ""
