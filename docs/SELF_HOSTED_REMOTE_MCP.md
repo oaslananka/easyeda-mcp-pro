@@ -58,6 +58,26 @@ The local server should bind to localhost behind the tunnel or reverse proxy. Ev
 listener requires OAuth/JWKS authentication and an explicit non-wildcard origin allowlist regardless
 of `NODE_ENV`; a tunnel or CORS policy alone is not an authentication boundary.
 
+## Authenticated published-port Docker
+
+When the server runs in Docker behind the tunnel or reverse proxy, the process must listen on the
+container interface while the host publication remains loopback-only:
+
+```bash
+docker run --rm \
+  -p 127.0.0.1:3000:3000 \
+  -e HTTP_HOST=0.0.0.0 \
+  -e ALLOWED_ORIGINS=https://mcp.user-domain.example \
+  -e OAUTH_ENABLED=true \
+  -e OAUTH_ISSUER=https://auth.example.com \
+  -e OAUTH_AUDIENCE=https://mcp.user-domain.example/mcp \
+  -e OAUTH_JWKS_URI=https://auth.example.com/.well-known/jwks.json \
+  easyeda-mcp-pro:latest
+```
+
+Do not replace this with an unauthenticated `0.0.0.0` bind. The runtime rejects missing OAuth/JWKS
+or origin settings before opening the listener.
+
 ## Experimental relay configuration
 
 Use the explicit backend selector when testing the paired outbound relay path:

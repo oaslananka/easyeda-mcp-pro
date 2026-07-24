@@ -118,3 +118,45 @@ To bridge the MCP server with the live EasyEDA Pro layout editor:
 4. Click **Import Extension** and select the `easyeda-bridge-extension.eext` file.
 5. In the Extension Manager, verify that **Allow External Interaction** is checked for the imported extension.
 6. Click **MCP Bridge** → **Connect** in the top menu bar to start the WebSocket connection.
+
+---
+
+## 5. Docker deployment modes
+
+The production image deliberately defaults to `HTTP_HOST=127.0.0.1`. A normal Docker bridge gives
+the container its own loopback namespace, so publishing port 3000 alone does **not** make that
+default listener reachable from the host.
+
+### Local-only Docker
+
+On Linux, host networking preserves a loopback-only endpoint without changing the safe defaults:
+
+```bash
+docker build -t easyeda-mcp-pro:local .
+docker run --rm --network host easyeda-mcp-pro:local
+curl http://127.0.0.1:3000/healthz
+```
+
+This mode is Linux-specific. On Docker Desktop, prefer a native local installation or the
+authenticated published-port mode below rather than weakening the bind policy.
+
+### Authenticated published-port Docker
+
+For a reverse proxy, tunnel, or another host process to reach the container, bind the application to
+`0.0.0.0` **and** provide complete OAuth/JWKS and explicit origin configuration. The host publication
+can still be restricted to loopback:
+
+```bash
+docker run --rm \
+  -p 127.0.0.1:3000:3000 \
+  -e HTTP_HOST=0.0.0.0 \
+  -e ALLOWED_ORIGINS=https://client.example.com \
+  -e OAUTH_ENABLED=true \
+  -e OAUTH_ISSUER=https://auth.example.com \
+  -e OAUTH_AUDIENCE=https://mcp.example.com/mcp \
+  -e OAUTH_JWKS_URI=https://auth.example.com/.well-known/jwks.json \
+  easyeda-mcp-pro:local
+```
+
+The server fails closed when `HTTP_HOST=0.0.0.0` is used without these controls. CORS, a published
+port, or a tunnel is never treated as authentication.
