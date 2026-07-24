@@ -128,6 +128,7 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^10.6.0",
+    "fast-check": "4.9.0",
     "prettier": "^3.9.4",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",

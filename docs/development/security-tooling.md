@@ -156,3 +156,27 @@ The workflow has read-only repository permission and never creates or updates is
 advisory therefore produces one failed workflow signal per run without duplicate public issue
 noise. Remediation remains tracked through the explicit issue referenced by a time-bounded audit
 exception.
+
+## Deterministic protocol property tests
+
+`fast-check` exercises the two untrusted JSON boundaries that are most exposed to malformed or
+adversarial input: the local bridge request/response envelopes and the Remote Relay discriminated
+message union. The dependency is pinned exactly so generated cases are reproducible across local and
+CI runs.
+
+Run the properties with:
+
+```bash
+pnpm exec vitest run tests/unit/security/protocol-properties.test.ts
+```
+
+The suite uses fixed seeds and 500 bounded cases per property:
+
+- bridge seed: `1366962214` (`0x517a2026`),
+- Remote Relay seed: `604446246` (`0x24072026`).
+
+When `fast-check` reports a counterexample, preserve the printed `seed` and `path`, then replay it
+with Vitest by temporarily passing those values to the relevant `fc.assert` options. Properties must
+remain deterministic, must never crash on arbitrary JSON, and may accept a value only when the
+normal schema invariants are present. This is continuous property-based fuzzing, not a replacement
+for native coverage-guided fuzzers or live EasyEDA compatibility tests.
