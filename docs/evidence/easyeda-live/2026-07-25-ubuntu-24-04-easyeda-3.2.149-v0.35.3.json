@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-07-25T02:18:40+03:00",
+  "candidateCommit": "790dab44c5215a5931361aa968a19e2c463961fd",
+  "server": {
+    "packageVersion": "0.35.3",
+    "nodeVersion": "24.18.0"
+  },
+  "extension": {
+    "packageVersion": "0.35.3",
+    "loaderReportedVersion": "0.35.3",
+    "packageSha256": "2988c3468a4b2ec7e746baabf81a9eafd78577243eec8d80d16f0b2993a1051e",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "34f1dcf29ebdf3cf",
+    "dispatcherBuildId": "d91b9x9099x0126",
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-28-generic"
+  },
+  "fixture": {
+    "project": "TestMcp",
+    "schematic": "Schematic1",
+    "page": "P1",
+    "disposable": true
+  },
+  "smokeReport": {
+    "status": "passed",
+    "generatedAt": "2026-07-24T23:18:40.775Z",
+    "projectId": "TestMcp",
+    "methodRegistryHash": "34f1dcf29ebdf3cf",
+    "writeEnabled": false,
+    "checks": [
+      {
+        "id": "system_status",
+        "title": "Read EasyEDA bridge system status",
+        "kind": "system",
+        "method": "system.getStatus",
+        "status": "passed",
+        "durationMs": 10523,
+        "mutates": false
+      },
+      {
+        "id": "api_inventory",
+        "title": "Read EasyEDA runtime API inventory",
+        "kind": "system",
+        "method": "system.apiInventory",
+        "status": "passed",
+        "durationMs": 5,
+        "mutates": false
+      },
+      {
+        "id": "schematic_nets",
+        "title": "List schematic nets",
+        "kind": "schematic",
+        "method": "schematic.listNets",
+        "status": "passed",
+        "durationMs": 43,
+        "mutates": false
+      },
+      {
+        "id": "schematic_components",
+        "title": "List schematic components",
+        "kind": "schematic",
+        "method": "schematic.listComponents",
+        "status": "passed",
+        "durationMs": 23,
+        "mutates": false
+      },
+      {
+        "id": "bom_generate",
+        "title": "Generate BOM snapshot",
+        "kind": "bom",
+        "method": "bom.generate",
+        "status": "passed",
+        "durationMs": 19,
+        "mutates": false
+      },
+      {
+        "id": "erc_check",
+        "title": "Run ERC check",
+        "kind": "design",
+        "method": "design.erc",
+        "status": "passed",
+        "durationMs": 468,
+        "mutates": false
+      }
+    ]
+  }
+}

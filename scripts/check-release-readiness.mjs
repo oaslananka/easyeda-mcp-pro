@@ -9,6 +9,10 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourcePath = resolve(repoRoot, 'config/easyeda-compatibility.json');
 const jsonOutput = process.argv.includes('--json');
 const compatibilityOnly = process.argv.includes('--compatibility-only');
+const targetRef =
+  process.argv
+    .find((argument) => argument.startsWith('--target-ref='))
+    ?.slice('--target-ref='.length) || 'HEAD';
 
 function resolveGitBinary() {
   const candidates =
@@ -67,8 +71,8 @@ export function inspectCompatibilityFreshness() {
   const source = JSON.parse(readFileSync(sourcePath, 'utf8'));
   const paths = source.releaseGate?.sensitivePaths ?? [];
   const requiredFreshLiveRecords = source.releaseGate?.requiredFreshLiveRecords ?? 1;
-  const headCommit = git(['rev-parse', 'HEAD'], { quiet: true });
-  const dirtyFiles = listDirtyFiles(paths);
+  const headCommit = git(['rev-parse', `${targetRef}^{commit}`], { quiet: true });
+  const dirtyFiles = targetRef === 'HEAD' ? listDirtyFiles(paths) : [];
   const records = source.records.map((record) => {
     try {
       const evidenceCommit = git(['rev-parse', `${record.server.commit}^{commit}`], {
@@ -114,6 +118,7 @@ export function inspectCompatibilityFreshness() {
   else if (records.some((record) => record.status === 'stale')) status = 'stale';
   return {
     status,
+    targetRef,
     headCommit,
     requiredFreshLiveRecords,
     freshRecords,

@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-07-23
+- **Last reviewed:** 2026-07-25
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,11 +32,11 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.0               | 0.35.1               | 0.35.1            | Live validated  | 2026-07-23 | 2026-10-21 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.3               | 0.35.3               | 0.35.3            | Live validated  | 2026-07-25 | 2026-10-23 |
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 
-Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-23`
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-25`
 
 ### Runtime identity
 
@@ -49,35 +49,32 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-23`
 | Kernel                               | `7.0.0-28-generic`                         |
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
-| Validation package version           | `0.35.0`                                   |
-| Release containing validated fixes   | `0.35.1`                                   |
-| Merge commit                         | `4d978a8af6fb510d6816264b63246ba84667d3bc` |
-| Installed extension package metadata | `0.35.1`                                   |
-| Loader-reported version              | `0.35.0`                                   |
+| Validation package version           | `0.35.3`                                   |
+| Release containing validated fixes   | `0.35.3`                                   |
+| Merge commit                         | `790dab44c5215a5931361aa968a19e2c463961fd` |
+| Installed extension package metadata | `0.35.3`                                   |
+| Loader-reported version              | `0.35.3`                                   |
 | Bridge contract                      | `1.0.0`                                    |
 | Dispatcher                           | `baked`                                    |
 | Method registry hash                 | `34f1dcf29ebdf3cf`                         |
 | Hot-swap compiled / enabled          | `false` / `false`                          |
 
-The package metadata and loader-reported version are intentionally separate. The validation candidate reported loader `0.35.0`; the same production build was restored with extension package metadata `0.35.1`, and the fixes shipped in release `0.35.1`.
+The installed extension package and loader both reported version `0.35.3` during this validation.
 
 ### Capability evidence
 
-| Capability                                        | Level          | Status   | Result                                                                                                                                                                                                                                                                                                                         | Evidence                                                                                                                                  |
-| ------------------------------------------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Production bridge cold start                      | `live`         | `passed` | The baked dispatcher connected on local bridge port 49620 with hot-swap compiled and runtime flags disabled, 67 methods, and a matching method registry hash.                                                                                                                                                                  | [PR #354](https://github.com/oaslananka/easyeda-mcp-pro/pull/354), [Issue #331](https://github.com/oaslananka/easyeda-mcp-pro/issues/331) |
-| Native no-connect diagnostics                     | `live`         | `passed` | A real wire was removed from the disposable schematic, the two newly floating pins were observed, an EasyEDA native no-connect marker excluded only the marked pin from MCP-inferred diagnostics, and clearing the marker restored the finding.                                                                                | [PR #354](https://github.com/oaslananka/easyeda-mcp-pro/pull/354), [Issue #331](https://github.com/oaslananka/easyeda-mcp-pro/issues/331) |
-| Fixture rollback and ERC baseline                 | `live`         | `passed` | The test wire and pin state were restored, the project was saved, the final model returned to seven nets with zero inferred floating pins, and native ERC returned to three warnings with zero errors.                                                                                                                         | [PR #354](https://github.com/oaslananka/easyeda-mcp-pro/pull/354)                                                                         |
-| Extension lifecycle and approval reconnect safety | `fake-runtime` | `passed` | Source-level tests cover port exhaustion, reconnect suppression, stale sockets, approval timeout and rejection, session replacement, and shutdown cleanup. **Boundary:** Executed with deterministic EasyEDA API and socket fakes; not a hosted relay dogfood run.                                                             | [PR #356](https://github.com/oaslananka/easyeda-mcp-pro/pull/356), [Issue #337](https://github.com/oaslananka/easyeda-mcp-pro/issues/337) |
-| Remote Relay session isolation                    | `fake-runtime` | `passed` | Real loopback WebSocket tests cover malformed frames, cross-session responses, duplicate identifiers, parallel independent sessions, timeout quarantine, and close-time pending request cleanup. **Boundary:** The WebSocket transport is real, but the paired EasyEDA extension and public hosted endpoint are test fixtures. | [PR #357](https://github.com/oaslananka/easyeda-mcp-pro/pull/357), [Issue #338](https://github.com/oaslananka/easyeda-mcp-pro/issues/338) |
-| Server and extension CI matrix                    | `ci`           | `passed` | Linux, Windows, and macOS test jobs, CodeQL, Semgrep, SonarQube Cloud, dependency review, container smoke, and patch coverage passed on the merged reliability changes.                                                                                                                                                        | [PR #357](https://github.com/oaslananka/easyeda-mcp-pro/pull/357)                                                                         |
+| Capability                     | Level  | Status   | Result                                                                                                                                                                             | Evidence                                                                                                                                                                                                                    |
+| ------------------------------ | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Production bridge cold start   | `live` | `passed` | The packaged 0.35.3 bridge connected on local port 49620 with the baked dispatcher, version-aligned loader metadata, 67 registered methods, and the expected method registry hash. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-25-ubuntu-24-04-easyeda-3.2.149-v0.35.3.json), [Issue #392](https://github.com/oaslananka/easyeda-mcp-pro/issues/392) |
+| Release read-only smoke matrix | `live` | `passed` | All six release smoke checks passed against TestMcp / Schematic1 / P1: system status, runtime API inventory, schematic nets, schematic components, BOM generation, and native ERC. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-25-ubuntu-24-04-easyeda-3.2.149-v0.35.3.json), [Issue #392](https://github.com/oaslananka/easyeda-mcp-pro/issues/392) |
+| Server and extension CI matrix | `ci`   | `passed` | The candidate commit passed the repository CI workflow, including Linux, Windows, and macOS jobs plus extension packaging and verification.                                        | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/actions/runs/30132366330)                                                                                                                                          |
 
 ### Known limitations
 
-- Remote Relay reconnect and session isolation have not yet been dogfooded through a public hosted endpoint with a real EasyEDA Pro extension session.
-- The no-connect behavior test used a temporary development dispatcher; the baked production dispatcher was validated separately through a clean cold start.
-- The user-level service installer was not part of this compatibility pass; Node path drift discovered on the validation workstation is tracked by issue #340.
-- This live record applies to Ubuntu x86_64. Windows and macOS require separate exact-version live records before equivalent claims are made.
+- This live smoke was read-only; project mutation, save, export, transaction rollback, and destructive recovery paths were not exercised in this pass.
+- This exact-version live record applies only to Ubuntu x86_64. Windows and macOS remain supported by automated CI and require separate live records for equivalent desktop-runtime claims.
+- Remote Relay was not dogfooded through a public hosted endpoint during this pass.
+- The disposable TestMcp fixture must have Schematic1 / P1 focused; native ERC correctly rejects a non-schematic or unfocused document context.
 
 ## Reproducing live smoke evidence
 

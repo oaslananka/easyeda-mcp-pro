@@ -74,15 +74,6 @@ jobs:
           EVIDENCE_URL: ${{ github.event.inputs.evidence_url }}
         run: node scripts/release-channel-policy.mjs
 
-      # actions/checkout v7.0.0
-      - name: Checkout release tag
-        if: ${{ env.RELEASE_RUN == 'true' }}
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          ref: ${{ steps.status.outputs.release_tag }}
-          fetch-depth: 0
-          persist-credentials: false
-
       # pnpm/action-setup v4.0.0
       - name: Setup pnpm
         if: ${{ env.RELEASE_RUN == 'true' }}
@@ -96,6 +87,22 @@ jobs:
           node-version: '24.18.0'
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
+
+      - name: Verify commit-bound EasyEDA compatibility evidence
+        if: ${{ env.RELEASE_RUN == 'true' }}
+        run: |
+          set -euo pipefail
+          git fetch --force --no-tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          node scripts/check-release-readiness.mjs --compatibility-only --target-ref="${RELEASE_TAG}"
+
+      # actions/checkout v7.0.0
+      - name: Checkout release tag
+        if: ${{ env.RELEASE_RUN == 'true' }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ steps.status.outputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Validate release metadata
         if: ${{ env.RELEASE_RUN == 'true' }}
@@ -132,10 +139,6 @@ jobs:
       - name: Verify runtime policy
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: pnpm runtime:check
-
-      - name: Verify commit-bound EasyEDA compatibility evidence
-        if: ${{ env.RELEASE_RUN == 'true' }}
-        run: pnpm release:readiness:compatibility
 
       - name: Verify Quality Gates
         if: ${{ env.RELEASE_RUN == 'true' }}

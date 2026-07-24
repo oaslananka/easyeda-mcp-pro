@@ -79,10 +79,10 @@ describe('EasyEDA compatibility evidence policy', () => {
       expect(record.easyedaPro.electronVersion).toMatch(/^36\./);
       expect(record.easyedaPro.chromiumVersion).toMatch(/^136\./);
       expect(record.server.validationPackageVersion).toMatch(/^0\.35\./);
-      expect(record.server.releaseContainingFixes).toBe('0.35.1');
+      expect(record.server.releaseContainingFixes).toMatch(/^0\.35\./);
       expect(record.server.commit).toMatch(/^[0-9a-f]{40}$/);
-      expect(record.extension.installedPackageVersion).toBe('0.35.1');
-      expect(record.extension.loaderReportedVersion).toBe('0.35.0');
+      expect(record.extension.installedPackageVersion).toBe(record.server.releaseContainingFixes);
+      expect(record.extension.loaderReportedVersion).toBe(record.extension.installedPackageVersion);
       expect(record.extension.bridgeContractVersion).toBe('1.0.0');
       expect(record.extension.methodRegistryHash).toMatch(/^[0-9a-f]{16}$/);
       expect(record.extension.activeDispatcher).toBe('baked');
@@ -92,7 +92,6 @@ describe('EasyEDA compatibility evidence policy', () => {
 
       const levels = new Set(record.capabilities.map((capability) => capability.evidenceLevel));
       expect(levels).toContain('live');
-      expect(levels).toContain('fake-runtime');
       for (const capability of record.capabilities) {
         expect(['live', 'fake-runtime', 'ci']).toContain(capability.evidenceLevel);
         expect(['passed', 'limited', 'blocked']).toContain(capability.status);

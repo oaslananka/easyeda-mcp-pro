@@ -179,7 +179,9 @@ export async function renderCompatibilityMarkdown(source) {
       `| Method registry hash | \`${record.extension.methodRegistryHash}\` |`,
       `| Hot-swap compiled / enabled | \`${record.extension.hotSwapCompiled}\` / \`${record.extension.hotSwapEnabled}\` |`,
       '',
-      'The package metadata and loader-reported version are intentionally separate. The validation candidate reported loader `0.35.0`; the same production build was restored with extension package metadata `0.35.1`, and the fixes shipped in release `0.35.1`.',
+      record.extension.installedPackageVersion === record.extension.loaderReportedVersion
+        ? `The installed extension package and loader both reported version \`${record.extension.installedPackageVersion}\` during this validation.`
+        : `The installed extension package reported \`${record.extension.installedPackageVersion}\`, while the loader reported \`${record.extension.loaderReportedVersion}\`; the distinction is retained as part of the exact runtime evidence.`,
       '',
       '### Capability evidence',
       '',

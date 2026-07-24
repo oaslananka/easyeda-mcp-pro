@@ -52,7 +52,11 @@ describe('release readiness policy', () => {
     const packageJson = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
     const script = read('scripts/check-release-readiness.mjs');
 
-    expect(workflow).toContain('pnpm release:readiness:compatibility');
+    expect(workflow).toContain('check-release-readiness.mjs --compatibility-only');
+    expect(workflow).toContain('--target-ref="${RELEASE_TAG}"');
+    expect(workflow.indexOf('Verify commit-bound EasyEDA compatibility evidence')).toBeLessThan(
+      workflow.indexOf('Checkout release tag'),
+    );
     expect(packageJson.scripts['release:readiness']).toContain('check-release-readiness.mjs');
     expect(packageJson.scripts['release:readiness:compatibility']).toContain(
       '--compatibility-only',
