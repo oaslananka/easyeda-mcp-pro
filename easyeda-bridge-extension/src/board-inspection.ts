@@ -1,5 +1,10 @@
 import type { ApiRuntime, BridgeErrorFactory } from './api-runtime.js';
 import type { DispatcherToolkit } from './toolkit.js';
+import {
+  primitiveIsOnBoardOutline,
+  readFiniteNumber,
+  readPrimitiveState,
+} from './pcb-primitive-state.js';
 import { logRecoverableError, readPath } from './utils.js';
 
 export interface BoardInspectionDependencies {
@@ -70,44 +75,60 @@ function createEmptyBoundingBox(): BoundingBox {
   };
 }
 
-function updateBoundingBox(bounds: BoundingBox, x: number, y: number): void {
-  if (x < bounds.minX) bounds.minX = x;
-  if (x > bounds.maxX) bounds.maxX = x;
-  if (y < bounds.minY) bounds.minY = y;
-  if (y > bounds.maxY) bounds.maxY = y;
+function updateBoundingBox(bounds: BoundingBox, x: unknown, y: unknown): void {
+  const finiteX = readFiniteNumber(x);
+  const finiteY = readFiniteNumber(y);
+  if (finiteX === undefined || finiteY === undefined) return;
+  if (finiteX < bounds.minX) bounds.minX = finiteX;
+  if (finiteX > bounds.maxX) bounds.maxX = finiteX;
+  if (finiteY < bounds.minY) bounds.minY = finiteY;
+  if (finiteY > bounds.maxY) bounds.maxY = finiteY;
 }
 
-async function addOutlineLineBounds(pcbLineClass: any, bounds: BoundingBox): Promise<void> {
-  if (!pcbLineClass || typeof pcbLineClass.getAll !== 'function') return;
-  try {
-    const lines = await pcbLineClass.getAll();
-    for (const line of lines || []) {
-      if (typeof line.getState_Layer !== 'function' || line.getState_Layer() !== 11) continue;
-      const points = typeof line.getState_Points === 'function' ? line.getState_Points() : [];
-      for (const point of points || []) {
-        updateBoundingBox(bounds, point.x, point.y);
+function addPrimitivePoints(bounds: BoundingBox, primitive: unknown): void {
+  const points = readPrimitiveState(primitive, 'Points');
+  if (Array.isArray(points)) {
+    for (const point of points) {
+      if (Array.isArray(point)) {
+        updateBoundingBox(bounds, point[0], point[1]);
+      } else {
+        updateBoundingBox(
+          bounds,
+          readPrimitiveState(point, 'X') ??
+            (typeof point === 'object' && point ? (point as any).x : undefined),
+          readPrimitiveState(point, 'Y') ??
+            (typeof point === 'object' && point ? (point as any).y : undefined),
+        );
       }
     }
-  } catch (error) {
-    logRecoverableError('failed to read board outline lines', error);
   }
+
+  updateBoundingBox(
+    bounds,
+    readPrimitiveState(primitive, 'StartX'),
+    readPrimitiveState(primitive, 'StartY'),
+  );
+  updateBoundingBox(
+    bounds,
+    readPrimitiveState(primitive, 'EndX'),
+    readPrimitiveState(primitive, 'EndY'),
+  );
 }
 
-async function addOutlineArcBounds(pcbArcClass: any, bounds: BoundingBox): Promise<void> {
-  if (!pcbArcClass || typeof pcbArcClass.getAll !== 'function') return;
+async function addOutlinePrimitiveBounds(
+  primitiveClass: any,
+  bounds: BoundingBox,
+  description: string,
+): Promise<void> {
+  if (!primitiveClass || typeof primitiveClass.getAll !== 'function') return;
   try {
-    const arcs = await pcbArcClass.getAll();
-    for (const arc of arcs || []) {
-      if (typeof arc.getState_Layer !== 'function' || arc.getState_Layer() !== 11) continue;
-      const startX = typeof arc.getState_StartX === 'function' ? arc.getState_StartX() : 0;
-      const startY = typeof arc.getState_StartY === 'function' ? arc.getState_StartY() : 0;
-      const endX = typeof arc.getState_EndX === 'function' ? arc.getState_EndX() : 0;
-      const endY = typeof arc.getState_EndY === 'function' ? arc.getState_EndY() : 0;
-      updateBoundingBox(bounds, startX, startY);
-      updateBoundingBox(bounds, endX, endY);
+    const primitives = await primitiveClass.getAll();
+    for (const primitive of primitives || []) {
+      if (!primitiveIsOnBoardOutline(primitive)) continue;
+      addPrimitivePoints(bounds, primitive);
     }
   } catch (error) {
-    logRecoverableError('failed to read board outline arcs', error);
+    logRecoverableError(`failed to read board outline ${description}`, error);
   }
 }
 
@@ -117,8 +138,8 @@ async function countMountingHoles(pcbPadClass: any): Promise<number> {
     let mountingHoles = 0;
     const pads = await pcbPadClass.getAll();
     for (const pad of pads || []) {
-      const holeType = typeof pad.getState_HoleType === 'function' ? pad.getState_HoleType() : '';
-      const holeSize = typeof pad.getState_HoleSize === 'function' ? pad.getState_HoleSize() : 0;
+      const holeType = readPrimitiveState(pad, 'HoleType');
+      const holeSize = readFiniteNumber(readPrimitiveState(pad, 'HoleSize')) ?? 0;
       if (holeType === 'MountingHole' || holeSize > 2) mountingHoles++;
     }
     return mountingHoles;
@@ -234,8 +255,8 @@ export function createBoardInspectionOperations({
     const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
     const bounds = createEmptyBoundingBox();
 
-    await addOutlineLineBounds(pcbLineClass, bounds);
-    await addOutlineArcBounds(pcbArcClass, bounds);
+    await addOutlinePrimitiveBounds(pcbLineClass, bounds, 'lines');
+    await addOutlinePrimitiveBounds(pcbArcClass, bounds, 'arcs');
 
     const width = bounds.maxX > bounds.minX ? bounds.maxX - bounds.minX : 0;
     const height = bounds.maxY > bounds.minY ? bounds.maxY - bounds.minY : 0;

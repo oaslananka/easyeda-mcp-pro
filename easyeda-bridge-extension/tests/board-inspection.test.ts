@@ -277,6 +277,82 @@ describe('board inspection operations', () => {
     });
   });
 
+  it('detects board outlines exposed as direct layer records and endpoint fields', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
+      {
+        pcb_PrimitiveLine: {
+          getAll: async () => [
+            {
+              type: 'Board Outline',
+              layer: { name: 'Board Outline Layer', type: 'Board Outline' },
+              startX: 0,
+              startY: 0,
+              endX: 40,
+              endY: 0,
+            },
+            {
+              state: {
+                Layer: 'Board Outline Layer',
+                Points: [
+                  { x: 40, y: 0 },
+                  { x: 40, y: 20 },
+                ],
+              },
+            },
+          ],
+        },
+        pcb_PrimitiveArc: {
+          getAll: async () => [
+            {
+              getState_Layer: () => ({ name: 'Board Outline Layer' }),
+              StartX: 40,
+              StartY: 20,
+              EndX: 0,
+              EndY: 20,
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toEqual({
+      widthMm: 40,
+      heightMm: 20,
+      shape: 'custom',
+      mountingHoleCount: 0,
+      areaMm2: 800,
+      hasOutline: true,
+    });
+  });
+
+  it('ignores invalid outline coordinates without discarding valid points', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
+      {
+        pcb_PrimitiveLine: {
+          getAll: async () => [
+            {
+              Layer: 'Board Outline',
+              Points: [
+                { x: Number.NaN, y: 1000 },
+                { x: -5, y: -2 },
+                { x: 15, y: 8 },
+              ],
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      widthMm: 20,
+      heightMm: 10,
+      areaMm2: 200,
+      hasOutline: true,
+    });
+  });
+
   it('returns an empty dimension summary when primitive reads fail', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const failingClass = { getAll: async () => Promise.reject(new Error('read failed')) };
