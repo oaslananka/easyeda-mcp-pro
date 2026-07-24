@@ -110,7 +110,7 @@ For advanced configurations, manual instructions, and specific clients, see [Ins
 
 ## Overview
 
-easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes up to 60 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
+easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes up to 115 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
 
 The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling real-time access to open project data. It integrates with JLCPCB, LCSC, Mouser, and DigiKey for BOM sourcing and pricing.
 
@@ -570,12 +570,19 @@ See `.env.example` for the complete list of configuration variables.
 
 ## MCP Tools
 
-The server currently registers up to 77 profile-gated tools. Tools are filtered by the active `TOOL_PROFILE`:
+The server registers profile-gated tools according to the active `TOOL_PROFILE`. The table below is generated from the same registry used at runtime:
 
-- `core`: 48 tools
-- `pro`: 63 tools
-- `full`: 73 tools
-- `dev`: 77 tools
+<!-- capability-counts:start -->
+
+| Profile        | Registered tools |
+| -------------- | ---------------: |
+| `core`         |               71 |
+| `pro`          |               98 |
+| `full`         |              110 |
+| `dev`          |              115 |
+| `experimental` |              115 |
+
+<!-- capability-counts:end -->
 
 `core` exposes the standard workflow tools, `pro` adds manufacturing exports, `full` adds controlled documented EasyEDA API calls, and `dev` adds runtime probes for debugging.
 
@@ -677,7 +684,7 @@ The schematic write APIs use EasyEDA Pro extension APIs that EasyEDA currently m
 │  (via Plugin)    │     Protocol      │  └───────────────┘  │
 └─────────────────┘                    │  ┌───────────────┐  │
                                        │  │  ToolRegistry  │  │
-                                       │  │ (up to 60 tools) │ │
+                                       │  │ (up to 115 tools) │ │
                                        │  └───────────────┘  │
                                        │  ┌───────────────┐  │
                                        │  │    Storage     │──┼──► SQLite
@@ -817,7 +824,7 @@ pnpm typecheck             # TypeScript
 pnpm lint                  # ESLint
 
 # Test
-pnpm test                  # Vitest (812 tests across 67 files)
+pnpm test                  # Vitest suite
 pnpm test:coverage         # With coverage report
 
 # Golden E2E fixture smoke tests are included in `pnpm test`
@@ -870,7 +877,7 @@ src/
 │       ├── http.ts                    # HTTP/Streamable HTTP transport
 │       └── oauth-resource-metadata.ts
 ├── storage/                 # Node.js sqlite storage (cache, artifacts)
-├── tools/                   # Up to 60 profile-gated MCP tool definitions
+├── tools/                   # Up to 115 profile-gated MCP tool definitions
 │   ├── register.ts, registry.ts, types.ts, transaction.ts
 │   ├── L0_diagnostics_core.ts, L0_diagnostics_api.ts
 │   ├── L1_schematic_read.ts, L1_schematic_write.ts

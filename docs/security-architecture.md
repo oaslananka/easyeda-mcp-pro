@@ -107,11 +107,25 @@ Tools are organized into hierarchical profiles: `core` < `pro` < `full` < `dev` 
 - The `TOOL_PROFILE` environment variable selects which tools are enabled.
 - Each tool definition declares a minimum `profile` level.
 - Only tools at or below the active profile are registered on the MCP server.
-- `core` is the default and exposes 47 tools.
-- `pro` exposes 54 tools and adds manufacturing export tools (pick-and-place, PDF, netlist) and the device catalog verification tools.
-- `full` exposes 63 tools and adds the controlled `easyeda_api_call` tool for direct EasyEDA API access.
-- `dev` exposes 67 tools and adds runtime probes for debugging (bridge method probing, component inspection).
-- `experimental` is reserved for future MCP Apps, Tasks, simulation, autorouter, and AI action plan capabilities; it currently does not add registered tools beyond `dev`.
+  The exact counts below are generated from the runtime registry:
+
+<!-- capability-counts:start -->
+
+| Profile        | Registered tools |
+| -------------- | ---------------: |
+| `core`         |               71 |
+| `pro`          |               98 |
+| `full`         |              110 |
+| `dev`          |              115 |
+| `experimental` |              115 |
+
+<!-- capability-counts:end -->
+
+- `core` is the default high-confidence workflow surface.
+- `pro` adds manufacturing exports, compound workflows, autorouting, and offline SPICE verification.
+- `full` adds the controlled `easyeda_api_call` surface and CircuitIR-driven floorplanning.
+- `dev` adds runtime probes for bridge and component diagnostics.
+- `experimental` currently registers the same standard tool set as `dev`; separately gated raw-execution and hot-swap tools are excluded from these counts.
 
 **Security principle:** Privilege escalation is prevented because tool registration happens at startup. Changing the active profile requires a server restart.
 
