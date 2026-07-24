@@ -149,7 +149,7 @@ describe('dependency audit policy', () => {
     const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).toMatch(/\n  postcss: 8\.5\.18\n/);
+    expect(workspacePolicy).toMatch(/\n {2}postcss: 8\.5\.18\n/);
     expect(lockfile).toContain('postcss: 8.5.18');
     expect(lockfile).not.toMatch(/postcss@8\.5\.(?:[0-9]|1[0-7])(?:\D|$)/);
   });
