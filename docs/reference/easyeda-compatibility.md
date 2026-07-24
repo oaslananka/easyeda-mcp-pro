@@ -7,6 +7,19 @@ This matrix records exact runtime evidence. Broad support ranges elsewhere in th
 - **Last reviewed:** 2026-07-23
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
+## Commit-bound release gate
+
+A release requires at least 1 live record whose evidence commit has no later changes under the compatibility-sensitive paths below. The executable check is `pnpm release:readiness:compatibility`.
+
+- `easyeda-bridge-extension/src`
+- `src/bridge`
+- `src/remote`
+- `src/server/transports`
+- `src/tools`
+- `src/transactions`
+
+A record can remain historically valid while being stale for a new release candidate. CI, fake-runtime, or documentation evidence cannot replace a current live EasyEDA record.
+
 ## Evidence levels
 
 | Level          | Meaning                                                                                                     |
@@ -27,24 +40,24 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-23`
 
 ### Runtime identity
 
-| Field                                | Exact value        |
-| ------------------------------------ | ------------------ |
-| EasyEDA Pro                          | `3.2.149.88089769` |
-| Electron                             | `36.3.1`           |
-| Chromium                             | `136.0.7103.113`   |
-| Operating system                     | Ubuntu 24.04.4 LTS |
-| Kernel                               | `7.0.0-28-generic` |
-| Architecture                         | `x86_64`           |
-| Node.js used by validation server    | `24.18.0`          |
-| Validation package version           | `0.35.0`           |
-| Release containing validated fixes   | `0.35.1`           |
-| Merge commit                         | `4d978a8`          |
-| Installed extension package metadata | `0.35.1`           |
-| Loader-reported version              | `0.35.0`           |
-| Bridge contract                      | `1.0.0`            |
-| Dispatcher                           | `baked`            |
-| Method registry hash                 | `34f1dcf29ebdf3cf` |
-| Hot-swap compiled / enabled          | `false` / `false`  |
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.4 LTS                         |
+| Kernel                               | `7.0.0-28-generic`                         |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.18.0`                                  |
+| Validation package version           | `0.35.0`                                   |
+| Release containing validated fixes   | `0.35.1`                                   |
+| Merge commit                         | `4d978a8af6fb510d6816264b63246ba84667d3bc` |
+| Installed extension package metadata | `0.35.1`                                   |
+| Loader-reported version              | `0.35.0`                                   |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `34f1dcf29ebdf3cf`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
 
 The package metadata and loader-reported version are intentionally separate. The validation candidate reported loader `0.35.0`; the same production build was restored with extension package metadata `0.35.1`, and the fixes shipped in release `0.35.1`.
 

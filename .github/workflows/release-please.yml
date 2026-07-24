@@ -133,6 +133,10 @@ jobs:
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: pnpm runtime:check
 
+      - name: Verify commit-bound EasyEDA compatibility evidence
+        if: ${{ env.RELEASE_RUN == 'true' }}
+        run: pnpm release:readiness:compatibility
+
       - name: Verify Quality Gates
         if: ${{ env.RELEASE_RUN == 'true' }}
         run: |

@@ -110,7 +110,9 @@
     "pretest:extension:ci": "pnpm runtime:check",
     "security:secrets": "node scripts/check-secret-hygiene.mjs",
     "generate:capability-docs": "tsx scripts/update-capability-counts.mts",
-    "check:capability-docs": "tsx scripts/update-capability-counts.mts --check"
+    "check:capability-docs": "tsx scripts/update-capability-counts.mts --check",
+    "release:readiness": "node scripts/check-release-readiness.mjs",
+    "release:readiness:compatibility": "node scripts/check-release-readiness.mjs --compatibility-only"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

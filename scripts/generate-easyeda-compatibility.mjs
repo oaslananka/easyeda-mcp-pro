@@ -23,6 +23,20 @@ function validateSource(source) {
     'reviewPolicyDays must be positive',
   );
   assert(Array.isArray(source.records) && source.records.length > 0, 'records must not be empty');
+  assert(source.releaseGate && typeof source.releaseGate === 'object', 'releaseGate is required');
+  assert(
+    Number.isInteger(source.releaseGate.requiredFreshLiveRecords) &&
+      source.releaseGate.requiredFreshLiveRecords > 0,
+    'releaseGate.requiredFreshLiveRecords must be positive',
+  );
+  assert(
+    Array.isArray(source.releaseGate.sensitivePaths) &&
+      source.releaseGate.sensitivePaths.length > 0,
+    'releaseGate.sensitivePaths must not be empty',
+  );
+  for (const path of source.releaseGate.sensitivePaths) {
+    assert(typeof path === 'string' && path.length > 0, 'releaseGate paths must be strings');
+  }
 
   const ids = new Set();
   for (const record of source.records) {
@@ -30,6 +44,10 @@ function validateSource(source) {
     assert(!ids.has(record.id), `duplicate record id ${record.id}`);
     ids.add(record.id);
     assert(record.status === 'live-validated', `${record.id} must use live-validated status`);
+    assert(
+      /^[0-9a-f]{40}$/.test(record.server?.commit ?? ''),
+      `${record.id} server.commit must be a full 40-character commit`,
+    );
     assert(Number.isFinite(Date.parse(record.validatedAt)), `${record.id} validatedAt is invalid`);
     assert(
       Date.parse(record.reviewBy) > Date.parse(record.validatedAt),
@@ -104,6 +122,14 @@ export async function renderCompatibilityMarkdown(source) {
     '',
     `- **Last reviewed:** ${source.lastReviewed}`,
     `- **Review policy:** refresh each live record within ${source.reviewPolicyDays} days or mark it stale/blocked.`,
+    '',
+    '## Commit-bound release gate',
+    '',
+    `A release requires at least ${source.releaseGate.requiredFreshLiveRecords} live record whose evidence commit has no later changes under the compatibility-sensitive paths below. The executable check is \`pnpm release:readiness:compatibility\`.`,
+    '',
+    ...source.releaseGate.sensitivePaths.map((path) => `- \`${path}\``),
+    '',
+    'A record can remain historically valid while being stale for a new release candidate. CI, fake-runtime, or documentation evidence cannot replace a current live EasyEDA record.',
     '',
     '## Evidence levels',
     '',

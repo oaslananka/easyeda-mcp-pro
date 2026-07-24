@@ -22,7 +22,7 @@
       "server": {
         "validationPackageVersion": "0.35.0",
         "releaseContainingFixes": "0.35.1",
-        "commit": "4d978a8"
+        "commit": "4d978a8af6fb510d6816264b63246ba84667d3bc"
       },
       "extension": {
         "installedPackageVersion": "0.35.1",
@@ -110,5 +110,16 @@
         "This live record applies to Ubuntu x86_64. Windows and macOS require separate exact-version live records before equivalent claims are made."
       ]
     }
-  ]
+  ],
+  "releaseGate": {
+    "requiredFreshLiveRecords": 1,
+    "sensitivePaths": [
+      "easyeda-bridge-extension/src",
+      "src/bridge",
+      "src/remote",
+      "src/server/transports",
+      "src/tools",
+      "src/transactions"
+    ]
+  }
 }

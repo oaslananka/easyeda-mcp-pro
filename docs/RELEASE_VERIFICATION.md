@@ -20,39 +20,63 @@ Both channels publish the npm package, GitHub Release assets, SBOM, provenance/a
 
 ## Verification checks for maintainers
 
-For each release, maintainers should verify:
+For each release, maintainers should start with the commit-bound compatibility check:
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm lint
-pnpm test
-pnpm test:coverage
-pnpm build
-pnpm build:extension
-pnpm verify:extension
-pnpm docs:build
-npm pack --dry-run
+pnpm release:readiness:compatibility
 ```
+
+This check compares the candidate commit with every recorded live EasyEDA evidence commit across the
+compatibility-sensitive source paths. It fails when later bridge, transport, remote, tool, or
+transaction changes make the available live evidence stale. A historical compatibility row can
+remain valid for its original commit while being insufficient for a new release.
+
+After a fresh live record is bound to the exact candidate commit, run the complete local gate:
+
+```bash
+pnpm release:readiness
+```
+
+The command executes dependency audit, the full `pnpm verify` suite, coverage, extension distribution
+verification, and `npm pack --dry-run`. The release workflow independently repeats its publication
+quality gates. Neither a passing unit-test matrix nor fake-runtime evidence can waive stale live
+EasyEDA evidence.
 
 The release PR and release workflow must pass the required GitHub status checks before release artifacts are considered valid.
 
 ### Docker smoke check
 
-The CI `quality` job is the source of truth for Docker release readiness. It builds the Docker image, starts the container, and checks `/healthz` before the release is considered valid.
+The CI `quality` job is the source of truth for Docker release readiness. It verifies three distinct
+behaviors: the default loopback listener works inside the container, an unauthenticated non-loopback
+bind fails closed, and a correctly configured OAuth/JWKS deployment is reachable through the
+published host port and returns a Bearer challenge.
 
 Maintainers with Docker installed can repeat the same smoke locally:
 
 ```bash
 docker build -t easyeda-mcp-pro:release-smoke .
-cid=$(docker run -d easyeda-mcp-pro:release-smoke)
-trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
-sleep 3
-docker logs "$cid"
-docker exec "$cid" node -e "const r = await fetch('http://127.0.0.1:3000/healthz'); if (!r.ok) process.exit(1); console.log(await r.text());"
+node scripts/e2e/docker-network-smoke.mjs --image easyeda-mcp-pro:release-smoke
 ```
 
 If the maintainer workstation or VPS does not have Docker installed, record that the local Docker smoke was skipped and link to the passing CI `quality` job. Do not treat a Docker-less local host as a release blocker when the CI Docker smoke has passed.
+
+## Recording fresh live EasyEDA evidence
+
+When `pnpm release:readiness:compatibility` reports `stale`, run the documented smoke workflow on a
+disposable EasyEDA project and record the exact server commit, package version, extension package,
+loader version, EasyEDA Pro build, operating system, bridge contract, method registry hash, and
+capability results in `config/easyeda-compatibility.json`. Generate and check the public matrix:
+
+```bash
+pnpm generate:compatibility
+pnpm check:compatibility
+pnpm release:readiness:compatibility
+```
+
+The evidence commit must be the full 40-character Git commit of the tested candidate. Do not update
+that field to a newer commit unless the live run actually used that commit. If no disposable live
+runtime is available, the correct status is blocked; do not replace the evidence with CI output.
 
 ## User verification steps
 

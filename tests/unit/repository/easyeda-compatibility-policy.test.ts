@@ -11,6 +11,7 @@ interface CompatibilitySource {
   schemaVersion: number;
   lastReviewed: string;
   reviewPolicyDays: number;
+  releaseGate: { requiredFreshLiveRecords: number; sensitivePaths: string[] };
   records: Array<{
     id: string;
     status: string;
@@ -53,6 +54,8 @@ describe('EasyEDA compatibility evidence policy', () => {
     expect(source.schemaVersion).toBe(1);
     expect(source.lastReviewed).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(source.reviewPolicyDays).toBeGreaterThan(0);
+    expect(source.releaseGate.requiredFreshLiveRecords).toBe(1);
+    expect(source.releaseGate.sensitivePaths.length).toBeGreaterThan(0);
     expect(source.records.length).toBeGreaterThan(0);
 
     for (const record of source.records) {
@@ -77,7 +80,7 @@ describe('EasyEDA compatibility evidence policy', () => {
       expect(record.easyedaPro.chromiumVersion).toMatch(/^136\./);
       expect(record.server.validationPackageVersion).toMatch(/^0\.35\./);
       expect(record.server.releaseContainingFixes).toBe('0.35.1');
-      expect(record.server.commit).toMatch(/^[0-9a-f]{7,40}$/);
+      expect(record.server.commit).toMatch(/^[0-9a-f]{40}$/);
       expect(record.extension.installedPackageVersion).toBe('0.35.1');
       expect(record.extension.loaderReportedVersion).toBe('0.35.0');
       expect(record.extension.bridgeContractVersion).toBe('1.0.0');

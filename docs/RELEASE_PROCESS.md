@@ -60,6 +60,12 @@ The workflow checks out the exact tag, verifies that the GitHub Release is non-d
 
 ## 5. Release-blocking gates
 
+Before publication begins, `pnpm release:readiness:compatibility` must confirm that at least one live
+EasyEDA record is current for the exact candidate commit. The release workflow runs this command
+after runtime and dependency installation and before the remaining quality gates. Any later change
+under the configured compatibility-sensitive paths makes older evidence stale and blocks both stable
+and prerelease publication until a new disposable-project live run is recorded.
+
 Both channels must pass:
 
 - supported Node.js and pnpm runtime preflight;
@@ -68,10 +74,10 @@ Both channels must pass:
 - server tests and coverage plus extension tests and coverage;
 - generated tool-reference drift check and documentation build;
 - server build, extension build, extension distribution verification, and extension size budgets;
-- Docker startup smoke, CodeQL, Semgrep, Sonar, Codecov, dependency review, workflow/container security, and required platform CI checks;
+- Docker loopback, fail-closed, and published-host-port smoke; CodeQL; Semgrep; Sonar; Codecov; dependency review; workflow/container security; and required platform CI checks;
 - SBOM generation, npm provenance, and GitHub artifact attestation.
 
-The evidence record must also satisfy the soak and live EasyEDA validation rules in the Release Policy. Automation success alone does not waive those requirements.
+The evidence record must also satisfy the soak and live EasyEDA validation rules in the Release Policy. Automation success alone does not waive those requirements. The full local convenience command is `pnpm release:readiness`; it intentionally fails before the expensive quality sequence when the compatibility evidence is stale.
 
 ## 6. Publication and verification
 
