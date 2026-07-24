@@ -16,6 +16,8 @@ const packageJson = JSON.parse(readText('package.json')) as {
 };
 
 const SEMGREP_VERSION = '1.170.0';
+const SEMGREP_IMAGE_DIGEST =
+  'sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d';
 const SNYK_VERSION = '1.1306.1';
 const ACTIONLINT_VERSION = '1.7.12';
 const ZIZMOR_VERSION = '1.22.0';
@@ -100,13 +102,30 @@ describe('repository security tooling policy', () => {
   it('runs Semgrep, workflow hardening, and Trivy as separate CI concerns', () => {
     const workflow = readText('.github/workflows/static-security-analysis.yml');
 
-    expect(workflow).toContain(`semgrep==${SEMGREP_VERSION}`);
+    const semgrepImage = `semgrep/semgrep:${SEMGREP_VERSION}@${SEMGREP_IMAGE_DIGEST}`;
+    expect(workflow.split(semgrepImage)).toHaveLength(5);
+    expect(workflow).not.toContain('pip install --disable-pip-version-check semgrep');
     expect(workflow).toContain('semgrep --validate --config .semgrep.yml');
-    expect(workflow).toContain('node scripts/test-semgrep-rules.mjs');
+    expect(workflow).toContain('semgrep --test .tmp-semgrep-rules');
     expect(workflow).toContain('semgrep scan --config .semgrep.yml');
     expect(workflow).toContain('workflow-security:');
+    expect(workflow).toContain(
+      'pip install --disable-pip-version-check --require-hashes -r .github/requirements/pre-commit.txt',
+    );
     expect(workflow).toContain(`pre-commit run actionlint --all-files`);
     expect(workflow).toContain(`pre-commit run zizmor --all-files`);
+
+    expect(readText('.github/requirements/pre-commit.in').trim()).toBe('pre-commit==4.6.0');
+    const preCommitRequirements = readText('.github/requirements/pre-commit.txt');
+    const requirementEntries = preCommitRequirements
+      .split(/(?=^[a-z0-9][a-z0-9._-]*==)/gim)
+      .filter((entry) => /^[a-z0-9][a-z0-9._-]*==/i.test(entry));
+    expect(requirementEntries.length).toBeGreaterThanOrEqual(8);
+    expect(preCommitRequirements).toContain('pre-commit==4.6.0');
+    for (const entry of requirementEntries) {
+      expect(entry.split('\n')[0]?.replace(/\r$/, '')).toMatch(/==[^\s]+ \\$/);
+      expect(entry).toContain('--hash=sha256:');
+    }
     expect(workflow).toContain('container-security:');
     expect(workflow).toContain(`aquasecurity/trivy-action@${TRIVY_ACTION_SHA}`);
     expect(workflow).toContain("scan-type: 'config'");

@@ -12,6 +12,13 @@ Git hooks must remain quick and deterministic; cloud and CI scanners keep the br
 | Pull request | CI, CodeQL, Dependency Review, repository Semgrep rules, Trivy, Snyk App, and SonarQube Cloud  |
 | Release      | CycloneDX SBOM, npm provenance, GitHub artifact attestation, and SHA-pinned release automation |
 
+Static-security workflow tooling is content-addressed rather than version-only: Semgrep runs from an
+OCI image pinned to its manifest SHA-256 digest, and pre-commit is installed from
+`.github/requirements/pre-commit.txt` with pip `--require-hashes`. Regenerate that lock from
+`.github/requirements/pre-commit.in` with Python 3.12 and `pip-tools==7.5.3` using
+`pip-compile --generate-hashes`; review both the resolved versions and hashes in the same pull
+request.
+
 GitHub secret scanning and push protection are enabled for the public repository. Validity checks,
 non-provider patterns, and repository custom patterns are not available for the current user-owned
 public repository; the verified state and compensating controls are documented in

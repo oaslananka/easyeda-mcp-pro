@@ -32,25 +32,35 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Semgrep 1.170.0
-        run: |
-          python3 -m venv .venv-semgrep
-          .venv-semgrep/bin/python -m pip install --disable-pip-version-check semgrep==1.170.0
-          echo "$GITHUB_WORKSPACE/.venv-semgrep/bin" >> "$GITHUB_PATH"
-
       - name: Verify Semgrep version
-        run: semgrep --version
+        run: docker run --rm semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d semgrep --version
 
       - name: Validate repository rules
-        run: semgrep --validate --config .semgrep.yml
+        run: >-
+          docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp
+          --volume "$GITHUB_WORKSPACE:/src" --workdir /src
+          semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d
+          semgrep --validate --config .semgrep.yml
 
       - name: Test repository rules
-        run: node scripts/test-semgrep-rules.mjs
+        run: |
+          rules_dir=.tmp-semgrep-rules
+          trap 'rm -rf "$rules_dir"' EXIT
+          mkdir -p "$rules_dir"
+          cp .semgrep.yml "$rules_dir/security-rules.yml"
+          cp tests/semgrep/security-rules.fixture "$rules_dir/security-rules.ts"
+          docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp \
+            --volume "$GITHUB_WORKSPACE:/src" --workdir /src \
+            semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d \
+            semgrep --test .tmp-semgrep-rules
 
       - name: Scan repository
         id: semgrep-scan
         continue-on-error: true
         run: >-
+          docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp
+          --volume "$GITHUB_WORKSPACE:/src" --workdir /src
+          semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d
           semgrep scan --config .semgrep.yml --error --metrics=off
           --sarif-output=semgrep.sarif .
 
@@ -82,10 +92,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install pre-commit 4.6.0
+      - name: Install hash-locked pre-commit 4.6.0
         run: |
           python3 -m venv .venv-pre-commit
-          .venv-pre-commit/bin/python -m pip install --disable-pip-version-check pre-commit==4.6.0
+          .venv-pre-commit/bin/python -m pip install --disable-pip-version-check --require-hashes -r .github/requirements/pre-commit.txt
           echo "$GITHUB_WORKSPACE/.venv-pre-commit/bin" >> "$GITHUB_PATH"
 
       - name: Check workflow syntax
