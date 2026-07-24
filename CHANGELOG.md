@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.35.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.2...easyeda-mcp-pro-v0.35.3) (2026-07-24)
+
+
+### Bug Fixes
+
+* **deps:** patch brace-expansion advisory ([#405](https://github.com/oaslananka/easyeda-mcp-pro/issues/405)) ([05868e9](https://github.com/oaslananka/easyeda-mcp-pro/commit/05868e9f3cdfb9079b9ee1f512781137573ff937))
+* remediate 24 July 2026 repository audit findings ([#402](https://github.com/oaslananka/easyeda-mcp-pro/issues/402)) ([d38cf4a](https://github.com/oaslananka/easyeda-mcp-pro/commit/d38cf4ac8b815f124871df819fab886c7783a7de))
+
 ## [0.35.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.1...easyeda-mcp-pro-v0.35.2) (2026-07-23)
 
 
