@@ -43,7 +43,31 @@ A successor maintainer should be able to:
 
 ## Solo-maintainer bus-factor statement
 
-The current bus factor is one. This is acceptable for the current project phase only with an explicit continuity plan. The target improvement is to add at least one trusted backup maintainer or documented successor path before claiming a stronger bus-factor posture.
+The current bus factor is one and **no successor is currently designated**. This is acceptable for the
+current project phase only with an explicit continuity plan; it is not evidence of independent review
+or operational redundancy. The project must not claim a stronger bus-factor posture until a named,
+consenting human has the access and verified evidence below.
+
+## Backup maintainer qualification
+
+A backup maintainer or successor must be a real human who has agreed to the role and can demonstrate:
+
+- GitHub `maintain` or administrator access and private security-advisory access;
+- an npm recovery or package-transfer path without sharing plaintext credentials;
+- understanding of the release, rollback, secret-rotation, and vulnerability-disclosure runbooks;
+- ability to restore branch protection and revoke compromised credentials; and
+- one recorded emergency-release dry run using a non-production version or documented simulation.
+
+Granting access alone is insufficient. Record the individual's consent, access verification date,
+reviewed runbooks, dry-run evidence, and revocation procedure in the encrypted continuity record.
+Public documentation may identify the role without exposing recovery secrets.
+
+## Activation of independent review
+
+Once a second eligible maintainer has accepted review responsibility, follow the activation runbook
+in [`REPOSITORY_GOVERNANCE.md`](REPOSITORY_GOVERNANCE.md) within two business days. Until that live
+change and its test pull request are verified, branch protection remains accurately documented as
+zero required approvals because enforcing one approval against a sole owner would deadlock maintenance.
 
 ## Review cadence
 

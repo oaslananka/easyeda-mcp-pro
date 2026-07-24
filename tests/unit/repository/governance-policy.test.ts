@@ -33,6 +33,24 @@ interface GovernancePolicy {
     soloMaintainerLimitation: string;
     automatedFindingDisposition: string;
     emergencyException: string;
+    activation: {
+      trigger: string;
+      accountableOwner: string;
+      deadlineBusinessDays: number;
+      targetBranchProtection: {
+        requiredApprovals: number;
+        requireCodeOwnerReviews: boolean;
+        dismissStaleReviews: boolean;
+        requireLastPushApproval: boolean;
+      };
+      verification: string[];
+    };
+  };
+  continuity: {
+    currentBusFactor: number;
+    minimumMaintainersForIndependentReview: number;
+    successorStatus: string;
+    requiredSuccessorEvidence: string[];
   };
 }
 
@@ -77,6 +95,34 @@ describe('repository governance policy', () => {
       allowForcePushes: false,
       allowDeletions: false,
     });
+  });
+
+  it('defines a fail-safe activation target for a second eligible maintainer', () => {
+    const policy = readPolicy();
+
+    expect(policy.reviewPolicy.activation).toEqual({
+      trigger: 'second-eligible-human-maintainer-has-review-access',
+      accountableOwner: '@oaslananka',
+      deadlineBusinessDays: 2,
+      targetBranchProtection: {
+        requiredApprovals: 1,
+        requireCodeOwnerReviews: true,
+        dismissStaleReviews: true,
+        requireLastPushApproval: true,
+      },
+      verification: [
+        'verify-live-collaborator-permission',
+        'apply-main-branch-protection-target',
+        'verify-owner-authored-test-pr-is-reviewable',
+        'update-liveStateVerifiedAt',
+      ],
+    });
+    expect(policy.continuity.currentBusFactor).toBe(1);
+    expect(policy.continuity.minimumMaintainersForIndependentReview).toBe(2);
+    expect(policy.continuity.successorStatus).toBe('not-designated');
+    expect(policy.continuity.requiredSuccessorEvidence).toContain(
+      'github-admin-or-maintain-access',
+    );
   });
 
   it('documents independent review, automated findings, and emergency exceptions', () => {

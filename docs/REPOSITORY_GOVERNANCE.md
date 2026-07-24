@@ -44,7 +44,30 @@ Until a second eligible maintainer is added, a critical-path PR must include:
 4. disposition of every bot, agent, and human finding; and
 5. external review when a suitable reviewer is practically available, especially before a stable release.
 
-When a second eligible maintainer is granted review access, the repository administrator must update branch protection and `config/repository-governance.json` in the same tracked change to require at least one approval, require code-owner review, dismiss stale approvals, and require approval after the latest push.
+When a second eligible maintainer is granted review access, the independent-review activation runbook below becomes mandatory. The activation target is already recorded in `config/repository-governance.json`; it must not be weakened merely to make an owner-authored pull request mergeable.
+
+### Independent-review activation runbook
+
+The trigger is satisfied only when a second human has `maintain`, `write`, or otherwise sufficient
+review access and has accepted responsibility for the critical paths they review. A nominal account,
+bot, inactive invite, or external opinion without repository review access does not satisfy it.
+
+Within **two business days** of the trigger, `@oaslananka` must:
+
+1. verify the collaborator's live permission and accepted invitation;
+2. set `main` branch protection to one required approval, required code-owner review, dismissal of
+   stale approvals, and approval after the latest push;
+3. preserve every existing required status check and administrator enforcement setting;
+4. open an owner-authored test pull request touching a critical path and prove that the second
+   maintainer can review it while the author cannot self-satisfy the approval requirement;
+5. update `liveStateVerifiedAt`, the current branch-protection snapshot, and public issue #399 with
+   the verification URL and date; and
+6. revert access or protection immediately if the test exposes a bypass, deadlock, or privilege
+   mismatch, then document the exact blocker publicly.
+
+The target state is machine-checked by the governance policy test even while the live repository
+truthfully remains in solo-maintainer mode. This prevents the activation requirements from being
+invented or weakened only after a reviewer appears.
 
 ## Bot and agent findings
 

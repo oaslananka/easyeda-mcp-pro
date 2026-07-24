@@ -92,6 +92,35 @@
     "independentReview": "required-when-eligible-reviewer-exists",
     "soloMaintainerLimitation": "publicly-documented",
     "automatedFindingDisposition": "resolve-or-explicitly-disposition",
-    "emergencyException": "public-rationale-and-follow-up-review"
+    "emergencyException": "public-rationale-and-follow-up-review",
+    "activation": {
+      "trigger": "second-eligible-human-maintainer-has-review-access",
+      "accountableOwner": "@oaslananka",
+      "deadlineBusinessDays": 2,
+      "targetBranchProtection": {
+        "requiredApprovals": 1,
+        "requireCodeOwnerReviews": true,
+        "dismissStaleReviews": true,
+        "requireLastPushApproval": true
+      },
+      "verification": [
+        "verify-live-collaborator-permission",
+        "apply-main-branch-protection-target",
+        "verify-owner-authored-test-pr-is-reviewable",
+        "update-liveStateVerifiedAt"
+      ]
+    }
+  },
+  "continuity": {
+    "currentBusFactor": 1,
+    "minimumMaintainersForIndependentReview": 2,
+    "successorStatus": "not-designated",
+    "requiredSuccessorEvidence": [
+      "github-admin-or-maintain-access",
+      "npm-package-recovery-or-transfer-path",
+      "release-and-secret-rotation-runbook-reviewed",
+      "security-advisory-access-verified",
+      "emergency-release-dry-run-recorded"
+    ]
   }
 }
