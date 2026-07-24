@@ -29,3 +29,6 @@ reports/
 
 # Generated Codecov reports
 easyeda-bridge-extension/coverage/
+
+# Project-local package-manager stores
+.pnpm-store/

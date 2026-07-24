@@ -13,3 +13,6 @@ proje-ymlenmesi/
 # Local code-analysis metadata
 .serena/
 .codebase-memory/
+
+# Project-local package-manager stores
+.pnpm-store/
