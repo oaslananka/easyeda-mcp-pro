@@ -145,6 +145,15 @@ afterEach(() => {
 });
 
 describe('dependency audit policy', () => {
+  it('pins PostCSS to a patched release across the workspace and lockfile', () => {
+    const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
+    const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
+
+    expect(workspacePolicy).toMatch(/\n  postcss: 8\.5\.18\n/);
+    expect(lockfile).toContain('postcss: 8.5.18');
+    expect(lockfile).not.toMatch(/postcss@8\.5\.(?:[0-9]|1[0-7])(?:\D|$)/);
+  });
+
   it('allows one exact, documented, unexpired moderate advisory', () => {
     const result = runPolicy(makeAudit(), makeAllowlist());
 

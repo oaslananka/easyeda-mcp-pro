@@ -12,6 +12,7 @@ overrides:
   vite: 7.3.5
   '@vitejs/plugin-vue': 6.0.7
   esbuild: 0.28.1
+  postcss: 8.5.18
 
 importers:
 
@@ -77,7 +78,7 @@ importers:
         version: 8.62.1(eslint@10.6.0)(typescript@6.0.3)
       vitepress:
         specifier: ^1.6.4
-        version: 1.6.4(@algolia/client-search@5.55.1)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.16)(search-insights@2.17.3)(tsx@4.22.4)(typescript@6.0.3)
+        version: 1.6.4(@algolia/client-search@5.55.1)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.18)(search-insights@2.17.3)(tsx@4.22.4)(typescript@6.0.3)
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
@@ -1862,8 +1863,8 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
-  postcss@8.5.16:
-    resolution: {integrity: sha512-vuwillviilfKZsg0VGj5R/YwwcHx4SLsIOI/7K6mQkWx+l5cUHTjj5g0AasTBcyXsbfTgrwsUNmVUb5xVwyPwg==}
+  postcss@8.5.18:
+    resolution: {integrity: sha512-xdB1oSLHbz1vRWgCDalrCqEFTWzFlhqFC5tIHLMOSUIjhm3XXQ1qrFy8S/ESr1JYRRXqM3c1QFiMZUJdUTqyMQ==}
     engines: {node: ^10 || ^12 || >=14}
 
   preact@10.29.3:
@@ -2254,7 +2255,7 @@ packages:
     hasBin: true
     peerDependencies:
       markdown-it-mathjax3: ^4
-      postcss: ^8
+      postcss: 8.5.18
     peerDependenciesMeta:
       markdown-it-mathjax3:
         optional: true
@@ -3178,7 +3179,7 @@ snapshots:
       '@vue/shared': 3.5.39
       estree-walker: 2.0.2
       magic-string: 0.30.21
-      postcss: 8.5.16
+      postcss: 8.5.18
       source-map-js: 1.2.1
 
   '@vue/compiler-ssr@3.5.39':
@@ -4122,7 +4123,7 @@ snapshots:
 
   pkce-challenge@5.0.1: {}
 
-  postcss@8.5.16:
+  postcss@8.5.18:
     dependencies:
       nanoid: 3.3.15
       picocolors: 1.1.1
@@ -4536,7 +4537,7 @@ snapshots:
       esbuild: 0.28.1
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
-      postcss: 8.5.16
+      postcss: 8.5.18
       rollup: 4.62.2
       tinyglobby: 0.2.17
     optionalDependencies:
@@ -4545,7 +4546,7 @@ snapshots:
       lightningcss: 1.32.0
       tsx: 4.22.4
 
-  vitepress@1.6.4(@algolia/client-search@5.55.1)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.16)(search-insights@2.17.3)(tsx@4.22.4)(typescript@6.0.3):
+  vitepress@1.6.4(@algolia/client-search@5.55.1)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.18)(search-insights@2.17.3)(tsx@4.22.4)(typescript@6.0.3):
     dependencies:
       '@docsearch/css': 3.8.2
       '@docsearch/js': 3.8.2(@algolia/client-search@5.55.1)(search-insights@2.17.3)
@@ -4566,7 +4567,7 @@ snapshots:
       vite: 7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
       vue: 3.5.39(typescript@6.0.3)
     optionalDependencies:
-      postcss: 8.5.16
+      postcss: 8.5.18
     transitivePeerDependencies:
       - '@algolia/client-search'
       - '@types/node'
