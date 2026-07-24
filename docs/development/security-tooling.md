@@ -19,6 +19,11 @@ OCI image pinned to its manifest SHA-256 digest, and pre-commit is installed fro
 `pip-compile --generate-hashes`; review both the resolved versions and hashes in the same pull
 request.
 
+The Scorecard job grants read-only access to actions, checks, pull requests, issues, and repository
+contents so the scanner can verify pre-merge test execution and maintenance evidence. Its only write
+permissions are `security-events: write` for SARIF publication and `id-token: write` for signed
+Scorecard result publication.
+
 GitHub secret scanning and push protection are enabled for the public repository. Validity checks,
 non-provider patterns, and repository custom patterns are not available for the current user-owned
 public repository; the verified state and compensating controls are documented in

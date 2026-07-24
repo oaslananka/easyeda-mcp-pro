@@ -19,6 +19,9 @@ jobs:
       id-token: write
       contents: read
       actions: read
+      checks: read
+      pull-requests: read
+      issues: read
 
     steps:
       # actions/checkout v6.0.3

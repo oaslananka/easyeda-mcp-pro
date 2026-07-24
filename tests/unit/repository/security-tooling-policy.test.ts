@@ -217,6 +217,21 @@ describe('repository security tooling policy', () => {
     expect(guide).toContain('dependency-audit-report');
   });
 
+  it('gives Scorecard the read permissions needed to verify CI and repository activity', () => {
+    const workflow = readText('.github/workflows/scorecard.yml');
+
+    expect(workflow).toContain('checks: read');
+    expect(workflow).toContain('pull-requests: read');
+    expect(workflow).toContain('issues: read');
+    expect(workflow).toContain('actions: read');
+    expect(workflow).toContain('contents: read');
+    expect(workflow).toContain('security-events: write');
+    expect(workflow).toContain('id-token: write');
+    expect(workflow).not.toContain('contents: write');
+    expect(workflow).not.toContain('pull-requests: write');
+    expect(workflow).not.toContain('checks: write');
+  });
+
   it('hardens CI, release, documentation, and container dependency installation', () => {
     const ciWorkflow = readText('.github/workflows/ci.yml');
     const docsWorkflow = readText('.github/workflows/deploy-docs.yml');
