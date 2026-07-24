@@ -2,7 +2,11 @@ import { z } from 'zod';
 import { type BridgeDiagnosticsSnapshot, type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { getFeatureMaturity } from '../config/feature-maturity.js';
-import { loadFeatureFlags } from '../config/feature-flags.js';
+import {
+  buildCapabilityFeatureFlags,
+  buildDetailedFeatureFlags,
+  buildServerConfigFeatureFlags,
+} from './diagnostics-feature-report.js';
 import { EasyedaApiMethodSchema } from '../bridge/types.js';
 import { PROFILE_DEFINITIONS } from '../config/profiles.js';
 import { SERVER_VERSION } from '../config/version.js';
@@ -214,19 +218,13 @@ function registerDiagnosticsCore(
         is_default: p.isDefault,
       }));
 
-      const flags = loadFeatureFlags(config);
       return {
         server_name: 'easyeda-mcp-pro',
         server_version: SERVER_VERSION,
         protocol_version: config.MCP_PROTOCOL_VERSION,
         profiles,
         current_profile: config.TOOL_PROFILE,
-        feature_flags: {
-          tasks_enabled: flags.mcpTasksEnabled,
-          apps_enabled: flags.mcpAppsEnabled,
-          v2_experimental: flags.mcpV2Experimental,
-          ordering_enabled: flags.jlcpcbOrderingEnabled,
-        },
+        feature_flags: buildCapabilityFeatureFlags(config),
         feature_maturity: getFeatureMaturity(config),
         transports: [config.TRANSPORT],
       };
@@ -265,7 +263,6 @@ function registerDiagnosticsCore(
       const { include_flags: includeFlags } = z
         .object({ include_flags: z.boolean().default(false) })
         .parse(params);
-      const flags = loadFeatureFlags(config);
       return {
         node_env: config.NODE_ENV,
         log_level: config.LOG_LEVEL,
@@ -274,15 +271,7 @@ function registerDiagnosticsCore(
         bridge_host: config.BRIDGE_HOST,
         bridge_port: config.BRIDGE_PORT,
         mcp_protocol_version: config.MCP_PROTOCOL_VERSION,
-        flags: includeFlags
-          ? {
-              mcp_tasks_enabled: flags.mcpTasksEnabled,
-              mcp_apps_enabled: flags.mcpAppsEnabled,
-              mcp_v2_experimental: flags.mcpV2Experimental,
-              ai_enabled: flags.aiEnabled,
-              otel_enabled: flags.otelEnabled,
-            }
-          : undefined,
+        flags: includeFlags ? buildServerConfigFeatureFlags(config) : undefined,
         feature_maturity: getFeatureMaturity(config),
       };
     },
@@ -353,23 +342,8 @@ function registerDiagnosticsCore(
       maturity: featureMaturitySchema,
     }),
     handler: async (_ctx: ToolContext, _params: unknown) => {
-      const flags = loadFeatureFlags(config);
       return {
-        flags: {
-          mcp_tasks_enabled: flags.mcpTasksEnabled,
-          mcp_apps_enabled: flags.mcpAppsEnabled,
-          mcp_v2_experimental: flags.mcpV2Experimental,
-          jlcpcb_ordering_enabled: config.JLCPCB_ENABLE_ORDERING,
-          jlcsearch_enabled: config.JLCSEARCH_ENABLED,
-          mouser_enabled: config.MOUSER_ENABLED,
-          digikey_enabled: config.DIGIKEY_ENABLED,
-          oauth_enabled: config.OAUTH_ENABLED,
-          otel_enabled: flags.otelEnabled,
-          ai_enabled: flags.aiEnabled,
-          dev_bridge: config.EASYEDA_DEV_BRIDGE,
-          bridge_raw_exec_enabled: config.BRIDGE_RAW_EXEC_ENABLED,
-          raw_exec_experimental: config.MCP_RAW_EXEC_EXPERIMENTAL,
-        },
+        flags: buildDetailedFeatureFlags(config),
         maturity: getFeatureMaturity(config),
       };
     },
