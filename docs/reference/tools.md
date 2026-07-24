@@ -974,6 +974,7 @@ Returns a JSON object matching the schema:
   profiles: object[];
   current_profile: string;
   feature_flags: Record<string, boolean>;
+  feature_maturity: Record<string, object>;
   transports: string[];
 }
 ```
@@ -997,6 +998,7 @@ Returns a JSON object matching the schema:
 ```ts
 {
   flags: Record<string, boolean>;
+  maturity: Record<string, object>;
 }
 ```
 
@@ -1028,6 +1030,7 @@ Returns a JSON object matching the schema:
   bridge_port: number;
   mcp_protocol_version: string;
   flags: Record<string, boolean>(optional);
+  feature_maturity: Record<string, object>;
 }
 ```
 

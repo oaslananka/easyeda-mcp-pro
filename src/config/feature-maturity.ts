@@ -9,7 +9,17 @@ export interface FeatureMaturityEntry {
   note: string;
 }
 
-export type FeatureMaturityReport = Record<string, FeatureMaturityEntry>;
+export interface FeatureMaturityReport {
+  mcp_tasks: FeatureMaturityEntry;
+  mcp_apps: FeatureMaturityEntry;
+  mcp_v2: FeatureMaturityEntry;
+  ai_provider: FeatureMaturityEntry;
+  otel_export: FeatureMaturityEntry;
+  remote_relay: FeatureMaturityEntry;
+  raw_execution: FeatureMaturityEntry;
+  oauth: FeatureMaturityEntry;
+  [key: string]: FeatureMaturityEntry;
+}
 
 /**
  * Describe user-visible configuration independently from whether a value was set.

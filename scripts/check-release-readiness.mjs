@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,15 +10,31 @@ const sourcePath = resolve(repoRoot, 'config/easyeda-compatibility.json');
 const jsonOutput = process.argv.includes('--json');
 const compatibilityOnly = process.argv.includes('--compatibility-only');
 
+function resolveGitBinary() {
+  const candidates =
+    process.platform === 'win32'
+      ? [
+          resolve(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
+          resolve(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'bin', 'git.exe'),
+        ]
+      : ['/usr/bin/git', '/usr/local/bin/git'];
+  const binary = candidates.find((candidate) => existsSync(candidate));
+  if (!binary)
+    throw new Error(`Git executable not found in supported locations: ${candidates.join(', ')}`);
+  return binary;
+}
+
+const gitBinary = resolveGitBinary();
+
 function git(args, options = {}) {
-  return execFileSync('git', ['-C', repoRoot, ...args], {
+  return execFileSync(gitBinary, ['-C', repoRoot, ...args], {
     encoding: 'utf8',
     stdio: options.quiet ? ['ignore', 'pipe', 'pipe'] : undefined,
   }).trim();
 }
 
 function gitStatus(args) {
-  return spawnSync('git', ['-C', repoRoot, ...args], {
+  return spawnSync(gitBinary, ['-C', repoRoot, ...args], {
     encoding: 'utf8',
     stdio: 'pipe',
   });
@@ -32,7 +48,9 @@ function listChangedFiles(base, head, paths) {
 function listDirtyFiles(paths) {
   const worktree = git(['diff', '--name-only', '--', ...paths], { quiet: true });
   const index = git(['diff', '--cached', '--name-only', '--', ...paths], { quiet: true });
-  return [...new Set(`${worktree}\n${index}`.split('\n').filter(Boolean))].sort();
+  return [...new Set(`${worktree}\n${index}`.split('\n').filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right),
+  );
 }
 
 export function inspectCompatibilityFreshness() {
@@ -57,7 +75,9 @@ export function inspectCompatibilityFreshness() {
         };
       }
       const changedFiles = listChangedFiles(evidenceCommit, headCommit, paths);
-      const combined = [...new Set([...changedFiles, ...dirtyFiles])].sort();
+      const combined = [...new Set([...changedFiles, ...dirtyFiles])].sort((left, right) =>
+        left.localeCompare(right),
+      );
       return {
         id: record.id,
         evidenceCommit,
@@ -79,13 +99,11 @@ export function inspectCompatibilityFreshness() {
     }
   });
   const freshRecords = records.filter((record) => record.status === 'current').length;
+  let status = 'unavailable';
+  if (freshRecords >= requiredFreshLiveRecords) status = 'current';
+  else if (records.some((record) => record.status === 'stale')) status = 'stale';
   return {
-    status:
-      freshRecords >= requiredFreshLiveRecords
-        ? 'current'
-        : records.some((r) => r.status === 'stale')
-          ? 'stale'
-          : 'unavailable',
+    status,
     headCommit,
     requiredFreshLiveRecords,
     freshRecords,

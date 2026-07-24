@@ -39,15 +39,16 @@ async function main(): Promise<void> {
   for (const relativePath of files) {
     const filePath = resolve(relativePath);
     const current = readFileSync(filePath, 'utf8');
-    const start = current.indexOf(START);
-    const end = current.indexOf(END);
+    const normalizedCurrent = current.replace(/\r\n/g, '\n');
+    const start = normalizedCurrent.indexOf(START);
+    const end = normalizedCurrent.indexOf(END);
     if (start < 0 || end < start) {
       throw new Error(`${relativePath} is missing capability count markers`);
     }
-    const replaced = `${current.slice(0, start)}${generated}${current.slice(end + END.length)}`;
+    const replaced = `${normalizedCurrent.slice(0, start)}${generated}${normalizedCurrent.slice(end + END.length)}`;
     const projectConfig = (await resolveConfig(filePath)) ?? {};
     const next = await format(replaced, { ...projectConfig, parser: 'markdown' });
-    if (next !== current) {
+    if (next !== normalizedCurrent) {
       stale = true;
       if (!checkOnly) writeFileSync(filePath, next, 'utf8');
     }
@@ -59,9 +60,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(
-    `Capability documentation is current: ${profiles.map((profile) => `${profile}=${counts[profile]}`).join(', ')}`,
-  );
+  const countSummary = profiles.map((profile) => `${profile}=${counts[profile]}`).join(', ');
+  console.log(`Capability documentation is current: ${countSummary}`);
 }
 
 await main();

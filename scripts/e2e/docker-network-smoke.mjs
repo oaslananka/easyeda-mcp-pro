@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { get } from 'node:http';
 
 const args = process.argv.slice(2);
@@ -12,9 +13,16 @@ if (imageIndex < 0 || !args[imageIndex + 1]) {
 const image = args[imageIndex + 1];
 const prefix = `easyeda-mcp-network-${process.pid}`;
 const containers = new Set();
+const dockerCandidates = ['/usr/bin/docker', '/usr/local/bin/docker'];
+const dockerBinary = dockerCandidates.find((candidate) => existsSync(candidate));
+if (!dockerBinary) {
+  throw new Error(
+    `Docker executable not found in supported locations: ${dockerCandidates.join(', ')}`,
+  );
+}
 
 function docker(commandArgs, options = {}) {
-  const result = spawnSync('docker', commandArgs, {
+  const result = spawnSync(dockerBinary, commandArgs, {
     encoding: 'utf8',
     timeout: options.timeout ?? 120_000,
   });
@@ -166,5 +174,5 @@ async function run() {
 try {
   await run();
 } finally {
-  for (const name of [...containers]) removeContainer(name);
+  for (const name of containers) removeContainer(name);
 }

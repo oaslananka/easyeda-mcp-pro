@@ -5,7 +5,7 @@ import {
   readFiniteNumber,
   readPrimitiveState,
 } from './pcb-primitive-state.js';
-import { logRecoverableError, readPath } from './utils.js';
+import { isRecord, logRecoverableError, readPath } from './utils.js';
 
 export interface BoardInspectionDependencies {
   readFirstPath: ApiRuntime['readFirstPath'];
@@ -85,22 +85,25 @@ function updateBoundingBox(bounds: BoundingBox, x: unknown, y: unknown): void {
   if (finiteY > bounds.maxY) bounds.maxY = finiteY;
 }
 
+function readPointCoordinate(point: unknown, key: 'X' | 'Y'): unknown {
+  const state = readPrimitiveState(point, key);
+  if (state !== undefined) return state;
+  if (!isRecord(point)) return undefined;
+  return point[key.toLowerCase()];
+}
+
+function addPoint(bounds: BoundingBox, point: unknown): void {
+  if (Array.isArray(point)) {
+    updateBoundingBox(bounds, point[0], point[1]);
+    return;
+  }
+  updateBoundingBox(bounds, readPointCoordinate(point, 'X'), readPointCoordinate(point, 'Y'));
+}
+
 function addPrimitivePoints(bounds: BoundingBox, primitive: unknown): void {
   const points = readPrimitiveState(primitive, 'Points');
   if (Array.isArray(points)) {
-    for (const point of points) {
-      if (Array.isArray(point)) {
-        updateBoundingBox(bounds, point[0], point[1]);
-      } else {
-        updateBoundingBox(
-          bounds,
-          readPrimitiveState(point, 'X') ??
-            (typeof point === 'object' && point ? (point as any).x : undefined),
-          readPrimitiveState(point, 'Y') ??
-            (typeof point === 'object' && point ? (point as any).y : undefined),
-        );
-      }
-    }
+    for (const point of points) addPoint(bounds, point);
   }
 
   updateBoundingBox(

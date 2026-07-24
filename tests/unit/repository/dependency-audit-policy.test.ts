@@ -146,7 +146,10 @@ afterEach(() => {
 
 describe('dependency audit policy', () => {
   it('pins PostCSS to a patched release across the workspace and lockfile', () => {
-    const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
+    const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8').replace(
+      /\r\n/g,
+      '\n',
+    );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
     expect(workspacePolicy).toMatch(/\n {2}postcss: 8\.5\.18\n/);

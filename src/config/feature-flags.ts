@@ -20,16 +20,16 @@ export interface FeatureFlags {
 export function loadFeatureFlags(config: EnvConfig): FeatureFlags {
   const maturity = getFeatureMaturity(config);
   return {
-    mcpTasksEnabled: maturity.mcp_tasks?.effective ?? false,
-    mcpAppsEnabled: maturity.mcp_apps?.effective ?? false,
-    mcpV2Experimental: maturity.mcp_v2?.effective ?? false,
+    mcpTasksEnabled: maturity.mcp_tasks.effective,
+    mcpAppsEnabled: maturity.mcp_apps.effective,
+    mcpV2Experimental: maturity.mcp_v2.effective,
     jlcpcbOrderingEnabled: config.JLCPCB_ENABLE_ORDERING,
     jlcsearchEnabled: config.JLCSEARCH_ENABLED,
     mouserEnabled: config.MOUSER_ENABLED,
     digikeyEnabled: config.DIGIKEY_ENABLED,
-    oauthEnabled: maturity.oauth?.effective ?? false,
-    otelEnabled: maturity.otel_export?.effective ?? false,
-    aiEnabled: maturity.ai_provider?.effective ?? false,
+    oauthEnabled: maturity.oauth.effective,
+    otelEnabled: maturity.otel_export.effective,
+    aiEnabled: maturity.ai_provider.effective,
     devBridge: config.EASYEDA_DEV_BRIDGE,
     bridgeRawExecEnabled: config.BRIDGE_RAW_EXEC_ENABLED,
     rawExecExperimental: config.MCP_RAW_EXEC_EXPERIMENTAL,
