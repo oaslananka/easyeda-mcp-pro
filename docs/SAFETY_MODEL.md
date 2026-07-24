@@ -8,11 +8,12 @@ This document explains the security posture, permission checks, data privacy con
 
 Our tools are categorized into three risk tiers based on their potential impact on project data and external services:
 
-| Risk Level | Tool Type                                   | Description                                                                                                                                                                                                                                                                                                                                                                                      | Confirmation Required         |
-| :--------- | :------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------- |
-| **Low**    | `Read-only` / `Diagnostics` / `Visual`      | Queries project metadata, diagnostics status, layers, stackups, BOM, and canvas captures (`easyeda_canvas_capture`, `easyeda_canvas_capture_region`, `easyeda_canvas_locate`). Cannot mutate project state, though a capture/locate call does move the user's visible viewport (EasyEDA Pro has no offscreen rendering API).                                                                     | **No**                        |
-| **Medium** | `Schematic Write` / `Catalog` / `Workflows` | Mutates schematic sheets (placing components, drawing wires, deleting or modifying primitives), ingests/caches a device from an LCSC part number (`easyeda_catalog_verify_device`) — a local cache write, not a project mutation, but gated the same way since downstream planning may trust the result — or runs a compound multi-step schematic transaction (`easyeda_workflow_*`, see below). | **Yes (`confirmWrite=true`)** |
-| **High**   | `PCB Write` / `Exports` / `API Call`        | Mutates PCB layouts (tracks, vias, zones, components), exports fabrication files, or makes direct class-method calls.                                                                                                                                                                                                                                                                            | **Yes (`confirmWrite=true`)** |
+| Risk level | Effect class                                | Description                                                                                                                                                                              | Local confirmation                                                                |
+| :--------- | :------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
+| **Low**    | `read-only`                                 | Queries project metadata, diagnostics status, layers, stackups, BOM, and canvas captures. A canvas capture/locate call can move the visible viewport but does not persist project state. | **No**                                                                            |
+| **Medium** | `design-mutation` / `local-state-write`     | Mutates schematic state, runs compound write workflows, or updates trusted local cache state.                                                                                            | **Yes (`confirmWrite=true`)** when the definition is project/local-state mutating |
+| **Medium** | `artifact-write`                            | Creates Gerber, pick-and-place, PDF, or netlist files inside `ARTIFACT_DIR` without changing the EasyEDA design.                                                                         | **No local design confirmation**; Remote Relay still requires export approval     |
+| **High**   | `design-mutation` / controlled API mutation | Mutates PCB layouts or invokes a high-risk documented EasyEDA API method.                                                                                                                | **Yes (`confirmWrite=true`)**                                                     |
 
 ---
 
@@ -70,9 +71,24 @@ expected outcome (`available: false`) rather than a tool failure.
 
 ---
 
+### 1.4 Artifact exports
+
+`easyeda_export_gerbers`, `easyeda_export_pick_place`, `easyeda_export_pdf`, and
+`easyeda_export_netlist` are explicitly classified as `artifact-write`. They call the bridge to
+produce export data and write the resulting payload only inside `ARTIFACT_DIR`; they do not alter
+schematic or PCB state and therefore do not require the local design-mutation parameter
+`confirmWrite=true`.
+
+This does not make remote exports silent. Remote Relay maps `artifact-write` to the `export` risk
+class, requires the `easyeda.export` scope, and binds a human approval to the identity, session, tool,
+input hash, and expiry before dispatch. Read-only report generators that happen to be organized in
+the export group are classified `read-only` and do not inherit export risk merely from that group.
+
+---
+
 ## 2. The `confirmWrite` Safety Parameter
 
-To prevent AI models from executing destructive or mutating operations accidentally, all writing and mutating tools enforce a mandatory parameter:
+To prevent AI models from executing destructive or project-mutating operations accidentally, tool definitions marked as design mutations enforce a mandatory parameter:
 
 ```typescript
 confirmWrite: z.literal(true);

@@ -44,6 +44,22 @@ describe('Export Tools', () => {
     fs.rmSync(tmpArtifactDir, { recursive: true, force: true });
   });
 
+  it('classifies filesystem exports as artifact writes without design-mutation confirmation', () => {
+    for (const name of [
+      'easyeda_export_gerbers',
+      'easyeda_export_pick_place',
+      'easyeda_export_pdf',
+      'easyeda_export_netlist',
+    ]) {
+      const tool = registry.get(name);
+      expect(tool?.sideEffect, name).toBe('artifact-write');
+      expect(tool?.confirmWrite, name).toBe(false);
+    }
+
+    expect(registry.get('easyeda_jlcpcb_quote_workflow')?.sideEffect).toBe('read-only');
+    expect(registry.get('easyeda_production_qa_artifacts')?.sideEffect).toBe('read-only');
+  });
+
   it('easyeda_export_gerbers warns with production review findings but still exports in warn mode', async () => {
     const tool = registry.get('easyeda_export_gerbers');
     expect(tool).toBeDefined();

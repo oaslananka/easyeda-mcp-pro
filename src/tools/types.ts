@@ -8,6 +8,9 @@ import { type DigiKeyClient } from '../vendors/digikey/client.js';
 import { type Storage } from '../storage/index.js';
 import { type RemoteGateway } from '../remote/gateway.js';
 
+export type ToolSideEffect =
+  'read-only' | 'design-mutation' | 'artifact-write' | 'local-state-write' | 'external-action';
+
 export interface ToolDefinition<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
@@ -35,6 +38,8 @@ export interface ToolDefinition<
   /** Whether the tool can mutate project/design state.
    *  When true the runtime MUST require an explicit acknowledgment before execution. */
   confirmWrite: boolean;
+  /** Explicit side-effect category. Omitted definitions fall back to confirmWrite-based classification. */
+  sideEffect?: ToolSideEffect;
   /** Logical group for UI organisation and documentation (e.g. 'schematic', 'bom', 'board') */
   group: string;
   /** Schema version string — bump when breaking changes are made to input/output schemas */

@@ -216,6 +216,7 @@ function registerExportTools(
     evidence: ['official-docs', 'inferred'],
     risk: 'medium',
     confirmWrite: false,
+    sideEffect: 'read-only',
     group: 'export',
     version: '1.0.0',
     annotations: {
@@ -334,6 +335,7 @@ function registerExportTools(
     evidence: ['inferred'],
     risk: 'low',
     confirmWrite: false,
+    sideEffect: 'read-only',
     group: 'export',
     version: '1.0.0',
     annotations: {
@@ -396,6 +398,7 @@ function registerExportTools(
     evidence: ['official-docs'],
     risk: 'medium',
     confirmWrite: false,
+    sideEffect: 'artifact-write',
     group: 'export',
     version: '1.0.0',
     annotations: {
@@ -512,6 +515,7 @@ function registerExportTools(
     evidence: ['official-docs'],
     risk: 'low',
     confirmWrite: false,
+    sideEffect: 'artifact-write',
     group: 'export',
     version: '1.0.0',
     annotations: {
@@ -587,6 +591,7 @@ function registerExportTools(
     evidence: ['official-docs'],
     risk: 'low',
     confirmWrite: false,
+    sideEffect: 'artifact-write',
     group: 'export',
     version: '1.0.0',
     annotations: {
@@ -666,6 +671,7 @@ function registerExportTools(
     evidence: ['official-docs'],
     risk: 'low',
     confirmWrite: false,
+    sideEffect: 'artifact-write',
     group: 'export',
     version: '1.0.0',
     annotations: {

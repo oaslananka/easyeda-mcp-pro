@@ -4,12 +4,25 @@ Remote tool approval protects the user from unintended project changes when a cl
 
 ## Risk levels
 
-| Risk level  | Examples                                                                                                                                                               | Default behavior                                          |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Read        | list project, inspect netlist, read BOM, read DRC/ERC report, capture canvas image, run an offline SPICE simulation                                                    | Allowed after auth and pairing.                           |
-| Write       | add component, create net, edit wire, update PCB primitive, verify/cache a catalog device, run a compound schematic/layout workflow (place+wire, floorplan, autoroute) | Requires explicit approval.                               |
-| Export      | generate Gerber, BOM, pick-and-place, manufacturing package, vendor-neutral route-context (DSN)                                                                        | Requires explicit approval.                               |
-| Destructive | delete, overwrite, bulk replace, publish/share, place order                                                                                                            | Requires stronger confirmation or is disabled by default. |
+| Risk level  | Examples                                                                                                                                                               | Default behavior                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Read        | list project, inspect netlist, read BOM, read DRC/ERC report, capture canvas image, run an offline SPICE simulation                                                    | Allowed after auth and pairing.                                          |
+| Write       | add component, create net, edit wire, update PCB primitive, verify/cache a catalog device, run a compound schematic/layout workflow (place+wire, floorplan, autoroute) | Requires explicit approval.                                              |
+| Export      | write Gerber, pick-and-place, PDF, netlist, manufacturing package, or route-context artifacts to the configured artifact directory                                     | Requires explicit approval; this is independent of local `confirmWrite`. |
+| Destructive | delete, overwrite, bulk replace, publish/share, place order                                                                                                            | Requires stronger confirmation or is disabled by default.                |
+
+## Classification boundary
+
+The tool's documentation group is not an authorization decision. The runtime resolves the explicit
+`sideEffect` metadata first:
+
+- `artifact-write` maps to Remote Relay `export` risk;
+- `design-mutation`, `local-state-write`, and `external-action` map to write/destructive policy based
+  on the declared risk;
+- `read-only` remains read-only even when a report is displayed in the export section.
+
+Local `confirmWrite` protects EasyEDA design mutations. Remote export approval protects artifact
+creation across a network trust boundary. They are deliberately separate controls.
 
 ## Approval prompt requirements
 

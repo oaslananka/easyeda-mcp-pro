@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { z } from 'zod';
-import { ToolRegistry, ErrorCodes, remoteRiskForTool } from '../../../src/tools/registry.js';
+import {
+  ToolRegistry,
+  ErrorCodes,
+  remoteRiskForTool,
+  sideEffectForTool,
+} from '../../../src/tools/registry.js';
 import { type ToolDefinition, type ToolContext } from '../../../src/tools/types.js';
 import { registerBuiltinTools } from '../../../src/tools/register.js';
 import { EnvSchema } from '../../../src/config/env.js';
@@ -622,6 +627,13 @@ describe('ToolRegistry', () => {
   });
 
   describe('remote risk policy', () => {
+    it('derives legacy side effects from confirmWrite when metadata is absent', () => {
+      expect(sideEffectForTool(createMockTool('read'))).toBe('read-only');
+      expect(
+        sideEffectForTool(createMockTool('write', 'core', { confirmWrite: true, risk: 'medium' })),
+      ).toBe('design-mutation');
+    });
+
     it.each([
       {
         label: 'high-risk confirmWrite tool',
@@ -644,8 +656,19 @@ describe('ToolRegistry', () => {
           group: 'export',
           risk: 'high',
           confirmWrite: true,
+          sideEffect: 'artifact-write',
         }),
         expected: 'export',
+      },
+      {
+        label: 'read-only tool in the export documentation group',
+        tool: createMockTool('read_only_export_group', 'core', {
+          group: 'export',
+          risk: 'low',
+          confirmWrite: false,
+          sideEffect: 'read-only',
+        }),
+        expected: 'read',
       },
       {
         label: 'raw execution tool',
@@ -1060,6 +1083,7 @@ describe('ToolRegistry remote relay backend', () => {
         group: 'export',
         risk: 'high',
         confirmWrite: true,
+        sideEffect: 'artifact-write',
         inputSchema: z.object({ confirmWrite: z.boolean() }),
         handler: async (ctx) => {
           await ctx.bridge.call('board.prepareExport', { format: 'zip' });

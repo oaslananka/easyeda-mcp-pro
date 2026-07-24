@@ -1,5 +1,5 @@
 import { type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { type ToolDefinition, type ToolContext } from './types.js';
+import { type ToolDefinition, type ToolContext, type ToolSideEffect } from './types.js';
 import {
   registeredOutputSchema,
   getRawInput,
@@ -275,12 +275,25 @@ function rawRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-/** Resolve a tool's Remote Relay risk tier using explicit policy precedence. */
+export function sideEffectForTool(tool: ToolDefinition): ToolSideEffect {
+  return tool.sideEffect ?? (tool.confirmWrite ? 'design-mutation' : 'read-only');
+}
+
+/** Resolve a tool's Remote Relay risk tier using explicit side-effect policy precedence. */
 export function remoteRiskForTool(tool: ToolDefinition): RemoteRiskLevel {
   if (tool.name === 'easyeda_execute') return 'destructive';
-  if (tool.group === 'export') return 'export';
+  const sideEffect = sideEffectForTool(tool);
+  if (sideEffect === 'artifact-write') return 'export';
   if (tool.risk === 'high') return 'destructive';
-  if (tool.confirmWrite || tool.risk === 'medium') return 'write';
+  if (
+    sideEffect === 'design-mutation' ||
+    sideEffect === 'local-state-write' ||
+    sideEffect === 'external-action' ||
+    tool.confirmWrite ||
+    tool.risk === 'medium'
+  ) {
+    return 'write';
+  }
   return 'read';
 }
 
