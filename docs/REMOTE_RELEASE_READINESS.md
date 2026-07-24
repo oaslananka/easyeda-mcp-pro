@@ -1,5 +1,10 @@
 # Remote release readiness checklist
 
+> **Status authority:** [Canonical Remote Relay status](./REMOTE_RELAY_STATUS.md) is the
+> authoritative source for current maturity and outstanding release gates. This document
+> describes architecture, operation, or evidence requirements and must not be read as an
+> independent readiness claim.
+
 This document records the minimum evidence needed before remote MCP support is described as beta-ready.
 
 ## Status language

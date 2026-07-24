@@ -1,5 +1,10 @@
 # Self-hosted Remote MCP setup
 
+> **Status authority:** [Canonical Remote Relay status](./REMOTE_RELAY_STATUS.md) is the
+> authoritative source for current maturity and outstanding release gates. This document
+> describes architecture, operation, or evidence requirements and must not be read as an
+> independent readiness claim.
+
 Self-hosted Remote MCP lets an operator expose EasyEDA MCP Pro through their own domain, tunnel,
 VPS, or reverse proxy. This mode is for power users and private deployments that need a public MCP
 endpoint without using the hosted gateway.

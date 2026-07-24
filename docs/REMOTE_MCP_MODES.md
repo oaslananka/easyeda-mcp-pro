@@ -1,5 +1,10 @@
 # Remote MCP modes
 
+> **Status authority:** [Canonical Remote Relay status](./REMOTE_RELAY_STATUS.md) is the
+> authoritative source for current maturity and outstanding release gates. This document
+> describes architecture, operation, or evidence requirements and must not be read as an
+> independent readiness claim.
+
 EasyEDA MCP Pro supports three deployment modes. The modes share the same tool semantics, but they have different network and security boundaries.
 
 ## Mode matrix
