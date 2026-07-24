@@ -84,12 +84,16 @@ describe('repository security tooling policy', () => {
     expect(workspace).toContain('minimumReleaseAgeExclude:');
     expect(workspace).toContain('fast-uri@3.1.4');
     expect(workspace).toContain('hono@4.12.31');
+    expect(workspace).toContain("'@hono/node-server': 2.0.10");
     expect(workspace).toContain('minimumReleaseAgeStrict: true');
     expect(workspace).toContain('minimumReleaseAgeIgnoreMissingTime: false');
     expect(workspace).toContain('trustPolicy: no-downgrade');
     expect(workspace).toContain('trustLockfile: false');
     expect(workspace).toContain('blockExoticSubdeps: true');
     expect(workspace).toContain('body-parser: 2.3.0');
+    const lockfile = readText('pnpm-lock.yaml');
+    expect(lockfile).toContain("'@hono/node-server@2.0.10':");
+    expect(lockfile).not.toContain("'@hono/node-server@1.19.14':");
     expect(readText('.npmrc')).toContain('min-release-age=7');
   });
 
@@ -155,17 +159,7 @@ describe('repository security tooling policy', () => {
       exceptions?: Array<Record<string, unknown>>;
     };
     expect(dependencyAuditAllowlist.schemaVersion).toBe(1);
-    expect(dependencyAuditAllowlist.exceptions).toHaveLength(1);
-    expect(dependencyAuditAllowlist.exceptions?.[0]).toMatchObject({
-      advisory: 'GHSA-frvp-7c67-39w9',
-      package: '@hono/node-server',
-      versions: ['1.19.14'],
-      severity: 'moderate',
-      owner: '@oaslananka',
-      trackingIssue: 334,
-      reviewBy: '2026-08-10',
-      expiresOn: '2026-08-15',
-    });
+    expect(dependencyAuditAllowlist.exceptions).toEqual([]);
   });
 
   it('runs a least-privilege scheduled dependency advisory monitor', () => {
