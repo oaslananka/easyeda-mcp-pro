@@ -82,7 +82,7 @@
     "inventory:diff": "tsx scripts/diff-runtime-inventory.mts",
     "eval:golden": "tsx scripts/run-evals.mts",
     "eval:golden:update": "tsx scripts/run-evals.mts --update-baseline",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm test:extension && pnpm build && pnpm build:extension && pnpm check:metadata && pnpm docs:build",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm verify:tool-coverage && pnpm test && pnpm test:extension && pnpm build && pnpm build:extension && pnpm security:secrets && pnpm check:metadata && pnpm docs:build",
     "smoke:schematic-transactions": "tsx scripts/live-schematic-transaction-smoke.mts",
     "security:audit": "node scripts/check-dependency-audit.mjs",
     "security:semgrep": "semgrep scan --config .semgrep.yml --error --metrics=off .",
@@ -107,7 +107,8 @@
     "pretest:watch": "pnpm runtime:check",
     "pretest:coverage": "pnpm runtime:check",
     "pretest:coverage:ci": "pnpm runtime:check",
-    "pretest:extension:ci": "pnpm runtime:check"
+    "pretest:extension:ci": "pnpm runtime:check",
+    "security:secrets": "node scripts/check-secret-hygiene.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

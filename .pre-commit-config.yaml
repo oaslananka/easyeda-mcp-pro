@@ -14,8 +14,6 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=1024]
       - id: detect-private-key
-        # Intentional fake PEM fixture used to verify log redaction.
-        exclude: ^tests/unit/utils/redaction\.test\.ts$
       - id: check-yaml
       - id: check-json
       - id: check-toml

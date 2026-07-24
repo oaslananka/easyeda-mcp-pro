@@ -52,6 +52,8 @@ The maintainer follows this process for private vulnerability reports:
 
 Critical security, workflow, release, bridge, remote-transport, and mutation changes follow [Repository Governance](docs/REPOSITORY_GOVERNANCE.md). Independent human review is required whenever an eligible reviewer exists. Any emergency governance exception must record the public rationale, exact control changed, rollback target, and a follow-up review within two business days; exploit-sensitive details may remain in a private advisory until disclosure is safe.
 
+Confirmed or suspected credential exposure follows [Secret Scanning and Credential Response](docs/SECRET_RESPONSE.md). Revoke first, rotate every dependent copy, preserve private evidence, investigate logs and distributed artifacts, and treat history cleanup as containment rather than revocation.
+
 Target timelines:
 
 | Severity | Target fix or mitigation window after triage confirmation |

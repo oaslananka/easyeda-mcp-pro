@@ -12,8 +12,11 @@ Git hooks must remain quick and deterministic; cloud and CI scanners keep the br
 | Pull request | CI, CodeQL, Dependency Review, repository Semgrep rules, Trivy, Snyk App, and SonarQube Cloud  |
 | Release      | CycloneDX SBOM, npm provenance, GitHub artifact attestation, and SHA-pinned release automation |
 
-GitHub secret scanning and push protection are enabled for the public repository. Do not replace
-push protection with a slower local full-history scanner unless a concrete gap requires it.
+GitHub secret scanning and push protection are enabled for the public repository. Validity checks,
+non-provider patterns, and repository custom patterns are not available for the current user-owned
+public repository; the verified state and compensating controls are documented in
+[Secret Scanning and Credential Response](../SECRET_RESPONSE.md). Do not replace push protection
+with a slower local full-history scanner unless a concrete gap requires it.
 
 ## Install the hook
 

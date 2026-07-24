@@ -129,6 +129,8 @@ jobs:
       - run: pnpm build
       - run: pnpm check:metadata
       - run: pnpm build:extension
+      - name: Scan source and generated outputs for secret-like material
+        run: pnpm security:secrets
       - run: pnpm check:extension-size
       - name: Upload extension bundle analysis to Codecov (informational)
         continue-on-error: true
