@@ -564,16 +564,16 @@ describe('loadFeatureFlags', () => {
     });
 
     expect(loadFeatureFlags(config)).toEqual({
-      mcpTasksEnabled: true,
-      mcpAppsEnabled: true,
-      mcpV2Experimental: true,
+      mcpTasksEnabled: false,
+      mcpAppsEnabled: false,
+      mcpV2Experimental: false,
       jlcpcbOrderingEnabled: true,
       jlcsearchEnabled: true,
       mouserEnabled: true,
       digikeyEnabled: true,
       oauthEnabled: true,
-      otelEnabled: true,
-      aiEnabled: true,
+      otelEnabled: false,
+      aiEnabled: false,
       devBridge: true,
       bridgeRawExecEnabled: true,
       rawExecExperimental: true,

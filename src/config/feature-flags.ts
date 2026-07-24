@@ -1,4 +1,5 @@
 import { type EnvConfig } from './env.js';
+import { getFeatureMaturity } from './feature-maturity.js';
 
 export interface FeatureFlags {
   mcpTasksEnabled: boolean;
@@ -17,17 +18,18 @@ export interface FeatureFlags {
 }
 
 export function loadFeatureFlags(config: EnvConfig): FeatureFlags {
+  const maturity = getFeatureMaturity(config);
   return {
-    mcpTasksEnabled: config.MCP_TASKS_ENABLED,
-    mcpAppsEnabled: config.MCP_APPS_ENABLED,
-    mcpV2Experimental: config.MCP_V2_EXPERIMENTAL,
+    mcpTasksEnabled: maturity.mcp_tasks?.effective ?? false,
+    mcpAppsEnabled: maturity.mcp_apps?.effective ?? false,
+    mcpV2Experimental: maturity.mcp_v2?.effective ?? false,
     jlcpcbOrderingEnabled: config.JLCPCB_ENABLE_ORDERING,
     jlcsearchEnabled: config.JLCSEARCH_ENABLED,
     mouserEnabled: config.MOUSER_ENABLED,
     digikeyEnabled: config.DIGIKEY_ENABLED,
-    oauthEnabled: config.OAUTH_ENABLED,
-    otelEnabled: config.OTEL_ENABLED,
-    aiEnabled: config.AI_PROVIDER !== 'none',
+    oauthEnabled: maturity.oauth?.effective ?? false,
+    otelEnabled: maturity.otel_export?.effective ?? false,
+    aiEnabled: maturity.ai_provider?.effective ?? false,
     devBridge: config.EASYEDA_DEV_BRIDGE,
     bridgeRawExecEnabled: config.BRIDGE_RAW_EXEC_ENABLED,
     rawExecExperimental: config.MCP_RAW_EXEC_EXPERIMENTAL,

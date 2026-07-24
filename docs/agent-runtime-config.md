@@ -61,6 +61,16 @@ For HTTP transport, use an explicit transport environment:
 TRANSPORT=http HTTP_HOST=127.0.0.1 HTTP_PORT=3000 npx easyeda-mcp-pro
 ```
 
+## Verify feature maturity
+
+Before relying on an optional capability, call `easyeda_get_feature_flags` or
+`easyeda_get_capabilities` and inspect the `maturity`, `configured`, and `effective` fields. In
+particular, AI provider, MCP Apps, MCP Tasks, MCP v2, and OTLP variables are currently reserved and
+remain ineffective even if an agent runtime passes them in its environment. Remote Relay and raw
+execution are experimental; OAuth/JWKS is implemented.
+
+Do not infer support from the existence of an environment-variable name or from a configured value.
+
 ## Validation checklist
 
 1. Confirm the command starts: `npx easyeda-mcp-pro --help`.

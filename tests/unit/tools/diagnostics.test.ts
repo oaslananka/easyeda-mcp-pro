@@ -214,6 +214,42 @@ describe('Diagnostics Tools', () => {
     expect(activeProfile?.name).toBe('core');
   });
 
+  it('reports reserved feature configuration as configured but not effective', async () => {
+    const configuredRegistry = new ToolRegistry();
+    registerDiagnosticsCore(
+      configuredRegistry,
+      EnvSchema.parse({
+        NODE_ENV: 'test',
+        MCP_TASKS_ENABLED: 'true',
+        MCP_APPS_ENABLED: 'true',
+        MCP_V2_EXPERIMENTAL: 'true',
+        AI_PROVIDER: 'openai',
+        OTEL_ENABLED: 'true',
+      }),
+    );
+
+    const flags = await configuredRegistry.get('easyeda_get_feature_flags')?.handler(context, {});
+    expect(flags?.flags).toMatchObject({
+      mcp_tasks_enabled: false,
+      mcp_apps_enabled: false,
+      mcp_v2_experimental: false,
+      ai_enabled: false,
+      otel_enabled: false,
+    });
+    expect(flags?.maturity).toMatchObject({
+      mcp_tasks: { maturity: 'reserved', configured: true, effective: false },
+      mcp_apps: { maturity: 'reserved', configured: true, effective: false },
+      mcp_v2: { maturity: 'reserved', configured: true, effective: false },
+      ai_provider: { maturity: 'reserved', configured: true, effective: false },
+      otel_export: { maturity: 'reserved', configured: true, effective: false },
+    });
+
+    const serverConfig = await configuredRegistry
+      .get('easyeda_get_server_config')
+      ?.handler(context, { include_flags: true });
+    expect(serverConfig?.feature_maturity.ai_provider.maturity).toBe('reserved');
+  });
+
   it('easyeda_get_feature_flags returns flag values', async () => {
     const tool = registry.get('easyeda_get_feature_flags');
     expect(tool).toBeDefined();
