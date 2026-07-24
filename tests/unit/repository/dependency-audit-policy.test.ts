@@ -157,6 +157,19 @@ describe('dependency audit policy', () => {
     expect(lockfile).not.toMatch(/postcss@8\.5\.(?:[0-9]|1[0-7])(?:\D|$)/);
   });
 
+  it('pins brace-expansion to the patched release and records the reviewed age exception', () => {
+    const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8').replace(
+      /\r\n/g,
+      '\n',
+    );
+    const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
+
+    expect(workspacePolicy).toContain('  - brace-expansion@5.0.8\n');
+    expect(workspacePolicy).toMatch(/\n {2}brace-expansion: 5\.0\.8\n/);
+    expect(lockfile).toContain('brace-expansion: 5.0.8');
+    expect(lockfile).not.toMatch(/brace-expansion@5\.0\.[0-7](?:\D|$)/);
+  });
+
   it('allows one exact, documented, unexpired moderate advisory', () => {
     const result = runPolicy(makeAudit(), makeAllowlist());
 
