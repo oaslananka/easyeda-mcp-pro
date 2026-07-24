@@ -14,8 +14,18 @@ function resolveGitBinary() {
   const candidates =
     process.platform === 'win32'
       ? [
-          resolve(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
-          resolve(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'bin', 'git.exe'),
+          resolve(
+            process.env.ProgramFiles ?? String.raw`C:\Program Files`,
+            'Git',
+            'cmd',
+            'git.exe',
+          ),
+          resolve(
+            process.env.ProgramFiles ?? String.raw`C:\Program Files`,
+            'Git',
+            'bin',
+            'git.exe',
+          ),
         ]
       : ['/usr/bin/git', '/usr/local/bin/git'];
   const binary = candidates.find((candidate) => existsSync(candidate));

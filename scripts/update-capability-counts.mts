@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   for (const relativePath of files) {
     const filePath = resolve(relativePath);
     const current = readFileSync(filePath, 'utf8');
-    const normalizedCurrent = current.replace(/\r\n/g, '\n');
+    const normalizedCurrent = current.replaceAll('\r\n', '\n');
     const start = normalizedCurrent.indexOf(START);
     const end = normalizedCurrent.indexOf(END);
     if (start < 0 || end < start) {
