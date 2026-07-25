@@ -64,6 +64,19 @@ describe('release channel policy', () => {
       publisher.indexOf('Create stable GitHub Release'),
     );
     expect(publisher).toContain('npm publish --provenance --tag "$NPM_DIST_TAG"');
+    expect(publisher).not.toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish');
+    expect(publisher).toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add');
+    expect(publisher).toContain('name: Verify published release');
+    expect(publisher).toContain('pnpm release:verify-published');
+    expect(publisher).toContain('--report-json reports/published-release.json');
+    expect(publisher).toContain('--summary-file "$GITHUB_STEP_SUMMARY"');
+    expect(publisher.indexOf('Build and push Docker image')).toBeLessThan(
+      publisher.indexOf('Verify published release'),
+    );
+    expect(publisher).toContain('name: Upload published release verification');
+    expect(publisher).toContain('published-release-${{ env.RELEASE_TAG }}');
+    expect(publisher).toContain('path: reports/published-release.json');
+    expect(publisher).toContain('if: ${{ always() }}');
     expect(publisher).toContain('npm dist-tag add');
     expect(publisher).toContain('./mcp-publisher publish');
     expect(publisher).toContain('type=raw,value=next');

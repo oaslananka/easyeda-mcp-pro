@@ -250,12 +250,10 @@ jobs:
           PKG_VERSION="$(node -p "require('./package.json').version")"
           if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
             if [[ -z "$NPM_TOKEN" ]]; then
-              echo "NPM_TOKEN is required to repair an existing version dist-tag." >&2
+              echo "NPM_TOKEN is required only to repair an existing version dist-tag." >&2
               exit 1
             fi
             NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add "${PKG_NAME}@${PKG_VERSION}" "$NPM_DIST_TAG"
-          elif [[ -n "$NPM_TOKEN" ]]; then
-            NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish --provenance --tag "$NPM_DIST_TAG"
           else
             npm publish --provenance --tag "$NPM_DIST_TAG"
           fi
@@ -330,3 +328,27 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Verify published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERIFY_WORKFLOW_PROVENANCE: 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          RELEASE_COMMIT_SHA="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+          pnpm release:verify-published -- \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "$RELEASE_TAG" \
+            --channel "$RELEASE_CHANNEL" \
+            --commit "$RELEASE_COMMIT_SHA" \
+            --report-json reports/published-release.json \
+            --summary-file "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload published release verification
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: published-release-${{ env.RELEASE_TAG }}
+          path: reports/published-release.json
+          if-no-files-found: error
