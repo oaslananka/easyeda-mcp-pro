@@ -112,7 +112,8 @@
     "generate:capability-docs": "tsx scripts/update-capability-counts.mts",
     "check:capability-docs": "tsx scripts/update-capability-counts.mts --check",
     "release:readiness": "node scripts/check-release-readiness.mjs",
-    "release:readiness:compatibility": "node scripts/check-release-readiness.mjs --compatibility-only"
+    "release:readiness:compatibility": "node scripts/check-release-readiness.mjs --compatibility-only",
+    "release:verify-published": "node scripts/verify-published-release.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
