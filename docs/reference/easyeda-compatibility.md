@@ -32,7 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.3               | 0.35.3               | 0.35.3            | Live validated  | 2026-07-25 | 2026-10-23 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 
@@ -49,32 +49,33 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-25`
 | Kernel                               | `7.0.0-28-generic`                         |
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
-| Validation package version           | `0.35.3`                                   |
-| Release containing validated fixes   | `0.35.3`                                   |
-| Merge commit                         | `790dab44c5215a5931361aa968a19e2c463961fd` |
-| Installed extension package metadata | `0.35.3`                                   |
-| Loader-reported version              | `0.35.3`                                   |
+| Validation package version           | `0.35.4`                                   |
+| Release containing validated fixes   | `0.35.4`                                   |
+| Merge commit                         | `66c2f98b6c6c1023184db5a3646bdaf8c5970c9f` |
+| Installed extension package metadata | `0.35.4`                                   |
+| Loader-reported version              | `0.35.4`                                   |
 | Bridge contract                      | `1.0.0`                                    |
 | Dispatcher                           | `baked`                                    |
 | Method registry hash                 | `34f1dcf29ebdf3cf`                         |
 | Hot-swap compiled / enabled          | `false` / `false`                          |
 
-The installed extension package and loader both reported version `0.35.3` during this validation.
+The installed extension package and loader both reported version `0.35.4` during this validation.
 
 ### Capability evidence
 
-| Capability                     | Level  | Status   | Result                                                                                                                                                                             | Evidence                                                                                                                                                                                                                    |
-| ------------------------------ | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Production bridge cold start   | `live` | `passed` | The packaged 0.35.3 bridge connected on local port 49620 with the baked dispatcher, version-aligned loader metadata, 67 registered methods, and the expected method registry hash. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-25-ubuntu-24-04-easyeda-3.2.149-v0.35.3.json), [Issue #392](https://github.com/oaslananka/easyeda-mcp-pro/issues/392) |
-| Release read-only smoke matrix | `live` | `passed` | All six release smoke checks passed against TestMcp / Schematic1 / P1: system status, runtime API inventory, schematic nets, schematic components, BOM generation, and native ERC. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-25-ubuntu-24-04-easyeda-3.2.149-v0.35.3.json), [Issue #392](https://github.com/oaslananka/easyeda-mcp-pro/issues/392) |
-| Server and extension CI matrix | `ci`   | `passed` | The candidate commit passed the repository CI workflow, including Linux, Windows, and macOS jobs plus extension packaging and verification.                                        | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/actions/runs/30132366330)                                                                                                                                          |
+| Capability                                    | Level  | Status   | Result                                                                                                                                                                                                                                                                      | Evidence                                                                                                                                                                                                                                                                                                                |
+| --------------------------------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Production bridge cold start                  | `live` | `passed` | The packaged 0.35.4 bridge connected on local port 49620 with the baked dispatcher, version-aligned loader metadata, 67 registered methods, and the expected method registry hash.                                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-25-ubuntu-24-04-easyeda-3.2.149-v0.35.4-write-rollback.json)                                                                                                                                                      |
+| Release read-only smoke matrix                | `live` | `passed` | The 0.35.3 release record remains the latest complete six-check read-only matrix; the 0.35.4 transaction smoke independently revalidated status, schematic inventories, components, nets, and native ERC while checking final-state equality.                               | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-25-ubuntu-24-04-easyeda-3.2.149-v0.35.4-write-rollback.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-25-ubuntu-24-04-easyeda-3.2.149-v0.35.3.json) |
+| Schematic create, modify, and delete rollback | `live` | `passed` | On disposable TestMcp / Schematic1 / P1, forced failures rolled back text creation, text modification, and rectangle deletion. Primitive inventory, component, net, and comparable ERC hashes matched the baseline after cleanup, with zero temporary primitives remaining. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-25-ubuntu-24-04-easyeda-3.2.149-v0.35.4-write-rollback.json)                                                                                                                                                      |
+| Server and extension CI matrix                | `ci`   | `passed` | The candidate lineage passed required repository CI, including Linux, Windows, and macOS jobs, extension packaging, workflow security, dependency review, CodeQL, Semgrep, and container security.                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/actions/runs/30142485207), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/actions/runs/30143397337), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/actions/runs/30143720636)                                                              |
 
 ### Known limitations
 
-- This live smoke was read-only; project mutation, save, export, transaction rollback, and destructive recovery paths were not exercised in this pass.
+- This live mutation pass covered text creation, text modification, rectangle deletion, atomic rollback, cleanup, and final-state restoration. Component placement, wire creation, project save/export, and non-transaction destructive recovery remain outside this exact pass.
 - This exact-version live record applies only to Ubuntu x86_64. Windows and macOS remain supported by automated CI and require separate live records for equivalent desktop-runtime claims.
 - Remote Relay was not dogfooded through a public hosted endpoint during this pass.
-- The disposable TestMcp fixture must have Schematic1 / P1 focused; native ERC correctly rejects a non-schematic or unfocused document context.
+- The disposable TestMcp fixture must have Schematic1 / P1 focused; the harness fails closed before mutation when project, schematic, or page identity differs.
 
 ## Reproducing live smoke evidence
 

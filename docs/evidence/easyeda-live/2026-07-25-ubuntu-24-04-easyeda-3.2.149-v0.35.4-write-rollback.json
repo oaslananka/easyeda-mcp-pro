@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-07-25T07:21:38+03:00",
+  "candidateCommit": "66c2f98b6c6c1023184db5a3646bdaf8c5970c9f",
+  "server": {
+    "packageVersion": "0.35.4",
+    "nodeVersion": "24.18.0"
+  },
+  "extension": {
+    "packageVersion": "0.35.4",
+    "loaderReportedVersion": "0.35.4",
+    "packageSha256": "d21caeb1c3601d2531b705dd3d5ee311e4f2eaad6503c6e0e479a8d42f1fa5c7",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "34f1dcf29ebdf3cf",
+    "dispatcherBuildId": "d91b9x9099x0126",
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-28-generic"
+  },
+  "fixture": {
+    "project": "TestMcp",
+    "schematic": "Schematic1",
+    "page": "P1",
+    "disposable": true
+  },
+  "transactionSmokeReport": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "generatedAt": "2026-07-25T04:21:38.781Z",
+    "checks": [
+      {
+        "id": "create-rollback",
+        "status": "passed",
+        "rolledBack": true,
+        "stateRestored": true,
+        "transactionState": "rolled-back",
+        "expectedFailureCode": "BATCH_WRITE_FAILED"
+      },
+      {
+        "id": "modify-rollback",
+        "status": "passed",
+        "rolledBack": true,
+        "stateRestored": true,
+        "transactionState": "rolled-back",
+        "expectedFailureCode": "BATCH_WRITE_FAILED"
+      },
+      {
+        "id": "delete-rollback",
+        "status": "passed",
+        "rolledBack": true,
+        "stateRestored": true,
+        "recreatedPrimitiveIdChanged": true,
+        "transactionState": "rolled-back",
+        "expectedFailureCode": "BATCH_WRITE_FAILED"
+      },
+      {
+        "id": "final-state-restored",
+        "status": "passed",
+        "primitiveInventoryHashEqual": true,
+        "componentHashEqual": true,
+        "netHashEqual": true,
+        "ercComparable": true,
+        "ercStateEqual": true
+      }
+    ],
+    "cleanup": {
+      "clean": true,
+      "remainingPrimitiveCount": 0,
+      "errors": []
+    },
+    "baseline": {
+      "primitiveInventoryHash": "271b9961a0c88819e3bba6593635570edd2b31ddfd5cebb38083c01a240cd81d",
+      "componentHash": "d380ec3f89a308a361eade794595c590fed36995e50dba1fe00eec045021c577",
+      "netHash": "0fad820a32fc48885ad3669da08995b24b6bf3288bd86826822761b3ce30ed2b",
+      "ercAvailable": true,
+      "ercHash": "5f8320831846e24e41e74f1b185eaae890d4d3c8c764d0db29a37257c894ccb2"
+    },
+    "finalState": {
+      "primitiveInventoryHash": "271b9961a0c88819e3bba6593635570edd2b31ddfd5cebb38083c01a240cd81d",
+      "componentHash": "d380ec3f89a308a361eade794595c590fed36995e50dba1fe00eec045021c577",
+      "netHash": "0fad820a32fc48885ad3669da08995b24b6bf3288bd86826822761b3ce30ed2b",
+      "ercAvailable": true,
+      "ercHash": "5f8320831846e24e41e74f1b185eaae890d4d3c8c764d0db29a37257c894ccb2"
+    }
+  },
+  "redaction": {
+    "temporaryPrimitiveIdsOmitted": true,
+    "transactionOperationIdsOmitted": true,
+    "localPathsOmitted": true,
+    "credentialsOmitted": true
+  }
+}
