@@ -8,6 +8,7 @@
  *
  * Optional: EASYEDA_EXPECTED_DISPATCHER_BUILD=<build-id>
  */
+import { arch, platform, release } from 'node:os';
 import { BridgeManager } from '../src/bridge/manager.ts';
 import { loadEnvConfig } from '../src/config/env.ts';
 import { createLogger } from '../src/utils/logger.ts';
@@ -15,14 +16,79 @@ import { ToolRegistry } from '../src/tools/registry.ts';
 import { registerBuiltinTools } from '../src/tools/register.ts';
 import { stableHash } from '../src/transactions/stable.ts';
 import { resetGlobalTransactionManagerForTests } from '../src/transactions/manager.ts';
+import {
+  buildSchematicTransactionSmokeReport,
+  writeSchematicTransactionSmokeReport,
+  type SchematicTransactionSmokeInput,
+} from '../src/live/schematic-transaction-smoke-report.ts';
 
 const EXPECTED_BUILD = process.env.EASYEDA_EXPECTED_DISPATCHER_BUILD?.trim();
+const WRITE_ENABLED = process.env.EASYEDA_LIVE_WRITE_TESTS?.trim().toLowerCase() === 'true';
+const EXPECTED_PROJECT = process.env.EASYEDA_EXPECTED_PROJECT?.trim();
+const EXPECTED_SCHEMATIC = process.env.EASYEDA_EXPECTED_SCHEMATIC?.trim();
+const EXPECTED_PAGE = process.env.EASYEDA_EXPECTED_PAGE?.trim();
+const REPORT_PATH =
+  process.env.EASYEDA_TRANSACTION_SMOKE_REPORT_PATH?.trim() ||
+  '.easyeda-mcp-pro/schematic-transaction-smoke-report.json';
+const REQUIRED_FIXTURE = {
+  project: 'TestMcp',
+  schematic: 'Schematic1',
+  page: 'P1',
+  disposable: true,
+} as const;
 const KINDS = ['component', 'wire', 'text', 'rectangle', 'circle', 'polygon'] as const;
 type Kind = (typeof KINDS)[number];
 
 const config = loadEnvConfig();
 createLogger(config);
 const bridge = new BridgeManager(config);
+
+function assertSmokeConfiguration(): void {
+  if (!WRITE_ENABLED) {
+    throw new Error('SAFETY_PRECONDITION_FAILED: EASYEDA_LIVE_WRITE_TESTS=true is required.');
+  }
+  const actual = {
+    project: EXPECTED_PROJECT,
+    schematic: EXPECTED_SCHEMATIC,
+    page: EXPECTED_PAGE,
+  };
+  for (const [key, required] of Object.entries(REQUIRED_FIXTURE)) {
+    if (key === 'disposable') continue;
+    if (actual[key as keyof typeof actual] !== required) {
+      throw new Error(
+        `SAFETY_PRECONDITION_FAILED: EASYEDA_EXPECTED_${key.toUpperCase()} must equal ${required}.`,
+      );
+    }
+  }
+}
+
+function containsExactString(value: unknown, expected: string): boolean {
+  if (typeof value === 'string') return value.trim() === expected;
+  if (Array.isArray(value)) return value.some((item) => containsExactString(item, expected));
+  if (!value || typeof value !== 'object') return false;
+  return Object.values(value as Record<string, unknown>).some((item) =>
+    containsExactString(item, expected),
+  );
+}
+
+function assertFocusedFixtureIdentity(focus: {
+  projectInfo: unknown;
+  schematicInfo: unknown;
+  pageInfo: unknown;
+}): void {
+  const checks = [
+    ['project', focus.projectInfo, REQUIRED_FIXTURE.project],
+    ['schematic', focus.schematicInfo, REQUIRED_FIXTURE.schematic],
+    ['page', focus.pageInfo, REQUIRED_FIXTURE.page],
+  ] as const;
+  for (const [kind, value, expected] of checks) {
+    if (!containsExactString(value, expected)) {
+      throw new Error(
+        `SAFETY_PRECONDITION_FAILED: focused ${kind} does not match expected ${expected}.`,
+      );
+    }
+  }
+}
 
 function sortUnknown(value: unknown): unknown {
   if (Array.isArray(value))
@@ -141,6 +207,7 @@ async function allInventories(): Promise<Record<Kind, string[]>> {
 }
 
 async function requireFocusedStableSchematic(timeoutMs = 300_000): Promise<{
+  projectInfo: unknown;
   schematicInfo: unknown;
   pageInfo: unknown;
   inventories: Record<Kind, string[]>;
@@ -150,6 +217,10 @@ async function requireFocusedStableSchematic(timeoutMs = 300_000): Promise<{
 
   while (Date.now() < deadline) {
     try {
+      const projectInfoResponse = (await bridge.call('api.call', {
+        path: 'DMT_Project.getCurrentProjectInfo',
+        args: [],
+      })) as { result?: unknown };
       const schematicInfoResponse = (await bridge.call('api.call', {
         path: 'DMT_Schematic.getCurrentSchematicInfo',
         args: [],
@@ -158,10 +229,11 @@ async function requireFocusedStableSchematic(timeoutMs = 300_000): Promise<{
         path: 'DMT_Schematic.getCurrentSchematicPageInfo',
         args: [],
       })) as { result?: unknown };
+      const projectInfo = projectInfoResponse?.result;
       const schematicInfo = schematicInfoResponse?.result;
       const pageInfo = pageInfoResponse?.result;
-      if (!schematicInfo || !pageInfo) {
-        lastReason = 'a schematic document and page are not focused';
+      if (!projectInfo || !schematicInfo || !pageInfo) {
+        lastReason = 'a project, schematic document, and page are not focused';
         await new Promise<void>((resolve) => setTimeout(resolve, 500));
         continue;
       }
@@ -171,7 +243,7 @@ async function requireFocusedStableSchematic(timeoutMs = 300_000): Promise<{
         await new Promise<void>((resolve) => setTimeout(resolve, 250));
         const current = await allInventories();
         if (stableHash(previous) === stableHash(current)) {
-          return { schematicInfo, pageInfo, inventories: current };
+          return { projectInfo, schematicInfo, pageInfo, inventories: current };
         }
         previous = current;
       }
@@ -371,10 +443,100 @@ async function createCommittedPrimitive(
   return { primitiveId, batchResult };
 }
 
+type LiveStateDigest = Awaited<ReturnType<typeof stateDigest>>;
+
 const cleanupIds = new Set<string>();
-const results: Record<string, unknown> = {};
+const results: Record<string, any> = {};
+const cleanupErrors: string[] = [];
+let baselineState: LiveStateDigest | undefined;
+let finalStateSnapshot: LiveStateDigest | undefined;
+let dispatcherBuildId = '';
+
+function reportStateDigest(state: LiveStateDigest | undefined) {
+  return {
+    primitiveInventoryHash: state ? stableHash(state.inventories) : '',
+    componentHash: state?.componentHash ?? '',
+    netHash: state?.netHash ?? '',
+    ercAvailable: state?.ercAvailable ?? false,
+    ...(state?.ercHash ? { ercHash: state.ercHash } : {}),
+  };
+}
+
+function rollbackOutcome(kind: 'create' | 'modify' | 'delete') {
+  if (kind === 'create') {
+    const value = results.createRollback ?? {};
+    return {
+      passed:
+        value.success === false &&
+        value.rolled_back === true &&
+        value.firstOperationStatus === 'rolled-back' &&
+        value.failureOperationStatus === 'failed',
+      rolledBack: value.rolled_back === true,
+      stateRestored: value.inventoryRestored === true,
+      details: {
+        transactionState: value.transaction_state,
+        errorCode: value.error_code,
+      },
+    };
+  }
+  if (kind === 'modify') {
+    const value = results.modifyRollback ?? {};
+    return {
+      passed: value.success === false && value.rolled_back === true,
+      rolledBack: value.rolled_back === true,
+      stateRestored: value.snapshotRestored === true,
+      details: {
+        transactionState: value.transaction_state,
+        errorCode: value.error_code,
+      },
+    };
+  }
+  const value = results.deleteRollback ?? {};
+  return {
+    passed: value.success === false && value.rolled_back === true,
+    rolledBack: value.rolled_back === true,
+    stateRestored: value.descriptorRestored === true && value.inventoryCountStable === true,
+    details: {
+      transactionState: value.transaction_state,
+      errorCode: value.error_code,
+      idChanged: value.idChanged,
+    },
+  };
+}
+
+function createSmokeReport(error?: string) {
+  const input: SchematicTransactionSmokeInput = {
+    environment: {
+      operatingSystem: `${platform()} ${release()}`,
+      architecture: arch(),
+      nodeVersion: process.versions.node,
+    },
+    fixture: REQUIRED_FIXTURE,
+    bridge: {
+      easyedaVersion: bridge.hello?.easyedaVersion,
+      bridgeVersion: bridge.hello?.bridgeVersion,
+      dispatcherBuildId,
+      methodRegistryHash: bridge.hello?.methodRegistryHash ?? bridge.methodRegistryHash,
+      activePort: bridge.activePort,
+    },
+    outcomes: {
+      createRollback: rollbackOutcome('create'),
+      modifyRollback: rollbackOutcome('modify'),
+      deleteRollback: rollbackOutcome('delete'),
+    },
+    cleanup: {
+      remainingIds: [...cleanupIds].sort((left, right) => left.localeCompare(right)),
+      errors: [...cleanupErrors],
+    },
+    baseline: reportStateDigest(baselineState),
+    finalState: reportStateDigest(finalStateSnapshot),
+    ...(error ? { error } : {}),
+  };
+  return buildSchematicTransactionSmokeReport(input);
+}
 
 try {
+  assertSmokeConfiguration();
   await bridge.connect();
   await waitForStableConnection(600_000);
 
@@ -382,6 +544,7 @@ try {
   const rawBuildId =
     status.dispatcherBuildId ?? status.dispatcherBuild ?? status.dispatcher_build ?? status.buildId;
   const buildId = typeof rawBuildId === 'string' ? rawBuildId : '';
+  dispatcherBuildId = buildId;
   const capabilities = Array.isArray(status.capabilities) ? status.capabilities : [];
   if (EXPECTED_BUILD && buildId !== EXPECTED_BUILD) {
     throw new Error(
@@ -407,10 +570,13 @@ try {
     vendors: { lcsc: null, jlcpcb: null, mouser: null, digikey: null },
   } as any;
 
-  await requireFocusedStableSchematic();
+  const initialFocus = await requireFocusedStableSchematic();
+  assertFocusedFixtureIdentity(initialFocus);
   const preflightCleanup = await cleanupKnownSmokeArtifacts();
   const focus = await requireFocusedStableSchematic();
+  assertFocusedFixtureIdentity(focus);
   const baseline = await stateDigest();
+  baselineState = baseline;
   if (stableHash(focus.inventories) !== stableHash(baseline.inventories)) {
     throw new Error(
       'SAFETY_PRECONDITION_FAILED: schematic inventory changed after cleanup and before baseline capture.',
@@ -597,6 +763,7 @@ try {
   cleanupIds.delete(recreatedRectId);
 
   const finalState = await stateDigest();
+  finalStateSnapshot = finalState;
   const finalComparison = {
     primitiveInventoriesEqual:
       stableHash(baseline.inventories) === stableHash(finalState.inventories),
@@ -619,24 +786,49 @@ try {
     throw new Error(`Final state mismatch: ${JSON.stringify(finalComparison)}`);
   }
 
-  console.log(JSON.stringify({ ok: true, results }, null, 2));
+  const report = createSmokeReport();
+  if (report.status !== 'passed') {
+    throw new Error(`Transaction smoke report failed: ${JSON.stringify(report.checks)}`);
+  }
+  await writeSchematicTransactionSmokeReport(REPORT_PATH, report);
+  console.log(JSON.stringify({ ok: true, reportPath: REPORT_PATH, report, results }, null, 2));
 } catch (error) {
-  const cleanupErrors: string[] = [];
-  for (const id of cleanupIds) {
+  const failureMessage = error instanceof Error ? error.message : String(error);
+  for (const id of [...cleanupIds]) {
     try {
       await deletePrimitive(id);
+      cleanupIds.delete(id);
     } catch (cleanupError) {
       cleanupErrors.push(
         `${id}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
       );
     }
   }
+  if (baselineState && bridge.state === 'connected') {
+    try {
+      finalStateSnapshot = await stateDigest();
+    } catch (finalStateError) {
+      cleanupErrors.push(
+        `final-state-capture: ${finalStateError instanceof Error ? finalStateError.message : String(finalStateError)}`,
+      );
+    }
+  }
+  const report = createSmokeReport(failureMessage);
+  try {
+    await writeSchematicTransactionSmokeReport(REPORT_PATH, report);
+  } catch (reportError) {
+    cleanupErrors.push(
+      `report-write: ${reportError instanceof Error ? reportError.message : String(reportError)}`,
+    );
+  }
   console.error(
     JSON.stringify(
       {
         ok: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: failureMessage,
         cleanupErrors,
+        reportPath: REPORT_PATH,
+        report,
         results,
       },
       null,
