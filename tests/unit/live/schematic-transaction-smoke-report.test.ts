@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildSchematicTransactionSmokeReport,
+  extractPrimitiveIds,
   verifySchematicTransactionFixtureIdentity,
   writeSchematicTransactionSmokeReport,
   type SchematicTransactionSmokeInput,
@@ -54,6 +55,12 @@ function passingInput(): SchematicTransactionSmokeInput {
 }
 
 describe('schematic transaction smoke report', () => {
+  it('extracts and sorts primitive IDs from bridge inventory responses', () => {
+    expect(extractPrimitiveIds({ primitiveIds: ['z', '', 3, 'a'] })).toEqual(['a', 'z']);
+    expect(extractPrimitiveIds({ primitiveIds: 'not-an-array' })).toEqual([]);
+    expect(extractPrimitiveIds(null)).toEqual([]);
+  });
+
   it('builds a passing report for the disposable fixture and four checks', () => {
     const report = buildSchematicTransactionSmokeReport(passingInput());
 

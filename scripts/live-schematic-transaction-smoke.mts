@@ -18,6 +18,7 @@ import { stableHash } from '../src/transactions/stable.ts';
 import { resetGlobalTransactionManagerForTests } from '../src/transactions/manager.ts';
 import {
   buildSchematicTransactionSmokeReport,
+  extractPrimitiveIds,
   verifySchematicTransactionFixtureIdentity,
   writeSchematicTransactionSmokeReport,
   type SchematicTransactionSmokeInput,
@@ -129,7 +130,9 @@ async function waitForStableConnection(timeoutMs: number, quietMs = 5_000): Prom
 }
 
 async function inventory(kind: Kind): Promise<string[]> {
-  return idsFrom(await bridge.call('schematic.listPrimitiveIds', { primitiveKind: kind }));
+  return extractPrimitiveIds(
+    await bridge.call('schematic.listPrimitiveIds', { primitiveKind: kind }),
+  );
 }
 
 async function allInventories(): Promise<Record<Kind, string[]>> {

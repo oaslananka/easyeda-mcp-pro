@@ -1,6 +1,16 @@
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
+export function extractPrimitiveIds(value: unknown): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const primitiveIds = (value as { primitiveIds?: unknown }).primitiveIds;
+  return Array.isArray(primitiveIds)
+    ? primitiveIds
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+        .sort((a, b) => a.localeCompare(b))
+    : [];
+}
+
 export interface SchematicTransactionFixtureIdentity {
   project: string;
   schematic: string;
