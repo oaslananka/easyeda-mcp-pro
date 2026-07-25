@@ -171,7 +171,7 @@ export async function renderCompatibilityMarkdown(source) {
       `| Node.js used by validation server | \`${record.environment.nodeVersion}\` |`,
       `| Validation package version | \`${record.server.validationPackageVersion}\` |`,
       `| Release containing validated fixes | \`${record.server.releaseContainingFixes}\` |`,
-      `| Merge commit | \`${record.server.commit}\` |`,
+      `| Compatibility-sensitive base commit | \`${record.server.commit}\` |`,
       `| Installed extension package metadata | \`${record.extension.installedPackageVersion}\` |`,
       `| Loader-reported version | \`${record.extension.loaderReportedVersion}\` |`,
       `| Bridge contract | \`${record.extension.bridgeContractVersion}\` |`,

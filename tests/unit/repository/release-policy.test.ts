@@ -81,6 +81,7 @@ describe('release channel policy', () => {
     expect(publisher).toContain('name: Upload published release verification');
     expect(publisher).toContain('published-release-${{ env.RELEASE_TAG }}');
     expect(publisher).toContain('path: reports/published-release.json');
+    expect(publisher).toContain('if-no-files-found: warn');
     expect(publisher).toContain('if: ${{ always() }}');
     expect(publisher).toContain('npm dist-tag add');
     expect(publisher).toContain('./mcp-publisher publish');

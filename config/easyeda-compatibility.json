@@ -22,7 +22,7 @@
       "server": {
         "validationPackageVersion": "0.35.4",
         "releaseContainingFixes": "0.35.4",
-        "commit": "66c2f98b6c6c1023184db5a3646bdaf8c5970c9f"
+        "commit": "3b11042d14a4f2bffbe7b22f9e84da4be2e5a896"
       },
       "extension": {
         "installedPackageVersion": "0.35.4",

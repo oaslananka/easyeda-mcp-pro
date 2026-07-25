@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "validatedAt": "2026-07-25T07:21:38+03:00",
   "candidateCommit": "66c2f98b6c6c1023184db5a3646bdaf8c5970c9f",
+  "compatibilitySensitiveBaseCommit": "3b11042d14a4f2bffbe7b22f9e84da4be2e5a896",
   "server": {
     "packageVersion": "0.35.4",
     "nodeVersion": "24.18.0"

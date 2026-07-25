@@ -51,7 +51,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-25`
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `0.35.4`                                   |
 | Release containing validated fixes   | `0.35.4`                                   |
-| Merge commit                         | `66c2f98b6c6c1023184db5a3646bdaf8c5970c9f` |
+| Compatibility-sensitive base commit  | `3b11042d14a4f2bffbe7b22f9e84da4be2e5a896` |
 | Installed extension package metadata | `0.35.4`                                   |
 | Loader-reported version              | `0.35.4`                                   |
 | Bridge contract                      | `1.0.0`                                    |

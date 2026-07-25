@@ -364,4 +364,4 @@ jobs:
         with:
           name: published-release-${{ env.RELEASE_TAG }}
           path: reports/published-release.json
-          if-no-files-found: error
+          if-no-files-found: warn
