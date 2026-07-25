@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.35.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.3...easyeda-mcp-pro-v0.35.4) (2026-07-25)
+
+
+### Bug Fixes
+
+* restore live smoke primitive inventory parsing ([#413](https://github.com/oaslananka/easyeda-mcp-pro/issues/413)) ([f424ec1](https://github.com/oaslananka/easyeda-mcp-pro/commit/f424ec18dbc42113e69ace64f23cd366dbe4c3be))
+* restore live smoke runtime helpers ([#414](https://github.com/oaslananka/easyeda-mcp-pro/issues/414)) ([b98f5fe](https://github.com/oaslananka/easyeda-mcp-pro/commit/b98f5fe9ca24a657317d90df3fcca164f950f842))
+* verify OIDC publication and live rollback evidence ([#411](https://github.com/oaslananka/easyeda-mcp-pro/issues/411)) ([a75f8dd](https://github.com/oaslananka/easyeda-mcp-pro/commit/a75f8dd4305e19d07b4760355309a5576b50449c))
+
 ## [0.35.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.2...easyeda-mcp-pro-v0.35.3) (2026-07-24)
 
 
