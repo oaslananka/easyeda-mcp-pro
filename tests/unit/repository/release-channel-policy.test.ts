@@ -20,98 +20,173 @@ function makeOutputFiles() {
 
 describe('release channel resolver', () => {
   it('does nothing on an ordinary main push', () => {
-    expect(resolveReleaseChannel({ eventName: 'push', releaseCreated: 'false' })).toEqual({
+    expect(
+      resolveReleaseChannel({
+        eventName: 'push',
+        refName: 'main',
+        commitSubject: 'docs: clarify recovery',
+        packageVersion: '0.35.3',
+        manifestVersion: '0.35.3',
+      }),
+    ).toEqual({
       releaseRun: false,
       releaseTag: '',
       releaseChannel: '',
       npmDistTag: '',
+      targetRef: '',
+      createGithubRelease: false,
+      evidenceUrl: '',
     });
   });
 
-  it('maps a Release Please tag only to the stable channel', () => {
+  it('plans a first automatic stable publication before the tag exists', () => {
     expect(
       resolveReleaseChannel({
         eventName: 'push',
-        releaseCreated: 'true',
-        generatedTag: 'easyeda-mcp-pro-v1.2.3',
+        refName: 'main',
+        commitSubject: 'chore(main): release easyeda-mcp-pro 1.2.3 (#500)',
+        packageVersion: '1.2.3',
+        manifestVersion: '1.2.3',
+        tagExists: false,
       }),
     ).toEqual({
       releaseRun: true,
       releaseTag: 'easyeda-mcp-pro-v1.2.3',
       releaseChannel: 'stable',
       npmDistTag: 'latest',
+      targetRef: 'HEAD',
+      createGithubRelease: true,
+      evidenceUrl: '',
     });
+  });
 
+  it('plans an idempotent automatic recovery when the stable tag already exists', () => {
+    expect(
+      resolveReleaseChannel({
+        eventName: 'push',
+        refName: 'main',
+        commitSubject: 'chore(main): release easyeda-mcp-pro 1.2.3 (#500)',
+        packageVersion: '1.2.3',
+        manifestVersion: '1.2.3',
+        tagExists: true,
+      }),
+    ).toMatchObject({
+      releaseRun: true,
+      releaseTag: 'easyeda-mcp-pro-v1.2.3',
+      targetRef: 'easyeda-mcp-pro-v1.2.3',
+      createGithubRelease: false,
+    });
+  });
+
+  it('rejects automatic release metadata drift and non-main release commits', () => {
     expect(() =>
       resolveReleaseChannel({
         eventName: 'push',
-        releaseCreated: 'true',
-        generatedTag: 'easyeda-mcp-pro-v1.2.3-rc.1',
+        refName: 'main',
+        commitSubject: 'chore(main): release easyeda-mcp-pro 1.2.3 (#500)',
+        packageVersion: '1.2.4',
+        manifestVersion: '1.2.3',
       }),
-    ).toThrow('Release Please is stable-only');
+    ).toThrow('release metadata drift');
+    expect(() =>
+      resolveReleaseChannel({
+        eventName: 'push',
+        refName: 'feature/not-main',
+        commitSubject: 'chore(main): release easyeda-mcp-pro 1.2.3 (#500)',
+        packageVersion: '1.2.3',
+        manifestVersion: '1.2.3',
+      }),
+    ).toThrow('Automatic publication requires main');
   });
 
-  it('maps a numbered manual candidate to the isolated prerelease channel', () => {
+  it('maps manual stable recovery and numbered candidates to isolated channels', () => {
     expect(
       resolveReleaseChannel({
         eventName: 'workflow_dispatch',
+        refName: 'main',
+        manualTag: 'easyeda-mcp-pro-v1.2.3',
+        manualChannel: 'stable',
+        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/407',
+      }),
+    ).toMatchObject({
+      releaseRun: true,
+      releaseChannel: 'stable',
+      npmDistTag: 'latest',
+      targetRef: 'easyeda-mcp-pro-v1.2.3',
+      createGithubRelease: false,
+    });
+    expect(
+      resolveReleaseChannel({
+        eventName: 'workflow_dispatch',
+        refName: 'main',
         manualTag: 'easyeda-mcp-pro-v1.2.3-rc.4',
         manualChannel: 'prerelease',
-        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/342',
+        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/pull/408',
       }),
-    ).toEqual({
+    ).toMatchObject({
       releaseRun: true,
-      releaseTag: 'easyeda-mcp-pro-v1.2.3-rc.4',
       releaseChannel: 'prerelease',
       npmDistTag: 'next',
+      targetRef: 'easyeda-mcp-pro-v1.2.3-rc.4',
+      createGithubRelease: false,
     });
   });
 
-  it('writes channel-safe GitHub Actions outputs for stable and prerelease runs', () => {
-    const stable = makeOutputFiles();
-    runCli({
-      EVENT_NAME: 'push',
-      RELEASE_CREATED: 'true',
-      GENERATED_TAG: 'easyeda-mcp-pro-v1.2.3',
-      GITHUB_ENV: stable.env,
-      GITHUB_OUTPUT: stable.output,
-      GITHUB_STEP_SUMMARY: stable.summary,
-    });
-    expect(readFileSync(stable.env, 'utf8')).toContain('NPM_DIST_TAG=latest');
-    expect(readFileSync(stable.output, 'utf8')).toContain('release_channel=stable');
-    expect(readFileSync(stable.summary, 'utf8')).toBe('');
+  it('rejects invalid manual branch, evidence, tag forms, and channel mismatches', () => {
+    expect(() =>
+      resolveReleaseChannel({
+        eventName: 'workflow_dispatch',
+        refName: 'easyeda-mcp-pro-v1.2.3',
+        manualTag: 'easyeda-mcp-pro-v1.2.3',
+        manualChannel: 'stable',
+        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/407',
+      }),
+    ).toThrow('Manual publication must be dispatched from main');
+    expect(() =>
+      resolveReleaseChannel({
+        eventName: 'workflow_dispatch',
+        refName: 'main',
+        manualTag: 'easyeda-mcp-pro-v1.2.3-rc.1',
+        manualChannel: 'prerelease',
+        evidenceUrl: 'https://example.invalid/private',
+      }),
+    ).toThrow('public easyeda-mcp-pro issue or PR evidence URL');
+    expect(() =>
+      resolveReleaseChannel({
+        eventName: 'workflow_dispatch',
+        refName: 'main',
+        manualTag: 'easyeda-mcp-pro-v1.2.3-beta.1',
+        manualChannel: 'prerelease',
+        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/pull/408',
+      }),
+    ).toThrow('Invalid tag');
+    expect(() =>
+      resolveReleaseChannel({
+        eventName: 'workflow_dispatch',
+        refName: 'main',
+        manualTag: 'easyeda-mcp-pro-v1.2.3',
+        manualChannel: 'prerelease',
+        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/407',
+      }),
+    ).toThrow('does not match');
+  });
 
-    const prerelease = makeOutputFiles();
+  it('writes normalized GitHub Actions outputs and manual evidence summary', () => {
+    const paths = makeOutputFiles();
     runCli({
       EVENT_NAME: 'workflow_dispatch',
+      REF_NAME: 'main',
       MANUAL_TAG: 'easyeda-mcp-pro-v1.2.3-rc.5',
       MANUAL_CHANNEL: 'prerelease',
-      EVIDENCE_URL: 'https://github.com/oaslananka/easyeda-mcp-pro/pull/375',
-      GITHUB_ENV: prerelease.env,
-      GITHUB_OUTPUT: prerelease.output,
-      GITHUB_STEP_SUMMARY: prerelease.summary,
+      EVIDENCE_URL: 'https://github.com/oaslananka/easyeda-mcp-pro/pull/408',
+      GITHUB_ENV: paths.env,
+      GITHUB_OUTPUT: paths.output,
+      GITHUB_STEP_SUMMARY: paths.summary,
     });
-    expect(readFileSync(prerelease.env, 'utf8')).toContain('NPM_DIST_TAG=next');
-    expect(readFileSync(prerelease.output, 'utf8')).toContain('release_channel=prerelease');
-    expect(readFileSync(prerelease.summary, 'utf8')).toContain(
-      'Evidence: https://github.com/oaslananka/easyeda-mcp-pro/pull/375',
-    );
-  });
-
-  it('writes a disabled result and rejects missing GitHub Actions output paths', () => {
-    expect(() => runCli({})).toThrow('Unsupported release event: <empty>');
-
-    const ordinary = makeOutputFiles();
-    runCli({
-      EVENT_NAME: 'push',
-      GITHUB_ENV: ordinary.env,
-      GITHUB_OUTPUT: ordinary.output,
-      GITHUB_STEP_SUMMARY: ordinary.summary,
-    });
-    expect(readFileSync(ordinary.env, 'utf8')).toContain('RELEASE_RUN=false');
-    expect(readFileSync(ordinary.output, 'utf8')).toContain('release_run=false');
-    expect(() => runCli({ EVENT_NAME: 'push' })).toThrow(
-      'GitHub Actions output path is unavailable',
+    expect(readFileSync(paths.env, 'utf8')).toContain('TARGET_REF=easyeda-mcp-pro-v1.2.3-rc.5');
+    expect(readFileSync(paths.output, 'utf8')).toContain('create_github_release=false');
+    expect(readFileSync(paths.summary, 'utf8')).toContain(
+      'Evidence: https://github.com/oaslananka/easyeda-mcp-pro/pull/408',
     );
   });
 
@@ -122,6 +197,7 @@ describe('release channel resolver', () => {
       env: {
         ...process.env,
         EVENT_NAME: 'workflow_dispatch',
+        REF_NAME: 'main',
         MANUAL_TAG: 'easyeda-mcp-pro-v1.2.3-rc.1',
         MANUAL_CHANNEL: 'prerelease',
         EVIDENCE_URL: 'https://example.invalid/private',
@@ -132,46 +208,5 @@ describe('release channel resolver', () => {
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('public easyeda-mcp-pro issue or PR evidence URL');
-  });
-
-  it('rejects invalid evidence, tag forms, and channel mismatches', () => {
-    expect(() => resolveReleaseChannel({ eventName: '' })).toThrow(
-      'Unsupported release event: <empty>',
-    );
-
-    expect(() =>
-      resolveReleaseChannel({
-        eventName: 'workflow_dispatch',
-        manualTag: 'easyeda-mcp-pro-v1.2.3-rc.1',
-        manualChannel: 'prerelease',
-        evidenceUrl: 'https://example.com/private-evidence',
-      }),
-    ).toThrow('public easyeda-mcp-pro issue or PR evidence URL');
-
-    expect(() =>
-      resolveReleaseChannel({
-        eventName: 'workflow_dispatch',
-        manualTag: 'easyeda-mcp-pro-v1.2.3-beta.1',
-        manualChannel: 'prerelease',
-        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/pull/375',
-      }),
-    ).toThrow('Invalid tag');
-
-    expect(() =>
-      resolveReleaseChannel({
-        eventName: 'workflow_dispatch',
-        manualTag: 'easyeda-mcp-pro-v1.2.3',
-        manualChannel: 'prerelease',
-        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/342',
-      }),
-    ).toThrow('does not match');
-
-    expect(() =>
-      resolveReleaseChannel({
-        eventName: 'workflow_dispatch',
-        manualTag: 'easyeda-mcp-pro-v1.2.3',
-        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/342',
-      }),
-    ).toThrow('Requested channel <empty>');
   });
 });

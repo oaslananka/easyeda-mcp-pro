@@ -3,6 +3,8 @@ import { pathToFileURL } from 'node:url';
 
 const STABLE_TAG_PATTERN = /^easyeda-mcp-pro-v\d+\.\d+\.\d+$/;
 const PRERELEASE_TAG_PATTERN = /^easyeda-mcp-pro-v\d+\.\d+\.\d+-rc\.[1-9]\d*$/;
+const RELEASE_COMMIT_PATTERN =
+  /^chore\(main\): release easyeda-mcp-pro (\d+\.\d+\.\d+)(?: \(#\d+\))?$/;
 const EVIDENCE_URL_PATTERN =
   /^https:\/\/github\.com\/oaslananka\/easyeda-mcp-pro\/(issues|pull)\/\d+$/;
 
@@ -16,49 +18,76 @@ function classifyTag(tag) {
   throw new Error('Invalid tag. Use easyeda-mcp-pro-vX.Y.Z or easyeda-mcp-pro-vX.Y.Z-rc.N.');
 }
 
+function disabledPlan() {
+  return {
+    releaseRun: false,
+    releaseTag: '',
+    releaseChannel: '',
+    npmDistTag: '',
+    targetRef: '',
+    createGithubRelease: false,
+    evidenceUrl: '',
+  };
+}
+
 export function resolveReleaseChannel({
   eventName,
-  releaseCreated = '',
-  generatedTag = '',
+  refName = '',
+  commitSubject = '',
+  packageVersion = '',
+  manifestVersion = '',
+  tagExists = false,
   manualTag = '',
   manualChannel = '',
   evidenceUrl = '',
 }) {
-  if (eventName === 'push' && releaseCreated !== 'true') {
+  if (eventName === 'push') {
+    const match = RELEASE_COMMIT_PATTERN.exec(commitSubject);
+    if (!match) return disabledPlan();
+    if (refName !== 'main') throw new Error('Automatic publication requires main.');
+
+    const version = match[1];
+    if (packageVersion !== version || manifestVersion !== version) {
+      throw new Error(
+        `Automatic release metadata drift: commit=${version}, package=${packageVersion || '<empty>'}, manifest=${manifestVersion || '<empty>'}.`,
+      );
+    }
+
+    const releaseTag = `easyeda-mcp-pro-v${version}`;
     return {
-      releaseRun: false,
-      releaseTag: '',
-      releaseChannel: '',
-      npmDistTag: '',
+      releaseRun: true,
+      releaseTag,
+      releaseChannel: 'stable',
+      npmDistTag: 'latest',
+      targetRef: tagExists ? releaseTag : 'HEAD',
+      createGithubRelease: !tagExists,
+      evidenceUrl: '',
     };
   }
 
-  const isManual = eventName === 'workflow_dispatch';
-  if (eventName !== 'push' && !isManual) {
+  if (eventName !== 'workflow_dispatch') {
     throw new Error(`Unsupported release event: ${eventName || '<empty>'}.`);
   }
-  if (isManual && !EVIDENCE_URL_PATTERN.test(evidenceUrl)) {
+  if (refName !== 'main') throw new Error('Manual publication must be dispatched from main.');
+  if (!EVIDENCE_URL_PATTERN.test(evidenceUrl)) {
     throw new Error('Manual releases require a public easyeda-mcp-pro issue or PR evidence URL.');
   }
 
-  const releaseTag = isManual ? manualTag : generatedTag;
-  const requestedChannel = isManual ? manualChannel : 'stable';
-  const { releaseChannel, npmDistTag } = classifyTag(releaseTag);
-
-  if (!isManual && releaseChannel !== 'stable') {
-    throw new Error('Release Please is stable-only; prereleases require workflow_dispatch.');
-  }
-  if (requestedChannel !== releaseChannel) {
+  const { releaseChannel, npmDistTag } = classifyTag(manualTag);
+  if (manualChannel !== releaseChannel) {
     throw new Error(
-      `Requested channel ${requestedChannel || '<empty>'} does not match ${releaseTag} (${releaseChannel}).`,
+      `Requested channel ${manualChannel || '<empty>'} does not match ${manualTag} (${releaseChannel}).`,
     );
   }
 
   return {
     releaseRun: true,
-    releaseTag,
+    releaseTag: manualTag,
     releaseChannel,
     npmDistTag,
+    targetRef: manualTag,
+    createGithubRelease: false,
+    evidenceUrl,
   };
 }
 
@@ -73,8 +102,11 @@ function appendKeyValues(path, values, appendFile) {
 export function runCli(env = process.env, appendFile = appendFileSync) {
   const result = resolveReleaseChannel({
     eventName: env.EVENT_NAME ?? '',
-    releaseCreated: env.RELEASE_CREATED ?? '',
-    generatedTag: env.GENERATED_TAG ?? '',
+    refName: env.REF_NAME ?? '',
+    commitSubject: env.COMMIT_SUBJECT ?? '',
+    packageVersion: env.PACKAGE_VERSION ?? '',
+    manifestVersion: env.MANIFEST_VERSION ?? '',
+    tagExists: env.TAG_EXISTS === 'true',
     manualTag: env.MANUAL_TAG ?? '',
     manualChannel: env.MANUAL_CHANNEL ?? '',
     evidenceUrl: env.EVIDENCE_URL ?? '',
@@ -87,6 +119,9 @@ export function runCli(env = process.env, appendFile = appendFileSync) {
       RELEASE_TAG: result.releaseTag,
       RELEASE_CHANNEL: result.releaseChannel,
       NPM_DIST_TAG: result.npmDistTag,
+      TARGET_REF: result.targetRef,
+      CREATE_GITHUB_RELEASE: result.createGithubRelease,
+      EVIDENCE_URL: result.evidenceUrl,
     },
     appendFile,
   );
@@ -96,6 +131,10 @@ export function runCli(env = process.env, appendFile = appendFileSync) {
       release_run: result.releaseRun,
       release_tag: result.releaseTag,
       release_channel: result.releaseChannel,
+      npm_dist_tag: result.npmDistTag,
+      target_ref: result.targetRef,
+      create_github_release: result.createGithubRelease,
+      evidence_url: result.evidenceUrl,
     },
     appendFile,
   );
@@ -108,7 +147,7 @@ export function runCli(env = process.env, appendFile = appendFileSync) {
         '',
         `- Channel: \`${result.releaseChannel}\``,
         `- Tag: \`${result.releaseTag}\``,
-        `- Evidence: ${env.EVIDENCE_URL}`,
+        `- Evidence: ${result.evidenceUrl}`,
         '',
       ].join('\n'),
       'utf8',
