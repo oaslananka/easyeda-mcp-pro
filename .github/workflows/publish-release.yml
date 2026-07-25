@@ -1,0 +1,323 @@
+---
+name: Publish Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Existing tag to publish (stable: easyeda-mcp-pro-vX.Y.Z; prerelease: easyeda-mcp-pro-vX.Y.Z-rc.N)'
+        required: true
+        type: string
+      release_channel:
+        description: 'Publication channel; must match the tag format'
+        required: true
+        default: prerelease
+        type: choice
+        options:
+          - stable
+          - prerelease
+      evidence_url:
+        description: 'Public issue or PR with release verification, soak, and rollback evidence'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Resolve publication plan
+    if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
+    runs-on: ubuntu-latest
+    outputs:
+      release_run: ${{ steps.plan.outputs.release_run }}
+      release_tag: ${{ steps.plan.outputs.release_tag }}
+      release_channel: ${{ steps.plan.outputs.release_channel }}
+      npm_dist_tag: ${{ steps.plan.outputs.npm_dist_tag }}
+      target_ref: ${{ steps.plan.outputs.target_ref }}
+      create_github_release: ${{ steps.plan.outputs.create_github_release }}
+      evidence_url: ${{ steps.plan.outputs.evidence_url }}
+    steps:
+      - name: Checkout current release policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch immutable release tags
+        run: git fetch --force --tags origin
+
+      - name: Read publication metadata
+        id: metadata
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          SUBJECT="$(git log -1 --pretty=%s)"
+          PACKAGE_VERSION="$(jq -r '.version' package.json)"
+          MANIFEST_VERSION="$(jq -r '.["."]' .release-please-manifest.json)"
+          VERSION="$(sed -nE 's/^chore\(main\): release easyeda-mcp-pro ([0-9]+\.[0-9]+\.[0-9]+)( \(#[0-9]+\))?$/\1/p' <<<"$SUBJECT")"
+          TAG_EXISTS=false
+          if [[ "$EVENT_NAME" == "push" && -n "$VERSION" ]] && git show-ref --verify --quiet "refs/tags/easyeda-mcp-pro-v${VERSION}"; then
+            TAG_EXISTS=true
+          fi
+          {
+            echo "commit_subject=$SUBJECT"
+            echo "package_version=$PACKAGE_VERSION"
+            echo "manifest_version=$MANIFEST_VERSION"
+            echo "tag_exists=$TAG_EXISTS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve publication plan
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          COMMIT_SUBJECT: ${{ steps.metadata.outputs.commit_subject }}
+          PACKAGE_VERSION: ${{ steps.metadata.outputs.package_version }}
+          MANIFEST_VERSION: ${{ steps.metadata.outputs.manifest_version }}
+          TAG_EXISTS: ${{ steps.metadata.outputs.tag_exists }}
+          MANUAL_TAG: ${{ inputs.tag_name }}
+          MANUAL_CHANNEL: ${{ inputs.release_channel }}
+          EVIDENCE_URL: ${{ inputs.evidence_url }}
+        run: node scripts/release-channel-policy.mjs
+
+  publish:
+    name: Gate and publish immutable release
+    if: needs.plan.outputs.release_run == 'true'
+    needs: plan
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-${{ needs.plan.outputs.release_tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: write # Create releases and upload immutable assets.
+      id-token: write # npm Trusted Publishing, attestations, and MCP Registry OIDC.
+      attestations: write # Publish build provenance.
+      packages: write # Publish exact and channel-safe GHCR tags.
+    env:
+      RELEASE_TAG: ${{ needs.plan.outputs.release_tag }}
+      RELEASE_CHANNEL: ${{ needs.plan.outputs.release_channel }}
+      NPM_DIST_TAG: ${{ needs.plan.outputs.npm_dist_tag }}
+      TARGET_REF: ${{ needs.plan.outputs.target_ref }}
+      EVIDENCE_URL: ${{ needs.plan.outputs.evidence_url }}
+    steps:
+      - name: Checkout current release policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch publication target
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          if [[ "$TARGET_REF" != "HEAD" ]]; then
+            git show-ref --verify "refs/tags/${TARGET_REF}"
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.18.0'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Verify commit-bound EasyEDA compatibility evidence
+        run: node scripts/check-release-readiness.mjs --compatibility-only --target-ref="${TARGET_REF}"
+
+      - name: Checkout immutable publication source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.target_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate candidate metadata
+        run: |
+          set -euo pipefail
+          EXPECTED_VERSION="${RELEASE_TAG#easyeda-mcp-pro-v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "Tag version $EXPECTED_VERSION does not match package.json $PACKAGE_VERSION." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Verify runtime policy
+        run: pnpm runtime:check
+
+      - name: Verify Quality Gates
+        run: |
+          pnpm security:audit
+          pnpm peers check
+          pnpm format:check
+          pnpm typecheck
+          pnpm typecheck:extension
+          pnpm lint
+          pnpm lint:tools
+          pnpm verify:tool-coverage
+          pnpm test
+          pnpm test:coverage
+          pnpm test:extension:ci
+          pnpm generate:tools-doc
+          git diff --exit-code docs/reference/tools.md
+          pnpm check:metadata
+          pnpm docs:build
+
+      - name: Build Projects
+        run: |
+          pnpm build
+          pnpm check:metadata
+          pnpm build:extension
+          pnpm verify:extension
+          pnpm check:extension-size
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-${{ needs.plan.outputs.release_tag }}
+          path: sbom.json
+
+      - name: Attach Build Provenance (SLSA + Sigstore)
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            dist/**
+            easyeda-bridge-extension.eext
+            sbom.json
+
+      - name: Create stable GitHub Release
+        id: release
+        if: needs.plan.outputs.create_github_release == 'true'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
+
+      - name: Validate immutable release identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CREATE_GITHUB_RELEASE: ${{ needs.plan.outputs.create_github_release }}
+          CREATED_TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$CREATE_GITHUB_RELEASE" == "true" && "$CREATED_TAG" != "$RELEASE_TAG" ]]; then
+            echo "Release Please created ${CREATED_TAG:-<empty>} instead of $RELEASE_TAG." >&2
+            exit 1
+          fi
+          RELEASE_JSON="$(gh release view "$RELEASE_TAG" --json tagName,targetCommitish,isDraft,isPrerelease)"
+          [[ "$(jq -r '.tagName' <<<"$RELEASE_JSON")" == "$RELEASE_TAG" ]]
+          [[ "$(jq -r '.isDraft' <<<"$RELEASE_JSON")" == "false" ]]
+          EXPECTED_PRERELEASE=false
+          if [[ "$RELEASE_CHANNEL" == "prerelease" ]]; then EXPECTED_PRERELEASE=true; fi
+          [[ "$(jq -r '.isPrerelease' <<<"$RELEASE_JSON")" == "$EXPECTED_PRERELEASE" ]]
+
+      - name: Publish to npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          PKG_NAME="$(node -p "require('./package.json').name")"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            if [[ -z "$NPM_TOKEN" ]]; then
+              echo "NPM_TOKEN is required to repair an existing version dist-tag." >&2
+              exit 1
+            fi
+            NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add "${PKG_NAME}@${PKG_VERSION}" "$NPM_DIST_TAG"
+          elif [[ -n "$NPM_TOKEN" ]]; then
+            NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish --provenance --tag "$NPM_DIST_TAG"
+          else
+            npm publish --provenance --tag "$NPM_DIST_TAG"
+          fi
+
+      - name: Upload Assets to Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$RELEASE_TAG" easyeda-bridge-extension.eext --clobber
+          gh release upload "$RELEASE_TAG" sbom.json --clobber
+
+      - name: Install mcp-publisher
+        if: env.RELEASE_CHANNEL == 'stable'
+        run: |
+          MCP_PUBLISHER_VERSION="v1.7.9"
+          OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          ARCH="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+          ASSET="mcp-publisher_${OS}_${ARCH}.tar.gz"
+          BASE="https://github.com/modelcontextprotocol/registry/releases/download"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --output "$ASSET" "${BASE}/${MCP_PUBLISHER_VERSION}/${ASSET}"
+          tar xzf mcp-publisher_*.tar.gz mcp-publisher
+          chmod +x mcp-publisher
+
+      - name: Publish to MCP Registry
+        if: env.RELEASE_CHANNEL == 'stable'
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean version tag
+        id: clean_version
+        run: |
+          set -euo pipefail
+          STABLE_RE='^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+$'
+          PRERELEASE_RE='^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$'
+          if [[ "$RELEASE_CHANNEL" == "stable" && ! "$RELEASE_TAG" =~ $STABLE_RE ]]; then exit 1; fi
+          if [[ "$RELEASE_CHANNEL" == "prerelease" && ! "$RELEASE_TAG" =~ $PRERELEASE_RE ]]; then exit 1; fi
+          CLEAN_VER="${RELEASE_TAG##*v}"
+          echo "version=${CLEAN_VER}" >> "$GITHUB_OUTPUT"
+          [[ "$CLEAN_VER" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]
+          echo "major_minor=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ steps.clean_version.outputs.version }}
+            type=raw,value=${{ steps.clean_version.outputs.major_minor }},enable=${{ needs.plan.outputs.release_channel == 'stable' }}
+            type=raw,value=latest,enable=${{ needs.plan.outputs.release_channel == 'stable' }}
+            type=raw,value=next,enable=${{ needs.plan.outputs.release_channel == 'prerelease' }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

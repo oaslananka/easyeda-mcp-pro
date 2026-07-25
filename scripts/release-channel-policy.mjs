@@ -34,6 +34,7 @@ export function resolveReleaseChannel({
   eventName,
   refName = '',
   commitSubject = '',
+  headSha = '',
   packageVersion = '',
   manifestVersion = '',
   tagExists = false,
@@ -53,13 +54,19 @@ export function resolveReleaseChannel({
       );
     }
 
+    if (!/^[0-9a-f]{40}$/.test(headSha)) {
+      throw new Error(
+        'Automatic publication requires the exact 40-character candidate commit SHA.',
+      );
+    }
+
     const releaseTag = `easyeda-mcp-pro-v${version}`;
     return {
       releaseRun: true,
       releaseTag,
       releaseChannel: 'stable',
       npmDistTag: 'latest',
-      targetRef: tagExists ? releaseTag : 'HEAD',
+      targetRef: tagExists ? releaseTag : headSha,
       createGithubRelease: !tagExists,
       evidenceUrl: '',
     };
@@ -104,6 +111,7 @@ export function runCli(env = process.env, appendFile = appendFileSync) {
     eventName: env.EVENT_NAME ?? '',
     refName: env.REF_NAME ?? '',
     commitSubject: env.COMMIT_SUBJECT ?? '',
+    headSha: env.HEAD_SHA ?? '',
     packageVersion: env.PACKAGE_VERSION ?? '',
     manifestVersion: env.MANIFEST_VERSION ?? '',
     tagExists: env.TAG_EXISTS === 'true',

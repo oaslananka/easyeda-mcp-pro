@@ -30,36 +30,60 @@ describe('release channel policy', () => {
     expect(policy).toContain('GHCR');
   });
 
-  it('keeps Release Please stable-only and routes manual prereleases to isolated tags', () => {
-    const workflow = readText('.github/workflows/release-please.yml');
+  it('separates release PR maintenance from fail-closed publication', () => {
+    const manager = readText('.github/workflows/release-please.yml');
+    const publisher = readText('.github/workflows/publish-release.yml');
     const config = JSON.parse(readText('release-please-config.json')) as {
       packages?: Record<string, { prerelease?: boolean }>;
     };
 
     expect(config.packages?.['.']?.prerelease).toBe(false);
-    expect(workflow).toContain('release_channel:');
-    expect(workflow).toContain('- stable');
-    expect(workflow).toContain('- prerelease');
-    expect(workflow).toContain('evidence_url:');
-    expect(workflow).toContain("if: github.event_name == 'push'");
-    expect(workflow).toContain('run: node scripts/release-channel-policy.mjs');
-    expect(workflow).toContain('easyeda-mcp-pro-vX.Y.Z-rc.N');
-    expect(workflow).toContain('RELEASE_CHANNEL');
-    expect(workflow).toContain('NPM_DIST_TAG');
-    expect(workflow).toContain('npm publish --provenance --tag "$NPM_DIST_TAG"');
-    expect(workflow).toContain(
-      "if: ${{ env.RELEASE_RUN == 'true' && env.RELEASE_CHANNEL == 'stable' }}",
+    expect(manager).toContain('skip-github-release: true');
+    expect(manager).not.toContain('workflow_dispatch:');
+    expect(manager).not.toContain('npm publish');
+    expect(manager).not.toContain('mcp-publisher');
+    expect(manager).not.toContain('packages: write');
+    expect(manager).not.toContain('attestations: write');
+
+    expect(publisher).toContain('workflow_dispatch:');
+    expect(publisher).toContain('run: node scripts/release-channel-policy.mjs');
+    expect(publisher.indexOf('Read publication metadata')).toBeLessThan(
+      publisher.indexOf('- name: Resolve publication plan'),
     );
-    expect(workflow).not.toContain('continue-on-error: true');
-    expect(workflow).toContain('./mcp-publisher publish');
-    expect(workflow).toContain('isPrerelease');
-    expect(workflow).toContain(
-      "enable=${{ needs.release-please.outputs.release_channel == 'stable' }}",
+    expect(publisher).toContain('HEAD_SHA: ${{ github.sha }}');
+    expect(publisher).toContain('cancel-in-progress: false');
+    expect(publisher).toContain('group: publish-${{ needs.plan.outputs.release_tag }}');
+    expect(publisher).toContain('Verify commit-bound EasyEDA compatibility evidence');
+    expect(publisher).toContain('Verify Quality Gates');
+    expect(publisher).toContain('Create stable GitHub Release');
+    expect(publisher).toContain('skip-github-pull-request: true');
+    expect(publisher.indexOf('Verify Quality Gates')).toBeLessThan(
+      publisher.indexOf('Create stable GitHub Release'),
     );
-    expect(workflow).toContain(
-      "enable=${{ needs.release-please.outputs.release_channel == 'prerelease' }}",
+    expect(publisher).toContain('npm publish --provenance --tag "$NPM_DIST_TAG"');
+    expect(publisher).toContain('npm dist-tag add');
+    expect(publisher).toContain('./mcp-publisher publish');
+    expect(publisher).toContain('type=raw,value=next');
+    expect(publisher).toContain('type=raw,value=latest');
+    expect(publisher).not.toContain('continue-on-error: true');
+  });
+
+  it('pins the current release toolchain and grants write permissions only to publication', () => {
+    const manager = readText('.github/workflows/release-please.yml');
+    const publisher = readText('.github/workflows/publish-release.yml');
+
+    expect(manager).toContain('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1');
+    expect(manager).toContain(
+      'googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
     );
-    expect(workflow).toContain('type=raw,value=next');
+    expect(publisher).toContain('pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271');
+    expect(publisher).toContain('actions/setup-node@820762786026740c76f36085b0efc47a31fe5020');
+    expect(publisher).toContain('docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7');
+    expect(manager).toContain('contents: write');
+    expect(manager).toContain('pull-requests: write');
+    expect(publisher).toContain('id-token: write');
+    expect(publisher).toContain('attestations: write');
+    expect(publisher).toContain('packages: write');
   });
 
   it('links the public policy from contributor, process, verification, and docs navigation', () => {
