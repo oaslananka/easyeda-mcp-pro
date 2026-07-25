@@ -110,6 +110,7 @@ describe('repository runtime policy', () => {
       '.github/workflows/deploy-docs.yml',
       '.github/workflows/golden-benchmark.yml',
       '.github/workflows/release-please.yml',
+      '.github/workflows/publish-release.yml',
       '.github/workflows/static-security-analysis.yml',
     ]
       .map(read)

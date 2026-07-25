@@ -48,14 +48,14 @@ describe('release readiness policy', () => {
   });
 
   it('runs the compatibility gate before release publication and exposes a full local command', () => {
-    const workflow = read('.github/workflows/release-please.yml');
+    const workflow = read('.github/workflows/publish-release.yml');
     const packageJson = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
     const script = read('scripts/check-release-readiness.mjs');
 
     expect(workflow).toContain('check-release-readiness.mjs --compatibility-only');
-    expect(workflow).toContain('--target-ref="${RELEASE_TAG}"');
+    expect(workflow).toContain('--target-ref="${TARGET_REF}"');
     expect(workflow.indexOf('Verify commit-bound EasyEDA compatibility evidence')).toBeLessThan(
-      workflow.indexOf('Checkout release tag'),
+      workflow.indexOf('Create stable GitHub Release'),
     );
     expect(packageJson.scripts['release:readiness']).toContain('check-release-readiness.mjs');
     expect(packageJson.scripts['release:readiness:compatibility']).toContain(
