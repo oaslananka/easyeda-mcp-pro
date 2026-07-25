@@ -117,6 +117,34 @@ describe('release channel policy', () => {
     expect(recovery).toContain('NPM_TOKEN is retained only for dist-tag repair');
   });
 
+  it('documents OIDC-only publication, final verification, and live rollback evidence', () => {
+    const openssf = readText('docs/OPENSSF_BEST_PRACTICES.md');
+    const verification = readText('docs/RELEASE_VERIFICATION.md');
+    const process = readText('docs/RELEASE_PROCESS.md');
+    const runbook = readText('docs/release-ci-runbook.md');
+    const recovery = readText('docs/SOLO_MAINTAINER_RECOVERY.md');
+    const combined = [openssf, verification, process, runbook, recovery].join('\n');
+
+    expect(combined).toContain('new npm versions use Trusted Publishing without `NPM_TOKEN`');
+    expect(combined).toContain('`NPM_TOKEN` is restricted to existing-version dist-tag recovery');
+    expect(combined).toContain('Verify published release');
+    expect(combined).toContain('published-release.json');
+    expect(combined).toContain('create/modify/delete rollback');
+    expect(combined).toContain('TestMcp / Schematic1 / P1');
+    expect(openssf).toContain('`signed_releases`                 | Met');
+    expect(openssf).toContain(
+      'provenance and GitHub Artifact Attestations satisfy the project signed-release posture',
+    );
+    expect(openssf).toContain('bus factor remains one');
+    expect(runbook).toContain('EASYEDA_LIVE_WRITE_TESTS=true');
+    expect(runbook).toContain('EASYEDA_EXPECTED_PROJECT=TestMcp');
+    expect(runbook).toContain('EASYEDA_EXPECTED_SCHEMATIC=Schematic1');
+    expect(runbook).toContain('EASYEDA_EXPECTED_PAGE=P1');
+    expect(runbook).toContain(
+      'EASYEDA_TRANSACTION_SMOKE_REPORT_PATH=/tmp/easyeda-transaction-smoke.json',
+    );
+  });
+
   it('links the public policy from contributor, process, verification, and docs navigation', () => {
     expect(readText('CONTRIBUTING.md')).toContain('[Release Policy](docs/RELEASE_POLICY.md)');
     expect(readText('docs/RELEASE_PROCESS.md')).toContain('[Release Policy](RELEASE_POLICY.md)');

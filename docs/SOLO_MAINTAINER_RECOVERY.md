@@ -65,7 +65,7 @@ The Publish Release workflow validates commit-bound EasyEDA evidence before chec
 3. Preserve the release tag, SBOM, checksums, provenance, and failed workflow logs.
 4. Fix the policy or automation on a protected pull request to `main`.
 5. Re-run the manual recovery from `main` with the existing tag and public evidence URL.
-6. Verify all registries and moving tags before announcing recovery complete.
+6. Verify all registries and moving tags before announcing recovery complete. The **Verify published release** step must pass and its `published-release.json` artifact must be retained.
 
 If the tagged source itself is defective, do not republish it as fixed. Deprecate the affected package version, mark the GitHub Release with an explicit warning, move only the documented moving tags back to the known-good version, and publish a new patch version.
 
@@ -91,7 +91,7 @@ npm deprecate "easyeda-mcp-pro@$VERSION" \
   "Defective release; use easyeda-mcp-pro@KNOWN_GOOD or a newer patch."
 ```
 
-Normal new-version publication uses npm Trusted Publishing when the package-side trust relationship is configured. NPM_TOKEN is retained only for dist-tag repair and as a protected compatibility fallback. Rotate `NPM_TOKEN` through the account and GitHub Actions environment after suspected exposure. Verify the replacement token with a protected workflow; never paste it into an issue, log, shell history, or repository file.
+For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery. In operational terms, NPM_TOKEN is retained only for dist-tag repair. Rotate `NPM_TOKEN` through the account and GitHub Actions environment after suspected exposure. Verify the replacement token with a protected workflow; never paste it into an issue, log, shell history, or repository file.
 
 ## GitHub Release recovery
 

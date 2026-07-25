@@ -74,7 +74,7 @@ Both channels must pass:
 - generated tool-reference drift check and documentation build;
 - server build, extension build, extension distribution verification, and extension size budgets;
 - Docker loopback, fail-closed, and published-host-port smoke; CodeQL; Semgrep; Sonar; Codecov; dependency review; workflow/container security; and required platform CI checks;
-- SBOM generation, npm provenance through npm Trusted Publishing when configured (with a protected token fallback), and GitHub artifact attestation.
+- SBOM generation, npm provenance, and GitHub artifact attestation. The npm path uses npm Trusted Publishing. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.
 
 The evidence record must also satisfy the soak and live EasyEDA validation rules in the Release Policy. Automation success alone does not waive those requirements. The full local convenience command is `pnpm release:readiness`; it intentionally fails before the expensive quality sequence when the compatibility evidence is stale.
 
@@ -88,7 +88,8 @@ After a successful workflow:
 4. verify exact and moving GHCR tags point to the expected digest;
 5. verify the MCP Registry only for stable releases;
 6. verify deployed documentation describes the released version and support claims;
-7. publish the final evidence comment before announcing or closing the tracking issue.
+7. require the **Verify published release** workflow step to pass and archive `published-release.json`;
+8. publish the final evidence comment before announcing or closing the tracking issue.
 
 See [Release Verification](RELEASE_VERIFICATION.md) for commands and [Release & CI Runbook](release-ci-runbook.md) for failure recovery.
 

@@ -222,3 +222,20 @@ Expected workflow evidence:
 - `pnpm verify:extension` reports marketplace metadata, documentation, logo, checksum, and phone-like-content checks
 
 If any asset is missing, do not promote the release as marketplace-ready. Re-run or fix the release workflow before announcing the version.
+
+## Live schematic transaction rollback evidence
+
+Run this only with the disposable `TestMcp / Schematic1 / P1` document focused and no user edit in progress. It exercises self-cleaning create/modify/delete rollback and fails unless the final primitive inventory, components, nets, and comparable ERC state equal the baseline.
+
+```bash
+EASYEDA_LIVE_WRITE_TESTS=true \
+EASYEDA_EXPECTED_PROJECT=TestMcp \
+EASYEDA_EXPECTED_SCHEMATIC=Schematic1 \
+EASYEDA_EXPECTED_PAGE=P1 \
+EASYEDA_TRANSACTION_SMOKE_REPORT_PATH=/tmp/easyeda-transaction-smoke.json \
+pnpm smoke:schematic-transactions
+```
+
+The final publication job runs **Verify published release** after GHCR publication and uploads `reports/published-release.json`. The report must pass before the version is announced.
+
+For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.

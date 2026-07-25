@@ -16,7 +16,8 @@ Both channels publish the npm package, GitHub Release assets, SBOM, provenance/a
 2. Release Please opens or updates a release pull request.
 3. The release pull request updates version metadata and `CHANGELOG.md`.
 4. After merge, CI re-runs the quality gates.
-5. The release workflow publishes the npm package with provenance and uploads release artifacts.
+5. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; the workflow then uploads release artifacts and publishes the remaining registries.
+6. The final **Verify published release** step compares npm, GitHub Release, GHCR, MCP Registry, assets, and Git commit identity and stores `published-release.json`.
 
 ## Verification checks for maintainers
 
@@ -78,6 +79,10 @@ The evidence commit must be the full 40-character Git commit of the tested candi
 that field to a newer commit unless the live run actually used that commit. If no disposable live
 runtime is available, the correct status is blocked; do not replace the evidence with CI output.
 
+## Live create/modify/delete rollback evidence
+
+Compatibility-sensitive releases can include a self-cleaning create/modify/delete rollback smoke against the disposable `TestMcp / Schematic1 / P1` fixture. The machine-readable report records the bridge identity, the three rollback outcomes, cleanup state, and equality of primitive inventory, components, nets, and comparable ERC state. Temporary primitive identifiers and local paths are removed from public evidence.
+
 ## User verification steps
 
 Users can verify a release by checking:
@@ -96,7 +101,7 @@ The project uses signed and attested release mechanisms for the release artifact
 - GitHub release build outputs are covered by GitHub Artifact Attestations through `actions/attest-build-provenance` for `dist/**`, `easyeda-bridge-extension.eext`, and `sbom.json`.
 - Release creation and publishing run from the protected `main` branch after release quality gates pass.
 
-This is the project's signed-release posture for the OpenSSF `signed_releases` criterion. It uses provenance and artifact attestations rather than manually managed GPG tag signatures.
+This is the project's signed-release posture for the OpenSSF `signed_releases` criterion: provenance and GitHub Artifact Attestations satisfy the project signed-release posture. It uses those verifiable attestations rather than manually managed GPG tag signatures.
 
 ## Verification examples
 
