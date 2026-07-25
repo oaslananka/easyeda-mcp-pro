@@ -99,4 +99,4 @@ For a transient failure, rerun only when the tag, commit, channel, and evidence 
 
 Normal stable releases must use Release Please. A manual stable dispatch is reserved for the Emergency patch procedure in the Release Policy and requires an existing stable-format tag, a non-draft/non-prerelease GitHub Release, and a public evidence URL. The same quality, provenance, and registry checks still run.
 
-If publication partially succeeds, stop promotion claims and follow the rollback/yanking sequence in the Release Policy. Keep tags, SBOMs, checksums, and attestations for auditability.
+If publication partially succeeds, stop promotion claims and follow the rollback/yanking sequence in the Release Policy plus the registry-specific procedures in [Solo-maintainer continuity and release recovery](SOLO_MAINTAINER_RECOVERY.md). Keep immutable tags, SBOMs, checksums, attestations, and the public evidence issue for auditability. Manual recovery runs use the current workflow policy from `main` and then build the immutable requested tag.

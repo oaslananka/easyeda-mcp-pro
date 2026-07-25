@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "exerciseId": "v0.35.3-release-recovery-2026-07-25",
+  "performedAt": "2026-07-25",
+  "status": "passed",
+  "nonDestructive": true,
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "trackingIssue": "https://github.com/oaslananka/easyeda-mcp-pro/issues/407",
+  "release": {
+    "version": "0.35.3",
+    "tag": "easyeda-mcp-pro-v0.35.3",
+    "sourceCommit": "790dab44c5215a5931361aa968a19e2c463961fd",
+    "recoveryPolicyCommit": "74b0ae86855510859da464df0d51c68fd6e6b76a",
+    "workflowRun": "https://github.com/oaslananka/easyeda-mcp-pro/actions/runs/30134300353"
+  },
+  "trigger": "The initial Release Please run created the immutable tag and GitHub Release, then stopped before completing package and registry publication because the prior live EasyEDA compatibility evidence was stale for compatibility-sensitive changes.",
+  "actions": [
+    "Preserved the immutable v0.35.3 tag and release source commit.",
+    "Installed and live-validated the 0.35.3 EasyEDA extension against TestMcp / Schematic1 / P1.",
+    "Recorded six passing read-only live smoke checks and commit-bound compatibility evidence.",
+    "Merged recovery policy through protected pull request #406 after local and GitHub CI verification.",
+    "Dispatched the current release workflow from main against the existing v0.35.3 tag.",
+    "Verified npm, GitHub Release assets, GHCR, and MCP Registry publication independently."
+  ],
+  "outcomes": {
+    "liveEasyeda": "passed",
+    "branchProtection": "passed",
+    "npm": "passed",
+    "githubRelease": "passed",
+    "ghcr": "passed",
+    "mcpRegistry": "passed",
+    "qualityGates": "passed"
+  },
+  "publishedState": {
+    "npm": "easyeda-mcp-pro@0.35.3 with latest dist-tag and provenance",
+    "githubReleaseAssets": ["easyeda-bridge-extension.eext", "sbom.json"],
+    "ghcrTags": ["0.35.3", "0.35", "latest"],
+    "mcpRegistry": "io.github.oaslananka/easyeda-mcp-pro@0.35.3 active and latest"
+  },
+  "security": {
+    "plaintextCredentialsRecorded": false,
+    "releaseTagMoved": false,
+    "branchProtectionBypassed": false,
+    "productionSourceModified": false
+  },
+  "nextReviewBy": "2027-01-21"
+}

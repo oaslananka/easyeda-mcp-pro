@@ -218,7 +218,7 @@
 - [ ] Run format and secret-hygiene checks with a synthetic store directory present.
 - [ ] Commit with `devex: isolate local pnpm store artifacts (#400)`.
 
-### Task 11: Strengthen governance activation (#399)
+### Task 11: Strengthen solo-maintainer governance and recovery (#407)
 
 **Files:**
 
@@ -235,7 +235,7 @@
 - [ ] Encode the target branch-protection state and accountable activation procedure.
 - [ ] Preserve the truthful current bus-factor-one statement.
 - [ ] Run governance tests.
-- [ ] Commit with `governance: define independent review activation (#399)`.
+- [ ] Commit with `governance: define independent review activation (#407)`.
 
 ### Task 12: Add commit-bound compatibility and stabilization gates (#391, #392)
 

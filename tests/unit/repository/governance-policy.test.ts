@@ -47,9 +47,24 @@ interface GovernancePolicy {
     };
   };
   continuity: {
+    operatingModel: string;
     currentBusFactor: number;
     minimumMaintainersForIndependentReview: number;
     successorStatus: string;
+    humanApprovalRequired: boolean;
+    confidentialRecoveryRecord: {
+      required: boolean;
+      storage: string;
+      plaintextSecretsInRepository: boolean;
+    };
+    recovery: {
+      runbook: string;
+      exerciseEvidence: string;
+      branchProtectionEvidence: string;
+      reviewCadenceDays: number;
+      lastExerciseAt: string;
+      exerciseStatus: string;
+    };
     requiredSuccessorEvidence: string[];
   };
 }
@@ -117,12 +132,66 @@ describe('repository governance policy', () => {
         'update-liveStateVerifiedAt',
       ],
     });
+    expect(policy.continuity.operatingModel).toBe('solo-maintainer');
     expect(policy.continuity.currentBusFactor).toBe(1);
     expect(policy.continuity.minimumMaintainersForIndependentReview).toBe(2);
     expect(policy.continuity.successorStatus).toBe('not-designated');
+    expect(policy.continuity.humanApprovalRequired).toBe(false);
+    expect(policy.continuity.confidentialRecoveryRecord).toEqual({
+      required: true,
+      storage: 'offline-encrypted',
+      plaintextSecretsInRepository: false,
+    });
     expect(policy.continuity.requiredSuccessorEvidence).toContain(
       'github-admin-or-maintain-access',
     );
+  });
+
+  it('records a tested solo-maintainer recovery path without repository secrets', () => {
+    const policy = readPolicy();
+    const recovery = readText(policy.continuity.recovery.runbook);
+    const exercise = JSON.parse(readText(policy.continuity.recovery.exerciseEvidence)) as {
+      status: string;
+      nonDestructive: boolean;
+      release: { version: string; workflowRun: string };
+      outcomes: Record<string, string>;
+    };
+    const branchEvidence = JSON.parse(
+      readText(policy.continuity.recovery.branchProtectionEvidence),
+    ) as { branchProtection: GovernancePolicy['branchProtection'] };
+
+    expect(policy.continuity.recovery.reviewCadenceDays).toBe(180);
+    expect(policy.continuity.recovery.lastExerciseAt).toBe('2026-07-25');
+    expect(policy.continuity.recovery.exerciseStatus).toBe('passed');
+    expect(recovery).toContain('# Solo-maintainer continuity and release recovery');
+    expect(recovery).toContain('Never store plaintext credentials');
+    expect(recovery).toContain('Immutable release tags');
+    expect(recovery).toContain('npm recovery');
+    expect(recovery).toContain('GitHub Container Registry recovery');
+    expect(recovery).toContain('MCP Registry recovery');
+    expect(recovery).toContain('Ownership transfer');
+    expect(recovery).toContain('Branch protection recovery');
+    expect(exercise.status).toBe('passed');
+    expect(exercise.nonDestructive).toBe(true);
+    expect(exercise.release.version).toBe('0.35.3');
+    expect(exercise.release.workflowRun).toContain('/actions/runs/30134300353');
+    expect(exercise.outcomes.npm).toBe('passed');
+    expect(exercise.outcomes.githubRelease).toBe('passed');
+    expect(exercise.outcomes.ghcr).toBe('passed');
+    expect(exercise.outcomes.mcpRegistry).toBe('passed');
+    expect(branchEvidence.branchProtection).toEqual(policy.branchProtection);
+  });
+
+  it('does not retain governance links to the deleted audit issue', () => {
+    for (const path of [
+      'docs/REPOSITORY_GOVERNANCE.md',
+      'docs/MAINTAINER_CONTINUITY.md',
+      'docs/REMOTE_RELAY_STATUS.md',
+      'docs/SOLO_MAINTAINER_RECOVERY.md',
+    ]) {
+      expect(readText(path), path).not.toContain('issues/399');
+      expect(readText(path), path).not.toContain('issue #399');
+    }
   });
 
   it('documents independent review, automated findings, and emergency exceptions', () => {

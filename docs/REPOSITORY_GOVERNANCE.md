@@ -60,7 +60,7 @@ Within **two business days** of the trigger, `@oaslananka` must:
 3. preserve every existing required status check and administrator enforcement setting;
 4. open an owner-authored test pull request touching a critical path and prove that the second
    maintainer can review it while the author cannot self-satisfy the approval requirement;
-5. update `liveStateVerifiedAt`, the current branch-protection snapshot, and public issue #399 with
+5. update `liveStateVerifiedAt`, the current branch-protection evidence snapshot, and public issue #407 with
    the verification URL and date; and
 6. revert access or protection immediately if the test exposes a bypass, deadlock, or privilege
    mismatch, then document the exact blocker publicly.
@@ -151,7 +151,7 @@ The public issue process is documented in [`ISSUE_TRIAGE.md`](ISSUE_TRIAGE.md). 
 
 ## Continuity
 
-Maintainer continuity is documented in [`MAINTAINER_CONTINUITY.md`](MAINTAINER_CONTINUITY.md). The current bus factor is one and is not hidden. A backup maintainer must have enough access and documented recovery context to triage issues, merge fixes, publish emergency releases, rotate credentials, and update security advisories before the project claims a stronger bus-factor posture.
+Maintainer continuity is documented in [`MAINTAINER_CONTINUITY.md`](MAINTAINER_CONTINUITY.md), and executable recovery procedures are in [`SOLO_MAINTAINER_RECOVERY.md`](SOLO_MAINTAINER_RECOVERY.md). The current bus factor is one and is not hidden. The repository therefore relies on enforced automated gates, an offline encrypted recovery record, immutable release evidence, and a six-month non-destructive recovery exercise. A backup maintainer must have enough access and documented recovery context to triage issues, merge fixes, publish emergency releases, rotate credentials, and update security advisories before the project claims a stronger bus-factor posture.
 
 ## OpenSSF evidence maintenance
 

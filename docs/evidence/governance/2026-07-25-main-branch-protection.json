@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-07-25",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "branch": "main",
+  "source": "GitHub REST API",
+  "branchProtection": {
+    "requiredChecks": [
+      "quality (24)",
+      "codeql",
+      "Socket Security: Project Report",
+      "dependency-review",
+      "codecov/patch",
+      "SonarCloud Code Analysis"
+    ],
+    "strictStatusChecks": true,
+    "requiredApprovals": 0,
+    "requireCodeOwnerReviews": false,
+    "dismissStaleReviews": false,
+    "requireLastPushApproval": false,
+    "requireConversationResolution": true,
+    "enforceAdmins": true,
+    "requireLinearHistory": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  },
+  "notes": [
+    "Zero human approvals is intentional while the project has one eligible maintainer.",
+    "Required automated checks and administrator enforcement remain active.",
+    "No repository ruleset overlaps the main branch protection policy."
+  ]
+}

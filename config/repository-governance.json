@@ -30,7 +30,10 @@
       "/config/secret-scanning-policy.json",
       "/docs/SECRET_RESPONSE.md",
       "/scripts/check-secret-hygiene.mjs",
-      "/tests/unit/repository/secret-scanning-policy.test.ts"
+      "/tests/unit/repository/secret-scanning-policy.test.ts",
+      "/docs/MAINTAINER_CONTINUITY.md",
+      "/docs/SOLO_MAINTAINER_RECOVERY.md",
+      "/docs/evidence/governance/"
     ],
     "release": [
       "/release-please-config.json",
@@ -121,6 +124,21 @@
       "release-and-secret-rotation-runbook-reviewed",
       "security-advisory-access-verified",
       "emergency-release-dry-run-recorded"
-    ]
+    ],
+    "operatingModel": "solo-maintainer",
+    "humanApprovalRequired": false,
+    "confidentialRecoveryRecord": {
+      "required": true,
+      "storage": "offline-encrypted",
+      "plaintextSecretsInRepository": false
+    },
+    "recovery": {
+      "runbook": "docs/SOLO_MAINTAINER_RECOVERY.md",
+      "exerciseEvidence": "docs/evidence/governance/2026-07-25-v0.35.3-release-recovery.json",
+      "branchProtectionEvidence": "docs/evidence/governance/2026-07-25-main-branch-protection.json",
+      "reviewCadenceDays": 180,
+      "lastExerciseAt": "2026-07-25",
+      "exerciseStatus": "passed"
+    }
   }
 }

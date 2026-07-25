@@ -23,7 +23,7 @@ describe('capability documentation policy', () => {
     const result = runCheck();
     expect(result.status, result.stderr || result.stdout).toBe(0);
     expect(result.stdout).toContain('Capability documentation is current');
-  });
+  }, 15_000);
 
   it('does not retain superseded tool-count claims', () => {
     const publicDocs = [

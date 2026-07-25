@@ -19,6 +19,18 @@ If the current maintainer becomes unavailable, the project should still be able 
 5. update the project documentation and security policy,
 6. transfer stewardship if needed.
 
+## Current solo-maintainer controls
+
+The project does not require an unavailable reviewer. `main` instead enforces the required CI, CodeQL, Socket, dependency review, Codecov, and SonarQube checks; applies branch protection to administrators; requires resolved conversations and linear history; and blocks force-pushes and branch deletion. The live protection snapshot is recorded in [`2026-07-25-main-branch-protection.json`](evidence/governance/2026-07-25-main-branch-protection.json).
+
+Recovery procedures are maintained in [`SOLO_MAINTAINER_RECOVERY.md`](SOLO_MAINTAINER_RECOVERY.md). Never store plaintext credentials, recovery codes, private keys, or successor contact details in the repository. Those values belong in the required offline encrypted continuity record.
+
+## Exercised recovery path
+
+On 25 July 2026, the v0.35.3 release recovery exercised the full non-destructive publication path after the initial Release Please run stopped between GitHub release creation and package publication. The immutable release tag was preserved, exact live EasyEDA evidence was attached to the tagged commit, the current policy on `main` safely resumed publication, and npm, GitHub Release assets, GHCR, and the MCP Registry were verified.
+
+The machine-readable exercise record is [`2026-07-25-v0.35.3-release-recovery.json`](evidence/governance/2026-07-25-v0.35.3-release-recovery.json). Repeat a non-destructive exercise at least every 180 days and whenever repository ownership, package ownership, release credentials, or publication workflows materially change.
+
 ## Required access inventory
 
 The maintainer should keep an offline, encrypted continuity record that identifies how a trusted successor can recover or transfer the following assets:

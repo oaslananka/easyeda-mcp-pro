@@ -150,7 +150,7 @@ Normal stable releases are created by merging the Release Please PR. Manual disp
    git tag -a "$TAG" -m "$TAG"
    git push origin "$TAG"
    gh release create "$TAG" --verify-tag --prerelease --generate-notes
-   gh workflow run release-please.yml --ref "$TAG" \
+   gh workflow run release-please.yml --ref main \
      -f tag_name="$TAG" \
      -f release_channel=prerelease \
      -f evidence_url="$EVIDENCE"
@@ -163,13 +163,17 @@ Normal stable releases are created by merging the Release Please PR. Manual disp
 Use only when the Release Policy's Emergency patch criteria are met. The stable-format tag and non-prerelease GitHub Release must already exist, and the evidence URL must identify the incident and rollback target:
 
 ```bash
-gh workflow run release-please.yml --ref easyeda-mcp-pro-vX.Y.Z \
+gh workflow run release-please.yml --ref main \
   -f tag_name=easyeda-mcp-pro-vX.Y.Z \
   -f release_channel=stable \
   -f evidence_url=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER
 ```
 
 The workflow rejects a channel/tag mismatch, package-version mismatch, draft release, incorrect GitHub prerelease classification, or evidence URL outside this repository.
+
+The workflow must be dispatched from `main`, not from the immutable release tag. It first evaluates the current recovery and compatibility policy against the requested tag commit, then checks out the tag for reproducible build and publication. Running an older workflow definition from the tag can repeat the original failure and cannot use a recovery fix merged after the tag was created.
+
+For the complete partial-publication, registry, credential, branch-protection, and ownership-transfer procedures, follow [Solo-maintainer continuity and release recovery](SOLO_MAINTAINER_RECOVERY.md).
 
 ## Verifying Release Safety
 

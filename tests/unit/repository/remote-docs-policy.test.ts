@@ -33,9 +33,9 @@ describe('Remote Relay documentation policy', () => {
     }
   });
 
-  it('links every outstanding external gate to its tracking issue', () => {
+  it('links release, compatibility, and continuity evidence to tracking issues', () => {
     const status = read('docs/REMOTE_RELAY_STATUS.md');
-    for (const issue of ['#391', '#392', '#399']) {
+    for (const issue of ['#391', '#392', '#407']) {
       expect(status).toContain(
         `https://github.com/oaslananka/easyeda-mcp-pro/issues/${issue.slice(1)}`,
       );

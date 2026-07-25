@@ -32,6 +32,9 @@
 /.semgrepignore @oaslananka
 /SECURITY.md @oaslananka
 /docs/REPOSITORY_GOVERNANCE.md @oaslananka
+/docs/MAINTAINER_CONTINUITY.md @oaslananka
+/docs/SOLO_MAINTAINER_RECOVERY.md @oaslananka
+/docs/evidence/governance/ @oaslananka
 /docs/security-architecture.md @oaslananka
 /docs/SECURITY_ASSURANCE_CASE.md @oaslananka
 
