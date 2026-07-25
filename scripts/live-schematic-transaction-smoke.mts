@@ -18,7 +18,10 @@ import { stableHash } from '../src/transactions/stable.ts';
 import { resetGlobalTransactionManagerForTests } from '../src/transactions/manager.ts';
 import {
   buildSchematicTransactionSmokeReport,
+  extractPrimitiveId,
   extractPrimitiveIds,
+  primitiveDescriptorHash,
+  sortUnknownForStableHash,
   verifySchematicTransactionFixtureIdentity,
   writeSchematicTransactionSmokeReport,
   type SchematicTransactionSmokeInput,
@@ -215,9 +218,9 @@ async function stateDigest() {
   }
   return {
     inventories,
-    componentHash: stableHash(sortUnknown(components)),
-    netHash: stableHash(sortUnknown(nets)),
-    ercHash: ercAvailable ? stableHash(sortUnknown(erc)) : undefined,
+    componentHash: stableHash(sortUnknownForStableHash(components)),
+    netHash: stableHash(sortUnknownForStableHash(nets)),
+    ercHash: ercAvailable ? stableHash(sortUnknownForStableHash(erc)) : undefined,
     ercAvailable,
     ercError,
     components,
@@ -679,7 +682,7 @@ try {
   results.deleteRollback = {
     success: deleteResult.success,
     rolled_back: deleteResult.rolled_back,
-    descriptorRestored: descriptorHash(rectBefore) === descriptorHash(rectAfter),
+    descriptorRestored: primitiveDescriptorHash(rectBefore) === primitiveDescriptorHash(rectAfter),
     originalId: rectId,
     recreatedId: recreatedRectId,
     idChanged: rectId !== recreatedRectId,
@@ -691,7 +694,7 @@ try {
   if (
     deleteResult.success !== false ||
     deleteResult.rolled_back !== true ||
-    descriptorHash(rectBefore) !== descriptorHash(rectAfter) ||
+    primitiveDescriptorHash(rectBefore) !== primitiveDescriptorHash(rectAfter) ||
     rectInventoryBefore.length !== rectInventoryAfter.length
   ) {
     throw new Error(`Delete rollback smoke failed: ${JSON.stringify(results.deleteRollback)}`);

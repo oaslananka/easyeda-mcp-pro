@@ -1,5 +1,56 @@
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { stableHash } from '../transactions/stable.js';
+
+export function sortUnknownForStableHash(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value
+      .map(sortUnknownForStableHash)
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, sortUnknownForStableHash(nested)]),
+    );
+  }
+  return value;
+}
+
+const PRIMITIVE_ID_KEYS = ['primitiveId', 'primitiveUuid', 'id', 'uuid'] as const;
+const PRIMITIVE_NESTED_KEYS = ['result', 'data', 'text', 'rectangle'] as const;
+
+export function extractPrimitiveId(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const id = extractPrimitiveId(item);
+      if (id) return id;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== 'object') return undefined;
+  const record = value as Record<string, unknown>;
+  for (const key of PRIMITIVE_ID_KEYS) {
+    const id = extractPrimitiveId(record[key]);
+    if (id) return id;
+  }
+  for (const key of PRIMITIVE_NESTED_KEYS) {
+    const id = extractPrimitiveId(record[key]);
+    if (id) return id;
+  }
+  return undefined;
+}
+
+export function primitiveDescriptorHash(snapshot: unknown): string {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    return stableHash(snapshot);
+  }
+  const copy = structuredClone(snapshot as Record<string, unknown>);
+  delete copy.primitiveId;
+  return stableHash(copy);
+}
 
 export function extractPrimitiveIds(value: unknown): string[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return [];

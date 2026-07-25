@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildSchematicTransactionSmokeReport,
+  extractPrimitiveId,
   extractPrimitiveIds,
+  primitiveDescriptorHash,
+  sortUnknownForStableHash,
   verifySchematicTransactionFixtureIdentity,
   writeSchematicTransactionSmokeReport,
   type SchematicTransactionSmokeInput,
@@ -55,6 +58,20 @@ function passingInput(): SchematicTransactionSmokeInput {
 }
 
 describe('schematic transaction smoke report', () => {
+  it('normalizes live values and primitive descriptors deterministically', () => {
+    expect(sortUnknownForStableHash({ z: 1, a: [{ y: 2 }, { x: 1 }] })).toEqual({
+      a: [{ x: 1 }, { y: 2 }],
+      z: 1,
+    });
+    expect(extractPrimitiveId({ result: { rectangle: { primitiveUuid: 'rect-1' } } })).toBe(
+      'rect-1',
+    );
+    expect(extractPrimitiveId({ data: ['', { id: 'nested-1' }] })).toBe('nested-1');
+    expect(primitiveDescriptorHash({ primitiveId: 'old', x: 1 })).toBe(
+      primitiveDescriptorHash({ primitiveId: 'new', x: 1 }),
+    );
+  });
+
   it('extracts and sorts primitive IDs from bridge inventory responses', () => {
     expect(extractPrimitiveIds({ primitiveIds: ['z', '', 3, 'a'] })).toEqual(['a', 'z']);
     expect(extractPrimitiveIds({ primitiveIds: 'not-an-array' })).toEqual([]);
