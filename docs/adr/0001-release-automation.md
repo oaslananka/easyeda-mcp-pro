@@ -15,11 +15,12 @@ In a collaborative codebase, managing version bumps, updating configuration file
 
 ## Decision
 
-We choose **Release Please** (specifically `googleapis/release-please-action` v4) to automate our release management.
+We choose **Release Please** (specifically `googleapis/release-please-action` v5) to automate our release management.
 
 - The root project will use the `node` release strategy.
 - We will leverage the `extra-files` configuration to automatically synchronize version numbers in `server.json` and `easyeda-bridge-extension/extension.json` when a new release is generated.
 - Version bumps are triggered automatically based on Conventional Commits merged to `main`.
+- Release Please and GitHub Release asset mutations use the repository-scoped `RELEASE_PLEASE_TOKEN`. The token is restricted to Contents, Pull requests, and Issues read/write access for this repository; it is not exposed to build, npm, MCP Registry, or GHCR publication steps.
 
 ## Consequences
 
@@ -29,4 +30,3 @@ We choose **Release Please** (specifically `googleapis/release-please-action` v4
   - Integration with GitHub Actions allows publishing to NPM and uploading release assets immediately upon merging a Release PR.
 - **Cons**:
   - Requires developers to strictly follow the Conventional Commits specification.
-  - Pull requests created by Release Please do not trigger CI by default if the default `GITHUB_TOKEN` is used (requires PAT token if CI checks are wanted on the release PR).
