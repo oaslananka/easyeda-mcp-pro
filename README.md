@@ -42,8 +42,9 @@
   </a>
 </p>
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
+
 <p>
-  <a href="https://deepwiki.com/oaslananka/easyeda-mcp-pro">Ask DeepWiki</a> ·
   <a href="docs/ROADMAP.md">Roadmap</a> ·
   <a href="docs/OPENSSF_BEST_PRACTICES.md">OpenSSF evidence</a> ·
   <a href="docs/SECURITY_ASSURANCE_CASE.md">Security assurance case</a>
