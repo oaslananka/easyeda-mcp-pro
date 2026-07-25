@@ -51,6 +51,9 @@ describe('release channel policy', () => {
       publisher.indexOf('- name: Resolve publication plan'),
     );
     expect(publisher).toContain('HEAD_SHA: ${{ github.sha }}');
+    expect(publisher).toContain('git cat-file -e \"${TARGET_REF}^{commit}\"');
+    expect(publisher).toContain('TAG_COMMIT=\"$(git rev-parse \"${RELEASE_TAG}^{commit}\")\"');
+    expect(publisher).toContain('TARGET_COMMIT=\"$(git rev-parse \"${TARGET_REF}^{commit}\")\"');
     expect(publisher).toContain('cancel-in-progress: false');
     expect(publisher).toContain('group: publish-${{ needs.plan.outputs.release_tag }}');
     expect(publisher).toContain('Verify commit-bound EasyEDA compatibility evidence');

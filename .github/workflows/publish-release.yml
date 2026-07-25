@@ -115,8 +115,10 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --force --tags origin
-          if [[ "$TARGET_REF" != "HEAD" ]]; then
+          if [[ "$TARGET_REF" =~ ^easyeda-mcp-pro-v ]]; then
             git show-ref --verify "refs/tags/${TARGET_REF}"
+          else
+            git cat-file -e "${TARGET_REF}^{commit}"
           fi
 
       - name: Setup pnpm
@@ -223,6 +225,13 @@ jobs:
           set -euo pipefail
           if [[ "$CREATE_GITHUB_RELEASE" == "true" && "$CREATED_TAG" != "$RELEASE_TAG" ]]; then
             echo "Release Please created ${CREATED_TAG:-<empty>} instead of $RELEASE_TAG." >&2
+            exit 1
+          fi
+          git fetch --force --tags origin
+          TAG_COMMIT="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+          TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"
+          if [[ "$TAG_COMMIT" != "$TARGET_COMMIT" ]]; then
+            echo "Release tag $RELEASE_TAG points to $TAG_COMMIT instead of candidate $TARGET_COMMIT." >&2
             exit 1
           fi
           RELEASE_JSON="$(gh release view "$RELEASE_TAG" --json tagName,targetCommitish,isDraft,isPrerelease)"

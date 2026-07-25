@@ -147,25 +147,21 @@ describe('repository security tooling policy', () => {
       readText('.github/workflows/deploy-docs.yml') +
       readText('.github/workflows/golden-benchmark.yml') +
       readText('.github/workflows/release-please.yml') +
+      readText('.github/workflows/publish-release.yml') +
       readText('.github/workflows/scorecard.yml') +
       workflow;
     expect(allWorkflows.match(/uses: actions\/checkout@/g)).toHaveLength(
       allWorkflows.match(/persist-credentials: false/g)?.length ?? 0,
     );
     expect(readText('.github/workflows/ci.yml')).not.toContain('cache: pnpm');
+    const publishWorkflow = readText('.github/workflows/publish-release.yml');
     expect(readText('.github/workflows/release-please.yml')).not.toContain('cache: pnpm');
-    expect(readText('.github/workflows/release-please.yml')).toContain(
-      'MANUAL_TAG: ${{ github.event.inputs.tag_name }}',
-    );
-    expect(readText('.github/workflows/release-please.yml')).toContain(
-      "if: github.event_name == 'push'",
-    );
-    expect(readText('.github/workflows/release-please.yml')).toContain(
-      'run: node scripts/release-channel-policy.mjs',
-    );
+    expect(publishWorkflow).not.toContain('cache: pnpm');
+    expect(publishWorkflow).toContain('MANUAL_TAG: ${{ inputs.tag_name }}');
+    expect(publishWorkflow).toContain('run: node scripts/release-channel-policy.mjs');
 
     const ciWorkflow = readText('.github/workflows/ci.yml');
-    const releaseWorkflow = readText('.github/workflows/release-please.yml');
+    const releaseWorkflow = publishWorkflow;
     expect(ciWorkflow).toContain('pnpm security:audit');
     expect(releaseWorkflow).toContain('pnpm security:audit');
     expect(ciWorkflow).not.toContain('pnpm audit --audit-level low');
@@ -235,7 +231,7 @@ describe('repository security tooling policy', () => {
   it('hardens CI, release, documentation, and container dependency installation', () => {
     const ciWorkflow = readText('.github/workflows/ci.yml');
     const docsWorkflow = readText('.github/workflows/deploy-docs.yml');
-    const releaseWorkflow = readText('.github/workflows/release-please.yml');
+    const releaseWorkflow = readText('.github/workflows/publish-release.yml');
     const benchmarkWorkflow = readText('.github/workflows/golden-benchmark.yml');
     const scorecardWorkflow = readText('.github/workflows/scorecard.yml');
     const dockerfile = readText('Dockerfile');
@@ -245,8 +241,8 @@ describe('repository security tooling policy', () => {
     expect(releaseWorkflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
     expect(dockerfile).toContain('RUN pnpm install --frozen-lockfile --ignore-scripts');
     expect(scorecardWorkflow).not.toContain('permissions: read-all');
-    expect(releaseWorkflow).toContain('curl --fail --silent --show-error --location \\');
-    expect(releaseWorkflow).toContain("--proto '=https' --tlsv1.2 \\");
+    expect(releaseWorkflow).toContain('curl --fail --silent --show-error --location');
+    expect(releaseWorkflow).toContain("--proto '=https' --tlsv1.2");
     expect(releaseWorkflow).toContain(
       '--output "$ASSET" "${BASE}/${MCP_PUBLISHER_VERSION}/${ASSET}"',
     );

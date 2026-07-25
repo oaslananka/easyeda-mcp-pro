@@ -179,14 +179,15 @@ describe('secret scanning and credential response policy', () => {
       .map((name) => readText(`.github/workflows/${name}`))
       .join('\n');
     const ci = readText('.github/workflows/ci.yml');
-    const release = readText('.github/workflows/release-please.yml');
+    const release = readText('.github/workflows/publish-release.yml');
 
     expect(workflows).not.toContain('pull_request_target');
     expect(ci).toContain('github.event.pull_request.head.repo.full_name == github.repository');
     expect(ci).toContain("github.event.pull_request.user.login != 'dependabot[bot]'");
     expect(ci).toContain('Upload server coverage to Codecov (tokenless fork)');
     expect(ci).toContain('Upload extension coverage to Codecov (tokenless fork)');
-    expect(release).toContain("if: github.event_name == 'push'");
+    expect(release).toContain('workflow_dispatch:');
+    expect(release).toContain('push:');
     expect(release).not.toContain('pull_request:');
   });
 });
