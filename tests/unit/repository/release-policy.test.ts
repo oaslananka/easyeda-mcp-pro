@@ -69,7 +69,12 @@ describe('release channel policy', () => {
     expect(publisher).toContain('name: Verify published release');
     expect(publisher).toContain('pnpm release:verify-published');
     expect(publisher).toContain('--report-json reports/published-release.json');
-    expect(publisher).toContain('--summary-file "$GITHUB_STEP_SUMMARY"');
+    expect(publisher).toContain('--summary-file reports/published-release-summary.md');
+    expect(publisher).toContain('for attempt in $(seq 1 12)');
+    expect(publisher).toContain('sleep 10');
+    expect(publisher).toContain(
+      'cat reports/published-release-summary.md >> "$GITHUB_STEP_SUMMARY"',
+    );
     expect(publisher.indexOf('Build and push Docker image')).toBeLessThan(
       publisher.indexOf('Verify published release'),
     );

@@ -18,6 +18,7 @@ import { stableHash } from '../src/transactions/stable.ts';
 import { resetGlobalTransactionManagerForTests } from '../src/transactions/manager.ts';
 import {
   buildSchematicTransactionSmokeReport,
+  verifySchematicTransactionFixtureIdentity,
   writeSchematicTransactionSmokeReport,
   type SchematicTransactionSmokeInput,
 } from '../src/live/schematic-transaction-smoke-report.ts';
@@ -62,84 +63,17 @@ function assertSmokeConfiguration(): void {
   }
 }
 
-function containsExactString(value: unknown, expected: string): boolean {
-  if (typeof value === 'string') return value.trim() === expected;
-  if (Array.isArray(value)) return value.some((item) => containsExactString(item, expected));
-  if (!value || typeof value !== 'object') return false;
-  return Object.values(value as Record<string, unknown>).some((item) =>
-    containsExactString(item, expected),
-  );
-}
-
 function assertFocusedFixtureIdentity(focus: {
   projectInfo: unknown;
   schematicInfo: unknown;
   pageInfo: unknown;
 }): void {
-  const checks = [
-    ['project', focus.projectInfo, REQUIRED_FIXTURE.project],
-    ['schematic', focus.schematicInfo, REQUIRED_FIXTURE.schematic],
-    ['page', focus.pageInfo, REQUIRED_FIXTURE.page],
-  ] as const;
-  for (const [kind, value, expected] of checks) {
-    if (!containsExactString(value, expected)) {
-      throw new Error(
-        `SAFETY_PRECONDITION_FAILED: focused ${kind} does not match expected ${expected}.`,
-      );
-    }
-  }
-}
-
-function sortUnknown(value: unknown): unknown {
-  if (Array.isArray(value))
-    return value
-      .map(sortUnknown)
-      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, v]) => [k, sortUnknown(v)]),
+  const verification = verifySchematicTransactionFixtureIdentity(REQUIRED_FIXTURE, focus);
+  if (!verification.ok) {
+    throw new Error(
+      `SAFETY_PRECONDITION_FAILED: focused fixture identity mismatch (${JSON.stringify(verification.mismatches)}).`,
     );
   }
-  return value;
-}
-
-function idsFrom(value: unknown): string[] {
-  if (!value || typeof value !== 'object') return [];
-  const ids = (value as { primitiveIds?: unknown }).primitiveIds;
-  return Array.isArray(ids)
-    ? ids.filter((id): id is string => typeof id === 'string').sort((a, b) => a.localeCompare(b))
-    : [];
-}
-
-const PRIMITIVE_ID_KEYS = ['primitiveId', 'primitiveUuid', 'id', 'uuid'] as const;
-const PRIMITIVE_NESTED_KEYS = ['result', 'data', 'text', 'rectangle'] as const;
-
-function firstPrimitiveId(values: Iterable<unknown>): string | undefined {
-  for (const value of values) {
-    const id = extractPrimitiveId(value);
-    if (id) return id;
-  }
-  return undefined;
-}
-
-function extractPrimitiveId(value: unknown): string | undefined {
-  if (typeof value === 'string') return value.trim() || undefined;
-  if (Array.isArray(value)) return firstPrimitiveId(value);
-  if (!value || typeof value !== 'object') return undefined;
-
-  const record = value as Record<string, unknown>;
-  const direct = firstPrimitiveId(PRIMITIVE_ID_KEYS.map((key) => record[key]));
-  if (direct) return direct;
-  return firstPrimitiveId(PRIMITIVE_NESTED_KEYS.map((key) => record[key]));
-}
-
-function descriptorHash(snapshot: unknown): string {
-  if (!snapshot || typeof snapshot !== 'object') return stableHash(snapshot);
-  const copy = structuredClone(snapshot as Record<string, unknown>);
-  delete copy.primitiveId;
-  return stableHash(copy);
 }
 
 async function waitConnected(timeoutMs: number): Promise<void> {

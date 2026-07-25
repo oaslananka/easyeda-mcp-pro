@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildSchematicTransactionSmokeReport,
+  verifySchematicTransactionFixtureIdentity,
   writeSchematicTransactionSmokeReport,
   type SchematicTransactionSmokeInput,
 } from '../../../src/live/schematic-transaction-smoke-report.js';
@@ -104,6 +105,38 @@ describe('schematic transaction smoke report', () => {
       clean: false,
       remainingIds: ['temporary-1'],
       errors: ['temporary-1: delete failed'],
+    });
+  });
+
+  it('strictly verifies EasyEDA project, schematic, and page name fields', () => {
+    expect(
+      verifySchematicTransactionFixtureIdentity(
+        { project: 'TestMcp', schematic: 'Schematic1', page: 'P1', disposable: true },
+        {
+          projectInfo: { friendlyName: 'TestMcp', name: 'testmcp' },
+          schematicInfo: { name: 'Schematic1' },
+          pageInfo: { name: 'P1' },
+        },
+      ),
+    ).toEqual({
+      ok: true,
+      actual: { project: 'TestMcp', schematic: 'Schematic1', page: 'P1' },
+      mismatches: [],
+    });
+
+    expect(
+      verifySchematicTransactionFixtureIdentity(
+        { project: 'TestMcp', schematic: 'Schematic1', page: 'P1', disposable: true },
+        {
+          projectInfo: { friendlyName: 'Production', description: 'TestMcp' },
+          schematicInfo: { name: 'Schematic1' },
+          pageInfo: { name: 'P1' },
+        },
+      ),
+    ).toMatchObject({
+      ok: false,
+      actual: { project: 'Production' },
+      mismatches: [{ field: 'project', expected: 'TestMcp', actual: 'Production' }],
     });
   });
 

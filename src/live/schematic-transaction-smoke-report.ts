@@ -8,6 +8,54 @@ export interface SchematicTransactionFixtureIdentity {
   disposable: true;
 }
 
+export interface SchematicTransactionRuntimeIdentity {
+  projectInfo: unknown;
+  schematicInfo: unknown;
+  pageInfo: unknown;
+}
+
+export interface SchematicTransactionFixtureMismatch {
+  field: 'project' | 'schematic' | 'page';
+  expected: string;
+  actual?: string;
+}
+
+function recordString(value: unknown, keys: readonly string[]): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const candidate = record[key];
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return undefined;
+}
+
+export function verifySchematicTransactionFixtureIdentity(
+  expected: SchematicTransactionFixtureIdentity,
+  runtime: SchematicTransactionRuntimeIdentity,
+): {
+  ok: boolean;
+  actual: { project?: string; schematic?: string; page?: string };
+  mismatches: SchematicTransactionFixtureMismatch[];
+} {
+  const actual = {
+    project: recordString(runtime.projectInfo, ['friendlyName', 'name']),
+    schematic: recordString(runtime.schematicInfo, ['name']),
+    page: recordString(runtime.pageInfo, ['name']),
+  };
+  const mismatches: SchematicTransactionFixtureMismatch[] = [];
+  for (const field of ['project', 'schematic', 'page'] as const) {
+    if (actual[field] !== expected[field]) {
+      mismatches.push({
+        field,
+        expected: expected[field],
+        ...(actual[field] ? { actual: actual[field] } : {}),
+      });
+    }
+  }
+  return { ok: mismatches.length === 0, actual, mismatches };
+}
+
 export interface SchematicTransactionStateDigest {
   primitiveInventoryHash: string;
   componentHash: string;
