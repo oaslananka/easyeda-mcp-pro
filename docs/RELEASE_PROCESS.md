@@ -1,6 +1,6 @@
 # Release Process
 
-This document describes how the repository implements the channel, soak, validation, and recovery rules in the authoritative [Release Policy](RELEASE_POLICY.md). Release Please automates stable version bumps and release creation; numbered release candidates use an explicit manual path that cannot update stable moving tags.
+This document describes how the repository implements the channel, soak, validation, and recovery rules in the authoritative [Release Policy](RELEASE_POLICY.md). The **Release Please PR** workflow automates stable version bumps and changelog PRs; the separate **Publish Release** workflow owns gated immutable release creation and registry publication; numbered release candidates use an explicit manual path that cannot update stable moving tags.
 
 ## 1. Conventional Commits
 
@@ -20,25 +20,24 @@ We enforce the [Conventional Commits specification](https://www.conventionalcomm
 | Stable     | `X.Y.Z` / `easyeda-mcp-pro-vX.Y.Z`           | `latest` | non-prerelease | exact, `X.Y`, and `latest` | publish      |
 | Prerelease | `X.Y.Z-rc.N` / `easyeda-mcp-pro-vX.Y.Z-rc.N` | `next`   | prerelease     | exact and `next`           | skip         |
 
-Release Please remains stable-only (`prerelease: false`). Manual workflow dispatch validates that the supplied tag, requested channel, `package.json` version, public evidence URL, and GitHub Release classification all agree before publication.
+Release Please remains stable-only (`prerelease: false`). The PR manager uses `skip-github-release: true`, so merging a release PR does not create a tag or GitHub Release until the Publish Release workflow has completed its pre-publication gates. Manual workflow dispatch validates that the supplied tag, requested channel, `package.json` version, public evidence URL, and GitHub Release classification all agree before publication.
 
 ## 3. Stable automation
 
 ```mermaid
 graph TD
-    A[Conventional commits merge to main] --> B[Release Please opens or updates stable release PR]
+    A[Conventional commits merge to main] --> B[Release Please PR workflow opens or updates stable release PR]
     B --> C[Maintainer verifies policy evidence and soak]
     C --> D[Merge release PR]
-    D --> E[Release Please creates stable tag and GitHub Release]
-    E --> F[Release workflow checks out exact tag]
-    F --> G[Run release-blocking quality and security gates]
-    G --> H[Build extension, SBOM, and attestations]
-    H --> I[Publish npm latest and stable GHCR tags]
-    I --> J[Upload assets and publish stable MCP Registry entry]
-    J --> K[Verify registries, docs, and evidence]
+    D --> E[Publish Release detects exact release commit]
+    E --> F[Compatibility and quality gates run against exact commit]
+    F --> G[Build extension, SBOM, and attestations]
+    G --> H[Release Please release-only mode creates immutable tag and GitHub Release]
+    H --> I[Publish npm, assets, MCP Registry, and GHCR]
+    I --> J[Verify registries, docs, and evidence]
 ```
 
-The Release Please PR updates `package.json`, `.release-please-manifest.json`, `server.json`, `easyeda-bridge-extension/extension.json`, release-managed TypeScript version constants, plugin metadata, and `CHANGELOG.md`. Do not manually create the normal stable tag.
+The Release Please PR updates `package.json`, `.release-please-manifest.json`, `server.json`, `easyeda-bridge-extension/extension.json`, release-managed TypeScript version constants, plugin metadata, and `CHANGELOG.md`. Do not manually create the normal stable tag. The automated gates finish **before the immutable tag and GitHub Release are created**.
 
 ## 4. Prerelease automation
 
@@ -50,13 +49,13 @@ TAG=easyeda-mcp-pro-vX.Y.Z-rc.N
 git tag -a "$TAG" -m "$TAG"
 git push origin "$TAG"
 gh release create "$TAG" --verify-tag --prerelease --generate-notes
-gh workflow run release-please.yml --ref "$TAG" \
+gh workflow run publish-release.yml --ref main \
   -f tag_name="$TAG" \
   -f release_channel=prerelease \
   -f evidence_url=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER
 ```
 
-The workflow checks out the exact tag, verifies that the GitHub Release is non-draft and marked prerelease, reruns all gates, publishes npm with `--provenance --tag next`, publishes exact and `next` GHCR tags, uploads the extension and SBOM, and skips the MCP Registry.
+The Publish Release workflow checks out the exact tag, verifies that the GitHub Release is non-draft and marked prerelease, reruns all gates, publishes npm with `--provenance --tag next`, publishes exact and `next` GHCR tags, uploads the extension and SBOM, and skips the MCP Registry.
 
 ## 5. Release-blocking gates
 
@@ -75,7 +74,7 @@ Both channels must pass:
 - generated tool-reference drift check and documentation build;
 - server build, extension build, extension distribution verification, and extension size budgets;
 - Docker loopback, fail-closed, and published-host-port smoke; CodeQL; Semgrep; Sonar; Codecov; dependency review; workflow/container security; and required platform CI checks;
-- SBOM generation, npm provenance, and GitHub artifact attestation.
+- SBOM generation, npm provenance through npm Trusted Publishing when configured (with a protected token fallback), and GitHub artifact attestation.
 
 The evidence record must also satisfy the soak and live EasyEDA validation rules in the Release Policy. Automation success alone does not waive those requirements. The full local convenience command is `pnpm release:readiness`; it intentionally fails before the expensive quality sequence when the compatibility evidence is stale.
 

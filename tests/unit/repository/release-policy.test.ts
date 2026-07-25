@@ -86,6 +86,21 @@ describe('release channel policy', () => {
     expect(publisher).toContain('packages: write');
   });
 
+  it('documents pre-tag gating, split workflows, and main-based recovery', () => {
+    const process = readText('docs/RELEASE_PROCESS.md');
+    const runbook = readText('docs/release-ci-runbook.md');
+    const recovery = readText('docs/SOLO_MAINTAINER_RECOVERY.md');
+
+    expect(process).toContain('Release Please PR');
+    expect(process).toContain('Publish Release');
+    expect(process).toContain('before the immutable tag and GitHub Release are created');
+    expect(process).toContain('npm Trusted Publishing');
+    expect(runbook).toContain('gh workflow run publish-release.yml --ref main');
+    expect(runbook).not.toContain('gh workflow run release-please.yml');
+    expect(recovery).toContain('gh workflow run publish-release.yml --ref main');
+    expect(recovery).toContain('NPM_TOKEN is retained only for dist-tag repair');
+  });
+
   it('links the public policy from contributor, process, verification, and docs navigation', () => {
     expect(readText('CONTRIBUTING.md')).toContain('[Release Policy](docs/RELEASE_POLICY.md)');
     expect(readText('docs/RELEASE_PROCESS.md')).toContain('[Release Policy](RELEASE_POLICY.md)');

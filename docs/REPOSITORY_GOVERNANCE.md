@@ -156,3 +156,7 @@ Maintainer continuity is documented in [`MAINTAINER_CONTINUITY.md`](MAINTAINER_C
 ## OpenSSF evidence maintenance
 
 OpenSSF evidence is tracked in [`OPENSSF_BEST_PRACTICES.md`](OPENSSF_BEST_PRACTICES.md). Governance, review, release, security, or continuity changes must update the relevant public evidence and policy tests in the same pull request.
+
+## Release workflow separation
+
+The `Release Please PR` workflow may maintain release pull requests but cannot publish packages or immutable releases. The `Publish Release` workflow owns pre-tag compatibility and quality gates, immutable release creation, attestations, npm, MCP Registry, and GHCR publication. Publication concurrency never cancels an active release.

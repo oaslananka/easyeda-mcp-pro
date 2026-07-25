@@ -50,13 +50,13 @@ A manual release recovery must run the workflow definition from `main`:
 TAG=easyeda-mcp-pro-vX.Y.Z
 EVIDENCE=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER
 
-gh workflow run release-please.yml --ref main \
+gh workflow run publish-release.yml --ref main \
   -f tag_name="$TAG" \
   -f release_channel=stable \
   -f evidence_url="$EVIDENCE"
 ```
 
-The workflow validates commit-bound EasyEDA evidence before checking out the tag. It then restores an existing npm dist-tag when the package version already exists, replaces release assets with `--clobber`, republishes the MCP Registry entry idempotently, and rebuilds moving GHCR tags from the immutable source.
+The Publish Release workflow validates commit-bound EasyEDA evidence before checking out the tag. It then restores an existing npm dist-tag when the package version already exists, replaces release assets with `--clobber`, republishes the MCP Registry entry idempotently, and rebuilds moving GHCR tags from the immutable source.
 
 ## Partial publication decision tree
 
@@ -91,7 +91,7 @@ npm deprecate "easyeda-mcp-pro@$VERSION" \
   "Defective release; use easyeda-mcp-pro@KNOWN_GOOD or a newer patch."
 ```
 
-Rotate `NPM_TOKEN` through the account and GitHub Actions environment after suspected exposure. Verify the replacement token with a protected workflow; never paste it into an issue, log, shell history, or repository file.
+Normal new-version publication uses npm Trusted Publishing when the package-side trust relationship is configured. NPM_TOKEN is retained only for dist-tag repair and as a protected compatibility fallback. Rotate `NPM_TOKEN` through the account and GitHub Actions environment after suspected exposure. Verify the replacement token with a protected workflow; never paste it into an issue, log, shell history, or repository file.
 
 ## GitHub Release recovery
 
