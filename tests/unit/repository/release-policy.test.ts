@@ -103,6 +103,13 @@ describe('release channel policy', () => {
     expect(publisher).toContain('docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7');
     expect(manager).toContain('contents: write');
     expect(manager).toContain('pull-requests: write');
+    expect(manager).toContain('token: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
+    expect(manager).not.toContain('token: ${{ secrets.GITHUB_TOKEN }}');
+    expect(publisher).toContain('token: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
+    expect(publisher).toContain('GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
+    expect(publisher).not.toContain('token: ${{ secrets.GITHUB_TOKEN }}');
+    expect(manager.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(1);
+    expect(publisher.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(2);
     expect(publisher).toContain('id-token: write');
     expect(publisher).toContain('attestations: write');
     expect(publisher).toContain('packages: write');
@@ -117,6 +124,7 @@ describe('release channel policy', () => {
     expect(process).toContain('Publish Release');
     expect(process).toContain('before the immutable tag and GitHub Release are created');
     expect(process).toContain('npm Trusted Publishing');
+    expect(process).toContain('RELEASE_PLEASE_TOKEN');
     expect(runbook).toContain('gh workflow run publish-release.yml --ref main');
     expect(runbook).not.toContain('gh workflow run release-please.yml');
     expect(recovery).toContain('gh workflow run publish-release.yml --ref main');

@@ -82,7 +82,9 @@ git commit -m "chore(deps): update lockfile"
 
 **Symptoms**: Release PR shows no CI check results.
 
-**Root cause**: The CI workflow is triggered by `pull_request` targeting `main`. If the release PR was created with a GITHUB_TOKEN that doesn't have permission to trigger workflows, checks may not run.
+**Root cause**: Release Please must use the dedicated `RELEASE_PLEASE_TOKEN`. Pull requests created with the default `GITHUB_TOKEN` do not trigger downstream CI, and a release run initiated by a restricted integration may not be able to create a GitHub Release.
+
+The secret must be a fine-grained token limited to this repository with **Contents**, **Pull requests**, and **Issues** read/write access. It is used only by the Release Please action and GitHub Release asset upload step; npm publication continues to use OIDC Trusted Publishing.
 
 **Fix**: Close and re-open the release PR to re-trigger CI. If that fails, push a trivial commit to the release PR branch.
 
