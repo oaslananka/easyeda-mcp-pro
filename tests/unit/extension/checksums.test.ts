@@ -38,9 +38,11 @@ describe('extension checksum manifest', () => {
 
   it('creates and verifies a checksum manifest', async () => {
     const fixture = await createFixture();
-    const manifest = await createChecksumManifest(fixture);
+    const generatedAt = '2023-11-14T22:13:20.000Z';
+    const manifest = await createChecksumManifest({ ...fixture, generatedAt });
 
     expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.generatedAt).toBe(generatedAt);
     expect(manifest.packageSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.files.map((file) => file.path)).toContain('dist/index.js');
 

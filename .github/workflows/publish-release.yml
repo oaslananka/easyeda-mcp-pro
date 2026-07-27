@@ -199,9 +199,7 @@ jobs:
 
       - name: Build Projects
         run: |
-          pnpm build
-          pnpm check:metadata
-          pnpm build:extension
+          pnpm package:prepare
           pnpm verify:extension
           pnpm check:extension-size
 

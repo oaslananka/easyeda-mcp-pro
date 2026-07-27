@@ -126,9 +126,7 @@ jobs:
           report_type: test_results
           disable_search: true
           fail_ci_if_error: true
-      - run: pnpm build
-      - run: pnpm check:metadata
-      - run: pnpm build:extension
+      - run: pnpm package:prepare
       - name: Scan source and generated outputs for secret-like material
         run: pnpm security:secrets
       - run: pnpm check:extension-size
@@ -153,7 +151,7 @@ jobs:
           path: |
             artifacts/*.tgz
             easyeda-bridge-extension.eext
-            easyeda-bridge-extension/easyeda-bridge-extension.checksums.json
+            easyeda-bridge-extension.checksums.json
             easyeda-bridge-extension/dist/index.js
           if-no-files-found: error
       - run: pnpm generate:tools-doc

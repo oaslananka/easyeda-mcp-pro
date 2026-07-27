@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
+import { getReproducibleDate } from './reproducible-time.mjs';
 
 export const CHECKSUM_MANIFEST_NAME = 'easyeda-bridge-extension.checksums.json';
 
@@ -13,6 +14,14 @@ async function sha256File(path) {
 
 function normalizePath(path) {
   return path.split(sep).join('/');
+}
+
+function comparePaths(left, right) {
+  const normalizedLeft = normalizePath(left);
+  const normalizedRight = normalizePath(right);
+  if (normalizedLeft < normalizedRight) return -1;
+  if (normalizedLeft > normalizedRight) return 1;
+  return 0;
 }
 
 async function collectFiles(root, entry) {
@@ -31,12 +40,10 @@ export async function collectExtensionFiles(root) {
   for (const entry of ['extension.json', 'dist', 'images', 'locales']) {
     files.push(...(await collectFiles(root, entry)));
   }
-  return files.sort((a, b) =>
-    normalizePath(relative(root, a)).localeCompare(normalizePath(relative(root, b))),
-  );
+  return files.sort((left, right) => comparePaths(relative(root, left), relative(root, right)));
 }
 
-export async function createChecksumManifest({ root, packagePath }) {
+export async function createChecksumManifest({ root, packagePath, generatedAt }) {
   const packageInfo = await stat(packagePath);
   const files = [];
   for (const file of await collectExtensionFiles(root)) {
@@ -49,7 +56,7 @@ export async function createChecksumManifest({ root, packagePath }) {
   }
   return {
     schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
+    generatedAt: generatedAt ?? getReproducibleDate({ root }).toISOString(),
     package: normalizePath(relative(join(root, '..'), packagePath)),
     packageSize: packageInfo.size,
     packageSha256: await sha256File(packagePath),
@@ -57,8 +64,8 @@ export async function createChecksumManifest({ root, packagePath }) {
   };
 }
 
-export async function writeChecksumManifest({ root, packagePath, manifestPath }) {
-  const manifest = await createChecksumManifest({ root, packagePath });
+export async function writeChecksumManifest({ root, packagePath, manifestPath, generatedAt }) {
+  const manifest = await createChecksumManifest({ root, packagePath, generatedAt });
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return manifest;
 }
