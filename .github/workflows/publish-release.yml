@@ -7,8 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Existing tag to publish (stable: easyeda-mcp-pro-vX.Y.Z; prerelease: easyeda-mcp-pro-vX.Y.Z-rc.N)'
+        description: 'Tag to publish or recover (stable: easyeda-mcp-pro-vX.Y.Z; prerelease: easyeda-mcp-pro-vX.Y.Z-rc.N)'
         required: true
+        type: string
+      source_commit:
+        description: 'Exact 40-character source SHA; required only when repairing a missing stable tag and release'
+        required: false
         type: string
       release_channel:
         description: 'Publication channel; must match the tag format'
@@ -53,14 +57,21 @@ jobs:
         id: metadata
         env:
           EVENT_NAME: ${{ github.event_name }}
+          MANUAL_TAG: ${{ inputs.tag_name }}
         run: |
           set -euo pipefail
           SUBJECT="$(git log -1 --pretty=%s)"
           PACKAGE_VERSION="$(jq -r '.version' package.json)"
           MANIFEST_VERSION="$(jq -r '.["."]' .release-please-manifest.json)"
           VERSION="$(sed -nE 's/^chore\(main\): release easyeda-mcp-pro ([0-9]+\.[0-9]+\.[0-9]+)( \(#[0-9]+\))?$/\1/p' <<<"$SUBJECT")"
+          REQUESTED_TAG=""
+          if [[ "$EVENT_NAME" == "push" && -n "$VERSION" ]]; then
+            REQUESTED_TAG="easyeda-mcp-pro-v${VERSION}"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            REQUESTED_TAG="$MANUAL_TAG"
+          fi
           TAG_EXISTS=false
-          if [[ "$EVENT_NAME" == "push" && -n "$VERSION" ]] && git show-ref --verify --quiet "refs/tags/easyeda-mcp-pro-v${VERSION}"; then
+          if [[ -n "$REQUESTED_TAG" ]] && git show-ref --verify --quiet "refs/tags/${REQUESTED_TAG}"; then
             TAG_EXISTS=true
           fi
           {
@@ -82,6 +93,7 @@ jobs:
           TAG_EXISTS: ${{ steps.metadata.outputs.tag_exists }}
           MANUAL_TAG: ${{ inputs.tag_name }}
           MANUAL_CHANNEL: ${{ inputs.release_channel }}
+          MANUAL_SOURCE_COMMIT: ${{ inputs.source_commit }}
           EVIDENCE_URL: ${{ inputs.evidence_url }}
         run: node scripts/release-channel-policy.mjs
 
@@ -206,27 +218,25 @@ jobs:
             easyeda-bridge-extension.eext
             sbom.json
 
-      - name: Create stable GitHub Release
-        id: release
+      - name: Create commit-bound GitHub Release
         if: needs.plan.outputs.create_github_release == 'true'
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
-        with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-          skip-github-pull-request: true
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"
+          RELEASE_VERSION="${RELEASE_TAG#easyeda-mcp-pro-v}"
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET_COMMIT" \
+            --title "easyeda-mcp-pro v${RELEASE_VERSION}" \
+            --generate-notes
 
       - name: Validate immutable release identity
         env:
           GH_TOKEN: ${{ github.token }}
-          CREATE_GITHUB_RELEASE: ${{ needs.plan.outputs.create_github_release }}
-          CREATED_TAG: ${{ steps.release.outputs.tag_name }}
         run: |
           set -euo pipefail
-          if [[ "$CREATE_GITHUB_RELEASE" == "true" && "$CREATED_TAG" != "$RELEASE_TAG" ]]; then
-            echo "Release Please created ${CREATED_TAG:-<empty>} instead of $RELEASE_TAG." >&2
-            exit 1
-          fi
           git fetch --force --tags origin
           TAG_COMMIT="$(git rev-parse "${RELEASE_TAG}^{commit}")"
           TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"

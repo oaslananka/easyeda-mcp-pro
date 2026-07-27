@@ -103,6 +103,53 @@ describe('release channel resolver', () => {
     ).toThrow('Automatic publication requires main');
   });
 
+  it('plans missing stable release identity recovery from an immutable source commit', () => {
+    const sourceCommit = '69892876b5cf2ddcc1de1b590c0ce35c61a36698';
+
+    expect(
+      resolveReleaseChannel({
+        eventName: 'workflow_dispatch',
+        refName: 'main',
+        manualTag: 'easyeda-mcp-pro-v0.35.4',
+        manualChannel: 'stable',
+        manualSourceCommit: sourceCommit,
+        evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/421',
+        tagExists: false,
+      }),
+    ).toMatchObject({
+      releaseRun: true,
+      releaseTag: 'easyeda-mcp-pro-v0.35.4',
+      releaseChannel: 'stable',
+      npmDistTag: 'latest',
+      targetRef: sourceCommit,
+      createGithubRelease: true,
+    });
+  });
+
+  it('fails closed when a missing release identity has no valid source commit', () => {
+    const base = {
+      eventName: 'workflow_dispatch',
+      refName: 'main',
+      manualTag: 'easyeda-mcp-pro-v0.35.4',
+      manualChannel: 'stable',
+      evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/421',
+      tagExists: false,
+    };
+
+    expect(() => resolveReleaseChannel(base)).toThrow('immutable 40-character source commit');
+    expect(() => resolveReleaseChannel({ ...base, manualSourceCommit: '6989287' })).toThrow(
+      'immutable 40-character source commit',
+    );
+    expect(() =>
+      resolveReleaseChannel({
+        ...base,
+        manualTag: 'easyeda-mcp-pro-v0.35.4-rc.1',
+        manualChannel: 'prerelease',
+        manualSourceCommit: '69892876b5cf2ddcc1de1b590c0ce35c61a36698',
+      }),
+    ).toThrow('Prerelease recovery requires an existing tag');
+  });
+
   it('maps manual stable recovery and numbered candidates to isolated channels', () => {
     expect(
       resolveReleaseChannel({
@@ -111,6 +158,7 @@ describe('release channel resolver', () => {
         manualTag: 'easyeda-mcp-pro-v1.2.3',
         manualChannel: 'stable',
         evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/issues/407',
+        tagExists: true,
       }),
     ).toMatchObject({
       releaseRun: true,
@@ -126,6 +174,7 @@ describe('release channel resolver', () => {
         manualTag: 'easyeda-mcp-pro-v1.2.3-rc.4',
         manualChannel: 'prerelease',
         evidenceUrl: 'https://github.com/oaslananka/easyeda-mcp-pro/pull/408',
+        tagExists: true,
       }),
     ).toMatchObject({
       releaseRun: true,
@@ -183,6 +232,7 @@ describe('release channel resolver', () => {
       MANUAL_TAG: 'easyeda-mcp-pro-v1.2.3-rc.5',
       MANUAL_CHANNEL: 'prerelease',
       EVIDENCE_URL: 'https://github.com/oaslananka/easyeda-mcp-pro/pull/408',
+      TAG_EXISTS: 'true',
       GITHUB_ENV: paths.env,
       GITHUB_OUTPUT: paths.output,
       GITHUB_STEP_SUMMARY: paths.summary,
