@@ -34,8 +34,10 @@
   "files": [
     "dist",
     "easyeda-bridge-extension.eext",
+    "easyeda-bridge-extension.checksums.json",
     "README.md",
     "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
     "config/runtime-policy.json",
     "scripts/check-runtime.mjs"
   ],
@@ -82,7 +84,7 @@
     "inventory:diff": "tsx scripts/diff-runtime-inventory.mts",
     "eval:golden": "tsx scripts/run-evals.mts",
     "eval:golden:update": "tsx scripts/run-evals.mts --update-baseline",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm check:capability-docs && pnpm verify:tool-coverage && pnpm test && pnpm test:extension && pnpm build && pnpm build:extension && pnpm security:secrets && pnpm check:metadata && pnpm docs:build",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm typecheck:extension && pnpm lint && pnpm lint:tools && pnpm check:capability-docs && pnpm verify:tool-coverage && pnpm test && pnpm test:extension && pnpm package:prepare && pnpm security:secrets && pnpm check:metadata && pnpm docs:build",
     "smoke:schematic-transactions": "tsx scripts/live-schematic-transaction-smoke.mts",
     "security:audit": "node scripts/check-dependency-audit.mjs",
     "security:semgrep": "semgrep scan --config .semgrep.yml --error --metrics=off .",
@@ -97,7 +99,7 @@
     "analyze:extension-bundle:ci": "bundle-analyzer easyeda-bridge-extension/dist --bundle-name=easyeda-bridge-extension --upload-token=$CODECOV_TOKEN --ignore-patterns='*.map' --ignore-patterns='*.json'",
     "runtime:check": "node scripts/check-runtime.mjs --require-pnpm",
     "preverify": "pnpm runtime:check",
-    "prepack": "pnpm runtime:check",
+    "prepack": "pnpm runtime:check && node scripts/prepare-package.mjs",
     "pretest": "pnpm runtime:check",
     "pretest:extension": "pnpm runtime:check",
     "predev": "pnpm runtime:check",
@@ -113,7 +115,10 @@
     "check:capability-docs": "tsx scripts/update-capability-counts.mts --check",
     "release:readiness": "node scripts/check-release-readiness.mjs",
     "release:readiness:compatibility": "node scripts/check-release-readiness.mjs --compatibility-only",
-    "release:verify-published": "node scripts/verify-published-release.mjs"
+    "release:verify-published": "node scripts/verify-published-release.mjs",
+    "package:prepare": "node scripts/prepare-package.mjs",
+    "package:check": "node scripts/check-package-artifacts.mjs",
+    "package:check-pack-list": "node scripts/check-packed-file-list.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

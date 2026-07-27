@@ -140,14 +140,14 @@ describe('secret scanning and credential response policy', () => {
 
     expect(packageJson.scripts?.['security:secrets']).toBe('node scripts/check-secret-hygiene.mjs');
     expect(packageJson.scripts?.verify).toContain(
-      'pnpm build:extension && pnpm security:secrets && pnpm check:metadata',
+      'pnpm package:prepare && pnpm security:secrets && pnpm check:metadata',
     );
     expect(workflow).toContain(
       '- name: Scan source and generated outputs for secret-like material',
     );
     expect(workflow).toContain('run: pnpm security:secrets');
     expect(workflow.indexOf('run: pnpm security:secrets')).toBeGreaterThan(
-      workflow.indexOf('run: pnpm build:extension'),
+      workflow.indexOf('run: pnpm package:prepare'),
     );
   });
 

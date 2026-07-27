@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getReproducibleDate } from './reproducible-time.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -20,6 +21,7 @@ const distDir = process.env.MCP_BUILD_OUT_DIR
   : join(root, 'dist');
 
 const BUILD_ID_PLACEHOLDER = '__MCP_DISPATCHER_BUILD_ID_PLACEHOLDER__';
+const reproducibleDate = getReproducibleDate({ root });
 
 // Hot-swap support is compiled in only for dev builds (MCP_DEV_HOTSWAP=true).
 // Marketplace builds keep the eval-swap path as dead code.
@@ -75,7 +77,7 @@ const meta = {
   buildId,
   sha256: createHash('sha256').update(stampedBundle).digest('hex'),
   byteLength: Buffer.byteLength(stampedBundle, 'utf8'),
-  builtAt: new Date().toISOString(),
+  builtAt: reproducibleDate.toISOString(),
 };
 writeFileSync(join(distDir, 'dispatcher.meta.json'), `${JSON.stringify(meta, null, 2)}\n`);
 
