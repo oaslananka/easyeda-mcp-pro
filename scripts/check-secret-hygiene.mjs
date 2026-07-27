@@ -66,12 +66,47 @@ export function resolveGitExecutable(platform = process.platform) {
   return executable;
 }
 
+const SNAPSHOT_EXCLUDED_DIRECTORY_NAMES = new Set([
+  '.git',
+  '.pnpm-store',
+  '.vite',
+  '.vite-temp',
+  'coverage',
+  'node_modules',
+  'reports',
+]);
+const SNAPSHOT_EXCLUDED_PATHS = new Set([
+  '.easyeda-mcp-pro',
+  'docs/.vitepress/cache',
+  'docs/.vitepress/dist',
+]);
+
+function normalizePath(path) {
+  return path.replaceAll('\\', '/');
+}
+
+function comparePaths(left, right) {
+  const normalizedLeft = normalizePath(left);
+  const normalizedRight = normalizePath(right);
+  if (normalizedLeft < normalizedRight) return -1;
+  if (normalizedLeft > normalizedRight) return 1;
+  return 0;
+}
+
 function listTrackedFiles(repoRoot) {
-  const output = execFileSync(resolveGitExecutable(), ['ls-files', '-z'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const gitMarker = resolve(repoRoot, '.git');
+  if (!existsSync(gitMarker)) return undefined;
+
+  let output;
+  try {
+    output = execFileSync(resolveGitExecutable(), ['ls-files', '-z'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    throw new Error('Unable to enumerate tracked files from the Git checkout.', { cause: error });
+  }
 
   return output
     .split('\0')
@@ -79,7 +114,13 @@ function listTrackedFiles(repoRoot) {
     .map((path) => resolve(repoRoot, path));
 }
 
-function walkFiles(path, files) {
+function shouldSkipSnapshotDirectory(repoRoot, absolutePath) {
+  const relativePath = normalizePath(relative(repoRoot, absolutePath));
+  const name = absolutePath.split(/[\\/]/).at(-1);
+  return SNAPSHOT_EXCLUDED_DIRECTORY_NAMES.has(name) || SNAPSHOT_EXCLUDED_PATHS.has(relativePath);
+}
+
+function walkFiles(path, files, options = {}) {
   if (!existsSync(path)) return;
   const stat = lstatSync(path);
   if (stat.isSymbolicLink()) return;
@@ -88,15 +129,28 @@ function walkFiles(path, files) {
     return;
   }
   if (!stat.isDirectory()) return;
+  if (options.repoRoot && shouldSkipSnapshotDirectory(options.repoRoot, path)) return;
 
-  for (const entry of readdirSync(path, { withFileTypes: true })) {
+  const entries = readdirSync(path, { withFileTypes: true }).sort((left, right) =>
+    comparePaths(left.name, right.name),
+  );
+  for (const entry of entries) {
     if (entry.isSymbolicLink()) continue;
-    walkFiles(resolve(path, entry.name), files);
+    walkFiles(resolve(path, entry.name), files, options);
   }
 }
 
 function collectFiles(repoRoot) {
-  const files = new Set(listTrackedFiles(repoRoot));
+  const trackedFiles = listTrackedFiles(repoRoot);
+  const files = new Set();
+  const fileSource = trackedFiles ? 'git-checkout' : 'filesystem-snapshot';
+
+  if (trackedFiles) {
+    for (const path of trackedFiles) files.add(path);
+  } else {
+    walkFiles(repoRoot, files, { repoRoot });
+  }
+
   const generatedCandidates = [
     'dist',
     'easyeda-bridge-extension/dist',
@@ -109,7 +163,10 @@ function collectFiles(repoRoot) {
     walkFiles(resolve(repoRoot, candidate), files);
   }
 
-  return [...files].sort((left, right) => left.localeCompare(right));
+  return {
+    files: [...files].sort(comparePaths),
+    fileSource,
+  };
 }
 
 export function scanRepository(repoRoot = defaultRepoRoot) {
@@ -117,7 +174,8 @@ export function scanRepository(repoRoot = defaultRepoRoot) {
   let scannedFiles = 0;
   let skippedLargeFiles = 0;
 
-  for (const absolutePath of collectFiles(repoRoot)) {
+  const collection = collectFiles(repoRoot);
+  for (const absolutePath of collection.files) {
     if (!existsSync(absolutePath)) continue;
     const stat = lstatSync(absolutePath);
     if (!stat.isFile()) continue;
@@ -132,7 +190,7 @@ export function scanRepository(repoRoot = defaultRepoRoot) {
     findings.push(...scanText(text, source));
   }
 
-  return { findings, scannedFiles, skippedLargeFiles };
+  return { findings, scannedFiles, skippedLargeFiles, fileSource: collection.fileSource };
 }
 
 function runCli() {
@@ -150,7 +208,7 @@ function runCli() {
   }
 
   console.log(
-    `Secret hygiene check passed: ${result.scannedFiles} files scanned; ${result.skippedLargeFiles} oversized files skipped.`,
+    `Secret hygiene check passed: ${result.scannedFiles} files scanned from ${result.fileSource}; ${result.skippedLargeFiles} oversized files skipped.`,
   );
 }
 

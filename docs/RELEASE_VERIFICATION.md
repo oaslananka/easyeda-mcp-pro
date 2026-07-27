@@ -33,6 +33,13 @@ compatibility-sensitive source paths. It fails when later bridge, transport, rem
 transaction changes make the available live evidence stale. A historical compatibility row can
 remain valid for its original commit while being insufficient for a new release.
 
+The check reports `unavailable` when Git metadata or the Git executable is missing, the requested
+candidate ref cannot be resolved, or the compatibility evidence is missing or malformed. That state
+is always release-blocking; source archives may run the test suite, but they are not valid publication
+environments. Run publication checks from a complete Git checkout. Automation can request one
+machine-readable report with `pnpm release:readiness:compatibility -- --json`; stdout remains a single
+JSON document and the command exits nonzero unless the status is `current`.
+
 After a fresh live record is bound to the exact candidate commit, run the complete local gate:
 
 ```bash

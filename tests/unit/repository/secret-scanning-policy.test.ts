@@ -1,11 +1,20 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
-import { scanText } from '../../../scripts/check-secret-hygiene.mjs';
+import { afterEach, describe, expect, it } from 'vitest';
+import { scanRepository, scanText } from '../../../scripts/check-secret-hygiene.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../../..');
+const temporaryRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
+  );
+});
 
 const readText = (path: string): string => {
   const absolutePath = resolve(repoRoot, path);
@@ -119,6 +128,46 @@ describe('secret scanning and credential response policy', () => {
     expect(scanText('postgresql://database.invalid/app', 'safe.txt')).toEqual([]);
   });
 
+  it('scans source and generated artifacts from a no-Git source snapshot', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'secret-hygiene-snapshot-'));
+    temporaryRoots.push(root);
+    await mkdir(join(root, 'src'), { recursive: true });
+    await mkdir(join(root, 'dist'), { recursive: true });
+    await mkdir(join(root, 'node_modules', 'dependency'), { recursive: true });
+    await mkdir(join(root, '.pnpm-store', 'cache'), { recursive: true });
+
+    const credentialUri = [
+      'postgresql://snapshot-user',
+      'snapshot-password@database.invalid/app',
+    ].join(':');
+    const privateKeyBoundary = ['-----BEGIN', 'PRIVATE KEY-----'].join(' ');
+    await writeFile(join(root, 'src', 'source.ts'), credentialUri, 'utf8');
+    await writeFile(join(root, 'dist', 'generated.js'), privateKeyBoundary, 'utf8');
+    await writeFile(join(root, 'node_modules', 'dependency', 'fixture.js'), credentialUri, 'utf8');
+    await writeFile(join(root, '.pnpm-store', 'cache', 'fixture.js'), privateKeyBoundary, 'utf8');
+
+    const result = scanRepository(root);
+
+    expect(result.fileSource).toBe('filesystem-snapshot');
+    expect(result.findings.map((finding) => finding.source)).toEqual([
+      'dist/generated.js',
+      'src/source.ts',
+    ]);
+    expect(result.scannedFiles).toBe(2);
+  });
+
+  it('fails closed when a directory claims to be a Git checkout but cannot be enumerated', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'secret-hygiene-broken-git-'));
+    temporaryRoots.push(root);
+    await mkdir(join(root, '.git'), { recursive: true });
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'src', 'safe.ts'), 'export const safe = true;\n', 'utf8');
+
+    expect(() => scanRepository(root)).toThrow(
+      'Unable to enumerate tracked files from the Git checkout.',
+    );
+  });
+
   it('uses a fixed Git executable allowlist and deterministic file ordering', () => {
     const scanner = readText('scripts/check-secret-hygiene.mjs');
 
@@ -127,7 +176,8 @@ describe('secret scanning and credential response policy', () => {
     expect(scanner).toContain('String.raw`C:\\Program Files\\Git\\cmd\\git.exe`');
     expect(scanner).toContain('git.exe');
     expect(scanner).not.toContain("platform === 'darwin' ?");
-    expect(scanner).toContain('.sort((left, right) => left.localeCompare(right))');
+    expect(scanner).toContain('files: [...files].sort(comparePaths)');
+    expect(scanner).toContain('comparePaths(left.name, right.name)');
     expect(scanner).toContain('text.codePointAt(index)');
     expect(scanner).not.toContain('text.charCodeAt(index)');
   });

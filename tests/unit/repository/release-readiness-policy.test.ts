@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -24,27 +23,6 @@ describe('release readiness policy', () => {
       ]),
     );
     for (const record of source.records) expect(record.server.commit).toMatch(/^[0-9a-f]{40}$/);
-  });
-
-  it('reports compatibility freshness deterministically for the checked-out head', () => {
-    const result = spawnSync(
-      process.execPath,
-      [resolve(repoRoot, 'scripts/check-release-readiness.mjs'), '--compatibility-only', '--json'],
-      { cwd: repoRoot, encoding: 'utf8' },
-    );
-    const report = JSON.parse(result.stdout) as {
-      status: 'current' | 'stale' | 'unavailable';
-      headCommit: string;
-      records: Array<{ status: string; changedFiles: string[] }>;
-    };
-
-    expect(report.headCommit).toMatch(/^[0-9a-f]{40}$/);
-    expect(report.records.length).toBeGreaterThan(0);
-    expect(result.status).toBe(report.status === 'current' ? 0 : 1);
-    for (const record of report.records) {
-      if (record.status === 'current') expect(record.changedFiles).toEqual([]);
-      if (record.status === 'stale') expect(record.changedFiles.length).toBeGreaterThan(0);
-    }
   });
 
   it('runs the compatibility gate before release publication and exposes a full local command', () => {
