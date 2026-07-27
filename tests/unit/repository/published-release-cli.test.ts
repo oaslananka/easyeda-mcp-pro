@@ -31,6 +31,9 @@ function stableFixture() {
       ],
     },
     gitTagCommit: commit,
+    ghcrImage: {
+      config: { Labels: { 'org.opencontainers.image.revision': commit } },
+    },
     ghcrVersions: [
       {
         name: 'sha256:image',
@@ -99,7 +102,7 @@ describe('published release verification CLI', () => {
 
     expect(result.status).toBe(0);
     expect(result.report.ok).toBe(true);
-    expect(result.report.checks).toHaveLength(9);
+    expect(result.report.checks).toHaveLength(10);
     expect(result.summary).toContain('# Published release verification');
     expect(result.summary).toContain('Status: **passed**');
     expect(result.stdout).not.toContain('token');
@@ -125,6 +128,16 @@ describe('published release verification CLI', () => {
       'ghcr-tags',
       'mcp-registry',
     ]);
+  });
+
+  it('fails when the published image revision does not match the release commit', () => {
+    const fixture = stableFixture();
+    fixture.ghcrImage.config.Labels['org.opencontainers.image.revision'] = 'b'.repeat(40);
+
+    const result = runCli(fixture);
+
+    expect(result.status).toBe(1);
+    expect(result.report.failures.map((failure) => failure.id)).toContain('ghcr-revision');
   });
 
   it('rejects tag and package version disagreement before registry comparison', () => {

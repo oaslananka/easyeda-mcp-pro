@@ -206,7 +206,7 @@ After container publication:
 ```bash
 mkdir -p reports
 RELEASE_COMMIT_SHA="$(git rev-parse "${RELEASE_TAG}^{commit}")"
-pnpm release:verify-published -- \
+pnpm release:verify-published \
   --repository "$GITHUB_REPOSITORY" \
   --tag "$RELEASE_TAG" \
   --channel "$RELEASE_CHANNEL" \

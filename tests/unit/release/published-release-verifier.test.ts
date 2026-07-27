@@ -37,6 +37,7 @@ const observation: ReleaseVerificationObservation = {
   ghcr: {
     digest: 'sha256:image',
     tags: ['0.35.4', '0.35', 'latest'],
+    revision: 'a'.repeat(40),
   },
   mcpRegistry: {
     version: '0.35.4',
@@ -53,7 +54,7 @@ describe('published release verifier', () => {
     const report = verifyPublishedReleaseObservation(expectation, cloneObservation());
 
     expect(report.ok).toBe(true);
-    expect(report.checks).toHaveLength(9);
+    expect(report.checks).toHaveLength(10);
     expect(report.checks.every((check) => check.status === 'passed')).toBe(true);
     expect(report.checks.map((check) => check.id)).toEqual([
       'npm-version',
@@ -64,6 +65,7 @@ describe('published release verifier', () => {
       'github-classification',
       'github-assets',
       'ghcr-tags',
+      'ghcr-revision',
       'mcp-registry',
     ]);
   });
@@ -133,6 +135,15 @@ describe('published release verifier', () => {
     const report = verifyPublishedReleaseObservation(expectation, current);
 
     expect(report.checks.find((check) => check.id === 'ghcr-tags')?.status).toBe('failed');
+  });
+
+  it('fails when the GHCR image revision is not the immutable release commit', () => {
+    const current = cloneObservation();
+    current.ghcr.revision = 'b'.repeat(40);
+
+    const report = verifyPublishedReleaseObservation(expectation, current);
+
+    expect(report.checks.find((check) => check.id === 'ghcr-revision')?.status).toBe('failed');
   });
 
   it('fails stable MCP Registry version and latest mismatches', () => {

@@ -72,7 +72,13 @@ describe('release channel policy', () => {
     expect(publisher).not.toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish');
     expect(publisher).toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add');
     expect(publisher).toContain('name: Verify published release');
-    expect(publisher).toContain('pnpm release:verify-published');
+    expect(publisher).toContain('Stage current release verification policy');
+    expect(publisher).toContain(
+      'node "$RELEASE_VERIFIER_ROOT/scripts/verify-published-release.mjs"',
+    );
+    expect(publisher).not.toContain('pnpm release:verify-published --');
+    expect(publisher).toContain('echo "RELEASE_COMMIT_SHA=$TARGET_COMMIT" >> "$GITHUB_ENV"');
+    expect(publisher).toContain('org.opencontainers.image.revision=${{ env.RELEASE_COMMIT_SHA }}');
     expect(publisher).toContain('--report-json reports/published-release.json');
     expect(publisher).toContain('--summary-file reports/published-release-summary.md');
     expect(publisher).toContain('for attempt in $(seq 1 12)');

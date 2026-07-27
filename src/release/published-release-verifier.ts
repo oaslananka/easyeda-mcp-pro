@@ -37,6 +37,7 @@ export interface ReleaseVerificationObservation {
   ghcr: {
     digest?: string;
     tags: string[];
+    revision?: string;
   };
   mcpRegistry: {
     version?: string;
@@ -53,6 +54,7 @@ export type ReleaseVerificationCheckId =
   | 'github-classification'
   | 'github-assets'
   | 'ghcr-tags'
+  | 'ghcr-revision'
   | 'mcp-registry';
 
 export interface ReleaseVerificationCheck {
@@ -188,6 +190,13 @@ export function verifyPublishedReleaseObservation(
       { digest: 'non-empty', tags: sortedUnique(expectation.requiredGhcrTags) },
       { digest: observation.ghcr.digest, tags: sortedUnique(observation.ghcr.tags) },
       'All exact and moving GHCR tags must resolve to one non-empty image digest.',
+    ),
+    check(
+      'ghcr-revision',
+      observation.ghcr.revision === expectation.commitSha,
+      expectation.commitSha,
+      observation.ghcr.revision,
+      'The published image revision label must identify the immutable release commit.',
     ),
     check(
       'mcp-registry',
