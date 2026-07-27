@@ -2,6 +2,8 @@
 
 # easyeda-mcp-pro
 
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.oaslananka%2Feasyeda-mcp-pro.svg)](https://mcptoplist.com/server/io.github.oaslananka%2Feasyeda-mcp-pro)
+
 <p>
   Production-grade MCP server for EasyEDA Pro: safe PCB design inspection, BOM sourcing, manufacturing export, and AI-assisted hardware review.
 </p>
