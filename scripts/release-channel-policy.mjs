@@ -40,6 +40,7 @@ export function resolveReleaseChannel({
   tagExists = false,
   manualTag = '',
   manualChannel = '',
+  manualSourceCommit = '',
   evidenceUrl = '',
 }) {
   if (eventName === 'push') {
@@ -87,6 +88,26 @@ export function resolveReleaseChannel({
     );
   }
 
+  if (!tagExists) {
+    if (releaseChannel !== 'stable') {
+      throw new Error('Prerelease recovery requires an existing tag and GitHub prerelease.');
+    }
+    if (!/^[0-9a-f]{40}$/.test(manualSourceCommit)) {
+      throw new Error(
+        'Missing stable release identity recovery requires an immutable 40-character source commit.',
+      );
+    }
+    return {
+      releaseRun: true,
+      releaseTag: manualTag,
+      releaseChannel,
+      npmDistTag,
+      targetRef: manualSourceCommit,
+      createGithubRelease: true,
+      evidenceUrl,
+    };
+  }
+
   return {
     releaseRun: true,
     releaseTag: manualTag,
@@ -117,6 +138,7 @@ export function runCli(env = process.env, appendFile = appendFileSync) {
     tagExists: env.TAG_EXISTS === 'true',
     manualTag: env.MANUAL_TAG ?? '',
     manualChannel: env.MANUAL_CHANNEL ?? '',
+    manualSourceCommit: env.MANUAL_SOURCE_COMMIT ?? '',
     evidenceUrl: env.EVIDENCE_URL ?? '',
   });
 

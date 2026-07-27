@@ -160,6 +160,28 @@ Normal stable releases are prepared by merging the Release Please PR and publish
 
 4. Verify npm `next`, GHCR `next`, exact-version assets, SBOM, provenance, and attestations. Confirm npm/GHCR `latest` did not move and the MCP Registry was skipped.
 
+### Missing stable release identity recovery
+
+Use this path only when a stable release commit passed review but the first publication attempt failed before creating both the immutable Git tag and GitHub Release. The recovery must use the exact audited release commit; it must not rebuild the same version from a later source state.
+
+For the unpublished `0.35.4` incident tracked in [issue #421](https://github.com/oaslananka/easyeda-mcp-pro/issues/421), the selected strategy is to repair `0.35.4` from release commit `69892876b5cf2ddcc1de1b590c0ce35c61a36698`. The commits after that candidate change release policy and documentation only, not the packaged runtime or extension payload.
+
+After this recovery policy is merged to `main`, dispatch the current workflow definition:
+
+```bash
+TAG=easyeda-mcp-pro-v0.35.4
+SOURCE_COMMIT=69892876b5cf2ddcc1de1b590c0ce35c61a36698
+EVIDENCE=https://github.com/oaslananka/easyeda-mcp-pro/issues/421
+
+gh workflow run publish-release.yml --ref main \
+  -f tag_name="$TAG" \
+  -f release_channel=stable \
+  -f source_commit=69892876b5cf2ddcc1de1b590c0ce35c61a36698 \
+  -f evidence_url="$EVIDENCE"
+```
+
+The workflow confirms that the requested tag is absent, validates the source SHA and commit-bound compatibility evidence, checks out the immutable source, runs all quality gates, and creates the tag and GitHub Release before publishing any moving channel. Missing-tag recovery is intentionally restricted to stable releases; prerelease recovery still requires an existing annotated tag and GitHub prerelease.
+
 ### Emergency stable dispatch
 
 Use only when the Release Policy's Emergency patch criteria are met. The stable-format tag and non-prerelease GitHub Release must already exist, and the evidence URL must identify the incident and rollback target:

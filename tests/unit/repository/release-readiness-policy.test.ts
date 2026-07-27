@@ -55,7 +55,7 @@ describe('release readiness policy', () => {
     expect(workflow).toContain('check-release-readiness.mjs --compatibility-only');
     expect(workflow).toContain('--target-ref="${TARGET_REF}"');
     expect(workflow.indexOf('Verify commit-bound EasyEDA compatibility evidence')).toBeLessThan(
-      workflow.indexOf('Create stable GitHub Release'),
+      workflow.indexOf('Create commit-bound GitHub Release'),
     );
     expect(packageJson.scripts['release:readiness']).toContain('check-release-readiness.mjs');
     expect(packageJson.scripts['release:readiness:compatibility']).toContain(

@@ -51,6 +51,8 @@ describe('release channel policy', () => {
       publisher.indexOf('- name: Resolve publication plan'),
     );
     expect(publisher).toContain('HEAD_SHA: ${{ github.sha }}');
+    expect(publisher).toContain('source_commit:');
+    expect(publisher).toContain('MANUAL_SOURCE_COMMIT: ${{ inputs.source_commit }}');
     expect(publisher).toContain('git cat-file -e "${TARGET_REF}^{commit}"');
     expect(publisher).toContain('TAG_COMMIT="$(git rev-parse "${RELEASE_TAG}^{commit}")"');
     expect(publisher).toContain('TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"');
@@ -58,10 +60,13 @@ describe('release channel policy', () => {
     expect(publisher).toContain('group: publish-${{ needs.plan.outputs.release_tag }}');
     expect(publisher).toContain('Verify commit-bound EasyEDA compatibility evidence');
     expect(publisher).toContain('Verify Quality Gates');
-    expect(publisher).toContain('Create stable GitHub Release');
-    expect(publisher).toContain('skip-github-pull-request: true');
+    expect(publisher).toContain('Create commit-bound GitHub Release');
+    expect(publisher).toContain('TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"');
+    expect(publisher).toContain('gh release create "$RELEASE_TAG"');
+    expect(publisher).toContain('--target "$TARGET_COMMIT"');
+    expect(publisher).not.toContain('skip-github-pull-request: true');
     expect(publisher.indexOf('Verify Quality Gates')).toBeLessThan(
-      publisher.indexOf('Create stable GitHub Release'),
+      publisher.indexOf('Create commit-bound GitHub Release'),
     );
     expect(publisher).toContain('npm publish --provenance --tag "$NPM_DIST_TAG"');
     expect(publisher).not.toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish');
@@ -105,7 +110,10 @@ describe('release channel policy', () => {
     expect(manager).toContain('pull-requests: write');
     expect(manager).toContain('token: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
     expect(manager).not.toContain('token: ${{ secrets.GITHUB_TOKEN }}');
-    expect(publisher).toContain('token: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
+    expect(publisher).not.toContain(
+      'googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
+    );
+    expect(publisher).not.toContain('token: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
     expect(publisher).toContain('GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
     expect(publisher).not.toContain('token: ${{ secrets.GITHUB_TOKEN }}');
     expect(manager.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(1);
@@ -126,6 +134,7 @@ describe('release channel policy', () => {
     expect(process).toContain('npm Trusted Publishing');
     expect(process).toContain('RELEASE_PLEASE_TOKEN');
     expect(runbook).toContain('gh workflow run publish-release.yml --ref main');
+    expect(runbook).toContain('-f source_commit=69892876b5cf2ddcc1de1b590c0ce35c61a36698');
     expect(runbook).not.toContain('gh workflow run release-please.yml');
     expect(recovery).toContain('gh workflow run publish-release.yml --ref main');
     expect(recovery).toContain('NPM_TOKEN is retained only for dist-tag repair');
