@@ -116,7 +116,6 @@ jobs:
       NPM_DIST_TAG: ${{ needs.plan.outputs.npm_dist_tag }}
       TARGET_REF: ${{ needs.plan.outputs.target_ref }}
       EVIDENCE_URL: ${{ needs.plan.outputs.evidence_url }}
-      RELEASE_VERIFIER_ROOT: ${{ runner.temp }}/easyeda-release-verifier
     steps:
       - name: Checkout current release policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -127,6 +126,8 @@ jobs:
       - name: Stage current release verification policy
         run: |
           set -euo pipefail
+          RELEASE_VERIFIER_ROOT="$RUNNER_TEMP/easyeda-release-verifier"
+          echo "RELEASE_VERIFIER_ROOT=$RELEASE_VERIFIER_ROOT" >> "$GITHUB_ENV"
           mkdir -p "$RELEASE_VERIFIER_ROOT/scripts" "$RELEASE_VERIFIER_ROOT/src/release"
           cp scripts/verify-published-release.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp src/release/published-release-verifier.ts "$RELEASE_VERIFIER_ROOT/src/release/"
