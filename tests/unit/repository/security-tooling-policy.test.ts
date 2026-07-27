@@ -161,7 +161,7 @@ describe('repository security tooling policy', () => {
     expect(publishWorkflow).toContain('run: node scripts/release-channel-policy.mjs');
     expect(publishWorkflow).not.toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish');
     expect(publishWorkflow).toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add');
-    expect(publishWorkflow).toContain('pnpm release:verify-published');
+    expect(publishWorkflow).toContain('verify-published-release.mjs');
     expect(publishWorkflow).toContain('reports/published-release.json');
 
     const ciWorkflow = readText('.github/workflows/ci.yml');

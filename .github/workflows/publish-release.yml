@@ -116,12 +116,20 @@ jobs:
       NPM_DIST_TAG: ${{ needs.plan.outputs.npm_dist_tag }}
       TARGET_REF: ${{ needs.plan.outputs.target_ref }}
       EVIDENCE_URL: ${{ needs.plan.outputs.evidence_url }}
+      RELEASE_VERIFIER_ROOT: ${{ runner.temp }}/easyeda-release-verifier
     steps:
       - name: Checkout current release policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Stage current release verification policy
+        run: |
+          set -euo pipefail
+          mkdir -p "$RELEASE_VERIFIER_ROOT/scripts" "$RELEASE_VERIFIER_ROOT/src/release"
+          cp scripts/verify-published-release.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp src/release/published-release-verifier.ts "$RELEASE_VERIFIER_ROOT/src/release/"
 
       - name: Fetch publication target
         run: |
@@ -162,6 +170,7 @@ jobs:
             echo "Tag version $EXPECTED_VERSION does not match package.json $PACKAGE_VERSION." >&2
             exit 1
           fi
+          cp package.json "$RELEASE_VERIFIER_ROOT/package.json"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -244,6 +253,7 @@ jobs:
             echo "Release tag $RELEASE_TAG points to $TAG_COMMIT instead of candidate $TARGET_COMMIT." >&2
             exit 1
           fi
+          echo "RELEASE_COMMIT_SHA=$TARGET_COMMIT" >> "$GITHUB_ENV"
           RELEASE_JSON="$(gh release view "$RELEASE_TAG" --json tagName,targetCommitish,isDraft,isPrerelease)"
           [[ "$(jq -r '.tagName' <<<"$RELEASE_JSON")" == "$RELEASE_TAG" ]]
           [[ "$(jq -r '.isDraft' <<<"$RELEASE_JSON")" == "false" ]]
@@ -324,6 +334,8 @@ jobs:
             type=raw,value=${{ steps.clean_version.outputs.major_minor }},enable=${{ needs.plan.outputs.release_channel == 'stable' }}
             type=raw,value=latest,enable=${{ needs.plan.outputs.release_channel == 'stable' }}
             type=raw,value=next,enable=${{ needs.plan.outputs.release_channel == 'prerelease' }}
+          labels: |
+            org.opencontainers.image.revision=${{ env.RELEASE_COMMIT_SHA }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
@@ -346,11 +358,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p reports
-          RELEASE_COMMIT_SHA="$(git rev-parse "${RELEASE_TAG}^{commit}")"
           VERIFICATION_STATUS=1
           for attempt in $(seq 1 12); do
             rm -f reports/published-release-summary.md
-            if pnpm release:verify-published -- \
+            if node "$RELEASE_VERIFIER_ROOT/scripts/verify-published-release.mjs" \
               --repository "$GITHUB_REPOSITORY" \
               --tag "$RELEASE_TAG" \
               --channel "$RELEASE_CHANNEL" \

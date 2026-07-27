@@ -104,11 +104,27 @@ async function collectLiveRaw({ repository, tag, version, packageName, mcpName }
     'api',
     `/users/${owner}/packages/container/${repositoryName}/versions?per_page=100`,
   ]);
+  const ghcrImage = runJson('docker', [
+    'buildx',
+    'imagetools',
+    'inspect',
+    `ghcr.io/${repository}:${version}`,
+    '--format',
+    '{{json .Image}}',
+  ]);
   const registryUrl = new URL('https://registry.modelcontextprotocol.io/v0.1/servers');
   registryUrl.searchParams.set('search', mcpName);
   registryUrl.searchParams.set('version', version);
   const mcpRegistry = await fetchJson(registryUrl);
-  return { npmPackage, npmDistTags, githubRelease, gitTagCommit, ghcrVersions, mcpRegistry };
+  return {
+    npmPackage,
+    npmDistTags,
+    githubRelease,
+    gitTagCommit,
+    ghcrVersions,
+    ghcrImage,
+    mcpRegistry,
+  };
 }
 
 function normalizeObservation(raw, expectation) {
@@ -147,6 +163,7 @@ function normalizeObservation(raw, expectation) {
     ghcr: {
       digest: exactGhcrVersion?.name,
       tags: exactGhcrVersion?.metadata?.container?.tags ?? [],
+      revision: raw.ghcrImage?.config?.Labels?.['org.opencontainers.image.revision'],
     },
     mcpRegistry: registryEntry
       ? {
