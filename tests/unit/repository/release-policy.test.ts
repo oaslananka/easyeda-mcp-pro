@@ -96,6 +96,11 @@ describe('release channel policy', () => {
     expect(publisher).toContain('if: ${{ always() }}');
     expect(publisher).toContain('npm dist-tag add');
     expect(publisher).toContain('./mcp-publisher publish');
+    expect(publisher).toContain('invalid version: cannot publish duplicate version');
+    expect(publisher).toContain(
+      'The final published-release verifier will validate the existing registry record.',
+    );
+    expect(publisher).toContain('exit "$PUBLISH_STATUS"');
     expect(publisher).toContain('type=raw,value=next');
     expect(publisher).toContain('type=raw,value=latest');
     expect(publisher).not.toContain('continue-on-error: true');

@@ -302,8 +302,22 @@ jobs:
       - name: Publish to MCP Registry
         if: env.RELEASE_CHANNEL == 'stable'
         run: |
+          set -euo pipefail
           ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
+          PUBLISH_OUTPUT="$(mktemp)"
+          trap 'rm -f "$PUBLISH_OUTPUT"' EXIT
+          set +e
+          ./mcp-publisher publish >"$PUBLISH_OUTPUT" 2>&1
+          PUBLISH_STATUS=$?
+          set -e
+          cat "$PUBLISH_OUTPUT"
+          if [[ "$PUBLISH_STATUS" -ne 0 ]]; then
+            if grep -Fq 'invalid version: cannot publish duplicate version' "$PUBLISH_OUTPUT"; then
+              echo 'MCP Registry version already exists. The final published-release verifier will validate the existing registry record.'
+            else
+              exit "$PUBLISH_STATUS"
+            fi
+          fi
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
