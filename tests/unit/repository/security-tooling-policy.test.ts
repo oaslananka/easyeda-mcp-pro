@@ -248,8 +248,15 @@ describe('repository security tooling policy', () => {
     expect(releaseWorkflow).toContain('curl --fail --silent --show-error --location');
     expect(releaseWorkflow).toContain("--proto '=https' --tlsv1.2");
     expect(releaseWorkflow).toContain(
-      '--output "$ASSET" "${BASE}/${MCP_PUBLISHER_VERSION}/${ASSET}"',
+      '--output "$MCP_PUBLISHER_ASSET" "$MCP_PUBLISHER_ARCHIVE_URL"',
     );
+    expect(releaseWorkflow).toContain(
+      '--output "$MCP_PUBLISHER_CHECKSUMS_ASSET" "$MCP_PUBLISHER_CHECKSUMS_URL"',
+    );
+    expect(releaseWorkflow).toContain(
+      'node "$RELEASE_VERIFIER_ROOT/scripts/install-mcp-publisher.mjs" install',
+    );
+    expect(releaseWorkflow).not.toContain('tar xzf mcp-publisher_*.tar.gz mcp-publisher');
 
     const verifyDist = readText('easyeda-bridge-extension/scripts/verify-dist.mjs');
     expect(verifyDist).toContain('function resolvePathWithinRoot(candidate)');

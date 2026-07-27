@@ -197,6 +197,49 @@ The Publish Release workflow rejects a channel/tag mismatch, package-version mis
 
 The Publish Release workflow must be dispatched from `main`, not from the immutable release tag. It first evaluates the current recovery and compatibility policy against the requested tag commit, then checks out the tag for reproducible build and publication. Running an older workflow definition from the tag can repeat the original failure and cannot use a recovery fix merged after the tag was created.
 
+### Updating mcp-publisher integrity evidence
+
+The stable publication workflow reads `config/mcp-publisher-integrity.json`; do not update the publisher version only in workflow YAML. The policy pins the official release version, the official checksum-manifest SHA-256, the release-provided Sigstore bundle digest for reviewer traceability, and each supported Linux archive digest.
+
+For a publisher upgrade:
+
+1. Review the upstream `modelcontextprotocol/registry` release and its source changes. Confirm the release contains the expected publisher archive, checksum manifest, and checksum Sigstore bundle.
+2. Query the official GitHub release metadata and record each GitHub release asset `digest` from the API:
+
+   ```bash
+   VERSION=vX.Y.Z
+   gh api "repos/modelcontextprotocol/registry/releases/tags/$VERSION" \
+     --jq '.assets[] | select(.name | test("mcp-publisher_linux_|checksums.txt")) | [.name, .digest] | @tsv'
+   ```
+
+3. Download the official checksum manifest over HTTPS, verify its own SHA-256 against the API digest, and confirm its `mcp-publisher_linux_amd64.tar.gz` and `mcp-publisher_linux_arm64.tar.gz` entries match the archive digests recorded in the policy.
+4. Update all related fields in `config/mcp-publisher-integrity.json` in one reviewed commit. Unsupported operating-system or architecture entries must not be added unless the protected release runner and extraction policy are reviewed for that platform.
+5. Run the deterministic integrity tests and a live download/install smoke before merging:
+
+   ```bash
+   pnpm vitest run tests/unit/repository/mcp-publisher-integrity.test.ts
+   OS=Linux
+   ARCH=x86_64
+   ENV_FILE="$(mktemp)"
+   node scripts/install-mcp-publisher.mjs resolve \
+     --policy config/mcp-publisher-integrity.json \
+     --os "$OS" --arch "$ARCH" --github-env "$ENV_FILE"
+   set -a; . "$ENV_FILE"; set +a
+   curl --fail --location --proto '=https' --tlsv1.2 \
+     --output "$MCP_PUBLISHER_ASSET" "$MCP_PUBLISHER_ARCHIVE_URL"
+   curl --fail --location --proto '=https' --tlsv1.2 \
+     --output "$MCP_PUBLISHER_CHECKSUMS_ASSET" "$MCP_PUBLISHER_CHECKSUMS_URL"
+   node scripts/install-mcp-publisher.mjs install \
+     --policy config/mcp-publisher-integrity.json \
+     --os "$OS" --arch "$ARCH" \
+     --archive "$MCP_PUBLISHER_ASSET" \
+     --checksums "$MCP_PUBLISHER_CHECKSUMS_ASSET" \
+     --destination .
+   ./mcp-publisher --version
+   ```
+
+The installer verifies the pinned checksum-manifest digest, the exact official manifest entry, and the downloaded archive digest before listing or extracting the archive. GitHub OIDC authentication remains in the later `./mcp-publisher login github-oidc` publication step.
+
 For the complete partial-publication, registry, credential, branch-protection, and ownership-transfer procedures, follow [Solo-maintainer continuity and release recovery](SOLO_MAINTAINER_RECOVERY.md).
 
 ## Verifying Release Safety
