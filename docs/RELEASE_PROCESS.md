@@ -67,6 +67,11 @@ after runtime and dependency installation and before the remaining quality gates
 under the configured compatibility-sensitive paths makes older evidence stale and blocks both stable
 and prerelease publication until a new disposable-project live run is recorded.
 
+An `unavailable` result is also blocking. It means the candidate cannot be tied safely to Git history
+or valid compatibility evidence; release automation must not reinterpret it as current. Publication
+therefore requires a complete Git checkout even though archive-style source snapshots remain valid
+for ordinary build and test verification.
+
 Both channels must pass:
 
 - supported Node.js and pnpm runtime preflight;
