@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "repository": "modelcontextprotocol/registry",
+  "version": "v1.7.9",
+  "checksumManifest": {
+    "asset": "registry_1.7.9_checksums.txt",
+    "sha256": "e84c4329507f205b111b35a9b30f330945ef5c329648a65260f15d69fcdbf94d",
+    "sigstoreBundle": "registry_1.7.9_checksums.txt.sigstore.json",
+    "sigstoreBundleSha256": "201400a9a382f0225b7f1ce514348f7a4decf9c88352d7845600216fee66eed6"
+  },
+  "assets": {
+    "linux-amd64": {
+      "asset": "mcp-publisher_linux_amd64.tar.gz",
+      "sha256": "ab128162b0616090b47cf245afe0a23f3ef08936fdce19074f5ba0a4469281ac",
+      "binary": "mcp-publisher"
+    },
+    "linux-arm64": {
+      "asset": "mcp-publisher_linux_arm64.tar.gz",
+      "sha256": "04f5199b3deef8e6fc4d6ed98c56a74f799def53edca3fe6d4862ecd4397c172",
+      "binary": "mcp-publisher"
+    }
+  }
+}

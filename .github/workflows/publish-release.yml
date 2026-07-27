@@ -128,8 +128,14 @@ jobs:
           set -euo pipefail
           RELEASE_VERIFIER_ROOT="$RUNNER_TEMP/easyeda-release-verifier"
           echo "RELEASE_VERIFIER_ROOT=$RELEASE_VERIFIER_ROOT" >> "$GITHUB_ENV"
-          mkdir -p "$RELEASE_VERIFIER_ROOT/scripts" "$RELEASE_VERIFIER_ROOT/src/release"
+          mkdir -p \
+            "$RELEASE_VERIFIER_ROOT/config" \
+            "$RELEASE_VERIFIER_ROOT/scripts" \
+            "$RELEASE_VERIFIER_ROOT/src/release"
           cp scripts/verify-published-release.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/install-mcp-publisher.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/mcp-publisher-integrity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp config/mcp-publisher-integrity.json "$RELEASE_VERIFIER_ROOT/config/"
           cp src/release/published-release-verifier.ts "$RELEASE_VERIFIER_ROOT/src/release/"
 
       - name: Fetch publication target
@@ -284,18 +290,30 @@ jobs:
           gh release upload "$RELEASE_TAG" easyeda-bridge-extension.eext --clobber
           gh release upload "$RELEASE_TAG" sbom.json --clobber
 
-      - name: Install mcp-publisher
+      - name: Resolve pinned mcp-publisher artifact
         if: env.RELEASE_CHANNEL == 'stable'
         run: |
-          MCP_PUBLISHER_VERSION="v1.7.9"
-          OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-          ARCH="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
-          ASSET="mcp-publisher_${OS}_${ARCH}.tar.gz"
-          BASE="https://github.com/modelcontextprotocol/registry/releases/download"
+          node "$RELEASE_VERIFIER_ROOT/scripts/install-mcp-publisher.mjs" resolve \
+            --policy "$RELEASE_VERIFIER_ROOT/config/mcp-publisher-integrity.json" \
+            --os "$(uname -s)" \
+            --arch "$(uname -m)" \
+            --github-env "$GITHUB_ENV"
+
+      - name: Install verified mcp-publisher
+        if: env.RELEASE_CHANNEL == 'stable'
+        run: |
+          set -euo pipefail
           curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-            --output "$ASSET" "${BASE}/${MCP_PUBLISHER_VERSION}/${ASSET}"
-          tar xzf mcp-publisher_*.tar.gz mcp-publisher
-          chmod +x mcp-publisher
+            --output "$MCP_PUBLISHER_ASSET" "$MCP_PUBLISHER_ARCHIVE_URL"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --output "$MCP_PUBLISHER_CHECKSUMS_ASSET" "$MCP_PUBLISHER_CHECKSUMS_URL"
+          node "$RELEASE_VERIFIER_ROOT/scripts/install-mcp-publisher.mjs" install \
+            --policy "$RELEASE_VERIFIER_ROOT/config/mcp-publisher-integrity.json" \
+            --os "$(uname -s)" \
+            --arch "$(uname -m)" \
+            --archive "$MCP_PUBLISHER_ASSET" \
+            --checksums "$MCP_PUBLISHER_CHECKSUMS_ASSET" \
+            --destination .
 
       - name: Publish to MCP Registry
         if: env.RELEASE_CHANNEL == 'stable'
