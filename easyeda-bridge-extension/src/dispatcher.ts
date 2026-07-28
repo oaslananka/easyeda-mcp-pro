@@ -16,6 +16,10 @@ import {
 } from './api-introspection.js';
 import { createBinaryResultNormalizer } from './binary-result-policy.js';
 import {
+  createDispatcherDomainRouter,
+  type DispatcherDomainRouter,
+} from './dispatcher-domain-router.js';
+import {
   createBoardInspectionOperations,
   type BoardInspectionOperations,
 } from './board-inspection.js';
@@ -139,6 +143,7 @@ let callAllowedApi: ApiRuntime['callAllowedApi'];
 let boardInspection: BoardInspectionOperations;
 let canvasOperations: CanvasOperations;
 let designRuleCheckOperations: DesignRuleCheckOperations;
+let domainRouter: DispatcherDomainRouter;
 let exportOperations: ExportOperations;
 let pcbMutationOperations: PcbMutationOperations;
 let pcbReadOperations: PcbReadOperations;
@@ -1528,13 +1533,10 @@ async function findFloatingPinsApi(): Promise<{
 }
 
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  const domainResult = await domainRouter.tryDispatch(method, params);
+  if (domainResult.handled) return domainResult.value;
+
   switch (method) {
-    case 'project.open':
-      return projectOperations.open(params);
-    case 'project.save':
-      return projectOperations.save(params);
-    case 'project.export':
-      return projectOperations.export(params);
     case 'schematic.listNets':
       return listNetsApi();
     case 'schematic.getNetDetail': {
@@ -2093,18 +2095,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const result = await fn(edaGlobal);
       return { result: normalizeValue(result, 5) };
     }
-    case 'board.listLayers':
-      return boardInspection.listLayers();
-    case 'board.getStackup':
-      return boardInspection.getStackup();
-    case 'board.getDimensions':
-      return boardInspection.getDimensions();
-    case 'board.getFeatures':
-      return boardInspection.getFeatures();
-    case 'board.exportGerbers':
-      return exportOperations.exportGerbers(params);
-    case 'pcb.exportRouteContext':
-      return exportOperations.exportRouteContext(params);
     case 'system.getStatus': {
       const globals: Record<string, unknown> = {};
       const edaObj = tk.getEda();
@@ -2287,58 +2277,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       return [];
     case 'inventory.getPrice':
       return null;
-    case 'design.ruleCheck':
-      return designRuleCheckOperations.runRuleCheck();
-    case 'design.erc':
-      return designRuleCheckOperations.runErc();
-    case 'design.drc':
-      return designRuleCheckOperations.runDrc();
-    case 'export.pickPlace':
-      return exportOperations.exportPickPlace(params);
-    case 'export.pdf':
-      return exportOperations.exportPdf(params);
-    case 'export.netlist':
-      return exportOperations.exportNetlist(params);
-    case 'canvas.capture':
-      return canvasOperations.capture(params);
-    case 'canvas.captureRegion':
-      return canvasOperations.captureRegion(params);
-    case 'canvas.locate':
-      return canvasOperations.locate(params);
-    case 'library.getDeviceByLcscId': {
-      const lcscId = String(params.lcscId ?? '');
-      const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
-      return callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
-    }
-    case 'pcb.addTrack':
-      return pcbWriteOperations.addTrack(params);
-    case 'pcb.addText':
-      return pcbWriteOperations.addText(params);
-    case 'pcb.addSilkscreenLine':
-      return pcbWriteOperations.addSilkscreenLine(params);
-    case 'pcb.addVia':
-      return pcbWriteOperations.addVia(params);
-    case 'pcb.addZone':
-      return pcbMutationOperations.addZone(params);
-    case 'pcb.deleteComponent':
-      return pcbMutationOperations.deleteComponents(params);
-    case 'pcb.modifyComponent':
-      return pcbMutationOperations.modifyComponent(params);
-    case 'pcb.listComponents':
-      return pcbReadOperations.listComponents(
-        typeof params.limit === 'number' ? params.limit : undefined,
-        typeof params.offset === 'number' ? params.offset : 0,
-      );
-    case 'pcb.listTracks':
-      return pcbReadOperations.listTracks(
-        typeof params.limit === 'number' ? params.limit : undefined,
-        typeof params.offset === 'number' ? params.offset : 0,
-      );
-    case 'pcb.listVias':
-      return pcbReadOperations.listVias(
-        typeof params.limit === 'number' ? params.limit : undefined,
-        typeof params.offset === 'number' ? params.offset : 0,
-      );
     default:
       throw newBridgeError(
         'METHOD_NOT_ALLOWED',
@@ -2417,6 +2355,17 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     setCachedTextAlignMode: (primitiveId, alignMode) =>
       textAlignModeCache.set(primitiveId, alignMode),
     deleteCachedTextAlignMode: (primitiveId) => textAlignModeCache.delete(primitiveId),
+  });
+  domainRouter = createDispatcherDomainRouter({
+    projectOperations,
+    boardInspection,
+    exportOperations,
+    designRuleCheckOperations,
+    canvasOperations,
+    pcbWriteOperations,
+    pcbMutationOperations,
+    pcbReadOperations,
+    callFirst,
   });
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);
