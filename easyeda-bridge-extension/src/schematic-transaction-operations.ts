@@ -1,4 +1,5 @@
 import type { ApiRuntime } from './api-runtime.js';
+import { createSchematicSnapshotRecreator } from './schematic-snapshot-recreation.js';
 import { isRecord } from './utils.js';
 
 export type PublicTextAlignMode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
@@ -219,6 +220,11 @@ export function createSchematicTransactionOperations(
     asPublicTextAlignMode,
     requirePublicTextAlignMode,
   } = dependencies;
+  const snapshotRecreator = createSchematicSnapshotRecreator({
+    callFirst,
+    createBridgeError: newBridgeError,
+    requirePublicTextAlignMode,
+  });
 
   function readTextState(text: TextPrimitiveRead, key: string): unknown {
     const publicValue = safeGetState(text.publicCurrent, key);
@@ -770,104 +776,12 @@ export function createSchematicTransactionOperations(
     return { success: notFound.length === 0, deleted, notFound };
   }
 
-  function requiredSnapshotNumber(property: Record<string, unknown>, key: string): number {
-    const value = property[key];
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      throw newBridgeError(
-        'INVALID_PARAMS',
-        `Snapshot property ${key} must be a finite number`,
-        'Pass an unmodified snapshot returned by schematic.getPrimitiveSnapshot.',
-      );
-    }
-    return value;
-  }
-
   async function recreateSchematicPrimitiveSnapshot(
     input: unknown,
   ): Promise<{ primitiveId: string; snapshot: SchematicPrimitiveSnapshot }> {
     const snapshot = parseSchematicPrimitiveSnapshot(input);
     const before = new Set((await listSchematicPrimitiveIds(snapshot.primitiveKind)).primitiveIds);
-    const property = snapshot.property;
-    let result: unknown;
-    switch (snapshot.primitiveKind) {
-      case 'wire':
-        result = await callFirst(
-          ['SCH_PrimitiveWire.create', 'sch_PrimitiveWire.create'],
-          property.line,
-          property.net,
-          property.color,
-          property.lineWidth,
-          property.lineType,
-        );
-        break;
-      case 'text': {
-        const rawY = requiredSnapshotNumber(property, 'y');
-        result = await callFirst(
-          ['SCH_PrimitiveText.create', 'sch_PrimitiveText.create'],
-          requiredSnapshotNumber(property, 'x'),
-          -rawY,
-          property.content,
-          property.rotation ?? 0,
-          property.color ?? '#000000',
-          property.fontName ?? 'Arial',
-          property.fontSize ?? 20,
-          property.bold ?? false,
-          property.italic ?? false,
-          property.underline ?? false,
-          requirePublicTextAlignMode(property.alignMode, 'snapshot.property.alignMode'),
-        );
-        break;
-      }
-      case 'rectangle': {
-        const rawY = requiredSnapshotNumber(property, 'y');
-        result = await callFirst(
-          ['SCH_PrimitiveRectangle.create', 'sch_PrimitiveRectangle.create'],
-          requiredSnapshotNumber(property, 'x'),
-          -rawY,
-          requiredSnapshotNumber(property, 'width'),
-          requiredSnapshotNumber(property, 'height'),
-          property.cornerRadius ?? 0,
-          property.rotation ?? 0,
-          property.color ?? '#000000',
-          property.fillColor ?? 'none',
-          property.lineWidth ?? 1,
-          property.lineType ?? 0,
-          property.fillStyle ?? 'none',
-        );
-        break;
-      }
-      case 'circle':
-        result = await callFirst(
-          ['SCH_PrimitiveCircle.create', 'sch_PrimitiveCircle.create'],
-          requiredSnapshotNumber(property, 'centerX'),
-          requiredSnapshotNumber(property, 'centerY'),
-          requiredSnapshotNumber(property, 'radius'),
-          property.color ?? '#000000',
-          property.fillColor ?? 'none',
-          property.lineWidth ?? 1,
-          property.lineType ?? 0,
-          property.fillStyle ?? 'none',
-        );
-        break;
-      case 'polygon':
-        result = await callFirst(
-          ['SCH_PrimitivePolygon.create', 'sch_PrimitivePolygon.create'],
-          property.line,
-          property.color ?? '#000000',
-          property.fillColor ?? 'none',
-          property.lineWidth ?? 1,
-          property.lineType ?? 0,
-        );
-        break;
-      case 'component':
-      case 'netflag':
-      case 'netport':
-        throw newBridgeError(
-          'UNSUPPORTED_RUNTIME',
-          `Delete rollback is not supported for ${snapshot.primitiveKind} primitives`,
-          'Use transaction-backed modify, or avoid deleting components/net flags/net ports until a complete creation descriptor is available.',
-        );
-    }
+    const result = await snapshotRecreator.create(snapshot);
 
     let primitiveId = extractPrimitiveId(result);
     if (!primitiveId) {
