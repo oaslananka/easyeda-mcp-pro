@@ -481,14 +481,14 @@ For Remote Relay experiments, run `npx easyeda-mcp-pro doctor --fix` after setti
 
 ### Storage
 
-| Variable       | Default                                     | Description                                 |
-| -------------- | ------------------------------------------- | ------------------------------------------- |
-| `DATA_DIR`     | `~/.easyeda-mcp-pro`                        | Data directory (cache, database, artifacts) |
-| `SQLITE_PATH`  | `~/.easyeda-mcp-pro/easyeda-mcp-pro.sqlite` | SQLite database path                        |
-| `ARTIFACT_DIR` | `~/.easyeda-mcp-pro/artifacts`              | Artifact export directory                   |
-| `CACHE_DIR`    | `~/.easyeda-mcp-pro/cache`                  | Cache directory                             |
+| Variable       | Default                             | Description                             |
+| -------------- | ----------------------------------- | --------------------------------------- |
+| `DATA_DIR`     | `~/.easyeda-mcp-pro`                | Base directory for writable local state |
+| `SQLITE_PATH`  | `<DATA_DIR>/easyeda-mcp-pro.sqlite` | SQLite database path                    |
+| `ARTIFACT_DIR` | `<DATA_DIR>/artifacts`              | Artifact export directory               |
+| `CACHE_DIR`    | `<DATA_DIR>/cache`                  | Cache directory                         |
 
-These defaults are resolved with the operating system user home directory, not the MCP process working directory. Explicitly configured paths keep their supplied absolute or relative semantics.
+Storage paths are resolved in two stages. `DATA_DIR` is resolved first; each subordinate path is then derived from it with the current operating system's native path separator unless that variable was explicitly supplied. Setting only `DATA_DIR` therefore relocates the default database, artifact, and cache paths together. Explicit overrides are applied independently and retain their supplied absolute or relative semantics; relative paths remain relative to the MCP process working directory. Changing these settings does not migrate existing data automatically.
 
 ### Supplier integration
 

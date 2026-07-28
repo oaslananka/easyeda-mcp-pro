@@ -369,14 +369,16 @@ Every unsafe configuration override has a safe default. The following table docu
 
 ## 8. Data at Rest
 
-| Data Type           | Location                                                            | Protection                                      |
-| :------------------ | :------------------------------------------------------------------ | :---------------------------------------------- |
-| Configuration       | `.env` file                                                         | File system permissions; never committed to git |
-| SQLite database     | `SQLITE_PATH` (default `~/.easyeda-mcp-pro/easyeda-mcp-pro.sqlite`) | File system permissions                         |
-| Artifacts (exports) | `ARTIFACT_DIR` (default `~/.easyeda-mcp-pro/artifacts/`)            | Path traversal validation at the tool level     |
-| Cache               | `CACHE_DIR` (default `~/.easyeda-mcp-pro/cache/`)                   | File system permissions                         |
+| Data Type           | Location                                                    | Protection                                      |
+| :------------------ | :---------------------------------------------------------- | :---------------------------------------------- |
+| Configuration       | `.env` file                                                 | File system permissions; never committed to git |
+| SQLite database     | `SQLITE_PATH` (default `<DATA_DIR>/easyeda-mcp-pro.sqlite`) | File system permissions                         |
+| Artifacts (exports) | `ARTIFACT_DIR` (default `<DATA_DIR>/artifacts/`)            | Path traversal validation at the tool level     |
+| Cache               | `CACHE_DIR` (default `<DATA_DIR>/cache/`)                   | File system permissions                         |
 
-Path traversal protection is enforced in all export tools — artifact paths are validated against the configured `ARTIFACT_DIR` before read or write operations.
+`DATA_DIR` defaults to `~/.easyeda-mcp-pro` and is resolved before the subordinate defaults. Setting only `DATA_DIR` therefore relocates all writable state. Explicit subordinate overrides remain independent, including relative paths, and changing the configuration does not migrate existing files.
+
+Path traversal protection is enforced in all export tools — artifact paths are validated against the resolved `ARTIFACT_DIR` before read or write operations, whether that directory was derived from `DATA_DIR` or explicitly configured.
 
 ---
 
@@ -550,7 +552,7 @@ Path traversal protection is enforced in all export tools — artifact paths are
 
 ### 11.3 Handling Generated Design & Export Files
 
-- [ ] Set `ARTIFACT_DIR` to a dedicated directory (default `~/.easyeda-mcp-pro/artifacts/`).
+- [ ] Set `DATA_DIR` or `ARTIFACT_DIR` to a dedicated location (`ARTIFACT_DIR` defaults to `<DATA_DIR>/artifacts/`).
 - [ ] Verify that export tools write to the artifact directory.
 - [ ] Verify path traversal protection: a tool call with `../../../etc/passwd` should be rejected.
 - [ ] Clean up the artifact directory periodically (exports are not auto-deleted).

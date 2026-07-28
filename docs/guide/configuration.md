@@ -8,6 +8,26 @@ Boolean environment variables accept only `true`, `false`, `1`, or `0`. Text mat
 
 ---
 
+## Storage paths
+
+`DATA_DIR` is the base for writable local state. When it is unset, the server uses `~/.easyeda-mcp-pro`. The server resolves `DATA_DIR` first and derives any unset subordinate paths from it:
+
+| Variable       | Derived default                     |
+| -------------- | ----------------------------------- |
+| `SQLITE_PATH`  | `<DATA_DIR>/easyeda-mcp-pro.sqlite` |
+| `ARTIFACT_DIR` | `<DATA_DIR>/artifacts`              |
+| `CACHE_DIR`    | `<DATA_DIR>/cache`                  |
+
+Setting only the base directory relocates all three defaults:
+
+```ini
+DATA_DIR=/srv/easyeda-mcp-pro
+```
+
+This resolves the database to `/srv/easyeda-mcp-pro/easyeda-mcp-pro.sqlite`, artifacts to `/srv/easyeda-mcp-pro/artifacts`, and cache files to `/srv/easyeda-mcp-pro/cache`. Native separators are used on Windows.
+
+Each subordinate variable remains an independent override. Leave it unset to inherit from `DATA_DIR`, or set it explicitly when one path needs a different location. Explicit relative values remain relative to the MCP process working directory and are not converted to absolute paths. Changing path settings does not move existing data; migrate or remove old state manually after stopping the server.
+
 ---
 
 ## Tool Profiles
