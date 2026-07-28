@@ -97,6 +97,21 @@ describe('MouserClient', () => {
       );
     });
 
+    it('routes requests through MOUSER_API_BASE_URL', async () => {
+      requestMock.mockResolvedValueOnce(jsonResponse(200, { SearchResults: { Parts: [] } }));
+      const config = EnvSchema.parse({
+        ...createEnabledConfig(),
+        MOUSER_API_BASE_URL: 'https://mouser-proxy.example.test/root/',
+      });
+      const client = new MouserClient(config);
+
+      await client.searchByKeyword('resistor');
+
+      expect(requestMock.mock.calls[0]?.[0]).toBe(
+        'https://mouser-proxy.example.test/root/api/v1/search/keyword?apiKey=test-api-key',
+      );
+    });
+
     it('parses search-by-part-number results', async () => {
       requestMock.mockResolvedValueOnce(
         jsonResponse(200, {

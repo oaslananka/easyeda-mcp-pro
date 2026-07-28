@@ -465,19 +465,18 @@ For Remote Relay experiments, run `npx easyeda-mcp-pro doctor --fix` after setti
 
 ### Bridge (EasyEDA Pro connection)
 
-| Variable                        | Default       | Description                                                              |
-| ------------------------------- | ------------- | ------------------------------------------------------------------------ |
-| `BRIDGE_HOST`                   | `127.0.0.1`   | Bridge WebSocket host                                                    |
-| `BRIDGE_PORT`                   | `49620`       | Primary bridge port                                                      |
-| `BRIDGE_PORT_SCAN`              | `49620-49629` | Port scan spec (comma/range)                                             |
-| `BRIDGE_TIMEOUT_MS`             | `15000`       | Bridge call timeout (ms)                                                 |
-| `BRIDGE_HEARTBEAT_MS`           | `10000`       | Heartbeat interval (ms)                                                  |
-| `BRIDGE_RECONNECT_MAX_ATTEMPTS` | `0`           | Max reconnect attempts (`0` = infinite)                                  |
-| `BRIDGE_WAIT_FOR_EDA_MS`        | `30000`       | Wait for EasyEDA Pro on startup (ms)                                     |
-| `BRIDGE_MAX_PAYLOAD_SIZE`       | `1048576`     | Max bridge payload (bytes, default 1 MiB)                                |
-| `BRIDGE_TOKEN`                  | `''`          | Session token for extension auth                                         |
-| `BRIDGE_RAW_EXEC_ENABLED`       | `false`       | First explicit gate for raw EasyEDA runtime JavaScript execution         |
-| `MCP_RAW_EXEC_EXPERIMENTAL`     | `false`       | Second experimental gate required before `easyeda_execute` is registered |
+| Variable                    | Default       | Description                                                              |
+| --------------------------- | ------------- | ------------------------------------------------------------------------ |
+| `BRIDGE_HOST`               | `127.0.0.1`   | Bridge WebSocket host                                                    |
+| `BRIDGE_PORT`               | `49620`       | Primary bridge port                                                      |
+| `BRIDGE_PORT_SCAN`          | `49620-49629` | Port scan spec (comma/range)                                             |
+| `BRIDGE_TIMEOUT_MS`         | `15000`       | Bridge call timeout (ms)                                                 |
+| `BRIDGE_HEARTBEAT_MS`       | `10000`       | Heartbeat interval (ms)                                                  |
+| `BRIDGE_WAIT_FOR_EDA_MS`    | `30000`       | Wait for EasyEDA Pro on startup (ms)                                     |
+| `BRIDGE_MAX_PAYLOAD_SIZE`   | `1048576`     | Max bridge payload (bytes, default 1 MiB)                                |
+| `BRIDGE_TOKEN`              | `''`          | Session token for extension auth                                         |
+| `BRIDGE_RAW_EXEC_ENABLED`   | `false`       | First explicit gate for raw EasyEDA runtime JavaScript execution         |
+| `MCP_RAW_EXEC_EXPERIMENTAL` | `false`       | Second experimental gate required before `easyeda_execute` is registered |
 
 ### Storage
 

@@ -67,7 +67,6 @@ const EnvObjectSchema = z.object({
   BRIDGE_PORT_SCAN: z.string().default('49620-49629'),
   BRIDGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
   BRIDGE_HEARTBEAT_MS: z.coerce.number().int().min(1000).max(60000).default(10000),
-  BRIDGE_RECONNECT_MAX_ATTEMPTS: z.coerce.number().int().min(0).max(100).default(0),
   BRIDGE_WAIT_FOR_EDA_MS: z.coerce.number().int().min(0).max(60000).default(30000),
   BRIDGE_MAX_PAYLOAD_SIZE: z.coerce.number().int().min(1024).max(10485760).default(1048576),
   BRIDGE_TOKEN: z.string().default(''),
@@ -98,12 +97,10 @@ const EnvObjectSchema = z.object({
   JLCPCB_CLIENT_SECRET: z.string().default(''),
   JLCPCB_API_BASE_URL: z.string().default('https://api.jlcpcb.com'),
   JLCPCB_ENABLE_ORDERING: envBoolean().default(false),
-  JLCPCB_DEFAULT_CURRENCY: z.enum(['USD', 'CNY']).default('USD'),
 
   JLCSEARCH_ENABLED: envBoolean().default(true),
   JLCSEARCH_BASE_URL: z.string().default('https://jlcsearch.tscircuit.com'),
   LCSC_API_KEY: z.string().default(''),
-  LCSC_API_SECRET: z.string().default(''),
 
   KEYLESS_SOURCING_ENABLED: envBoolean().default(true),
   SOURCING_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(604800).default(21600),

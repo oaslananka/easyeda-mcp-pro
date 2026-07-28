@@ -83,11 +83,30 @@ describe('MCP Registry environment metadata', () => {
       'DIGIKEY_CLIENT_SECRET',
       'JLCPCB_CLIENT_SECRET',
       'LCSC_API_KEY',
-      'LCSC_API_SECRET',
       'MOUSER_API_KEY',
     ]);
     expect(byName.get('DIGIKEY_CLIENT_ID')).not.toHaveProperty('isSecret');
     expect(byName.get('JLCPCB_CLIENT_ID')).not.toHaveProperty('isSecret');
+  });
+
+  it('does not publish settings removed because they never affected runtime behavior', () => {
+    const removedNames = [
+      'BRIDGE_RECONNECT_MAX_ATTEMPTS',
+      'JLCPCB_DEFAULT_CURRENCY',
+      'LCSC_API_SECRET',
+    ];
+    const publicNames = metadata.variables.map((variable) => variable.name);
+    const excludedNames = metadata.excludedVariables.map((variable) => variable.name);
+    const generatedNames = buildRegistryEnvironmentVariables(metadata, runtimeDefaults).map(
+      (variable) => variable.name,
+    );
+
+    for (const name of removedNames) {
+      expect(runtimeNames, name).not.toContain(name);
+      expect(publicNames, name).not.toContain(name);
+      expect(excludedNames, name).not.toContain(name);
+      expect(generatedNames, name).not.toContain(name);
+    }
   });
 
   it('fails closed when metadata is duplicated, missing, mistyped, or unjustified', () => {

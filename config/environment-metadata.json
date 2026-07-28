@@ -185,13 +185,6 @@
       "status": "active"
     },
     {
-      "name": "BRIDGE_RECONNECT_MAX_ATTEMPTS",
-      "description": "Max reconnect attempts (0 = infinite)",
-      "format": "number",
-      "defaultSource": "runtime",
-      "status": "active"
-    },
-    {
       "name": "BRIDGE_WAIT_FOR_EDA_MS",
       "description": "How long to wait for EasyEDA Pro to become available on startup (ms)",
       "format": "number",
@@ -341,14 +334,6 @@
       "status": "active"
     },
     {
-      "name": "JLCPCB_DEFAULT_CURRENCY",
-      "description": "JLCPCB default currency (USD, CNY)",
-      "format": "string",
-      "defaultSource": "runtime",
-      "status": "active",
-      "choices": ["USD", "CNY"]
-    },
-    {
       "name": "JLCSEARCH_ENABLED",
       "description": "Enable LCSC component search",
       "format": "boolean",
@@ -365,14 +350,6 @@
     {
       "name": "LCSC_API_KEY",
       "description": "LCSC API key",
-      "format": "string",
-      "defaultSource": "runtime",
-      "status": "active",
-      "isSecret": true
-    },
-    {
-      "name": "LCSC_API_SECRET",
-      "description": "LCSC API secret",
       "format": "string",
       "defaultSource": "runtime",
       "status": "active",

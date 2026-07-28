@@ -140,6 +140,21 @@ describe('LcscClient', () => {
       );
     });
 
+    it('routes category requests through JLCSEARCH_BASE_URL', async () => {
+      requestMock.mockResolvedValueOnce(jsonResponse(200, { resistors: [] }));
+      const config = EnvSchema.parse({
+        ...createTestConfig(),
+        JLCSEARCH_BASE_URL: 'https://catalog-proxy.example.test/api/',
+      });
+      const client = new LcscClient(config);
+
+      await client.searchCategory('resistors');
+
+      expect(requestMock.mock.calls[0]?.[0]).toBe(
+        'https://catalog-proxy.example.test/api/resistors/list.json',
+      );
+    });
+
     it('returns empty results for an unrecognized category without hitting the network', async () => {
       const client = new LcscClient(createTestConfig());
       // @ts-expect-error -- intentionally passing an unsupported category

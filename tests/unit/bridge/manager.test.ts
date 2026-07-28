@@ -753,6 +753,30 @@ describe('BridgeManager - malformed messages', () => {
     manager.disconnect('test complete');
   });
 
+  it('uses BRIDGE_HEARTBEAT_MS for the connected heartbeat schedule', async () => {
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const port = await getFreePort();
+    const config = createTestConfig({
+      BRIDGE_HOST: '127.0.0.1',
+      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_HEARTBEAT_MS: 1_234,
+    });
+    const manager = new BridgeManager(config);
+
+    try {
+      await manager.connect();
+      const socket = await openSocket(port);
+      sendHandshake(socket);
+      await waitForMessage(socket);
+
+      expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 1_234);
+      socket.close();
+    } finally {
+      manager.disconnect('test complete');
+      intervalSpy.mockRestore();
+    }
+  });
+
   it('updates lastHeartbeatMs and emits heartbeat on a heartbeat message', async () => {
     const port = await getFreePort();
     const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });

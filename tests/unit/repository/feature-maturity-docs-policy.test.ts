@@ -12,9 +12,13 @@ const reservedNames = [
   'AI_PROVIDER',
   'AI_MODEL',
   'AI_API_KEY',
+  'AI_MAX_TOKENS',
+  'AI_TIMEOUT_MS',
   'AI_ALLOW_DESIGN_MUTATIONS',
   'OTEL_ENABLED',
+  'OTEL_SERVICE_NAME',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
+  'TRACE_SAMPLE_RATE',
 ];
 
 describe('feature maturity documentation policy', () => {
@@ -48,6 +52,45 @@ describe('feature maturity documentation policy', () => {
       const entry = entries.find((candidate) => candidate.name === name);
       expect(entry, name).toBeDefined();
       expect(entry?.description, name).toMatch(/^Reserved; currently non-functional:/);
+    }
+  });
+
+  it('keeps every reserved AI and telemetry setting explicit in public maturity docs', () => {
+    const guide = read('docs/guide/configuration.md');
+    for (const name of [
+      'AI_PROVIDER',
+      'AI_MODEL',
+      'AI_API_KEY',
+      'AI_MAX_TOKENS',
+      'AI_TIMEOUT_MS',
+      'AI_ALLOW_DESIGN_MUTATIONS',
+      'OTEL_ENABLED',
+      'OTEL_SERVICE_NAME',
+      'OTEL_EXPORTER_OTLP_ENDPOINT',
+      'TRACE_SAMPLE_RATE',
+    ]) {
+      expect(guide, name).toContain(`\`${name}\``);
+    }
+  });
+
+  it('removes misleading settings from every public configuration surface', () => {
+    const removedNames = [
+      'BRIDGE_RECONNECT_MAX_ATTEMPTS',
+      'JLCPCB_DEFAULT_CURRENCY',
+      'LCSC_API_SECRET',
+    ];
+    const surfaces = [
+      '.env.example',
+      'README.md',
+      'docs/guide/configuration.md',
+      'docs/security-architecture.md',
+      'server.json',
+    ].map((path) => [path, read(path)] as const);
+
+    for (const name of removedNames) {
+      for (const [path, content] of surfaces) {
+        expect(content, `${path}: ${name}`).not.toContain(name);
+      }
     }
   });
 
