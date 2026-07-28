@@ -332,6 +332,50 @@ describe('RemoteGateway', () => {
     });
   });
 
+  it('fails closed before issuing grants when scope, route, or approval binding is invalid', async () => {
+    const { gateway } = makeGateway();
+
+    await expect(
+      gateway.authorizeToolInvocation({
+        identity: readIdentity,
+        toolName: 'schematic_batch',
+        riskLevel: 'write',
+      }),
+    ).resolves.toMatchObject({ ok: false, status: 403, code: 'SCOPE_MISSING' });
+
+    await expect(
+      gateway.authorizeToolInvocation({
+        identity: writeIdentity,
+        toolName: 'schematic_batch',
+        riskLevel: 'write',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
+
+    const session = registerFakeExtension(gateway);
+    const pairingCode = gateway.createPairingCode({
+      identity: writeIdentity,
+      sessionId: session.sessionId,
+    });
+    expect(
+      gateway.completePairing({
+        identity: writeIdentity,
+        code: pairingCode,
+        sessionId: session.sessionId,
+      }),
+    ).toBe(true);
+
+    await expect(
+      gateway.authorizeToolInvocation({
+        identity: writeIdentity,
+        sessionId: session.sessionId,
+        toolName: 'schematic_batch',
+        riskLevel: 'write',
+        input: { operations: [] },
+        approvalId: 'missing-approval',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_NOT_APPROVED' });
+  });
+
   it('authorizes a whole MCP invocation and rejects its private grant after revocation', async () => {
     const { gateway } = makeGateway();
     const approvalRequests: Array<{ approvalId: string }> = [];
