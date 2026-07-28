@@ -1,4 +1,3 @@
-import type { ApiRuntime } from './api-runtime.js';
 import type { BoardInspectionOperations } from './board-inspection.js';
 import type { CanvasOperations } from './canvas-operations.js';
 import type { DesignRuleCheckOperations } from './design-rule-check-operations.js';
@@ -17,7 +16,6 @@ export interface DispatcherDomainRouterDependencies {
   pcbWriteOperations: PcbWriteOperations;
   pcbMutationOperations: PcbMutationOperations;
   pcbReadOperations: PcbReadOperations;
-  callFirst: ApiRuntime['callFirst'];
 }
 
 export type DispatcherDomainRouteResult = { handled: false } | { handled: true; value: unknown };
@@ -32,6 +30,11 @@ export interface DispatcherDomainRouter {
 
 type DomainMethodHandler = (params: Record<string, unknown>) => Promise<unknown>;
 
+interface DomainRoute {
+  method: string;
+  handle: DomainMethodHandler;
+}
+
 function optionalNumber(value: unknown): number | undefined {
   return typeof value === 'number' ? value : undefined;
 }
@@ -43,66 +46,103 @@ function offsetNumber(value: unknown): number {
 export function createDispatcherDomainRouter(
   dependencies: DispatcherDomainRouterDependencies,
 ): DispatcherDomainRouter {
-  const handlers = new Map<string, DomainMethodHandler>(
-    Object.entries({
-      'board.exportGerbers': (params) => dependencies.exportOperations.exportGerbers(params),
-      'board.getDimensions': () => dependencies.boardInspection.getDimensions(),
-      'board.getFeatures': () => dependencies.boardInspection.getFeatures(),
-      'board.getStackup': () => dependencies.boardInspection.getStackup(),
-      'board.listLayers': () => dependencies.boardInspection.listLayers(),
-      'canvas.capture': (params) => dependencies.canvasOperations.capture(params),
-      'canvas.captureRegion': (params) => dependencies.canvasOperations.captureRegion(params),
-      'canvas.locate': (params) => dependencies.canvasOperations.locate(params),
-      'design.drc': () => dependencies.designRuleCheckOperations.runDrc(),
-      'design.erc': () => dependencies.designRuleCheckOperations.runErc(),
-      'design.ruleCheck': () => dependencies.designRuleCheckOperations.runRuleCheck(),
-      'export.netlist': (params) => dependencies.exportOperations.exportNetlist(params),
-      'export.pdf': (params) => dependencies.exportOperations.exportPdf(params),
-      'export.pickPlace': (params) => dependencies.exportOperations.exportPickPlace(params),
-      'library.getDeviceByLcscId': (params) => {
-        const lcscId = String(params.lcscId ?? '');
-        const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
-        return dependencies.callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
-      },
-      'pcb.addSilkscreenLine': (params) =>
-        dependencies.pcbWriteOperations.addSilkscreenLine(params),
-      'pcb.addText': (params) => dependencies.pcbWriteOperations.addText(params),
-      'pcb.addTrack': (params) => dependencies.pcbWriteOperations.addTrack(params),
-      'pcb.addVia': (params) => dependencies.pcbWriteOperations.addVia(params),
-      'pcb.addZone': (params) => dependencies.pcbMutationOperations.addZone(params),
-      'pcb.deleteComponent': (params) =>
-        dependencies.pcbMutationOperations.deleteComponents(params),
-      'pcb.exportRouteContext': (params) =>
-        dependencies.exportOperations.exportRouteContext(params),
-      'pcb.listComponents': (params) =>
+  const routes = [
+    {
+      method: 'board.exportGerbers',
+      handle: (params) => dependencies.exportOperations.exportGerbers(params),
+    },
+    { method: 'board.getDimensions', handle: () => dependencies.boardInspection.getDimensions() },
+    { method: 'board.getFeatures', handle: () => dependencies.boardInspection.getFeatures() },
+    { method: 'board.getStackup', handle: () => dependencies.boardInspection.getStackup() },
+    { method: 'board.listLayers', handle: () => dependencies.boardInspection.listLayers() },
+    { method: 'canvas.capture', handle: (params) => dependencies.canvasOperations.capture(params) },
+    {
+      method: 'canvas.captureRegion',
+      handle: (params) => dependencies.canvasOperations.captureRegion(params),
+    },
+    { method: 'canvas.locate', handle: (params) => dependencies.canvasOperations.locate(params) },
+    { method: 'design.drc', handle: () => dependencies.designRuleCheckOperations.runDrc() },
+    { method: 'design.erc', handle: () => dependencies.designRuleCheckOperations.runErc() },
+    {
+      method: 'design.ruleCheck',
+      handle: () => dependencies.designRuleCheckOperations.runRuleCheck(),
+    },
+    {
+      method: 'export.netlist',
+      handle: (params) => dependencies.exportOperations.exportNetlist(params),
+    },
+    { method: 'export.pdf', handle: (params) => dependencies.exportOperations.exportPdf(params) },
+    {
+      method: 'export.pickPlace',
+      handle: (params) => dependencies.exportOperations.exportPickPlace(params),
+    },
+    {
+      method: 'pcb.addSilkscreenLine',
+      handle: (params) => dependencies.pcbWriteOperations.addSilkscreenLine(params),
+    },
+    { method: 'pcb.addText', handle: (params) => dependencies.pcbWriteOperations.addText(params) },
+    {
+      method: 'pcb.addTrack',
+      handle: (params) => dependencies.pcbWriteOperations.addTrack(params),
+    },
+    { method: 'pcb.addVia', handle: (params) => dependencies.pcbWriteOperations.addVia(params) },
+    {
+      method: 'pcb.addZone',
+      handle: (params) => dependencies.pcbMutationOperations.addZone(params),
+    },
+    {
+      method: 'pcb.deleteComponent',
+      handle: (params) => dependencies.pcbMutationOperations.deleteComponents(params),
+    },
+    {
+      method: 'pcb.exportRouteContext',
+      handle: (params) => dependencies.exportOperations.exportRouteContext(params),
+    },
+    {
+      method: 'pcb.listComponents',
+      handle: (params) =>
         dependencies.pcbReadOperations.listComponents(
           optionalNumber(params.limit),
           offsetNumber(params.offset),
         ),
-      'pcb.listTracks': (params) =>
+    },
+    {
+      method: 'pcb.listTracks',
+      handle: (params) =>
         dependencies.pcbReadOperations.listTracks(
           optionalNumber(params.limit),
           offsetNumber(params.offset),
         ),
-      'pcb.listVias': (params) =>
+    },
+    {
+      method: 'pcb.listVias',
+      handle: (params) =>
         dependencies.pcbReadOperations.listVias(
           optionalNumber(params.limit),
           offsetNumber(params.offset),
         ),
-      'pcb.modifyComponent': (params) => dependencies.pcbMutationOperations.modifyComponent(params),
-      'project.export': (params) => dependencies.projectOperations.export(params),
-      'project.open': (params) => dependencies.projectOperations.open(params),
-      'project.save': (params) => dependencies.projectOperations.save(params),
-    } satisfies Record<string, DomainMethodHandler>),
+    },
+    {
+      method: 'pcb.modifyComponent',
+      handle: (params) => dependencies.pcbMutationOperations.modifyComponent(params),
+    },
+    {
+      method: 'project.export',
+      handle: (params) => dependencies.projectOperations.export(params),
+    },
+    { method: 'project.open', handle: (params) => dependencies.projectOperations.open(params) },
+    { method: 'project.save', handle: (params) => dependencies.projectOperations.save(params) },
+  ] satisfies DomainRoute[];
+  const methodList = Object.freeze(
+    routes.map((route) => route.method).sort((left, right) => left.localeCompare(right)),
   );
-  const methodList = Object.freeze([...handlers.keys()].sort());
 
   return {
     methodList,
     async tryDispatch(method, params = {}) {
-      const handler = handlers.get(method);
-      if (!handler) return { handled: false };
-      return { handled: true, value: await handler(params) };
+      const route = routes.find((candidate) => candidate.method === method);
+      if (!route) return { handled: false };
+      return { handled: true, value: await route.handle(params) };
     },
   };
 }

@@ -88,7 +88,6 @@ function createDependencies() {
       })),
       deletePrimitives: vi.fn(async () => ({ deleted: [], notFound: [] })),
     },
-    callFirst: vi.fn(async (paths: string[], ...args: unknown[]) => ({ paths, args })),
   };
 }
 
@@ -107,7 +106,6 @@ const expectedMethods = [
   'export.netlist',
   'export.pdf',
   'export.pickPlace',
-  'library.getDeviceByLcscId',
   'pcb.addSilkscreenLine',
   'pcb.addText',
   'pcb.addTrack',
@@ -243,7 +241,7 @@ describe('createDispatcherDomainRouter', () => {
     });
   });
 
-  it('preserves PCB pagination coercion and library lookup arguments', async () => {
+  it('preserves PCB pagination coercion', async () => {
     const dependencies = createDependencies();
     const router = createDispatcherDomainRouter(dependencies);
 
@@ -262,18 +260,6 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('pcb.listVias', { offset: 3 })).resolves.toEqual({
       handled: true,
       value: { method: 'vias', limit: undefined, offset: 3 },
-    });
-    await expect(
-      router.tryDispatch('library.getDeviceByLcscId', {
-        lcscId: 123,
-        libraryUuid: 'library-1',
-      }),
-    ).resolves.toEqual({
-      handled: true,
-      value: {
-        paths: ['LIB_Device.getByLcscIds'],
-        args: [['123'], 'library-1', false],
-      },
     });
   });
 

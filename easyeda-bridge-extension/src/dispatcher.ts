@@ -2095,6 +2095,11 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const result = await fn(edaGlobal);
       return { result: normalizeValue(result, 5) };
     }
+    case 'library.getDeviceByLcscId': {
+      const lcscId = String(params.lcscId ?? '');
+      const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
+      return callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
+    }
     case 'system.getStatus': {
       const globals: Record<string, unknown> = {};
       const edaObj = tk.getEda();
@@ -2365,7 +2370,6 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     pcbWriteOperations,
     pcbMutationOperations,
     pcbReadOperations,
-    callFirst,
   });
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);
