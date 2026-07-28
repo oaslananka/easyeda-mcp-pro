@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { EnvSchema, getEnvironmentVariableNames, type EnvConfig } from '../../../src/config/env.js';
+import { EnvSchema, getEnvironmentVariableNames } from '../../../src/config/env.js';
 import {
   applyRegistryEnvironmentVariables,
   buildRegistryEnvironmentVariables,
