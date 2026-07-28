@@ -1,7 +1,12 @@
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, posix, win32 } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EnvSchema, detectUnknownEnvVars, validateSafeConfig } from '../../../src/config/env.js';
+import {
+  EnvSchema,
+  deriveStoragePaths,
+  detectUnknownEnvVars,
+  validateSafeConfig,
+} from '../../../src/config/env.js';
 
 describe('EnvSchema', () => {
   it('should use defaults for empty input', () => {
@@ -34,6 +39,69 @@ describe('EnvSchema', () => {
       expect(isAbsolute(path)).toBe(true);
     }
   });
+
+  it('should derive writable path defaults from DATA_DIR', () => {
+    const dataDir = join(homedir(), 'custom-easyeda-state');
+    const result = EnvSchema.parse({ DATA_DIR: dataDir });
+
+    expect(result.DATA_DIR).toBe(dataDir);
+    expect(result.SQLITE_PATH).toBe(join(dataDir, 'easyeda-mcp-pro.sqlite'));
+    expect(result.ARTIFACT_DIR).toBe(join(dataDir, 'artifacts'));
+    expect(result.CACHE_DIR).toBe(join(dataDir, 'cache'));
+  });
+
+  it('should apply subordinate path overrides independently', () => {
+    const dataDir = join(homedir(), 'custom-easyeda-state');
+    const result = EnvSchema.parse({
+      DATA_DIR: dataDir,
+      SQLITE_PATH: './database.sqlite',
+      CACHE_DIR: join(homedir(), 'shared-easyeda-cache'),
+    });
+
+    expect(result.SQLITE_PATH).toBe('./database.sqlite');
+    expect(result.ARTIFACT_DIR).toBe(join(dataDir, 'artifacts'));
+    expect(result.CACHE_DIR).toBe(join(homedir(), 'shared-easyeda-cache'));
+  });
+
+  it('should keep paths derived from a relative DATA_DIR relative', () => {
+    const result = EnvSchema.parse({ DATA_DIR: './custom-data' });
+
+    expect(isAbsolute(result.DATA_DIR)).toBe(false);
+    expect(isAbsolute(result.SQLITE_PATH)).toBe(false);
+    expect(isAbsolute(result.ARTIFACT_DIR)).toBe(false);
+    expect(isAbsolute(result.CACHE_DIR)).toBe(false);
+    expect(result.SQLITE_PATH).toBe(join('./custom-data', 'easyeda-mcp-pro.sqlite'));
+    expect(result.ARTIFACT_DIR).toBe(join('./custom-data', 'artifacts'));
+    expect(result.CACHE_DIR).toBe(join('./custom-data', 'cache'));
+  });
+
+  it.each([
+    {
+      platform: 'POSIX',
+      dataDir: '/var/lib/easyeda-mcp-pro',
+      joinPath: posix.join,
+      expected: {
+        SQLITE_PATH: '/var/lib/easyeda-mcp-pro/easyeda-mcp-pro.sqlite',
+        ARTIFACT_DIR: '/var/lib/easyeda-mcp-pro/artifacts',
+        CACHE_DIR: '/var/lib/easyeda-mcp-pro/cache',
+      },
+    },
+    {
+      platform: 'Windows',
+      dataDir: String.raw`C:\easyeda-mcp-pro`,
+      joinPath: win32.join,
+      expected: {
+        SQLITE_PATH: String.raw`C:\easyeda-mcp-pro\easyeda-mcp-pro.sqlite`,
+        ARTIFACT_DIR: String.raw`C:\easyeda-mcp-pro\artifacts`,
+        CACHE_DIR: String.raw`C:\easyeda-mcp-pro\cache`,
+      },
+    },
+  ])(
+    'should derive $platform path defaults with native separators',
+    ({ dataDir, joinPath, expected }) => {
+      expect(deriveStoragePaths({ DATA_DIR: dataDir }, joinPath)).toMatchObject(expected);
+    },
+  );
 
   it('should preserve explicitly configured relative paths', () => {
     const result = EnvSchema.parse({

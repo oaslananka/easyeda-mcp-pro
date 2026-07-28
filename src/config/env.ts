@@ -3,9 +3,27 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 const DEFAULT_DATA_DIR = join(homedir(), '.easyeda-mcp-pro');
-const DEFAULT_SQLITE_PATH = join(DEFAULT_DATA_DIR, 'easyeda-mcp-pro.sqlite');
-const DEFAULT_ARTIFACT_DIR = join(DEFAULT_DATA_DIR, 'artifacts');
-const DEFAULT_CACHE_DIR = join(DEFAULT_DATA_DIR, 'cache');
+
+type PathJoiner = (...paths: string[]) => string;
+
+type StoragePathConfig = {
+  DATA_DIR: string;
+  SQLITE_PATH?: string;
+  ARTIFACT_DIR?: string;
+  CACHE_DIR?: string;
+};
+
+export function deriveStoragePaths<T extends StoragePathConfig>(
+  config: T,
+  joinPath: PathJoiner = join,
+): T & { SQLITE_PATH: string; ARTIFACT_DIR: string; CACHE_DIR: string } {
+  return {
+    ...config,
+    SQLITE_PATH: config.SQLITE_PATH ?? joinPath(config.DATA_DIR, 'easyeda-mcp-pro.sqlite'),
+    ARTIFACT_DIR: config.ARTIFACT_DIR ?? joinPath(config.DATA_DIR, 'artifacts'),
+    CACHE_DIR: config.CACHE_DIR ?? joinPath(config.DATA_DIR, 'cache'),
+  };
+}
 
 const STRICT_BOOLEAN_MESSAGE = 'Invalid boolean literal. Expected one of: true, false, 1, or 0.';
 
@@ -22,7 +40,7 @@ function envBoolean() {
   });
 }
 
-export const EnvSchema = z.object({
+const EnvObjectSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
   TOOL_PROFILE: z.enum(['core', 'pro', 'full', 'dev', 'experimental']).default('core'),
@@ -64,9 +82,9 @@ export const EnvSchema = z.object({
   BRIDGE_HOT_SWAP_CHUNK_BYTES: z.coerce.number().int().min(4096).max(1048576).default(65536),
 
   DATA_DIR: z.string().default(DEFAULT_DATA_DIR),
-  SQLITE_PATH: z.string().default(DEFAULT_SQLITE_PATH),
-  ARTIFACT_DIR: z.string().default(DEFAULT_ARTIFACT_DIR),
-  CACHE_DIR: z.string().default(DEFAULT_CACHE_DIR),
+  SQLITE_PATH: z.string().optional(),
+  ARTIFACT_DIR: z.string().optional(),
+  CACHE_DIR: z.string().optional(),
 
   AI_PROVIDER: z.enum(['none', 'anthropic', 'openai', 'openrouter', 'local']).default('none'),
   AI_MODEL: z.string().default(''),
@@ -114,6 +132,8 @@ export const EnvSchema = z.object({
   TRACE_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1.0),
 });
 
+export const EnvSchema = EnvObjectSchema.transform((config) => deriveStoragePaths(config));
+
 export type EnvConfig = z.infer<typeof EnvSchema>;
 
 const PROJECT_VAR_PREFIXES = [
@@ -147,7 +167,7 @@ const PROJECT_VAR_PREFIXES = [
 ];
 
 export function detectUnknownEnvVars(env: Record<string, string | undefined>): string[] {
-  const knownKeys = new Set(Object.keys(EnvSchema.shape));
+  const knownKeys = new Set(Object.keys(EnvObjectSchema.shape));
   const warnings: string[] = [];
   for (const key of Object.keys(env)) {
     if (knownKeys.has(key)) continue;

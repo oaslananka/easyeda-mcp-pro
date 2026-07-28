@@ -204,6 +204,30 @@ describe('Export Tools', () => {
     expect(result?.not_available).toBe(true);
   });
 
+  it('enforces containment against ARTIFACT_DIR derived from DATA_DIR', async () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'export-derived-data-'));
+    try {
+      const config = EnvSchema.parse({ NODE_ENV: 'test', DATA_DIR: dataDir });
+      context.config.artifactDir = config.ARTIFACT_DIR;
+
+      const tool = registry.get('easyeda_export_pick_place');
+      bridgeCall.mockResolvedValue({ base64: Buffer.from('data').toString('base64') });
+
+      const outsidePath = path.join(dataDir, 'outside-derived-artifact-dir.csv');
+      const result = await tool?.handler(context, {
+        projectId: 'proj-123',
+        format: 'csv',
+        filePath: outsidePath,
+      });
+
+      expect(result?.exported).toBe(false);
+      expect(result?.not_available).toBe(true);
+      expect(fs.existsSync(outsidePath)).toBe(false);
+    } finally {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it('easyeda_export_pdf decodes the bridge payload and writes it to the artifact directory', async () => {
     const tool = registry.get('easyeda_export_pdf');
     expect(tool).toBeDefined();
