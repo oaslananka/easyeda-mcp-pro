@@ -445,6 +445,7 @@ async function commitHotSwap(): Promise<unknown> {
   const AsyncFunction = Object.getPrototypeOf(async function () {})
     .constructor as FunctionConstructor;
   try {
+    // eslint-disable-next-line no-restricted-syntax -- the checksum-verified hot-swap path is development-only and regression-tested.
     const run = new AsyncFunction(source) as () => Promise<void>;
     await run();
   } catch (error) {
@@ -618,14 +619,13 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
 
   return new Promise<RemoteApprovalDecision>((resolve) => {
     let settled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const finish = (decision: RemoteApprovalDecision): void => {
+    const timer = setTimeout(() => finish('timeout'), Math.max(0, expiresAtMs - Date.now()));
+    function finish(decision: RemoteApprovalDecision): void {
       if (settled) return;
       settled = true;
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
       resolve(decision);
-    };
-    timer = setTimeout(() => finish('timeout'), Math.max(0, expiresAtMs - Date.now()));
+    }
 
     const project = prompt.activeProject?.projectName ?? 'current EasyEDA project';
     const summary = [

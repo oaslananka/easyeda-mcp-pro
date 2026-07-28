@@ -937,7 +937,7 @@ export function createSchematicTransactionOperations(
     }
 
     const targetKeys = new Set(oldPinPoints.map((p) => pointKey(p)));
-    let wires: unknown[] = [];
+    let wires: unknown[];
     try {
       wires = (await schWireClass.getAll()) || [];
     } catch (e) {

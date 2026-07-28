@@ -18,7 +18,6 @@ import { stableHash } from '../src/transactions/stable.ts';
 import { resetGlobalTransactionManagerForTests } from '../src/transactions/manager.ts';
 import {
   buildSchematicTransactionSmokeReport,
-  extractPrimitiveId,
   extractPrimitiveIds,
   primitiveDescriptorHash,
   sortUnknownForStableHash,

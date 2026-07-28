@@ -465,7 +465,7 @@ async function findForeignNetCollision(
   if (!netName || points.length === 0) return null;
   const schWireClass = readFirstPath<any>(['SCH_PrimitiveWire', 'sch_PrimitiveWire']);
   if (schWireClass && typeof schWireClass.getAll === 'function') {
-    let wires: unknown[] = [];
+    let wires: unknown[];
     try {
       wires = (await schWireClass.getAll()) || [];
     } catch (e) {
@@ -1139,15 +1139,14 @@ async function generateBomApi(params: any): Promise<unknown> {
   const groupBy = params.groupBy || 'value';
   const groups = new Map<string, any>();
 
+  const resolveGroupKey = (component: any): string => {
+    if (groupBy === 'lcsc') return component.lcsc || component.value;
+    if (groupBy === 'footprint') return component.footprint || 'no-footprint';
+    return component.value || 'no-value';
+  };
+
   for (const c of comps) {
-    let key = '';
-    if (groupBy === 'lcsc') {
-      key = c.lcsc || c.value;
-    } else if (groupBy === 'footprint') {
-      key = c.footprint || 'no-footprint';
-    } else {
-      key = c.value || 'no-value';
-    }
+    const key = resolveGroupKey(c);
 
     if (!groups.has(key)) {
       groups.set(key, {
@@ -1725,8 +1724,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       );
       const primitiveId = extractPrimitiveId(result);
       const resultAlignMode = asPublicTextAlignMode(safeGetState(result, 'AlignMode'));
-      if (primitiveId && (resultAlignMode ?? alignMode) !== undefined) {
-        textAlignModeCache.set(primitiveId, (resultAlignMode ?? alignMode)!);
+      const resolvedAlignMode = resultAlignMode ?? alignMode;
+      if (primitiveId && resolvedAlignMode !== undefined) {
+        textAlignModeCache.set(primitiveId, resolvedAlignMode);
       }
       return result;
     }
@@ -2088,6 +2088,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const AsyncFunction = Object.getPrototypeOf(async function () {})
         .constructor as FunctionConstructor;
       const edaGlobal = tk.getEda() ?? (globalThis as { eda?: unknown }).eda;
+      // eslint-disable-next-line no-restricted-syntax -- api.execute is double-gated and covered by raw-execution safety tests.
       const fn = new AsyncFunction('eda', code) as (eda: unknown) => Promise<unknown>;
       const result = await fn(edaGlobal);
       return { result: normalizeValue(result, 5) };

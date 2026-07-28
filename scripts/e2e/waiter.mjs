@@ -3,7 +3,6 @@ import { Socket } from 'net';
 import { setTimeout as sleep } from 'timers/promises';
 
 const SRV_TIMEOUT = 5 * 60 * 1000; // 5 min
-const POLL_INTERVAL = 5000;
 
 // Do NOT kill node here - would kill our own process
 console.log('Process started at', new Date().toISOString());
@@ -32,25 +31,6 @@ await new Promise((resolve, reject) => {
 });
 
 sock.on('data', (d) => (buf += d.toString()));
-
-async function mcpCall(method, params = {}) {
-  const id = 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  const req =
-    JSON.stringify({
-      jsonrpc: '2.0',
-      id,
-      method,
-      params: { name: method, arguments: params },
-    }) + '\n';
-
-  const prevLen = buf.length;
-  sock.write(req);
-  await sleep(800);
-
-  // Find our response
-  const newData = buf.slice(prevLen);
-  return newData;
-}
 
 // MCP initialize
 const initReq =

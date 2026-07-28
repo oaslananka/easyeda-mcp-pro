@@ -49,7 +49,9 @@ const parseJsonFile = (path, description) => {
   try {
     return JSON.parse(readFileSync(resolve(path), 'utf8'));
   } catch (error) {
-    throw new Error(`Unable to read ${description} at ${path}: ${error.message}`);
+    throw new Error(`Unable to read ${description} at ${path}: ${error.message}`, {
+      cause: error,
+    });
   }
 };
 
@@ -77,7 +79,7 @@ const runPnpmAudit = () => {
   try {
     return JSON.parse(result.stdout);
   } catch (error) {
-    throw new Error(`pnpm audit returned invalid JSON: ${error.message}`);
+    throw new Error(`pnpm audit returned invalid JSON: ${error.message}`, { cause: error });
   }
 };
 

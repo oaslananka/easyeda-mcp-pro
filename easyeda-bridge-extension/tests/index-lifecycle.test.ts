@@ -312,9 +312,9 @@ describe('extension loader lifecycle source', () => {
 
     const logText = logSpy.mock.calls.flat().map(String).join('\n');
     expect(logText).toContain('Bridge hello contract version mismatch');
-    expect(logText).toContain('\"expected\":1,\"actual\":99');
+    expect(logText).toContain('"expected":1,"actual":99');
     expect(logText).toContain('Bridge hello does not include this extension protocol version');
-    expect(logText).toContain('\"protocolVersion\":\"1.0.0\"');
+    expect(logText).toContain('"protocolVersion":"1.0.0"');
     expect(toasts).toContain('MCP Bridge connected to local server');
   });
 
