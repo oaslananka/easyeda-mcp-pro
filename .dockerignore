@@ -1,0 +1,81 @@
+# Default-deny the Docker build context. Only files required by Dockerfile
+# dependency installation and builder-stage compilation are re-included.
+**
+
+# Docker build definition and public environment template.
+!Dockerfile
+!.dockerignore
+
+# Root workspace manifests and TypeScript configuration.
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.json
+!tsconfig.build.json
+
+# Runtime policy consumed by the builder preflight.
+!config/
+config/**
+!config/runtime-policy.json
+
+# Root build inputs. Keep this list exact; release, test, and e2e automation
+# must not enter the production build context implicitly.
+!scripts/
+scripts/**
+!scripts/check-runtime.mjs
+!scripts/clean.mjs
+!scripts/sync-versions.mjs
+!src/
+!src/**
+
+# Bridge extension build and marketplace package inputs.
+!easyeda-bridge-extension/
+easyeda-bridge-extension/**
+!easyeda-bridge-extension/package.json
+!easyeda-bridge-extension/tsconfig.json
+!easyeda-bridge-extension/extension.json
+!easyeda-bridge-extension/README.md
+!easyeda-bridge-extension/CHANGELOG.md
+!easyeda-bridge-extension/images/
+!easyeda-bridge-extension/images/**
+!easyeda-bridge-extension/src/
+!easyeda-bridge-extension/src/**
+!easyeda-bridge-extension/scripts/
+easyeda-bridge-extension/scripts/**
+!easyeda-bridge-extension/scripts/build.mjs
+!easyeda-bridge-extension/scripts/package.mjs
+!easyeda-bridge-extension/scripts/archive.mjs
+!easyeda-bridge-extension/scripts/checksums.mjs
+!easyeda-bridge-extension/scripts/reproducible-time.mjs
+
+# Defense-in-depth exclusions for generated output, local state, dependency
+# stores, reports, logs, temporary files, environment files, and archives.
+# These remain excluded even if a future allowlisted source directory contains
+# a nested local artifact with one of these names.
+**/.git
+**/.git/**
+**/node_modules
+**/node_modules/**
+**/.pnpm-store
+**/.pnpm-store/**
+**/coverage
+**/coverage/**
+**/reports
+**/reports/**
+**/.easyeda-mcp-pro
+**/.easyeda-mcp-pro/**
+**/dist
+**/dist/**
+**/*.log
+**/*.tmp
+**/*.temp
+**/*.tgz
+**/*.tar
+**/*.tar.gz
+**/*.zip
+**/*.eext
+**/.env
+**/.env.*
+
+# Keep the safe variable-name template available without admitting local envs.
+!.env.example
