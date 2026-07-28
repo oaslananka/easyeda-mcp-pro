@@ -37,6 +37,8 @@ jobs:
       - name: Install pnpm
         # pnpm/action-setup v4.0.0
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+        with:
+          version: '11.5.1'
 
       - name: Setup Node
         # actions/setup-node v4.0.2
@@ -45,6 +47,8 @@ jobs:
           node-version: '24.18.0'
           cache: pnpm
 
+      - name: Verify runtime pin parity
+        run: node scripts/check-runtime-pins.mjs
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 

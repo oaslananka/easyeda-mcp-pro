@@ -16,6 +16,25 @@ corepack prepare pnpm@11.5.1 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 
+### Atomic runtime upgrades
+
+Runtime upgrades must be submitted as one focused pull request. Do not change only `packageManager`,
+a workflow, or a local version file. Start with `config/runtime-policy.json`, select one exact Node.js
+patch, one exact pnpm version, and the matching digest-pinned official Node Alpine image, then update
+every surface reported by the parity checker:
+
+```bash
+corepack prepare pnpm@<selected-version> --activate
+node scripts/check-runtime-pins.mjs
+pnpm install --lockfile-only
+pnpm verify
+```
+
+The same pull request must reconcile `.node-version`, `.nvmrc`, package metadata, runtime constants,
+Docker, GitHub Actions, and current user/contributor documentation. Commit `pnpm-lock.yaml` only when
+the selected pnpm version produces a real lockfile change; never rewrite it with a different local
+pnpm version. The protected Linux, Windows, and macOS jobs must all pass before merge.
+
 ### pnpm store and cache expectations
 
 CI keeps the pnpm store outside the checkout. Local contributors may do the same with their normal
