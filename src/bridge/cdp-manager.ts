@@ -165,7 +165,7 @@ export class CdpBridgeManager extends EventEmitter {
       this.ws = null;
       this.resetRuntimeState();
       this.state = 'error';
-      if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
+      if (socket) socket.close();
       this.emit('stateChanged', 'error', 'connecting');
       throw connectionError;
     }

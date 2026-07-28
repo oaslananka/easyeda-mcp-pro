@@ -39,7 +39,9 @@ async function closeServer(server: Server): Promise<void> {
   });
 }
 
-async function createHarness(options: { targets?: unknown[] } = {}): Promise<Harness> {
+async function createHarness(
+  options: { targets?: unknown[]; evaluateError?: string } = {},
+): Promise<Harness> {
   const websocketServer = new WebSocketServer({ noServer: true });
   const clients = new Set<WebSocket>();
   const requests: CdpRequest[] = [];
@@ -105,6 +107,12 @@ async function createHarness(options: { targets?: unknown[] } = {}): Promise<Har
       if (request.method === 'Runtime.evaluate') {
         if (ignoreEvaluation) {
           ignoreEvaluation = false;
+          return;
+        }
+        if (options.evaluateError) {
+          client.send(
+            JSON.stringify({ id: request.id, error: { message: options.evaluateError } }),
+          );
           return;
         }
         client.send(
@@ -195,6 +203,33 @@ describe('CdpBridgeManager transport lifecycle', () => {
     expect(manager.hello).toBeNull();
   });
 
+  it('normalizes a non-Error connection rejection before failing closed', async () => {
+    const manager = createManager();
+    activeManagers.add(manager);
+    const fetchJson = vi.fn().mockRejectedValue('non-error connection failure');
+    Object.defineProperty(manager, 'fetchJson', { value: fetchJson });
+
+    await expect(manager.connect()).rejects.toThrow('non-error connection failure');
+
+    expect(fetchJson).toHaveBeenCalledOnce();
+    expect(manager.state).toBe('error');
+    expect(manager.connected).toBe(false);
+  });
+
+  it('closes an established socket when runtime negotiation fails', async () => {
+    const harness = await createHarness({ evaluateError: 'runtime status unavailable' });
+    activeHarnesses.add(harness);
+    process.env.EASYEDA_CDP_URL = harness.baseUrl;
+    const manager = createManager();
+    activeManagers.add(manager);
+
+    await expect(manager.connect()).rejects.toThrow('runtime status unavailable');
+
+    expect(manager.state).toBe('error');
+    expect(manager.connected).toBe(false);
+    await vi.waitFor(() => expect(harness.clients.size).toBe(0));
+  });
+
   it('connects through CDP and publishes a runtime hello', async () => {
     const harness = await createHarness();
     activeHarnesses.add(harness);
@@ -249,6 +284,19 @@ describe('CdpBridgeManager transport lifecycle', () => {
     expect(manager.hello).toBeNull();
     expect((manager as unknown as { pending: Map<number, unknown> }).pending.size).toBe(0);
     expect(disconnected).toHaveBeenCalledWith('renderer shutdown');
+  });
+
+  it('uses a stable fallback reason when the renderer closes without one', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+    const disconnected = vi.fn();
+    manager.on('disconnected', disconnected);
+
+    for (const client of harness.clients) client.close(1001);
+
+    await vi.waitFor(() => expect(manager.state).toBe('connecting'));
+    expect(disconnected).toHaveBeenCalledWith('cdp_close_1001');
   });
 
   it('enforces mapped and unmapped write authorization before runtime evaluation', async () => {
