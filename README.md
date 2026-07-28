@@ -437,8 +437,12 @@ pnpm doctor
 This checks:
 
 1. Node.js version compatibility.
-2. Existence of build files and the `.eext` extension package.
-3. Bridge port availability. _Note: The bridge status will show as offline until an MCP client starts the server and connects to the EasyEDA Pro extension._
+2. Runtime mode: source checkout, installed package, or production runtime.
+3. The CLI entry shebang and the `.eext` extension package checksum.
+4. Bridge port availability. _Note: The bridge status will show as offline until an MCP client starts the server and connects to the EasyEDA Pro extension._
+
+pnpm is required only for a source checkout and must match the repository pin. pnpm is not required for an installed package or production runtime, including the hardened Docker image.
+Doctor exits with status `1` for unsupported required runtimes, invalid configuration, or missing/corrupt runtime artifacts; an offline bridge by itself remains informational.
 
 ---
 

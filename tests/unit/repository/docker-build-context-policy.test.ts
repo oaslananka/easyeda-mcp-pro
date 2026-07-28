@@ -96,6 +96,9 @@ describe('Docker build-context policy', () => {
       'COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.eext ./easyeda-bridge-extension.eext',
     );
     expect(dockerfile).toContain(
+      'COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.checksums.json ./easyeda-bridge-extension.checksums.json',
+    );
+    expect(dockerfile).toContain(
       'COPY --from=builder --chown=node:node /app/node_modules ./node_modules',
     );
   });

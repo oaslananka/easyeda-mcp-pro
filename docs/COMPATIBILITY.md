@@ -8,12 +8,12 @@ Version ranges in this overview are support-policy targets, not exact live-valid
 
 ## 1. Runtime & Environment
 
-| Environment | Supported Versions        | Tested Status | Notes                                                          |
-| :---------- | :------------------------ | :------------ | :------------------------------------------------------------- |
-| **Node.js** | `24.x` (pinned `24.18.0`) | **Enforced**  | Startup and automation preflights reject other major versions. |
-| **pnpm**    | `11.5.1`                  | **Enforced**  | Exact package manager used by repository automation.           |
-| **npm**     | `*`                       | **Verified**  | Supported via `npx` execution.                                 |
-| **Docker**  | `v20.x` or newer          | **Verified**  | Fully containerized execution using alpine/node.               |
+| Environment | Supported Versions        | Tested Status           | Notes                                                                                                |
+| :---------- | :------------------------ | :---------------------- | :--------------------------------------------------------------------------------------------------- |
+| **Node.js** | `24.x` (pinned `24.18.0`) | **Enforced**            | Startup and automation preflights reject other major versions.                                       |
+| **pnpm**    | `11.5.1`                  | **Enforced for source** | Required for a source checkout; pnpm is not required for an installed package or production runtime. |
+| **npm**     | `*`                       | **Verified**            | Supported via `npx` execution.                                                                       |
+| **Docker**  | `v20.x` or newer          | **Verified**            | Fully containerized execution using alpine/node.                                                     |
 
 Restore the repository toolchain with:
 

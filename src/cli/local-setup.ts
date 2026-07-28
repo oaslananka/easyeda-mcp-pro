@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { connect as createConnection } from 'node:net';
 import { join } from 'node:path';
@@ -41,14 +42,22 @@ interface PackageInfo {
   version: string;
 }
 
+export type DoctorInstallationMode = 'source-checkout' | 'installed-package' | 'production-runtime';
+
 export interface LocalSetupInfo {
   packageName: string;
   packageVersion: string;
   packageRoot: string;
+  installationMode?: DoctorInstallationMode;
   serverEntryPath: string;
   extensionPackagePath: string;
+  extensionChecksumPath?: string;
   serverEntryExists: boolean;
   extensionPackageExists: boolean;
+  extensionChecksumExists?: boolean;
+  serverEntryValid?: boolean;
+  extensionPackageValid?: boolean;
+  artifactIssues?: string[];
 }
 
 interface DoctorPortResult {
@@ -87,10 +96,12 @@ export interface UserServiceRuntimeStatus {
 
 export interface DoctorReport {
   setup: LocalSetupInfo;
+  installationMode?: DoctorInstallationMode;
   nodeVersion: string;
   nodeSupported: boolean;
   pnpmVersion: string | null;
   pnpmSupported: boolean;
+  pnpmRequired?: boolean;
   userServiceRuntime?: UserServiceRuntimeStatus;
   envValid: boolean;
   envIssues: string[];
@@ -100,6 +111,11 @@ export interface DoctorReport {
   vendorsConfigured: Record<string, boolean>;
   vendorDiagnostics?: Record<string, VendorDoctorStatus>;
   remoteBackend?: RemoteBackendDoctorStatus;
+}
+
+export interface CreateDoctorReportOptions {
+  nodeEnv?: string;
+  pnpmVersion?: string | null;
 }
 
 function remoteBackendStatusFromConfig(
@@ -237,19 +253,120 @@ function resolvePackageRoot(metaUrl = import.meta.url): string {
   return fileURLToPath(new URL('../../', metaUrl));
 }
 
-function getLocalSetupInfo(packageRoot = resolvePackageRoot()): LocalSetupInfo {
+function detectDoctorInstallationMode(
+  packageRoot: string,
+  nodeEnv = process.env.NODE_ENV,
+): DoctorInstallationMode {
+  const sourceMarkers = ['src', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.build.json'];
+  if (sourceMarkers.every((entry) => existsSync(join(packageRoot, entry)))) {
+    return 'source-checkout';
+  }
+  return nodeEnv === 'production' ? 'production-runtime' : 'installed-package';
+}
+
+function sha256File(path: string): string {
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function getLocalSetupInfo(
+  packageRoot = resolvePackageRoot(),
+  nodeEnv = process.env.NODE_ENV,
+): LocalSetupInfo {
   const packageInfo = readPackageInfo(packageRoot);
+  const installationMode = detectDoctorInstallationMode(packageRoot, nodeEnv);
   const serverEntryPath = join(packageRoot, 'dist', 'index.js');
   const extensionPackagePath = join(packageRoot, 'easyeda-bridge-extension.eext');
+  const extensionChecksumPath = join(packageRoot, 'easyeda-bridge-extension.checksums.json');
+  const serverEntryExists = existsSync(serverEntryPath);
+  const extensionPackageExists = existsSync(extensionPackagePath);
+  const extensionChecksumExists = existsSync(extensionChecksumPath);
+  const artifactIssues: string[] = [];
+  let serverEntryValid = false;
+  let extensionPackageValid = false;
+
+  if (!serverEntryExists) {
+    artifactIssues.push(`MCP server entry is missing: ${serverEntryPath}.`);
+  } else {
+    try {
+      const serverEntry = readFileSync(serverEntryPath);
+      if (serverEntry.byteLength === 0) {
+        artifactIssues.push(`MCP server entry is empty: ${serverEntryPath}.`);
+      } else if (!serverEntry.toString('utf8', 0, 64).startsWith('#!/usr/bin/env node')) {
+        artifactIssues.push(
+          `MCP server entry is missing the declared Node.js shebang: ${serverEntryPath}.`,
+        );
+      } else {
+        serverEntryValid = true;
+      }
+    } catch (error) {
+      artifactIssues.push(
+        `MCP server entry could not be read: ${error instanceof Error ? error.message : String(error)}.`,
+      );
+    }
+  }
+
+  if (!extensionPackageExists) {
+    artifactIssues.push(`EasyEDA extension package is missing: ${extensionPackagePath}.`);
+  } else if (!extensionChecksumExists) {
+    artifactIssues.push(
+      `EasyEDA extension checksum manifest is missing: ${extensionChecksumPath}.`,
+    );
+  } else {
+    try {
+      const extensionInfo = statSync(extensionPackagePath);
+      const manifest = JSON.parse(readFileSync(extensionChecksumPath, 'utf8')) as {
+        schemaVersion?: unknown;
+        package?: unknown;
+        packageSize?: unknown;
+        packageSha256?: unknown;
+      };
+      const expectedSha256 =
+        typeof manifest.packageSha256 === 'string' ? manifest.packageSha256 : '';
+      const actualSha256 = sha256File(extensionPackagePath);
+      const extensionIssueCount = artifactIssues.length;
+      if (extensionInfo.size <= 0) {
+        artifactIssues.push(`EasyEDA extension package is empty: ${extensionPackagePath}.`);
+      }
+      if (manifest.schemaVersion !== 1) {
+        artifactIssues.push(
+          'EasyEDA extension checksum manifest has an unsupported schema version.',
+        );
+      }
+      if (manifest.package !== 'easyeda-bridge-extension.eext') {
+        artifactIssues.push('EasyEDA extension checksum manifest names an unexpected package.');
+      }
+      if (manifest.packageSize !== extensionInfo.size) {
+        artifactIssues.push('EasyEDA extension package size does not match its checksum manifest.');
+      }
+      if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
+        artifactIssues.push('EasyEDA extension checksum manifest has an invalid SHA-256 value.');
+      } else if (expectedSha256 !== actualSha256) {
+        artifactIssues.push(
+          'EasyEDA extension package SHA-256 does not match its checksum manifest.',
+        );
+      }
+      extensionPackageValid = artifactIssues.length === extensionIssueCount;
+    } catch (error) {
+      artifactIssues.push(
+        `EasyEDA extension checksum could not be verified: ${error instanceof Error ? error.message : String(error)}.`,
+      );
+    }
+  }
 
   return {
     packageName: packageInfo.name,
     packageVersion: packageInfo.version,
     packageRoot,
+    installationMode,
     serverEntryPath,
     extensionPackagePath,
-    serverEntryExists: existsSync(serverEntryPath),
-    extensionPackageExists: existsSync(extensionPackagePath),
+    extensionChecksumPath,
+    serverEntryExists,
+    extensionPackageExists,
+    extensionChecksumExists,
+    serverEntryValid,
+    extensionPackageValid,
+    artifactIssues,
   };
 }
 
@@ -406,8 +523,11 @@ export async function inspectUserServiceRuntime(
 
 export async function createDoctorReport(
   packageRoot = resolvePackageRoot(),
+  options: CreateDoctorReportOptions = {},
 ): Promise<DoctorReport> {
-  const setup = getLocalSetupInfo(packageRoot);
+  const setup = getLocalSetupInfo(packageRoot, options.nodeEnv);
+  const installationMode = setup.installationMode ?? 'source-checkout';
+  const pnpmRequired = installationMode === 'source-checkout';
   const env = parseCliEnv();
   const bridgeHost = env.config?.BRIDGE_HOST ?? '127.0.0.1';
   const ports = parsePortScanSpec(env.config?.BRIDGE_PORT_SCAN ?? '49620');
@@ -420,14 +540,20 @@ export async function createDoctorReport(
     });
   }
 
-  let pnpmVersion = null;
-  try {
-    const { stdout } = await execFileAsync(pnpmExecutableForPlatform(process.platform), [
-      '--version',
-    ]);
-    pnpmVersion = stdout.trim();
-  } catch {
-    // Ignore if pnpm is not found
+  let pnpmVersion: string | null = null;
+  if (pnpmRequired) {
+    if (Object.prototype.hasOwnProperty.call(options, 'pnpmVersion')) {
+      pnpmVersion = options.pnpmVersion ?? null;
+    } else {
+      try {
+        const { stdout } = await execFileAsync(pnpmExecutableForPlatform(process.platform), [
+          '--version',
+        ]);
+        pnpmVersion = stdout.trim();
+      } catch {
+        // A missing package manager is reported only for source-checkout workflows.
+      }
+    }
   }
 
   const nodeEvaluation = evaluateNodeRuntime(process.versions.node);
@@ -454,10 +580,12 @@ export async function createDoctorReport(
 
   return {
     setup,
+    installationMode,
     nodeVersion: process.versions.node,
     nodeSupported: nodeEvaluation.supported,
     pnpmVersion,
-    pnpmSupported: pnpmEvaluation.supported,
+    pnpmSupported: !pnpmRequired || pnpmEvaluation.supported,
+    pnpmRequired,
     userServiceRuntime,
     envValid: env.issues.length === 0,
     envIssues: env.issues,
@@ -482,7 +610,10 @@ function buildSuggestedFixes(report: DoctorReport): string[] {
     );
   }
 
-  if (!report.pnpmSupported) {
+  const pnpmRequired = report.pnpmRequired ?? true;
+  const installationMode = report.installationMode ?? 'source-checkout';
+
+  if (pnpmRequired && !report.pnpmSupported) {
     fixes.push(
       report.pnpmVersion
         ? `pnpm ${report.pnpmVersion} is not supported (required: ${PINNED_PNPM_VERSION}).`
@@ -507,17 +638,26 @@ function buildSuggestedFixes(report: DoctorReport): string[] {
     }
   }
 
-  if (!report.setup.serverEntryExists) {
+  for (const issue of report.setup.artifactIssues ?? []) {
+    fixes.push(`Runtime artifact issue: ${issue}`);
+  }
+
+  const serverEntryValid = report.setup.serverEntryValid ?? report.setup.serverEntryExists;
+  if (!serverEntryValid) {
     fixes.push(
-      `MCP server entry not found at ${report.setup.serverEntryPath}.`,
-      '  Fix: pnpm build   (or reinstall via npx easyeda-mcp-pro if using the published package)',
+      pnpmRequired
+        ? '  Fix: pnpm build'
+        : `  Fix: reinstall the npm package or container image for the ${installationMode}.`,
     );
   }
 
-  if (!report.setup.extensionPackageExists) {
+  const extensionPackageValid =
+    report.setup.extensionPackageValid ?? report.setup.extensionPackageExists;
+  if (!extensionPackageValid) {
     fixes.push(
-      `Bridge extension package not found at ${report.setup.extensionPackagePath}.`,
-      '  Fix: pnpm build:extension   (or reinstall the npm package, which bundles the .eext)',
+      pnpmRequired
+        ? '  Fix: pnpm build:extension'
+        : `  Fix: reinstall the npm package or container image for the ${installationMode}.`,
     );
   }
 
@@ -561,6 +701,21 @@ function buildSuggestedFixes(report: DoctorReport): string[] {
   return fixes;
 }
 
+export function doctorExitCode(report: DoctorReport): 0 | 1 {
+  const pnpmRequired = report.pnpmRequired ?? true;
+  const serverEntryValid = report.setup.serverEntryValid ?? report.setup.serverEntryExists;
+  const extensionPackageValid =
+    report.setup.extensionPackageValid ?? report.setup.extensionPackageExists;
+
+  return report.nodeSupported &&
+    (!pnpmRequired || report.pnpmSupported) &&
+    report.envValid &&
+    serverEntryValid &&
+    extensionPackageValid
+    ? 0
+    : 1;
+}
+
 export function formatDoctorReport(report: DoctorReport, options?: { fix?: boolean }): string {
   const reachable = report.bridgePorts.find((port) => port.reachable);
   const bridgeStatus = reachable
@@ -585,18 +740,29 @@ export function formatDoctorReport(report: DoctorReport, options?: { fix?: boole
   const remoteBackendStr = report.remoteBackend
     ? `${report.remoteBackend.backend} / transport=${report.remoteBackend.transport} / session=${report.remoteBackend.remoteSessionConfigured ? 'configured' : 'per-request'} / oauth=${report.remoteBackend.oauthEnabled ? 'enabled' : 'disabled'}${report.remoteBackend.warnings.length ? ` / warnings=${report.remoteBackend.warnings.length}` : ''}`
     : 'Unknown remote backend configuration';
-  let pnpmStatus = 'MISSING';
-  if (report.pnpmVersion) pnpmStatus = report.pnpmSupported ? 'OK' : 'UNSUPPORTED';
-  const pnpmVersionSuffix = report.pnpmVersion ? ` ${report.pnpmVersion}` : '';
+  const installationMode = report.installationMode ?? 'source-checkout';
+  const pnpmRequired = report.pnpmRequired ?? true;
+  let pnpmLine = `pnpm: NOT REQUIRED (${installationMode})`;
+  if (pnpmRequired) {
+    let pnpmStatus = 'MISSING';
+    if (report.pnpmVersion) pnpmStatus = report.pnpmSupported ? 'OK' : 'UNSUPPORTED';
+    const pnpmVersionSuffix = report.pnpmVersion ? ` ${report.pnpmVersion}` : '';
+    pnpmLine = `pnpm: ${pnpmStatus}${pnpmVersionSuffix} (required for source workflows: ${PINNED_PNPM_VERSION})`;
+  }
+  const serverEntryValid = report.setup.serverEntryValid ?? report.setup.serverEntryExists;
+  const extensionPackageValid =
+    report.setup.extensionPackageValid ?? report.setup.extensionPackageExists;
 
   const lines = [
     'easyeda-mcp-pro doctor',
     '',
+    `Runtime mode: ${installationMode}`,
     `Node.js: ${report.nodeSupported ? 'OK' : 'UNSUPPORTED'} ${report.nodeVersion} (required: 24.x; pinned: ${PINNED_NODE_VERSION})`,
-    `pnpm: ${pnpmStatus}${pnpmVersionSuffix} (required: ${PINNED_PNPM_VERSION})`,
+    pnpmLine,
     `Environment: ${status(report.envValid)}${report.envIssues.length ? ` ${report.envIssues.join('; ')}` : ''}`,
-    `MCP server entry: ${status(report.setup.serverEntryExists)} ${report.setup.serverEntryPath}`,
-    `EasyEDA extension package: ${status(report.setup.extensionPackageExists)} ${report.setup.extensionPackagePath}`,
+    `MCP server entry: ${artifactStatus(report.setup.serverEntryExists, serverEntryValid)} ${report.setup.serverEntryPath}`,
+    `EasyEDA extension package: ${artifactStatus(report.setup.extensionPackageExists, extensionPackageValid)} ${report.setup.extensionPackagePath}`,
+    ...(report.setup.artifactIssues ?? []).map((issue) => `Runtime artifact warning: ${issue}`),
     ...(report.userServiceRuntime?.installed
       ? [
           `User service runtime: ${report.userServiceRuntime.issues.length === 0 ? 'OK' : 'BROKEN'} ${report.userServiceRuntime.nodePath ?? report.userServiceRuntime.execStart ?? report.userServiceRuntime.unitPath}`,
@@ -704,6 +870,11 @@ function readPackageInfo(packageRoot: string): PackageInfo {
 
 function status(ok: boolean): string {
   return ok ? 'OK' : 'MISSING';
+}
+
+function artifactStatus(exists: boolean, valid: boolean): string {
+  if (!exists) return 'MISSING';
+  return valid ? 'OK' : 'BROKEN';
 }
 
 function stringifyConfig(value: unknown): string {

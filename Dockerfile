@@ -50,6 +50,7 @@ ENV ALLOWED_ORIGINS=
 COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.eext ./easyeda-bridge-extension.eext
+COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.checksums.json ./easyeda-bridge-extension.checksums.json
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 
 # The production process invokes Node directly and never needs npm, npx, or

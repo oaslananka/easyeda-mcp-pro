@@ -7,7 +7,7 @@ This guide outlines the system requirements and setup options for `easyeda-mcp-p
 ## 1. System Requirements
 
 - **Node.js**: Node.js 24.x; source builds and automation are pinned to `24.18.0`.
-- **pnpm**: exactly `11.5.1` for development workflows; not required for npx-only usage.
+- **pnpm**: exactly `11.5.1` for a source checkout and development workflows; pnpm is not required for an installed package, npx-only usage, or a production runtime.
 - **EasyEDA Pro**: use the [exact-version compatibility evidence](reference/easyeda-compatibility.md) for live-tested desktop runtimes.
 
 ```bash

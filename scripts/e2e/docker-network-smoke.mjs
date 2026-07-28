@@ -129,6 +129,31 @@ function publishedPort(name) {
 }
 
 async function run() {
+  const doctor = docker([
+    'run',
+    '--rm',
+    '-e',
+    'BRIDGE_PORT_SCAN=1',
+    '--entrypoint',
+    'node',
+    image,
+    'dist/index.js',
+    '--doctor',
+  ]);
+  const doctorOutput = `${doctor.stdout}${doctor.stderr}`;
+  for (const expected of [
+    'Runtime mode: production-runtime',
+    'pnpm: NOT REQUIRED (production-runtime)',
+    'MCP server entry: OK',
+    'EasyEDA extension package: OK',
+  ]) {
+    if (!doctorOutput.includes(expected)) {
+      throw new Error(`hardened runtime doctor did not report ${expected}:
+${doctorOutput}`);
+    }
+  }
+  console.log('hardened runtime doctor: package managers not required; artifacts verified');
+
   const defaultName = `${prefix}-default`;
   startContainer(defaultName);
   const internal = await waitForInternalHealth(defaultName);
