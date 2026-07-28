@@ -37,13 +37,18 @@ describe('Codecov analytics policy', () => {
     expect(vitestConfig).toContain("'src/remote/gateway.ts': {");
     expect(vitestConfig).toContain('lines: 80');
     expect(vitestConfig).toContain('branches: 70');
+    expect(vitestConfig).not.toContain("'src/bridge/*-manager.ts'");
+    expect(vitestConfig).toContain("'src/bridge/manager.ts': {");
+    expect(vitestConfig).toContain("'src/bridge/cdp-manager.ts': {");
+    expect(vitestConfig).toMatch(/'src\/bridge\/manager\.ts': \{\s+lines: 79,\s+branches: 64,/);
+    expect(vitestConfig).toMatch(/'src\/bridge\/cdp-manager\.ts': \{\s+lines: 70,\s+branches: 50,/);
     expect(extensionVitestConfig).toContain("reporter: ['text', 'json-summary', 'lcov']");
     expect(extensionVitestConfig).toContain("include: ['src/**/*.ts']");
     expect(extensionVitestConfig).toContain('thresholds: {');
     expect(extensionVitestConfig).toContain('lines: 65');
     expect(extensionVitestConfig).toContain('statements: 65');
     expect(extensionVitestConfig).toContain('functions: 70');
-    expect(extensionVitestConfig).toContain('branches: 50');
+    expect(extensionVitestConfig).toContain('branches: 60');
     expect(extensionVitestConfig).not.toContain("'src/index.ts'");
     expect(extensionVitestConfig).not.toContain("'src/dispatcher-entry.ts'");
     expect(packageJson.scripts?.['validate:codecov']).toContain('codecov.io/validate');
@@ -55,6 +60,13 @@ describe('Codecov analytics policy', () => {
     expect(ratchet).toContain('2026-07-23 extension baseline');
     expect(ratchet).toContain('2026-07-23 extension lifecycle ratchet');
     expect(ratchet).toContain('2026-07-23 remote gateway ratchet');
+    expect(ratchet).toContain('2026-07-28 bridge manager visibility and extension branch ratchet');
+    expect(ratchet).toMatch(
+      /`src\/bridge\/manager\.ts`\s+\|\s+79\.05%\s+\|\s+64\.08%\s+\|\s+79%\s+\|\s+64%/,
+    );
+    expect(ratchet).toMatch(
+      /`src\/bridge\/cdp-manager\.ts`\s+\|\s+71\.24%\s+\|\s+51\.68%\s+\|\s+70%\s+\|\s+50%/,
+    );
     expect(ratchet).toContain('Do not exclude `src/index.ts`');
   });
 
