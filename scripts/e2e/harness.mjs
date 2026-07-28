@@ -15,8 +15,6 @@ export function startStdioMcpServer(options = {}) {
       TRANSPORT: 'stdio',
       LOG_LEVEL: 'silent',
       TOOL_PROFILE: 'full',
-      BRIDGE_RECONNECT_MAX_ATTEMPTS: '0',
-      BRIDGE_RECONNECT_INTERVAL_MS: '1000',
       BRIDGE_TIMEOUT_MS: '30000',
       ...(options.env ?? {}),
     },

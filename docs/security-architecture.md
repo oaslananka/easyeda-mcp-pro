@@ -272,7 +272,7 @@ The `ToolRegistry` enforces unique tool names at registration time — duplicate
 **Reconnect backoff:**
 
 - Exponential backoff: 1 s → 2 s → 4 s → 8 s → 16 s → 30 s (capped).
-- Max attempts configurable via `BRIDGE_RECONNECT_MAX_ATTEMPTS` (default 0 = infinite).
+- Reconnect attempts continue while the server remains active; no max-attempt environment control is exposed.
 
 ---
 
@@ -282,15 +282,15 @@ The `ToolRegistry` enforces unique tool names at registration time — duplicate
 
 All sensitive credentials are read from environment variables at startup:
 
-| Category    | Variables                                    |
-| :---------- | :------------------------------------------- |
-| AI provider | `AI_API_KEY`                                 |
-| JLCPCB      | `JLCPCB_CLIENT_ID`, `JLCPCB_CLIENT_SECRET`   |
-| LCSC        | `LCSC_API_KEY`, `LCSC_API_SECRET`            |
-| Mouser      | `MOUSER_API_KEY`                             |
-| DigiKey     | `DIGIKEY_CLIENT_ID`, `DIGIKEY_CLIENT_SECRET` |
-| Bridge      | `BRIDGE_TOKEN`                               |
-| OAuth       | (derived from JWKS token, not stored in env) |
+| Category                  | Variables                                                             |
+| :------------------------ | :-------------------------------------------------------------------- |
+| Reserved AI configuration | None — `AI_API_KEY` is accepted for compatibility but is not consumed |
+| JLCPCB                    | `JLCPCB_CLIENT_ID`, `JLCPCB_CLIENT_SECRET`                            |
+| LCSC                      | `LCSC_API_KEY`                                                        |
+| Mouser                    | `MOUSER_API_KEY`                                                      |
+| DigiKey                   | `DIGIKEY_CLIENT_ID`, `DIGIKEY_CLIENT_SECRET`                          |
+| Bridge                    | `BRIDGE_TOKEN`                                                        |
+| OAuth                     | (derived from JWKS token, not stored in env)                          |
 
 ### 5.2 Log Redaction
 
@@ -318,21 +318,21 @@ The Zod schema in `src/config/env.ts` validates all environment variables at sta
 
 Every unsafe configuration override has a safe default. The following table documents each override, its risk, and when it is appropriate:
 
-| Variable                    | Safe Default  | Unsafe Override                | Risk                                                      | When Appropriate                            |
-| :-------------------------- | :------------ | :----------------------------- | :-------------------------------------------------------- | :------------------------------------------ |
-| `HTTP_HOST`                 | `127.0.0.1`   | Non-loopback (e.g., `0.0.0.0`) | **High** — exposes server to network                      | Remote deployment behind auth/reverse proxy |
-| `OAUTH_ENABLED`             | `false`       | `true`                         | **High** — mandatory for every non-loopback HTTP listener | Remote HTTP access with proper IdP          |
-| `BRIDGE_RAW_EXEC_ENABLED`   | `false`       | `true`                         | **Critical** — enables raw JavaScript execution           | Development/testing only                    |
-| `BRIDGE_TOKEN`              | `''`          | Set to a shared secret         | **Medium** — enables bridge pairing                       | Non-loopback bridge connections             |
-| `EASYEDA_DEV_BRIDGE`        | `false`       | `true`                         | **Medium** — enables dev bridge features                  | Development only                            |
-| `HTTP_AUTH_DISABLED`        | `false`       | `true`                         | **High** — disables all HTTP auth                         | Non-production loopback development only    |
-| `NODE_ENV`                  | `development` | `production`                   | **Medium** — enables production safety checks             | Production deployment                       |
-| `JLCPCB_ENABLE_ORDERING`    | `false`       | `true`                         | **High** — enables ordering via API                       | When JLCPCB ordering is needed              |
-| `AI_ALLOW_DESIGN_MUTATIONS` | `false`       | `true`                         | **High** — allows AI to modify designs                    | Experimental AI-assisted design             |
-| `MCP_TASKS_ENABLED`         | `false`       | `true`                         | **Medium** — enables MCP task protocol                    | When task protocol needed                   |
-| `TOOL_PROFILE`              | `core`        | `full`, `dev`, `experimental`  | **Varies** — grants access to more tools                  | When broader tool access is needed          |
-| `CORS_ORIGIN`               | `''`          | Set to an origin               | **Low** — local dev only                                  | Legacy CORS configuration                   |
-| `ALLOWED_ORIGINS`           | `''`          | Comma-separated origins        | **Medium** — restricts cross-origin access                | Remote HTTP with known browser clients      |
+`AI_ALLOW_DESIGN_MUTATIONS` and `MCP_TASKS_ENABLED` are reserved compatibility settings. Setting them does not enable AI design mutation or MCP Tasks, and they are therefore not listed as active unsafe overrides.
+
+| Variable                  | Safe Default  | Unsafe Override                | Risk                                                      | When Appropriate                            |
+| :------------------------ | :------------ | :----------------------------- | :-------------------------------------------------------- | :------------------------------------------ |
+| `HTTP_HOST`               | `127.0.0.1`   | Non-loopback (e.g., `0.0.0.0`) | **High** — exposes server to network                      | Remote deployment behind auth/reverse proxy |
+| `OAUTH_ENABLED`           | `false`       | `true`                         | **High** — mandatory for every non-loopback HTTP listener | Remote HTTP access with proper IdP          |
+| `BRIDGE_RAW_EXEC_ENABLED` | `false`       | `true`                         | **Critical** — enables raw JavaScript execution           | Development/testing only                    |
+| `BRIDGE_TOKEN`            | `''`          | Set to a shared secret         | **Medium** — enables bridge pairing                       | Non-loopback bridge connections             |
+| `EASYEDA_DEV_BRIDGE`      | `false`       | `true`                         | **Medium** — enables dev bridge features                  | Development only                            |
+| `HTTP_AUTH_DISABLED`      | `false`       | `true`                         | **High** — disables all HTTP auth                         | Non-production loopback development only    |
+| `NODE_ENV`                | `development` | `production`                   | **Medium** — enables production safety checks             | Production deployment                       |
+| `JLCPCB_ENABLE_ORDERING`  | `false`       | `true`                         | **High** — enables ordering via API                       | When JLCPCB ordering is needed              |
+| `TOOL_PROFILE`            | `core`        | `full`, `dev`, `experimental`  | **Varies** — grants access to more tools                  | When broader tool access is needed          |
+| `CORS_ORIGIN`             | `''`          | Set to an origin               | **Low** — local dev only                                  | Legacy CORS configuration                   |
+| `ALLOWED_ORIGINS`         | `''`          | Comma-separated origins        | **Medium** — restricts cross-origin access                | Remote HTTP with known browser clients      |
 
 ---
 
@@ -342,7 +342,7 @@ Every unsafe configuration override has a safe default. The following table docu
 
 - **Enabled by default** (`JLCSEARCH_ENABLED=true`).
 - Uses a public search API endpoint — no credentials required for basic search.
-- API key/secret can be configured for authenticated access.
+- An API key can be configured for the optional authenticated fallback path.
 
 ### 7.2 JLCPCB
 

@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = resolve(import.meta.dirname, '../../..');
 const eslint = new ESLint({ cwd: repoRoot, errorOnUnmatchedPattern: true });
+// Type-aware ESLint must initialize the repository TypeScript program for this fixture.
+// Concurrent full-suite execution is measurably slower than an isolated run.
+const TYPE_AWARE_LINT_TEST_TIMEOUT_MS = 30_000;
 
 async function lintTemporaryFile(relativePath: string, source: string) {
   const absolutePath = join(repoRoot, relativePath);
@@ -49,22 +52,26 @@ describe('repository lint surface policy', () => {
     expect(config).toContain('selector: "NewExpression[callee.name=\'AsyncFunction\']"');
   });
 
-  it('rejects floating promises in TypeScript repository automation', async () => {
-    const relativePath = join('scripts', fixtureName('floating-promise', 'mts'));
-    const messages = await lintTemporaryFile(
-      relativePath,
-      [
-        'export async function run(): Promise<void> {\n',
-        '  Promise.resolve();\n',
-        '}\n',
-        'void run();\n',
-      ].join(''),
-    );
+  it(
+    'rejects floating promises in TypeScript repository automation',
+    async () => {
+      const relativePath = join('scripts', fixtureName('floating-promise', 'mts'));
+      const messages = await lintTemporaryFile(
+        relativePath,
+        [
+          'export async function run(): Promise<void> {\n',
+          '  Promise.resolve();\n',
+          '}\n',
+          'void run();\n',
+        ].join(''),
+      );
 
-    expect(messages.map((message) => message.ruleId)).toContain(
-      '@typescript-eslint/no-floating-promises',
-    );
-  }, 20_000);
+      expect(messages.map((message) => message.ruleId)).toContain(
+        '@typescript-eslint/no-floating-promises',
+      );
+    },
+    TYPE_AWARE_LINT_TEST_TIMEOUT_MS,
+  );
 
   it('rejects shell-string child process APIs in JavaScript automation', async () => {
     const relativePath = join('scripts', fixtureName('shell-process', 'mjs'));

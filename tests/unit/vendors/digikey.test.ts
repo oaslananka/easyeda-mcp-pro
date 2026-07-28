@@ -110,6 +110,23 @@ describe('DigiKeyClient', () => {
       expect(requestMock.mock.calls[1][1]).toMatchObject({ method: 'POST' });
     });
 
+    it('applies DIGIKEY_LOCALE and DIGIKEY_CURRENCY to search requests', async () => {
+      requestMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse(200, { Products: [] }));
+      const client = new DigiKeyClient(
+        createEnabledConfig({ DIGIKEY_LOCALE: 'de-DE', DIGIKEY_CURRENCY: 'EUR' }),
+      );
+
+      await client.searchByKeyword('resistor');
+
+      const requestBody = JSON.parse(String(requestMock.mock.calls[1]?.[1]?.body)) as {
+        locale?: string;
+        currency?: string;
+      };
+      expect(requestBody).toMatchObject({ locale: 'de-DE', currency: 'EUR' });
+    });
+
     it('reuses a cached token across multiple calls', async () => {
       requestMock
         .mockResolvedValueOnce(tokenResponse())

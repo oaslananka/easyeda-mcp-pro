@@ -370,6 +370,29 @@ describe('detectUnknownEnvVars', () => {
     warnSpy.mockRestore();
   });
 
+  it('should warn when removed non-functional settings are supplied', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const removedSettings = {
+      BRIDGE_RECONNECT_MAX_ATTEMPTS: '3',
+      BRIDGE_RECONNECT_INTERVAL_MS: '1000',
+      JLCPCB_DEFAULT_CURRENCY: 'USD',
+      LCSC_API_SECRET: 'unused-secret',
+    };
+
+    const result = detectUnknownEnvVars(removedSettings);
+
+    expect(result).toHaveLength(4);
+    for (const name of Object.keys(removedSettings)) {
+      expect(
+        result.some((warning) => warning.includes(name)),
+        name,
+      ).toBe(true);
+    }
+    expect(warnSpy).toHaveBeenCalledTimes(4);
+    expect(result.every((warning) => warning.includes('remove if unused'))).toBe(true);
+    warnSpy.mockRestore();
+  });
+
   it('should not warn on unrelated system env vars', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = detectUnknownEnvVars({

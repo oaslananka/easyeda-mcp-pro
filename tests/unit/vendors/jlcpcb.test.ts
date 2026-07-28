@@ -92,6 +92,23 @@ describe('JlcpcbClient', () => {
       );
     });
 
+    it('routes requests through JLCPCB_API_BASE_URL', async () => {
+      requestMock.mockResolvedValueOnce(
+        jsonResponse(200, { total: 1, currency: 'USD', breakdown: [] }),
+      );
+      const config = EnvSchema.parse({
+        ...createEnabledConfig(),
+        JLCPCB_API_BASE_URL: 'https://jlcpcb-proxy.example.test/root/',
+      });
+      const client = new JlcpcbClient(config);
+
+      await client.getQuote({ boardCount: 1, layers: 2, width: 10, height: 10 });
+
+      expect(requestMock.mock.calls[0]?.[0]).toBe(
+        'https://jlcpcb-proxy.example.test/root/api/order/getQuote',
+      );
+    });
+
     it('fetches order status via GET with the order id in the query string', async () => {
       requestMock.mockResolvedValueOnce(
         jsonResponse(200, { status: 'in_production', details: {} }),
