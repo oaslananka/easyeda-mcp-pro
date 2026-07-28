@@ -5,6 +5,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { z } from 'zod';
 import { type EnvConfig } from '../config/env.js';
 import { ApprovalStore, requiresApproval, type ApprovalDecision } from './approval-policy.js';
+import { RemoteInvocationGrantStore } from './invocation-grants.js';
 import { RemoteAuditLog } from './observability.js';
 import {
   REMOTE_RELAY_PROTOCOL_VERSION,
@@ -92,16 +93,6 @@ interface RegisteredConnection {
   dispatch: RemoteToolDispatcher;
   requestApproval?: RemoteApprovalRequester;
   closeConnection?: () => void;
-}
-
-interface RemoteInvocationGrantRecord {
-  grantId: string;
-  userId: string;
-  sessionId: string;
-  toolName: string;
-  riskLevel: RemoteRiskLevel;
-  inputHash: string;
-  expiresAt: Date;
 }
 
 type ResolvedRemoteConnection =
@@ -246,8 +237,7 @@ export class RemoteGateway {
   private readonly makeId: () => string;
   private readonly hashInput: (value: unknown) => string;
   private readonly approvalTtlMs: number;
-  private readonly invocationGrantTtlMs: number;
-  private readonly invocationGrants = new Map<string, RemoteInvocationGrantRecord>();
+  private readonly invocationGrants: RemoteInvocationGrantStore;
   private readonly dispatchQueue = new SessionDispatchQueue();
   private wsAttached = false;
 
@@ -256,10 +246,13 @@ export class RemoteGateway {
     this.makeId = options.makeId ?? (() => randomUUID());
     this.hashInput = options.hashInput ?? defaultHashInput;
     this.approvalTtlMs = options.approvalTtlMs ?? 60_000;
-    this.invocationGrantTtlMs = options.invocationGrantTtlMs ?? 300_000;
     this.router = options.router ?? new RemoteSessionRouter(this.now, this.makeId);
     this.approvals = options.approvals ?? new ApprovalStore();
     this.audit = options.audit ?? new RemoteAuditLog();
+    this.invocationGrants = new RemoteInvocationGrantStore(
+      this.makeId,
+      options.invocationGrantTtlMs ?? 300_000,
+    );
   }
 
   private resolveConnection(input: {
@@ -480,9 +473,7 @@ export class RemoteGateway {
     this.router.disconnect(sessionId);
     this.connections.delete(sessionId);
     this.approvals.deleteForSession(sessionId);
-    for (const [grantId, grant] of this.invocationGrants) {
-      if (grant.sessionId === sessionId) this.invocationGrants.delete(grantId);
-    }
+    this.invocationGrants.deleteForSession(sessionId);
     if (session) {
       this.audit.record({
         event: 'remote.session.disconnected',
@@ -582,21 +573,21 @@ export class RemoteGateway {
     });
     if (approvalFailure) return approvalFailure;
 
-    const grantId = `grant_${this.makeId()}`;
-    this.invocationGrants.set(grantId, {
-      grantId,
-      userId: identity.userId,
-      sessionId: route.session.sessionId,
-      toolName: input.toolName,
-      riskLevel: input.riskLevel,
-      inputHash,
-      expiresAt: new Date(now.getTime() + this.invocationGrantTtlMs),
-    });
+    const grantId = this.invocationGrants.issue(
+      {
+        userId: identity.userId,
+        sessionId: route.session.sessionId,
+        toolName: input.toolName,
+        riskLevel: input.riskLevel,
+        inputHash,
+      },
+      now,
+    );
     return { ok: true, sessionId: route.session.sessionId, grantId };
   }
 
   revokeInvocationGrant(grantId: string): boolean {
-    return this.invocationGrants.delete(grantId);
+    return this.invocationGrants.revoke(grantId);
   }
 
   async routeToolRequest(input: {
@@ -641,17 +632,16 @@ export class RemoteGateway {
     const inputHash = this.hashInput(input.input);
     if (requiresApproval(input.riskLevel)) {
       if (input.grantId) {
-        const grant = this.invocationGrants.get(input.grantId);
-        const validGrant =
-          grant &&
-          grant.expiresAt.getTime() > now.getTime() &&
-          grant.userId === identity.userId &&
-          grant.sessionId === route.session.sessionId &&
-          grant.riskLevel === input.riskLevel;
+        const validGrant = this.invocationGrants.validate(
+          {
+            grantId: input.grantId,
+            userId: identity.userId,
+            sessionId: route.session.sessionId,
+            riskLevel: input.riskLevel,
+          },
+          now,
+        );
         if (!validGrant) {
-          if (grant && grant.expiresAt.getTime() <= now.getTime()) {
-            this.invocationGrants.delete(input.grantId);
-          }
           return gatewayError(
             403,
             'APPROVAL_NOT_APPROVED',
