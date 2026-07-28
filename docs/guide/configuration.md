@@ -30,6 +30,20 @@ Each subordinate variable remains an independent override. Leave it unset to inh
 
 ---
 
+## Sourcing request controls
+
+The sourcing facade applies shared controls before calling LCSC, Mouser, DigiKey, or other supported vendor paths:
+
+| Variable                         | Default | Behavior                                                             |
+| -------------------------------- | ------- | -------------------------------------------------------------------- |
+| `KEYLESS_SOURCING_ENABLED`       | `true`  | Allows supported public fallbacks when vendor credentials are absent |
+| `SOURCING_CACHE_TTL_SECONDS`     | `21600` | Reuses cached sourcing responses for six hours; `0` disables reuse   |
+| `VENDOR_MIN_REQUEST_INTERVAL_MS` | `150`   | Enforces a minimum delay between requests to the same vendor         |
+
+These controls do not enable ordering and do not bypass vendor authentication requirements. Disable keyless sourcing when deployment policy requires credentialed vendor access only.
+
+---
+
 ## Tool Profiles
 
 The active tool set is gated by the `TOOL_PROFILE` environment variable.

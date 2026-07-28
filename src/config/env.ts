@@ -132,6 +132,10 @@ const EnvObjectSchema = z.object({
   TRACE_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1.0),
 });
 
+export function getEnvironmentVariableNames(): readonly string[] {
+  return Object.freeze(Object.keys(EnvObjectSchema.shape));
+}
+
 export const EnvSchema = EnvObjectSchema.transform((config) => deriveStoragePaths(config));
 
 export type EnvConfig = z.infer<typeof EnvSchema>;

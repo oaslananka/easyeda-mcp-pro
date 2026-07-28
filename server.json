@@ -20,43 +20,62 @@
           "name": "NODE_ENV",
           "description": "Environment mode",
           "isRequired": false,
-          "default": "development"
+          "format": "string",
+          "default": "development",
+          "choices": ["development", "test", "production"]
         },
         {
           "name": "LOG_LEVEL",
           "description": "Pino log level",
           "isRequired": false,
-          "default": "info"
+          "format": "string",
+          "default": "info",
+          "choices": ["trace", "debug", "info", "warn", "error", "fatal", "silent"]
         },
         {
           "name": "TOOL_PROFILE",
           "description": "Active tool profile (core, pro, full, dev, experimental)",
           "isRequired": false,
-          "default": "core"
+          "format": "string",
+          "default": "core",
+          "choices": ["core", "pro", "full", "dev", "experimental"]
+        },
+        {
+          "name": "TOOL_SCOPES",
+          "description": "Optional comma- or space-separated capability scope allowlist; empty enables all scopes allowed by the active tool profile.",
+          "isRequired": false,
+          "format": "string",
+          "default": ""
         },
         {
           "name": "MCP_PROTOCOL_VERSION",
           "description": "MCP protocol version string",
           "isRequired": false,
+          "format": "string",
           "default": "2025-11-25"
         },
         {
           "name": "MCP_BRIDGE_BACKEND",
           "description": "Bridge backend: local_bridge or experimental remote_relay",
           "isRequired": false,
-          "default": "local_bridge"
+          "format": "string",
+          "default": "local_bridge",
+          "choices": ["local_bridge", "remote_relay"]
         },
         {
           "name": "MCP_REMOTE_SESSION_ID",
           "description": "Optional fixed Remote Relay session id for the remote_relay backend",
           "isRequired": false,
+          "format": "string",
           "default": ""
         },
         {
           "name": "TRANSPORT",
           "description": "Server transport mode (stdio or http)",
           "isRequired": false,
-          "default": "stdio"
+          "format": "string",
+          "default": "stdio",
+          "choices": ["stdio", "http"]
         },
         {
           "name": "HTTP_HOST",
@@ -123,7 +142,7 @@
         },
         {
           "name": "MCP_RAW_EXEC_EXPERIMENTAL",
-          "description": "Enable experimental raw EasyEDA runtime execution gate (dangerous; requires BRIDGE_RAW_EXEC_ENABLED)",
+          "description": "Experimental second gate for raw EasyEDA runtime execution; requires BRIDGE_RAW_EXEC_ENABLED.",
           "isRequired": false,
           "format": "boolean",
           "default": "false"
@@ -201,48 +220,50 @@
         },
         {
           "name": "BRIDGE_RAW_EXEC_ENABLED",
-          "description": "Enable raw method execution on bridge (dangerous)",
+          "description": "Experimental first gate for raw EasyEDA runtime execution; requires MCP_RAW_EXEC_EXPERIMENTAL.",
           "isRequired": false,
           "format": "boolean",
           "default": "false"
         },
         {
           "name": "DATA_DIR",
-          "description": "Data directory for storage",
+          "description": "Base directory for writable local state; defaults beneath the operating-system user home directory.",
           "isRequired": false,
-          "format": "string",
-          "default": ".easyeda-mcp-pro"
+          "format": "filepath",
+          "placeholder": "Defaults to the operating-system user home directory under .easyeda-mcp-pro."
         },
         {
           "name": "SQLITE_PATH",
-          "description": "SQLite database path",
+          "description": "SQLite database path; derived from DATA_DIR unless explicitly configured.",
           "isRequired": false,
-          "format": "string",
-          "default": ".easyeda-mcp-pro/easyeda-mcp-pro.sqlite"
+          "format": "filepath",
+          "placeholder": "Derived from DATA_DIR as easyeda-mcp-pro.sqlite unless explicitly configured."
         },
         {
           "name": "ARTIFACT_DIR",
-          "description": "Artifact export directory",
+          "description": "Artifact export directory; derived from DATA_DIR unless explicitly configured.",
           "isRequired": false,
-          "format": "string",
-          "default": ".easyeda-mcp-pro/artifacts"
+          "format": "filepath",
+          "placeholder": "Derived from DATA_DIR as artifacts unless explicitly configured."
         },
         {
           "name": "CACHE_DIR",
-          "description": "Cache directory",
+          "description": "Cache directory; derived from DATA_DIR unless explicitly configured.",
           "isRequired": false,
-          "format": "string",
-          "default": ".easyeda-mcp-pro/cache"
+          "format": "filepath",
+          "placeholder": "Derived from DATA_DIR as cache unless explicitly configured."
         },
         {
           "name": "AI_PROVIDER",
           "description": "Reserved; currently non-functional: no in-process AI provider client is invoked.",
           "isRequired": false,
-          "default": "none"
+          "format": "string",
+          "default": "none",
+          "choices": ["none", "anthropic", "openai", "openrouter", "local"]
         },
         {
           "name": "AI_MODEL",
-          "description": "Reserved; currently non-functional: retained for future provider integration only.",
+          "description": "Reserved; currently non-functional: no model is selected or invoked.",
           "isRequired": false,
           "format": "string",
           "default": ""
@@ -257,14 +278,14 @@
         },
         {
           "name": "AI_MAX_TOKENS",
-          "description": "Max tokens for AI responses",
+          "description": "Reserved; currently non-functional: retained only for future provider compatibility.",
           "isRequired": false,
           "format": "number",
           "default": "8000"
         },
         {
           "name": "AI_TIMEOUT_MS",
-          "description": "AI request timeout in ms",
+          "description": "Reserved; currently non-functional: retained only for future provider compatibility.",
           "isRequired": false,
           "format": "number",
           "default": "60000"
@@ -280,15 +301,16 @@
           "name": "JLCPCB_MODE",
           "description": "JLCPCB API mode (disabled, mock, approved_api)",
           "isRequired": false,
-          "default": "disabled"
+          "format": "string",
+          "default": "disabled",
+          "choices": ["disabled", "mock", "approved_api"]
         },
         {
           "name": "JLCPCB_CLIENT_ID",
-          "description": "JLCPCB API client ID",
+          "description": "JLCPCB API client identifier.",
           "isRequired": false,
           "format": "string",
-          "default": "",
-          "isSecret": true
+          "default": ""
         },
         {
           "name": "JLCPCB_CLIENT_SECRET",
@@ -316,7 +338,9 @@
           "name": "JLCPCB_DEFAULT_CURRENCY",
           "description": "JLCPCB default currency (USD, CNY)",
           "isRequired": false,
-          "default": "USD"
+          "format": "string",
+          "default": "USD",
+          "choices": ["USD", "CNY"]
         },
         {
           "name": "JLCSEARCH_ENABLED",
@@ -349,6 +373,27 @@
           "isSecret": true
         },
         {
+          "name": "KEYLESS_SOURCING_ENABLED",
+          "description": "Allow supported public keyless component-sourcing fallbacks when vendor credentials are unavailable.",
+          "isRequired": false,
+          "format": "boolean",
+          "default": "true"
+        },
+        {
+          "name": "SOURCING_CACHE_TTL_SECONDS",
+          "description": "Component-sourcing cache lifetime in seconds (0 disables cache reuse).",
+          "isRequired": false,
+          "format": "number",
+          "default": "21600"
+        },
+        {
+          "name": "VENDOR_MIN_REQUEST_INTERVAL_MS",
+          "description": "Minimum delay in milliseconds between outbound requests to the same sourcing vendor.",
+          "isRequired": false,
+          "format": "number",
+          "default": "150"
+        },
+        {
           "name": "MOUSER_ENABLED",
           "description": "Enable Mouser integration",
           "isRequired": false,
@@ -379,11 +424,10 @@
         },
         {
           "name": "DIGIKEY_CLIENT_ID",
-          "description": "DigiKey OAuth2 client ID",
+          "description": "DigiKey OAuth2 client identifier.",
           "isRequired": false,
           "format": "string",
-          "default": "",
-          "isSecret": true
+          "default": ""
         },
         {
           "name": "DIGIKEY_CLIENT_SECRET",
@@ -458,7 +502,7 @@
         },
         {
           "name": "OTEL_SERVICE_NAME",
-          "description": "OpenTelemetry service name",
+          "description": "Reserved; currently non-functional: retained for a future OTLP exporter.",
           "isRequired": false,
           "format": "string",
           "default": "easyeda-mcp-pro"
@@ -472,10 +516,10 @@
         },
         {
           "name": "TRACE_SAMPLE_RATE",
-          "description": "OpenTelemetry trace sample rate (0.0 to 1.0)",
+          "description": "Reserved; currently non-functional: no OTLP traces are emitted.",
           "isRequired": false,
           "format": "number",
-          "default": "1.0"
+          "default": "1"
         }
       ]
     }

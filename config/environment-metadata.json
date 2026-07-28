@@ -1,0 +1,531 @@
+{
+  "schemaVersion": 1,
+  "excludedVariables": [
+    {
+      "name": "BRIDGE_HOT_SWAP_ENABLED",
+      "classification": "development-only",
+      "reason": "Development-only dispatcher hot-swap execution gate; refused in production and not a public installation setting."
+    },
+    {
+      "name": "BRIDGE_HOT_SWAP_WATCH",
+      "classification": "development-only",
+      "reason": "Development-only local dispatcher bundle watch path used by the hot-swap loop."
+    },
+    {
+      "name": "BRIDGE_HOT_SWAP_CHUNK_BYTES",
+      "classification": "development-only",
+      "reason": "Development-only hot-swap transfer chunk size used only by the local dispatcher loop."
+    }
+  ],
+  "variables": [
+    {
+      "name": "NODE_ENV",
+      "description": "Environment mode",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "choices": ["development", "test", "production"]
+    },
+    {
+      "name": "LOG_LEVEL",
+      "description": "Pino log level",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "choices": ["trace", "debug", "info", "warn", "error", "fatal", "silent"]
+    },
+    {
+      "name": "TOOL_PROFILE",
+      "description": "Active tool profile (core, pro, full, dev, experimental)",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "choices": ["core", "pro", "full", "dev", "experimental"]
+    },
+    {
+      "name": "TOOL_SCOPES",
+      "description": "Optional comma- or space-separated capability scope allowlist; empty enables all scopes allowed by the active tool profile.",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "MCP_PROTOCOL_VERSION",
+      "description": "MCP protocol version string",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "MCP_BRIDGE_BACKEND",
+      "description": "Bridge backend: local_bridge or experimental remote_relay",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "experimental",
+      "choices": ["local_bridge", "remote_relay"]
+    },
+    {
+      "name": "MCP_REMOTE_SESSION_ID",
+      "description": "Optional fixed Remote Relay session id for the remote_relay backend",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "experimental"
+    },
+    {
+      "name": "TRANSPORT",
+      "description": "Server transport mode (stdio or http)",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "choices": ["stdio", "http"]
+    },
+    {
+      "name": "HTTP_HOST",
+      "description": "HTTP bind address",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "HTTP_PORT",
+      "description": "HTTP port",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "HTTP_AUTH_DISABLED",
+      "description": "Disable HTTP transport authentication",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "HTTP_RATE_LIMIT_MAX",
+      "description": "Max requests per minute per IP",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "CORS_ORIGIN",
+      "description": "Allowed CORS origin for HTTP transport",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "ALLOWED_ORIGINS",
+      "description": "Comma-separated list of allowed origins for HTTP transport (use * for wildcard)",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "MCP_TASKS_ENABLED",
+      "description": "Reserved; currently non-functional: parsed for compatibility, but the server does not advertise or execute MCP Tasks.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "MCP_APPS_ENABLED",
+      "description": "Reserved; currently non-functional: parsed for compatibility, but no MCP Apps UI or resource runtime is registered.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "MCP_V2_EXPERIMENTAL",
+      "description": "Reserved; currently non-functional: does not change MCP protocol negotiation.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "MCP_RAW_EXEC_EXPERIMENTAL",
+      "description": "Experimental second gate for raw EasyEDA runtime execution; requires BRIDGE_RAW_EXEC_ENABLED.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "experimental"
+    },
+    {
+      "name": "BRIDGE_HOST",
+      "description": "Bridge WebSocket host for EasyEDA Pro connection",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "BRIDGE_PORT",
+      "description": "Bridge primary port",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "BRIDGE_PORT_SCAN",
+      "description": "Port scan specification (comma-separated ports or ranges)",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "BRIDGE_TIMEOUT_MS",
+      "description": "Bridge call timeout in ms",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "BRIDGE_HEARTBEAT_MS",
+      "description": "Bridge heartbeat interval in ms",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "BRIDGE_RECONNECT_MAX_ATTEMPTS",
+      "description": "Max reconnect attempts (0 = infinite)",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "BRIDGE_WAIT_FOR_EDA_MS",
+      "description": "How long to wait for EasyEDA Pro to become available on startup (ms)",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "BRIDGE_MAX_PAYLOAD_SIZE",
+      "description": "Max bridge payload size in bytes",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "BRIDGE_TOKEN",
+      "description": "Session token for extension auth",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "isSecret": true
+    },
+    {
+      "name": "EASYEDA_DEV_BRIDGE",
+      "description": "Enable EasyEDA dev bridge mode",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "experimental"
+    },
+    {
+      "name": "BRIDGE_RAW_EXEC_ENABLED",
+      "description": "Experimental first gate for raw EasyEDA runtime execution; requires MCP_RAW_EXEC_EXPERIMENTAL.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "experimental"
+    },
+    {
+      "name": "DATA_DIR",
+      "description": "Base directory for writable local state; defaults beneath the operating-system user home directory.",
+      "format": "filepath",
+      "defaultSource": "dynamic",
+      "status": "active",
+      "placeholder": "Defaults to the operating-system user home directory under .easyeda-mcp-pro."
+    },
+    {
+      "name": "SQLITE_PATH",
+      "description": "SQLite database path; derived from DATA_DIR unless explicitly configured.",
+      "format": "filepath",
+      "defaultSource": "dynamic",
+      "status": "active",
+      "placeholder": "Derived from DATA_DIR as easyeda-mcp-pro.sqlite unless explicitly configured."
+    },
+    {
+      "name": "ARTIFACT_DIR",
+      "description": "Artifact export directory; derived from DATA_DIR unless explicitly configured.",
+      "format": "filepath",
+      "defaultSource": "dynamic",
+      "status": "active",
+      "placeholder": "Derived from DATA_DIR as artifacts unless explicitly configured."
+    },
+    {
+      "name": "CACHE_DIR",
+      "description": "Cache directory; derived from DATA_DIR unless explicitly configured.",
+      "format": "filepath",
+      "defaultSource": "dynamic",
+      "status": "active",
+      "placeholder": "Derived from DATA_DIR as cache unless explicitly configured."
+    },
+    {
+      "name": "AI_PROVIDER",
+      "description": "Reserved; currently non-functional: no in-process AI provider client is invoked.",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "reserved",
+      "choices": ["none", "anthropic", "openai", "openrouter", "local"]
+    },
+    {
+      "name": "AI_MODEL",
+      "description": "Reserved; currently non-functional: no model is selected or invoked.",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "AI_API_KEY",
+      "description": "Reserved; currently non-functional: do not supply credentials because no provider client consumes them.",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "reserved",
+      "isSecret": true
+    },
+    {
+      "name": "AI_MAX_TOKENS",
+      "description": "Reserved; currently non-functional: retained only for future provider compatibility.",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "AI_TIMEOUT_MS",
+      "description": "Reserved; currently non-functional: retained only for future provider compatibility.",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "AI_ALLOW_DESIGN_MUTATIONS",
+      "description": "Reserved; currently non-functional: cannot enable AI-originated design mutation.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "JLCPCB_MODE",
+      "description": "JLCPCB API mode (disabled, mock, approved_api)",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "choices": ["disabled", "mock", "approved_api"]
+    },
+    {
+      "name": "JLCPCB_CLIENT_ID",
+      "description": "JLCPCB API client identifier.",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "JLCPCB_CLIENT_SECRET",
+      "description": "JLCPCB API client secret",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "isSecret": true
+    },
+    {
+      "name": "JLCPCB_API_BASE_URL",
+      "description": "JLCPCB API base URL",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "JLCPCB_ENABLE_ORDERING",
+      "description": "Enable JLCPCB ordering",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "JLCPCB_DEFAULT_CURRENCY",
+      "description": "JLCPCB default currency (USD, CNY)",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "choices": ["USD", "CNY"]
+    },
+    {
+      "name": "JLCSEARCH_ENABLED",
+      "description": "Enable LCSC component search",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "JLCSEARCH_BASE_URL",
+      "description": "LCSC search API base URL",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "LCSC_API_KEY",
+      "description": "LCSC API key",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "isSecret": true
+    },
+    {
+      "name": "LCSC_API_SECRET",
+      "description": "LCSC API secret",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "isSecret": true
+    },
+    {
+      "name": "KEYLESS_SOURCING_ENABLED",
+      "description": "Allow supported public keyless component-sourcing fallbacks when vendor credentials are unavailable.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "SOURCING_CACHE_TTL_SECONDS",
+      "description": "Component-sourcing cache lifetime in seconds (0 disables cache reuse).",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "VENDOR_MIN_REQUEST_INTERVAL_MS",
+      "description": "Minimum delay in milliseconds between outbound requests to the same sourcing vendor.",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "MOUSER_ENABLED",
+      "description": "Enable Mouser integration",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "MOUSER_API_KEY",
+      "description": "Mouser API key",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "isSecret": true
+    },
+    {
+      "name": "MOUSER_API_BASE_URL",
+      "description": "Mouser API base URL",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "DIGIKEY_ENABLED",
+      "description": "Enable DigiKey integration",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "DIGIKEY_CLIENT_ID",
+      "description": "DigiKey OAuth2 client identifier.",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "DIGIKEY_CLIENT_SECRET",
+      "description": "DigiKey OAuth2 client secret",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active",
+      "isSecret": true
+    },
+    {
+      "name": "DIGIKEY_SANDBOX",
+      "description": "Use DigiKey sandbox environment",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "DIGIKEY_LOCALE",
+      "description": "DigiKey locale",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "DIGIKEY_CURRENCY",
+      "description": "DigiKey pricing currency",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "OAUTH_ENABLED",
+      "description": "Enable OAuth for HTTP mode",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "OAUTH_ISSUER",
+      "description": "Expected OAuth token issuer",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "OAUTH_AUDIENCE",
+      "description": "Expected OAuth token audience",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "OAUTH_JWKS_URI",
+      "description": "JWKS endpoint for token signature validation",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "OAUTH_REQUIRED_SCOPES",
+      "description": "Required OAuth token scope",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
+      "name": "OTEL_ENABLED",
+      "description": "Reserved; currently non-functional: no OTLP exporter is started.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "OTEL_SERVICE_NAME",
+      "description": "Reserved; currently non-functional: retained for a future OTLP exporter.",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+      "description": "Reserved; currently non-functional: retained for a future OTLP exporter.",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    },
+    {
+      "name": "TRACE_SAMPLE_RATE",
+      "description": "Reserved; currently non-functional: no OTLP traces are emitted.",
+      "format": "number",
+      "defaultSource": "runtime",
+      "status": "reserved"
+    }
+  ]
+}

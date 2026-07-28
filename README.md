@@ -499,6 +499,14 @@ Enable suppliers by setting their credentials. All suppliers are disabled by def
 - **Mouser**: `MOUSER_ENABLED=true` + API key
 - **DigiKey**: `DIGIKEY_ENABLED=true` + OAuth2 client ID/secret
 
+Shared sourcing behavior is controlled independently of any one vendor:
+
+| Variable                         | Default | Description                                                          |
+| -------------------------------- | ------- | -------------------------------------------------------------------- |
+| `KEYLESS_SOURCING_ENABLED`       | `true`  | Allow supported public keyless fallbacks when credentials are absent |
+| `SOURCING_CACHE_TTL_SECONDS`     | `21600` | Cache sourcing responses for six hours (`0` disables cache reuse)    |
+| `VENDOR_MIN_REQUEST_INTERVAL_MS` | `150`   | Minimum delay between outbound requests to the same sourcing vendor  |
+
 ### Reserved AI configuration
 
 No in-process AI provider client is currently implemented. The `AI_*` variables remain accepted for

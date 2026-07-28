@@ -78,7 +78,7 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "pnpm check:compatibility && vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "check:metadata": "node scripts/check-metadata.mjs",
+    "check:metadata": "pnpm check:environment-metadata && node scripts/check-metadata.mjs",
     "inventory:capture": "tsx scripts/capture-runtime-inventory.mts",
     "inventory:diff": "tsx scripts/diff-runtime-inventory.mts",
     "eval:golden": "tsx scripts/run-evals.mts",
@@ -118,7 +118,9 @@
     "package:prepare": "node scripts/prepare-package.mjs",
     "package:check": "node scripts/check-package-artifacts.mjs",
     "package:check-pack-list": "node scripts/check-packed-file-list.mjs",
-    "check:package-scripts": "node scripts/check-package-script-targets.mjs"
+    "check:package-scripts": "node scripts/check-package-script-targets.mjs",
+    "generate:environment-metadata": "tsx scripts/generate-server-environment.mts",
+    "check:environment-metadata": "tsx scripts/generate-server-environment.mts --check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
