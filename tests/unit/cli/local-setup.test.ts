@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   createDoctorReport,
+  doctorExitCode,
   evaluateNodeRuntime,
   evaluatePnpmRuntime,
   formatDoctorReport,
@@ -13,9 +15,62 @@ import {
   formatVersion,
   inspectUserServiceRuntime,
   parseCliArgs,
-  pnpmExecutableForPlatform,
+  pnpmVersionCommandForPlatform,
   type DoctorReport,
 } from '../../../src/cli/local-setup.js';
+
+interface DoctorFixtureOptions {
+  sourceCheckout?: boolean;
+  nodeEnv?: string;
+}
+
+function writeDoctorExtensionManifest(root: string, overrides: Record<string, unknown> = {}): void {
+  const extension = readFileSync(join(root, 'easyeda-bridge-extension.eext'));
+  writeFileSync(
+    join(root, 'easyeda-bridge-extension.checksums.json'),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        generatedAt: '2026-07-28T00:00:00.000Z',
+        package: 'easyeda-bridge-extension.eext',
+        packageSize: extension.byteLength,
+        packageSha256: createHash('sha256').update(extension).digest('hex'),
+        files: [],
+        ...overrides,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+function createDoctorFixture(options: DoctorFixtureOptions = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'easyeda-doctor-package-'));
+  const serverEntryPath = join(root, 'dist', 'index.js');
+  const extensionPackagePath = join(root, 'easyeda-bridge-extension.eext');
+  const extensionChecksumPath = join(root, 'easyeda-bridge-extension.checksums.json');
+  mkdirSync(join(root, 'dist'), { recursive: true });
+  writeFileSync(
+    join(root, 'package.json'),
+    `${JSON.stringify({ name: 'easyeda-mcp-pro', version: '0.35.4' }, null, 2)}\n`,
+  );
+  writeFileSync(serverEntryPath, '#!/usr/bin/env node\nconsole.log("ready");\n');
+  writeFileSync(extensionPackagePath, 'extension-package-bytes\n');
+  writeDoctorExtensionManifest(root);
+  if (options.sourceCheckout) {
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
+    writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages: []\n');
+    writeFileSync(join(root, 'tsconfig.build.json'), '{}\n');
+  }
+  return {
+    root,
+    nodeEnv: options.nodeEnv,
+    serverEntryPath,
+    extensionPackagePath,
+    extensionChecksumPath,
+  };
+}
 
 function withEnv(overrides: Record<string, string | undefined>, fn: () => Promise<void>) {
   const saved: Record<string, string | undefined> = {};
@@ -95,9 +150,19 @@ describe('local setup CLI helpers', () => {
     expect(evaluatePnpmRuntime(null)).toMatchObject({ supported: false });
   });
 
-  it('uses the platform-specific pnpm executable', () => {
-    expect(pnpmExecutableForPlatform('win32')).toBe('pnpm.cmd');
-    expect(pnpmExecutableForPlatform('linux')).toBe('pnpm');
+  it('uses a Windows command interpreter for pnpm shims', () => {
+    expect(pnpmVersionCommandForPlatform('win32', 'C:\\Windows\\System32\\cmd.exe')).toEqual({
+      executable: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', 'pnpm --version'],
+    });
+    expect(pnpmVersionCommandForPlatform('win32', '   ')).toEqual({
+      executable: 'cmd.exe',
+      args: ['/d', '/s', '/c', 'pnpm --version'],
+    });
+    expect(pnpmVersionCommandForPlatform('linux')).toEqual({
+      executable: 'pnpm',
+      args: ['--version'],
+    });
   });
 
   it('resolves the default systemd unit path from XDG config or the user home', async () => {
@@ -483,7 +548,7 @@ describe('local setup CLI helpers', () => {
     };
 
     const output = formatDoctorReport(report, { fix: true });
-    expect(output).toContain('pnpm: OK 11.5.1 (required: 11.5.1)');
+    expect(output).toContain('pnpm: OK 11.5.1 (required for source workflows: 11.5.1)');
     expect(output).toContain('User service runtime: BROKEN /usr/local/bin/node');
     expect(output).toContain('systemctl --user disable --now easyeda-mcp-pro.service');
     expect(output).toContain('Rerun your MCP client setup');
@@ -533,6 +598,255 @@ describe('local setup CLI helpers', () => {
 
   it('formats the package version from the real package.json', () => {
     expect(formatVersion()).toMatch(/^easyeda-mcp-pro@\d+\.\d+\.\d+/);
+  });
+
+  describe('doctor installation modes', () => {
+    it('requires the pinned pnpm version in a source checkout', async () => {
+      const fixture = createDoctorFixture({ sourceCheckout: true });
+      try {
+        await withEnv({ BRIDGE_PORT_SCAN: '1' }, async () => {
+          const report = await createDoctorReport(fixture.root, {
+            nodeEnv: 'development',
+            pnpmVersion: '11.5.2',
+          });
+
+          expect(report.installationMode).toBe('source-checkout');
+          expect(report.pnpmRequired).toBe(true);
+          expect(report.pnpmSupported).toBe(false);
+          expect(doctorExitCode(report)).toBe(1);
+          expect(formatDoctorReport(report)).toContain(
+            'pnpm: UNSUPPORTED 11.5.2 (required for source workflows: 11.5.1)',
+          );
+          expect(formatDoctorReport(report, { fix: true })).toContain(
+            'corepack prepare pnpm@11.5.1 --activate',
+          );
+        });
+      } finally {
+        rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+
+    it('treats pnpm as not required in a packed npm package', async () => {
+      const fixture = createDoctorFixture();
+      try {
+        await withEnv({ BRIDGE_PORT_SCAN: '1' }, async () => {
+          const report = await createDoctorReport(fixture.root, {
+            nodeEnv: 'development',
+            pnpmVersion: null,
+          });
+
+          expect(report.installationMode).toBe('installed-package');
+          expect(report.pnpmRequired).toBe(false);
+          expect(report.setup.serverEntryValid).toBe(true);
+          expect(report.setup.extensionPackageValid).toBe(true);
+          expect(report.setup.artifactIssues).toEqual([]);
+          expect(doctorExitCode(report)).toBe(0);
+          expect(formatDoctorReport(report)).toContain('pnpm: NOT REQUIRED (installed-package)');
+          expect(formatDoctorReport(report, { fix: true })).not.toContain('corepack prepare');
+        });
+      } finally {
+        rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+
+    it('treats package managers as intentionally absent in a hardened production runtime', async () => {
+      const fixture = createDoctorFixture({ nodeEnv: 'production' });
+      try {
+        await withEnv({ BRIDGE_PORT_SCAN: '1' }, async () => {
+          const report = await createDoctorReport(fixture.root, {
+            nodeEnv: 'production',
+            pnpmVersion: null,
+          });
+
+          expect(report.installationMode).toBe('production-runtime');
+          expect(report.pnpmRequired).toBe(false);
+          expect(formatDoctorReport(report)).toContain('pnpm: NOT REQUIRED (production-runtime)');
+          expect(formatDoctorReport(report, { fix: true })).not.toContain('pnpm was not found');
+        });
+      } finally {
+        rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+
+    it('reports corrupt CLI and extension runtime artifacts as broken', async () => {
+      const fixture = createDoctorFixture();
+      try {
+        writeFileSync(join(fixture.root, 'dist', 'index.js'), 'console.log("missing shebang");\n');
+        writeFileSync(join(fixture.root, 'easyeda-bridge-extension.eext'), 'tampered\n');
+        await withEnv({ BRIDGE_PORT_SCAN: '1' }, async () => {
+          const report = await createDoctorReport(fixture.root, {
+            nodeEnv: 'production',
+            pnpmVersion: null,
+          });
+
+          expect(report.setup.serverEntryExists).toBe(true);
+          expect(report.setup.serverEntryValid).toBe(false);
+          expect(report.setup.extensionPackageExists).toBe(true);
+          expect(report.setup.extensionPackageValid).toBe(false);
+          expect(report.setup.artifactIssues.join(' ')).toContain('shebang');
+          expect(report.setup.artifactIssues.join(' ')).toContain('SHA-256');
+          expect(doctorExitCode(report)).toBe(1);
+          const output = formatDoctorReport(report, { fix: true });
+          expect(output).toContain('MCP server entry: BROKEN');
+          expect(output).toContain('EasyEDA extension package: BROKEN');
+          expect(output).toContain('reinstall the npm package or container image');
+          expect(output).not.toContain('pnpm build');
+        });
+      } finally {
+        rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+
+    it('distinguishes missing, empty, and unreadable CLI entries', async () => {
+      const cases: Array<{
+        mutate: (fixture: ReturnType<typeof createDoctorFixture>) => void;
+        expected: string;
+      }> = [
+        {
+          mutate: (fixture) => rmSync(fixture.serverEntryPath),
+          expected: 'MCP server entry is missing',
+        },
+        {
+          mutate: (fixture) => writeFileSync(fixture.serverEntryPath, ''),
+          expected: 'MCP server entry is empty',
+        },
+        {
+          mutate: (fixture) => {
+            rmSync(fixture.serverEntryPath);
+            mkdirSync(fixture.serverEntryPath);
+          },
+          expected: 'MCP server entry could not be read',
+        },
+      ];
+
+      for (const entry of cases) {
+        const fixture = createDoctorFixture();
+        try {
+          entry.mutate(fixture);
+          await withEnv({ BRIDGE_PORT_SCAN: '1' }, async () => {
+            const report = await createDoctorReport(fixture.root, { nodeEnv: 'production' });
+            expect(report.setup.serverEntryValid).toBe(false);
+            expect(report.setup.artifactIssues?.join(' ')).toContain(entry.expected);
+            expect(doctorExitCode(report)).toBe(1);
+          });
+        } finally {
+          rmSync(fixture.root, { recursive: true, force: true });
+        }
+      }
+    });
+
+    it('distinguishes missing extension packages and checksum manifests', async () => {
+      const missingPackage = createDoctorFixture();
+      const missingManifest = createDoctorFixture();
+      try {
+        rmSync(missingPackage.extensionPackagePath);
+        rmSync(missingManifest.extensionChecksumPath);
+        await withEnv({ BRIDGE_PORT_SCAN: '1' }, async () => {
+          const packageReport = await createDoctorReport(missingPackage.root, {
+            nodeEnv: 'production',
+          });
+          expect(packageReport.setup.extensionPackageExists).toBe(false);
+          expect(packageReport.setup.artifactIssues?.join(' ')).toContain(
+            'EasyEDA extension package is missing',
+          );
+
+          const manifestReport = await createDoctorReport(missingManifest.root, {
+            nodeEnv: 'production',
+          });
+          expect(manifestReport.setup.extensionChecksumExists).toBe(false);
+          expect(manifestReport.setup.artifactIssues?.join(' ')).toContain(
+            'EasyEDA extension checksum manifest is missing',
+          );
+        });
+      } finally {
+        rmSync(missingPackage.root, { recursive: true, force: true });
+        rmSync(missingManifest.root, { recursive: true, force: true });
+      }
+    });
+
+    it('reports empty extension packages and malformed checksum manifests', async () => {
+      const emptyPackage = createDoctorFixture();
+      const invalidFields = createDoctorFixture();
+      const invalidJson = createDoctorFixture();
+      try {
+        writeFileSync(emptyPackage.extensionPackagePath, '');
+        writeDoctorExtensionManifest(emptyPackage.root);
+        writeDoctorExtensionManifest(invalidFields.root, {
+          schemaVersion: 2,
+          package: 'unexpected.eext',
+          packageSha256: 42,
+        });
+        writeFileSync(invalidJson.extensionChecksumPath, '{not-json}\n');
+
+        await withEnv({ BRIDGE_PORT_SCAN: '1' }, async () => {
+          const emptyReport = await createDoctorReport(emptyPackage.root, {
+            nodeEnv: 'production',
+          });
+          expect(emptyReport.setup.artifactIssues?.join(' ')).toContain(
+            'EasyEDA extension package is empty',
+          );
+
+          const fieldsReport = await createDoctorReport(invalidFields.root, {
+            nodeEnv: 'production',
+          });
+          const fieldIssues = fieldsReport.setup.artifactIssues?.join(' ') ?? '';
+          expect(fieldIssues).toContain('unsupported schema version');
+          expect(fieldIssues).toContain('unexpected package');
+          expect(fieldIssues).toContain('invalid SHA-256');
+
+          const jsonReport = await createDoctorReport(invalidJson.root, {
+            nodeEnv: 'production',
+          });
+          expect(jsonReport.setup.artifactIssues?.join(' ')).toContain(
+            'checksum could not be verified',
+          );
+        });
+      } finally {
+        rmSync(emptyPackage.root, { recursive: true, force: true });
+        rmSync(invalidFields.root, { recursive: true, force: true });
+        rmSync(invalidJson.root, { recursive: true, force: true });
+      }
+    });
+
+    it('keeps legacy doctor reports compatible with optional runtime fields', () => {
+      const report: DoctorReport = {
+        setup: {
+          packageName: 'easyeda-mcp-pro',
+          packageVersion: '0.35.4',
+          packageRoot: '/package',
+          serverEntryPath: '/package/dist/index.js',
+          extensionPackagePath: '/package/easyeda-bridge-extension.eext',
+          serverEntryExists: true,
+          extensionPackageExists: true,
+        },
+        nodeVersion: '24.18.0',
+        nodeSupported: true,
+        pnpmVersion: '11.5.1',
+        pnpmSupported: true,
+        envValid: true,
+        envIssues: [],
+        bridgeHost: '127.0.0.1',
+        bridgePorts: [{ port: 1, reachable: false }],
+        vendorsConfigured: {},
+      };
+
+      expect(doctorExitCode(report)).toBe(0);
+      expect(formatDoctorReport(report)).toContain('Runtime mode: source-checkout');
+      expect(formatDoctorReport(report)).toContain('MCP server entry: OK');
+      expect(formatDoctorReport(report)).toContain('EasyEDA extension package: OK');
+    });
+
+    it('documents development-only and runtime doctor requirements', () => {
+      const docs = [
+        readFileSync(join(process.cwd(), 'README.md'), 'utf8'),
+        readFileSync(join(process.cwd(), 'docs', 'guide', 'troubleshooting.md'), 'utf8'),
+        readFileSync(join(process.cwd(), 'docs', 'COMPATIBILITY.md'), 'utf8'),
+      ].join('\n');
+      expect(docs).toContain('source checkout');
+      expect(docs).toContain('installed package');
+      expect(docs).toContain('production runtime');
+      expect(docs).toContain('pnpm is not required');
+    });
   });
 
   describe('createDoctorReport', () => {

@@ -15,9 +15,13 @@ npx easyeda-mcp-pro --doctor
 This diagnostic tool checks:
 
 - Node.js runtime version compatibility.
-- Presence of built files (`dist/index.js`).
-- Presence of the compiled extension package (`easyeda-bridge-extension.eext`).
+- Whether it is running from a source checkout, installed package, or production runtime.
+- Whether `dist/index.js` is non-empty and has the declared Node.js shebang.
+- Whether `easyeda-bridge-extension.eext` matches its bundled SHA-256 manifest.
 - Availability and reachability of local port `49620`.
+
+pnpm is required and version-checked only in a source checkout. pnpm is not required in an installed package or production runtime. If a runtime artifact is missing or corrupt, reinstall the package or container image instead of adding development tooling to production.
+The command exits with status `1` for these fatal runtime/configuration defects, while an offline bridge alone remains an informational result.
 
 ---
 

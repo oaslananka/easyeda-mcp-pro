@@ -17,6 +17,9 @@ describe('Docker network verification policy', () => {
     expect(script).toContain('HTTP_HOST=0.0.0.0');
     expect(script).toContain('SAFETY:');
     expect(script).toContain('/healthz');
+    expect(script).toContain('Runtime mode: production-runtime');
+    expect(script).toContain('pnpm: NOT REQUIRED (production-runtime)');
+    expect(script).toContain('EasyEDA extension package: OK');
   });
 
   it('documents local-only and authenticated published-port deployments separately', () => {

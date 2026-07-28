@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import {
   createDoctorReport,
+  doctorExitCode,
   formatDoctorReport,
   formatHelp,
   formatSetupLocalReport,
@@ -44,9 +45,9 @@ async function main() {
   }
 
   if (cli.command === 'doctor') {
-    process.stdout.write(
-      `${formatDoctorReport(await createDoctorReport(), { fix: cli.doctorFix })}\n`,
-    );
+    const report = await createDoctorReport();
+    process.stdout.write(`${formatDoctorReport(report, { fix: cli.doctorFix })}\n`);
+    process.exitCode = doctorExitCode(report);
     return;
   }
 
