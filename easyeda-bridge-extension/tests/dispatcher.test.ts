@@ -857,6 +857,30 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('keeps central diagnostic and inventory routes compatible', async () => {
+    const getAll = vi.fn(async () => []);
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveComponent: { getAll } }));
+
+    await expect(dispatcher.dispatch('system.inspectComponents', {})).resolves.toEqual({
+      total: 0,
+      samples: [],
+    });
+    await expect(dispatcher.dispatch('inventory.search', { query: 'unused' })).resolves.toEqual([]);
+    await expect(dispatcher.dispatch('inventory.getPrice', { part: 'unused' })).resolves.toBeNull();
+    expect(getAll).toHaveBeenCalledWith(undefined, true);
+  });
+
+  it('keeps raw API execution validation and normalization compatible', async () => {
+    const dispatcher = createDispatcher(makeToolkit({ value: 7 }));
+
+    await expect(dispatcher.dispatch('api.execute', { code: '   ' })).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+    });
+    await expect(
+      dispatcher.dispatch('api.execute', { code: 'return { answer: eda.value };' }),
+    ).resolves.toEqual({ result: { answer: 7 } });
+  });
+
   it('rejects api.call paths outside the allowed class prefixes', async () => {
     const dispatcher = createDispatcher(makeToolkit({}));
     await expect(
