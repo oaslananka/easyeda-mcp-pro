@@ -460,8 +460,22 @@ export function formatSetupLocalReport(
 
 const execFileAsync = promisify(execFile);
 
-export function pnpmExecutableForPlatform(platform: NodeJS.Platform): string {
-  return platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+export interface PnpmVersionCommand {
+  executable: string;
+  args: string[];
+}
+
+export function pnpmVersionCommandForPlatform(
+  platform: NodeJS.Platform,
+  comSpec = process.env.ComSpec,
+): PnpmVersionCommand {
+  if (platform === 'win32') {
+    return {
+      executable: comSpec?.trim() || 'cmd.exe',
+      args: ['/d', '/s', '/c', 'pnpm --version'],
+    };
+  }
+  return { executable: 'pnpm', args: ['--version'] };
 }
 
 function parseSystemdExecStart(unitText: string): string | undefined {
@@ -595,9 +609,8 @@ export async function createDoctorReport(
       pnpmVersion = options.pnpmVersion ?? null;
     } else {
       try {
-        const { stdout } = await execFileAsync(pnpmExecutableForPlatform(process.platform), [
-          '--version',
-        ]);
+        const command = pnpmVersionCommandForPlatform(process.platform);
+        const { stdout } = await execFileAsync(command.executable, command.args);
         pnpmVersion = stdout.trim();
       } catch {
         // A missing package manager is reported only for source-checkout workflows.

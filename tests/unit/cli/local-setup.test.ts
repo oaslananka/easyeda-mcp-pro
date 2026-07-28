@@ -15,7 +15,7 @@ import {
   formatVersion,
   inspectUserServiceRuntime,
   parseCliArgs,
-  pnpmExecutableForPlatform,
+  pnpmVersionCommandForPlatform,
   type DoctorReport,
 } from '../../../src/cli/local-setup.js';
 
@@ -136,9 +136,19 @@ describe('local setup CLI helpers', () => {
     expect(evaluatePnpmRuntime(null)).toMatchObject({ supported: false });
   });
 
-  it('uses the platform-specific pnpm executable', () => {
-    expect(pnpmExecutableForPlatform('win32')).toBe('pnpm.cmd');
-    expect(pnpmExecutableForPlatform('linux')).toBe('pnpm');
+  it('uses a Windows command interpreter for pnpm shims', () => {
+    expect(pnpmVersionCommandForPlatform('win32', 'C:\\Windows\\System32\\cmd.exe')).toEqual({
+      executable: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', 'pnpm --version'],
+    });
+    expect(pnpmVersionCommandForPlatform('win32', '   ')).toEqual({
+      executable: 'cmd.exe',
+      args: ['/d', '/s', '/c', 'pnpm --version'],
+    });
+    expect(pnpmVersionCommandForPlatform('linux')).toEqual({
+      executable: 'pnpm',
+      args: ['--version'],
+    });
   });
 
   it('resolves the default systemd unit path from XDG config or the user home', async () => {
