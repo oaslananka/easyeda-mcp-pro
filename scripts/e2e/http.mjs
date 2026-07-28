@@ -41,7 +41,7 @@ async function mcpCall(method, params = {}) {
     return parsed.result;
   } catch (e) {
     clearTimeout(timer);
-    if (e.name === 'AbortError') throw new Error(`TIMEOUT ${method}`);
+    if (e.name === 'AbortError') throw new Error(`TIMEOUT ${method}`, { cause: e });
     throw e;
   }
 }
@@ -85,18 +85,16 @@ async function main() {
   }
 
   // Get server info
-  const ping = await mcpCall('ping');
+  await mcpCall('ping');
   ok('Server ping', `ok`);
 
   // 1. BRIDGE CONNECTION
   console.log('\n── [1/7] Bridge Connection ──\n');
   let bridgeConnected = false,
-    bridgeVersion = '?',
-    bridgeStatusRaw = '';
+    bridgeVersion = '?';
   for (let i = 0; i < BRIDGE_MAX_WAIT_S; i++) {
     try {
       const { text } = await toolCall('easyeda_bridge_status');
-      bridgeStatusRaw = text;
       const p = JSON.parse(text);
       if (p.connected === true) {
         bridgeConnected = true;
@@ -135,7 +133,6 @@ async function main() {
   const { text: bsText } = await toolCall('easyeda_bridge_status');
   const bsParsed = JSON.parse(bsText);
   const caps = new Set(bsParsed?.capabilities || []);
-  const allOk = required.every((m) => caps.has(m));
   for (const m of required) {
     if (caps.has(m)) ok(`Bridge method: ${m}`);
     else fail_(`Bridge method: ${m}`, 'not in capabilities');

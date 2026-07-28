@@ -275,7 +275,7 @@ export function createSchematicInspectionOperations({
       return { total: 0, items: [] };
     }
 
-    let all: unknown[] = [];
+    let all: unknown[];
     try {
       all = (await schematicRectangleClass.getAll()) || [];
     } catch (error) {

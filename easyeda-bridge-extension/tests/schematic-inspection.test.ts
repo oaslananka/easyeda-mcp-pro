@@ -155,6 +155,7 @@ describe('schematic inspection operations', () => {
     const page = { uuid: 'focused-page', name: 'Recovered from list' };
     const { operations } = makeOperations({
       'DMT_Schematic.getCurrentSchematicPageInfo': async () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- verifies recovery from vendor runtimes that reject with non-Error values.
         throw 'page transport failed';
       },
       'DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo': async () => [page],

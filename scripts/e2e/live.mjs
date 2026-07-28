@@ -48,8 +48,6 @@ let reqId = 0;
 const pending = new Map();
 let serverStdin;
 
-let serverStdoutLog = '';
-
 function mcpCall(method, params = {}, timeoutMs = CMD_TIMEOUT) {
   return new Promise((resolve, reject) => {
     const id = ++reqId;
@@ -98,13 +96,12 @@ async function main() {
 
   serverStdin = server.stdin;
   let serverExited = false;
-  server.on('exit', (c) => {
+  server.on('exit', () => {
     serverExited = true;
   });
 
   const rl = createInterface({ input: server.stdout });
   rl.on('line', (line) => {
-    serverStdoutLog += line + '\n';
     let parsed;
     try {
       parsed = JSON.parse(line);
@@ -163,7 +160,7 @@ async function main() {
         capture('bridge status', parsed);
         break;
       }
-    } catch (e) {}
+    } catch {}
     const elapsed = (i + 1) * 3;
     if (elapsed >= BRIDGE_MAX_WAIT_S) break;
     if ((i + 1) % 5 === 0) console.log(`  \u23f3 waiting for bridge... ${elapsed}s elapsed`);
@@ -223,7 +220,6 @@ async function main() {
 
   // First try schematic_nets to see if there's an active document
   let activeDoc = false;
-  let initialNets = [];
   try {
     const { text: netsText } = await toolCall('easyeda_schematic_nets', {
       projectId: PLACEHOLDER_ID,
@@ -231,11 +227,11 @@ async function main() {
     const netsParsed = JSON.parse(netsText);
     if (!netsParsed.not_available) {
       activeDoc = true;
-      initialNets = netsParsed.nets || [];
+      const initialNets = netsParsed.nets || [];
       ok('Active document confirmed', `${initialNets.length} initial nets`);
       capture('initial nets', netsText);
     }
-  } catch (e) {}
+  } catch {}
 
   // Fallback: try listComponents
   if (!activeDoc) {
@@ -383,13 +379,12 @@ async function main() {
   ok('Component primitive IDs', `R1=${r1PrimId} R2=${r2PrimId}`);
 
   // Also get component pins
-  let r1Pins = [],
-    r2Pins = [];
+  let r2Pins = [];
   try {
     const { text: pins1 } = await toolCall('easyeda_schematic_component_pins', {
       primitiveId: r1PrimId,
     });
-    r1Pins = extractPinsPayload(JSON.parse(pins1));
+    const r1Pins = extractPinsPayload(JSON.parse(pins1));
     ok(
       'R1 pins',
       `${r1Pins.length} pins: ${r1Pins.map((p) => p.number || p.pinNumber || '').join(', ')}`,
