@@ -264,8 +264,130 @@ function detectDoctorInstallationMode(
   return nodeEnv === 'production' ? 'production-runtime' : 'installed-package';
 }
 
+interface ArtifactInspection {
+  exists: boolean;
+  valid: boolean;
+  issues: string[];
+}
+
+interface ExtensionArtifactInspection extends ArtifactInspection {
+  checksumExists: boolean;
+}
+
+interface ExtensionChecksumManifest {
+  schemaVersion?: unknown;
+  package?: unknown;
+  packageSize?: unknown;
+  packageSha256?: unknown;
+}
+
 function sha256File(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function formatUnknownError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function inspectServerEntry(serverEntryPath: string): ArtifactInspection {
+  if (!existsSync(serverEntryPath)) {
+    return {
+      exists: false,
+      valid: false,
+      issues: [`MCP server entry is missing: ${serverEntryPath}.`],
+    };
+  }
+
+  try {
+    const serverEntry = readFileSync(serverEntryPath);
+    if (serverEntry.byteLength === 0) {
+      return {
+        exists: true,
+        valid: false,
+        issues: [`MCP server entry is empty: ${serverEntryPath}.`],
+      };
+    }
+    if (!serverEntry.toString('utf8', 0, 64).startsWith('#!/usr/bin/env node')) {
+      return {
+        exists: true,
+        valid: false,
+        issues: [`MCP server entry is missing the declared Node.js shebang: ${serverEntryPath}.`],
+      };
+    }
+    return { exists: true, valid: true, issues: [] };
+  } catch (error) {
+    return {
+      exists: true,
+      valid: false,
+      issues: [`MCP server entry could not be read: ${formatUnknownError(error)}.`],
+    };
+  }
+}
+
+function validateExtensionPackage(
+  extensionPackagePath: string,
+  manifest: ExtensionChecksumManifest,
+): string[] {
+  const issues: string[] = [];
+  const extensionInfo = statSync(extensionPackagePath);
+  const expectedSha256 = typeof manifest.packageSha256 === 'string' ? manifest.packageSha256 : '';
+  const actualSha256 = sha256File(extensionPackagePath);
+
+  if (extensionInfo.size <= 0) {
+    issues.push(`EasyEDA extension package is empty: ${extensionPackagePath}.`);
+  }
+  if (manifest.schemaVersion !== 1) {
+    issues.push('EasyEDA extension checksum manifest has an unsupported schema version.');
+  }
+  if (manifest.package !== 'easyeda-bridge-extension.eext') {
+    issues.push('EasyEDA extension checksum manifest names an unexpected package.');
+  }
+  if (manifest.packageSize !== extensionInfo.size) {
+    issues.push('EasyEDA extension package size does not match its checksum manifest.');
+  }
+  if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
+    issues.push('EasyEDA extension checksum manifest has an invalid SHA-256 value.');
+  } else if (expectedSha256 !== actualSha256) {
+    issues.push('EasyEDA extension package SHA-256 does not match its checksum manifest.');
+  }
+  return issues;
+}
+
+function inspectExtensionPackage(
+  extensionPackagePath: string,
+  extensionChecksumPath: string,
+): ExtensionArtifactInspection {
+  if (!existsSync(extensionPackagePath)) {
+    return {
+      exists: false,
+      checksumExists: existsSync(extensionChecksumPath),
+      valid: false,
+      issues: [`EasyEDA extension package is missing: ${extensionPackagePath}.`],
+    };
+  }
+  if (!existsSync(extensionChecksumPath)) {
+    return {
+      exists: true,
+      checksumExists: false,
+      valid: false,
+      issues: [`EasyEDA extension checksum manifest is missing: ${extensionChecksumPath}.`],
+    };
+  }
+
+  try {
+    const manifest = JSON.parse(
+      readFileSync(extensionChecksumPath, 'utf8'),
+    ) as ExtensionChecksumManifest;
+    const issues = validateExtensionPackage(extensionPackagePath, manifest);
+    return { exists: true, checksumExists: true, valid: issues.length === 0, issues };
+  } catch (error) {
+    return {
+      exists: true,
+      checksumExists: true,
+      valid: false,
+      issues: [`EasyEDA extension checksum could not be verified: ${formatUnknownError(error)}.`],
+    };
+  }
 }
 
 function getLocalSetupInfo(
@@ -277,81 +399,8 @@ function getLocalSetupInfo(
   const serverEntryPath = join(packageRoot, 'dist', 'index.js');
   const extensionPackagePath = join(packageRoot, 'easyeda-bridge-extension.eext');
   const extensionChecksumPath = join(packageRoot, 'easyeda-bridge-extension.checksums.json');
-  const serverEntryExists = existsSync(serverEntryPath);
-  const extensionPackageExists = existsSync(extensionPackagePath);
-  const extensionChecksumExists = existsSync(extensionChecksumPath);
-  const artifactIssues: string[] = [];
-  let serverEntryValid = false;
-  let extensionPackageValid = false;
-
-  if (!serverEntryExists) {
-    artifactIssues.push(`MCP server entry is missing: ${serverEntryPath}.`);
-  } else {
-    try {
-      const serverEntry = readFileSync(serverEntryPath);
-      if (serverEntry.byteLength === 0) {
-        artifactIssues.push(`MCP server entry is empty: ${serverEntryPath}.`);
-      } else if (!serverEntry.toString('utf8', 0, 64).startsWith('#!/usr/bin/env node')) {
-        artifactIssues.push(
-          `MCP server entry is missing the declared Node.js shebang: ${serverEntryPath}.`,
-        );
-      } else {
-        serverEntryValid = true;
-      }
-    } catch (error) {
-      artifactIssues.push(
-        `MCP server entry could not be read: ${error instanceof Error ? error.message : String(error)}.`,
-      );
-    }
-  }
-
-  if (!extensionPackageExists) {
-    artifactIssues.push(`EasyEDA extension package is missing: ${extensionPackagePath}.`);
-  } else if (!extensionChecksumExists) {
-    artifactIssues.push(
-      `EasyEDA extension checksum manifest is missing: ${extensionChecksumPath}.`,
-    );
-  } else {
-    try {
-      const extensionInfo = statSync(extensionPackagePath);
-      const manifest = JSON.parse(readFileSync(extensionChecksumPath, 'utf8')) as {
-        schemaVersion?: unknown;
-        package?: unknown;
-        packageSize?: unknown;
-        packageSha256?: unknown;
-      };
-      const expectedSha256 =
-        typeof manifest.packageSha256 === 'string' ? manifest.packageSha256 : '';
-      const actualSha256 = sha256File(extensionPackagePath);
-      const extensionIssueCount = artifactIssues.length;
-      if (extensionInfo.size <= 0) {
-        artifactIssues.push(`EasyEDA extension package is empty: ${extensionPackagePath}.`);
-      }
-      if (manifest.schemaVersion !== 1) {
-        artifactIssues.push(
-          'EasyEDA extension checksum manifest has an unsupported schema version.',
-        );
-      }
-      if (manifest.package !== 'easyeda-bridge-extension.eext') {
-        artifactIssues.push('EasyEDA extension checksum manifest names an unexpected package.');
-      }
-      if (manifest.packageSize !== extensionInfo.size) {
-        artifactIssues.push('EasyEDA extension package size does not match its checksum manifest.');
-      }
-      if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
-        artifactIssues.push('EasyEDA extension checksum manifest has an invalid SHA-256 value.');
-      } else if (expectedSha256 !== actualSha256) {
-        artifactIssues.push(
-          'EasyEDA extension package SHA-256 does not match its checksum manifest.',
-        );
-      }
-      extensionPackageValid = artifactIssues.length === extensionIssueCount;
-    } catch (error) {
-      artifactIssues.push(
-        `EasyEDA extension checksum could not be verified: ${error instanceof Error ? error.message : String(error)}.`,
-      );
-    }
-  }
+  const serverEntry = inspectServerEntry(serverEntryPath);
+  const extensionPackage = inspectExtensionPackage(extensionPackagePath, extensionChecksumPath);
 
   return {
     packageName: packageInfo.name,
@@ -361,12 +410,12 @@ function getLocalSetupInfo(
     serverEntryPath,
     extensionPackagePath,
     extensionChecksumPath,
-    serverEntryExists,
-    extensionPackageExists,
-    extensionChecksumExists,
-    serverEntryValid,
-    extensionPackageValid,
-    artifactIssues,
+    serverEntryExists: serverEntry.exists,
+    extensionPackageExists: extensionPackage.exists,
+    extensionChecksumExists: extensionPackage.checksumExists,
+    serverEntryValid: serverEntry.valid,
+    extensionPackageValid: extensionPackage.valid,
+    artifactIssues: [...serverEntry.issues, ...extensionPackage.issues],
   };
 }
 
@@ -542,7 +591,7 @@ export async function createDoctorReport(
 
   let pnpmVersion: string | null = null;
   if (pnpmRequired) {
-    if (Object.prototype.hasOwnProperty.call(options, 'pnpmVersion')) {
+    if (Object.hasOwn(options, 'pnpmVersion')) {
       pnpmVersion = options.pnpmVersion ?? null;
     } else {
       try {
