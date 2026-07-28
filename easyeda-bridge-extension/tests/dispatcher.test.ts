@@ -1557,6 +1557,42 @@ describe('createDispatcher', () => {
     );
   });
 
+  it('caches requested text alignment when native create omits it', async () => {
+    const text = {
+      getState_PrimitiveId: () => 'text-cache',
+      getState_X: () => 10,
+      getState_Y: () => 20,
+      getState_Content: () => 'CACHE',
+      getState_Rotation: () => 0,
+      getState_TextColor: () => '#000000',
+      getState_FontName: () => 'Arial',
+      getState_FontSize: () => 20,
+      getState_Bold: () => false,
+      getState_Italic: () => false,
+      getState_UnderLine: () => false,
+      getState_AlignMode: () => undefined,
+    };
+    const create = vi.fn(async () => ({ primitiveId: 'text-cache' }));
+    const dispatcher = createDispatcher(
+      makeToolkit({ SCH_PrimitiveText: { create, get: async () => text } }),
+    );
+
+    await dispatcher.dispatch('schematic.addText', {
+      x: 10,
+      y: 20,
+      content: 'CACHE',
+      alignMode: 3,
+    });
+
+    await expect(
+      dispatcher.dispatch('schematic.getPrimitiveSnapshot', { primitiveId: 'text-cache' }),
+    ).resolves.toMatchObject({
+      primitiveId: 'text-cache',
+      primitiveKind: 'text',
+      property: { alignMode: 3 },
+    });
+  });
+
   it('rejects schematic text alignMode values outside the documented 1..9 enum', async () => {
     const create = vi.fn();
     const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveText: { create } }));
@@ -1783,6 +1819,58 @@ describe('createDispatcher', () => {
     });
     expect(getAll).toHaveBeenNthCalledWith(1, undefined, true);
     expect(getAll).toHaveBeenNthCalledWith(2, undefined, true);
+  });
+
+  it('uses documented BOM fallback keys for missing supplier, footprint, and value metadata', async () => {
+    const makeBomPart = (
+      primitiveId: string,
+      reference: string,
+      value: string,
+      footprint: string,
+      lcsc: string,
+    ) => ({
+      getState_PrimitiveId: () => primitiveId,
+      getState_ComponentType: () => 'part',
+      getState_Component: () => ({
+        uuid: `${primitiveId}-dev`,
+        libraryUuid: 'lib',
+        name: value,
+      }),
+      getState_Designator: () => reference,
+      getState_Name: () => value,
+      getState_Footprint: () => (footprint ? { name: footprint } : undefined),
+      getState_SupplierId: () => lcsc,
+      getState_Manufacturer: () => '',
+      getState_ManufacturerId: () => '',
+      getState_OtherProperty: () => ({}),
+    });
+    const getAll = vi.fn(async () => [
+      makeBomPart('r1', 'R1', '10k', 'R0603', 'C1001'),
+      makeBomPart('r2', 'R2', '1k', '', ''),
+      makeBomPart('r3', 'R3', '', '', ''),
+    ]);
+    const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveComponent: { getAll } }));
+
+    await expect(dispatcher.dispatch('bom.generate', { groupBy: 'lcsc' })).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reference: 'R1', lcsc: 'C1001' }),
+        expect.objectContaining({ reference: 'R2', value: '1k', lcsc: '' }),
+        expect.objectContaining({ reference: 'R3', value: '', lcsc: '' }),
+      ]),
+    );
+    await expect(dispatcher.dispatch('bom.generate', { groupBy: 'footprint' })).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reference: 'R1', footprint: 'R0603' }),
+        expect.objectContaining({ reference: 'R2, R3', footprint: '' }),
+      ]),
+    );
+    await expect(dispatcher.dispatch('bom.generate', { groupBy: 'value' })).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reference: 'R1', value: '10k' }),
+        expect.objectContaining({ reference: 'R2', value: '1k' }),
+        expect.objectContaining({ reference: 'R3', value: '' }),
+      ]),
+    );
   });
 
   // PCB readback: field names below are the getState_* getters observed live
