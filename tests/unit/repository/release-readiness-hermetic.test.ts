@@ -15,6 +15,10 @@ const temporaryRoots: string[] = [];
 const gitBinary = resolveGitBinary();
 if (!gitBinary) throw new Error('Git is required for release-readiness fixture tests');
 
+// This suite creates and commits a complete Git fixture before running the
+// readiness gate. Hosted macOS runners can exceed Vitest's 5s default.
+const GIT_FIXTURE_TEST_TIMEOUT_MS = 15_000;
+
 function git(root: string, args: string[]) {
   const result = spawnSync(gitBinary, ['-C', root, ...args], { encoding: 'utf8' });
   if (result.status !== 0) {
@@ -106,33 +110,37 @@ afterEach(async () => {
 });
 
 describe('hermetic release readiness', () => {
-  it('reports current evidence from a self-contained Git fixture', async () => {
-    const fixture = await createGitFixture();
+  it(
+    'reports current evidence from a self-contained Git fixture',
+    async () => {
+      const fixture = await createGitFixture();
 
-    const report = await inspectCompatibilityFreshness({
-      root: fixture.root,
-      gitBinary,
-    });
+      const report = await inspectCompatibilityFreshness({
+        root: fixture.root,
+        gitBinary,
+      });
 
-    expect(report).toMatchObject({
-      schemaVersion: 1,
-      status: 'current',
-      reason: 'Required live compatibility evidence is current.',
-      targetRef: 'HEAD',
-      headCommit: fixture.currentHead,
-      requiredFreshLiveRecords: 1,
-      freshRecords: 1,
-      sensitivePaths: ['src/tools'],
-    });
-    expect(report.records).toEqual([
-      expect.objectContaining({
-        id: 'fixture-live-record',
-        evidenceCommit: fixture.evidenceCommit,
+      expect(report).toMatchObject({
+        schemaVersion: 1,
         status: 'current',
-        changedFiles: [],
-      }),
-    ]);
-  });
+        reason: 'Required live compatibility evidence is current.',
+        targetRef: 'HEAD',
+        headCommit: fixture.currentHead,
+        requiredFreshLiveRecords: 1,
+        freshRecords: 1,
+        sensitivePaths: ['src/tools'],
+      });
+      expect(report.records).toEqual([
+        expect.objectContaining({
+          id: 'fixture-live-record',
+          evidenceCommit: fixture.evidenceCommit,
+          status: 'current',
+          changedFiles: [],
+        }),
+      ]);
+    },
+    GIT_FIXTURE_TEST_TIMEOUT_MS,
+  );
 
   it('reports stale evidence after a committed sensitive change', async () => {
     const fixture = await createGitFixture();

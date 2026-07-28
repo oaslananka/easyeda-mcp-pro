@@ -112,53 +112,63 @@ export class CdpBridgeManager extends EventEmitter {
     this.state = 'connecting';
     this.emit('stateChanged', this.state, prev);
 
-    const logger = getLogger();
-    const baseUrl = this.getCdpBaseUrl();
-    const targets = await this.fetchJson<CdpTarget[]>(`${baseUrl}/json/list`);
-    const target = this.selectEasyedaTarget(targets);
-    if (!target?.webSocketDebuggerUrl) {
-      this.state = 'error';
-      this.emit('stateChanged', 'error', 'connecting');
-      throw new Error(
-        'CDP bridge could not find an EasyEDA editor page target. Start EasyEDA Pro with --remote-debugging-port=9222 and open a project.',
+    try {
+      const logger = getLogger();
+      const baseUrl = this.getCdpBaseUrl();
+      const targets = await this.fetchJson<CdpTarget[]>(`${baseUrl}/json/list`);
+      const target = this.selectEasyedaTarget(targets);
+      if (!target?.webSocketDebuggerUrl) {
+        throw new Error(
+          'CDP bridge could not find an EasyEDA editor page target. Start EasyEDA Pro with --remote-debugging-port=9222 and open a project.',
+        );
+      }
+
+      this._target = target;
+      this._activePort = Number(new URL(baseUrl).port || '9222');
+      this.ws = await this.openWebSocket(target.webSocketDebuggerUrl);
+      this.attachSocketHandlers(this.ws);
+      await this.cdp('Runtime.enable');
+
+      const status = await this.evaluateObject<{ appVersion?: string; title?: string }>(
+        `(() => ({
+          title: document.title,
+          href: location.href,
+          appVersion: globalThis?.navigator?.userAgent?.match(/EasyEDAPro\\/([^ ]+)/)?.[1]
+        }))()`,
       );
+
+      this.state = 'connected';
+      this._connectedAtMs = Date.now();
+      this._lastHeartbeatMs = Date.now();
+      this.hello = {
+        type: 'hello',
+        bridgeVersion: SERVER_VERSION,
+        contractVersion: BRIDGE_CONTRACT_VERSION,
+        supportedProtocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+        easyedaVersion: status.appVersion,
+        capabilities: EasyedaApiMethodSchema.options,
+        methodRegistryHash: this._methodRegistryHash,
+        maxPayloadSize: this.config.BRIDGE_MAX_PAYLOAD_SIZE,
+        devMode: true,
+      };
+
+      logger.info(
+        { title: target.title, url: target.url },
+        'cdp bridge connected to EasyEDA renderer',
+      );
+      this.emit('stateChanged', 'connected', prev);
+      this.emit('connected', this.hello);
+    } catch (error) {
+      const connectionError = error instanceof Error ? error : new Error(String(error));
+      this.rejectPending(connectionError);
+      const socket = this.ws;
+      this.ws = null;
+      this.resetRuntimeState();
+      this.state = 'error';
+      if (socket) socket.close();
+      this.emit('stateChanged', 'error', 'connecting');
+      throw connectionError;
     }
-
-    this._target = target;
-    this._activePort = Number(new URL(baseUrl).port || '9222');
-    this.ws = await this.openWebSocket(target.webSocketDebuggerUrl);
-    this.attachSocketHandlers(this.ws);
-    await this.cdp('Runtime.enable');
-
-    const status = await this.evaluateObject<{ appVersion?: string; title?: string }>(
-      `(() => ({
-        title: document.title,
-        href: location.href,
-        appVersion: globalThis?.navigator?.userAgent?.match(/EasyEDAPro\\/([^ ]+)/)?.[1]
-      }))()`,
-    );
-
-    this.state = 'connected';
-    this._connectedAtMs = Date.now();
-    this._lastHeartbeatMs = Date.now();
-    this.hello = {
-      type: 'hello',
-      bridgeVersion: SERVER_VERSION,
-      contractVersion: BRIDGE_CONTRACT_VERSION,
-      supportedProtocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
-      easyedaVersion: status.appVersion,
-      capabilities: EasyedaApiMethodSchema.options,
-      methodRegistryHash: this._methodRegistryHash,
-      maxPayloadSize: this.config.BRIDGE_MAX_PAYLOAD_SIZE,
-      devMode: true,
-    };
-
-    logger.info(
-      { title: target.title, url: target.url },
-      'cdp bridge connected to EasyEDA renderer',
-    );
-    this.emit('stateChanged', 'connected', prev);
-    this.emit('connected', this.hello);
   }
 
   async call<TParams, TResult>(
@@ -200,8 +210,7 @@ export class CdpBridgeManager extends EventEmitter {
       this.ws.close();
       this.ws = null;
     }
-    this.hello = null;
-    this._target = null;
+    this.resetRuntimeState();
     this.emit('stateChanged', this.state, prev);
     this.emit('disconnected', reason ?? 'unknown');
   }
@@ -354,11 +363,16 @@ export class CdpBridgeManager extends EventEmitter {
     });
 
     ws.on('close', (code, reason) => {
-      if (this.state !== 'disconnected') {
+      if (this.ws !== ws) return;
+      this.ws = null;
+      const disconnectReason = reason.toString() || `cdp_close_${code}`;
+      this.rejectPending(new Error(`CDP bridge disconnected: ${disconnectReason}`));
+      this.resetRuntimeState();
+      if (this.state !== 'disconnected' && this.state !== 'error') {
         const prev = this.state;
         this.state = 'connecting';
         this.emit('stateChanged', 'connecting', prev);
-        this.emit('disconnected', reason.toString() || `cdp_close_${code}`);
+        this.emit('disconnected', disconnectReason);
       }
     });
 
@@ -867,6 +881,13 @@ export class CdpBridgeManager extends EventEmitter {
         sessionStorageKeys: (() => { try { return Object.keys(sessionStorage).slice(0, 120); } catch { return []; } })()
       };
     })()`;
+  }
+
+  private resetRuntimeState(): void {
+    this.hello = null;
+    this._target = null;
+    this._connectedAtMs = 0;
+    this._lastHeartbeatMs = 0;
   }
 
   private rejectPending(error: Error): void {

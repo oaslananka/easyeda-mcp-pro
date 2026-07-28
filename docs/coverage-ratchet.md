@@ -107,3 +107,32 @@ Vitest now enforces the line and branch floors directly for `src/remote/gateway.
 - `session_closed` and socket close rejected in-flight requests with a generic extension error or only after their deadline.
 
 Re-registration now disconnects and rejects the old session before replacement. Relay responses must match the active session, unknown request IDs return `REQUEST_NOT_FOUND`, and socket/session teardown rejects pending requests immediately as `SESSION_DISCONNECTED` with HTTP-equivalent status 424. Different sessions remain concurrently dispatchable while requests targeting the same session remain serialized.
+
+## 2026-07-28 bridge manager visibility and extension branch ratchet
+
+Issue #431 removed the broad `src/bridge/*-manager.ts` exclusion and added a real loopback CDP transport harness. The server coverage denominator now includes both bridge managers, including connection negotiation, command dispatch, timeout handling, shutdown cleanup, and write authorization boundaries.
+
+Measured on Node.js 24.18.0 with:
+
+```bash
+pnpm exec vitest run --coverage --reporter=default
+```
+
+The server suite completed with 178 files and 1,905 tests. Repository-wide coverage remained above the existing blocking floors: 88.56% statements, 76.86% branches, 91.71% functions, and 90.22% lines.
+
+| Module                      | Measured lines | Measured branches | Blocking lines | Blocking branches |
+| --------------------------- | -------------- | ----------------- | -------------- | ----------------- |
+| `src/bridge/manager.ts`     | 79.05%         | 64.08%            | 79%            | 64%               |
+| `src/bridge/cdp-manager.ts` | 71.24%         | 51.68%            | 70%            | 50%               |
+
+The CDP transport tests cover missing-target and rejected-upgrade failures, successful runtime negotiation, unanswered command timeout, renderer shutdown with immediate pending-request rejection, and mapped/unmapped write gates. Those tests exposed two lifecycle defects: failed WebSocket negotiation left the manager stuck in `connecting`, and a renderer socket close left pending calls alive until their individual deadlines. Connection failures now transition fail-closed to `error`; remote shutdown clears runtime state and rejects pending work immediately.
+
+The bridge extension was re-measured with the same command used by CI:
+
+```bash
+pnpm test:extension:ci
+```
+
+It completed with 23 files and 317 tests at 80.53% statements, 74.04% branches, 90.50% functions, and 81.46% lines. The extension branch floor is raised incrementally from 50% to 60%; the 65% line/statement and 70% function floors are unchanged. This leaves headroom for source-map and platform variance while making a material branch-coverage regression blocking.
+
+The remaining server exclusions are deliberately narrow and documented in `vitest.config.ts`: the executable process entrypoint is exercised through CLI/subprocess tests whose child-process execution is not attributed by V8, the opt-in ngspice smoke requires a real external binary while its pure parser/runner behavior is unit-tested, declaration files are non-executable, and the unwired router remains explicitly owned by its cleanup/productization work. Removing or broadening an exclusion, or reducing any threshold above, requires an explicit policy change with a public rationale.
