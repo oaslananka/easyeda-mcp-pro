@@ -150,6 +150,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: '11.5.1'
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -158,6 +160,8 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
 
+      - name: Verify runtime pin parity
+        run: node scripts/check-runtime-pins.mjs
       - name: Verify commit-bound EasyEDA compatibility evidence
         run: node scripts/check-release-readiness.mjs --compatibility-only --target-ref="${TARGET_REF}"
 
