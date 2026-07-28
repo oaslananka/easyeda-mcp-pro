@@ -90,6 +90,36 @@ describe('MCP Registry environment metadata', () => {
     expect(byName.get('JLCPCB_CLIENT_ID')).not.toHaveProperty('isSecret');
   });
 
+  it('fails closed when metadata is duplicated, missing, mistyped, or unjustified', () => {
+    const invalid = structuredClone(metadata);
+    const first = invalid.variables[0];
+    if (!first) throw new Error('Expected at least one public environment variable.');
+
+    invalid.variables = invalid.variables.filter((variable) => variable.name !== 'TOOL_SCOPES');
+    invalid.variables.push(structuredClone(first));
+    invalid.variables.push(structuredClone(first));
+    invalid.variables[0] = { ...first, format: 'number' };
+    invalid.excludedVariables[0] = {
+      ...invalid.excludedVariables[0],
+      reason: '',
+    };
+
+    expect(
+      validateEnvironmentMetadata({
+        metadata: invalid,
+        runtimeDefaults,
+        runtimeNames,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        `Duplicate public environment variable metadata: ${first.name}`,
+        'EnvSchema key TOOL_SCOPES is neither public nor explicitly excluded.',
+        `${first.name} format number does not match runtime type string.`,
+        'BRIDGE_HOT_SWAP_ENABLED requires an exclusion reason.',
+      ]),
+    );
+  });
+
   it('keeps server.json equal to the deterministic generated inventory', () => {
     const generated = buildRegistryEnvironmentVariables(metadata, runtimeDefaults);
     const serverJson = readServerJson();

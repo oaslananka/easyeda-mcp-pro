@@ -25,6 +25,17 @@ function parseArgs(argv: string[]): GenerateOptions {
   throw new Error(`Unexpected arguments: ${argv.join(' ')}`);
 }
 
+function formatValidationErrors(errors: string[]): string {
+  const details = errors.map((error) => `  - ${error}`).join('\n');
+  return `Environment metadata validation failed:\n${details}`;
+}
+
+function describeAction(check: boolean, changed: boolean): string {
+  if (check) return 'Environment metadata parity check passed';
+  if (changed) return 'Generated server.json environment metadata';
+  return 'server.json environment metadata is already current';
+}
+
 export async function generateServerEnvironmentMetadata({
   check,
   repositoryRoot = path.resolve(import.meta.dirname, '..'),
@@ -38,9 +49,7 @@ export async function generateServerEnvironmentMetadata({
     runtimeNames,
   });
   if (validationErrors.length > 0) {
-    throw new Error(
-      `Environment metadata validation failed:\n${validationErrors.map((error) => `  - ${error}`).join('\n')}`,
-    );
+    throw new Error(formatValidationErrors(validationErrors));
   }
 
   const serverPath = path.join(repositoryRoot, 'server.json');
@@ -78,11 +87,7 @@ if (isDirectExecution()) {
   try {
     const options = parseArgs(process.argv.slice(2));
     const result = await generateServerEnvironmentMetadata(options);
-    const action = options.check
-      ? 'Environment metadata parity check passed'
-      : result.changed
-        ? 'Generated server.json environment metadata'
-        : 'server.json environment metadata is already current';
+    const action = describeAction(options.check, result.changed);
     console.log(`${action}: ${result.count} public variables.`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
