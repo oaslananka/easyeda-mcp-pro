@@ -251,6 +251,31 @@ describe('CdpBridgeManager transport lifecycle', () => {
     ]);
   });
 
+  it('uses the default CDP port when the configured base URL omits one', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = createManager();
+    activeManagers.add(manager);
+    const debuggerUrl = `${harness.baseUrl.replace('http://', 'ws://')}/devtools/page/easyeda-page`;
+    const fetchJson = vi.fn().mockResolvedValue([
+      {
+        id: 'easyeda-page',
+        type: 'page',
+        title: 'EasyEDA Pro',
+        url: 'https://pro.easyeda.com/editor/project',
+        webSocketDebuggerUrl: debuggerUrl,
+      },
+    ]);
+    Object.defineProperty(manager, 'getCdpBaseUrl', { value: () => 'http://127.0.0.1' });
+    Object.defineProperty(manager, 'fetchJson', { value: fetchJson });
+
+    await manager.connect();
+
+    expect(fetchJson).toHaveBeenCalledWith('http://127.0.0.1/json/list');
+    expect(manager.activePort).toBe(9222);
+    expect(manager.connected).toBe(true);
+  });
+
   it('times out an unanswered CDP command and removes it from pending work', async () => {
     const harness = await createHarness();
     activeHarnesses.add(harness);
