@@ -22,7 +22,7 @@
    An MCP client can also test the candidate with `npx -y easyeda-mcp-pro@next`.
 
 2. Download the matching `easyeda-bridge-extension.eext` asset from the `v1.0.0-rc.1` GitHub prerelease.
-3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**.
+3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro requires a numeric package version, so Extension Manager shows `0.99.1` for this RC; the bridge runtime still reports the product version `1.0.0-rc.1`.
 4. Start the MCP server and confirm:
    - `easyeda_health_check` returns `status: ok`;
    - server and extension versions both report `1.0.0-rc.1`;

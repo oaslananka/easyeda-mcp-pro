@@ -57,6 +57,8 @@ gh workflow run publish-release.yml --ref main \
 
 The Publish Release workflow checks out the exact tag, verifies that the GitHub Release is non-draft and marked prerelease, reruns all gates, publishes npm with `--provenance --tag next`, publishes exact and `next` GHCR tags, uploads the extension and SBOM, and skips the MCP Registry.
 
+For `1.0.0-rc.N`, the EasyEDA install manifest uses numeric package version `0.99.N` because EasyEDA Pro 3.2.149 rejects SemVer prerelease identifiers in `extension.json`. The extension runtime, npm package, server, tag, and health checks continue to use `1.0.0-rc.N`; stable `1.0.0` remains a monotonic package upgrade from every `0.99.N` candidate. Other prerelease families fail closed until an explicit mapping is reviewed.
+
 Release Please and GitHub Release asset mutations authenticate with the repository-scoped `RELEASE_PLEASE_TOKEN`. This avoids the permission ceiling of a restricted merge integration while keeping npm publication on OIDC Trusted Publishing. The token is not exposed to build, test, npm, MCP Registry, or GHCR steps.
 
 ## 5. Release-blocking gates

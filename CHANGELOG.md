@@ -8,6 +8,7 @@
 - Carries the live-validated EasyEDA Pro 3.2.149 board-outline recovery and transactional `placeComponent` timeout reconciliation fixes.
 - Adds Linux, Windows, and macOS CI that installs the packed npm tarball and runs the installed CLI doctor.
 - Documents the opt-in upgrade, verification, and rollback path in `docs/MIGRATING_TO_V1.md`.
+- Uses EasyEDA numeric install version `0.99.1` while preserving `1.0.0-rc.1` as the server and extension runtime product version.
 - Keeps Remote Relay experimental and preserves the existing profile/tool compatibility contract.
 
 ## [0.35.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.3...easyeda-mcp-pro-v0.35.4) (2026-07-25)

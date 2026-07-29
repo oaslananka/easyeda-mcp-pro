@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { resolveEasyedaManifestVersion } from './extension-metadata-policy.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,9 +34,12 @@ if (fs.existsSync(extensionTsPath)) {
 const extensionJsonPath = path.join(root, 'easyeda-bridge-extension', 'extension.json');
 if (fs.existsSync(extensionJsonPath)) {
   const extJson = JSON.parse(fs.readFileSync(extensionJsonPath, 'utf8'));
-  extJson.version = version;
+  const easyedaManifestVersion = resolveEasyedaManifestVersion(version);
+  extJson.version = easyedaManifestVersion;
   fs.writeFileSync(extensionJsonPath, JSON.stringify(extJson, null, 2) + '\n');
-  console.log(`- Synced: ${extensionJsonPath}`);
+  console.log(
+    `- Synced: ${extensionJsonPath} (EasyEDA package ${easyedaManifestVersion}, product ${version})`,
+  );
 }
 
 // 4. Update .claude-plugin/plugin.json
