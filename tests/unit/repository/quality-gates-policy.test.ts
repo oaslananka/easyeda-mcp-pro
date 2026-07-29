@@ -118,6 +118,25 @@ describe('changed-code quality gate policy', () => {
     expect(readText('src/tools/L2_autorouting.ts')).not.toContain("from '../router/");
   });
 
+  it('installs and doctors the packed npm artifact on every supported OS', () => {
+    const workflow = readText('.github/workflows/ci.yml');
+    const matrix = workflow.slice(
+      workflow.indexOf('  test-matrix:'),
+      workflow.indexOf('\n  codeql:'),
+    );
+
+    expect(matrix).toContain('os: ubuntu-latest');
+    expect(matrix).toContain('os: windows-latest');
+    expect(matrix).toContain('os: macos-26');
+    expect(matrix).toContain('node scripts/e2e/packed-install-doctor.mjs');
+    expect(matrix).not.toContain('node dist/index.js --doctor');
+
+    const smoke = readText('scripts/e2e/packed-install-doctor.mjs');
+    expect(smoke).toContain("['pack', '--pack-destination'");
+    expect(smoke).toContain("'install', '--global', '--prefix'");
+    expect(smoke).toContain("['--doctor']");
+  });
+
   it('keeps SonarQube Cloud on the GitHub App path without repository workflow credentials', () => {
     const workflowsDir = resolve(repoRoot, '.github/workflows');
     const workflows = readdirSync(workflowsDir)

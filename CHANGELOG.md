@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.0-rc.1] - 2026-07-29
+
+### Release candidate
+
+- Opens the required seven-day v1 soak without moving npm `latest`, GHCR `latest`, or the MCP Registry stable entry.
+- Carries the live-validated EasyEDA Pro 3.2.149 board-outline recovery and transactional `placeComponent` timeout reconciliation fixes.
+- Adds Linux, Windows, and macOS CI that installs the packed npm tarball and runs the installed CLI doctor.
+- Documents the opt-in upgrade, verification, and rollback path in `docs/MIGRATING_TO_V1.md`.
+- Keeps Remote Relay experimental and preserves the existing profile/tool compatibility contract.
+
 ## [0.35.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v0.35.3...easyeda-mcp-pro-v0.35.4) (2026-07-25)
 
 

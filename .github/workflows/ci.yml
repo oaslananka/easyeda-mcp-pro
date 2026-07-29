@@ -210,8 +210,8 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm build:extension
-      - name: Doctor (CLI startup smoke)
-        run: node dist/index.js --doctor
+      - name: Packed artifact install and doctor
+        run: node scripts/e2e/packed-install-doctor.mjs
 
   codeql:
     if: (github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops') && (github.event_name == 'push' || github.event_name == 'pull_request')

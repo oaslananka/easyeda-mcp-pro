@@ -57,6 +57,7 @@ export default defineConfig({
         text: 'Introduction',
         items: [
           { text: 'Getting Started', link: '/guide/getting-started' },
+          { text: 'Migrating to v1', link: '/MIGRATING_TO_V1' },
           { text: 'Configuration', link: '/guide/configuration' },
           { text: 'CDP Bridge (Experimental)', link: '/guide/cdp-bridge' },
           { text: 'Roadmap', link: '/ROADMAP' },

@@ -150,6 +150,8 @@ node scripts/check-runtime.mjs --require-pnpm
 
 ## Installation & Client Configuration
 
+> Testing the v1 release candidate? Follow [Migrating to v1](docs/MIGRATING_TO_V1.md). Stable npm and container channels remain on `0.35.4` during the candidate soak.
+
 You can configure `easyeda-mcp-pro` automatically or manually.
 
 ### 1. Automatic Configuration (CLI)
