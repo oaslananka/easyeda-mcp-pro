@@ -34,6 +34,7 @@ describe('Codecov analytics policy', () => {
       '--outputFile.junit=../reports/extension.junit.xml',
     );
     expect(vitestConfig).toContain("reporter: ['text', 'json', 'html', 'lcov']");
+    expect(vitestConfig).not.toContain("'src/router/**'");
     expect(vitestConfig).toContain("'src/remote/gateway.ts': {");
     expect(vitestConfig).toContain('lines: 80');
     expect(vitestConfig).toContain('branches: 70');
@@ -68,6 +69,7 @@ describe('Codecov analytics policy', () => {
       /`src\/bridge\/cdp-manager\.ts`\s+\|\s+71\.24%\s+\|\s+51\.68%\s+\|\s+70%\s+\|\s+50%/,
     );
     expect(ratchet).toContain('Do not exclude `src/index.ts`');
+    expect(ratchet).not.toContain('unwired router');
   });
 
   it('uploads coverage and both test reports with pinned Codecov tooling', () => {

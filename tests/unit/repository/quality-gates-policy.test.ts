@@ -113,6 +113,11 @@ describe('changed-code quality gate policy', () => {
     expect(tokenlessExtension).not.toContain('secrets.CODECOV_TOKEN');
   });
 
+  it('does not retain unsupported routing scaffolding in the production source tree', () => {
+    expect(existsSync(resolve(repoRoot, 'src/router'))).toBe(false);
+    expect(readText('src/tools/L2_autorouting.ts')).not.toContain("from '../router/");
+  });
+
   it('keeps SonarQube Cloud on the GitHub App path without repository workflow credentials', () => {
     const workflowsDir = resolve(repoRoot, '.github/workflows');
     const workflows = readdirSync(workflowsDir)
