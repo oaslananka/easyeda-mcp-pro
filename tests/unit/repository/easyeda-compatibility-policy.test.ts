@@ -78,11 +78,17 @@ describe('EasyEDA compatibility evidence policy', () => {
       expect(record.easyedaPro.version).toMatch(/^3\.2\.149\./);
       expect(record.easyedaPro.electronVersion).toMatch(/^36\./);
       expect(record.easyedaPro.chromiumVersion).toMatch(/^136\./);
-      expect(record.server.validationPackageVersion).toMatch(/^0\.35\./);
-      expect(record.server.releaseContainingFixes).toMatch(/^0\.35\./);
+      expect(record.server.validationPackageVersion).toMatch(
+        /^(?:0\.35\.\d+|1\.0\.0-rc\.[1-9]\d*)$/,
+      );
+      expect(record.server.releaseContainingFixes).toBe(record.server.validationPackageVersion);
       expect(record.server.commit).toMatch(/^[0-9a-f]{40}$/);
-      expect(record.extension.installedPackageVersion).toBe(record.server.releaseContainingFixes);
-      expect(record.extension.loaderReportedVersion).toBe(record.extension.installedPackageVersion);
+      expect(record.extension.installedPackageVersion).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(record.extension.loaderReportedVersion).toBe(record.server.releaseContainingFixes);
+      const rcMatch = /^1\.0\.0-rc\.([1-9]\d*)$/.exec(record.server.releaseContainingFixes);
+      expect(record.extension.installedPackageVersion).toBe(
+        rcMatch ? `0.99.${rcMatch[1]}` : record.server.releaseContainingFixes,
+      );
       expect(record.extension.bridgeContractVersion).toBe('1.0.0');
       expect(record.extension.methodRegistryHash).toMatch(/^[0-9a-f]{16}$/);
       expect(record.extension.activeDispatcher).toBe('baked');

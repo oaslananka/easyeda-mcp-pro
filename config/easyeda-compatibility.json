@@ -1,8 +1,81 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-07-25",
+  "lastReviewed": "2026-07-29",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-29-v1-rc1",
+      "status": "live-validated",
+      "validatedAt": "2026-07-29T23:36:48+03:00",
+      "reviewBy": "2026-10-27",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-28-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.0.0-rc.1",
+        "releaseContainingFixes": "1.0.0-rc.1",
+        "commit": "4c5969de73678140e3582f08d2be52233622a718"
+      },
+      "extension": {
+        "installedPackageVersion": "0.99.1",
+        "loaderReportedVersion": "1.0.0-rc.1",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "34f1dcf29ebdf3cf",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "Example Quick Start disposable clone",
+        "document": "PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-rc1-packaged-bridge-cold-start",
+          "name": "Packaged v1 release-candidate bridge cold start",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact 1.0.0-rc.1 candidate installed in EasyEDA Pro as numeric package 0.99.1, enabled external interaction, connected on the local bridge, reported runtime version 1.0.0-rc.1, exposed 67 capabilities, and matched method registry hash 34f1dcf29ebdf3cf without version or registry drift.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-29-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.1-read-only.json"
+          ]
+        },
+        {
+          "id": "v1-rc1-board-read-only-smoke",
+          "name": "Release-candidate PCB read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "On the disposable Quick Start PCB, the public MCP tools returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, and the expected board feature inventory.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-29-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.1-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/389"
+          ]
+        },
+        {
+          "id": "v1-rc1-local-quality-and-package-gates",
+          "name": "Exact-tree quality and package gates",
+          "evidenceLevel": "ci",
+          "status": "passed",
+          "summary": "The exact candidate tree passed 1,967 server tests, 334 extension tests, metadata and documentation checks, secret scanning, extension packaging, and packed npm installation doctor before live validation.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/issues/437"]
+        }
+      ],
+      "knownLimitations": [
+        "This exact candidate pass was read-only. Transactional component timeout reconciliation and rollback were validated separately on the same EasyEDA runtime lineage in issue #456, but were not repeated after packaging the RC.",
+        "This exact-version live record applies only to Ubuntu x86_64. Windows and macOS receive packed-install CI coverage but do not yet have equivalent live EasyEDA desktop records.",
+        "Remote Relay remains experimental and was not dogfooded through a public hosted endpoint during this pass.",
+        "EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager displays 0.99.1 while the bridge runtime and server report product version 1.0.0-rc.1."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-25",
       "status": "live-validated",

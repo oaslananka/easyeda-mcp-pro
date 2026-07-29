@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-07-25
+- **Last reviewed:** 2026-07-29
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,7 +32,50 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-29-v1-rc1`
+
+### Runtime identity
+
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.4 LTS                         |
+| Kernel                               | `7.0.0-28-generic`                         |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.18.0`                                  |
+| Validation package version           | `1.0.0-rc.1`                               |
+| Release containing validated fixes   | `1.0.0-rc.1`                               |
+| Compatibility-sensitive base commit  | `4c5969de73678140e3582f08d2be52233622a718` |
+| Installed extension package metadata | `0.99.1`                                   |
+| Loader-reported version              | `1.0.0-rc.1`                               |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `34f1dcf29ebdf3cf`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
+
+The installed extension package reported `0.99.1`, while the loader reported `1.0.0-rc.1`; the distinction is retained as part of the exact runtime evidence.
+
+### Capability evidence
+
+| Capability                                      | Level  | Status   | Result                                                                                                                                                                                                                                                                                             | Evidence                                                                                                                                                                                                                                  |
+| ----------------------------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Packaged v1 release-candidate bridge cold start | `live` | `passed` | The exact 1.0.0-rc.1 candidate installed in EasyEDA Pro as numeric package 0.99.1, enabled external interaction, connected on the local bridge, reported runtime version 1.0.0-rc.1, exposed 67 capabilities, and matched method registry hash 34f1dcf29ebdf3cf without version or registry drift. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-29-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.1-read-only.json)                                                                         |
+| Release-candidate PCB read-only smoke           | `live` | `passed` | On the disposable Quick Start PCB, the public MCP tools returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, and the expected board feature inventory.                                                                                                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-29-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.1-read-only.json), [Issue #389](https://github.com/oaslananka/easyeda-mcp-pro/issues/389) |
+| Exact-tree quality and package gates            | `ci`   | `passed` | The exact candidate tree passed 1,967 server tests, 334 extension tests, metadata and documentation checks, secret scanning, extension packaging, and packed npm installation doctor before live validation.                                                                                       | [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437)                                                                                                                                                                    |
+
+### Known limitations
+
+- This exact candidate pass was read-only. Transactional component timeout reconciliation and rollback were validated separately on the same EasyEDA runtime lineage in issue #456, but were not repeated after packaging the RC.
+- This exact-version live record applies only to Ubuntu x86_64. Windows and macOS receive packed-install CI coverage but do not yet have equivalent live EasyEDA desktop records.
+- Remote Relay remains experimental and was not dogfooded through a public hosted endpoint during this pass.
+- EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager displays 0.99.1 while the bridge runtime and server report product version 1.0.0-rc.1.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 
