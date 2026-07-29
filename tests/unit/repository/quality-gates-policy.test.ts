@@ -133,6 +133,9 @@ describe('changed-code quality gate policy', () => {
 
     const smoke = readText('scripts/e2e/packed-install-doctor.mjs');
     expect(smoke).toContain("process.platform === 'win32' ? 'npm.cmd' : 'npm'");
+    expect(smoke).toContain("process.env.ComSpec ?? 'cmd.exe'");
+    expect(smoke).toContain("['/d', '/s', '/c', command, ...args]");
+    expect(smoke).not.toContain("shell: process.platform === 'win32'");
     expect(smoke).toContain("['pack', '--pack-destination'");
     expect(smoke).toContain("'install', '--global', '--prefix'");
     expect(smoke).toContain("['--doctor']");

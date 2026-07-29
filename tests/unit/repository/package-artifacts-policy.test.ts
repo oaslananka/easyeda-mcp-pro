@@ -315,6 +315,11 @@ describe('package artifact policy', () => {
       scripts: Record<string, string>;
     };
     const workflow = await readFile(join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+    const packagePrepare = await readFile(join(repoRoot, 'scripts/prepare-package.mjs'), 'utf8');
+    const packedListCheck = await readFile(
+      join(repoRoot, 'scripts/check-packed-file-list.mjs'),
+      'utf8',
+    );
     const releaseWorkflow = await readFile(
       join(repoRoot, '.github/workflows/publish-release.yml'),
       'utf8',
@@ -329,6 +334,12 @@ describe('package artifact policy', () => {
     expect(packageJson.scripts['package:check-pack-list']).toBe(
       'node scripts/check-packed-file-list.mjs',
     );
+    expect(packagePrepare).toContain("process.env.ComSpec ?? 'cmd.exe'");
+    expect(packagePrepare).toContain("['/d', '/s', '/c', command, ...args]");
+    expect(packagePrepare).not.toContain('spawnSync(command, args');
+    expect(packedListCheck).toContain("process.env.ComSpec ?? 'cmd.exe'");
+    expect(packedListCheck).toContain("['/d', '/s', '/c', npmExecutable");
+    expect(packedListCheck).not.toContain('spawnSync(npmExecutable, [');
     expect(workflow).toContain('pnpm package:prepare');
     expect(workflow).toContain('easyeda-bridge-extension.checksums.json');
     expect(workflow).not.toContain(

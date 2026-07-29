@@ -5,12 +5,25 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+function resolveSpawnCommand(command, args, useWindowsCommandShell) {
+  if (!useWindowsCommandShell) return { executable: command, executableArgs: args };
+  return {
+    executable: process.env.ComSpec ?? 'cmd.exe',
+    executableArgs: ['/d', '/s', '/c', command, ...args],
+  };
+}
+
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const { executable, executableArgs } = resolveSpawnCommand(
+    command,
+    args,
+    options.windowsCommandShell ?? false,
+  );
+  const result = spawnSync(executable, executableArgs, {
     cwd: options.cwd ?? process.cwd(),
     env: process.env,
     encoding: 'utf8',
-    shell: options.shell ?? false,
+    shell: false,
     stdio: options.stdio ?? 'pipe',
   });
   if (result.status !== 0) {
@@ -36,10 +49,14 @@ const workspace = await mkdtemp(join(tmpdir(), 'easyeda-packed-doctor-'));
 const packDirectory = join(workspace, 'pack');
 const installPrefix = join(workspace, 'prefix');
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const windowsCommandShell = process.platform === 'win32';
 
 try {
   await mkdir(packDirectory, { recursive: true });
-  run(npmCommand, ['pack', '--pack-destination', packDirectory], { cwd: repoRoot });
+  run(npmCommand, ['pack', '--pack-destination', packDirectory], {
+    cwd: repoRoot,
+    windowsCommandShell,
+  });
 
   const archives = (await readdir(packDirectory)).filter((name) => name.endsWith('.tgz'));
   if (archives.length !== 1) {
@@ -47,7 +64,10 @@ try {
   }
   const archive = join(packDirectory, archives[0]);
 
-  run(npmCommand, ['install', '--global', '--prefix', installPrefix, archive], { cwd: workspace });
+  run(npmCommand, ['install', '--global', '--prefix', installPrefix, archive], {
+    cwd: workspace,
+    windowsCommandShell,
+  });
 
   const binPath =
     process.platform === 'win32'
@@ -55,7 +75,7 @@ try {
       : join(installPrefix, 'bin', 'easyeda-mcp-pro');
   const doctor = run(binPath, ['--doctor'], {
     cwd: workspace,
-    shell: process.platform === 'win32',
+    windowsCommandShell,
   });
 
   console.log(`Packed install doctor passed: ${basename(archive)} on ${process.platform}.`);
