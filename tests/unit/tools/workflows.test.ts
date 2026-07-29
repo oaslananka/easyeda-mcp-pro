@@ -505,6 +505,228 @@ describe('Workflow Tools', () => {
       }
     });
 
+    it('keeps successful placements working when component inventory is unavailable', async () => {
+      let placeCount = 0;
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'schematic.listPrimitiveIds') {
+          throw new Error('component inventory unavailable');
+        }
+        if (method === 'schematic.placeComponent') {
+          placeCount += 1;
+          return { primitiveId: `component-${placeCount}` };
+        }
+        if (method === 'schematic.listComponents') return { total: 0, items: [] };
+        if (method === 'schematic.connectPinToNet') return { connected: true };
+        return {};
+      });
+
+      const tool = registry.get('easyeda_workflow_power_rail');
+      const result = (await tool?.handler(context, {
+        ...basePowerRailInput(),
+        mode: 'apply',
+        confirmWrite: true,
+      })) as any;
+
+      expect(result.applied).toBe(true);
+      expect(result.rolled_back).toBe(false);
+      expect(result.apply_results.slice(0, 2)).toEqual([
+        expect.objectContaining({ success: true, primitiveId: 'component-1' }),
+        expect.objectContaining({ success: true, primitiveId: 'component-2' }),
+      ]);
+    });
+
+    it('reconciles a unique component created after placeComponent times out and resolves later refs', async () => {
+      const componentIds: string[] = [];
+      let placeCount = 0;
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.listPrimitiveIds') {
+          return { primitiveIds: params.primitiveKind === 'component' ? [...componentIds] : [] };
+        }
+        if (method === 'schematic.placeComponent') {
+          placeCount += 1;
+          const primitiveId = `component-${placeCount}`;
+          componentIds.push(primitiveId);
+          if (placeCount === 1) {
+            throw new Error('Bridge method "schematic.placeComponent" timed out after 15000ms');
+          }
+          return { primitiveId };
+        }
+        if (method === 'schematic.listComponents') return { total: 0, items: [] };
+        if (method === 'schematic.connectPinToNet') return { connected: true };
+        return {};
+      });
+
+      const tool = registry.get('easyeda_workflow_power_rail');
+      const result = (await tool?.handler(context, {
+        ...basePowerRailInput(),
+        mode: 'apply',
+        confirmWrite: true,
+      })) as any;
+
+      expect(result.applied).toBe(true);
+      expect(result.rolled_back).toBe(false);
+      expect(result.apply_results[0]).toMatchObject({
+        method: 'schematic.placeComponent',
+        ref: 'U1',
+        success: true,
+        primitiveId: 'component-1',
+        reconciled: true,
+      });
+      const connectCalls = bridgeCall.mock.calls.filter(
+        ([method]) => method === 'schematic.connectPinToNet',
+      );
+      expect(placeCount).toBe(2);
+      expect(connectCalls).toHaveLength(5);
+      expect(connectCalls.map(([, params]) => (params as any).primitiveId)).toEqual([
+        'component-1',
+        'component-1',
+        'component-1',
+        'component-2',
+        'component-2',
+      ]);
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    });
+
+    it('keeps timeout-before-write failed when no component inventory delta appears', async () => {
+      vi.useFakeTimers();
+      try {
+        bridgeCall.mockImplementation(async (method: string, params: any) => {
+          if (method === 'schematic.listPrimitiveIds') {
+            return { primitiveIds: params.primitiveKind === 'component' ? ['existing-1'] : [] };
+          }
+          if (method === 'schematic.placeComponent') {
+            throw new Error('Bridge method "schematic.placeComponent" timed out after 15000ms');
+          }
+          return {};
+        });
+
+        const tool = registry.get('easyeda_workflow_power_rail');
+        const resultPromise = tool?.handler(context, {
+          ...basePowerRailInput(),
+          mode: 'apply',
+          confirmWrite: true,
+        });
+        await vi.runAllTimersAsync();
+        const result = (await resultPromise) as any;
+
+        expect(result.applied).toBe(false);
+        expect(result.rolled_back).toBe(false);
+        expect(result.apply_results[0]).toMatchObject({
+          method: 'schematic.placeComponent',
+          ref: 'U1',
+          success: false,
+        });
+        expect(result.apply_results[0]).not.toHaveProperty('primitiveId');
+        expect(result.apply_results[0]).not.toHaveProperty('reconciled');
+        expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('keeps a timeout failed when the component inventory delta is ambiguous', async () => {
+      const componentIds: string[] = [];
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.listPrimitiveIds') {
+          return { primitiveIds: params.primitiveKind === 'component' ? [...componentIds] : [] };
+        }
+        if (method === 'schematic.placeComponent') {
+          componentIds.push('component-a', 'component-b');
+          throw new Error('Bridge method "schematic.placeComponent" timed out after 15000ms');
+        }
+        return {};
+      });
+
+      const tool = registry.get('easyeda_workflow_power_rail');
+      const result = (await tool?.handler(context, {
+        ...basePowerRailInput(),
+        mode: 'apply',
+        confirmWrite: true,
+      })) as any;
+
+      expect(result.applied).toBe(false);
+      expect(result.rolled_back).toBe(false);
+      expect(result.apply_results[0]).toMatchObject({ success: false });
+      expect(result.apply_results[0]).not.toHaveProperty('primitiveId');
+      expect(result.apply_results[0]).not.toHaveProperty('reconciled');
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    });
+
+    it('keeps non-timeout placement errors failed and rolls back a uniquely created component', async () => {
+      const componentIds: string[] = [];
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.listPrimitiveIds') {
+          return { primitiveIds: params.primitiveKind === 'component' ? [...componentIds] : [] };
+        }
+        if (method === 'schematic.placeComponent') {
+          componentIds.push('component-1');
+          throw new Error('native placement rejected');
+        }
+        if (method === 'schematic.deletePrimitive') return { success: true };
+        return {};
+      });
+
+      const tool = registry.get('easyeda_workflow_power_rail');
+      const result = (await tool?.handler(context, {
+        ...basePowerRailInput(),
+        mode: 'apply',
+        confirmWrite: true,
+      })) as any;
+
+      expect(result.applied).toBe(false);
+      expect(result.rolled_back).toBe(true);
+      expect(result.apply_results[0]).toMatchObject({
+        success: false,
+        primitiveId: 'component-1',
+        error: 'native placement rejected',
+      });
+      expect(result.apply_results[0]).not.toHaveProperty('reconciled');
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.deletePrimitive', {
+        primitiveIds: ['component-1'],
+      });
+    });
+
+    it('rolls back a timeout-reconciled component when a later workflow operation fails', async () => {
+      const componentIds: string[] = [];
+      let placeCount = 0;
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.listPrimitiveIds') {
+          return { primitiveIds: params.primitiveKind === 'component' ? [...componentIds] : [] };
+        }
+        if (method === 'schematic.placeComponent') {
+          placeCount += 1;
+          const primitiveId = `component-${placeCount}`;
+          componentIds.push(primitiveId);
+          if (placeCount === 1) {
+            throw new Error('Bridge method "schematic.placeComponent" timed out after 15000ms');
+          }
+          return { primitiveId };
+        }
+        if (method === 'schematic.listComponents') return { total: 0, items: [] };
+        if (method === 'schematic.connectPinToNet') throw new Error('connection failed');
+        if (method === 'schematic.deletePrimitive') return { success: true };
+        return {};
+      });
+
+      const tool = registry.get('easyeda_workflow_power_rail');
+      const result = (await tool?.handler(context, {
+        ...basePowerRailInput(),
+        mode: 'apply',
+        confirmWrite: true,
+      })) as any;
+
+      expect(result.applied).toBe(false);
+      expect(result.rolled_back).toBe(true);
+      expect(result.apply_results[0]).toMatchObject({
+        success: true,
+        primitiveId: 'component-1',
+        reconciled: true,
+      });
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.deletePrimitive', {
+        primitiveIds: ['component-1', 'component-2'],
+      });
+    });
+
     it('rolls back newly-placed primitives when a later operation fails', async () => {
       let placeCount = 0;
       bridgeCall.mockImplementation(async (method: string) => {

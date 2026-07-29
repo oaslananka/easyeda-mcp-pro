@@ -118,6 +118,7 @@ const applyResultEntrySchema = z.object({
   ref: z.string().optional(),
   success: z.boolean(),
   primitiveId: z.string().optional(),
+  reconciled: z.boolean().optional(),
   error: z.string().optional(),
 });
 
@@ -196,6 +197,7 @@ interface OperationOutcome {
   ref?: string;
   success: boolean;
   primitiveId?: string;
+  reconciled?: boolean;
   error?: string;
 }
 
@@ -210,14 +212,19 @@ const WORKFLOW_CREATE_RECONCILE_ATTEMPTS = 30;
 const WORKFLOW_CREATE_RECONCILE_FAILURE_ATTEMPTS = 10;
 const WORKFLOW_CREATE_RECONCILE_DELAY_MS = 100;
 
-type ReconciledWorkflowPrimitiveKind = 'rectangle' | 'text';
+type ReconciledWorkflowPrimitiveKind = 'component' | 'rectangle' | 'text';
 
 function reconciledPrimitiveKind(
   operation: WorkflowOperation,
 ): ReconciledWorkflowPrimitiveKind | undefined {
+  if (operation.kind === 'placeComponent') return 'component';
   if (operation.kind === 'addRectangle') return 'rectangle';
   if (operation.kind === 'addText') return 'text';
   return undefined;
+}
+
+function looksLikeWorkflowTimeoutOrUnconfirmed(error: unknown): boolean {
+  return error instanceof Error && /timed out|timeout/i.test(error.message);
 }
 
 async function pollWorkflowAddedPrimitiveIds(
@@ -257,20 +264,27 @@ async function applySingleOperation(
   const expectedKind = reconciledPrimitiveKind(op);
   let beforeIds: ReadonlySet<string> | undefined;
   try {
-    if (expectedKind) beforeIds = new Set(await listPrimitiveIds(ctx.bridge, expectedKind));
+    if (expectedKind) {
+      try {
+        beforeIds = new Set(await listPrimitiveIds(ctx.bridge, expectedKind));
+      } catch (error) {
+        if (expectedKind !== 'component') throw error;
+      }
+    }
     const params = resolveOperationParams(op.params, refToPrimitiveId);
     const result = await ctx.bridge.call<Record<string, unknown>, unknown>(op.method, params);
-    const primitiveId = expectedKind
-      ? requireUniqueWorkflowPrimitiveId(
-          expectedKind,
-          await pollWorkflowAddedPrimitiveIds(
-            ctx,
+    const primitiveId =
+      expectedKind && expectedKind !== 'component'
+        ? requireUniqueWorkflowPrimitiveId(
             expectedKind,
-            beforeIds ?? new Set<string>(),
-            WORKFLOW_CREATE_RECONCILE_ATTEMPTS,
-          ),
-        )
-      : extractResultPrimitiveId(result);
+            await pollWorkflowAddedPrimitiveIds(
+              ctx,
+              expectedKind,
+              beforeIds ?? new Set<string>(),
+              WORKFLOW_CREATE_RECONCILE_ATTEMPTS,
+            ),
+          )
+        : extractResultPrimitiveId(result);
 
     if (op.kind === 'placeComponent' && primitiveId) {
       refToPrimitiveId.set(op.ref, primitiveId);
@@ -304,12 +318,30 @@ async function applySingleOperation(
         // inventory delta there is no primitive that can be deleted safely.
       }
     }
+    if (
+      op.kind === 'placeComponent' &&
+      reconciledPrimitiveId &&
+      looksLikeWorkflowTimeoutOrUnconfirmed(err)
+    ) {
+      refToPrimitiveId.set(op.ref, reconciledPrimitiveId);
+      return {
+        outcome: {
+          method: op.method,
+          ref: operationRef(op),
+          success: true,
+          primitiveId: reconciledPrimitiveId,
+          reconciled: true,
+        },
+        newPrimitiveId: reconciledPrimitiveId,
+      };
+    }
+
     return {
       outcome: {
         method: op.method,
         ref: operationRef(op),
         success: false,
-        primitiveId: reconciledPrimitiveId,
+        ...(reconciledPrimitiveId ? { primitiveId: reconciledPrimitiveId } : {}),
         error: err instanceof Error ? err.message : String(err),
       },
       newPrimitiveId: reconciledPrimitiveId,
