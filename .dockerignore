@@ -25,6 +25,7 @@ scripts/**
 !scripts/check-runtime.mjs
 !scripts/clean.mjs
 !scripts/sync-versions.mjs
+!scripts/extension-metadata-policy.mjs
 !src/
 !src/**
 
