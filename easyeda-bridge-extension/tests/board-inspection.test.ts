@@ -31,6 +31,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const mmToPcbMil = (millimetres: number): number => millimetres / 0.0254;
+
 describe('board inspection operations', () => {
   it('preserves compatibility when DMT_Pcb is unavailable', async () => {
     const { operations } = makeOperations();
@@ -238,8 +240,8 @@ describe('board inspection operations', () => {
             {
               getState_Layer: () => 11,
               getState_Points: () => [
-                { x: 1, y: 2 },
-                { x: 11, y: 7 },
+                { x: mmToPcbMil(1), y: mmToPcbMil(2) },
+                { x: mmToPcbMil(11), y: mmToPcbMil(7) },
               ],
             },
             { getState_Layer: () => 1, getState_Points: () => [{ x: 100, y: 100 }] },
@@ -249,10 +251,10 @@ describe('board inspection operations', () => {
           getAll: async () => [
             {
               getState_Layer: () => 11,
-              getState_StartX: () => -1,
-              getState_StartY: () => -2,
-              getState_EndX: () => 9,
-              getState_EndY: () => 8,
+              getState_StartX: () => mmToPcbMil(-1),
+              getState_StartY: () => mmToPcbMil(-2),
+              getState_EndX: () => mmToPcbMil(9),
+              getState_EndY: () => mmToPcbMil(8),
             },
             { getState_Layer: () => 2 },
           ],
@@ -279,10 +281,10 @@ describe('board inspection operations', () => {
 
   it('calculates dimensions from board-outline polylines exposed through polygon discretization', async () => {
     const discretize = vi.fn(() => [
-      { x: -5, y: 2 },
-      { x: 35, y: 2 },
-      { x: 35, y: 22 },
-      { x: -5, y: 22 },
+      { x: mmToPcbMil(-5), y: mmToPcbMil(2) },
+      { x: mmToPcbMil(35), y: mmToPcbMil(2) },
+      { x: mmToPcbMil(35), y: mmToPcbMil(22) },
+      { x: mmToPcbMil(-5), y: mmToPcbMil(22) },
     ]);
     const { operations } = makeOperations(
       { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
@@ -307,6 +309,138 @@ describe('board inspection operations', () => {
       hasOutline: true,
     });
     expect(discretize).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the static EasyEDA polygon discretizer before raw-source fallback', async () => {
+    const staticDiscretize = vi.fn(async () => [
+      { x: mmToPcbMil(-10), y: mmToPcbMil(5) },
+      { x: mmToPcbMil(20), y: mmToPcbMil(15) },
+    ]);
+    const getSource = vi.fn(async () => ['R', 0, 0, 100, 50, 0, 0]);
+    const { operations } = makeOperations(
+      {
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-static-discretize' }) },
+        PCB_MathPolygon: { discretize: staticDiscretize },
+      },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ getSource }),
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toEqual({
+      widthMm: 30,
+      heightMm: 10,
+      shape: 'custom',
+      mountingHoleCount: 0,
+      areaMm2: 300,
+      hasOutline: true,
+    });
+    expect(getSource).toHaveBeenCalledTimes(1);
+    expect(staticDiscretize).toHaveBeenCalledWith(['R', 0, 0, 100, 50, 0, 0]);
+  });
+
+  it('falls back to an asynchronous EasyEDA rectangle source and converts PCB mils to mm', async () => {
+    const instanceFailure = new Error('Not implemented');
+    const staticFailure = new Error('Not implemented');
+    const staticDiscretize = vi.fn(async () => {
+      throw staticFailure;
+    });
+    const { operations } = makeOperations(
+      {
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-live-rectangle' }) },
+        PCB_MathPolygon: { discretize: staticDiscretize },
+      },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              async: true,
+              getState_Layer: async () => 11,
+              getState_PrimitiveType: async () => 'Polyline',
+              getState_Polygon: async () => ({
+                polygon: ['R', 0, 0, 3149.6063, 2362.2047, 0, 0],
+                discretize: async () => {
+                  throw instanceFailure;
+                },
+              }),
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toEqual({
+      widthMm: 80,
+      heightMm: 60,
+      shape: 'custom',
+      mountingHoleCount: 0,
+      areaMm2: 4800,
+      hasOutline: true,
+    });
+    expect(staticDiscretize).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the official circle polygon source', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-circle' }) } },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ polygon: ['CIRCLE', 1000, 2000, 250] }),
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toEqual({
+      widthMm: 12.7,
+      heightMm: 12.7,
+      shape: 'custom',
+      mountingHoleCount: 0,
+      areaMm2: 161.29,
+      hasOutline: true,
+    });
+  });
+
+  it('fails closed for rotated or malformed raw polygon fallbacks', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-unsupported-source' }) } },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ polygon: ['R', 0, 0, 100, 50, 45, 0] }),
+            },
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ polygon: ['UNKNOWN', 0, 0, 100] }),
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toEqual({
+      widthMm: 0,
+      heightMm: 0,
+      shape: undefined,
+      mountingHoleCount: 0,
+      areaMm2: 0,
+      hasOutline: false,
+    });
+    expect(warn).toHaveBeenCalled();
   });
 
   it('keeps valid polyline geometry when other polygon states are unavailable or malformed', async () => {
@@ -334,8 +468,8 @@ describe('board inspection operations', () => {
               getState_Layer: () => 11,
               getState_Polygon: () => ({
                 discretize: () => [
-                  { x: 0, y: 0 },
-                  { x: 10, y: 5 },
+                  { x: mmToPcbMil(0), y: mmToPcbMil(0) },
+                  { x: mmToPcbMil(10), y: mmToPcbMil(5) },
                 ],
               }),
             },
@@ -367,17 +501,17 @@ describe('board inspection operations', () => {
             {
               type: 'Board Outline',
               layer: { name: 'Board Outline Layer', type: 'Board Outline' },
-              startX: 0,
-              startY: 0,
-              endX: 40,
-              endY: 0,
+              startX: mmToPcbMil(0),
+              startY: mmToPcbMil(0),
+              endX: mmToPcbMil(40),
+              endY: mmToPcbMil(0),
             },
             {
               state: {
                 Layer: 'Board Outline Layer',
                 Points: [
-                  { x: 40, y: 0 },
-                  { x: 40, y: 20 },
+                  { x: mmToPcbMil(40), y: mmToPcbMil(0) },
+                  { x: mmToPcbMil(40), y: mmToPcbMil(20) },
                 ],
               },
             },
@@ -387,10 +521,10 @@ describe('board inspection operations', () => {
           getAll: async () => [
             {
               getState_Layer: () => ({ name: 'Board Outline Layer' }),
-              StartX: 40,
-              StartY: 20,
-              EndX: 0,
-              EndY: 20,
+              StartX: mmToPcbMil(40),
+              StartY: mmToPcbMil(20),
+              EndX: mmToPcbMil(0),
+              EndY: mmToPcbMil(20),
             },
           ],
         },
@@ -417,8 +551,8 @@ describe('board inspection operations', () => {
               Layer: 'Board Outline',
               Points: [
                 { x: Number.NaN, y: 1000 },
-                { x: -5, y: -2 },
-                { x: 15, y: 8 },
+                { x: mmToPcbMil(-5), y: mmToPcbMil(-2) },
+                { x: mmToPcbMil(15), y: mmToPcbMil(8) },
               ],
             },
           ],

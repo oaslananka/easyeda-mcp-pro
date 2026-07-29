@@ -1356,7 +1356,7 @@ describe('createDispatcher', () => {
           getState_Layer: () => 11,
           getState_Points: () => [
             { x: 0, y: 0 },
-            { x: 10, y: 5 },
+            { x: 10 / 0.0254, y: 5 / 0.0254 },
           ],
         },
       ])
