@@ -9,7 +9,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'scripts/check-complexity-ratchet.mjs'],
       exclude: [
         // The process entrypoint is exercised through CLI/subprocess tests, but V8
         // cannot attribute child-process execution back to this source module.
