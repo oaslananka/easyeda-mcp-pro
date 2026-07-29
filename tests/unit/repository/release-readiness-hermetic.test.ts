@@ -63,6 +63,39 @@ async function createGitFixture() {
   return { root, evidenceCommit, currentHead };
 }
 
+async function writeCompatibilitySnapshot({
+  root,
+  recordCommit,
+  snapshotCommit,
+}: {
+  root: string;
+  recordCommit: string;
+  snapshotCommit: string;
+}) {
+  const sourcePath = join(root, 'config/easyeda-compatibility.json');
+  const source = JSON.parse(await readFile(sourcePath, 'utf8')) as {
+    records: Array<{
+      server: {
+        commit: string;
+        compatibilitySnapshot?: {
+          algorithm: string;
+          paths: Record<string, string>;
+        };
+      };
+    }>;
+  };
+  source.records[0]!.server = {
+    commit: recordCommit,
+    compatibilitySnapshot: {
+      algorithm: 'git-tree-sha1',
+      paths: {
+        'src/tools': git(root, ['rev-parse', `${snapshotCommit}:src/tools`]),
+      },
+    },
+  };
+  await writeJson(sourcePath, source);
+}
+
 async function createPassingCommand(directory: string, name: string) {
   await mkdir(directory, { recursive: true });
   if (process.platform === 'win32') {
@@ -190,6 +223,131 @@ describe('hermetic release readiness', () => {
     expect(report.status).toBe('current');
     expect(report.headCommit).toBe(fixture.currentHead);
     expect(report.records[0]?.changedFiles).toEqual([]);
+  });
+
+  it('accepts a squash-equivalent target with the same sensitive snapshot', async () => {
+    const fixture = await createGitFixture();
+    const currentTree = git(fixture.root, ['rev-parse', `${fixture.currentHead}^{tree}`]);
+    const squashCommit = git(fixture.root, [
+      'commit-tree',
+      currentTree,
+      '-m',
+      'fixture: squash-equivalent root',
+    ]);
+
+    expect(() =>
+      git(fixture.root, ['merge-base', '--is-ancestor', fixture.evidenceCommit, squashCommit]),
+    ).toThrow();
+
+    const report = await inspectCompatibilityFreshness({
+      root: fixture.root,
+      targetRef: squashCommit,
+      gitBinary,
+    });
+
+    expect(report.status).toBe('current');
+    expect(report.records[0]).toMatchObject({
+      status: 'current',
+      changedFiles: [],
+      reason:
+        'The release candidate has equivalent compatibility-sensitive content to the live evidence commit.',
+    });
+  });
+
+  it('marks a rewritten target stale when its sensitive snapshot differs', async () => {
+    const fixture = await createGitFixture();
+    await writeFile(join(fixture.root, 'src/tools/example.ts'), 'export const value = 5;\n');
+    git(fixture.root, ['add', 'src/tools/example.ts']);
+    const changedTree = git(fixture.root, ['write-tree']);
+    const rewrittenCommit = git(fixture.root, [
+      'commit-tree',
+      changedTree,
+      '-m',
+      'fixture: rewritten sensitive change',
+    ]);
+
+    const report = await inspectCompatibilityFreshness({
+      root: fixture.root,
+      targetRef: rewrittenCommit,
+      gitBinary,
+    });
+
+    expect(report.status).toBe('stale');
+    expect(report.records[0]).toMatchObject({
+      status: 'stale',
+      changedFiles: ['src/tools/example.ts'],
+      reason: 'Compatibility-sensitive files differ from the live evidence commit.',
+    });
+  });
+
+  it('uses a recorded snapshot when the evidence commit object is unavailable', async () => {
+    const fixture = await createGitFixture();
+    await writeCompatibilitySnapshot({
+      root: fixture.root,
+      recordCommit: 'f'.repeat(40),
+      snapshotCommit: fixture.evidenceCommit,
+    });
+
+    const report = await inspectCompatibilityFreshness({
+      root: fixture.root,
+      gitBinary,
+    });
+
+    expect(report.status).toBe('current');
+    expect(report.records[0]).toMatchObject({
+      status: 'current',
+      changedFiles: [],
+      reason: 'The release candidate matches the recorded compatibility-sensitive snapshot.',
+    });
+  });
+
+  it('marks a recorded snapshot stale when sensitive content differs', async () => {
+    const fixture = await createGitFixture();
+    await writeCompatibilitySnapshot({
+      root: fixture.root,
+      recordCommit: 'f'.repeat(40),
+      snapshotCommit: fixture.evidenceCommit,
+    });
+    await writeFile(join(fixture.root, 'src/tools/example.ts'), 'export const value = 6;\n');
+    git(fixture.root, ['add', 'src/tools/example.ts']);
+    git(fixture.root, ['commit', '-m', 'fixture: diverge from recorded snapshot']);
+
+    const report = await inspectCompatibilityFreshness({
+      root: fixture.root,
+      gitBinary,
+    });
+
+    expect(report.status).toBe('stale');
+    expect(report.records[0]).toMatchObject({
+      status: 'stale',
+      changedFiles: ['src/tools'],
+      reason: 'Compatibility-sensitive paths differ from the recorded live snapshot.',
+    });
+  });
+
+  it('rejects a recorded snapshot that does not match an available evidence commit', async () => {
+    const fixture = await createGitFixture();
+    const sourcePath = join(fixture.root, 'config/easyeda-compatibility.json');
+    const source = JSON.parse(await readFile(sourcePath, 'utf8')) as {
+      records: Array<{ server: Record<string, unknown> }>;
+    };
+    source.records[0]!.server.compatibilitySnapshot = {
+      algorithm: 'git-tree-sha1',
+      paths: { 'src/tools': '0'.repeat(40) },
+    };
+    await writeJson(sourcePath, source);
+
+    const report = await inspectCompatibilityFreshness({
+      root: fixture.root,
+      gitBinary,
+    });
+
+    expect(report.status).toBe('unavailable');
+    expect(report.records[0]).toMatchObject({
+      status: 'unavailable',
+      changedFiles: [],
+      reason: 'The recorded compatibility snapshot does not match the evidence commit.',
+    });
   });
 
   it('returns an explicit unavailable report when Git metadata is absent', async () => {

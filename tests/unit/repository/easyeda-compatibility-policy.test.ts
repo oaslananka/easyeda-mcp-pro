@@ -24,7 +24,15 @@ interface CompatibilitySource {
       nodeVersion: string;
     };
     easyedaPro: { version: string; electronVersion: string; chromiumVersion: string };
-    server: { validationPackageVersion: string; releaseContainingFixes: string; commit: string };
+    server: {
+      validationPackageVersion: string;
+      releaseContainingFixes: string;
+      commit: string;
+      compatibilitySnapshot?: {
+        algorithm: string;
+        paths: Record<string, string>;
+      };
+    };
     extension: {
       installedPackageVersion: string;
       loaderReportedVersion: string;
@@ -83,6 +91,15 @@ describe('EasyEDA compatibility evidence policy', () => {
       );
       expect(record.server.releaseContainingFixes).toBe(record.server.validationPackageVersion);
       expect(record.server.commit).toMatch(/^[0-9a-f]{40}$/);
+      if (record.server.validationPackageVersion.startsWith('1.0.0-rc.')) {
+        expect(record.server.compatibilitySnapshot?.algorithm).toBe('git-tree-sha1');
+        expect(Object.keys(record.server.compatibilitySnapshot?.paths ?? {}).sort()).toEqual(
+          [...source.releaseGate.sensitivePaths].sort(),
+        );
+        for (const tree of Object.values(record.server.compatibilitySnapshot?.paths ?? {})) {
+          expect(tree).toMatch(/^[0-9a-f]{40}$/);
+        }
+      }
       expect(record.extension.installedPackageVersion).toMatch(/^\d+\.\d+\.\d+$/);
       expect(record.extension.loaderReportedVersion).toBe(record.server.releaseContainingFixes);
       const rcMatch = /^1\.0\.0-rc\.([1-9]\d*)$/.exec(record.server.releaseContainingFixes);
@@ -123,6 +140,9 @@ describe('EasyEDA compatibility evidence policy', () => {
     );
     expect(packageJson.scripts['check:compatibility']).toContain('--check');
     expect(packageJson.scripts['docs:build']).toContain('check:compatibility');
+    expect(read('docs/reference/easyeda-compatibility.md')).toContain(
+      'recorded compatibility-sensitive snapshot',
+    );
   });
 
   it('does not use unsupported env syntax fences in VitePress documentation', () => {

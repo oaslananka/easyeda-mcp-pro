@@ -27,7 +27,6 @@
     "scripts/generate-tools-doc.ts": [19],
     "scripts/package-script-targets.mjs": [24],
     "scripts/release-channel-policy.mjs": [29],
-    "scripts/release-readiness.mjs": [22],
     "scripts/run-evals.mts": [35],
     "scripts/verify-published-release.mjs": [30],
     "src/bom-quality/adapter.ts": [18],

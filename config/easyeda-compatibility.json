@@ -22,7 +22,18 @@
       "server": {
         "validationPackageVersion": "1.0.0-rc.1",
         "releaseContainingFixes": "1.0.0-rc.1",
-        "commit": "4c5969de73678140e3582f08d2be52233622a718"
+        "commit": "4c5969de73678140e3582f08d2be52233622a718",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "fe093e3da6639d3a10d8f32d41b78f452fa544f9",
+            "src/bridge": "f9eb0e0249bc31f1b763ac3f6ecd998e30332f94",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "3783cb8d1d0af548e6c6eaeab303fa2ab9247390",
+            "src/tools": "66a78b025d9164bd0d9f6173083627494b8f1435",
+            "src/transactions": "3270429d2ea4e29484170bfdf55506c2599f107c"
+          }
+        }
       },
       "extension": {
         "installedPackageVersion": "0.99.1",
