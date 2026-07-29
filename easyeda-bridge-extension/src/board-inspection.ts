@@ -1,6 +1,7 @@
 import type { ApiRuntime, BridgeErrorFactory } from './api-runtime.js';
 import type { DispatcherToolkit } from './toolkit.js';
 import {
+  isBoardOutlineLayer,
   primitiveIsOnBoardOutline,
   readFiniteNumber,
   readPrimitiveState,
@@ -23,6 +24,16 @@ export interface BoardInspectionOperations {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+const PCB_MIL_TO_MM = 0.0254;
+
+function roundMetric(value: number): number {
+  return Number(value.toFixed(4));
+}
+
+function pcbMilToMm(value: number): number {
+  return roundMetric(value * PCB_MIL_TO_MM);
 }
 
 function isActivePcbLayerName(name: string, copperLayerCount: number): boolean {
@@ -85,50 +96,194 @@ function updateBoundingBox(bounds: BoundingBox, x: unknown, y: unknown): void {
   if (finiteY > bounds.maxY) bounds.maxY = finiteY;
 }
 
-function readPointCoordinate(point: unknown, key: 'X' | 'Y'): unknown {
-  const state = readPrimitiveState(point, key);
-  if (state !== undefined) return state;
-  if (!isRecord(point)) return undefined;
-  return point[key.toLowerCase()];
+async function readPrimitiveStateResolved(value: unknown, key: string): Promise<unknown> {
+  try {
+    return await readPrimitiveState(value, key);
+  } catch (error) {
+    logRecoverableError(`failed to read primitive state ${key}`, error);
+    return undefined;
+  }
 }
 
-function addPoint(bounds: BoundingBox, point: unknown): void {
+async function primitiveIsOnBoardOutlineResolved(value: unknown): Promise<boolean> {
+  if (primitiveIsOnBoardOutline(value)) return true;
+  if (isBoardOutlineLayer(await readPrimitiveStateResolved(value, 'Layer'))) return true;
+
+  for (const key of ['LayerName', 'PrimitiveType', 'Type', 'ObjectType']) {
+    if (isBoardOutlineLayer(await readPrimitiveStateResolved(value, key))) return true;
+  }
+  return false;
+}
+
+async function readPointCoordinate(point: unknown, key: 'X' | 'Y'): Promise<unknown> {
+  const state = await readPrimitiveStateResolved(point, key);
+  if (state !== undefined) return state;
+  if (!isRecord(point)) return undefined;
+  return await point[key.toLowerCase()];
+}
+
+async function addPoint(bounds: BoundingBox, point: unknown): Promise<void> {
   if (Array.isArray(point)) {
     updateBoundingBox(bounds, point[0], point[1]);
     return;
   }
-  updateBoundingBox(bounds, readPointCoordinate(point, 'X'), readPointCoordinate(point, 'Y'));
+  updateBoundingBox(
+    bounds,
+    await readPointCoordinate(point, 'X'),
+    await readPointCoordinate(point, 'Y'),
+  );
 }
 
-function addPolygonPoints(bounds: BoundingBox, polygon: unknown): void {
-  if (!isRecord(polygon) || typeof polygon.discretize !== 'function') return;
-  try {
-    const points = polygon.discretize();
-    if (Array.isArray(points)) {
-      for (const point of points) addPoint(bounds, point);
+async function addPoints(bounds: BoundingBox, points: unknown): Promise<boolean> {
+  if (!Array.isArray(points)) return false;
+  for (const point of points) await addPoint(bounds, point);
+  return points.length > 0;
+}
+
+async function readPolygonSource(polygon: Record<string, unknown>): Promise<unknown[] | undefined> {
+  if (typeof polygon.getSource === 'function') {
+    try {
+      const source = await polygon.getSource();
+      if (Array.isArray(source)) return source;
+    } catch (error) {
+      logRecoverableError('failed to read board outline polygon source', error);
     }
+  }
+
+  const direct = await polygon.polygon;
+  return Array.isArray(direct) ? direct : undefined;
+}
+
+function readFiniteSourceNumbers(
+  source: readonly unknown[],
+  startIndex: number,
+  count: number,
+): number[] | undefined {
+  const values = source.slice(startIndex, startIndex + count).map(readFiniteNumber);
+  return values.every((value): value is number => value !== undefined) ? values : undefined;
+}
+
+function addRectangleSourceBounds(bounds: BoundingBox, source: readonly unknown[]): boolean {
+  if (source.length !== 7) return false;
+  const values = readFiniteSourceNumbers(source, 1, 6);
+  if (!values) return false;
+
+  const [x, y, width, height, rotation, round] = values;
+  if (width < 0 || height < 0 || round < 0 || rotation % 360 !== 0) return false;
+
+  updateBoundingBox(bounds, x, y);
+  updateBoundingBox(bounds, x + width, y + height);
+  return true;
+}
+
+function addCircleSourceBounds(bounds: BoundingBox, source: readonly unknown[]): boolean {
+  if (source.length !== 4) return false;
+  const values = readFiniteSourceNumbers(source, 1, 3);
+  if (!values) return false;
+
+  const [centerX, centerY, radius] = values;
+  if (radius < 0) return false;
+
+  updateBoundingBox(bounds, centerX - radius, centerY - radius);
+  updateBoundingBox(bounds, centerX + radius, centerY + radius);
+  return true;
+}
+
+function addRawPolygonSourceBounds(bounds: BoundingBox, source: readonly unknown[]): boolean {
+  if (source[0] === 'R') return addRectangleSourceBounds(bounds, source);
+  if (source[0] === 'CIRCLE') return addCircleSourceBounds(bounds, source);
+  return false;
+}
+
+interface DiscretizationAttempt {
+  added: boolean;
+  error?: unknown;
+}
+
+async function tryDiscretize(
+  bounds: BoundingBox,
+  discretize: (() => unknown) | undefined,
+): Promise<DiscretizationAttempt> {
+  if (!discretize) return { added: false };
+  try {
+    return { added: await addPoints(bounds, await discretize()) };
   } catch (error) {
-    logRecoverableError('failed to discretize board outline polygon', error);
+    return { added: false, error };
   }
 }
 
-function addPrimitivePoints(bounds: BoundingBox, primitive: unknown): void {
-  const points = readPrimitiveState(primitive, 'Points');
-  if (Array.isArray(points)) {
-    for (const point of points) addPoint(bounds, point);
+function logPolygonFallbackFailures(
+  instanceError: unknown,
+  staticError: unknown,
+  source: readonly unknown[] | undefined,
+): void {
+  if (instanceError !== undefined) {
+    logRecoverableError('failed to discretize board outline polygon', instanceError);
   }
+  if (staticError !== undefined) {
+    logRecoverableError(
+      'failed to discretize board outline polygon with PCB_MathPolygon',
+      staticError,
+    );
+  }
+  if (source) {
+    logRecoverableError(
+      'unsupported board outline polygon source',
+      new Error(`Unsupported or malformed polygon source mode: ${String(source[0])}`),
+    );
+  }
+}
 
-  addPolygonPoints(bounds, readPrimitiveState(primitive, 'Polygon'));
+async function addPolygonPoints(
+  bounds: BoundingBox,
+  polygonValue: unknown,
+  pcbMathPolygonClass: any,
+): Promise<void> {
+  const polygon = await polygonValue;
+  if (!isRecord(polygon)) return;
+
+  const instanceDiscretize = polygon.discretize;
+  const instance = await tryDiscretize(
+    bounds,
+    typeof instanceDiscretize === 'function' ? () => instanceDiscretize.call(polygon) : undefined,
+  );
+  if (instance.added) return;
+
+  const source = await readPolygonSource(polygon);
+  const staticDiscretize = pcbMathPolygonClass?.discretize;
+  const staticAttempt = await tryDiscretize(
+    bounds,
+    typeof staticDiscretize === 'function'
+      ? () => staticDiscretize.call(pcbMathPolygonClass, source ?? polygon)
+      : undefined,
+  );
+  if (staticAttempt.added) return;
+  if (source && addRawPolygonSourceBounds(bounds, source)) return;
+
+  logPolygonFallbackFailures(instance.error, staticAttempt.error, source);
+}
+
+async function addPrimitivePoints(
+  bounds: BoundingBox,
+  primitive: unknown,
+  pcbMathPolygonClass: any,
+): Promise<void> {
+  await addPoints(bounds, await readPrimitiveStateResolved(primitive, 'Points'));
+  await addPolygonPoints(
+    bounds,
+    readPrimitiveStateResolved(primitive, 'Polygon'),
+    pcbMathPolygonClass,
+  );
 
   updateBoundingBox(
     bounds,
-    readPrimitiveState(primitive, 'StartX'),
-    readPrimitiveState(primitive, 'StartY'),
+    await readPrimitiveStateResolved(primitive, 'StartX'),
+    await readPrimitiveStateResolved(primitive, 'StartY'),
   );
   updateBoundingBox(
     bounds,
-    readPrimitiveState(primitive, 'EndX'),
-    readPrimitiveState(primitive, 'EndY'),
+    await readPrimitiveStateResolved(primitive, 'EndX'),
+    await readPrimitiveStateResolved(primitive, 'EndY'),
   );
 }
 
@@ -136,13 +291,14 @@ async function addOutlinePrimitiveBounds(
   primitiveClass: any,
   bounds: BoundingBox,
   description: string,
+  pcbMathPolygonClass: any,
 ): Promise<void> {
   if (!primitiveClass || typeof primitiveClass.getAll !== 'function') return;
   try {
     const primitives = await primitiveClass.getAll();
     for (const primitive of primitives || []) {
-      if (!primitiveIsOnBoardOutline(primitive)) continue;
-      addPrimitivePoints(bounds, primitive);
+      if (!(await primitiveIsOnBoardOutlineResolved(primitive))) continue;
+      await addPrimitivePoints(bounds, primitive, pcbMathPolygonClass);
     }
   } catch (error) {
     logRecoverableError(`failed to read board outline ${description}`, error);
@@ -155,8 +311,8 @@ async function countMountingHoles(pcbPadClass: any): Promise<number> {
     let mountingHoles = 0;
     const pads = await pcbPadClass.getAll();
     for (const pad of pads || []) {
-      const holeType = readPrimitiveState(pad, 'HoleType');
-      const holeSize = readFiniteNumber(readPrimitiveState(pad, 'HoleSize')) ?? 0;
+      const holeType = await readPrimitiveStateResolved(pad, 'HoleType');
+      const holeSize = readFiniteNumber(await readPrimitiveStateResolved(pad, 'HoleSize')) ?? 0;
       if (holeType === 'MountingHole' || holeSize > 2) mountingHoles++;
     }
     return mountingHoles;
@@ -271,14 +427,17 @@ export function createBoardInspectionOperations({
     const pcbArcClass = readPath<any>(globalObj, 'pcb_PrimitiveArc');
     const pcbPolylineClass = readPath<any>(globalObj, 'pcb_PrimitivePolyline');
     const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
+    const pcbMathPolygonClass = readFirstPath<any>(['PCB_MathPolygon', 'pcb_MathPolygon']);
     const bounds = createEmptyBoundingBox();
 
-    await addOutlinePrimitiveBounds(pcbLineClass, bounds, 'lines');
-    await addOutlinePrimitiveBounds(pcbArcClass, bounds, 'arcs');
-    await addOutlinePrimitiveBounds(pcbPolylineClass, bounds, 'polylines');
+    await addOutlinePrimitiveBounds(pcbLineClass, bounds, 'lines', pcbMathPolygonClass);
+    await addOutlinePrimitiveBounds(pcbArcClass, bounds, 'arcs', pcbMathPolygonClass);
+    await addOutlinePrimitiveBounds(pcbPolylineClass, bounds, 'polylines', pcbMathPolygonClass);
 
-    const width = bounds.maxX > bounds.minX ? bounds.maxX - bounds.minX : 0;
-    const height = bounds.maxY > bounds.minY ? bounds.maxY - bounds.minY : 0;
+    const widthMil = bounds.maxX > bounds.minX ? bounds.maxX - bounds.minX : 0;
+    const heightMil = bounds.maxY > bounds.minY ? bounds.maxY - bounds.minY : 0;
+    const width = pcbMilToMm(widthMil);
+    const height = pcbMilToMm(heightMil);
     const mountingHoles = await countMountingHoles(pcbPadClass);
     const hasOutline = width > 0 && height > 0;
 
@@ -287,7 +446,7 @@ export function createBoardInspectionOperations({
       heightMm: height,
       shape: hasOutline ? 'custom' : undefined,
       mountingHoleCount: mountingHoles,
-      areaMm2: width * height,
+      areaMm2: roundMetric(width * height),
       hasOutline,
     };
   }
