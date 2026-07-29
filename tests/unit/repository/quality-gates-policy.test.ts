@@ -132,13 +132,15 @@ describe('changed-code quality gate policy', () => {
     expect(matrix).not.toContain('node dist/index.js --doctor');
 
     const smoke = readText('scripts/e2e/packed-install-doctor.mjs');
-    expect(smoke).toContain("process.platform === 'win32' ? 'npm.cmd' : 'npm'");
-    expect(smoke).toContain("process.env.ComSpec ?? 'cmd.exe'");
-    expect(smoke).toContain("['/d', '/s', '/c', command, ...args]");
-    expect(smoke).not.toContain("shell: process.platform === 'win32'");
+    expect(smoke).toContain("'node_modules', 'npm', 'bin', 'npm-cli.js'");
+    expect(smoke).toContain('run(process.execPath, [npmCli, ...args]');
+    expect(smoke).toContain("'node_modules', 'easyeda-mcp-pro', 'dist', 'index.js'");
+    expect(smoke).not.toContain('process.env.ComSpec');
+    expect(smoke).not.toContain('windowsCommandShell');
+    expect(smoke).not.toContain("'/d', '/s', '/c'");
     expect(smoke).toContain("['pack', '--pack-destination'");
     expect(smoke).toContain("'install', '--global', '--prefix'");
-    expect(smoke).toContain("['--doctor']");
+    expect(smoke).toContain("[installedEntry, '--doctor']");
   });
 
   it('keeps SonarQube Cloud on the GitHub App path without repository workflow credentials', () => {

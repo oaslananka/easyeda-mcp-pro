@@ -1,25 +1,12 @@
 #!/usr/bin/env node
 
-import { mkdtemp, mkdir, readdir, rm } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-function resolveSpawnCommand(command, args, useWindowsCommandShell) {
-  if (!useWindowsCommandShell) return { executable: command, executableArgs: args };
-  return {
-    executable: process.env.ComSpec ?? 'cmd.exe',
-    executableArgs: ['/d', '/s', '/c', command, ...args],
-  };
-}
-
 function run(command, args, options = {}) {
-  const { executable, executableArgs } = resolveSpawnCommand(
-    command,
-    args,
-    options.windowsCommandShell ?? false,
-  );
-  const result = spawnSync(executable, executableArgs, {
+  const result = spawnSync(command, args, {
     cwd: options.cwd ?? process.cwd(),
     env: process.env,
     encoding: 'utf8',
@@ -44,19 +31,20 @@ function run(command, args, options = {}) {
   return result;
 }
 
+function runNpm(args, options = {}) {
+  if (process.platform !== 'win32') return run('npm', args, options);
+  const npmCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  return run(process.execPath, [npmCli, ...args], options);
+}
+
 const repoRoot = resolve(import.meta.dirname, '../..');
 const workspace = await mkdtemp(join(tmpdir(), 'easyeda-packed-doctor-'));
 const packDirectory = join(workspace, 'pack');
 const installPrefix = join(workspace, 'prefix');
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const windowsCommandShell = process.platform === 'win32';
 
 try {
   await mkdir(packDirectory, { recursive: true });
-  run(npmCommand, ['pack', '--pack-destination', packDirectory], {
-    cwd: repoRoot,
-    windowsCommandShell,
-  });
+  runNpm(['pack', '--pack-destination', packDirectory], { cwd: repoRoot });
 
   const archives = (await readdir(packDirectory)).filter((name) => name.endsWith('.tgz'));
   if (archives.length !== 1) {
@@ -64,19 +52,19 @@ try {
   }
   const archive = join(packDirectory, archives[0]);
 
-  run(npmCommand, ['install', '--global', '--prefix', installPrefix, archive], {
-    cwd: workspace,
-    windowsCommandShell,
-  });
+  runNpm(['install', '--global', '--prefix', installPrefix, archive], { cwd: workspace });
 
   const binPath =
     process.platform === 'win32'
       ? join(installPrefix, 'easyeda-mcp-pro.cmd')
       : join(installPrefix, 'bin', 'easyeda-mcp-pro');
-  const doctor = run(binPath, ['--doctor'], {
-    cwd: workspace,
-    windowsCommandShell,
-  });
+  const installedEntry =
+    process.platform === 'win32'
+      ? join(installPrefix, 'node_modules', 'easyeda-mcp-pro', 'dist', 'index.js')
+      : join(installPrefix, 'lib', 'node_modules', 'easyeda-mcp-pro', 'dist', 'index.js');
+  await access(binPath);
+  await access(installedEntry);
+  const doctor = run(process.execPath, [installedEntry, '--doctor'], { cwd: workspace });
 
   console.log(`Packed install doctor passed: ${basename(archive)} on ${process.platform}.`);
   if (doctor.stdout?.trim()) console.log(doctor.stdout.trim());

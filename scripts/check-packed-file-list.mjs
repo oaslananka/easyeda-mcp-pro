@@ -5,19 +5,17 @@ import { verifyPackedFileList } from './package-artifacts.mjs';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const root = resolve(process.env.PACKAGE_POLICY_ROOT || repoRoot);
-const npmExecutable =
-  process.platform === 'win32' ? 'npm.cmd' : join(dirname(process.execPath), 'npm');
+const npmCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
 const npmArgs = ['pack', '--dry-run', '--json', '--ignore-scripts'];
-const useWindowsCommandShell = process.platform === 'win32';
-const executable = useWindowsCommandShell ? (process.env.ComSpec ?? 'cmd.exe') : npmExecutable;
-const executableArgs = useWindowsCommandShell
-  ? ['/d', '/s', '/c', npmExecutable, ...npmArgs]
-  : npmArgs;
-const result = spawnSync(executable, executableArgs, {
+const spawnOptions = {
   cwd: root,
   encoding: 'utf8',
   shell: false,
-});
+};
+const result =
+  process.platform === 'win32'
+    ? spawnSync(process.execPath, [npmCli, ...npmArgs], spawnOptions)
+    : spawnSync('npm', npmArgs, spawnOptions);
 
 if (result.status !== 0) {
   if (result.stdout) process.stdout.write(result.stdout);
