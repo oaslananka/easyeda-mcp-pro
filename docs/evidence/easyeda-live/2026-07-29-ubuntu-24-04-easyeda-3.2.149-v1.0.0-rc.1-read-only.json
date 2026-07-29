@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-07-29T23:36:48+03:00",
+  "candidateCommit": "4c5969de73678140e3582f08d2be52233622a718",
+  "compatibilitySensitiveBaseCommit": "4c5969de73678140e3582f08d2be52233622a718",
+  "server": {
+    "packageVersion": "1.0.0-rc.1",
+    "packageTarballSha256": "e9a59e5a1c9c5061144ae81fef774b1b6b42808025f667f2422bb6af8daf31b3",
+    "nodeVersion": "24.18.0",
+    "profile": "full",
+    "transport": "stdio"
+  },
+  "extension": {
+    "packageVersion": "0.99.1",
+    "loaderReportedVersion": "1.0.0-rc.1",
+    "packageSha256": "620b3262215073be973c71ff7bb2f4259acdf743328c998580e9186eb1f09e37",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "34f1dcf29ebdf3cf",
+    "dispatcherBuildId": "d7feax2819xe3fa",
+    "dispatcherSha256": "c6a15bad4614662ebf1e236485864236b407a5615f8e18b6fed5b8612653801f",
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-28-generic"
+  },
+  "fixture": {
+    "project": "Example Quick Start disposable clone",
+    "document": "PCB",
+    "disposable": true
+  },
+  "publicSmoke": {
+    "status": "passed",
+    "health": {
+      "status": "ok",
+      "serverVersion": "1.0.0-rc.1",
+      "extensionVersion": "1.0.0-rc.1",
+      "extensionVersionMismatch": false,
+      "registryMismatch": false
+    },
+    "bridge": {
+      "connected": true,
+      "capabilityCount": 67,
+      "methodRegistryHash": "34f1dcf29ebdf3cf"
+    },
+    "board": {
+      "widthMm": 80,
+      "heightMm": 60,
+      "areaMm2": 4800,
+      "hasOutline": true,
+      "layerCount": 57,
+      "vias": 0,
+      "tracks": 98,
+      "zones": 1,
+      "pads": 83,
+      "components": 33
+    },
+    "apiInventoryClassCount": 67
+  },
+  "redaction": {
+    "localPathsOmitted": true,
+    "projectIdentifiersGeneralized": true,
+    "primitiveIdentifiersOmitted": true,
+    "credentialsOmitted": true,
+    "rawApiInventoryOmitted": true
+  }
+}

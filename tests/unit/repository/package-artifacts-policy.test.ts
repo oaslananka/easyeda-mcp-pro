@@ -315,6 +315,11 @@ describe('package artifact policy', () => {
       scripts: Record<string, string>;
     };
     const workflow = await readFile(join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+    const packagePrepare = await readFile(join(repoRoot, 'scripts/prepare-package.mjs'), 'utf8');
+    const packedListCheck = await readFile(
+      join(repoRoot, 'scripts/check-packed-file-list.mjs'),
+      'utf8',
+    );
     const releaseWorkflow = await readFile(
       join(repoRoot, '.github/workflows/publish-release.yml'),
       'utf8',
@@ -329,6 +334,19 @@ describe('package artifact policy', () => {
     expect(packageJson.scripts['package:check-pack-list']).toBe(
       'node scripts/check-packed-file-list.mjs',
     );
+    expect(packagePrepare).toContain('function nodeGlobalModulePath(packageName, ...segments)');
+    expect(packagePrepare).toContain("nodeGlobalModulePath('corepack', 'dist', 'pnpm.js')");
+    expect(packagePrepare).toContain('runExecutable(process.execPath, [pnpmCli, script])');
+    expect(packagePrepare).toContain("runPnpmScript('build')");
+    expect(packagePrepare).toContain("runPnpmScript('build:extension')");
+    expect(packagePrepare).not.toContain("spawnSync('cmd.exe'");
+    expect(packagePrepare).not.toContain("spawnSync('pnpm'");
+    expect(packagePrepare).not.toContain('process.env.ComSpec');
+    expect(packedListCheck).toContain('function nodeGlobalModulePath(packageName, ...segments)');
+    expect(packedListCheck).toContain("nodeGlobalModulePath('npm', 'bin', 'npm-cli.js')");
+    expect(packedListCheck).toContain('spawnSync(process.execPath, [npmCli, ...npmArgs]');
+    expect(packedListCheck).not.toContain("spawnSync('npm'");
+    expect(packedListCheck).not.toContain('process.env.ComSpec');
     expect(workflow).toContain('pnpm package:prepare');
     expect(workflow).toContain('easyeda-bridge-extension.checksums.json');
     expect(workflow).not.toContain(

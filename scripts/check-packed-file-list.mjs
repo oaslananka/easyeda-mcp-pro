@@ -3,20 +3,30 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyPackedFileList } from './package-artifacts.mjs';
 
+function nodeGlobalModulePath(packageName, ...segments) {
+  const binDirectory = dirname(process.execPath);
+  const modulesDirectory =
+    process.platform === 'win32'
+      ? join(binDirectory, 'node_modules')
+      : join(dirname(binDirectory), 'lib', 'node_modules');
+  return join(modulesDirectory, packageName, ...segments);
+}
+
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const root = resolve(process.env.PACKAGE_POLICY_ROOT || repoRoot);
-const npmExecutable = join(
-  dirname(process.execPath),
-  process.platform === 'win32' ? 'npm.cmd' : 'npm',
-);
-const result = spawnSync(npmExecutable, ['pack', '--dry-run', '--json', '--ignore-scripts'], {
+const npmCli = nodeGlobalModulePath('npm', 'bin', 'npm-cli.js');
+const npmArgs = ['pack', '--dry-run', '--json', '--ignore-scripts'];
+const result = spawnSync(process.execPath, [npmCli, ...npmArgs], {
   cwd: root,
   encoding: 'utf8',
+  shell: false,
 });
 
 if (result.status !== 0) {
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
+  if (result.error)
+    console.error(`[package:check-pack-list] spawn failed: ${result.error.message}`);
   process.exit(result.status ?? 1);
 }
 

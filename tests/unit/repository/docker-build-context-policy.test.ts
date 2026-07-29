@@ -30,6 +30,7 @@ describe('Docker build-context policy', () => {
       '!scripts/check-runtime.mjs',
       '!scripts/clean.mjs',
       '!scripts/sync-versions.mjs',
+      '!scripts/extension-metadata-policy.mjs',
       'scripts/**',
       '!src/**',
       'easyeda-bridge-extension/**',
