@@ -5,6 +5,15 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+function nodeGlobalModulePath(packageName, ...segments) {
+  const binDirectory = dirname(process.execPath);
+  const modulesDirectory =
+    process.platform === 'win32'
+      ? join(binDirectory, 'node_modules')
+      : join(dirname(binDirectory), 'lib', 'node_modules');
+  return join(modulesDirectory, packageName, ...segments);
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? process.cwd(),
@@ -32,8 +41,7 @@ function run(command, args, options = {}) {
 }
 
 function runNpm(args, options = {}) {
-  if (process.platform !== 'win32') return run('npm', args, options);
-  const npmCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  const npmCli = nodeGlobalModulePath('npm', 'bin', 'npm-cli.js');
   return run(process.execPath, [npmCli, ...args], options);
 }
 

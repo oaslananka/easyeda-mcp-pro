@@ -334,17 +334,19 @@ describe('package artifact policy', () => {
     expect(packageJson.scripts['package:check-pack-list']).toBe(
       'node scripts/check-packed-file-list.mjs',
     );
-    expect(packagePrepare).toContain('function runExecutable(command, args)');
-    expect(packagePrepare).toContain('spawnSync(command, args');
-    expect(packagePrepare).toContain("spawnSync('cmd.exe', ['/d', '/s', '/c', 'pnpm.cmd', script]");
+    expect(packagePrepare).toContain('function nodeGlobalModulePath(packageName, ...segments)');
+    expect(packagePrepare).toContain("nodeGlobalModulePath('corepack', 'dist', 'pnpm.js')");
+    expect(packagePrepare).toContain('runExecutable(process.execPath, [pnpmCli, script])');
     expect(packagePrepare).toContain("runPnpmScript('build')");
     expect(packagePrepare).toContain("runPnpmScript('build:extension')");
+    expect(packagePrepare).not.toContain("spawnSync('cmd.exe'");
+    expect(packagePrepare).not.toContain("spawnSync('pnpm'");
     expect(packagePrepare).not.toContain('process.env.ComSpec');
-    expect(packagePrepare).not.toContain('windowsCommandShell');
-    expect(packedListCheck).toContain("'node_modules', 'npm', 'bin', 'npm-cli.js'");
+    expect(packedListCheck).toContain('function nodeGlobalModulePath(packageName, ...segments)');
+    expect(packedListCheck).toContain("nodeGlobalModulePath('npm', 'bin', 'npm-cli.js')");
     expect(packedListCheck).toContain('spawnSync(process.execPath, [npmCli, ...npmArgs]');
+    expect(packedListCheck).not.toContain("spawnSync('npm'");
     expect(packedListCheck).not.toContain('process.env.ComSpec');
-    expect(packedListCheck).not.toContain("'/d', '/s', '/c'");
     expect(workflow).toContain('pnpm package:prepare');
     expect(workflow).toContain('easyeda-bridge-extension.checksums.json');
     expect(workflow).not.toContain(

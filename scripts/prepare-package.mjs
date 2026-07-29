@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   removeGeneratedPackageArtifacts,
@@ -8,6 +8,15 @@ import {
 } from './package-artifacts.mjs';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+
+function nodeGlobalModulePath(packageName, ...segments) {
+  const binDirectory = dirname(process.execPath);
+  const modulesDirectory =
+    process.platform === 'win32'
+      ? join(binDirectory, 'node_modules')
+      : join(dirname(binDirectory), 'lib', 'node_modules');
+  return join(modulesDirectory, packageName, ...segments);
+}
 
 function requireSuccess(result) {
   if (result.status === 0) return;
@@ -26,17 +35,8 @@ function runExecutable(command, args) {
 }
 
 function runPnpmScript(script) {
-  if (process.platform !== 'win32') {
-    runExecutable('pnpm', [script]);
-    return;
-  }
-  requireSuccess(
-    spawnSync('cmd.exe', ['/d', '/s', '/c', 'pnpm.cmd', script], {
-      cwd: repoRoot,
-      stdio: 'inherit',
-      shell: false,
-    }),
-  );
+  const pnpmCli = nodeGlobalModulePath('corepack', 'dist', 'pnpm.js');
+  runExecutable(process.execPath, [pnpmCli, script]);
 }
 
 runExecutable(process.execPath, ['scripts/check-metadata.mjs']);

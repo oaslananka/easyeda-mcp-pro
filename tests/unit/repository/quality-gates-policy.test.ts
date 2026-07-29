@@ -132,12 +132,13 @@ describe('changed-code quality gate policy', () => {
     expect(matrix).not.toContain('node dist/index.js --doctor');
 
     const smoke = readText('scripts/e2e/packed-install-doctor.mjs');
-    expect(smoke).toContain("'node_modules', 'npm', 'bin', 'npm-cli.js'");
+    expect(smoke).toContain('function nodeGlobalModulePath(packageName, ...segments)');
+    expect(smoke).toContain("nodeGlobalModulePath('npm', 'bin', 'npm-cli.js')");
     expect(smoke).toContain('run(process.execPath, [npmCli, ...args]');
     expect(smoke).toContain("'node_modules', 'easyeda-mcp-pro', 'dist', 'index.js'");
+    expect(smoke).not.toContain("run('npm'");
+    expect(smoke).not.toContain("spawnSync('cmd.exe'");
     expect(smoke).not.toContain('process.env.ComSpec');
-    expect(smoke).not.toContain('windowsCommandShell');
-    expect(smoke).not.toContain("'/d', '/s', '/c'");
     expect(smoke).toContain("['pack', '--pack-destination'");
     expect(smoke).toContain("'install', '--global', '--prefix'");
     expect(smoke).toContain("[installedEntry, '--doctor']");

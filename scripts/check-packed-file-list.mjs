@@ -3,19 +3,24 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyPackedFileList } from './package-artifacts.mjs';
 
+function nodeGlobalModulePath(packageName, ...segments) {
+  const binDirectory = dirname(process.execPath);
+  const modulesDirectory =
+    process.platform === 'win32'
+      ? join(binDirectory, 'node_modules')
+      : join(dirname(binDirectory), 'lib', 'node_modules');
+  return join(modulesDirectory, packageName, ...segments);
+}
+
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const root = resolve(process.env.PACKAGE_POLICY_ROOT || repoRoot);
-const npmCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+const npmCli = nodeGlobalModulePath('npm', 'bin', 'npm-cli.js');
 const npmArgs = ['pack', '--dry-run', '--json', '--ignore-scripts'];
-const spawnOptions = {
+const result = spawnSync(process.execPath, [npmCli, ...npmArgs], {
   cwd: root,
   encoding: 'utf8',
   shell: false,
-};
-const result =
-  process.platform === 'win32'
-    ? spawnSync(process.execPath, [npmCli, ...npmArgs], spawnOptions)
-    : spawnSync('npm', npmArgs, spawnOptions);
+});
 
 if (result.status !== 0) {
   if (result.stdout) process.stdout.write(result.stdout);
