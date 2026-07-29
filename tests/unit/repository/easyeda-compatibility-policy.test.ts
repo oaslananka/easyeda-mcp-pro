@@ -140,6 +140,10 @@ describe('EasyEDA compatibility evidence policy', () => {
     );
     expect(packageJson.scripts['check:compatibility']).toContain('--check');
     expect(packageJson.scripts['docs:build']).toContain('check:compatibility');
+    const generator = read('scripts/generate-easyeda-compatibility.mjs');
+    expect(generator).toContain("left.localeCompare(right, 'en')");
+    expect(generator).toContain('sort(comparePaths)');
+    expect(generator).not.toMatch(/\.sort\(\)/);
     expect(read('docs/reference/easyeda-compatibility.md')).toContain(
       'recorded compatibility-sensitive snapshot',
     );

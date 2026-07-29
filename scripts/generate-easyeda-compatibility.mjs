@@ -14,6 +14,10 @@ function assert(condition, message) {
   if (!condition) throw new Error(`Invalid compatibility source: ${message}`);
 }
 
+function comparePaths(left, right) {
+  return left.localeCompare(right, 'en');
+}
+
 function validateCompatibilitySnapshot(record, sensitivePaths) {
   const snapshot = record.server?.compatibilitySnapshot;
   if (snapshot === undefined) return;
@@ -28,8 +32,8 @@ function validateCompatibilitySnapshot(record, sensitivePaths) {
     snapshot.paths && typeof snapshot.paths === 'object' && !Array.isArray(snapshot.paths),
     `${record.id} compatibility snapshot paths are malformed`,
   );
-  const expectedPaths = [...sensitivePaths].sort();
-  const recordedPaths = Object.keys(snapshot.paths).sort();
+  const expectedPaths = [...sensitivePaths].sort(comparePaths);
+  const recordedPaths = Object.keys(snapshot.paths).sort(comparePaths);
   assert(
     JSON.stringify(recordedPaths) === JSON.stringify(expectedPaths),
     `${record.id} compatibility snapshot paths must match releaseGate.sensitivePaths`,
