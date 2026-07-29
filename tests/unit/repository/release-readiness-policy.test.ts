@@ -9,7 +9,12 @@ describe('release readiness policy', () => {
   it('binds live EasyEDA evidence to a full commit and sensitive path policy', () => {
     const source = JSON.parse(read('config/easyeda-compatibility.json')) as {
       releaseGate?: { sensitivePaths?: string[]; requiredFreshLiveRecords?: number };
-      records: Array<{ server: { commit: string } }>;
+      records: Array<{
+        server: {
+          commit: string;
+          compatibilitySnapshot?: { algorithm: string; paths: Record<string, string> };
+        };
+      }>;
     };
 
     expect(source.releaseGate?.requiredFreshLiveRecords).toBe(1);
@@ -23,6 +28,11 @@ describe('release readiness policy', () => {
       ]),
     );
     for (const record of source.records) expect(record.server.commit).toMatch(/^[0-9a-f]{40}$/);
+    const snapshotRecord = source.records.find((record) => record.server.compatibilitySnapshot);
+    expect(snapshotRecord?.server.compatibilitySnapshot?.algorithm).toBe('git-tree-sha1');
+    expect(Object.keys(snapshotRecord?.server.compatibilitySnapshot?.paths ?? {}).sort()).toEqual(
+      [...(source.releaseGate?.sensitivePaths ?? [])].sort(),
+    );
   });
 
   it('runs the compatibility gate before release publication and exposes a full local command', () => {

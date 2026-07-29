@@ -22,11 +22,31 @@ function isSafeTargetRef(value) {
   return typeof value === 'string' && SAFE_TARGET_REF_RE.test(value) && !value.startsWith('-');
 }
 
-function validateCompatibilityEvidence(source) {
-  if (!source || typeof source !== 'object' || Array.isArray(source)) {
-    return 'Compatibility evidence must be a JSON object.';
+function validateCompatibilitySnapshot({ snapshot, sensitivePaths, recordId }) {
+  if (snapshot === undefined) return undefined;
+  if (
+    !snapshot ||
+    typeof snapshot !== 'object' ||
+    Array.isArray(snapshot) ||
+    snapshot.algorithm !== 'git-tree-sha1' ||
+    !snapshot.paths ||
+    typeof snapshot.paths !== 'object' ||
+    Array.isArray(snapshot.paths)
+  ) {
+    return `Compatibility evidence record ${recordId} has a malformed compatibility snapshot.`;
   }
-  const releaseGate = source.releaseGate;
+  const expectedPaths = uniqueSorted(sensitivePaths);
+  const snapshotPaths = uniqueSorted(Object.keys(snapshot.paths));
+  if (JSON.stringify(snapshotPaths) !== JSON.stringify(expectedPaths)) {
+    return `Compatibility evidence record ${recordId} snapshot paths must match releaseGate.sensitivePaths.`;
+  }
+  if (!snapshotPaths.every((path) => COMMIT_RE.test(snapshot.paths[path] ?? ''))) {
+    return `Compatibility evidence record ${recordId} snapshot paths must reference full Git tree objects.`;
+  }
+  return undefined;
+}
+
+function validateReleaseGate(releaseGate) {
   if (!releaseGate || typeof releaseGate !== 'object' || Array.isArray(releaseGate)) {
     return 'Compatibility evidence releaseGate is missing or malformed.';
   }
@@ -44,19 +64,41 @@ function validateCompatibilityEvidence(source) {
   ) {
     return 'Compatibility evidence requiredFreshLiveRecords must be a positive integer.';
   }
+  return undefined;
+}
+
+function validateCompatibilityRecord({ record, sensitivePaths }) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    return 'Compatibility evidence contains a malformed live record.';
+  }
+  if (typeof record.id !== 'string' || record.id.length === 0) {
+    return 'Compatibility evidence record id must be a non-empty string.';
+  }
+  if (!COMMIT_RE.test(record.server?.commit ?? '')) {
+    return `Compatibility evidence record ${record.id} must reference a full Git commit.`;
+  }
+  return validateCompatibilitySnapshot({
+    snapshot: record.server?.compatibilitySnapshot,
+    sensitivePaths,
+    recordId: record.id,
+  });
+}
+
+function validateCompatibilityEvidence(source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) {
+    return 'Compatibility evidence must be a JSON object.';
+  }
+  const releaseGateError = validateReleaseGate(source.releaseGate);
+  if (releaseGateError) return releaseGateError;
   if (!Array.isArray(source.records) || source.records.length === 0) {
     return 'Compatibility evidence must contain at least one live record.';
   }
   for (const record of source.records) {
-    if (!record || typeof record !== 'object' || Array.isArray(record)) {
-      return 'Compatibility evidence contains a malformed live record.';
-    }
-    if (typeof record.id !== 'string' || record.id.length === 0) {
-      return 'Compatibility evidence record id must be a non-empty string.';
-    }
-    if (!COMMIT_RE.test(record.server?.commit ?? '')) {
-      return `Compatibility evidence record ${record.id} must reference a full Git commit.`;
-    }
+    const recordError = validateCompatibilityRecord({
+      record,
+      sensitivePaths: source.releaseGate.sensitivePaths,
+    });
+    if (recordError) return recordError;
   }
   return undefined;
 }
@@ -176,46 +218,110 @@ function listDirtyFiles({ gitBinary, root, paths }) {
   return uniqueSorted(`${worktree.stdout}\n${index.stdout}`.split('\n').filter(Boolean));
 }
 
-function inspectRecord({ record, gitBinary, root, headCommit, paths, dirtyFiles }) {
-  const evidenceCommit = resolveCommit({
+function resolveSensitivePathTrees({ gitBinary, root, commit, paths }) {
+  const trees = {};
+  for (const path of paths) {
+    const result = runGit({
+      gitBinary,
+      root,
+      args: ['rev-parse', '--verify', `${commit}:${path}`],
+    });
+    if (result.status !== 0 || !COMMIT_RE.test(result.stdout)) return undefined;
+    trees[path] = result.stdout;
+  }
+  return trees;
+}
+
+function listSnapshotDifferences({ recordedTrees, actualTrees, paths }) {
+  return paths.filter((path) => recordedTrees[path] !== actualTrees[path]).sort(comparePaths);
+}
+
+function recordResult({
+  record,
+  evidenceCommit = record.server.commit,
+  status,
+  changedFiles,
+  reason,
+}) {
+  return {
+    id: record.id,
+    evidenceCommit,
+    status,
+    changedFiles,
+    reason,
+  };
+}
+
+function snapshotResult({ record, headTrees, paths, dirtyFiles }) {
+  const recordedTrees = record.server.compatibilitySnapshot.paths;
+  const changedPaths = listSnapshotDifferences({ recordedTrees, actualTrees: headTrees, paths });
+  const combined = uniqueSorted([...changedPaths, ...dirtyFiles]);
+  return recordResult({
+    record,
+    status: combined.length === 0 ? 'current' : 'stale',
+    changedFiles: combined,
+    reason:
+      combined.length === 0
+        ? 'The release candidate matches the recorded compatibility-sensitive snapshot.'
+        : 'Compatibility-sensitive paths differ from the recorded live snapshot.',
+  });
+}
+
+function snapshotVerificationError({ record, gitBinary, root, evidenceCommit, paths }) {
+  const recordedSnapshot = record.server.compatibilitySnapshot;
+  if (!recordedSnapshot) return undefined;
+  const evidenceTrees = resolveSensitivePathTrees({
     gitBinary,
     root,
-    ref: record.server.commit,
+    commit: evidenceCommit,
+    paths,
   });
-  if (!evidenceCommit) {
-    return {
-      id: record.id,
-      evidenceCommit: record.server.commit,
-      status: 'unavailable',
-      changedFiles: [],
-      reason: 'The recorded evidence commit is unavailable in this Git checkout.',
-    };
-  }
+  if (!evidenceTrees) return 'The evidence commit compatibility snapshot could not be inspected.';
+  const differences = listSnapshotDifferences({
+    recordedTrees: recordedSnapshot.paths,
+    actualTrees: evidenceTrees,
+    paths,
+  });
+  return differences.length > 0
+    ? 'The recorded compatibility snapshot does not match the evidence commit.'
+    : undefined;
+}
 
+function comparisonReason({ current, equivalentRewrite }) {
+  if (current) {
+    return equivalentRewrite
+      ? 'The release candidate has equivalent compatibility-sensitive content to the live evidence commit.'
+      : 'No compatibility-sensitive file changed after the live evidence commit.';
+  }
+  return equivalentRewrite
+    ? 'Compatibility-sensitive files differ from the live evidence commit.'
+    : 'Compatibility-sensitive files changed after the live evidence commit.';
+}
+
+function compareAvailableEvidence({
+  record,
+  gitBinary,
+  root,
+  evidenceCommit,
+  headCommit,
+  paths,
+  dirtyFiles,
+  headTrees,
+}) {
   const ancestor = runGit({
     gitBinary,
     root,
     args: ['merge-base', '--is-ancestor', evidenceCommit, headCommit],
   });
-  if (ancestor.status === 1) {
-    return {
-      id: record.id,
-      evidenceCommit,
-      status: 'unavailable',
-      changedFiles: [],
-      reason: 'The evidence commit is not an ancestor of the release candidate.',
-    };
-  }
-  if (ancestor.status !== 0) {
-    return {
-      id: record.id,
+  if (ancestor.status !== 0 && ancestor.status !== 1) {
+    return recordResult({
+      record,
       evidenceCommit,
       status: 'unavailable',
       changedFiles: [],
       reason: 'The evidence ancestry could not be verified.',
-    };
+    });
   }
-
   const changedFiles = listChangedFiles({
     gitBinary,
     root,
@@ -224,26 +330,84 @@ function inspectRecord({ record, gitBinary, root, headCommit, paths, dirtyFiles 
     paths,
   });
   if (!changedFiles) {
-    return {
-      id: record.id,
+    return recordResult({
+      record,
       evidenceCommit,
       status: 'unavailable',
       changedFiles: [],
       reason: 'Compatibility-sensitive changes could not be compared.',
-    };
+    });
+  }
+  const recordedTrees = record.server.compatibilitySnapshot?.paths;
+  const snapshotDifferences =
+    recordedTrees && headTrees
+      ? listSnapshotDifferences({ recordedTrees, actualTrees: headTrees, paths })
+      : [];
+  const comparedFiles = changedFiles.length > 0 ? changedFiles : snapshotDifferences;
+  const combined = uniqueSorted([...comparedFiles, ...dirtyFiles]);
+  const current = combined.length === 0;
+  return recordResult({
+    record,
+    evidenceCommit,
+    status: current ? 'current' : 'stale',
+    changedFiles: combined,
+    reason: comparisonReason({ current, equivalentRewrite: ancestor.status === 1 }),
+  });
+}
+
+function inspectRecord({ record, gitBinary, root, headCommit, paths, dirtyFiles }) {
+  const recordedSnapshot = record.server.compatibilitySnapshot;
+  const headTrees = recordedSnapshot
+    ? resolveSensitivePathTrees({ gitBinary, root, commit: headCommit, paths })
+    : undefined;
+  if (recordedSnapshot && !headTrees) {
+    return recordResult({
+      record,
+      status: 'unavailable',
+      changedFiles: [],
+      reason: 'The release candidate compatibility snapshot could not be inspected.',
+    });
   }
 
-  const combined = uniqueSorted([...changedFiles, ...dirtyFiles]);
-  return {
-    id: record.id,
+  const evidenceCommit = resolveCommit({ gitBinary, root, ref: record.server.commit });
+  if (!evidenceCommit) {
+    return recordedSnapshot && headTrees
+      ? snapshotResult({ record, headTrees, paths, dirtyFiles })
+      : recordResult({
+          record,
+          status: 'unavailable',
+          changedFiles: [],
+          reason: 'The recorded evidence commit is unavailable in this Git checkout.',
+        });
+  }
+
+  const snapshotError = snapshotVerificationError({
+    record,
+    gitBinary,
+    root,
     evidenceCommit,
-    status: combined.length === 0 ? 'current' : 'stale',
-    changedFiles: combined,
-    reason:
-      combined.length === 0
-        ? 'No compatibility-sensitive file changed after the live evidence commit.'
-        : 'Compatibility-sensitive files changed after the live evidence commit.',
-  };
+    paths,
+  });
+  if (snapshotError) {
+    return recordResult({
+      record,
+      evidenceCommit,
+      status: 'unavailable',
+      changedFiles: [],
+      reason: snapshotError,
+    });
+  }
+
+  return compareAvailableEvidence({
+    record,
+    gitBinary,
+    root,
+    evidenceCommit,
+    headCommit,
+    paths,
+    dirtyFiles,
+    headTrees,
+  });
 }
 
 export async function inspectCompatibilityFreshness({

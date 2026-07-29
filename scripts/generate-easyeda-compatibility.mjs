@@ -14,6 +14,38 @@ function assert(condition, message) {
   if (!condition) throw new Error(`Invalid compatibility source: ${message}`);
 }
 
+function comparePaths(left, right) {
+  return left.localeCompare(right, 'en');
+}
+
+function validateCompatibilitySnapshot(record, sensitivePaths) {
+  const snapshot = record.server?.compatibilitySnapshot;
+  if (snapshot === undefined) return;
+  assert(
+    snapshot &&
+      typeof snapshot === 'object' &&
+      !Array.isArray(snapshot) &&
+      snapshot.algorithm === 'git-tree-sha1',
+    `${record.id} compatibility snapshot must use git-tree-sha1`,
+  );
+  assert(
+    snapshot.paths && typeof snapshot.paths === 'object' && !Array.isArray(snapshot.paths),
+    `${record.id} compatibility snapshot paths are malformed`,
+  );
+  const expectedPaths = [...sensitivePaths].sort(comparePaths);
+  const recordedPaths = Object.keys(snapshot.paths).sort(comparePaths);
+  assert(
+    JSON.stringify(recordedPaths) === JSON.stringify(expectedPaths),
+    `${record.id} compatibility snapshot paths must match releaseGate.sensitivePaths`,
+  );
+  for (const path of recordedPaths) {
+    assert(
+      /^[0-9a-f]{40}$/.test(snapshot.paths[path]),
+      `${record.id} compatibility snapshot path ${path} must be a full Git tree object`,
+    );
+  }
+}
+
 function validateSource(source) {
   assert(source && typeof source === 'object', 'root must be an object');
   assert(source.schemaVersion === 1, 'schemaVersion must be 1');
@@ -48,6 +80,7 @@ function validateSource(source) {
       /^[0-9a-f]{40}$/.test(record.server?.commit ?? ''),
       `${record.id} server.commit must be a full 40-character commit`,
     );
+    validateCompatibilitySnapshot(record, source.releaseGate.sensitivePaths);
     assert(Number.isFinite(Date.parse(record.validatedAt)), `${record.id} validatedAt is invalid`);
     assert(
       Date.parse(record.reviewBy) > Date.parse(record.validatedAt),
@@ -125,7 +158,7 @@ export async function renderCompatibilityMarkdown(source) {
     '',
     '## Commit-bound release gate',
     '',
-    `A release requires at least ${source.releaseGate.requiredFreshLiveRecords} live record whose evidence commit has no later changes under the compatibility-sensitive paths below. The executable check is \`pnpm release:readiness:compatibility\`.`,
+    `A release requires at least ${source.releaseGate.requiredFreshLiveRecords} live record whose evidence commit or recorded compatibility-sensitive snapshot matches the candidate under every path below. Squash/rebase history is accepted only when each recorded Git tree object is identical. The executable check is \`pnpm release:readiness:compatibility\`.`,
     '',
     ...source.releaseGate.sensitivePaths.map((path) => `- \`${path}\``),
     '',
@@ -172,6 +205,11 @@ export async function renderCompatibilityMarkdown(source) {
       `| Validation package version | \`${record.server.validationPackageVersion}\` |`,
       `| Release containing validated fixes | \`${record.server.releaseContainingFixes}\` |`,
       `| Compatibility-sensitive base commit | \`${record.server.commit}\` |`,
+      ...(record.server.compatibilitySnapshot
+        ? [
+            `| Recorded compatibility snapshot | \`${record.server.compatibilitySnapshot.algorithm}\` across ${Object.keys(record.server.compatibilitySnapshot.paths).length} sensitive paths |`,
+          ]
+        : []),
       `| Installed extension package metadata | \`${record.extension.installedPackageVersion}\` |`,
       `| Loader-reported version | \`${record.extension.loaderReportedVersion}\` |`,
       `| Bridge contract | \`${record.extension.bridgeContractVersion}\` |`,

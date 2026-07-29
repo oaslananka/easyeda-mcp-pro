@@ -9,7 +9,7 @@ This matrix records exact runtime evidence. Broad support ranges elsewhere in th
 
 ## Commit-bound release gate
 
-A release requires at least 1 live record whose evidence commit has no later changes under the compatibility-sensitive paths below. The executable check is `pnpm release:readiness:compatibility`.
+A release requires at least 1 live record whose evidence commit or recorded compatibility-sensitive snapshot matches the candidate under every path below. Squash/rebase history is accepted only when each recorded Git tree object is identical. The executable check is `pnpm release:readiness:compatibility`.
 
 - `easyeda-bridge-extension/src`
 - `src/bridge`
@@ -53,6 +53,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-29-v1-rc1`
 | Validation package version           | `1.0.0-rc.1`                               |
 | Release containing validated fixes   | `1.0.0-rc.1`                               |
 | Compatibility-sensitive base commit  | `4c5969de73678140e3582f08d2be52233622a718` |
+| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.1`                                   |
 | Loader-reported version              | `1.0.0-rc.1`                               |
 | Bridge contract                      | `1.0.0`                                    |
