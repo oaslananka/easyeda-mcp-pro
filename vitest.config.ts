@@ -24,9 +24,6 @@ export default defineConfig({
         // This opt-in integration path requires a real ngspice binary; its pure
         // parser/runner behavior is covered separately by ordinary unit tests.
         'src/live/*spice-smoke.ts',
-        // Scaffolding for a future auto-routing epic issue; not yet wired to any
-        // caller, so behavior isn't settled enough to write meaningful tests against.
-        'src/router/**',
       ],
       thresholds: {
         lines: 80,

@@ -17,6 +17,8 @@ export const REQUIRED_PACKAGE_FILE_ENTRIES = [
   'scripts/check-runtime.mjs',
 ];
 
+const FORBIDDEN_PACKED_PREFIXES = ['package/dist/router/'];
+
 const REQUIRED_PACKED_FILES = [
   'package/package.json',
   'package/dist/index.js',
@@ -211,6 +213,11 @@ export function verifyPackedFileList(files) {
   const errors = REQUIRED_PACKED_FILES.filter((path) => !normalized.has(path)).map(
     (path) => `npm pack output is missing required file: ${path}`,
   );
+  for (const path of [...normalized].sort(comparePaths)) {
+    if (FORBIDDEN_PACKED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+      errors.push(`npm pack output contains unsupported router artifact: ${path}`);
+    }
+  }
   return { ok: errors.length === 0, errors };
 }
 

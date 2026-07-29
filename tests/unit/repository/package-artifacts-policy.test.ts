@@ -295,6 +295,12 @@ describe('package artifact policy', () => {
     ];
 
     expect(verifyPackedFileList(complete)).toEqual({ ok: true, errors: [] });
+    expect(verifyPackedFileList([...complete, 'package/dist/router/astar.js'])).toEqual({
+      ok: false,
+      errors: [
+        'npm pack output contains unsupported router artifact: package/dist/router/astar.js',
+      ],
+    });
     expect(
       verifyPackedFileList(complete.filter((path) => !path.endsWith('THIRD_PARTY_NOTICES.md'))),
     ).toEqual({
