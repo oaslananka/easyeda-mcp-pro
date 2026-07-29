@@ -47,9 +47,6 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.6.0)
-      '@jlceda/pro-api-types':
-        specifier: ^0.3.5
-        version: 0.3.5
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -92,9 +89,6 @@ importers:
 
   easyeda-bridge-extension:
     devDependencies:
-      '@jlceda/pro-api-types':
-        specifier: ^0.3.5
-        version: 0.3.5
       archiver:
         specifier: ^8.0.0
         version: 8.0.0
@@ -484,9 +478,6 @@ packages:
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
-
-  '@jlceda/pro-api-types@0.3.5':
-    resolution: {integrity: sha512-SMBRhiXHeOceDOWBzDn6CfkuPRcf0TPSpy2yxCzpI66yu4ych4dTJAXUaCHr521l0zVF0KI36iWd+EPc4Ijd8A==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -2735,8 +2726,6 @@ snapshots:
       '@iconify/types': 2.0.0
 
   '@iconify/types@2.0.0': {}
-
-  '@jlceda/pro-api-types@0.3.5': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

@@ -67,11 +67,14 @@ async function createFixture() {
   await writeFile(join(root, 'THIRD_PARTY_NOTICES.md'), '# Notices\n');
   await writeJson(join(root, 'config/runtime-policy.json'), { node: '24.18.0' });
   await writeFile(join(root, 'scripts/check-runtime.mjs'), 'process.exit(0);\n');
-  await writeFile(join(root, 'easyeda-bridge-extension/package.json'), '{"private":true}\n');
+  await writeFile(
+    join(root, 'easyeda-bridge-extension/package.json'),
+    '{"private":true,"version":"0.0.0-private"}\n',
+  );
   await writeFile(join(root, 'easyeda-bridge-extension/tsconfig.json'), '{}\n');
   await writeFile(
     join(root, 'easyeda-bridge-extension/src/index.ts'),
-    'export const extension = true;\n',
+    `const EXTENSION_INFO = { extensionVersion: '${version}' };\nexport const extension = true;\n`,
   );
   await writeFile(
     join(root, 'easyeda-bridge-extension/scripts/build.mjs'),
@@ -151,6 +154,30 @@ describe('package artifact policy', () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toContain(
       'package.json bin must declare easyeda-mcp-pro -> dist/index.js',
+    );
+  });
+
+  it('rejects extension product-version drift and a release-looking private workspace', async () => {
+    const fixture = await createFixture();
+    await writeJson(join(fixture.root, 'easyeda-bridge-extension/package.json'), {
+      private: false,
+      version: '1.0.0',
+    });
+    await writeFile(
+      join(fixture.root, 'easyeda-bridge-extension/src/index.ts'),
+      "const EXTENSION_INFO = { extensionVersion: '9.9.9' };\n",
+    );
+    await writePackageBuildManifest({ root: fixture.root });
+
+    const result = await verifyPackageArtifacts({ root: fixture.root });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        'easyeda-bridge-extension/src/index.ts EXTENSION_INFO.extensionVersion 9.9.9 does not match package.json 1.2.3',
+        'easyeda-bridge-extension/package.json must remain private',
+        'easyeda-bridge-extension/package.json version 1.0.0 must be 0.0.0-private',
+      ]),
     );
   });
 

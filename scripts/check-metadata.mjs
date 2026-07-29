@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { collectExtensionMetadataErrors } from './extension-metadata-policy.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,14 @@ const cliDist = fs.existsSync(cliDistPath) ? fs.readFileSync(cliDistPath, 'utf8'
 const extJsonPath = path.join(root, 'easyeda-bridge-extension', 'extension.json');
 const extJson = fs.existsSync(extJsonPath)
   ? JSON.parse(fs.readFileSync(extJsonPath, 'utf8'))
+  : null;
+const extensionPackageJsonPath = path.join(root, 'easyeda-bridge-extension', 'package.json');
+const extensionPackageJson = fs.existsSync(extensionPackageJsonPath)
+  ? JSON.parse(fs.readFileSync(extensionPackageJsonPath, 'utf8'))
+  : null;
+const extensionSourcePath = path.join(root, 'easyeda-bridge-extension', 'src', 'index.ts');
+const extensionSource = fs.existsSync(extensionSourcePath)
+  ? fs.readFileSync(extensionSourcePath, 'utf8')
   : null;
 const claudePluginJsonPath = path.join(root, '.claude-plugin', 'plugin.json');
 const claudePluginJson = fs.existsSync(claudePluginJsonPath)
@@ -77,22 +86,14 @@ if (!tsMatch) {
   );
 }
 
-// extension.json version (if present)
-if (extJson) {
-  if (extJson.version !== expectedVersion) {
-    error(
-      `easyeda-bridge-extension/extension.json version "${extJson.version}" !== package.json "${expectedVersion}"`,
-    );
-  }
-}
-
-// .claude-plugin/plugin.json version (if present)
-if (claudePluginJson) {
-  if (claudePluginJson.version !== expectedVersion) {
-    error(
-      `.claude-plugin/plugin.json version "${claudePluginJson.version}" !== package.json "${expectedVersion}"`,
-    );
-  }
+for (const metadataError of collectExtensionMetadataErrors({
+  productVersion: expectedVersion,
+  extensionManifest: extJson,
+  pluginManifest: claudePluginJson,
+  extensionPackage: extensionPackageJson,
+  extensionSource,
+})) {
+  error(metadataError);
 }
 
 // ── 3. Package name consistency ─────────────────────────────────────────────
