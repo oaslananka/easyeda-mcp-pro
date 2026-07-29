@@ -277,6 +277,87 @@ describe('board inspection operations', () => {
     });
   });
 
+  it('calculates dimensions from board-outline polylines exposed through polygon discretization', async () => {
+    const discretize = vi.fn(() => [
+      { x: -5, y: 2 },
+      { x: 35, y: 2 },
+      { x: 35, y: 22 },
+      { x: -5, y: 22 },
+    ]);
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ discretize }),
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toEqual({
+      widthMm: 40,
+      heightMm: 20,
+      shape: 'custom',
+      mountingHoleCount: 0,
+      areaMm2: 800,
+      hasOutline: true,
+    });
+    expect(discretize).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps valid polyline geometry when other polygon states are unavailable or malformed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const failure = new Error('native polygon discretization failed');
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            { getState_Layer: () => 11, getState_Polygon: () => ({}) },
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ discretize: () => ({ invalid: true }) }),
+            },
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({
+                discretize: () => {
+                  throw failure;
+                },
+              }),
+            },
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({
+                discretize: () => [
+                  { x: 0, y: 0 },
+                  { x: 10, y: 5 },
+                ],
+              }),
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      widthMm: 10,
+      heightMm: 5,
+      areaMm2: 50,
+      hasOutline: true,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      '[easyeda-mcp-pro]',
+      'failed to discretize board outline polygon',
+      failure,
+    );
+    warn.mockRestore();
+  });
+
   it('detects board outlines exposed as direct layer records and endpoint fields', async () => {
     const { operations } = makeOperations(
       { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
