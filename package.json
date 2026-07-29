@@ -139,7 +139,6 @@
   "devDependencies": {
     "@codecov/bundle-analyzer": "2.0.1",
     "@eslint/js": "^10.0.1",
-    "@jlceda/pro-api-types": "^0.3.5",
     "@types/express": "^5.0.6",
     "@types/node": "^24.13.2",
     "@types/ws": "^8.18.1",

@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { verifyChecksumManifest } from '../easyeda-bridge-extension/scripts/checksums.mjs';
+import { collectExtensionMetadataErrors } from './extension-metadata-policy.mjs';
 
 export const PACKAGE_BUILD_MANIFEST_PATH = 'dist/package-build-manifest.json';
 export const REQUIRED_PACKAGE_FILE_ENTRIES = [
@@ -282,20 +283,6 @@ function verifyServerMetadata(packageJson, serverJson, errors) {
   }
 }
 
-function verifyCompanionMetadata(packageJson, extensionJson, pluginJson, errors) {
-  if (!packageJson) return;
-  if (extensionJson?.version !== packageJson.version) {
-    errors.push(
-      `easyeda-bridge-extension/extension.json version ${String(extensionJson?.version)} does not match package.json ${String(packageJson.version)}`,
-    );
-  }
-  if (pluginJson?.version !== packageJson.version) {
-    errors.push(
-      `.claude-plugin/plugin.json version ${String(pluginJson?.version)} does not match package.json ${String(packageJson.version)}`,
-    );
-  }
-}
-
 async function verifySourceVersion(root, packageJson, errors) {
   const versionSourcePath = join(root, 'src/config/version.ts');
   if (!existsSync(versionSourcePath)) {
@@ -398,12 +385,31 @@ export async function verifyPackageArtifacts({ root }) {
     errors,
     '.claude-plugin/plugin.json',
   );
+  const extensionPackageJson = await readJson(
+    join(resolvedRoot, 'easyeda-bridge-extension/package.json'),
+    errors,
+    'easyeda-bridge-extension/package.json',
+  );
+  const extensionSourcePath = join(resolvedRoot, 'easyeda-bridge-extension/src/index.ts');
+  const extensionSource = existsSync(extensionSourcePath)
+    ? await readFile(extensionSourcePath, 'utf8')
+    : undefined;
 
   await verifyRequiredArtifacts(resolvedRoot, errors);
   verifyPackageDeclaration(packageJson, errors);
   await verifyCliEntry(resolvedRoot, errors);
   verifyServerMetadata(packageJson, serverJson, errors);
-  verifyCompanionMetadata(packageJson, extensionJson, pluginJson, errors);
+  if (packageJson) {
+    errors.push(
+      ...collectExtensionMetadataErrors({
+        productVersion: packageJson.version,
+        extensionManifest: extensionJson,
+        pluginManifest: pluginJson,
+        extensionPackage: extensionPackageJson,
+        extensionSource,
+      }),
+    );
+  }
   await verifySourceVersion(resolvedRoot, packageJson, errors);
   await verifyExtensionChecksum(resolvedRoot, errors);
   await verifyBuildManifest(resolvedRoot, packageJson, errors);
