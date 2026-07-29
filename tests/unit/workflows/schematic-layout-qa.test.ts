@@ -3,7 +3,9 @@ import {
   compareSchematicLayoutQa,
   evaluateSchematicLayoutQa,
   type LayoutQaInput,
+  type LayoutQaIssue,
   type LayoutQaPrimitive,
+  type LayoutQaResult,
 } from '../../../src/workflows/schematic-layout-qa.js';
 
 const component = (
@@ -252,6 +254,82 @@ describe('schematic layout QA', () => {
     expect(comparison.newIssues.map((issue) => issue.code)).not.toContain('TITLE_BLOCK_OVERLAP');
     expect(comparison.afterScore).toBeGreaterThan(comparison.beforeScore);
     expect(comparison.improved).toBe(true);
+  });
+
+  it('compares issue identities independently of affected-item ordering and returns new findings', () => {
+    const identityIssue: LayoutQaIssue = {
+      code: 'EXPECTED_NET_MISMATCH',
+      severity: 'error',
+      category: 'electrical',
+      source: 'expected_topology',
+      message: 'identity fixture',
+      affectedPrimitiveIds: ['U2', 'U1'],
+      affectedNets: ['VCC', 'GND'],
+      affectedPins: ['U2.1', 'U1.1'],
+      evidence: 'fixture',
+      remediation: 'fixture',
+      blocksCommit: true,
+      confidence: 1,
+    };
+    const newIssue: LayoutQaIssue = {
+      ...identityIssue,
+      code: 'DUPLICATE_REFERENCE',
+      message: 'new fixture',
+      affectedPrimitiveIds: ['R2', 'R1'],
+      affectedNets: [],
+      affectedPins: [],
+    };
+    const result = (issues: LayoutQaIssue[], overall: number): LayoutQaResult => ({
+      projectId: 'comparison',
+      status: issues.length > 0 ? 'fail' : 'pass',
+      passed: issues.length === 0,
+      commitBlocked: issues.some((issue) => issue.blocksCommit),
+      issues,
+      issueCounts: {
+        critical: 0,
+        error: issues.length,
+        warning: 0,
+        info: 0,
+      },
+      scores: {
+        geometry: 100,
+        readability: 100,
+        grouping: 100,
+        spacing: 100,
+        wiring: 100,
+        electrical: overall,
+        runtime: 100,
+        overall,
+      },
+      evidence: {
+        exactGeometry: true,
+        runtimeDrc: true,
+        runtimeErc: true,
+        fullPageCapture: true,
+        deterministicCapture: true,
+      },
+      summary: {
+        criticalIssueCodes: [],
+        blockingIssueCodes: issues.filter((issue) => issue.blocksCommit).map((issue) => issue.code),
+        topIssues: issues,
+      },
+    });
+
+    const before = result([identityIssue], 80);
+    const reorderedIdentity = {
+      ...identityIssue,
+      affectedPrimitiveIds: [...identityIssue.affectedPrimitiveIds].reverse(),
+      affectedNets: [...identityIssue.affectedNets].reverse(),
+      affectedPins: [...identityIssue.affectedPins].reverse(),
+    };
+    const after = result([reorderedIdentity, newIssue], 70);
+
+    const comparison = compareSchematicLayoutQa(before, after);
+
+    expect(comparison.unchangedIssues).toEqual([reorderedIdentity]);
+    expect(comparison.newIssues).toEqual([newIssue]);
+    expect(comparison.resolvedIssues).toEqual([]);
+    expect(comparison.improved).toBe(false);
   });
 
   it('keeps an unresolved issue in unchangedIssues across a comparison', () => {
