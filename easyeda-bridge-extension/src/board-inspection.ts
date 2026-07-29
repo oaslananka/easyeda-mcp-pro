@@ -100,11 +100,25 @@ function addPoint(bounds: BoundingBox, point: unknown): void {
   updateBoundingBox(bounds, readPointCoordinate(point, 'X'), readPointCoordinate(point, 'Y'));
 }
 
+function addPolygonPoints(bounds: BoundingBox, polygon: unknown): void {
+  if (!isRecord(polygon) || typeof polygon.discretize !== 'function') return;
+  try {
+    const points = polygon.discretize();
+    if (Array.isArray(points)) {
+      for (const point of points) addPoint(bounds, point);
+    }
+  } catch (error) {
+    logRecoverableError('failed to discretize board outline polygon', error);
+  }
+}
+
 function addPrimitivePoints(bounds: BoundingBox, primitive: unknown): void {
   const points = readPrimitiveState(primitive, 'Points');
   if (Array.isArray(points)) {
     for (const point of points) addPoint(bounds, point);
   }
+
+  addPolygonPoints(bounds, readPrimitiveState(primitive, 'Polygon'));
 
   updateBoundingBox(
     bounds,
@@ -255,11 +269,13 @@ export function createBoardInspectionOperations({
     const globalObj = getGlobal();
     const pcbLineClass = readPath<any>(globalObj, 'pcb_PrimitiveLine');
     const pcbArcClass = readPath<any>(globalObj, 'pcb_PrimitiveArc');
+    const pcbPolylineClass = readPath<any>(globalObj, 'pcb_PrimitivePolyline');
     const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
     const bounds = createEmptyBoundingBox();
 
     await addOutlinePrimitiveBounds(pcbLineClass, bounds, 'lines');
     await addOutlinePrimitiveBounds(pcbArcClass, bounds, 'arcs');
+    await addOutlinePrimitiveBounds(pcbPolylineClass, bounds, 'polylines');
 
     const width = bounds.maxX > bounds.minX ? bounds.maxX - bounds.minX : 0;
     const height = bounds.maxY > bounds.minY ? bounds.maxY - bounds.minY : 0;
