@@ -15,8 +15,8 @@ const temporaryRoots: string[] = [];
 const gitBinary = resolveGitBinary();
 if (!gitBinary) throw new Error('Git is required for release-readiness fixture tests');
 
-// This suite creates and commits a complete Git fixture before running the
-// readiness gate. Hosted macOS runners can exceed Vitest's 5s default.
+// This suite creates and commits complete Git fixtures before running the
+// readiness gate. Hosted macOS and Windows runners can exceed Vitest's 5s default.
 const GIT_FIXTURE_TEST_TIMEOUT_MS = 15_000;
 
 function git(root: string, args: string[]) {
@@ -142,7 +142,7 @@ afterEach(async () => {
   );
 });
 
-describe('hermetic release readiness', () => {
+describe('hermetic release readiness', { timeout: GIT_FIXTURE_TEST_TIMEOUT_MS }, () => {
   it(
     'reports current evidence from a self-contained Git fixture',
     async () => {
