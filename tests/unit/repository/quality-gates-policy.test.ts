@@ -132,6 +132,7 @@ describe('changed-code quality gate policy', () => {
     expect(matrix).not.toContain('node dist/index.js --doctor');
 
     const smoke = readText('scripts/e2e/packed-install-doctor.mjs');
+    expect(smoke).toContain("process.platform === 'win32' ? 'npm.cmd' : 'npm'");
     expect(smoke).toContain("['pack', '--pack-destination'");
     expect(smoke).toContain("'install', '--global', '--prefix'");
     expect(smoke).toContain("['--doctor']");

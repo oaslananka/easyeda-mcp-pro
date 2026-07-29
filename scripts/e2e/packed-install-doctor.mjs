@@ -16,11 +16,13 @@ function run(command, args, options = {}) {
   if (result.status !== 0) {
     const stdout = result.stdout?.trim();
     const stderr = result.stderr?.trim();
+    const spawnError = result.error?.message;
     throw new Error(
       [
         `${command} ${args.join(' ')} failed with exit ${result.status ?? 'unknown'}.`,
         stdout ? `stdout:\n${stdout}` : '',
         stderr ? `stderr:\n${stderr}` : '',
+        spawnError ? `spawn error: ${spawnError}` : '',
       ]
         .filter(Boolean)
         .join('\n'),
@@ -33,10 +35,11 @@ const repoRoot = resolve(import.meta.dirname, '../..');
 const workspace = await mkdtemp(join(tmpdir(), 'easyeda-packed-doctor-'));
 const packDirectory = join(workspace, 'pack');
 const installPrefix = join(workspace, 'prefix');
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 try {
   await mkdir(packDirectory, { recursive: true });
-  run('npm', ['pack', '--pack-destination', packDirectory], { cwd: repoRoot });
+  run(npmCommand, ['pack', '--pack-destination', packDirectory], { cwd: repoRoot });
 
   const archives = (await readdir(packDirectory)).filter((name) => name.endsWith('.tgz'));
   if (archives.length !== 1) {
@@ -44,7 +47,7 @@ try {
   }
   const archive = join(packDirectory, archives[0]);
 
-  run('npm', ['install', '--global', '--prefix', installPrefix, archive], { cwd: workspace });
+  run(npmCommand, ['install', '--global', '--prefix', installPrefix, archive], { cwd: workspace });
 
   const binPath =
     process.platform === 'win32'
