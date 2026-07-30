@@ -185,7 +185,12 @@ function buildExpectation(args, packageJson) {
     channel: args.channel,
     npmDistTag: args.channel === 'stable' ? 'latest' : 'next',
     commitSha: args.commit.toLowerCase(),
-    requiredAssets: ['easyeda-bridge-extension.eext', 'sbom.json'],
+    requiredAssets: [
+      'easyeda-bridge-extension.eext',
+      'sbom.json',
+      `${args.tag}.provenance.sigstore.json`,
+      `${args.tag}.intoto.jsonl`,
+    ],
     requiredGhcrTags:
       args.channel === 'stable'
         ? [details.version, details.majorMinor, 'latest']

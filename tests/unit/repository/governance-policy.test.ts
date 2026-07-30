@@ -13,6 +13,7 @@ const readText = (path: string): string => {
 
 interface GovernancePolicy {
   schemaVersion: number;
+  liveStateVerifiedAt: string;
   owners: string[];
   criticalPaths: Record<string, string[]>;
   branchProtection: {
@@ -27,6 +28,14 @@ interface GovernancePolicy {
     requireLinearHistory: boolean;
     allowForcePushes: boolean;
     allowDeletions: boolean;
+  };
+  repositoryRulesets: {
+    active: boolean;
+    authority: string;
+    name: string;
+    target: string;
+    include: string[];
+    bypassActors: unknown[];
   };
   reviewPolicy: {
     independentReview: string;
@@ -90,6 +99,7 @@ describe('repository governance policy', () => {
   it('records the enforceable main-branch protection baseline', () => {
     const policy = readPolicy();
 
+    expect(policy.liveStateVerifiedAt).toBe('2026-07-30');
     expect(policy.branchProtection).toEqual({
       requiredChecks: [
         'quality (24)',
@@ -109,6 +119,14 @@ describe('repository governance policy', () => {
       requireLinearHistory: true,
       allowForcePushes: false,
       allowDeletions: false,
+    });
+    expect(policy.repositoryRulesets).toEqual({
+      active: true,
+      authority: 'repository-ruleset',
+      name: 'main-protection',
+      target: 'branch',
+      include: ['~DEFAULT_BRANCH'],
+      bypassActors: [],
     });
   });
 
@@ -215,7 +233,10 @@ describe('repository governance policy', () => {
     expect(governance).toContain('Emergency exception');
     expect(governance).toContain('public rationale');
     expect(governance).toContain('two business days');
-    expect(governance).toContain('No repository ruleset currently overlaps');
+    expect(governance).toContain(
+      '`main-protection` repository ruleset is the canonical enforcement mechanism',
+    );
+    expect(governance).not.toContain('No repository ruleset currently overlaps');
 
     expect(contributing).toContain('[Repository Governance](docs/REPOSITORY_GOVERNANCE.md)');
     expect(security).toContain('[Repository Governance](docs/REPOSITORY_GOVERNANCE.md)');

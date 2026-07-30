@@ -229,12 +229,32 @@ jobs:
           path: sbom.json
 
       - name: Attach Build Provenance (SLSA + Sigstore)
+        id: build_provenance
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: |
             dist/**
             easyeda-bridge-extension.eext
             sbom.json
+
+      - name: Stage portable Sigstore provenance bundle
+        env:
+          ATTESTATION_BUNDLE: ${{ steps.build_provenance.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          PROVENANCE_ASSET="${RELEASE_TAG}.provenance.sigstore.json"
+          PROVENANCE_STATEMENT_ASSET="${RELEASE_TAG}.intoto.jsonl"
+          test -s "$ATTESTATION_BUNDLE"
+          jq -e '
+            (.mediaType | startswith("application/vnd.dev.sigstore.bundle.")) and
+            (.verificationMaterial.tlogEntries | length >= 1) and
+            (.dsseEnvelope.payloadType == "application/vnd.in-toto+json")
+          ' "$ATTESTATION_BUNDLE" >/dev/null
+          cp "$ATTESTATION_BUNDLE" "$PROVENANCE_ASSET"
+          jq -c . "$ATTESTATION_BUNDLE" > "$PROVENANCE_STATEMENT_ASSET"
+          test "$(wc -l < "$PROVENANCE_STATEMENT_ASSET")" -eq 1
+          echo "PROVENANCE_ASSET=$PROVENANCE_ASSET" >> "$GITHUB_ENV"
+          echo "PROVENANCE_STATEMENT_ASSET=$PROVENANCE_STATEMENT_ASSET" >> "$GITHUB_ENV"
 
       - name: Create commit-bound GitHub Release
         if: needs.plan.outputs.create_github_release == 'true'
@@ -293,6 +313,8 @@ jobs:
         run: |
           gh release upload "$RELEASE_TAG" easyeda-bridge-extension.eext --clobber
           gh release upload "$RELEASE_TAG" sbom.json --clobber
+          gh release upload "$RELEASE_TAG" "$PROVENANCE_ASSET" --clobber
+          gh release upload "$RELEASE_TAG" "$PROVENANCE_STATEMENT_ASSET" --clobber
 
       - name: Resolve pinned mcp-publisher artifact
         if: env.RELEASE_CHANNEL == 'stable'

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "liveStateVerifiedAt": "2026-07-24",
+  "liveStateVerifiedAt": "2026-07-30",
   "owners": ["@oaslananka"],
   "criticalPaths": {
     "securityAndAutomation": [
@@ -87,9 +87,12 @@
     "allowDeletions": false
   },
   "repositoryRulesets": {
-    "active": false,
-    "authority": "main-branch-protection",
-    "reason": "No repository ruleset currently overlaps the main branch protection policy."
+    "active": true,
+    "authority": "repository-ruleset",
+    "name": "main-protection",
+    "target": "branch",
+    "include": ["~DEFAULT_BRANCH"],
+    "bypassActors": []
   },
   "reviewPolicy": {
     "independentReview": "required-when-eligible-reviewer-exists",
@@ -135,7 +138,7 @@
     "recovery": {
       "runbook": "docs/SOLO_MAINTAINER_RECOVERY.md",
       "exerciseEvidence": "docs/evidence/governance/2026-07-25-v0.35.3-release-recovery.json",
-      "branchProtectionEvidence": "docs/evidence/governance/2026-07-25-main-branch-protection.json",
+      "branchProtectionEvidence": "docs/evidence/governance/2026-07-30-main-ruleset.json",
       "reviewCadenceDays": 180,
       "lastExerciseAt": "2026-07-25",
       "exerciseStatus": "passed"

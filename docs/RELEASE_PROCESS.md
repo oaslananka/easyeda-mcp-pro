@@ -55,7 +55,7 @@ gh workflow run publish-release.yml --ref main \
   -f evidence_url=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER
 ```
 
-The Publish Release workflow checks out the exact tag, verifies that the GitHub Release is non-draft and marked prerelease, reruns all gates, publishes npm with `--provenance --tag next`, publishes exact and `next` GHCR tags, uploads the extension and SBOM, and skips the MCP Registry.
+The Publish Release workflow checks out the exact tag, verifies that the GitHub Release is non-draft and marked prerelease, reruns all gates, publishes npm with `--provenance --tag next`, publishes exact and `next` GHCR tags, uploads the extension, SBOM, and tag-bound portable Sigstore bundle and in-toto provenance asset, and skips the MCP Registry.
 
 For `1.0.0-rc.N`, the EasyEDA install manifest uses numeric package version `0.99.N` because EasyEDA Pro 3.2.149 rejects SemVer prerelease identifiers in `extension.json`. The extension runtime, npm package, server, tag, and health checks continue to use `1.0.0-rc.N`; stable `1.0.0` remains a monotonic package upgrade from every `0.99.N` candidate. Other prerelease families fail closed until an explicit mapping is reviewed.
 
@@ -83,7 +83,7 @@ Both channels must pass:
 - generated tool-reference drift check and documentation build;
 - server build, extension build, extension distribution verification, and extension size budgets;
 - Docker loopback, fail-closed, and published-host-port smoke; CodeQL; Semgrep; Sonar; Codecov; dependency review; workflow/container security; and required platform CI checks;
-- SBOM generation, npm provenance, and GitHub artifact attestation. The npm path uses npm Trusted Publishing. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.
+- SBOM generation, npm provenance, GitHub artifact attestation, and a portable Sigstore bundle and in-toto provenance asset named `<tag>.provenance.sigstore.json` and `<tag>.intoto.jsonl`. The npm path uses npm Trusted Publishing. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.
 
 The evidence record must also satisfy the soak and live EasyEDA validation rules in the Release Policy. Automation success alone does not waive those requirements. The full local convenience command is `pnpm release:readiness`; it intentionally fails before the expensive quality sequence when the compatibility evidence is stale.
 
@@ -93,7 +93,7 @@ After a successful workflow:
 
 1. verify the npm version and channel dist-tag;
 2. verify GitHub Release draft/prerelease state and required assets;
-3. verify extension checksums and artifact attestations;
+3. verify extension checksums, artifact attestations, and the portable Sigstore bundle and in-toto provenance asset;
 4. verify exact and moving GHCR tags point to the expected digest;
 5. verify the MCP Registry only for stable releases;
 6. verify deployed documentation describes the released version and support claims;

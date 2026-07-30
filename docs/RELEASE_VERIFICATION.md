@@ -106,9 +106,11 @@ The project uses signed and attested release mechanisms for the release artifact
 
 - npm packages are published with `npm publish --provenance`, tying the package to the GitHub Actions workflow and source commit.
 - GitHub release build outputs are covered by GitHub Artifact Attestations through `actions/attest-build-provenance` for `dist/**`, `easyeda-bridge-extension.eext`, and `sbom.json`.
+- The same attestation is attached to the GitHub Release as a portable Sigstore bundle named `<tag>.provenance.sigstore.json`, so verification does not depend only on the GitHub Attestations API.
+- The identical signed bundle is also serialized as one JSON line in `<tag>.intoto.jsonl`, which provides the conventional in-toto provenance asset expected by release tooling.
 - Release creation and publishing run from the protected `main` branch after release quality gates pass.
 
-This is the project's signed-release posture for the OpenSSF `signed_releases` criterion: provenance and GitHub Artifact Attestations satisfy the project signed-release posture. It uses those verifiable attestations rather than manually managed GPG tag signatures.
+This is the project's signed-release posture for the OpenSSF `signed_releases` criterion: npm provenance, GitHub Artifact Attestations, the portable `.provenance.sigstore.json` bundle, and the matching `.intoto.jsonl` provenance asset satisfy the project signed-release posture. It uses those verifiable attestations rather than manually managed GPG tag signatures.
 
 ## Verification examples
 
@@ -123,6 +125,16 @@ For GitHub artifact attestations, download the released artifact and verify it a
 
 ```bash
 gh attestation verify easyeda-bridge-extension.eext --repo oaslananka/easyeda-mcp-pro
+```
+
+The portable bundle is listed with the release assets and can be inspected without changing the signed statement:
+
+```bash
+gh release download easyeda-mcp-pro-vX.Y.Z --pattern '*.provenance.sigstore.json'
+jq -e '.mediaType | startswith("application/vnd.dev.sigstore.bundle.")' \
+  easyeda-mcp-pro-vX.Y.Z.provenance.sigstore.json
+gh release download easyeda-mcp-pro-vX.Y.Z --pattern '*.intoto.jsonl'
+test "$(wc -l < easyeda-mcp-pro-vX.Y.Z.intoto.jsonl)" -eq 1
 ```
 
 ## Signed tag policy

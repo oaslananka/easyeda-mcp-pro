@@ -280,11 +280,13 @@ Expected release assets:
 
 - `easyeda-bridge-extension.eext` — EasyEDA extension package
 - `sbom.json` — CycloneDX SBOM attached to the release
+- `<tag>.provenance.sigstore.json` — portable Sigstore provenance bundle emitted by `actions/attest-build-provenance`
+- `<tag>.intoto.jsonl` — the same signed bundle serialized as the conventional one-line in-toto provenance asset
 
 Expected workflow evidence:
 
 - npm publish uses provenance when supported by npm/GitHub Actions
-- GitHub release includes build provenance attestation
+- GitHub release includes build provenance attestation plus matching `.provenance.sigstore.json` and `.intoto.jsonl` assets
 - stable GHCR images include the exact version, minor tag, and `latest`; prereleases include the exact version and `next` only
 - `pnpm verify:extension` reports marketplace metadata, documentation, logo, checksum, and phone-like-content checks
 

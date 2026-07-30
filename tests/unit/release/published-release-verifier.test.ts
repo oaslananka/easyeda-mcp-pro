@@ -14,7 +14,12 @@ const expectation: ReleaseVerificationExpectation = {
   channel: 'stable',
   npmDistTag: 'latest',
   commitSha: 'a'.repeat(40),
-  requiredAssets: ['easyeda-bridge-extension.eext', 'sbom.json'],
+  requiredAssets: [
+    'easyeda-bridge-extension.eext',
+    'sbom.json',
+    'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json',
+    'easyeda-mcp-pro-v0.35.4.intoto.jsonl',
+  ],
   requiredGhcrTags: ['0.35.4', '0.35', 'latest'],
 };
 
@@ -32,6 +37,14 @@ const observation: ReleaseVerificationObservation = {
     assets: [
       { name: 'easyeda-bridge-extension.eext', digest: 'sha256:extension' },
       { name: 'sbom.json', digest: 'sha256:sbom' },
+      {
+        name: 'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json',
+        digest: 'sha256:provenance',
+      },
+      {
+        name: 'easyeda-mcp-pro-v0.35.4.intoto.jsonl',
+        digest: 'sha256:provenance-statement',
+      },
     ],
   },
   ghcr: {
@@ -106,6 +119,30 @@ describe('published release verifier', () => {
     const report = verifyPublishedReleaseObservation(expectation, current);
 
     expect(report.checks.find((check) => check.id === 'npm-provenance')?.status).toBe('failed');
+  });
+
+  it('fails when the in-toto provenance statement is missing', () => {
+    const current = cloneObservation();
+    current.github.assets = current.github.assets.filter(
+      (asset) => asset.name !== 'easyeda-mcp-pro-v0.35.4.intoto.jsonl',
+    );
+
+    const report = verifyPublishedReleaseObservation(expectation, current);
+
+    expect(report.ok).toBe(false);
+    expect(report.checks.find((check) => check.id === 'github-assets')?.status).toBe('failed');
+  });
+
+  it('fails when the portable Sigstore provenance sidecar is missing', () => {
+    const current = cloneObservation();
+    current.github.assets = current.github.assets.filter(
+      (asset) => asset.name !== 'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json',
+    );
+
+    const report = verifyPublishedReleaseObservation(expectation, current);
+
+    expect(report.ok).toBe(false);
+    expect(report.checks.find((check) => check.id === 'github-assets')?.status).toBe('failed');
   });
 
   it('fails for GitHub tag, commit, classification, or asset mismatch', () => {

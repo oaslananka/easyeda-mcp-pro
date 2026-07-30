@@ -39,7 +39,7 @@ The release PR, or the public issue/PR supplied to a manual workflow dispatch, m
 3. passing CI, CodeQL, Semgrep, dependency audit/review, Sonar quality gate, and Codecov changed-code status;
 4. server and extension test totals, coverage summary, build results, and extension size-budget results;
 5. Docker startup smoke evidence;
-6. SBOM, npm provenance, artifact-attestation, and extension checksum expectations;
+6. SBOM, npm provenance, artifact-attestation, portable Sigstore bundle and in-toto provenance asset, and extension checksum expectations;
 7. documentation and compatibility-matrix changes;
 8. the named release manager and a rollback owner;
 9. known limitations, deferred failures, and the exact recovery version to restore if promotion fails.
@@ -56,7 +56,7 @@ Evidence must identify the exact EasyEDA Pro version and operating system, the e
 
 Every stable and prerelease publication reruns the supported Node.js/pnpm preflight, dependency audit and peer checks, formatting, server and extension typechecks, lint, tool metadata/coverage validation, server tests and coverage, extension tests and coverage, generated-tool documentation drift checks, documentation build, server/extension builds, extension distribution verification, and extension size budgets.
 
-The workflow then produces the CycloneDX SBOM and build attestations, verifies the GitHub Release channel, publishes npm with provenance to the channel-specific dist-tag, uploads the extension and SBOM, and publishes channel-safe GHCR tags. MCP Registry publication runs only for stable releases.
+The workflow then produces the CycloneDX SBOM, GitHub build attestations, and a tag-bound portable Sigstore bundle and in-toto provenance asset, verifies the GitHub Release channel, publishes npm with provenance to the channel-specific dist-tag, uploads the extension, SBOM, `<tag>.provenance.sigstore.json`, and `<tag>.intoto.jsonl`, and publishes channel-safe GHCR tags. MCP Registry publication runs only for stable releases.
 
 A failed required step blocks publication. A transient rerun is allowed only when the source tag and evidence are unchanged; otherwise publish a new candidate or patch version.
 
