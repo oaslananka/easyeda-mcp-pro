@@ -28,6 +28,14 @@ function stableFixture() {
       assets: [
         { name: 'easyeda-bridge-extension.eext', digest: 'sha256:extension' },
         { name: 'sbom.json', digest: 'sha256:sbom' },
+        {
+          name: 'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json',
+          digest: 'sha256:provenance',
+        },
+        {
+          name: 'easyeda-mcp-pro-v0.35.4.intoto.jsonl',
+          digest: 'sha256:provenance-statement',
+        },
       ],
     },
     gitTagCommit: commit,
@@ -108,6 +116,30 @@ describe('published release verification CLI', () => {
     expect(result.stdout).not.toContain('token');
   });
 
+  it('fails when the in-toto provenance release asset is missing', () => {
+    const fixture = stableFixture();
+    fixture.githubRelease.assets = fixture.githubRelease.assets.filter(
+      (asset) => asset.name !== 'easyeda-mcp-pro-v0.35.4.intoto.jsonl',
+    );
+
+    const result = runCli(fixture);
+
+    expect(result.status).toBe(1);
+    expect(result.report.failures.map((failure) => failure.id)).toContain('github-assets');
+  });
+
+  it('fails when the portable Sigstore provenance release asset is missing', () => {
+    const fixture = stableFixture();
+    fixture.githubRelease.assets = fixture.githubRelease.assets.filter(
+      (asset) => asset.name !== 'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json',
+    );
+
+    const result = runCli(fixture);
+
+    expect(result.status).toBe(1);
+    expect(result.report.failures.map((failure) => failure.id)).toContain('github-assets');
+  });
+
   it('returns exit code one and aggregates mismatches', () => {
     const fixture = stableFixture();
     fixture.npmPackage.version = '0.35.3';
@@ -153,6 +185,13 @@ describe('published release verification CLI', () => {
     fixture.sourcePackageVersion = '0.35.4-rc.1';
     fixture.npmDistTags = { next: '0.35.4-rc.1' };
     fixture.githubRelease.tagName = 'easyeda-mcp-pro-v0.35.4-rc.1';
+    fixture.githubRelease.assets = fixture.githubRelease.assets.map((asset) =>
+      asset.name === 'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json'
+        ? { ...asset, name: 'easyeda-mcp-pro-v0.35.4-rc.1.provenance.sigstore.json' }
+        : asset.name === 'easyeda-mcp-pro-v0.35.4.intoto.jsonl'
+          ? { ...asset, name: 'easyeda-mcp-pro-v0.35.4-rc.1.intoto.jsonl' }
+          : asset,
+    );
     fixture.githubRelease.isPrerelease = true;
     fixture.ghcrVersions[0]!.metadata.container.tags = ['0.35.4-rc.1', 'next'];
     fixture.mcpRegistry.servers = [];

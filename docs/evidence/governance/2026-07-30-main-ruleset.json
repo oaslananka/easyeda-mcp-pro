@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-07-30",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "branch": "main",
+  "source": "GitHub REST API",
+  "classicBranchProtectionActive": false,
+  "repositoryRuleset": {
+    "id": 20020112,
+    "name": "main-protection",
+    "target": "branch",
+    "enforcement": "active",
+    "include": ["~DEFAULT_BRANCH"],
+    "exclude": [],
+    "bypassActors": [],
+    "ruleTypes": [
+      "deletion",
+      "non_fast_forward",
+      "required_linear_history",
+      "pull_request",
+      "required_status_checks"
+    ]
+  },
+  "branchProtection": {
+    "requiredChecks": [
+      "quality (24)",
+      "codeql",
+      "Socket Security: Project Report",
+      "dependency-review",
+      "codecov/patch",
+      "SonarCloud Code Analysis"
+    ],
+    "strictStatusChecks": true,
+    "requiredApprovals": 0,
+    "requireCodeOwnerReviews": false,
+    "dismissStaleReviews": false,
+    "requireLastPushApproval": false,
+    "requireConversationResolution": true,
+    "enforceAdmins": true,
+    "requireLinearHistory": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  },
+  "mergeSettings": {
+    "allowSquashMerge": true,
+    "allowMergeCommit": false,
+    "allowRebaseMerge": false,
+    "deleteBranchOnMerge": true
+  },
+  "notes": [
+    "The ruleset was activated while the equivalent classic protection remained in force, then verified through the effective-rules endpoint before classic protection was removed.",
+    "Zero human approvals is intentional while the project has one eligible maintainer.",
+    "Required automated checks apply to administrators because the ruleset has no bypass actors."
+  ]
+}

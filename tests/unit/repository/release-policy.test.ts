@@ -69,6 +69,12 @@ describe('release channel policy', () => {
       publisher.indexOf('Create commit-bound GitHub Release'),
     );
     expect(publisher).toContain('npm publish --provenance --tag "$NPM_DIST_TAG"');
+    expect(publisher).toContain('id: build_provenance');
+    expect(publisher).toContain('${{ steps.build_provenance.outputs.bundle-path }}');
+    expect(publisher).toContain('PROVENANCE_ASSET="${RELEASE_TAG}.provenance.sigstore.json"');
+    expect(publisher).toContain('PROVENANCE_STATEMENT_ASSET="${RELEASE_TAG}.intoto.jsonl"');
+    expect(publisher).toContain('gh release upload "$RELEASE_TAG" "$PROVENANCE_ASSET"');
+    expect(publisher).toContain('gh release upload "$RELEASE_TAG" "$PROVENANCE_STATEMENT_ASSET"');
     expect(publisher).not.toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish');
     expect(publisher).toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add');
     expect(publisher).toContain('name: Verify published release');
@@ -144,6 +150,11 @@ describe('release channel policy', () => {
     expect(process).toContain('before the immutable tag and GitHub Release are created');
     expect(process).toContain('npm Trusted Publishing');
     expect(process).toContain('RELEASE_PLEASE_TOKEN');
+    expect(process).toContain('portable Sigstore bundle and in-toto provenance asset');
+    expect(readText('docs/RELEASE_VERIFICATION.md')).toContain('.provenance.sigstore.json');
+    expect(readText('docs/RELEASE_VERIFICATION.md')).toContain('.intoto.jsonl');
+    expect(runbook).toContain('.provenance.sigstore.json');
+    expect(runbook).toContain('.intoto.jsonl');
     expect(runbook).toContain('gh workflow run publish-release.yml --ref main');
     expect(runbook).toContain('-f source_commit=69892876b5cf2ddcc1de1b590c0ce35c61a36698');
     expect(runbook).not.toContain('gh workflow run release-please.yml');
@@ -167,7 +178,7 @@ describe('release channel policy', () => {
     expect(combined).toContain('TestMcp / Schematic1 / P1');
     expect(openssf).toContain('`signed_releases`                 | Met');
     expect(openssf).toContain(
-      'provenance and GitHub Artifact Attestations satisfy the project signed-release posture',
+      'Portable Sigstore bundles and in-toto provenance satisfy the project signed-release posture',
     );
     expect(openssf).toContain('bus factor remains one');
     expect(runbook).toContain('EASYEDA_LIVE_WRITE_TESTS=true');

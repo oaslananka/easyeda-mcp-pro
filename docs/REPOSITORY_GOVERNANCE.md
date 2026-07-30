@@ -34,7 +34,7 @@ A change is critical-path work when it modifies one of the policy patterns, chan
 
 ### Current solo-maintainer enforcement limitation
 
-The repository currently has one write-capable maintainer. GitHub cannot require one independent approval or a code-owner approval without deadlocking every owner-authored maintenance PR. The live branch protection therefore records zero required approvals and does not yet enforce code-owner approval. This solo-maintainer enforcement limitation is public and must not be represented as independent review.
+The repository currently has one write-capable maintainer. GitHub cannot require one independent approval or a code-owner approval without deadlocking every owner-authored maintenance PR. The live `main-protection` repository ruleset therefore records zero required approvals and does not yet enforce code-owner approval. This solo-maintainer enforcement limitation is public and must not be represented as independent review.
 
 Until a second eligible maintainer is added, a critical-path PR must include:
 
@@ -55,12 +55,12 @@ bot, inactive invite, or external opinion without repository review access does 
 Within **two business days** of the trigger, `@oaslananka` must:
 
 1. verify the collaborator's live permission and accepted invitation;
-2. set `main` branch protection to one required approval, required code-owner review, dismissal of
+2. update the `main-protection` repository ruleset to one required approval, required code-owner review, dismissal of
    stale approvals, and approval after the latest push;
 3. preserve every existing required status check and administrator enforcement setting;
 4. open an owner-authored test pull request touching a critical path and prove that the second
    maintainer can review it while the author cannot self-satisfy the approval requirement;
-5. update `liveStateVerifiedAt`, the current branch-protection evidence snapshot, and public issue #407 with
+5. update `liveStateVerifiedAt`, the current protection evidence snapshot, and public issue #407 with
    the verification URL and date; and
 6. revert access or protection immediately if the test exposes a bypass, deadlock, or privilege
    mismatch, then document the exact blocker publicly.
@@ -81,9 +81,9 @@ Bot and agent findings are evidence, not automatic approval. Before merge:
 
 The pull request must contain a compact disposition table when automated systems report findings. “Check passed” is not a substitute for reviewing the check's annotations or comment body.
 
-## Main branch protection baseline
+## Main protection ruleset baseline
 
-The live `main` protection and merge settings must match this table and the machine-readable policy. Branch protection is the canonical enforcement mechanism for `main`. **No repository ruleset currently overlaps** this protection; introducing a ruleset requires a separately reviewed migration that proves there is no duplicate, contradictory, or bypassing rule.
+The live `main` protection and merge settings must match this table and the machine-readable policy. The `main-protection` repository ruleset is the canonical enforcement mechanism for `main`. It targets `~DEFAULT_BRANCH`, has no bypass actors, and replaces the former classic branch-protection rule after an overlap-first migration proved the required checks and merge restrictions were equivalent.
 
 | Setting                               | Required state                                                                                                                |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -100,7 +100,7 @@ The live `main` protection and merge settings must match this table and the mach
 | Force pushes and branch deletion      | Disabled                                                                                                                      |
 | Automatic branch deletion after merge | Enabled                                                                                                                       |
 
-A required-check name is a public interface. Renaming, replacing, adding, or removing one requires updating the workflow, branch protection, JSON policy, documentation, and repository-policy tests together. The setting change must be verified against the live GitHub API after merge.
+A required-check name is a public interface. Renaming, replacing, adding, or removing one requires updating the workflow, repository ruleset, JSON policy, documentation, and repository-policy tests together. The setting change must be verified against the live GitHub API after merge.
 
 ## Emergency exception
 
