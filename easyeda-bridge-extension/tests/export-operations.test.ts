@@ -12,15 +12,15 @@ function makeOperations() {
 }
 
 describe('export operations', () => {
-  it('exports Gerbers with the original API path, params, and fallback name', async () => {
+  it('exports Gerbers with the original API path, the projectId string, and fallback name', async () => {
     const { callFirst, normalizeBinaryResult, operations } = makeOperations();
-    const params = { includeDrill: true };
+    const params = { projectId: 'proj-123', includeDrill: true };
 
     await expect(operations.exportGerbers(params)).resolves.toEqual({
       value: 'native-result',
       fileName: 'gerbers.zip',
     });
-    expect(callFirst).toHaveBeenCalledWith(['PCB_ManufactureData.getGerberFile'], params);
+    expect(callFirst).toHaveBeenCalledWith(['PCB_ManufactureData.getGerberFile'], 'proj-123');
     expect(normalizeBinaryResult).toHaveBeenCalledWith('native-result', 'gerbers.zip');
   });
 
@@ -34,12 +34,22 @@ describe('export operations', () => {
     expect(callFirst).toHaveBeenNthCalledWith(2, ['PCB_ManufactureData.getDsnFile'], undefined);
   });
 
-  it('preserves pick-and-place format fallback behavior', async () => {
-    const { normalizeBinaryResult, operations } = makeOperations();
+  it('preserves pick-and-place format fallback behavior with projectId as the string arg', async () => {
+    const { callFirst, normalizeBinaryResult, operations } = makeOperations();
 
-    await operations.exportPickPlace({ format: 'tsv' });
+    await operations.exportPickPlace({ projectId: 'proj-123', format: 'tsv' });
     await operations.exportPickPlace({ format: 7 });
 
+    expect(callFirst).toHaveBeenNthCalledWith(
+      1,
+      ['PCB_ManufactureData.getPickAndPlaceFile'],
+      'proj-123',
+    );
+    expect(callFirst).toHaveBeenNthCalledWith(
+      2,
+      ['PCB_ManufactureData.getPickAndPlaceFile'],
+      undefined,
+    );
     expect(normalizeBinaryResult).toHaveBeenNthCalledWith(1, 'native-result', 'pick-place.tsv');
     expect(normalizeBinaryResult).toHaveBeenNthCalledWith(2, 'native-result', 'pick-place.csv');
   });

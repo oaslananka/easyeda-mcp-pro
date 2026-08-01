@@ -20,7 +20,7 @@ export function createExportOperations({
 }: ExportOperationDependencies): ExportOperations {
   async function exportGerbers(params: Record<string, unknown>): Promise<unknown> {
     return normalizeBinaryResult(
-      await callFirst(['PCB_ManufactureData.getGerberFile'], params),
+      await callFirst(['PCB_ManufactureData.getGerberFile'], params.projectId),
       'gerbers.zip',
     );
   }
@@ -37,7 +37,7 @@ export function createExportOperations({
 
   async function exportPickPlace(params: Record<string, unknown>): Promise<unknown> {
     return normalizeBinaryResult(
-      await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params),
+      await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params.projectId),
       `pick-place.${typeof params.format === 'string' ? params.format : 'csv'}`,
     );
   }
