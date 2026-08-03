@@ -33,7 +33,7 @@ importers:
         version: 10.3.1
       undici:
         specifier: ^8.5.0
-        version: 8.5.0
+        version: 8.9.0
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -2169,12 +2169,12 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@6.27.0:
-    resolution: {integrity: sha512-YmfV3YnEDzXRC5lZ2jWtWWHKGUm1zIt8AhesR1tens+HTNv+YZlN/dp6G727LOvMJ8xjP9Be7Y2Sdr96LDm+pg==}
+  undici@6.28.0:
+    resolution: {integrity: sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA==}
     engines: {node: '>=18.17'}
 
-  undici@8.5.0:
-    resolution: {integrity: sha512-xamtWoB1EshgjpmlXd7GGm2VfdDtw1+rD8uhry8pSNW3If6S8E0m2T2+orSKeZXEn/aPJMviCpDBA65WJt8zhg==}
+  undici@8.9.0:
+    resolution: {integrity: sha512-aWZpUj7XoGonMClx4gdDRfgBjqeA+F473aDmROQQbM9n6PRfK/u1q/a0X4wMTgcHfT8H6fpbt98PFuDUwFg2YA==}
     engines: {node: '>=22.19.0'}
 
   unist-util-is@6.0.1:
@@ -2409,17 +2409,17 @@ snapshots:
       '@octokit/plugin-rest-endpoint-methods': 17.0.0(@octokit/core@7.0.6)
       '@octokit/request': 10.0.11
       '@octokit/request-error': 7.1.0
-      undici: 6.27.0
+      undici: 6.28.0
 
   '@actions/http-client@3.0.2':
     dependencies:
       tunnel: 0.0.6
-      undici: 6.27.0
+      undici: 6.28.0
 
   '@actions/http-client@4.0.1':
     dependencies:
       tunnel: 0.0.6
-      undici: 6.27.0
+      undici: 6.28.0
 
   '@actions/io@3.0.2': {}
 
@@ -4493,9 +4493,9 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici@6.27.0: {}
+  undici@6.28.0: {}
 
-  undici@8.5.0: {}
+  undici@8.9.0: {}
 
   unist-util-is@6.0.1:
     dependencies:
