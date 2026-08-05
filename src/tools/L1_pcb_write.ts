@@ -33,6 +33,21 @@ export const layoutApplyResultSchema = z.object({
   error: z.string().optional(),
 });
 
+const failClosedPcbWriteMetadata = {
+  profile: 'full',
+  evidence: ['runtime-probe'],
+  risk: 'high',
+  confirmWrite: true,
+  group: 'pcb-write',
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+  },
+} satisfies Pick<
+  ToolDefinition,
+  'profile' | 'evidence' | 'risk' | 'confirmWrite' | 'group' | 'annotations'
+>;
+
 export async function applyLayoutOperations(
   ctx: ToolContext,
   operations: Array<{ method: string; params: Record<string, unknown> }>,
@@ -481,16 +496,8 @@ function registerPcbWriteTools(
       'PCB copper-zone creation is unavailable because the verified EasyEDA Pro runtime requires ' +
       'a complete native argument contract that this integration has not yet recovered. This tool ' +
       'fails closed and does not call the bridge.',
-    profile: 'full',
-    evidence: ['runtime-probe'],
-    risk: 'high',
-    confirmWrite: true,
-    group: 'pcb-write',
+    ...failClosedPcbWriteMetadata,
     version: '2.0.0',
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-    },
     inputSchema: z.object({
       points: z.array(z.object({ x: z.number(), y: z.number() })),
       layer: z.number(),
