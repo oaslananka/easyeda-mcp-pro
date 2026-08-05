@@ -248,9 +248,8 @@ describe('PCB Write Tools', () => {
     });
   });
 
-  it('easyeda_pcb_add_zone should place a zone', async () => {
+  it('easyeda_pcb_add_zone should fail closed without calling the bridge', async () => {
     const tool = registry.get('easyeda_pcb_add_zone');
-    bridgeCall.mockResolvedValue('zone-111');
 
     const result = await tool?.handler(context, {
       points: [
@@ -265,32 +264,14 @@ describe('PCB Write Tools', () => {
       confirmWrite: true,
     });
 
-    expect(bridgeCall).toHaveBeenCalledWith('pcb.addZone', {
-      points: [0, 0, 20, 0, 20, 20, 0, 20],
-      layer: 2,
-      netName: 'GND',
-      clearance: 0.5,
-    });
+    expect(bridgeCall).not.toHaveBeenCalled();
     expect(result).toEqual({
-      success: true,
-      primitiveId: 'zone-111',
+      success: false,
+      not_available: true,
+      error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
+      remediation:
+        'Create or edit the copper zone in EasyEDA Pro manually until the complete native zone-creation contract is live-verified.',
     });
-  });
-
-  it('easyeda_pcb_add_zone should report bridge errors instead of throwing', async () => {
-    const tool = registry.get('easyeda_pcb_add_zone');
-    bridgeCall.mockRejectedValue(new Error('not_available'));
-
-    const result = await tool?.handler(context, {
-      points: [
-        { x: 0, y: 0 },
-        { x: 20, y: 0 },
-      ],
-      layer: 2,
-      confirmWrite: true,
-    });
-
-    expect(result).toEqual({ success: false, error: 'not_available' });
   });
 
   describe('PCB text and silkscreen write helpers', () => {

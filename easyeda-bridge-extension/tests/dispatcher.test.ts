@@ -1487,7 +1487,7 @@ describe('createDispatcher', () => {
     ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
   });
 
-  it('routes PCB zone creation and component modification through the extracted mutation domain', async () => {
+  it('fails closed for PCB zone creation while preserving component modification', async () => {
     const create = vi.fn(async () => ({ primitiveId: 'zone1' }));
     const modify = vi.fn(async () => ({ primitiveId: 'component1' }));
     const dispatcher = createDispatcher(
@@ -1496,24 +1496,27 @@ describe('createDispatcher', () => {
         PCB_PrimitiveComponent: { modify },
       }),
     );
-    const points = [
-      { x: 10, y: 20 },
-      { x: 30, y: 40 },
-    ];
     const property = { x: 50, y: 60, rotation: 90 };
 
-    await dispatcher.dispatch('pcb.addZone', {
-      points,
-      layer: 1,
-      netName: 'GND',
-      clearance: 0.2,
-    });
+    await expect(
+      dispatcher.dispatch('pcb.addZone', {
+        points: [
+          { x: 10, y: 20 },
+          { x: 30, y: 40 },
+        ],
+        layer: 1,
+        netName: 'GND',
+        clearance: 0.2,
+      }),
+    ).rejects.toThrow(
+      'PCB copper-zone creation is unavailable until the complete native contract is verified.',
+    );
     await dispatcher.dispatch('pcb.modifyComponent', {
       primitiveId: 'component1',
       property,
     });
 
-    expect(create).toHaveBeenCalledWith(points, 1, 'GND', 0.2);
+    expect(create).not.toHaveBeenCalled();
     expect(modify).toHaveBeenCalledWith('component1', property);
   });
 

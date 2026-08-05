@@ -20,13 +20,9 @@ export function createPcbMutationOperations({
   callFirst,
   deletePrimitives,
 }: PcbMutationOperationDependencies): PcbMutationOperations {
-  async function addZone(params: Record<string, unknown>): Promise<unknown> {
-    return callFirst(
-      ['PCB_PrimitivePour.create', 'PCB_ComplexPolygon.create', 'pcb_PrimitivePour.create'],
-      params.points,
-      params.layer,
-      params.netName,
-      params.clearance,
+  async function addZone(_params: Record<string, unknown>): Promise<unknown> {
+    throw new Error(
+      'PCB copper-zone creation is unavailable until the complete native contract is verified.',
     );
   }
 

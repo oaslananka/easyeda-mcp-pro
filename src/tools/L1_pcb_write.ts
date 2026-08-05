@@ -476,17 +476,17 @@ function registerPcbWriteTools(
 
   registry.register({
     name: 'easyeda_pcb_add_zone',
-    title: 'Add PCB copper zone/pour',
+    title: 'Add PCB copper zone/pour (unavailable)',
     description:
-      'Create a copper pour zone on a layer with clearance settings. CAUTION: the native ' +
-      'create() call needs 9 args but this tool sends only 4 (points, layer, netName, ' +
-      'clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.',
+      'PCB copper-zone creation is unavailable because the verified EasyEDA Pro runtime requires ' +
+      'a complete native argument contract that this integration has not yet recovered. This tool ' +
+      'fails closed and does not call the bridge.',
     profile: 'full',
-    evidence: ['inferred'],
+    evidence: ['runtime-probe'],
     risk: 'high',
     confirmWrite: true,
     group: 'pcb-write',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -502,40 +502,17 @@ function registerPcbWriteTools(
     }),
     outputSchema: z.object({
       success: z.boolean(),
-      primitiveId: z.string().optional(),
+      not_available: z.boolean().optional(),
       error: z.string().optional(),
+      remediation: z.string().optional(),
     }),
-    handler: async (ctx: ToolContext, params: unknown) => {
-      const p = params as {
-        points: Array<{ x: number; y: number }>;
-        layer: number;
-        netName?: string;
-        clearance?: number;
-      };
-      try {
-        const flatPoints = p.points.flatMap((pt) => [pt.x, pt.y]);
-        const result = await ctx.bridge.call<
-          Record<string, unknown>,
-          { primitiveId?: string; result?: string }
-        >('pcb.addZone', {
-          points: flatPoints,
-          layer: p.layer,
-          netName: p.netName,
-          clearance: p.clearance,
-        });
-        const data = result as { primitiveId?: string; result?: string } | string;
-        return {
-          success: true,
-          primitiveId:
-            typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined),
-        };
-      } catch (err) {
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
+    handler: async () => ({
+      success: false,
+      not_available: true,
+      error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
+      remediation:
+        'Create or edit the copper zone in EasyEDA Pro manually until the complete native zone-creation contract is live-verified.',
+    }),
   });
 
   registry.register({
