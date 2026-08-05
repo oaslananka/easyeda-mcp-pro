@@ -16,16 +16,16 @@ export interface PcbMutationOperations {
   }>;
 }
 
+async function rejectUnverifiedZoneCreation(_params: Record<string, unknown>): Promise<unknown> {
+  throw new Error(
+    'PCB copper-zone creation is unavailable until the complete native contract is verified.',
+  );
+}
+
 export function createPcbMutationOperations({
   callFirst,
   deletePrimitives,
 }: PcbMutationOperationDependencies): PcbMutationOperations {
-  async function addZone(_params: Record<string, unknown>): Promise<unknown> {
-    throw new Error(
-      'PCB copper-zone creation is unavailable until the complete native contract is verified.',
-    );
-  }
-
   async function modifyComponent(params: Record<string, unknown>): Promise<unknown> {
     return callFirst(
       ['PCB_PrimitiveComponent.modify', 'pcb_PrimitiveComponent.modify'],
@@ -50,5 +50,5 @@ export function createPcbMutationOperations({
     };
   }
 
-  return { addZone, modifyComponent, deleteComponents };
+  return { addZone: rejectUnverifiedZoneCreation, modifyComponent, deleteComponents };
 }
