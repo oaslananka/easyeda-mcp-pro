@@ -152,9 +152,9 @@ describe('dependency audit policy', () => {
     );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).toMatch(/\n {2}postcss: 8\.5\.18\n/);
-    expect(lockfile).toContain('postcss: 8.5.18');
-    expect(lockfile).not.toMatch(/postcss@8\.5\.(?:[0-9]|1[0-7])(?:\D|$)/);
+    expect(workspacePolicy).toMatch(/\n {2}postcss: 8\.5\.23\n/);
+    expect(lockfile).toContain('postcss: 8.5.23');
+    expect(lockfile).not.toMatch(/postcss@8\.5\.(?:[0-9]|1[0-9]|2[0-2])(?:\D|$)/);
   });
 
   it('pins brace-expansion to the patched release and records the reviewed age exception', () => {
@@ -164,10 +164,10 @@ describe('dependency audit policy', () => {
     );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).toContain('  - brace-expansion@5.0.8\n');
-    expect(workspacePolicy).toMatch(/\n {2}brace-expansion: 5\.0\.8\n/);
-    expect(lockfile).toContain('brace-expansion: 5.0.8');
-    expect(lockfile).not.toMatch(/brace-expansion@5\.0\.[0-7](?:\D|$)/);
+    expect(workspacePolicy).toContain('  - brace-expansion@5.0.9\n');
+    expect(workspacePolicy).toMatch(/\n {2}brace-expansion: 5\.0\.9\n/);
+    expect(lockfile).toContain('brace-expansion: 5.0.9');
+    expect(lockfile).not.toMatch(/brace-expansion@5\.0\.[0-8](?:\D|$)/);
   });
 
   it('allows one exact, documented, unexpired moderate advisory', () => {
