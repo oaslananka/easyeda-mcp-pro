@@ -92,15 +92,13 @@ describe('Docker build-context policy', () => {
     expect(localCopyLines.join('\n')).not.toMatch(
       /(?:^|\s)(?:dist|node_modules|coverage|reports|\.easyeda-mcp-pro)(?:\/|\s|$)|\.(?:eext|zip|tgz)(?:\s|$)/,
     );
-    expect(dockerfile).toContain('COPY --from=builder --chown=node:node /app/dist ./dist');
     expect(dockerfile).toContain(
-      'COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.eext ./easyeda-bridge-extension.eext',
+      'RUN pnpm --filter easyeda-mcp-pro deploy --legacy --prod --frozen-lockfile /prod',
     );
-    expect(dockerfile).toContain(
-      'COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.checksums.json ./easyeda-bridge-extension.checksums.json',
-    );
-    expect(dockerfile).toContain(
+    expect(dockerfile).toContain('COPY --from=builder --chown=node:node /prod ./');
+    expect(dockerfile).not.toContain(
       'COPY --from=builder --chown=node:node /app/node_modules ./node_modules',
     );
+    expect(dockerfile).not.toContain('RUN CI=true pnpm install --prod --ignore-scripts');
   });
 });

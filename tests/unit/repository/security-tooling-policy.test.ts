@@ -84,8 +84,8 @@ describe('repository security tooling policy', () => {
     const workspace = readText('pnpm-workspace.yaml');
     expect(workspace).toContain('minimumReleaseAge: 10080');
     expect(workspace).toContain('minimumReleaseAgeExclude:');
-    expect(workspace).toContain('fast-uri@3.1.4');
-    expect(workspace).toContain('hono@4.12.31');
+    expect(workspace).toContain('fast-uri@3.1.5');
+    expect(workspace).toContain('hono@4.12.34');
     expect(workspace).toContain("'@hono/node-server': 2.0.10");
     expect(workspace).toContain('minimumReleaseAgeStrict: true');
     expect(workspace).toContain('minimumReleaseAgeIgnoreMissingTime: false');
