@@ -33,6 +33,61 @@ export const layoutApplyResultSchema = z.object({
   error: z.string().optional(),
 });
 
+const failClosedPcbWriteMetadata = {
+  profile: 'full',
+  evidence: ['runtime-probe'],
+  risk: 'high',
+  confirmWrite: true,
+  group: 'pcb-write',
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+  },
+} satisfies Pick<
+  ToolDefinition,
+  'profile' | 'evidence' | 'risk' | 'confirmWrite' | 'group' | 'annotations'
+>;
+
+const failClosedPcbZoneInputSchema = z.object({
+  points: z.array(z.object({ x: z.number(), y: z.number() })),
+  layer: z.number(),
+  netName: z.string().optional(),
+  clearance: z.number().optional(),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+});
+
+const failClosedPcbZoneOutputSchema = z.object({
+  success: z.boolean(),
+  not_available: z.boolean().optional(),
+  error: z.string().optional(),
+  remediation: z.string().optional(),
+});
+
+const failClosedPcbZoneTool = {
+  name: 'easyeda_pcb_add_zone',
+  title: 'Add PCB copper zone/pour (unavailable)',
+  description:
+    'PCB copper-zone creation is unavailable because the verified EasyEDA Pro runtime requires ' +
+    'a complete native argument contract that this integration has not yet recovered. This tool ' +
+    'fails closed and does not call the bridge.',
+  ...failClosedPcbWriteMetadata,
+  version: '2.0.0',
+  inputSchema: failClosedPcbZoneInputSchema,
+  outputSchema: failClosedPcbZoneOutputSchema,
+  handler: async () => ({
+    success: false,
+    not_available: true,
+    error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
+    remediation:
+      'Create or edit the copper zone in EasyEDA Pro manually until the complete native zone-creation contract is live-verified.',
+  }),
+} satisfies ToolDefinition<
+  typeof failClosedPcbZoneInputSchema,
+  typeof failClosedPcbZoneOutputSchema
+>;
+
 export async function applyLayoutOperations(
   ctx: ToolContext,
   operations: Array<{ method: string; params: Record<string, unknown> }>,
@@ -474,69 +529,7 @@ function registerPcbWriteTools(
     },
   });
 
-  registry.register({
-    name: 'easyeda_pcb_add_zone',
-    title: 'Add PCB copper zone/pour',
-    description:
-      'Create a copper pour zone on a layer with clearance settings. CAUTION: the native ' +
-      'create() call needs 9 args but this tool sends only 4 (points, layer, netName, ' +
-      'clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.',
-    profile: 'full',
-    evidence: ['inferred'],
-    risk: 'high',
-    confirmWrite: true,
-    group: 'pcb-write',
-    version: '1.0.0',
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-    },
-    inputSchema: z.object({
-      points: z.array(z.object({ x: z.number(), y: z.number() })),
-      layer: z.number(),
-      netName: z.string().optional(),
-      clearance: z.number().optional(),
-      confirmWrite: z
-        .literal(true)
-        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
-    }),
-    outputSchema: z.object({
-      success: z.boolean(),
-      primitiveId: z.string().optional(),
-      error: z.string().optional(),
-    }),
-    handler: async (ctx: ToolContext, params: unknown) => {
-      const p = params as {
-        points: Array<{ x: number; y: number }>;
-        layer: number;
-        netName?: string;
-        clearance?: number;
-      };
-      try {
-        const flatPoints = p.points.flatMap((pt) => [pt.x, pt.y]);
-        const result = await ctx.bridge.call<
-          Record<string, unknown>,
-          { primitiveId?: string; result?: string }
-        >('pcb.addZone', {
-          points: flatPoints,
-          layer: p.layer,
-          netName: p.netName,
-          clearance: p.clearance,
-        });
-        const data = result as { primitiveId?: string; result?: string } | string;
-        return {
-          success: true,
-          primitiveId:
-            typeof data === 'string' ? data : (data?.primitiveId ?? data?.result ?? undefined),
-        };
-      } catch (err) {
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
-  });
+  registry.register(failClosedPcbZoneTool);
 
   registry.register({
     name: 'easyeda_pcb_add_text',

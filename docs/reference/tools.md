@@ -46,7 +46,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_add_text`                             | `full`  | `medium` | Place a text primitive on a PCB layer (typically Top/Bottom Silkscreen) — reference labels, section titles, assembly notes. Signature recovered from PCB_PrimitiveString: fontFamily must be a name the runtime's font list actually contains — "NotoSansMonoCJKsc-Regular" (the default) is live-verified to work.              |
 | `easyeda_pcb_add_track`                            | `full`  | `high`   | Draw a copper track/trace on the PCB board. A multi-point path is written as one line segment per consecutive point pair (all sharing netName, so they form one electrical track — same coordinate/name merge model as schematic wires).                                                                                         |
 | `easyeda_pcb_add_via`                              | `full`  | `high`   | Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.    |
-| `easyeda_pcb_add_zone`                             | `full`  | `high`   | Create a copper pour zone on a layer with clearance settings. CAUTION: the native create() call needs 9 args but this tool sends only 4 (points, layer, netName, clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.                                                                     |
+| `easyeda_pcb_add_zone`                             | `full`  | `high`   | PCB copper-zone creation is unavailable because the verified EasyEDA Pro runtime requires a complete native argument contract that this integration has not yet recovered. This tool fails closed and does not call the bridge.                                                                                                  |
 | `easyeda_pcb_autoroute`                            | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
 | `easyeda_pcb_components`                           | `core`  | `low`    | List components placed on the active PCB layout: primitiveId, designator, footprint identity, position/rotation/layer. Requires a focused PCB tab in EasyEDA Pro — returns an empty list (not an error) if none is active.                                                                                                       |
 | `easyeda_pcb_constraint_check`                     | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
@@ -1366,7 +1366,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Create a copper pour zone on a layer with clearance settings. CAUTION: the native create() call needs 9 args but this tool sends only 4 (points, layer, netName, clearance) — live-confirmed mismatch, not yet resolved. Verify visually before trusting it.
+> PCB copper-zone creation is unavailable because the verified EasyEDA Pro runtime requires a complete native argument contract that this integration has not yet recovered. This tool fails closed and does not call the bridge.
 
 ### Input Parameters
 
@@ -1385,8 +1385,9 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
-  primitiveId: string(optional);
+  not_available: boolean(optional);
   error: string(optional);
+  remediation: string(optional);
 }
 ```
 

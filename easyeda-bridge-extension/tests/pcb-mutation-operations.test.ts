@@ -17,24 +17,20 @@ function createOperations() {
 }
 
 describe('createPcbMutationOperations', () => {
-  it('creates zones with the existing EasyEDA path order and arguments', async () => {
+  it('fails closed for zone creation without invoking a native method', async () => {
     const { callFirst, operations } = createOperations();
-    const params = {
-      points: [0, 0, 10, 0, 10, 10],
-      layer: 1,
-      netName: 'GND',
-      clearance: 0.2,
-    };
 
-    await operations.addZone(params);
-
-    expect(callFirst).toHaveBeenCalledWith(
-      ['PCB_PrimitivePour.create', 'PCB_ComplexPolygon.create', 'pcb_PrimitivePour.create'],
-      params.points,
-      params.layer,
-      params.netName,
-      params.clearance,
+    await expect(
+      operations.addZone({
+        points: [0, 0, 10, 0, 10, 10],
+        layer: 1,
+        netName: 'GND',
+        clearance: 0.2,
+      }),
+    ).rejects.toThrow(
+      'PCB copper-zone creation is unavailable until the complete native contract is verified.',
     );
+    expect(callFirst).not.toHaveBeenCalled();
   });
 
   it('modifies components with the existing primitive id and property order', async () => {
