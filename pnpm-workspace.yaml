@@ -7,9 +7,13 @@ allowBuilds:
 minimumReleaseAge: 10080
 # Exact-version release-age exceptions for reviewed security overrides.
 minimumReleaseAgeExclude:
-  - fast-uri@3.1.4
-  - hono@4.12.31
-  - brace-expansion@5.0.8
+  - undici@8.9.0
+  - undici@6.28.0
+  - fast-uri@3.1.5
+  - ip-address@10.3.1
+  - hono@4.12.34
+  - postcss@8.5.23
+  - brace-expansion@5.0.9
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
 trustPolicy: no-downgrade
@@ -17,12 +21,14 @@ trustLockfile: false
 blockExoticSubdeps: true
 
 overrides:
-  fast-uri: 3.1.4
-  hono: 4.12.31
+  fast-uri: 3.1.5
+  hono: 4.12.34
   '@hono/node-server': 2.0.10
   body-parser: 2.3.0
   vite: 7.3.5
   '@vitejs/plugin-vue': 6.0.7
   esbuild: 0.28.1
-  postcss: 8.5.18
-  brace-expansion: 5.0.8
+  postcss: 8.5.23
+  brace-expansion: 5.0.9
+  ip-address: 10.3.1
+  'undici@6.27.0': 6.28.0

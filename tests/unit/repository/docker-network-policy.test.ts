@@ -20,6 +20,11 @@ describe('Docker network verification policy', () => {
     expect(script).toContain('Runtime mode: production-runtime');
     expect(script).toContain('pnpm: NOT REQUIRED (production-runtime)');
     expect(script).toContain('EasyEDA extension package: OK');
+    expect(script).toContain('forbiddenRuntimePackages');
+    for (const packageName of ['archiver', 'brace-expansion', 'eslint', 'typescript', 'vitest']) {
+      expect(script).toContain(`'${packageName}'`);
+    }
+    expect(script).toContain('runtime dependency tree: production-only');
   });
 
   it('documents local-only and authenticated published-port deployments separately', () => {

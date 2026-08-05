@@ -121,6 +121,32 @@ async function waitForPublishedEndpoint(url, timeoutMs = 20_000) {
   throw new Error(`published endpoint was not reachable at ${url}: ${String(lastError)}`);
 }
 
+const forbiddenRuntimePackages = ['archiver', 'brace-expansion', 'eslint', 'typescript', 'vitest'];
+
+function verifyProductionDependencyTree() {
+  const checks = forbiddenRuntimePackages.map(
+    (packageName) =>
+      `hit=$(find /app/node_modules -path '*/node_modules/${packageName}' -print -quit); ` +
+      `if [ -n "$hit" ]; then echo "unexpected runtime package ${packageName}: $hit"; exit 1; fi`,
+  );
+  docker([
+    'run',
+    '--rm',
+    '--entrypoint',
+    'sh',
+    image,
+    '-lc',
+    [
+      'set -eu',
+      ...checks,
+      'test ! -e /usr/local/bin/npm',
+      'test ! -e /usr/local/bin/npx',
+      'test ! -e /usr/local/bin/corepack',
+    ].join('\n'),
+  ]);
+  console.log('runtime dependency tree: production-only');
+}
+
 function publishedPort(name) {
   const result = docker(['port', name, '3000/tcp']);
   const match = result.stdout.trim().match(/(?:127\.0\.0\.1|0\.0\.0\.0|\[::\]):(\d+)$/);
@@ -129,6 +155,8 @@ function publishedPort(name) {
 }
 
 async function run() {
+  verifyProductionDependencyTree();
+
   const doctor = docker([
     'run',
     '--rm',

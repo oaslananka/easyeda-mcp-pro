@@ -29,8 +29,10 @@ COPY easyeda-bridge-extension/ ./easyeda-bridge-extension/
 RUN pnpm build
 RUN pnpm build:extension
 
-# Prune development dependencies to keep production image light
-RUN CI=true pnpm install --prod --ignore-scripts
+# Materialize an independent production-only package tree. The legacy deploy
+# mode is required for this non-injected workspace; frozen-lockfile mode prevents
+# the deployment graph from drifting from the reviewed lockfile.
+RUN pnpm --filter easyeda-mcp-pro deploy --legacy --prod --frozen-lockfile /prod
 
 # ── Production Runner Stage ────────────────────────────────────
 # node:24.18.0-alpine
@@ -45,13 +47,9 @@ ENV HTTP_PORT=3000
 ENV ALLOWED_ORIGINS=
 # Non-loopback HTTP requires OAuth/JWKS plus an explicit non-wildcard ALLOWED_ORIGINS value.
 
-# Copy runtime assets and built package, owned by the non-root "node" user
-# baked into the official image (uid/gid 1000).
-COPY --from=builder --chown=node:node /app/package.json ./package.json
-COPY --from=builder --chown=node:node /app/dist ./dist
-COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.eext ./easyeda-bridge-extension.eext
-COPY --from=builder --chown=node:node /app/easyeda-bridge-extension.checksums.json ./easyeda-bridge-extension.checksums.json
-COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+# Copy only the clean production deployment produced from the package allowlist,
+# owned by the non-root "node" user baked into the official image (uid/gid 1000).
+COPY --from=builder --chown=node:node /prod ./
 
 # The production process invokes Node directly and never needs npm, npx, or
 # corepack. Remove package-manager payloads from the runtime stage to reduce
