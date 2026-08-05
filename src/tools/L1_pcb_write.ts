@@ -48,6 +48,46 @@ const failClosedPcbWriteMetadata = {
   'profile' | 'evidence' | 'risk' | 'confirmWrite' | 'group' | 'annotations'
 >;
 
+const failClosedPcbZoneInputSchema = z.object({
+  points: z.array(z.object({ x: z.number(), y: z.number() })),
+  layer: z.number(),
+  netName: z.string().optional(),
+  clearance: z.number().optional(),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+});
+
+const failClosedPcbZoneOutputSchema = z.object({
+  success: z.boolean(),
+  not_available: z.boolean().optional(),
+  error: z.string().optional(),
+  remediation: z.string().optional(),
+});
+
+const failClosedPcbZoneTool = {
+  name: 'easyeda_pcb_add_zone',
+  title: 'Add PCB copper zone/pour (unavailable)',
+  description:
+    'PCB copper-zone creation is unavailable because the verified EasyEDA Pro runtime requires ' +
+    'a complete native argument contract that this integration has not yet recovered. This tool ' +
+    'fails closed and does not call the bridge.',
+  ...failClosedPcbWriteMetadata,
+  version: '2.0.0',
+  inputSchema: failClosedPcbZoneInputSchema,
+  outputSchema: failClosedPcbZoneOutputSchema,
+  handler: async () => ({
+    success: false,
+    not_available: true,
+    error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
+    remediation:
+      'Create or edit the copper zone in EasyEDA Pro manually until the complete native zone-creation contract is live-verified.',
+  }),
+} satisfies ToolDefinition<
+  typeof failClosedPcbZoneInputSchema,
+  typeof failClosedPcbZoneOutputSchema
+>;
+
 export async function applyLayoutOperations(
   ctx: ToolContext,
   operations: Array<{ method: string; params: Record<string, unknown> }>,
@@ -489,38 +529,7 @@ function registerPcbWriteTools(
     },
   });
 
-  registry.register({
-    name: 'easyeda_pcb_add_zone',
-    title: 'Add PCB copper zone/pour (unavailable)',
-    description:
-      'PCB copper-zone creation is unavailable because the verified EasyEDA Pro runtime requires ' +
-      'a complete native argument contract that this integration has not yet recovered. This tool ' +
-      'fails closed and does not call the bridge.',
-    ...failClosedPcbWriteMetadata,
-    version: '2.0.0',
-    inputSchema: z.object({
-      points: z.array(z.object({ x: z.number(), y: z.number() })),
-      layer: z.number(),
-      netName: z.string().optional(),
-      clearance: z.number().optional(),
-      confirmWrite: z
-        .literal(true)
-        .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
-    }),
-    outputSchema: z.object({
-      success: z.boolean(),
-      not_available: z.boolean().optional(),
-      error: z.string().optional(),
-      remediation: z.string().optional(),
-    }),
-    handler: async () => ({
-      success: false,
-      not_available: true,
-      error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
-      remediation:
-        'Create or edit the copper zone in EasyEDA Pro manually until the complete native zone-creation contract is live-verified.',
-    }),
-  });
+  registry.register(failClosedPcbZoneTool);
 
   registry.register({
     name: 'easyeda_pcb_add_text',
