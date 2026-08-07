@@ -5,6 +5,7 @@ export default defineConfig({
   description:
     'Production-grade MCP server for EasyEDA Pro: safe PCB design inspection, BOM sourcing, manufacturing export, and AI-assisted hardware review.',
   base: '/easyeda-mcp-pro/',
+  srcExclude: ['superpowers/**'],
   themeConfig: {
     logo: '/logo.png',
     nav: [
@@ -23,7 +24,6 @@ export default defineConfig({
       { text: 'Vendor API Hardening', link: '/vendor-api-hardening' },
       { text: 'JLCPCB Quote Workflow', link: '/jlcpcb-quote-workflow' },
       { text: 'Component Quality', link: '/component-quality' },
-      { text: 'Vendor API Hardening', link: '/vendor-api-hardening' },
       { text: 'Catalog Ingestion', link: '/catalog-ingestion' },
       { text: 'Issue Triage', link: '/ISSUE_TRIAGE' },
     ],
@@ -46,10 +46,6 @@ export default defineConfig({
           { text: 'Production QA Artifacts', link: '/production-qa' },
           { text: 'Observability Budgets', link: '/observability-budgets' },
           { text: 'Golden Eval Benchmark', link: '/benchmark-suite' },
-          { text: 'Golden Eval Benchmark', link: '/benchmark-suite' },
-          { text: 'Observability Budgets', link: '/observability-budgets' },
-          { text: 'Production QA Artifacts', link: '/production-qa' },
-          { text: 'High-Level PCB Layout', link: '/high-level-pcb-layout' },
           { text: 'Claude Prompts', link: '/examples/claude-prompts' },
         ],
       },

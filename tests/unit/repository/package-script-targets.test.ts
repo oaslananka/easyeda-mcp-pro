@@ -158,10 +158,6 @@ describe('package script target policy', () => {
       scripts: Record<string, string>;
     };
     const workflow = await readFile(join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
-    const repositoryText = await readFile(
-      join(repoRoot, 'docs/superpowers/plans/2026-07-28-package-script-target-policy.md'),
-      'utf8',
-    );
 
     expect(packageJson.scripts['generate:methods']).toBeUndefined();
     expect(packageJson.scripts['check:package-scripts']).toBe(
@@ -169,6 +165,5 @@ describe('package script target policy', () => {
     );
     expect(packageJson.scripts.verify).toContain('pnpm check:package-scripts');
     expect(workflow).toContain('pnpm verify');
-    expect(repositoryText).not.toContain('scripts/generate-method-registry.ts');
   });
 });

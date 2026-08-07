@@ -187,6 +187,12 @@ Contributions must follow the standards enforced by the repository tooling:
 
 The required local checks are listed in [Quality Gates Checklist](#2-quality-gates-checklist). CI enforces the same general rules for pull requests and protected branches.
 
+### Documentation lifecycle
+
+Public documentation should describe current user, contributor, operator, security, release, or durable design contracts. Do not commit temporary implementation plans, chat transcripts, prompt logs, audit scratchpads, or agent execution notes as permanent documentation. Keep active execution details in the relevant issue or pull request, and migrate lasting decisions into existing canonical documentation (or an ADR only when no existing document is appropriate).
+
+Machine-readable evidence belongs under `docs/evidence/` only when release, compatibility, governance, or security provenance requires it. Evidence records must be clearly distinguished from guidance and must not contain secrets, private operational data, or temporary local paths. Repository checks reject `docs/superpowers/plans/` so completed working plans cannot silently become durable public docs.
+
 ---
 
 ## 8. Testing Policy
