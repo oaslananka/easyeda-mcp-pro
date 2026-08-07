@@ -13,6 +13,14 @@ const readText = (path: string): string => {
   return existsSync(absolutePath) ? normalizeLineEndings(readFileSync(absolutePath, 'utf8')) : '';
 };
 
+const workflowStep = (workflow: string, name: string): string => {
+  const marker = `      - name: ${name}\n`;
+  const start = workflow.indexOf(marker);
+  expect(start, `missing workflow step: ${name}`).toBeGreaterThanOrEqual(0);
+  const next = workflow.indexOf('\n      - ', start + marker.length);
+  return workflow.slice(start, next === -1 ? workflow.length : next);
+};
+
 describe('Codecov analytics policy', () => {
   it('normalizes Windows line endings before evaluating workflow policy', () => {
     expect(normalizeLineEndings('first\r\nsecond\r\n')).toBe('first\nsecond\n');
@@ -154,5 +162,93 @@ describe('Codecov analytics policy', () => {
     expect(config).toContain('status: informational');
     expect(config).toContain('require_bundle_changes: bundle_increase');
     expect(config).toContain("bundle_change_threshold: '1Kb'");
+  });
+
+  it('stops coverage work after an upstream failure while keeping server and extension failures independently diagnosable', () => {
+    const workflow = readText('.github/workflows/ci.yml');
+    const audit = workflowStep(workflow, 'Run dependency audit');
+    const server = workflowStep(workflow, 'Run server tests with coverage and JUnit output');
+    const extension = workflowStep(workflow, 'Run extension tests with coverage and JUnit output');
+
+    expect(audit).toContain('id: dependency_audit');
+    expect(server).toContain('id: server_coverage');
+    expect(server).not.toContain('if: ${{ !cancelled() }}');
+    expect(extension).toContain('id: extension_coverage');
+    expect(extension).toContain(
+      "if: ${{ !cancelled() && steps.server_coverage.outcome != 'skipped' }}",
+    );
+  });
+
+  it('uploads Codecov reports only after their producer succeeded and report validation passed', () => {
+    const workflow = readText('.github/workflows/ci.yml');
+    const serverValidation = workflowStep(workflow, 'Validate server CI reports');
+    const extensionValidation = workflowStep(workflow, 'Validate extension CI reports');
+    const installer = workflowStep(workflow, 'Install SHA-256 verified Codecov CLI');
+
+    expect(serverValidation).toContain('id: server_reports');
+    expect(serverValidation).toContain("steps.server_coverage.outcome == 'success'");
+    expect(serverValidation).toContain(
+      'node scripts/validate-ci-reports.mjs --coverage coverage/lcov.info --junit reports/server.junit.xml',
+    );
+    expect(extensionValidation).toContain('id: extension_reports');
+    expect(extensionValidation).toContain("steps.extension_coverage.outcome == 'success'");
+    expect(extensionValidation).toContain(
+      'node scripts/validate-ci-reports.mjs --coverage easyeda-bridge-extension/coverage/lcov.info --junit reports/extension.junit.xml',
+    );
+    expect(installer).toContain("steps.server_reports.outcome == 'success'");
+    expect(installer).toContain("steps.extension_reports.outcome == 'success'");
+
+    for (const name of [
+      'Upload server coverage to Codecov (trusted)',
+      'Upload server coverage to Codecov (tokenless fork)',
+      'Upload server test results to Codecov',
+    ]) {
+      const step = workflowStep(workflow, name);
+      expect(step).toContain("steps.server_reports.outcome == 'success'");
+      expect(step).toContain("steps.codecov_cli.outcome == 'success'");
+    }
+    for (const name of [
+      'Upload extension coverage to Codecov (trusted)',
+      'Upload extension coverage to Codecov (tokenless fork)',
+      'Upload extension test results to Codecov',
+    ]) {
+      const step = workflowStep(workflow, name);
+      expect(step).toContain("steps.extension_reports.outcome == 'success'");
+      expect(step).toContain("steps.codecov_cli.outcome == 'success'");
+    }
+  });
+
+  it('tracks Codecov installation and upload failures in the quality summary', () => {
+    const workflow = readText('.github/workflows/ci.yml');
+    const installer = workflowStep(workflow, 'Install SHA-256 verified Codecov CLI');
+    const serverUpload = workflowStep(workflow, 'Upload server coverage to Codecov (trusted)');
+    const extensionUpload = workflowStep(
+      workflow,
+      'Upload extension coverage to Codecov (trusted)',
+    );
+    const summary = workflowStep(workflow, 'Summarize quality report pipeline');
+
+    expect(installer).toContain('id: codecov_cli');
+    expect(serverUpload).toContain('id: server_coverage_upload_trusted');
+    expect(extensionUpload).toContain('id: extension_coverage_upload_trusted');
+    expect(summary).toContain('CODECOV_CLI_OUTCOME');
+    expect(summary).toContain('SERVER_COVERAGE_UPLOAD_TRUSTED_OUTCOME');
+    expect(summary).toContain('EXTENSION_COVERAGE_UPLOAD_TRUSTED_OUTCOME');
+    expect(summary).toContain('Codecov CLI installation failed');
+    expect(summary).toContain('server Codecov upload failed');
+    expect(summary).toContain('extension Codecov upload failed');
+  });
+
+  it('always summarizes the primary quality failure and dependent skipped report steps', () => {
+    const workflow = readText('.github/workflows/ci.yml');
+    const summary = workflowStep(workflow, 'Summarize quality report pipeline');
+
+    expect(summary).toContain('if: ${{ always() }}');
+    expect(summary).toContain('GITHUB_STEP_SUMMARY');
+    expect(summary).toContain('Primary failure');
+    expect(summary).toContain('dependency audit');
+    expect(summary).toContain('server coverage');
+    expect(summary).toContain('extension coverage');
+    expect(summary).toContain('skipped');
   });
 });

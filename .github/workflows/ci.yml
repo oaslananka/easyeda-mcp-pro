@@ -44,7 +44,9 @@ jobs:
         run: pnpm runtime:check
       - name: Validate Codecov configuration
         run: pnpm validate:codecov
-      - run: pnpm security:audit
+      - name: Run dependency audit
+        id: dependency_audit
+        run: pnpm security:audit
       - run: pnpm peers check
       - run: pnpm format:check
       - run: pnpm typecheck
@@ -53,15 +55,27 @@ jobs:
       - run: pnpm lint:tools
       - run: pnpm verify:tool-coverage
       - name: Run server tests with coverage and JUnit output
+        id: server_coverage
         run: pnpm test:coverage:ci
+      - name: Validate server CI reports
+        id: server_reports
+        if: ${{ !cancelled() && steps.server_coverage.outcome == 'success' }}
+        run: node scripts/validate-ci-reports.mjs --coverage coverage/lcov.info --junit reports/server.junit.xml
       - name: Run extension tests with coverage and JUnit output
-        if: ${{ !cancelled() }}
+        id: extension_coverage
+        if: ${{ !cancelled() && steps.server_coverage.outcome != 'skipped' }}
         run: pnpm test:extension:ci
+      - name: Validate extension CI reports
+        id: extension_reports
+        if: ${{ !cancelled() && steps.extension_coverage.outcome == 'success' }}
+        run: node scripts/validate-ci-reports.mjs --coverage easyeda-bridge-extension/coverage/lcov.info --junit reports/extension.junit.xml
       - name: Install SHA-256 verified Codecov CLI
-        if: ${{ !cancelled() }}
+        id: codecov_cli
+        if: ${{ !cancelled() && (steps.server_reports.outcome == 'success' || steps.extension_reports.outcome == 'success') }}
         run: node scripts/install-codecov-cli.mjs --output "${RUNNER_TEMP}/codecov-cli/codecovcli"
       - name: Upload server coverage to Codecov (trusted)
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
+        id: server_coverage_upload_trusted
+        if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -73,7 +87,8 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload server coverage to Codecov (tokenless fork)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
+        id: server_coverage_upload_tokenless
+        if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -84,7 +99,8 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (trusted)
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
+        id: extension_coverage_upload_trusted
+        if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -96,7 +112,8 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (tokenless fork)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
+        id: extension_coverage_upload_tokenless
+        if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -107,7 +124,8 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload server test results to Codecov
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
+        id: server_test_results_upload
+        if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -119,7 +137,8 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
       - name: Upload extension test results to Codecov
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
+        id: extension_test_results_upload
+        if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -130,6 +149,67 @@ jobs:
           report_type: test_results
           disable_search: true
           fail_ci_if_error: true
+      - name: Summarize quality report pipeline
+        if: ${{ always() }}
+        env:
+          DEPENDENCY_AUDIT_OUTCOME: ${{ steps.dependency_audit.outcome }}
+          SERVER_COVERAGE_OUTCOME: ${{ steps.server_coverage.outcome }}
+          SERVER_REPORTS_OUTCOME: ${{ steps.server_reports.outcome }}
+          EXTENSION_COVERAGE_OUTCOME: ${{ steps.extension_coverage.outcome }}
+          EXTENSION_REPORTS_OUTCOME: ${{ steps.extension_reports.outcome }}
+          CODECOV_CLI_OUTCOME: ${{ steps.codecov_cli.outcome }}
+          SERVER_COVERAGE_UPLOAD_TRUSTED_OUTCOME: ${{ steps.server_coverage_upload_trusted.outcome }}
+          SERVER_COVERAGE_UPLOAD_TOKENLESS_OUTCOME: ${{ steps.server_coverage_upload_tokenless.outcome }}
+          EXTENSION_COVERAGE_UPLOAD_TRUSTED_OUTCOME: ${{ steps.extension_coverage_upload_trusted.outcome }}
+          EXTENSION_COVERAGE_UPLOAD_TOKENLESS_OUTCOME: ${{ steps.extension_coverage_upload_tokenless.outcome }}
+          SERVER_TEST_RESULTS_UPLOAD_OUTCOME: ${{ steps.server_test_results_upload.outcome }}
+          EXTENSION_TEST_RESULTS_UPLOAD_OUTCOME: ${{ steps.extension_test_results_upload.outcome }}
+        run: |
+          {
+            echo '### Coverage pipeline diagnosis'
+            echo
+            echo '| Stage | Outcome |'
+            echo '| --- | --- |'
+            echo "| dependency audit | ${DEPENDENCY_AUDIT_OUTCOME:-skipped} |"
+            echo "| server coverage | ${SERVER_COVERAGE_OUTCOME:-skipped} |"
+            echo "| server report validation | ${SERVER_REPORTS_OUTCOME:-skipped} |"
+            echo "| extension coverage | ${EXTENSION_COVERAGE_OUTCOME:-skipped} |"
+            echo "| extension report validation | ${EXTENSION_REPORTS_OUTCOME:-skipped} |"
+            echo "| Codecov CLI | ${CODECOV_CLI_OUTCOME:-skipped} |"
+            echo "| server Codecov coverage upload (trusted) | ${SERVER_COVERAGE_UPLOAD_TRUSTED_OUTCOME:-skipped} |"
+            echo "| server Codecov coverage upload (tokenless) | ${SERVER_COVERAGE_UPLOAD_TOKENLESS_OUTCOME:-skipped} |"
+            echo "| extension Codecov coverage upload (trusted) | ${EXTENSION_COVERAGE_UPLOAD_TRUSTED_OUTCOME:-skipped} |"
+            echo "| extension Codecov coverage upload (tokenless) | ${EXTENSION_COVERAGE_UPLOAD_TOKENLESS_OUTCOME:-skipped} |"
+            echo "| server Codecov test-results upload | ${SERVER_TEST_RESULTS_UPLOAD_OUTCOME:-skipped} |"
+            echo "| extension Codecov test-results upload | ${EXTENSION_TEST_RESULTS_UPLOAD_OUTCOME:-skipped} |"
+            echo
+
+            primary='none in the tracked audit/coverage pipeline'
+            if [[ "${DEPENDENCY_AUDIT_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='dependency audit failed; coverage and dependent report uploads were skipped'
+            elif [[ "${SERVER_COVERAGE_OUTCOME:-skipped}" == 'skipped' ]]; then
+              primary='a required pre-coverage step failed; server and extension coverage were skipped'
+            elif [[ "${SERVER_COVERAGE_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='server coverage generation failed; server report validation and upload were skipped'
+            elif [[ "${SERVER_REPORTS_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='server coverage command succeeded but server report validation failed'
+            elif [[ "${EXTENSION_COVERAGE_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='extension coverage generation failed; extension report validation and upload were skipped'
+            elif [[ "${EXTENSION_REPORTS_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='extension coverage command succeeded but extension report validation failed'
+            elif [[ "${CODECOV_CLI_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='Codecov CLI installation failed; report uploads were skipped'
+            elif [[ "${SERVER_COVERAGE_UPLOAD_TRUSTED_OUTCOME:-skipped}" == 'failure' || "${SERVER_COVERAGE_UPLOAD_TOKENLESS_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='server Codecov upload failed'
+            elif [[ "${EXTENSION_COVERAGE_UPLOAD_TRUSTED_OUTCOME:-skipped}" == 'failure' || "${EXTENSION_COVERAGE_UPLOAD_TOKENLESS_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='extension Codecov upload failed'
+            elif [[ "${SERVER_TEST_RESULTS_UPLOAD_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='server Codecov test-results upload failed'
+            elif [[ "${EXTENSION_TEST_RESULTS_UPLOAD_OUTCOME:-skipped}" == 'failure' ]]; then
+              primary='extension Codecov test-results upload failed'
+            fi
+            echo "**Primary failure:** ${primary}."
+          } >> "$GITHUB_STEP_SUMMARY"
       - run: pnpm package:prepare
       - name: Scan source and generated outputs for secret-like material
         run: pnpm security:secrets
