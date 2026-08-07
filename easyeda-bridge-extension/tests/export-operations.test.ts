@@ -4,25 +4,39 @@ import { createExportOperations } from '../src/export-operations.js';
 function makeOperations() {
   const callFirst = vi.fn(async () => 'native-result');
   const normalizeBinaryResult = vi.fn(async (value, fileName) => ({ value, fileName }));
+  const createBridgeError = vi.fn(
+    (_code: string, message: string, _suggestion: string) => new Error(message),
+  );
   return {
     callFirst,
     normalizeBinaryResult,
-    operations: createExportOperations({ callFirst, normalizeBinaryResult }),
+    createBridgeError,
+    operations: createExportOperations({ callFirst, normalizeBinaryResult, createBridgeError }),
   };
 }
 
 describe('export operations', () => {
-  it('exports Gerbers with the original API path, params, and fallback name', async () => {
+  it('exports Gerbers with the projectId string as the native file-name argument', async () => {
     const { callFirst, normalizeBinaryResult, operations } = makeOperations();
-    const params = { includeDrill: true };
 
-    await expect(operations.exportGerbers(params)).resolves.toEqual({
+    await expect(operations.exportGerbers({ projectId: 'proj-123' })).resolves.toEqual({
       value: 'native-result',
       fileName: 'gerbers.zip',
     });
-    expect(callFirst).toHaveBeenCalledWith(['PCB_ManufactureData.getGerberFile'], params);
+    expect(callFirst).toHaveBeenCalledWith(['PCB_ManufactureData.getGerberFile'], 'proj-123');
     expect(normalizeBinaryResult).toHaveBeenCalledWith('native-result', 'gerbers.zip');
   });
+
+  it.each([{}, { projectId: '' }, { projectId: '   ' }])(
+    'rejects Gerber export before the native call when projectId is missing or blank: %j',
+    async (params) => {
+      const { callFirst, normalizeBinaryResult, operations } = makeOperations();
+
+      await expect(operations.exportGerbers(params)).rejects.toThrow(/non-empty projectId/i);
+      expect(callFirst).not.toHaveBeenCalled();
+      expect(normalizeBinaryResult).not.toHaveBeenCalled();
+    },
+  );
 
   it('exports route context with only a string file name', async () => {
     const { callFirst, operations } = makeOperations();
@@ -34,15 +48,36 @@ describe('export operations', () => {
     expect(callFirst).toHaveBeenNthCalledWith(2, ['PCB_ManufactureData.getDsnFile'], undefined);
   });
 
-  it('preserves pick-and-place format fallback behavior', async () => {
-    const { normalizeBinaryResult, operations } = makeOperations();
+  it('exports pick-and-place with the projectId string and preserves the output-name fallback', async () => {
+    const { callFirst, normalizeBinaryResult, operations } = makeOperations();
 
-    await operations.exportPickPlace({ format: 'tsv' });
-    await operations.exportPickPlace({ format: 7 });
+    await operations.exportPickPlace({ projectId: 'proj-123', format: 'csv' });
+    await operations.exportPickPlace({ projectId: 'proj-456', format: 7 });
 
-    expect(normalizeBinaryResult).toHaveBeenNthCalledWith(1, 'native-result', 'pick-place.tsv');
+    expect(callFirst).toHaveBeenNthCalledWith(
+      1,
+      ['PCB_ManufactureData.getPickAndPlaceFile'],
+      'proj-123',
+    );
+    expect(callFirst).toHaveBeenNthCalledWith(
+      2,
+      ['PCB_ManufactureData.getPickAndPlaceFile'],
+      'proj-456',
+    );
+    expect(normalizeBinaryResult).toHaveBeenNthCalledWith(1, 'native-result', 'pick-place.csv');
     expect(normalizeBinaryResult).toHaveBeenNthCalledWith(2, 'native-result', 'pick-place.csv');
   });
+
+  it.each([{}, { projectId: '' }, { projectId: '   ' }])(
+    'rejects pick-and-place export before the native call when projectId is missing or blank: %j',
+    async (params) => {
+      const { callFirst, normalizeBinaryResult, operations } = makeOperations();
+
+      await expect(operations.exportPickPlace(params)).rejects.toThrow(/non-empty projectId/i);
+      expect(callFirst).not.toHaveBeenCalled();
+      expect(normalizeBinaryResult).not.toHaveBeenCalled();
+    },
+  );
 
   it('keeps board PDF params unchanged and marks every other request schematic', async () => {
     const { callFirst, operations } = makeOperations();

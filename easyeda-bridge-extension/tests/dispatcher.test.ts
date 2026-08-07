@@ -145,16 +145,20 @@ describe('createDispatcher', () => {
       }),
     );
 
-    await expect(dispatcher.dispatch('board.exportGerbers', { layers: 'all' })).resolves.toEqual({
+    await expect(
+      dispatcher.dispatch('board.exportGerbers', { projectId: 'project-1', layers: 'all' }),
+    ).resolves.toEqual({
       kind: 'gerbers',
-      params: { layers: 'all' },
+      params: 'project-1',
     });
     await expect(
       dispatcher.dispatch('pcb.exportRouteContext', { fileName: 'board.dsn' }),
     ).resolves.toEqual({ kind: 'dsn', fileName: 'board.dsn' });
-    await expect(dispatcher.dispatch('export.pickPlace', { format: 'csv' })).resolves.toEqual({
+    await expect(
+      dispatcher.dispatch('export.pickPlace', { projectId: 'project-1', format: 'csv' }),
+    ).resolves.toEqual({
       kind: 'pick-place',
-      params: { format: 'csv' },
+      params: 'project-1',
     });
     await expect(dispatcher.dispatch('export.pdf', { what: 'board' })).resolves.toEqual({
       kind: 'pdf',
@@ -165,9 +169,9 @@ describe('createDispatcher', () => {
       params: { format: 'spice' },
     });
 
-    expect(getGerberFile).toHaveBeenCalledWith({ layers: 'all' });
+    expect(getGerberFile).toHaveBeenCalledWith('project-1');
     expect(getDsnFile).toHaveBeenCalledWith('board.dsn');
-    expect(getPickAndPlaceFile).toHaveBeenCalledWith({ format: 'csv' });
+    expect(getPickAndPlaceFile).toHaveBeenCalledWith('project-1');
     expect(getPdfFile).toHaveBeenCalledWith({ what: 'board' });
     expect(getNetlist).toHaveBeenCalledWith({ format: 'spice' });
   });
