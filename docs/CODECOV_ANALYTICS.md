@@ -33,7 +33,9 @@ Both suites write JUnit XML:
 - `reports/server.junit.xml`
 - `reports/extension.junit.xml`
 
-Codecov upload steps use the GitHub Actions `!cancelled()` condition. This allows JUnit and coverage artifacts produced before a failing assertion to reach Codecov, so the pull-request report can identify failed and flaky tests without hiding the original test failure.
+Coverage producers have explicit step IDs and their LCOV/JUnit outputs are validated before any Codecov upload. Server and extension producers remain independently diagnosable: an executed server coverage failure does not prevent the extension producer from running, but an upstream pre-coverage failure skips both producers. Codecov CLI installation runs only when at least one validated report exists, and each coverage or test-results upload requires both its matching report validation and the verified CLI installation to have succeeded.
+
+An always-run quality summary records the dependency-audit, coverage, validation, Codecov CLI, and upload outcomes so the primary failure remains visible while dependent stages are reported as skipped. Missing, empty, or malformed reports therefore fail closed instead of creating secondary Codecov noise.
 
 Generated reports are ignored by Git and must not be committed.
 
