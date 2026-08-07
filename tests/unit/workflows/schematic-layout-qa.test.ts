@@ -200,6 +200,84 @@ describe('schematic layout QA', () => {
     expect(result.issues.map((issue) => issue.code)).toContain('TEXT_TEXT_OVERLAP');
   });
 
+  it('preserves topology and wiring issue evidence as one deterministic characterization', () => {
+    const u1 = component('U1', 100, 100);
+    u1.pinConnections = [{ pin: '1', connected: false }];
+    const duplicate = component('dup-u1', 500, 100);
+    duplicate.ref = 'U1';
+    const r2 = component('R2', 650, 100);
+    r2.pinConnections = [{ pin: '1', netName: 'WRONG', connected: true }];
+    const labelA: LayoutQaPrimitive = {
+      id: 'label-a',
+      primitiveType: 'label',
+      netName: 'VCC',
+      combinedBounds: { x: 100, y: 400, width: 20, height: 10 },
+      geometrySource: 'runtime',
+    };
+    const labelB: LayoutQaPrimitive = {
+      id: 'label-b',
+      primitiveType: 'netport',
+      netName: 'VCC',
+      connected: false,
+      combinedBounds: { x: 300, y: 400, width: 20, height: 10 },
+      geometrySource: 'runtime',
+    };
+    const qaInput = input([u1, duplicate, r2, labelA, labelB]);
+    qaInput.expected = {
+      componentRefs: ['U1', 'R1'],
+      netNames: ['VCC', 'MISSING'],
+      pinMappings: [{ componentRef: 'R2', pin: '1', netName: 'GND' }],
+    };
+    qaInput.relationships = [
+      { sourceId: 'U1', targetId: 'dup-u1', kind: 'support', maxDistance: 50 },
+    ];
+    qaInput.wires = [
+      {
+        id: 'wire-long',
+        netName: 'VCC',
+        points: [
+          { x: 0, y: 0 },
+          { x: 800, y: 0 },
+        ],
+      },
+    ];
+
+    const result = evaluateSchematicLayoutQa(qaInput);
+    const topology = result.issues.filter((value) =>
+      [
+        'DANGLING_PIN',
+        'DETACHED_NETPORT',
+        'DUPLICATE_REFERENCE',
+        'DUPLICATE_NET_LABEL',
+        'EXPECTED_NET_MISMATCH',
+        'RELATED_COMPONENT_DISTANCE',
+        'EXCESSIVE_WIRE_LENGTH',
+      ].includes(value.code),
+    );
+
+    expect(topology.map((value) => value.code)).toEqual([
+      'DANGLING_PIN',
+      'DETACHED_NETPORT',
+      'DUPLICATE_REFERENCE',
+      'DUPLICATE_NET_LABEL',
+      'EXPECTED_NET_MISMATCH',
+      'EXPECTED_NET_MISMATCH',
+      'EXPECTED_NET_MISMATCH',
+      'RELATED_COMPONENT_DISTANCE',
+      'EXCESSIVE_WIRE_LENGTH',
+    ]);
+    expect(topology.find((value) => value.code === 'DANGLING_PIN')?.affectedPins).toEqual(['U1.1']);
+    expect(
+      topology.find((value) => value.code === 'DUPLICATE_REFERENCE')?.affectedPrimitiveIds,
+    ).toEqual(['U1', 'dup-u1']);
+    expect(
+      topology.find(
+        (value) => value.code === 'EXPECTED_NET_MISMATCH' && value.affectedPins.length > 0,
+      )?.message,
+    ).toBe('R2.1 is on WRONG; expected GND.');
+    expect(topology.find((value) => value.code === 'EXCESSIVE_WIRE_LENGTH')?.measured).toBe(800);
+  });
+
   it('validates topology, detached netports, relationships, and excessive wires', () => {
     const u1 = component('U1', 100, 100);
     u1.pinConnections = [{ pin: '1', netName: 'WRONG', connected: true }];

@@ -74,6 +74,6 @@
     "src/workflows/ne555-astable-template.ts": [16],
     "src/workflows/planner.ts": [18],
     "src/workflows/rp2040-servo-module-scaffold.ts": [21],
-    "src/workflows/schematic-layout-qa.ts": [92]
+    "src/workflows/schematic-layout-qa.ts": [34]
   }
 }
