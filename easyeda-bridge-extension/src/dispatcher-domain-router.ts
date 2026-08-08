@@ -6,9 +6,15 @@ import type { PcbMutationOperations } from './pcb-mutation-operations.js';
 import type { PcbReadOperations } from './pcb-read-operations.js';
 import type { PcbWriteOperations } from './pcb-write-operations.js';
 import type { ProjectOperations } from './project-operations.js';
+import type { ReadOnlyOperations } from './read-only-operations.js';
+import type { SchematicTransactionOperations } from './schematic-transaction-operations.js';
+import type { SystemApiOperations } from './system-api-operations.js';
 
 export interface DispatcherDomainRouterDependencies {
   projectOperations: ProjectOperations;
+  readOnlyOperations: ReadOnlyOperations;
+  schematicTransactionOperations: SchematicTransactionOperations;
+  systemApiOperations: SystemApiOperations;
   boardInspection: BoardInspectionOperations;
   exportOperations: ExportOperations;
   designRuleCheckOperations: DesignRuleCheckOperations;
@@ -47,6 +53,11 @@ export function createDispatcherDomainRouter(
   dependencies: DispatcherDomainRouterDependencies,
 ): DispatcherDomainRouter {
   const routes = [
+    { method: 'api.call', handle: (params) => dependencies.systemApiOperations.apiCall(params) },
+    {
+      method: 'api.execute',
+      handle: (params) => dependencies.systemApiOperations.apiExecute(params),
+    },
     {
       method: 'board.exportGerbers',
       handle: (params) => dependencies.exportOperations.exportGerbers(params),
@@ -132,6 +143,97 @@ export function createDispatcherDomainRouter(
     },
     { method: 'project.open', handle: (params) => dependencies.projectOperations.open(params) },
     { method: 'project.save', handle: (params) => dependencies.projectOperations.save(params) },
+    {
+      method: 'bom.generate',
+      handle: (params) => dependencies.readOnlyOperations.generateBom(params),
+    },
+    { method: 'bom.validate', handle: () => dependencies.readOnlyOperations.validateBom() },
+    {
+      method: 'inventory.getPrice',
+      handle: () => dependencies.readOnlyOperations.inventoryGetPrice(),
+    },
+    { method: 'inventory.search', handle: () => dependencies.readOnlyOperations.inventorySearch() },
+    {
+      method: 'library.getDeviceByLcscId',
+      handle: (params) => dependencies.readOnlyOperations.getDeviceByLcscId(params),
+    },
+    {
+      method: 'schematic.deletePrimitive',
+      handle: (params) =>
+        dependencies.schematicTransactionOperations.deletePrimitives(params.primitiveIds),
+    },
+    {
+      method: 'schematic.getNetDetail',
+      handle: (params) => dependencies.readOnlyOperations.getNetDetail(params),
+    },
+    {
+      method: 'schematic.getPinNoConnect',
+      handle: (params) => dependencies.readOnlyOperations.getPinNoConnect(params),
+    },
+    {
+      method: 'schematic.getPrimitiveSnapshot',
+      handle: (params) => dependencies.readOnlyOperations.getPrimitiveSnapshot(params),
+    },
+    {
+      method: 'schematic.getSheetInfo',
+      handle: () => dependencies.readOnlyOperations.getSheetInfo(),
+    },
+    {
+      method: 'schematic.listComponents',
+      handle: (params) => dependencies.readOnlyOperations.listComponents(params),
+    },
+    { method: 'schematic.listNets', handle: () => dependencies.readOnlyOperations.listNets() },
+    {
+      method: 'schematic.listPrimitiveIds',
+      handle: (params) => dependencies.readOnlyOperations.listPrimitiveIds(params),
+    },
+    {
+      method: 'schematic.listRectangles',
+      handle: () => dependencies.readOnlyOperations.listRectangles(),
+    },
+    {
+      method: 'schematic.modifyPrimitive',
+      handle: (params) =>
+        dependencies.schematicTransactionOperations.modifyPrimitive(
+          params.primitiveId as string,
+          (params.property as Record<string, unknown>) || {},
+        ),
+    },
+    {
+      method: 'schematic.primitiveBounds',
+      handle: (params) => dependencies.readOnlyOperations.primitiveBounds(params),
+    },
+    {
+      method: 'schematic.recreatePrimitiveSnapshot',
+      handle: (params) =>
+        dependencies.schematicTransactionOperations.recreatePrimitiveSnapshot(params.snapshot),
+    },
+    {
+      method: 'schematic.restorePrimitiveSnapshot',
+      handle: (params) =>
+        dependencies.schematicTransactionOperations.restorePrimitiveSnapshot(params.snapshot),
+    },
+    {
+      method: 'schematic.searchDevice',
+      handle: (params) => dependencies.readOnlyOperations.searchDevice(params),
+    },
+    {
+      method: 'schematic.validateNetlist',
+      handle: () => dependencies.readOnlyOperations.validateNetlist(),
+    },
+    {
+      method: 'system.apiInventory',
+      handle: (params) => dependencies.systemApiOperations.apiInventory(params),
+    },
+    { method: 'system.getStatus', handle: () => dependencies.systemApiOperations.getStatus() },
+    {
+      method: 'system.inspectComponents',
+      handle: (params) => dependencies.systemApiOperations.inspectComponents(params),
+    },
+    {
+      method: 'system.inspectWires',
+      handle: (params) => dependencies.systemApiOperations.inspectWires(params),
+    },
   ] satisfies DomainRoute[];
   const methodList = Object.freeze(
     routes.map((route) => route.method).sort((left, right) => left.localeCompare(right)),

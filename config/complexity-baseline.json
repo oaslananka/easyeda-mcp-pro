@@ -14,15 +14,15 @@
   "files": {
     "easyeda-bridge-extension/src/board-inspection.ts": [26, 16],
     "easyeda-bridge-extension/src/design-rule-check-operations.ts": [24],
-    "easyeda-bridge-extension/src/dispatcher.ts": [156, 31, 29, 19, 17, 16, 16],
+    "easyeda-bridge-extension/src/dispatcher.ts": [76, 31, 29, 19, 17, 16, 16],
     "easyeda-bridge-extension/src/index.ts": [26],
     "easyeda-bridge-extension/src/schematic-snapshot-recreation.ts": [32],
     "scripts/check-complexity-ratchet.mjs": [16],
     "scripts/check-dependency-audit.mjs": [17],
     "scripts/check-runtime-pins.mjs": [26],
     "scripts/e2e/diag.mjs": [18],
-    "scripts/e2e/http.mjs": [86],
-    "scripts/e2e/live.mjs": [150],
+    "scripts/e2e/http.mjs": [75],
+    "scripts/e2e/live.mjs": [55],
     "scripts/generate-easyeda-compatibility.mjs": [16],
     "scripts/generate-tools-doc.ts": [19],
     "scripts/package-script-targets.mjs": [24],
@@ -74,6 +74,6 @@
     "src/workflows/ne555-astable-template.ts": [16],
     "src/workflows/planner.ts": [18],
     "src/workflows/rp2040-servo-module-scaffold.ts": [21],
-    "src/workflows/schematic-layout-qa.ts": [92]
+    "src/workflows/schematic-layout-qa.ts": [34]
   }
 }

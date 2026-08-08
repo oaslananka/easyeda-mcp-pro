@@ -14,6 +14,8 @@ export default defineConfig({
         'scripts/check-complexity-ratchet.mjs',
         'scripts/check-metadata.mjs',
         'scripts/extension-metadata-policy.mjs',
+        'scripts/e2e/http-helpers.mjs',
+        'scripts/e2e/live-phases.mjs',
         'scripts/package-artifacts.mjs',
       ],
       exclude: [
