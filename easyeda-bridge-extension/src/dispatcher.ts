@@ -10,7 +10,6 @@ import { createApiRuntime, type ApiRuntime } from './api-runtime.js';
 import {
   compactPrimitiveSummary,
   normalizeStandalone,
-  normalizeValue,
   readMember,
   readStateValue,
 } from './api-introspection.js';
@@ -36,6 +35,7 @@ import {
 import { createPcbReadOperations, type PcbReadOperations } from './pcb-read-operations.js';
 import { createPcbWriteOperations, type PcbWriteOperations } from './pcb-write-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
+import { createSystemApiOperations, type SystemApiOperations } from './system-api-operations.js';
 import {
   createSchematicComponentInspectionOperations,
   type SchematicComponentInspectionOperations,
@@ -135,7 +135,6 @@ const METHOD_LIST: readonly string[] = [
 
 // The toolkit for the active dispatcher instance. Set by createDispatcher();
 // a hot-swapped bundle is a fresh module scope, so instances never share it.
-let tk: DispatcherToolkit;
 let callFirst: ApiRuntime['callFirst'];
 let readFirstPath: ApiRuntime['readFirstPath'];
 let inspectApiInventory: ApiRuntime['inspectApiInventory'];
@@ -152,6 +151,7 @@ let projectOperations: ProjectOperations;
 let schematicComponentInspection: SchematicComponentInspectionOperations;
 let schematicInspection: SchematicInspectionOperations;
 let schematicTransactionOperations: SchematicTransactionOperations;
+let systemApiOperations: SystemApiOperations;
 
 function newBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
   const error = new Error(message);
@@ -1099,46 +1099,6 @@ async function applyPlacedRotation(
   return rot;
 }
 
-async function inspectComponentsApi(limit = 5): Promise<unknown> {
-  const schCompClass = readFirstPath<any>([
-    'SCH_PrimitiveComponent',
-    'SCH_PrimitiveComponent3',
-    'sch_PrimitiveComponent',
-  ]);
-  if (!schCompClass || typeof schCompClass.getAll !== 'function') {
-    throw new Error('SCH_PrimitiveComponent.getAll is not available in this EasyEDA runtime');
-  }
-
-  const comps = await schCompClass.getAll(undefined, true);
-  const items = Array.isArray(comps) ? comps : [];
-  return {
-    total: items.length,
-    samples: items
-      .slice(0, Math.max(1, Math.min(limit, 25)))
-      .map((item) => normalizeValue(item, 5)),
-  };
-}
-
-async function inspectWiresApi(limit = 10, offset = 0): Promise<unknown> {
-  const schWireClass = readFirstPath<any>([
-    'SCH_PrimitiveWire',
-    'SCH_PrimitiveWire3',
-    'sch_PrimitiveWire',
-  ]);
-  if (!schWireClass || typeof schWireClass.getAll !== 'function') {
-    throw new Error('SCH_PrimitiveWire.getAll is not available in this EasyEDA runtime');
-  }
-
-  const wires = await schWireClass.getAll();
-  const items = Array.isArray(wires) ? wires : [];
-  const start = Math.max(0, offset);
-  const end = start + Math.max(1, Math.min(limit, 50));
-  return {
-    total: items.length,
-    samples: items.slice(start, end).map((item) => summarizeWirePrimitive(item)),
-  };
-}
-
 async function generateBomApi(params: any): Promise<unknown> {
   const comps = ((await schematicComponentInspection.listComponents()) as { items: any[] }).items;
   const groupBy = params.groupBy || 'value';
@@ -2065,211 +2025,10 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         warnings,
       };
     }
-    case 'system.apiInventory':
-      return inspectApiInventory(typeof params.filter === 'string' ? params.filter : undefined);
-    case 'system.inspectComponents':
-      return inspectComponentsApi(typeof params.limit === 'number' ? params.limit : 5);
-    case 'system.inspectWires':
-      return inspectWiresApi(
-        typeof params.limit === 'number' ? params.limit : 10,
-        typeof params.offset === 'number' ? params.offset : 0,
-      );
-    case 'api.call':
-      return callAllowedApi(
-        typeof params.path === 'string' ? params.path : '',
-        Array.isArray(params.args) ? params.args : [],
-      );
-    case 'api.execute': {
-      const code = typeof params.code === 'string' ? params.code : '';
-      if (!code.trim())
-        throw newBridgeError(
-          'INVALID_PARAMS',
-          'code is required',
-          'Provide JavaScript code to execute',
-        );
-      const AsyncFunction = Object.getPrototypeOf(async function () {})
-        .constructor as FunctionConstructor;
-      const edaGlobal = tk.getEda() ?? (globalThis as { eda?: unknown }).eda;
-      // eslint-disable-next-line no-restricted-syntax -- api.execute is double-gated and covered by raw-execution safety tests.
-      const fn = new AsyncFunction('eda', code) as (eda: unknown) => Promise<unknown>;
-      const result = await fn(edaGlobal);
-      return { result: normalizeValue(result, 5) };
-    }
     case 'library.getDeviceByLcscId': {
       const lcscId = String(params.lcscId ?? '');
       const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
       return callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
-    }
-    case 'system.getStatus': {
-      const globals: Record<string, unknown> = {};
-      const edaObj = tk.getEda();
-      const EDAObj = tk.getEDA();
-      const apiObj = tk.getApi();
-      try {
-        globals.typeof_api = typeof (globalThis as any).api;
-        globals.typeof_eda = typeof (globalThis as any).eda;
-        globals.typeof_EDA = typeof (globalThis as any).EDA;
-        globals.typeof_local_api = typeof apiObj;
-        globals.typeof_local_eda = typeof edaObj;
-        globals.typeof_local_EDA = typeof EDAObj;
-
-        if (edaObj) {
-          try {
-            globals.eda_keys = Object.getOwnPropertyNames(edaObj);
-          } catch (e) {
-            globals.eda_keys_err = String(e);
-          }
-          try {
-            const edaKeys: string[] = [];
-            for (const key in edaObj as Record<string, unknown>) {
-              edaKeys.push(key);
-            }
-            globals.eda_for_in_keys = edaKeys;
-          } catch (e) {
-            globals.eda_for_in_keys_err = String(e);
-          }
-
-          const collectAllPropertyNames = (obj: any): string[] => {
-            let props: string[] = [];
-            let currentObj = obj;
-            while (currentObj && currentObj !== Object.prototype) {
-              try {
-                props = props.concat(Object.getOwnPropertyNames(currentObj));
-              } catch (e) {
-                logRecoverableError('failed to read debug probe property names', e);
-              }
-              try {
-                currentObj = Object.getPrototypeOf(currentObj);
-              } catch (e) {
-                logRecoverableError('failed to read debug probe prototype', e);
-                break;
-              }
-            }
-            return Array.from(new Set(props)).filter(
-              (p) => !['length', 'name', 'prototype', 'constructor'].includes(p),
-            );
-          };
-
-          try {
-            if ((edaObj as any).sch_PrimitiveComponent) {
-              globals.sch_PrimitiveComponent_all_keys = collectAllPropertyNames(
-                (edaObj as any).sch_PrimitiveComponent,
-              );
-            }
-          } catch (e) {
-            globals.sch_PrimitiveComponent_err = String(e);
-          }
-
-          try {
-            if ((edaObj as any).sch_Document) {
-              globals.sch_Document_all_keys = collectAllPropertyNames((edaObj as any).sch_Document);
-            }
-          } catch (e) {
-            globals.sch_Document_err = String(e);
-          }
-
-          try {
-            if ((edaObj as any).pcb_Document) {
-              globals.pcb_Document_all_keys = collectAllPropertyNames((edaObj as any).pcb_Document);
-            }
-          } catch (e) {
-            globals.pcb_Document_err = String(e);
-          }
-
-          try {
-            if ((edaObj as any).dmt_Schematic) {
-              globals.dmt_Schematic_all_keys = collectAllPropertyNames(
-                (edaObj as any).dmt_Schematic,
-              );
-            }
-          } catch (e) {
-            globals.dmt_Schematic_err = String(e);
-          }
-
-          try {
-            if ((edaObj as any).dmt_Project) {
-              globals.dmt_Project_all_keys = collectAllPropertyNames((edaObj as any).dmt_Project);
-            }
-          } catch (e) {
-            globals.dmt_Project_err = String(e);
-          }
-
-          try {
-            if ((edaObj as any).dmt_Pcb) {
-              globals.dmt_Pcb_all_keys = collectAllPropertyNames((edaObj as any).dmt_Pcb);
-            }
-          } catch (e) {
-            globals.dmt_Pcb_err = String(e);
-          }
-        }
-
-        if (EDAObj) {
-          try {
-            globals.EDA_keys = Object.getOwnPropertyNames(EDAObj as object);
-          } catch (e) {
-            globals.EDA_keys_err = String(e);
-          }
-          try {
-            const edaKeys: string[] = [];
-            for (const key in EDAObj as object) {
-              edaKeys.push(key);
-            }
-            globals.EDA_for_in_keys = edaKeys;
-          } catch (e) {
-            globals.EDA_for_in_keys_err = String(e);
-          }
-        }
-
-        try {
-          const globalKeys = Object.getOwnPropertyNames(globalThis);
-          globals.globalThis_matched_keys = globalKeys.filter((k) => {
-            const kl = k.toLowerCase();
-            return (
-              kl.includes('dmt') ||
-              kl.includes('eda') ||
-              kl.includes('schematic') ||
-              kl.includes('pcb') ||
-              kl.includes('api')
-            );
-          });
-        } catch (e) {
-          globals.globalThis_keys_err = String(e);
-        }
-
-        try {
-          const allGlobalKeys: string[] = [];
-          for (const key in globalThis) {
-            const kl = key.toLowerCase();
-            if (
-              kl.includes('dmt') ||
-              kl.includes('eda') ||
-              kl.includes('schematic') ||
-              kl.includes('pcb') ||
-              kl.includes('api')
-            ) {
-              allGlobalKeys.push(key);
-            }
-          }
-          globals.globalThis_for_in_matched_keys = allGlobalKeys;
-        } catch (e) {
-          globals.globalThis_for_in_err = String(e);
-        }
-      } catch (e) {
-        globals.error = String(e);
-      }
-
-      const hasDMTLocal = isRecord(edaObj) && 'DMT_Schematic' in edaObj;
-      const hasDMTEDA = isRecord(EDAObj) && 'DMT_Schematic' in EDAObj;
-
-      return {
-        bridgeVersion: tk.getBridgeVersion(),
-        capabilities: [...METHOD_LIST],
-        devMode: false,
-        globals: globals,
-        hasEda: !!edaObj || !!EDAObj,
-        hasDMT: 'DMT_Schematic' in globalThis || hasDMTLocal || hasDMTEDA,
-        dispatcherBuildId: BUILD_ID,
-      };
     }
     case 'bom.generate':
       return generateBomApi(params);
@@ -2292,7 +2051,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
 }
 
 export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
-  tk = toolkit;
   ({ callFirst, readFirstPath, inspectApiInventory, callAllowedApi } = createApiRuntime(
     toolkit,
     newBridgeError,
@@ -2361,6 +2119,17 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
       textAlignModeCache.set(primitiveId, alignMode),
     deleteCachedTextAlignMode: (primitiveId) => textAlignModeCache.delete(primitiveId),
   });
+  systemApiOperations = createSystemApiOperations({
+    toolkit,
+    methodList: METHOD_LIST,
+    buildId: BUILD_ID,
+    inspectApiInventory,
+    callAllowedApi,
+    readFirstPath,
+    summarizeWirePrimitive,
+    createBridgeError: newBridgeError,
+    logRecoverableError,
+  });
   domainRouter = createDispatcherDomainRouter({
     projectOperations,
     boardInspection,
@@ -2370,6 +2139,7 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     pcbWriteOperations,
     pcbMutationOperations,
     pcbReadOperations,
+    systemApiOperations,
   });
   textAlignModeCache.clear();
   log(`dispatcher initialized (build ${BUILD_ID}, ${METHOD_LIST.length} methods)`);
