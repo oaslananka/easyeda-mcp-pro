@@ -6,10 +6,12 @@ import type { PcbMutationOperations } from './pcb-mutation-operations.js';
 import type { PcbReadOperations } from './pcb-read-operations.js';
 import type { PcbWriteOperations } from './pcb-write-operations.js';
 import type { ProjectOperations } from './project-operations.js';
+import type { ReadOnlyOperations } from './read-only-operations.js';
 import type { SystemApiOperations } from './system-api-operations.js';
 
 export interface DispatcherDomainRouterDependencies {
   projectOperations: ProjectOperations;
+  readOnlyOperations: ReadOnlyOperations;
   systemApiOperations: SystemApiOperations;
   boardInspection: BoardInspectionOperations;
   exportOperations: ExportOperations;
@@ -139,6 +141,61 @@ export function createDispatcherDomainRouter(
     },
     { method: 'project.open', handle: (params) => dependencies.projectOperations.open(params) },
     { method: 'project.save', handle: (params) => dependencies.projectOperations.save(params) },
+    {
+      method: 'bom.generate',
+      handle: (params) => dependencies.readOnlyOperations.generateBom(params),
+    },
+    { method: 'bom.validate', handle: () => dependencies.readOnlyOperations.validateBom() },
+    {
+      method: 'inventory.getPrice',
+      handle: () => dependencies.readOnlyOperations.inventoryGetPrice(),
+    },
+    { method: 'inventory.search', handle: () => dependencies.readOnlyOperations.inventorySearch() },
+    {
+      method: 'library.getDeviceByLcscId',
+      handle: (params) => dependencies.readOnlyOperations.getDeviceByLcscId(params),
+    },
+    {
+      method: 'schematic.getNetDetail',
+      handle: (params) => dependencies.readOnlyOperations.getNetDetail(params),
+    },
+    {
+      method: 'schematic.getPinNoConnect',
+      handle: (params) => dependencies.readOnlyOperations.getPinNoConnect(params),
+    },
+    {
+      method: 'schematic.getPrimitiveSnapshot',
+      handle: (params) => dependencies.readOnlyOperations.getPrimitiveSnapshot(params),
+    },
+    {
+      method: 'schematic.getSheetInfo',
+      handle: () => dependencies.readOnlyOperations.getSheetInfo(),
+    },
+    {
+      method: 'schematic.listComponents',
+      handle: (params) => dependencies.readOnlyOperations.listComponents(params),
+    },
+    { method: 'schematic.listNets', handle: () => dependencies.readOnlyOperations.listNets() },
+    {
+      method: 'schematic.listPrimitiveIds',
+      handle: (params) => dependencies.readOnlyOperations.listPrimitiveIds(params),
+    },
+    {
+      method: 'schematic.listRectangles',
+      handle: () => dependencies.readOnlyOperations.listRectangles(),
+    },
+    {
+      method: 'schematic.primitiveBounds',
+      handle: (params) => dependencies.readOnlyOperations.primitiveBounds(params),
+    },
+    {
+      method: 'schematic.searchDevice',
+      handle: (params) => dependencies.readOnlyOperations.searchDevice(params),
+    },
+    {
+      method: 'schematic.validateNetlist',
+      handle: () => dependencies.readOnlyOperations.validateNetlist(),
+    },
     {
       method: 'system.apiInventory',
       handle: (params) => dependencies.systemApiOperations.apiInventory(params),
