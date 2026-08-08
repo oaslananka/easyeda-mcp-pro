@@ -4,6 +4,12 @@
  * Connects to already-running MCP server via HTTP transport.
  * Waits for bridge connection, then validates all 5 net-creation handlers.
  */
+import {
+  findDeviceCandidates,
+  initializeHttpSession,
+  waitForBridgeConnection,
+} from './http-helpers.mjs';
+
 const MCP_URL = 'http://127.0.0.1:18600/mcp';
 const BRIDGE_MAX_WAIT_S = 120;
 const CMD_TIMEOUT = 30_000;
@@ -67,17 +73,7 @@ async function main() {
 
   // Verify server is reachable
   try {
-    await mcpCall('initialize', {
-      protocolVersion: '2025-11-25',
-      capabilities: {},
-      clientInfo: { name: 'e2e-http', version: '1.0' },
-    });
-    // Send initialized notification
-    await fetch(MCP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
-    });
+    await initializeHttpSession({ mcpCall, fetchImpl: fetch, mcpUrl: MCP_URL });
     ok('Server reachable', `HTTP ${MCP_URL}`);
   } catch (e) {
     fail_('Server reachable', e.message);
@@ -90,21 +86,10 @@ async function main() {
 
   // 1. BRIDGE CONNECTION
   console.log('\n── [1/7] Bridge Connection ──\n');
-  let bridgeConnected = false,
-    bridgeVersion = '?';
-  for (let i = 0; i < BRIDGE_MAX_WAIT_S; i++) {
-    try {
-      const { text } = await toolCall('easyeda_bridge_status');
-      const p = JSON.parse(text);
-      if (p.connected === true) {
-        bridgeConnected = true;
-        bridgeVersion = p.version || '?';
-        break;
-      }
-    } catch {}
-    if ((i + 1) % 15 === 0) console.log(`  ⏳ waiting for bridge... ${i + 1}s`);
-    await new Promise((r) => setTimeout(r, 1000));
-  }
+  const { connected: bridgeConnected, version: bridgeVersion } = await waitForBridgeConnection({
+    toolCall,
+    maxWaitSeconds: BRIDGE_MAX_WAIT_S,
+  });
 
   if (!bridgeConnected) {
     fail_('Bridge connection', `not connected after ${BRIDGE_MAX_WAIT_S}s`);
@@ -153,16 +138,7 @@ async function main() {
   ok(`Initial nets`, `${netNames0.length} nets [${netNames0.slice(0, 6).join(', ')}]`);
 
   // Search devices
-  let devices = [];
-  for (const kw of ['resistor', 'R_0603', 'R_0805', 'capacitor']) {
-    const { text: dt } = await toolCall('easyeda_schematic_search_device', {
-      keyword: kw,
-      limit: 10,
-    });
-    const d = JSON.parse(dt);
-    devices = d?.devices || d?.results || [];
-    if (devices.length >= 2) break;
-  }
+  const devices = await findDeviceCandidates({ toolCall });
   const d0 = devices[0],
     d1 = devices[1];
   if (!d0 || !d1) {
