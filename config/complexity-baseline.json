@@ -22,7 +22,7 @@
     "scripts/check-runtime-pins.mjs": [26],
     "scripts/e2e/diag.mjs": [18],
     "scripts/e2e/http.mjs": [75],
-    "scripts/e2e/live.mjs": [150],
+    "scripts/e2e/live.mjs": [55],
     "scripts/generate-easyeda-compatibility.mjs": [16],
     "scripts/generate-tools-doc.ts": [19],
     "scripts/package-script-targets.mjs": [24],

@@ -4,9 +4,16 @@
  *
  * Exits: 0=all passed, 1=one or more checks failed
  */
-import { spawnTrackedProcess } from './harness.mjs';
-import { extractPinsPayload } from './payloads.mjs';
-import { createInterface } from 'node:readline';
+import { sleep, startStdioMcpServer } from './harness.mjs';
+import {
+  createValidationNetArtifacts,
+  discoverActiveDocument,
+  placeValidationComponents,
+  searchValidationDevices,
+  selectValidationDevicePair,
+  verifyRequiredBridgeMethods,
+  waitForLiveBridge,
+} from './live-phases.mjs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -43,35 +50,6 @@ function capture(label, data) {
   );
 }
 
-// ─────── MCP RPC helpers ──────────────────────────────────────────────────
-let reqId = 0;
-const pending = new Map();
-let serverStdin;
-
-function mcpCall(method, params = {}, timeoutMs = CMD_TIMEOUT) {
-  return new Promise((resolve, reject) => {
-    const id = ++reqId;
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error(`TIMEOUT ${method} (${timeoutMs}ms)`));
-    }, timeoutMs);
-    pending.set(id, { resolve, reject, timer });
-    const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n';
-    serverStdin.write(msg);
-  });
-}
-
-async function toolCall(name, args = {}) {
-  const result = await mcpCall('tools/call', { name, arguments: args });
-  const content = result.content || [];
-  const text = content.map((c) => c.text || c?.toString?.() || JSON.stringify(c)).join('\n');
-  return { result, text, isError: result.isError === true };
-}
-
-function wait(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 // ─────── Main ─────────────────────────────────────────────────────────────
 async function main() {
   console.log('\n' + '='.repeat(60));
@@ -81,90 +59,39 @@ async function main() {
   // ── Step 1: Start MCP server ───────────────────────────────────────────
   console.log('\u2500\u2500 [1/7] Start MCP Server & Connect Bridge \u2500\u2500\n');
 
-  const serverProcess = spawnTrackedProcess('node', ['dist/index.js'], {
-    cwd: repoRoot,
-    env: {
-      TRANSPORT: 'stdio',
-      LOG_LEVEL: 'silent',
-      TOOL_PROFILE: 'full',
-      BRIDGE_TIMEOUT_MS: '30000',
-    },
-  });
-  const server = serverProcess.child;
-
-  serverStdin = server.stdin;
-  let serverExited = false;
-  server.on('exit', () => {
-    serverExited = true;
-  });
-
-  const rl = createInterface({ input: server.stdout });
-  rl.on('line', (line) => {
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      return;
-    }
-    if (parsed.id && pending.has(parsed.id)) {
-      const { resolve, reject, timer } = pending.get(parsed.id);
-      pending.delete(parsed.id);
-      clearTimeout(timer);
-      if (parsed.error) reject(new Error(parsed.error.message));
-      else resolve(parsed.result);
-    }
-  });
-
-  const stderrLog = [];
-  server.stderr.on('data', (d) => {
-    stderrLog.push(d.toString().trim());
-  });
+  const server = startStdioMcpServer({ cwd: repoRoot, timeoutMs: CMD_TIMEOUT });
+  const { mcpCall, toolCall } = server;
+  const reporter = { ok, fail: fail_, warn, capture };
 
   function shutdown(label) {
-    serverProcess.shutdown(label);
-    serverProcess.detach();
+    server.shutdown(label);
+    server.detach();
   }
 
-  await wait(2000);
-  if (serverExited) {
+  await sleep(2000);
+  if (server.exited) {
     fail_('MCP server start', 'exited immediately');
     shutdown();
     process.exit(1);
   }
   ok('MCP server started');
 
-  // Initialize MCP
   const init = await mcpCall('initialize', {
     protocolVersion: '2025-11-25',
     capabilities: {},
     clientInfo: { name: 'e2e-validator', version: '1.0' },
   });
-  serverStdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+  server.notifyInitialized();
   const sv = init.serverInfo;
   ok('MCP initialized', `${sv?.name} v${sv?.version} proto=${init.protocolVersion}`);
   capture('server info', init);
 
-  // ── Bridge connection ──────────────────────────────────────────────────
-  let bridgeConnected = false;
-  let bridgeStatusData = {};
-  for (let i = 0; ; i++) {
-    try {
-      const { text } = await toolCall('easyeda_bridge_status');
-      const parsed = JSON.parse(text);
-      bridgeStatusData = parsed;
-      if (parsed.connected === true) {
-        bridgeConnected = true;
-        ok('Bridge connected', `version=${parsed.bridge_version || parsed.version || '?'}`);
-        capture('bridge status', parsed);
-        break;
-      }
-    } catch {}
-    const elapsed = (i + 1) * 3;
-    if (elapsed >= BRIDGE_MAX_WAIT_S) break;
-    if ((i + 1) % 5 === 0) console.log(`  \u23f3 waiting for bridge... ${elapsed}s elapsed`);
-    await wait(3000);
-  }
-
+  const { connected: bridgeConnected, status: bridgeStatusData } = await waitForLiveBridge({
+    toolCall,
+    maxWaitSeconds: BRIDGE_MAX_WAIT_S,
+    sleep,
+    reporter,
+  });
   if (!bridgeConnected) {
     fail_('Bridge connection', `not connected after ${BRIDGE_MAX_WAIT_S}s`);
     shutdown();
@@ -180,72 +107,22 @@ async function main() {
   // ── Phase 2: Runtime Method Verification ──────────────────────────────
   console.log('\n\u2500\u2500 [2/7] Runtime Method Verification \u2500\u2500\n');
 
-  const requiredMethods = [
-    'schematic.createNetFlag',
-    'schematic.createNetPort',
-    'schematic.connectPinToNet',
-    'schematic.connectPinsByNet',
-    'schematic.validateNetlist',
-    'project.save',
-  ];
-
-  const capabilitiesFromBridge = bridgeStatusData.capabilities || [];
-
-  const methodResults = {};
-  for (const method of requiredMethods) {
-    let found = capabilitiesFromBridge.includes(method);
-    // Also check via api_inventory
-    if (!found) {
-      try {
-        const { text: inv } = await toolCall('easyeda_api_inventory', { filter: method });
-        if (inv.includes(method)) found = true;
-      } catch {}
-    }
-    if (found) {
-      methodResults[method] = true;
-      ok(`Bridge method declared: ${method}`);
-    } else {
-      methodResults[method] = false;
-      fail_(`Bridge method: ${method}`, 'not in capabilities');
-    }
-  }
+  await verifyRequiredBridgeMethods({
+    toolCall,
+    capabilities: bridgeStatusData.capabilities || [],
+    reporter,
+  });
 
   // ── Phase 3: Active Document Discovery ─────────────────────────────────
   console.log('\n\u2500\u2500 [3/7] Project Context & Component Search \u2500\u2500\n');
 
   // The bridge doesn't expose projectId. Probe with a sentinel value.
   const PLACEHOLDER_ID = 'active';
-
-  // First try schematic_nets to see if there's an active document
-  let activeDoc = false;
-  try {
-    const { text: netsText } = await toolCall('easyeda_schematic_nets', {
-      projectId: PLACEHOLDER_ID,
-    });
-    const netsParsed = JSON.parse(netsText);
-    if (!netsParsed.not_available) {
-      activeDoc = true;
-      const initialNets = netsParsed.nets || [];
-      ok('Active document confirmed', `${initialNets.length} initial nets`);
-      capture('initial nets', netsText);
-    }
-  } catch {}
-
-  // Fallback: try listComponents
-  if (!activeDoc) {
-    try {
-      const { text: compText } = await toolCall('easyeda_schematic_components', {
-        projectId: PLACEHOLDER_ID,
-        limit: 1,
-      });
-      const compParsed = JSON.parse(compText);
-      if (compParsed && !compParsed.not_available) {
-        activeDoc = true;
-        ok('Active document confirmed via components');
-      }
-    } catch {}
-  }
-
+  const activeDoc = await discoverActiveDocument({
+    toolCall,
+    projectId: PLACEHOLDER_ID,
+    reporter,
+  });
   if (!activeDoc) {
     fail_(
       'Active document',
@@ -255,251 +132,54 @@ async function main() {
     process.exit(1);
   }
 
-  // Search for devices to place
-  let deviceItems = [];
-  for (const keyword of ['resistor', 'R_0603', 'R_0805', 'capacitor']) {
-    try {
-      const { text: dt } = await toolCall('easyeda_schematic_search_device', {
-        key: keyword,
-        itemsOfPage: 10,
-        page: 1,
-      });
-      const d = JSON.parse(dt);
-      const devs = d.devices || d.results || [];
-      if (devs.length > 0) deviceItems = devs;
-      if (deviceItems.length >= 2) break;
-    } catch (e) {
-      warn('Device search attempt', `${keyword}: ${e.message}`);
-    }
-  }
-
+  const deviceItems = await searchValidationDevices({ toolCall, reporter });
   if (deviceItems.length < 2) {
     fail_('Device search', `need 2 devices, found ${deviceItems.length}`);
     shutdown();
     process.exit(1);
   }
-
-  // Pick the first two suitable devices - prefer R_0603 or R_0805
-  let dev0 =
-    deviceItems.find((d) => (d.title || d.name || '').toLowerCase().includes('0603')) ||
-    deviceItems[0];
-  let dev1 =
-    deviceItems.find((d) => (d.title || d.name || '').toLowerCase().includes('0805')) ||
-    (deviceItems.length > 1 ? deviceItems[1] : deviceItems[0]);
-  if (dev0 === dev1) dev1 = deviceItems[1] || deviceItems[0];
-
-  // Extract separate uuid and libraryUuid - SCH_PrimitiveComponent.create requires both
-  const d0_uuid = dev0.uuid || dev0.deviceUUID || dev0.mp || '';
-  const d0_libUuid = dev0.libraryUuid || dev0.libraryId || '';
-  const d1_uuid = dev1.uuid || dev1.deviceUUID || dev1.mp || '';
-  const d1_libUuid = dev1.libraryUuid || dev1.libraryId || '';
-  const dev0Name = dev0.title || dev0.name || dev0.display || d0_uuid;
-  const dev1Name = dev1.title || dev1.name || dev1.display || d1_uuid;
-
-  ok('Search devices', `found "${dev0Name}" & "${dev1Name}"`);
+  const devices = selectValidationDevicePair(deviceItems);
+  ok('Search devices', `found "${devices.dev0Name}" & "${devices.dev1Name}"`);
   capture('device items', {
-    dev0: { uuid: d0_uuid, libraryUuid: d0_libUuid, name: dev0Name, raw: dev0 },
-    dev1: { uuid: d1_uuid, libraryUuid: d1_libUuid, name: dev1Name, raw: dev1 },
+    dev0: {
+      uuid: devices.d0Uuid,
+      libraryUuid: devices.d0LibraryUuid,
+      name: devices.dev0Name,
+      raw: devices.dev0,
+    },
+    dev1: {
+      uuid: devices.d1Uuid,
+      libraryUuid: devices.d1LibraryUuid,
+      name: devices.dev1Name,
+      raw: devices.dev1,
+    },
   });
 
   // ── Phase 4: Place Components ─────────────────────────────────────────
   console.log('\n\u2500\u2500 [4/7] Place Components \u2500\u2500\n');
 
-  const R1_REF = 'E2E_R1';
-  const R2_REF = 'E2E_R2';
-  let r1PrimId = '',
-    r2PrimId = '',
-    r1Result,
-    r2Result;
-
-  try {
-    r1Result = await toolCall('easyeda_schematic_place_component', {
-      deviceItem: { libraryUuid: d0_libUuid, uuid: d0_uuid },
-      x: 100,
-      y: 200,
-      rotation: 0,
-      confirmWrite: true,
-    });
-    ok('Placed R1', r1Result.text.slice(0, 200));
-    capture('place R1', r1Result.text);
-    // Extract primitiveId
-    try {
-      const parsed = JSON.parse(r1Result.text);
-      if (parsed.component?.primitiveId) r1PrimId = parsed.component.primitiveId;
-    } catch {}
-  } catch (err) {
-    fail_('Place R1', err.message);
-  }
-
-  try {
-    r2Result = await toolCall('easyeda_schematic_place_component', {
-      deviceItem: { libraryUuid: d1_libUuid, uuid: d1_uuid },
-      x: 500,
-      y: 200,
-      rotation: 0,
-      confirmWrite: true,
-    });
-    ok('Placed R2', r2Result.text.slice(0, 200));
-    capture('place R2', r2Result.text);
-    try {
-      const parsed = JSON.parse(r2Result.text);
-      if (parsed.component?.primitiveId) r2PrimId = parsed.component.primitiveId;
-    } catch {}
-  } catch (err) {
-    fail_('Place R2', err.message);
-  }
-
-  // Enumerate components to get primitive IDs if not extracted from place result
-  if (!r1PrimId || !r2PrimId) {
-    try {
-      const { text: compText } = await toolCall('easyeda_schematic_components', {
-        projectId: PLACEHOLDER_ID,
-        limit: 50,
-      });
-      capture('components list', compText);
-      const cp = JSON.parse(compText);
-      const comps = cp.components || cp.results || [];
-      for (const c of comps) {
-        const ref = c.reference || c.ref || c.name || '';
-        const pid = c.primitiveId || c.uuid || c.id || '';
-        if (ref.startsWith('E2E_') || ref.startsWith('R')) {
-          if (!r1PrimId) r1PrimId = pid;
-          else if (!r2PrimId && pid !== r1PrimId) r2PrimId = pid;
-        }
-      }
-    } catch (e) {
-      warn('Component enumeration', e.message);
-    }
-  }
-
-  if (!r1PrimId) r1PrimId = R1_REF;
-  if (!r2PrimId) r2PrimId = R2_REF;
-  ok('Component primitive IDs', `R1=${r1PrimId} R2=${r2PrimId}`);
-
-  // Also get component pins
-  let r2Pins = [];
-  try {
-    const { text: pins1 } = await toolCall('easyeda_schematic_component_pins', {
-      primitiveId: r1PrimId,
-    });
-    const r1Pins = extractPinsPayload(JSON.parse(pins1));
-    ok(
-      'R1 pins',
-      `${r1Pins.length} pins: ${r1Pins.map((p) => p.number || p.pinNumber || '').join(', ')}`,
-    );
-  } catch (e) {
-    warn('R1 pins', e.message);
-  }
-  try {
-    const { text: pins2 } = await toolCall('easyeda_schematic_component_pins', {
-      primitiveId: r2PrimId,
-    });
-    r2Pins = extractPinsPayload(JSON.parse(pins2));
-    ok(
-      'R2 pins',
-      `${r2Pins.length} pins: ${r2Pins.map((p) => p.number || p.pinNumber || '').join(', ')}`,
-    );
-  } catch (e) {
-    warn('R2 pins', e.message);
-  }
-
-  // Native No Connect set/readback/clear on a disposable test pin.
-  const noConnectPin = r2Pins[0]?.pinNumber || r2Pins[0]?.number;
-  if (noConnectPin) {
-    try {
-      const setResult = await toolCall('easyeda_schematic_set_pin_no_connect', {
-        projectId: PLACEHOLDER_ID,
-        primitiveId: r2PrimId,
-        pinNumber: String(noConnectPin),
-        noConnected: true,
-        confirmWrite: true,
-      });
-      const setPayload = JSON.parse(setResult.text);
-      if (setPayload.no_connected !== true || setPayload.verified !== true) {
-        throw new Error(`set readback was not verified: ${setResult.text}`);
-      }
-      ok('Set native No Connect', `${r2PrimId}/${noConnectPin}`);
-      capture('set native no-connect', setResult.text);
-
-      const { text: readText } = await toolCall('easyeda_schematic_component_pins', {
-        primitiveId: r2PrimId,
-      });
-      const readPins = extractPinsPayload(JSON.parse(readText));
-      const readPin = readPins.find(
-        (pin) => String(pin.pinNumber || pin.number || '') === String(noConnectPin),
-      );
-      if (readPin?.noConnected !== true) {
-        throw new Error(`component pin readback did not expose noConnected=true: ${readText}`);
-      }
-      ok('Read back native No Connect', `pinPrimitiveId=${readPin.primitiveId || 'unknown'}`);
-
-      const clearResult = await toolCall('easyeda_schematic_set_pin_no_connect', {
-        projectId: PLACEHOLDER_ID,
-        primitiveId: r2PrimId,
-        pinNumber: String(noConnectPin),
-        noConnected: false,
-        confirmWrite: true,
-      });
-      const clearPayload = JSON.parse(clearResult.text);
-      if (clearPayload.no_connected !== false || clearPayload.verified !== true) {
-        throw new Error(`clear readback was not verified: ${clearResult.text}`);
-      }
-      ok('Clear native No Connect', `${r2PrimId}/${noConnectPin}`);
-      capture('clear native no-connect', clearResult.text);
-    } catch (err) {
-      fail_('Native No Connect set/readback/clear', err.message);
-    }
-  } else {
-    warn('Native No Connect', 'Skipped because no addressable R2 pin was available');
-  }
+  const {
+    r1PrimId,
+    r2PrimId,
+    r1Ref: R1_REF,
+    r2Ref: R2_REF,
+  } = await placeValidationComponents({
+    toolCall,
+    projectId: PLACEHOLDER_ID,
+    devices,
+    reporter,
+  });
 
   // ── Phase 5: Create TEST_NET Flag & Port ──────────────────────────────
   console.log('\n\u2500\u2500 [5/7] Create TEST_NET \u2691 & \u2690 \u2500\u2500\n');
 
   const TEST_NET = 'TEST_NET';
-  let flagPrimId = 'unknown',
-    portPrimId = 'unknown';
-
-  // Create net flag
-  try {
-    const res = await toolCall('easyeda_schematic_create_net_flag', {
-      projectId: PLACEHOLDER_ID,
-      netName: TEST_NET,
-      x: 300,
-      y: 100,
-      rotation: 0,
-      confirmWrite: true,
-    });
-    try {
-      const parsed = JSON.parse(res.text);
-      flagPrimId = parsed.netFlag?.primitiveId || 'unknown';
-    } catch {}
-    ok('Create net flag TEST_NET', `primitiveId=${flagPrimId}`);
-    capture('net flag result', res.text);
-  } catch (err) {
-    fail_('Create net flag', err.message);
-  }
-
-  // Create net port
-  try {
-    const res = await toolCall('easyeda_schematic_create_net_port', {
-      projectId: PLACEHOLDER_ID,
-      netName: TEST_NET,
-      x: 300,
-      y: 300,
-      portType: 'passive',
-      rotation: 0,
-      confirmWrite: true,
-    });
-    try {
-      const parsed = JSON.parse(res.text);
-      portPrimId = parsed.netPort?.primitiveId || 'unknown';
-    } catch {}
-    ok('Create net port TEST_NET', `primitiveId=${portPrimId}`);
-    capture('net port result', res.text);
-  } catch (err) {
-    fail_('Create net port', err.message);
-  }
+  const { flagPrimId, portPrimId } = await createValidationNetArtifacts({
+    toolCall,
+    projectId: PLACEHOLDER_ID,
+    netName: TEST_NET,
+    reporter,
+  });
 
   // ── Phase 6: Connect Pins & Save ──────────────────────────────────────
   console.log('\n\u2500\u2500 [6/7] Connect Pins & Save \u2500\u2500\n');
