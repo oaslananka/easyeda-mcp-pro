@@ -88,6 +88,51 @@ function createDependencies() {
       })),
       deletePrimitives: vi.fn(async () => ({ deleted: [], notFound: [] })),
     },
+    readOnlyOperations: {
+      listNets: vi.fn(async () => ({ method: 'schematic.listNets' })),
+      getNetDetail: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'schematic.getNetDetail',
+        params,
+      })),
+      getPrimitiveSnapshot: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'schematic.getPrimitiveSnapshot',
+        params,
+      })),
+      listPrimitiveIds: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'schematic.listPrimitiveIds',
+        params,
+      })),
+      listComponents: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'schematic.listComponents',
+        params,
+      })),
+      getSheetInfo: vi.fn(async () => ({ method: 'schematic.getSheetInfo' })),
+      primitiveBounds: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'schematic.primitiveBounds',
+        params,
+      })),
+      searchDevice: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'schematic.searchDevice',
+        params,
+      })),
+      listRectangles: vi.fn(async () => ({ method: 'schematic.listRectangles' })),
+      getPinNoConnect: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'schematic.getPinNoConnect',
+        params,
+      })),
+      validateNetlist: vi.fn(async () => ({ method: 'schematic.validateNetlist' })),
+      getDeviceByLcscId: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'library.getDeviceByLcscId',
+        params,
+      })),
+      generateBom: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'bom.generate',
+        params,
+      })),
+      validateBom: vi.fn(async () => ({ method: 'bom.validate' })),
+      inventorySearch: vi.fn(async () => []),
+      inventoryGetPrice: vi.fn(async () => null),
+    },
     systemApiOperations: {
       apiCall: vi.fn(async (params: Record<string, unknown>) => ({ method: 'api.call', params })),
       apiExecute: vi.fn(async (params: Record<string, unknown>) => ({
@@ -119,6 +164,8 @@ const expectedMethods = [
   'board.getFeatures',
   'board.getStackup',
   'board.listLayers',
+  'bom.generate',
+  'bom.validate',
   'canvas.capture',
   'canvas.captureRegion',
   'canvas.locate',
@@ -128,6 +175,9 @@ const expectedMethods = [
   'export.netlist',
   'export.pdf',
   'export.pickPlace',
+  'inventory.getPrice',
+  'inventory.search',
+  'library.getDeviceByLcscId',
   'pcb.addSilkscreenLine',
   'pcb.addText',
   'pcb.addTrack',
@@ -142,6 +192,17 @@ const expectedMethods = [
   'project.export',
   'project.open',
   'project.save',
+  'schematic.getNetDetail',
+  'schematic.getPinNoConnect',
+  'schematic.getPrimitiveSnapshot',
+  'schematic.getSheetInfo',
+  'schematic.listComponents',
+  'schematic.listNets',
+  'schematic.listPrimitiveIds',
+  'schematic.listRectangles',
+  'schematic.primitiveBounds',
+  'schematic.searchDevice',
+  'schematic.validateNetlist',
   'system.apiInventory',
   'system.getStatus',
   'system.inspectComponents',
@@ -289,6 +350,52 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('system.inspectWires', params)).resolves.toEqual({
       handled: true,
       value: { method: 'system.inspectWires', params },
+    });
+
+    const readOnlyMethods = [
+      'schematic.getNetDetail',
+      'schematic.getPinNoConnect',
+      'schematic.getPrimitiveSnapshot',
+      'schematic.listComponents',
+      'schematic.listPrimitiveIds',
+      'schematic.primitiveBounds',
+      'schematic.searchDevice',
+      'library.getDeviceByLcscId',
+      'bom.generate',
+    ];
+    for (const readOnlyMethod of readOnlyMethods) {
+      await expect(router.tryDispatch(readOnlyMethod, params)).resolves.toEqual({
+        handled: true,
+        value: { method: readOnlyMethod, params },
+      });
+    }
+    await expect(router.tryDispatch('schematic.listNets', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'schematic.listNets' },
+    });
+    await expect(router.tryDispatch('schematic.getSheetInfo', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'schematic.getSheetInfo' },
+    });
+    await expect(router.tryDispatch('schematic.listRectangles', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'schematic.listRectangles' },
+    });
+    await expect(router.tryDispatch('schematic.validateNetlist', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'schematic.validateNetlist' },
+    });
+    await expect(router.tryDispatch('bom.validate', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'bom.validate' },
+    });
+    await expect(router.tryDispatch('inventory.search', params)).resolves.toEqual({
+      handled: true,
+      value: [],
+    });
+    await expect(router.tryDispatch('inventory.getPrice', params)).resolves.toEqual({
+      handled: true,
+      value: null,
     });
   });
 

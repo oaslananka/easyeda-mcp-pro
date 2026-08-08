@@ -35,6 +35,7 @@ import {
 import { createPcbReadOperations, type PcbReadOperations } from './pcb-read-operations.js';
 import { createPcbWriteOperations, type PcbWriteOperations } from './pcb-write-operations.js';
 import { createProjectOperations, type ProjectOperations } from './project-operations.js';
+import { createReadOnlyOperations, type ReadOnlyOperations } from './read-only-operations.js';
 import { createSystemApiOperations, type SystemApiOperations } from './system-api-operations.js';
 import {
   createSchematicComponentInspectionOperations,
@@ -47,7 +48,6 @@ import {
 import {
   createSchematicTransactionOperations,
   type PublicTextAlignMode,
-  type SchematicPrimitiveSnapshotKind,
   type SchematicTransactionOperations,
 } from './schematic-transaction-operations.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
@@ -148,6 +148,7 @@ let pcbMutationOperations: PcbMutationOperations;
 let pcbReadOperations: PcbReadOperations;
 let pcbWriteOperations: PcbWriteOperations;
 let projectOperations: ProjectOperations;
+let readOnlyOperations: ReadOnlyOperations;
 let schematicComponentInspection: SchematicComponentInspectionOperations;
 let schematicInspection: SchematicInspectionOperations;
 let schematicTransactionOperations: SchematicTransactionOperations;
@@ -1099,49 +1100,6 @@ async function applyPlacedRotation(
   return rot;
 }
 
-async function generateBomApi(params: any): Promise<unknown> {
-  const comps = ((await schematicComponentInspection.listComponents()) as { items: any[] }).items;
-  const groupBy = params.groupBy || 'value';
-  const groups = new Map<string, any>();
-
-  const resolveGroupKey = (component: any): string => {
-    if (groupBy === 'lcsc') return component.lcsc || component.value;
-    if (groupBy === 'footprint') return component.footprint || 'no-footprint';
-    return component.value || 'no-value';
-  };
-
-  for (const c of comps) {
-    const key = resolveGroupKey(c);
-
-    if (!groups.has(key)) {
-      groups.set(key, {
-        references: [],
-        value: c.value,
-        footprint: c.footprint,
-        lcsc: c.lcsc,
-        manufacturer: c.manufacturer,
-        quantity: 0,
-      });
-    }
-    const group = groups.get(key);
-    group.references.push(c.reference);
-    group.quantity += 1;
-  }
-
-  const entries = [];
-  for (const group of groups.values()) {
-    entries.push({
-      reference: group.references.join(', '),
-      value: group.value,
-      footprint: group.footprint,
-      lcsc: group.lcsc,
-      quantity: group.quantity,
-      manufacturer: group.manufacturer,
-    });
-  }
-  return entries;
-}
-
 /**
  * Try to connect a specific component pin to a net by finding the component,
  * locating the pin, and setting its net property. Falls back gracefully when
@@ -1492,57 +1450,28 @@ async function findFloatingPinsApi(): Promise<{
   return { floatingPins, partRefs: [...partRefs] };
 }
 
+async function getNetDetailApi(netName: string, operationTimeoutMs: unknown): Promise<unknown> {
+  const budget = createNetDetailBudget(netName, operationTimeoutMs);
+  const allNets = (await listNetsApi(budget)) as Array<{ netName: string; nodes: unknown[] }>;
+  const match = allNets.find((net) => net.netName === netName);
+  if (!match) {
+    throw newBridgeError('NET_NOT_FOUND', `Net "${netName}" not found`, 'Check net name spelling.');
+  }
+  return match;
+}
+
+async function getPinNoConnectApi(
+  componentPrimitiveId: string,
+  pinNumber: string,
+): Promise<unknown> {
+  return publicPinNoConnectState(await resolvePinNoConnectState(componentPrimitiveId, pinNumber));
+}
+
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
   const domainResult = await domainRouter.tryDispatch(method, params);
   if (domainResult.handled) return domainResult.value;
 
   switch (method) {
-    case 'schematic.listNets':
-      return listNetsApi();
-    case 'schematic.getNetDetail': {
-      const netName = params.netName as string;
-      const budget = createNetDetailBudget(netName, params.operationTimeoutMs);
-      const allNets = (await listNetsApi(budget)) as Array<{
-        netName: string;
-        nodes: unknown[];
-      }>;
-      const match = allNets.find((n) => n.netName === netName);
-      if (!match)
-        throw newBridgeError(
-          'NET_NOT_FOUND',
-          `Net "${netName}" not found`,
-          'Check net name spelling.',
-        );
-      return match;
-    }
-    case 'schematic.getPrimitiveSnapshot':
-      return schematicTransactionOperations.getPrimitiveSnapshot(
-        params.primitiveId as string,
-        typeof params.expectedPrimitiveKind === 'string'
-          ? (params.expectedPrimitiveKind as SchematicPrimitiveSnapshotKind)
-          : undefined,
-      );
-    case 'schematic.listPrimitiveIds':
-      return schematicTransactionOperations.listPrimitiveIds(params.primitiveKind);
-    case 'schematic.listComponents':
-      return schematicComponentInspection.listComponents(
-        typeof params.limit === 'number' ? params.limit : undefined,
-        typeof params.offset === 'number' ? params.offset : 0,
-      );
-    case 'schematic.getSheetInfo':
-      return schematicInspection.getSheetInfo();
-    case 'schematic.primitiveBounds':
-      return schematicInspection.primitiveBounds(params.primitiveIds);
-    case 'schematic.searchDevice':
-      return callFirst(
-        ['LIB_Device.search', 'lib_Device.search'],
-        params.key,
-        params.libraryUuid,
-        params.classification,
-        params.symbolType,
-        params.itemsOfPage,
-        params.page,
-      );
     case 'schematic.placeComponent': {
       // subPartName is meant to select a specific sub-part/gate of a multi-part
       // device (e.g. adding a second power-pin sub-part to an existing
@@ -1713,8 +1642,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.lineType ?? 0,
         params.fillStyle ?? 'none',
       );
-    case 'schematic.listRectangles':
-      return schematicInspection.listRectangles();
     case 'schematic.deletePrimitive':
       return schematicTransactionOperations.deletePrimitives(params.primitiveIds);
     case 'schematic.recreatePrimitiveSnapshot':
@@ -1725,10 +1652,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       return schematicTransactionOperations.modifyPrimitive(
         params.primitiveId as string,
         (params.property as Record<string, unknown>) || {},
-      );
-    case 'schematic.getPinNoConnect':
-      return publicPinNoConnectState(
-        await resolvePinNoConnectState(params.primitiveId as string, params.pinNumber as string),
       );
     case 'schematic.setPinNoConnect':
       return setPinNoConnectState(
@@ -1956,91 +1879,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const result = await callFirst(['SCH_Document.importChanges', 'sch_Document.importChanges']);
       return { synced: result !== false };
     }
-    case 'schematic.validateNetlist': {
-      const netlistData = (await listNetsApi()) as Array<{
-        netName: string;
-        nodes: Array<{ component: string; pin: string }>;
-      }>;
-      const connectedRefs = new Set<string>();
-      const connectedPins = new Set<string>();
-      const nets = netlistData.map((n) => {
-        const refs = [...new Set((n.nodes || []).map((node) => node.component))];
-        const pins = (n.nodes || []).map((node) => node.pin);
-        refs.forEach((r) => connectedRefs.add(r));
-        pins.forEach((p) => connectedPins.add(p));
-        return {
-          netName: n.netName,
-          refs,
-          pins,
-          hasNetFlag: true,
-        };
-      });
-      // Floating pins: pins whose (designator, pin) does not appear in any
-      // net's node list. Determine connectivity from the same authoritative
-      // net data used to build `nets` above — NOT by re-reading each pin's
-      // OtherProperty.net. That property is only populated for pins connected
-      // via a stamped pin property and is empty for pins connected by a wire,
-      // power/ground flag, or net label, so re-reading it misreported every
-      // wire/flag/label-connected pin as floating.
-      const { floatingPins, partRefs } = await findFloatingPinsApi();
-      const warnings: string[] = [];
-      // Count only real parts (those with a designator), not net flags/ports/
-      // labels or the title block, so the tally is not inflated by non-parts.
-      const totalRefs = partRefs.length;
-      if (floatingPins.length > 0) {
-        warnings.push(`${floatingPins.length} pin(s) are not connected to any net.`);
-      }
-      if (connectedRefs.size < totalRefs) {
-        warnings.push(`${totalRefs - connectedRefs.size} component(s) have no net connections.`);
-      }
-      // The `nets` above are INFERRED from pin properties + coordinate
-      // coincidence. A power/ground flag (or any pin) sitting exactly on
-      // another pin is reported here as connected, but EasyEDA's native ERC
-      // treats overlapping endpoints as "overlap and not connected" unless a
-      // wire actually joins them. Cross-check with the native ERC so `valid`
-      // cannot be a false positive (this is the authoritative source).
-      let nativeErc: { errorCount: number; warningCount: number; passed: boolean } | undefined;
-      try {
-        const drc = await designRuleCheckOperations.runSchematicCheck();
-        nativeErc = {
-          errorCount: drc.errorCount,
-          warningCount: drc.warningCount,
-          passed: drc.passed,
-        };
-        if (drc.errorCount > 0) {
-          warnings.push(
-            `Native ERC reports ${drc.errorCount} error(s): the inferred connectivity above may ` +
-              'include pins that overlap without a wire (not truly connected). Run erc_run or ' +
-              "check EasyEDA's DRC panel for authoritative, per-violation detail.",
-          );
-        }
-      } catch (e) {
-        logRecoverableError('validateNetlist: native ERC cross-check failed', e);
-      }
-      return {
-        nets,
-        floatingPins,
-        wiresWithoutNetlist: [],
-        nativeErc,
-        warnings,
-      };
-    }
-    case 'library.getDeviceByLcscId': {
-      const lcscId = String(params.lcscId ?? '');
-      const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
-      return callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
-    }
-    case 'bom.generate':
-      return generateBomApi(params);
-    case 'bom.validate': {
-      const comps = ((await schematicComponentInspection.listComponents()) as { items: any[] })
-        .items;
-      return { totalParts: comps.length, missing: [], obsolete: [], alternates: [] };
-    }
-    case 'inventory.search':
-      return [];
-    case 'inventory.getPrice':
-      return null;
     default:
       throw newBridgeError(
         'METHOD_NOT_ALLOWED',
@@ -2119,6 +1957,22 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
       textAlignModeCache.set(primitiveId, alignMode),
     deleteCachedTextAlignMode: (primitiveId) => textAlignModeCache.delete(primitiveId),
   });
+  readOnlyOperations = createReadOnlyOperations({
+    callFirst,
+    schematicTransactionOperations,
+    schematicComponentInspection,
+    schematicInspection,
+    listNets: async () =>
+      (await listNetsApi()) as Array<{
+        netName: string;
+        nodes: Array<{ component: string; pin: string }>;
+      }>,
+    getNetDetail: getNetDetailApi,
+    getPinNoConnect: getPinNoConnectApi,
+    findFloatingPins: findFloatingPinsApi,
+    runSchematicCheck: () => designRuleCheckOperations.runSchematicCheck(),
+    logRecoverableError,
+  });
   systemApiOperations = createSystemApiOperations({
     toolkit,
     methodList: METHOD_LIST,
@@ -2132,6 +1986,7 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
   });
   domainRouter = createDispatcherDomainRouter({
     projectOperations,
+    readOnlyOperations,
     boardInspection,
     exportOperations,
     designRuleCheckOperations,
