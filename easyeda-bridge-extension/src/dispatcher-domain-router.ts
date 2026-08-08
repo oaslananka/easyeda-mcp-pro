@@ -6,9 +6,11 @@ import type { PcbMutationOperations } from './pcb-mutation-operations.js';
 import type { PcbReadOperations } from './pcb-read-operations.js';
 import type { PcbWriteOperations } from './pcb-write-operations.js';
 import type { ProjectOperations } from './project-operations.js';
+import type { SystemApiOperations } from './system-api-operations.js';
 
 export interface DispatcherDomainRouterDependencies {
   projectOperations: ProjectOperations;
+  systemApiOperations: SystemApiOperations;
   boardInspection: BoardInspectionOperations;
   exportOperations: ExportOperations;
   designRuleCheckOperations: DesignRuleCheckOperations;
@@ -47,6 +49,11 @@ export function createDispatcherDomainRouter(
   dependencies: DispatcherDomainRouterDependencies,
 ): DispatcherDomainRouter {
   const routes = [
+    { method: 'api.call', handle: (params) => dependencies.systemApiOperations.apiCall(params) },
+    {
+      method: 'api.execute',
+      handle: (params) => dependencies.systemApiOperations.apiExecute(params),
+    },
     {
       method: 'board.exportGerbers',
       handle: (params) => dependencies.exportOperations.exportGerbers(params),
@@ -132,6 +139,19 @@ export function createDispatcherDomainRouter(
     },
     { method: 'project.open', handle: (params) => dependencies.projectOperations.open(params) },
     { method: 'project.save', handle: (params) => dependencies.projectOperations.save(params) },
+    {
+      method: 'system.apiInventory',
+      handle: (params) => dependencies.systemApiOperations.apiInventory(params),
+    },
+    { method: 'system.getStatus', handle: () => dependencies.systemApiOperations.getStatus() },
+    {
+      method: 'system.inspectComponents',
+      handle: (params) => dependencies.systemApiOperations.inspectComponents(params),
+    },
+    {
+      method: 'system.inspectWires',
+      handle: (params) => dependencies.systemApiOperations.inspectWires(params),
+    },
   ] satisfies DomainRoute[];
   const methodList = Object.freeze(
     routes.map((route) => route.method).sort((left, right) => left.localeCompare(right)),

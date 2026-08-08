@@ -88,10 +88,32 @@ function createDependencies() {
       })),
       deletePrimitives: vi.fn(async () => ({ deleted: [], notFound: [] })),
     },
+    systemApiOperations: {
+      apiCall: vi.fn(async (params: Record<string, unknown>) => ({ method: 'api.call', params })),
+      apiExecute: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'api.execute',
+        params,
+      })),
+      apiInventory: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'system.apiInventory',
+        params,
+      })),
+      getStatus: vi.fn(async () => 'status'),
+      inspectComponents: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'system.inspectComponents',
+        params,
+      })),
+      inspectWires: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'system.inspectWires',
+        params,
+      })),
+    },
   };
 }
 
 const expectedMethods = [
+  'api.call',
+  'api.execute',
   'board.exportGerbers',
   'board.getDimensions',
   'board.getFeatures',
@@ -120,6 +142,10 @@ const expectedMethods = [
   'project.export',
   'project.open',
   'project.save',
+  'system.apiInventory',
+  'system.getStatus',
+  'system.inspectComponents',
+  'system.inspectWires',
 ];
 
 describe('createDispatcherDomainRouter', () => {
@@ -238,6 +264,31 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('pcb.modifyComponent', params)).resolves.toMatchObject({
       handled: true,
       value: { method: 'modify', params },
+    });
+
+    await expect(router.tryDispatch('api.call', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'api.call', params },
+    });
+    await expect(router.tryDispatch('api.execute', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'api.execute', params },
+    });
+    await expect(router.tryDispatch('system.apiInventory', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'system.apiInventory', params },
+    });
+    await expect(router.tryDispatch('system.getStatus', params)).resolves.toEqual({
+      handled: true,
+      value: 'status',
+    });
+    await expect(router.tryDispatch('system.inspectComponents', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'system.inspectComponents', params },
+    });
+    await expect(router.tryDispatch('system.inspectWires', params)).resolves.toEqual({
+      handled: true,
+      value: { method: 'system.inspectWires', params },
     });
   });
 
