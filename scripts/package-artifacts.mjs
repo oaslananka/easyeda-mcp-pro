@@ -203,6 +203,20 @@ export async function removeGeneratedPackageArtifacts({ root }) {
   );
 }
 
+export function extractPackedFilePaths(packResult) {
+  const packageEntries = Array.isArray(packResult)
+    ? packResult
+    : packResult && typeof packResult === 'object' && !Array.isArray(packResult)
+      ? Object.values(packResult)
+      : [];
+  if (packageEntries.length !== 1) return [];
+
+  const files = packageEntries[0]?.files;
+  if (!Array.isArray(files)) return [];
+  const paths = files.map((entry) => entry?.path);
+  return paths.every((path) => typeof path === 'string' && path.length > 0) ? paths : [];
+}
+
 export function verifyPackedFileList(files) {
   const normalized = new Set(
     files.map((path) => {
