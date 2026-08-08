@@ -1642,17 +1642,6 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.lineType ?? 0,
         params.fillStyle ?? 'none',
       );
-    case 'schematic.deletePrimitive':
-      return schematicTransactionOperations.deletePrimitives(params.primitiveIds);
-    case 'schematic.recreatePrimitiveSnapshot':
-      return schematicTransactionOperations.recreatePrimitiveSnapshot(params.snapshot);
-    case 'schematic.restorePrimitiveSnapshot':
-      return schematicTransactionOperations.restorePrimitiveSnapshot(params.snapshot);
-    case 'schematic.modifyPrimitive':
-      return schematicTransactionOperations.modifyPrimitive(
-        params.primitiveId as string,
-        (params.property as Record<string, unknown>) || {},
-      );
     case 'schematic.setPinNoConnect':
       return setPinNoConnectState(
         params.primitiveId as string,
@@ -1987,6 +1976,7 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
   domainRouter = createDispatcherDomainRouter({
     projectOperations,
     readOnlyOperations,
+    schematicTransactionOperations,
     boardInspection,
     exportOperations,
     designRuleCheckOperations,

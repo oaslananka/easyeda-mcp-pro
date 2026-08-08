@@ -7,11 +7,13 @@ import type { PcbReadOperations } from './pcb-read-operations.js';
 import type { PcbWriteOperations } from './pcb-write-operations.js';
 import type { ProjectOperations } from './project-operations.js';
 import type { ReadOnlyOperations } from './read-only-operations.js';
+import type { SchematicTransactionOperations } from './schematic-transaction-operations.js';
 import type { SystemApiOperations } from './system-api-operations.js';
 
 export interface DispatcherDomainRouterDependencies {
   projectOperations: ProjectOperations;
   readOnlyOperations: ReadOnlyOperations;
+  schematicTransactionOperations: SchematicTransactionOperations;
   systemApiOperations: SystemApiOperations;
   boardInspection: BoardInspectionOperations;
   exportOperations: ExportOperations;
@@ -156,6 +158,11 @@ export function createDispatcherDomainRouter(
       handle: (params) => dependencies.readOnlyOperations.getDeviceByLcscId(params),
     },
     {
+      method: 'schematic.deletePrimitive',
+      handle: (params) =>
+        dependencies.schematicTransactionOperations.deletePrimitives(params.primitiveIds),
+    },
+    {
       method: 'schematic.getNetDetail',
       handle: (params) => dependencies.readOnlyOperations.getNetDetail(params),
     },
@@ -185,8 +192,26 @@ export function createDispatcherDomainRouter(
       handle: () => dependencies.readOnlyOperations.listRectangles(),
     },
     {
+      method: 'schematic.modifyPrimitive',
+      handle: (params) =>
+        dependencies.schematicTransactionOperations.modifyPrimitive(
+          params.primitiveId as string,
+          (params.property as Record<string, unknown>) || {},
+        ),
+    },
+    {
       method: 'schematic.primitiveBounds',
       handle: (params) => dependencies.readOnlyOperations.primitiveBounds(params),
+    },
+    {
+      method: 'schematic.recreatePrimitiveSnapshot',
+      handle: (params) =>
+        dependencies.schematicTransactionOperations.recreatePrimitiveSnapshot(params.snapshot),
+    },
+    {
+      method: 'schematic.restorePrimitiveSnapshot',
+      handle: (params) =>
+        dependencies.schematicTransactionOperations.restorePrimitiveSnapshot(params.snapshot),
     },
     {
       method: 'schematic.searchDevice',
