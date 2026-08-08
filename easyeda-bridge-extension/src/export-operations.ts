@@ -1,9 +1,10 @@
-import type { ApiRuntime } from './api-runtime.js';
+import type { ApiRuntime, BridgeErrorFactory } from './api-runtime.js';
 import type { BinaryResultNormalizer } from './binary-result.js';
 
 export interface ExportOperationDependencies {
   callFirst: ApiRuntime['callFirst'];
   normalizeBinaryResult: BinaryResultNormalizer;
+  createBridgeError: BridgeErrorFactory;
 }
 
 export interface ExportOperations {
@@ -17,10 +18,24 @@ export interface ExportOperations {
 export function createExportOperations({
   callFirst,
   normalizeBinaryResult,
+  createBridgeError,
 }: ExportOperationDependencies): ExportOperations {
+  function requireProjectId(params: Record<string, unknown>, operation: string): string {
+    const projectId = typeof params.projectId === 'string' ? params.projectId.trim() : '';
+    if (!projectId) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        `${operation} requires a non-empty projectId string.`,
+        'Provide the current EasyEDA projectId before requesting the export.',
+      );
+    }
+    return projectId;
+  }
+
   async function exportGerbers(params: Record<string, unknown>): Promise<unknown> {
+    const projectId = requireProjectId(params, 'Gerber export');
     return normalizeBinaryResult(
-      await callFirst(['PCB_ManufactureData.getGerberFile'], params),
+      await callFirst(['PCB_ManufactureData.getGerberFile'], projectId),
       'gerbers.zip',
     );
   }
@@ -36,8 +51,9 @@ export function createExportOperations({
   }
 
   async function exportPickPlace(params: Record<string, unknown>): Promise<unknown> {
+    const projectId = requireProjectId(params, 'Pick-and-place export');
     return normalizeBinaryResult(
-      await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], params),
+      await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], projectId),
       `pick-place.${typeof params.format === 'string' ? params.format : 'csv'}`,
     );
   }

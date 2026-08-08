@@ -407,7 +407,7 @@ function registerExportTools(
       idempotentHint: true,
     },
     inputSchema: z.object({
-      projectId: z.string(),
+      projectId: z.string().trim().min(1),
       filePath: z.string().optional(),
       drillFormat: z.enum(['excellon', 'millimeter', 'inch']).optional(),
       excludeLayer: z.array(z.string()).optional(),
@@ -524,7 +524,7 @@ function registerExportTools(
       idempotentHint: true,
     },
     inputSchema: z.object({
-      projectId: z.string(),
+      projectId: z.string().trim().min(1),
       format: z.enum(['csv', 'txt']).default('csv'),
       filePath: z.string().optional(),
     }),

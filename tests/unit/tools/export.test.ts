@@ -44,6 +44,15 @@ describe('Export Tools', () => {
     fs.rmSync(tmpArtifactDir, { recursive: true, force: true });
   });
 
+  it('rejects blank project IDs for Gerber and pick-and-place exports at the public schema boundary', () => {
+    for (const name of ['easyeda_export_gerbers', 'easyeda_export_pick_place']) {
+      const tool = registry.get(name);
+      expect(tool).toBeDefined();
+      expect(tool!.inputSchema.safeParse({ projectId: '' }).success, name).toBe(false);
+      expect(tool!.inputSchema.safeParse({ projectId: '   ' }).success, name).toBe(false);
+    }
+  });
+
   it('classifies filesystem exports as artifact writes without design-mutation confirmation', () => {
     for (const name of [
       'easyeda_export_gerbers',
