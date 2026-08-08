@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { writeChecksumManifest } from '../../../easyeda-bridge-extension/scripts/checksums.mjs';
 import {
   PACKAGE_BUILD_MANIFEST_PATH,
+  extractPackedFilePaths,
   REQUIRED_PACKAGE_FILE_ENTRIES,
   removeGeneratedPackageArtifacts,
   verifyPackageArtifacts,
@@ -279,6 +280,27 @@ describe('package artifact policy', () => {
     ]) {
       await expect(readFile(join(fixture.root, path))).rejects.toThrow();
     }
+  });
+
+  it('extracts packed file paths from npm array and npm 12 keyed-object JSON shapes', () => {
+    const files = ['package.json', 'dist/index.js', 'README.md'];
+    const entries = files.map((path) => ({ path, size: 1, mode: 420 }));
+
+    expect(extractPackedFilePaths([{ files: entries }])).toEqual(files);
+    expect(
+      extractPackedFilePaths({
+        'easyeda-mcp-pro': { files: entries },
+      }),
+    ).toEqual(files);
+  });
+
+  it('fails closed for malformed or ambiguous npm pack JSON shapes', () => {
+    const entry = { files: [{ path: 'package.json' }] };
+
+    expect(extractPackedFilePaths(undefined)).toEqual([]);
+    expect(extractPackedFilePaths({})).toEqual([]);
+    expect(extractPackedFilePaths({ first: entry, second: entry })).toEqual([]);
+    expect(extractPackedFilePaths([{ files: [{ size: 1 }] }])).toEqual([]);
   });
 
   it('requires every runtime and legal artifact in the npm pack file list', () => {

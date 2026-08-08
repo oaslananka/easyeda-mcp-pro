@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verifyPackedFileList } from './package-artifacts.mjs';
+import { extractPackedFilePaths, verifyPackedFileList } from './package-artifacts.mjs';
 
 function nodeGlobalModulePath(packageName, ...segments) {
   const binDirectory = dirname(process.execPath);
@@ -40,9 +40,7 @@ try {
   process.exit(1);
 }
 
-const files = Array.isArray(packResult?.[0]?.files)
-  ? packResult[0].files.map((entry) => entry.path)
-  : [];
+const files = extractPackedFilePaths(packResult);
 const verification = verifyPackedFileList(files);
 if (!verification.ok) {
   console.error(`[package:check-pack-list] FAILED — ${verification.errors.length} error(s)`);
