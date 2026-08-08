@@ -88,6 +88,27 @@ function createDependencies() {
       })),
       deletePrimitives: vi.fn(async () => ({ deleted: [], notFound: [] })),
     },
+    schematicTransactionOperations: {
+      deletePrimitives: vi.fn(async (primitiveIds: unknown) => ({
+        method: 'schematic.deletePrimitive',
+        primitiveIds,
+      })),
+      recreatePrimitiveSnapshot: vi.fn(async (snapshot: unknown) => ({
+        method: 'schematic.recreatePrimitiveSnapshot',
+        snapshot,
+      })),
+      restorePrimitiveSnapshot: vi.fn(async (snapshot: unknown) => ({
+        method: 'schematic.restorePrimitiveSnapshot',
+        snapshot,
+      })),
+      modifyPrimitive: vi.fn(async (primitiveId: string, property: Record<string, unknown>) => ({
+        method: 'schematic.modifyPrimitive',
+        primitiveId,
+        property,
+      })),
+      getPrimitiveSnapshot: vi.fn(),
+      listPrimitiveIds: vi.fn(),
+    },
     readOnlyOperations: {
       listNets: vi.fn(async () => ({ method: 'schematic.listNets' })),
       getNetDetail: vi.fn(async (params: Record<string, unknown>) => ({
@@ -192,6 +213,7 @@ const expectedMethods = [
   'project.export',
   'project.open',
   'project.save',
+  'schematic.deletePrimitive',
   'schematic.getNetDetail',
   'schematic.getPinNoConnect',
   'schematic.getPrimitiveSnapshot',
@@ -200,7 +222,10 @@ const expectedMethods = [
   'schematic.listNets',
   'schematic.listPrimitiveIds',
   'schematic.listRectangles',
+  'schematic.modifyPrimitive',
   'schematic.primitiveBounds',
+  'schematic.recreatePrimitiveSnapshot',
+  'schematic.restorePrimitiveSnapshot',
   'schematic.searchDevice',
   'schematic.validateNetlist',
   'system.apiInventory',
@@ -350,6 +375,32 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('system.inspectWires', params)).resolves.toEqual({
       handled: true,
       value: { method: 'system.inspectWires', params },
+    });
+
+    await expect(
+      router.tryDispatch('schematic.deletePrimitive', { primitiveIds: ['wire-1'] }),
+    ).resolves.toEqual({
+      handled: true,
+      value: { method: 'schematic.deletePrimitive', primitiveIds: ['wire-1'] },
+    });
+    const snapshot = { schemaVersion: 'schematic-primitive-snapshot/v1' };
+    await expect(
+      router.tryDispatch('schematic.recreatePrimitiveSnapshot', { snapshot }),
+    ).resolves.toEqual({
+      handled: true,
+      value: { method: 'schematic.recreatePrimitiveSnapshot', snapshot },
+    });
+    await expect(
+      router.tryDispatch('schematic.restorePrimitiveSnapshot', { snapshot }),
+    ).resolves.toEqual({
+      handled: true,
+      value: { method: 'schematic.restorePrimitiveSnapshot', snapshot },
+    });
+    await expect(
+      router.tryDispatch('schematic.modifyPrimitive', { primitiveId: 'text-1' }),
+    ).resolves.toEqual({
+      handled: true,
+      value: { method: 'schematic.modifyPrimitive', primitiveId: 'text-1', property: {} },
     });
 
     const readOnlyMethods = [
