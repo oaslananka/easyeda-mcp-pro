@@ -21,7 +21,7 @@
     "scripts/check-dependency-audit.mjs": [17],
     "scripts/check-runtime-pins.mjs": [26],
     "scripts/e2e/diag.mjs": [18],
-    "scripts/e2e/http.mjs": [86],
+    "scripts/e2e/http.mjs": [75],
     "scripts/e2e/live.mjs": [150],
     "scripts/generate-easyeda-compatibility.mjs": [16],
     "scripts/generate-tools-doc.ts": [19],
