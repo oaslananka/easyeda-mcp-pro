@@ -61,6 +61,27 @@ describe('createPcbMutationOperations', () => {
     expect(callFirst).not.toHaveBeenCalled();
   });
 
+  it('rejects malformed values for every verified component transform field class', async () => {
+    const { callFirst, operations } = createOperations();
+
+    await expect(
+      operations.modifyComponent({ primitiveId: 'component-1', property: [] }),
+    ).rejects.toThrow('PCB component transform property must be an object');
+    await expect(
+      operations.modifyComponent({
+        primitiveId: 'component-1',
+        property: { primitiveLock: 'false' },
+      }),
+    ).rejects.toThrow('PCB component primitiveLock must be a boolean');
+    await expect(
+      operations.modifyComponent({ primitiveId: 'component-1', property: { x: Number.NaN } }),
+    ).rejects.toThrow('PCB component x must be a finite number');
+    await expect(
+      operations.modifyComponent({ primitiveId: 'component-1', property: {} }),
+    ).rejects.toThrow('PCB component transform must change at least one supported field');
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
   it('normalizes complete and partial deletion results without throwing', async () => {
     const { deletePrimitives, operations } = createOperations();
 
