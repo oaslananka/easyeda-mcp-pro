@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.0-rc.2] - 2026-08-09
+
+### Release candidate
+
+- Replaces RC.1 after candidate-sensitive security, packaging, export, and safety corrections landed on `main`; its seven-day v1 soak starts only after RC.2 publication verification.
+- Fails closed for the previously unverified PCB copper-zone creation path instead of issuing an incomplete native call.
+- Includes the dependency and production-image remediation, including the patched transitive `nanoid` resolution and production-only dependency enforcement.
+- Preserves primary CI failure causes by validating coverage reports before dependent Codecov uploads.
+- Validates PCB export identifiers before native Gerber and pick-and-place calls, backed by disposable EasyEDA Pro 3.2.149 live export evidence.
+- Supports the npm 12 object-shaped `npm pack --json` result while preserving deterministic package verification.
+- Uses EasyEDA numeric install version `0.99.2` while preserving `1.0.0-rc.2` as the server and extension runtime product version.
+- Keeps copper-zone restoration, PCB side-aware feature work, and MCP 2026-07-28 compatibility outside the RC.2 stabilization scope.
+
 ## [1.0.0-rc.1] - 2026-07-29
 
 ### Release candidate
