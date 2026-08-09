@@ -6,6 +6,7 @@ import {
   type TransactionOperation,
   type TransactionOperationKind,
   type TransactionRecord,
+  type TransactionTarget,
   type TransactionSnapshotHashMode,
   type TransactionValidationGate,
   type TransactionalCreateHooks,
@@ -183,6 +184,7 @@ export class TransactionManager {
     targetId: string,
     hashMode: TransactionSnapshotHashMode,
     beforeSnapshot?: unknown,
+    targetType: TransactionTarget['type'] = 'schematic-primitive',
   ): TransactionOperation {
     this.assertActive(transaction);
     if (transaction.operations.length >= transaction.maxOperations) {
@@ -198,7 +200,7 @@ export class TransactionManager {
       sequence: transaction.operations.length + 1,
       kind,
       state: 'pending',
-      target: { type: 'schematic-primitive', id: targetId },
+      target: { type: targetType, id: targetId },
       beforeSnapshot: beforeSnapshot === undefined ? undefined : structuredClone(beforeSnapshot),
       beforeHash:
         beforeSnapshot === undefined
@@ -253,6 +255,7 @@ export class TransactionManager {
     transactionId: string,
     targetId: string,
     hooks: TransactionalModifyHooks<TResult>,
+    targetType: TransactionTarget['type'] = 'schematic-primitive',
   ): Promise<TransactionalModifyResult<TResult>> {
     const transaction = this.mutable(transactionId);
     this.assertActive(transaction);
@@ -263,6 +266,7 @@ export class TransactionManager {
       targetId,
       'exact',
       beforeSnapshot,
+      targetType,
     );
 
     try {

@@ -35,7 +35,7 @@ describe('createPcbMutationOperations', () => {
 
   it('modifies components with the existing primitive id and property order', async () => {
     const { callFirst, operations } = createOperations();
-    const property = { X: 12, Y: 34, Rotation: 90 };
+    const property = { x: 12, y: 34, rotation: 90, layer: 2, primitiveLock: false };
 
     await operations.modifyComponent({ primitiveId: 'component-1', property });
 
@@ -44,6 +44,21 @@ describe('createPcbMutationOperations', () => {
       'component-1',
       property,
     );
+  });
+
+  it('rejects component fields outside the verified transform allowlist', async () => {
+    const { callFirst, operations } = createOperations();
+
+    await expect(
+      operations.modifyComponent({
+        primitiveId: 'component-1',
+        property: { x: 12, manufacturer: 'not-a-transform-field' },
+      }),
+    ).rejects.toThrow('Unsupported PCB component transform field: manufacturer');
+    await expect(
+      operations.modifyComponent({ primitiveId: 'component-1', property: { layer: 12 } }),
+    ).rejects.toThrow('PCB component layer must be 1 (top) or 2 (bottom)');
+    expect(callFirst).not.toHaveBeenCalled();
   });
 
   it('normalizes complete and partial deletion results without throwing', async () => {

@@ -15,7 +15,7 @@ export type TransactionOperationKind = 'create' | 'modify' | 'delete';
 export type TransactionSnapshotHashMode = 'exact' | 'ignore-primitive-id' | 'absence';
 
 export interface TransactionTarget {
-  type: 'schematic-primitive';
+  type: 'schematic-primitive' | 'pcb-primitive';
   id: string;
 }
 
