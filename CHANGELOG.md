@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0-rc.3] - 2026-08-10
+## [1.0.0-rc.3] - 2026-08-11
 
 ### Release candidate
 

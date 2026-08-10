@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-08-11T00:06:22+03:00",
+  "candidateCommit": "191499110fc92d3cd666c7726e2b23eaecefe880",
+  "compatibilitySensitiveBaseCommit": "191499110fc92d3cd666c7726e2b23eaecefe880",
+  "server": {
+    "packageVersion": "1.0.0-rc.3",
+    "packageTarballSha256": "67d01933ab67b6c7068eeb390301d9e14e89518a2216901c4cff61bd2fa3ac0d",
+    "packageTarballSizeBytes": 919875,
+    "packedFileCount": 597,
+    "nodeVersion": "24.18.0",
+    "profile": "full",
+    "transport": "http"
+  },
+  "extension": {
+    "packageVersion": "0.99.3",
+    "productRuntimeVersion": "1.0.0-rc.3",
+    "packageSha256": "48d90ac9750f42f7e78bd50b5682f43bddcb4acef9fedbde8b476059765b42ed",
+    "packageSizeBytes": 173122,
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "d9e01181ceed32d8",
+    "capabilityCount": 69,
+    "dispatcherBuildId": "d9d1fx9e21xf5aa",
+    "dispatcherSha256": "282c2fa30619c7d06a763df1b75d15030e1096c1a9c25dccda25d908315cf138",
+    "dispatcherByteLength": 184940,
+    "loaderByteLength": 248835,
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true,
+    "autoUpdateEnabled": false
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-28-generic"
+  },
+  "fixture": {
+    "project": "Example Quick Start disposable local profile",
+    "schematic": "Schematic / P1",
+    "document": "Schematic and PCB",
+    "disposable": true,
+    "mode": "Half Offline"
+  },
+  "readOnlySmoke": {
+    "status": "passed",
+    "schematic": {
+      "sheetName": "P1",
+      "metadataSource": "current_page",
+      "erc": {
+        "passed": true,
+        "errors": 0,
+        "warnings": 1,
+        "inferredFloatingPins": 0,
+        "detailSource": "native_aggregate_only"
+      }
+    },
+    "board": {
+      "widthMm": 80,
+      "heightMm": 60,
+      "areaMm2": 4800,
+      "hasOutline": true,
+      "vias": 0,
+      "tracks": 98,
+      "zones": 1,
+      "fills": 4,
+      "regions": 0,
+      "pads": 83,
+      "components": 33
+    }
+  },
+  "focusedDocumentContract": {
+    "status": "passed",
+    "automaticDocumentSwitching": false,
+    "schematicFocused": {
+      "erc": {
+        "passed": true,
+        "errors": 0,
+        "warnings": 1
+      },
+      "drc": {
+        "passed": null,
+        "notAvailable": true,
+        "error": "Focus a PCB document, then retry design.drc."
+      }
+    },
+    "pcbFocused": {
+      "drc": {
+        "passed": false,
+        "errors": 1,
+        "warnings": 0,
+        "fixtureRule": "Import Changes"
+      },
+      "erc": {
+        "passed": null,
+        "notAvailable": true,
+        "error": "Focus a schematic document, then retry design.erc."
+      }
+    },
+    "summaryPreservedAvailableSide": true
+  },
+  "fillRegionInspection": {
+    "status": "passed",
+    "readOnly": true,
+    "zones": 1,
+    "fills": 4,
+    "regions": 0,
+    "fillPolygonContourCounts": [1, 1, 1, 1],
+    "fillPolygonPointCounts": [32, 32, 32, 32],
+    "fillPolygonTruncated": [false, false, false, false],
+    "mutationCapabilityAdded": false
+  },
+  "visualCapture": {
+    "status": "passed",
+    "payloadBudgetBytes": 629145,
+    "normal": {
+      "byteLength": 93594,
+      "originalImageDimensions": {
+        "width": 737,
+        "height": 433
+      },
+      "imageDimensions": {
+        "width": 737,
+        "height": 433
+      },
+      "downsampled": false,
+      "imageBase64Chars": 124792
+    },
+    "oversized": {
+      "requestedRegion": {
+        "left": -50,
+        "right": 3200,
+        "top": 50,
+        "bottom": -2400
+      },
+      "emulatedViewport": {
+        "width": 3200,
+        "height": 1900,
+        "devicePixelRatio": 2
+      },
+      "byteLength": 588053,
+      "originalImageDimensions": {
+        "width": 5314,
+        "height": 3226
+      },
+      "imageDimensions": {
+        "width": 1585,
+        "height": 962
+      },
+      "downsampled": true,
+      "imageBase64Chars": 784072
+    },
+    "restoredViewport": {
+      "width": 1280,
+      "height": 720,
+      "devicePixelRatio": 1
+    }
+  },
+  "compatibilitySnapshot": {
+    "algorithm": "git-tree-sha1",
+    "paths": {
+      "easyeda-bridge-extension/src": "10a271ddb8a50b1f56d1697c004f8aff02eb1cdd",
+      "src/bridge": "5702cb9fc7bbe1f15018e9344191788cf6a00d86",
+      "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+      "src/server/transports": "3783cb8d1d0af548e6c6eaeab303fa2ab9247390",
+      "src/tools": "8c740f4d37b1dd85e19667b63afff4c41fa74578",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "cleanup": {
+    "designMutationsPerformed": false,
+    "recordedRunServerStorageIsolated": true,
+    "normalEasyedaProfileWritesObserved": false,
+    "disposableProcessesStopped": true,
+    "remoteDebuggingPort9231Clear": true,
+    "bridgePort49620Clear": true,
+    "httpPort3010Clear": true,
+    "disposableProfileRemoved": true
+  },
+  "redaction": {
+    "localPathsOmitted": true,
+    "projectIdentifiersGeneralized": true,
+    "primitiveIdentifiersOmitted": true,
+    "credentialsOmitted": true,
+    "rawApiInventoryOmitted": true
+  }
+}

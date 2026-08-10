@@ -1,8 +1,109 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-10",
+  "lastReviewed": "2026-08-11",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-11-v1-rc3-candidate",
+      "status": "live-validated",
+      "validatedAt": "2026-08-11T00:06:22+03:00",
+      "reviewBy": "2026-11-09",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-28-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.0.0-rc.3",
+        "releaseContainingFixes": "1.0.0-rc.3",
+        "commit": "191499110fc92d3cd666c7726e2b23eaecefe880",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "10a271ddb8a50b1f56d1697c004f8aff02eb1cdd",
+            "src/bridge": "5702cb9fc7bbe1f15018e9344191788cf6a00d86",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "3783cb8d1d0af548e6c6eaeab303fa2ab9247390",
+            "src/tools": "8c740f4d37b1dd85e19667b63afff4c41fa74578",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "0.99.3",
+        "loaderReportedVersion": "1.0.0-rc.3",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "d9e01181ceed32d8",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "Example Quick Start disposable local profile",
+        "schematic": "Schematic / P1",
+        "document": "Schematic and PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-rc3-packaged-bridge-cold-start",
+          "name": "Packaged RC.3 bridge cold start",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact RC.3 candidate installed as EasyEDA package 0.99.3, cold-started with product runtime 1.0.0-rc.3, connected over the local bridge with 69 capabilities, matched method registry hash d9e01181ceed32d8, and reported no server/extension or registry mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-11-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.3-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc3-focused-drc-erc",
+          "name": "Focused-document DRC/ERC contract",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "With the schematic focused, native ERC returned its real result while DRC remained explicitly unavailable and requested PCB focus; with the PCB focused, native DRC returned the fixture netlist-mismatch result while ERC remained explicitly unavailable and requested schematic focus. No automatic document switching occurred.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-11-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.3-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc3-fill-region-read-only",
+          "name": "Typed PCB Fill and Region read-only inspection",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The disposable 80 x 60 mm Quick Start PCB reported 98 tracks, 1 Pour zone, 4 Fill primitives, 0 Region primitives, 83 pads, and 33 components. All four Fills returned bounded non-truncated typed polygons with 32 points, while zones remained counted separately and no Fill/Region mutation capability was added.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-11-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.3-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc3-bounded-visual-capture",
+          "name": "Bounded canvas capture payloads",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "A normal 737 x 433 PCB capture remained unchanged at 93,594 bytes. A real EasyEDA full-board capture under a 3200 x 1900 DPR2 test viewport downsampled from 5314 x 3226 to 1585 x 962 and 588,053 bytes, below the 629,145-byte raw payload budget; the viewport was then restored to 1280 x 720 DPR1.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-11-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.3-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.3 live EasyEDA desktop record.",
+        "The RC.3 desktop pass was intentionally read-only. It validates the post-RC.2 focused DRC/ERC, Fill/Region inspection, and bounded visual-capture changes without repeating transactional design mutation/rollback.",
+        "Remote Relay was not dogfooded through a public hosted endpoint during this exact-candidate desktop pass; its repository integration and isolation gates remain separate release checks.",
+        "EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.3 while the validated server and extension runtime report 1.0.0-rc.3.",
+        "The recorded npm tarball is a local validation pack from the exact candidate. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time gates."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-10-v1-rc2-final",
       "status": "live-validated",
