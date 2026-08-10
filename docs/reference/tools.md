@@ -774,8 +774,9 @@ Returns a JSON object matching the schema:
   total_violations: number;
   error_count: number;
   warning_count: number;
-  passed: boolean;
+  passed: boolean | null;
   not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -805,10 +806,11 @@ Returns a JSON object matching the schema:
   total_violations: number;
   error_count: number;
   warning_count: number;
-  passed: boolean;
+  passed: boolean | null;
   inferred_floating_pins: object[] (optional);
   detail_source: 'inferred_partial' | 'native_aggregate_only' (optional);
   not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -2222,8 +2224,9 @@ Returns a JSON object matching the schema:
   project_id: string;
   drc: object;
   erc: object;
-  overall_passed: boolean;
+  overall_passed: boolean | null;
   not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 

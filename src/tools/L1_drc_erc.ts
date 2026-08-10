@@ -134,8 +134,9 @@ function registerDrcErcTools(
       total_violations: z.number().int().nonnegative(),
       error_count: z.number().int().nonnegative(),
       warning_count: z.number().int().nonnegative(),
-      passed: z.boolean(),
+      passed: z.boolean().nullable(),
       not_available: z.boolean().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId, rules } = params as { projectId: string; rules?: string[] };
@@ -192,7 +193,7 @@ function registerDrcErcTools(
           total_violations: 0,
           error_count: 0,
           warning_count: 0,
-          passed: false,
+          passed: null,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
         };
@@ -241,7 +242,7 @@ function registerDrcErcTools(
       total_violations: z.number().int().nonnegative(),
       error_count: z.number().int().nonnegative(),
       warning_count: z.number().int().nonnegative(),
-      passed: z.boolean(),
+      passed: z.boolean().nullable(),
       inferred_floating_pins: z
         .array(
           z.object({
@@ -253,6 +254,7 @@ function registerDrcErcTools(
         .optional(),
       detail_source: z.enum(['inferred_partial', 'native_aggregate_only']).optional(),
       not_available: z.boolean().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId, checks } = params as { projectId: string; checks?: string[] };
@@ -308,7 +310,7 @@ function registerDrcErcTools(
           total_violations: 0,
           error_count: 0,
           warning_count: 0,
-          passed: false,
+          passed: null,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
         };
@@ -934,64 +936,69 @@ function registerDrcErcTools(
         total: z.number().int().nonnegative(),
         errors: z.number().int().nonnegative(),
         warnings: z.number().int().nonnegative(),
-        passed: z.boolean(),
+        passed: z.boolean().nullable(),
+        not_available: z.boolean().optional(),
+        error: z.string().optional(),
       }),
       erc: z.object({
         total: z.number().int().nonnegative(),
         errors: z.number().int().nonnegative(),
         warnings: z.number().int().nonnegative(),
-        passed: z.boolean(),
+        passed: z.boolean().nullable(),
+        not_available: z.boolean().optional(),
+        error: z.string().optional(),
       }),
-      overall_passed: z.boolean(),
+      overall_passed: z.boolean().nullable(),
       not_available: z.boolean().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = params as { projectId: string };
-      try {
-        const [drcResult, ercResult] = await Promise.all([
-          ctx.bridge.call('design.drc', { projectId }),
-          ctx.bridge.call('design.erc', { projectId }),
-        ]);
-        const drc = drcResult as {
+      const [drcResult, ercResult] = await Promise.allSettled([
+        ctx.bridge.call('design.drc', { projectId }),
+        ctx.bridge.call('design.erc', { projectId }),
+      ]);
+
+      const normalize = (result: PromiseSettledResult<unknown>) => {
+        if (result.status === 'rejected') {
+          return {
+            total: 0,
+            errors: 0,
+            warnings: 0,
+            passed: null,
+            not_available: true as const,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          };
+        }
+        const data = result.value as {
           totalViolations?: number;
           errorCount?: number;
           warningCount?: number;
         };
-        const erc = ercResult as {
-          totalViolations?: number;
-          errorCount?: number;
-          warningCount?: number;
-        };
-        const drcErrors = drc.errorCount ?? 0;
-        const drcWarnings = drc.warningCount ?? 0;
-        const ercErrors = erc.errorCount ?? 0;
-        const ercWarnings = erc.warningCount ?? 0;
+        const errors = data.errorCount ?? 0;
+        const warnings = data.warningCount ?? 0;
         return {
-          project_id: projectId,
-          drc: {
-            total: drc.totalViolations ?? drcErrors + drcWarnings,
-            errors: drcErrors,
-            warnings: drcWarnings,
-            passed: drcErrors === 0,
-          },
-          erc: {
-            total: erc.totalViolations ?? ercErrors + ercWarnings,
-            errors: ercErrors,
-            warnings: ercWarnings,
-            passed: ercErrors === 0,
-          },
-          overall_passed: drcErrors === 0 && ercErrors === 0,
+          total: data.totalViolations ?? errors + warnings,
+          errors,
+          warnings,
+          passed: errors === 0,
         };
-      } catch (err) {
-        return {
-          project_id: projectId,
-          drc: { total: 0, errors: 0, warnings: 0, passed: false },
-          erc: { total: 0, errors: 0, warnings: 0, passed: false },
-          overall_passed: false,
-          not_available: true,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
+      };
+
+      const drc = normalize(drcResult);
+      const erc = normalize(ercResult);
+      const bothUnavailable = drc.passed === null && erc.passed === null;
+      const errors = [drc.error, erc.error].filter((value): value is string => Boolean(value));
+
+      return {
+        project_id: projectId,
+        drc,
+        erc,
+        overall_passed:
+          drc.passed === null || erc.passed === null ? null : drc.passed && erc.passed,
+        not_available: bothUnavailable ? true : undefined,
+        error: bothUnavailable ? [...new Set(errors)].join('; ') : undefined,
+      };
     },
   });
 }

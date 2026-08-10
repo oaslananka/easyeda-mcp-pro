@@ -638,7 +638,7 @@ describe('DRC/ERC Tools', () => {
     expect(result?.total_violations).toBe(0);
     expect(result?.error_count).toBe(0);
     expect(result?.warning_count).toBe(0);
-    expect(result?.passed).toBe(false);
+    expect(result?.passed).toBeNull();
     expect(result?.error).toBe('Bridge timeout');
   });
 
@@ -656,8 +656,61 @@ describe('DRC/ERC Tools', () => {
     expect(result?.total_violations).toBe(0);
     expect(result?.error_count).toBe(0);
     expect(result?.warning_count).toBe(0);
-    expect(result?.passed).toBe(false);
+    expect(result?.passed).toBeNull();
     expect(result?.error).toBe('Bridge timeout');
+  });
+
+  it('easyeda_rule_check_summary preserves ERC when DRC is unavailable', async () => {
+    const tool = registry.get('easyeda_rule_check_summary');
+
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'design.drc') throw new Error('PCB DRC unavailable');
+      if (method === 'design.erc') {
+        return { totalViolations: 1, errorCount: 0, warningCount: 1 };
+      }
+      return null;
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-partial' });
+
+    expect(result?.not_available).toBeUndefined();
+    expect(result?.drc).toMatchObject({
+      total: 0,
+      errors: 0,
+      warnings: 0,
+      passed: null,
+      not_available: true,
+      error: 'PCB DRC unavailable',
+    });
+    expect(result?.erc).toMatchObject({ total: 1, errors: 0, warnings: 1, passed: true });
+    expect(result?.erc.not_available).toBeUndefined();
+    expect(result?.overall_passed).toBeNull();
+  });
+
+  it('easyeda_rule_check_summary preserves DRC when ERC is unavailable', async () => {
+    const tool = registry.get('easyeda_rule_check_summary');
+
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'design.drc') {
+        return { totalViolations: 2, errorCount: 1, warningCount: 1 };
+      }
+      if (method === 'design.erc') throw new Error('Schematic ERC unavailable');
+      return null;
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-partial' });
+
+    expect(result?.not_available).toBeUndefined();
+    expect(result?.drc).toMatchObject({ total: 2, errors: 1, warnings: 1, passed: false });
+    expect(result?.erc).toMatchObject({
+      total: 0,
+      errors: 0,
+      warnings: 0,
+      passed: null,
+      not_available: true,
+      error: 'Schematic ERC unavailable',
+    });
+    expect(result?.overall_passed).toBeNull();
   });
 
   it('easyeda_rule_check_summary handles bridge failure gracefully', async () => {
@@ -670,9 +723,21 @@ describe('DRC/ERC Tools', () => {
 
     expect(result?.not_available).toBe(true);
     expect(result?.project_id).toBe('proj-123');
-    expect(result?.drc).toMatchObject({ total: 0, errors: 0, warnings: 0, passed: false });
-    expect(result?.erc).toMatchObject({ total: 0, errors: 0, warnings: 0, passed: false });
-    expect(result?.overall_passed).toBe(false);
+    expect(result?.drc).toMatchObject({
+      total: 0,
+      errors: 0,
+      warnings: 0,
+      passed: null,
+      not_available: true,
+    });
+    expect(result?.erc).toMatchObject({
+      total: 0,
+      errors: 0,
+      warnings: 0,
+      passed: null,
+      not_available: true,
+    });
+    expect(result?.overall_passed).toBeNull();
     expect(result?.error).toBe('Bridge timeout');
   });
 });
