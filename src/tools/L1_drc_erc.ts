@@ -94,10 +94,9 @@ function registerDrcErcTools(
     name: 'easyeda_drc_run',
     title: 'Run design rule check',
     description:
-      'Run the native design rule check (DRC): same as clicking "Check DRC" in EasyEDA Pro, so ' +
-      "the bottom DRC panel opens/refreshes in the user's window as a visible side effect. " +
-      'Returns coarse per-severity counts only — which specific wire/net/component is affected ' +
-      "is shown only in EasyEDA Pro's own DRC panel.",
+      "Run EasyEDA Pro's native PCB DRC and refresh its visible DRC panel. Requires a PCB document " +
+      'to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. ' +
+      'Returns coarse severity counts; per-violation detail stays in EasyEDA Pro.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -205,9 +204,9 @@ function registerDrcErcTools(
     name: 'easyeda_erc_run',
     title: 'Run electrical rule check',
     description:
-      'Run native ERC and supplement its coarse counts with inferred_floating_pins. Only a strict ' +
-      'native noConnected=true readback suppresses a pin; unavailable or malformed state remains ' +
-      'visible. Native counts remain authoritative for other categories.',
+      "Run EasyEDA Pro's native schematic ERC and supplement coarse counts with inferred_floating_pins. " +
+      'Requires a schematic document to be focused; otherwise returns an indeterminate not_available result ' +
+      'with an actionable focus error. Native counts remain authoritative.',
     profile: 'core',
     evidence: ['official-docs', 'runtime-probe'],
     risk: 'medium',

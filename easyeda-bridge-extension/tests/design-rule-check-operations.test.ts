@@ -231,10 +231,23 @@ describe('design rule-check operations', () => {
 
     await expect(operations.runDrc()).rejects.toMatchObject({
       code: 'CONTEXT_UNAVAILABLE',
-      message: 'PCB DRC is unavailable in the current editor context.',
-      suggestion: 'Open and focus a PCB document, then retry design.drc.',
+      message: 'Focus a PCB document, then retry design.drc.',
+      suggestion: 'Focus a PCB document, then retry design.drc.',
       data: { cause: 'no PCB canvas' },
     });
+  });
+
+  it('translates an inactive schematic context for design.erc', async () => {
+    const { operations, callFirst, findFloatingPins } = createSubject();
+    callFirst.mockRejectedValue(new Error('no schematic canvas'));
+
+    await expect(operations.runErc()).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: 'Focus a schematic document, then retry design.erc.',
+      suggestion: 'Focus a schematic document, then retry design.erc.',
+      data: { cause: 'no schematic canvas' },
+    });
+    expect(findFloatingPins).not.toHaveBeenCalled();
   });
 
   it('falls back from PCB to schematic for design.ruleCheck', async () => {

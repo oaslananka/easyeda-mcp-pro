@@ -660,6 +660,44 @@ describe('DRC/ERC Tools', () => {
     expect(result?.error).toBe('Bridge timeout');
   });
 
+  it('easyeda_drc_run exposes the focused-PCB precondition as an actionable indeterminate result', async () => {
+    const tool = registry.get('easyeda_drc_run');
+    bridgeCall.mockRejectedValue(
+      Object.assign(new Error('Focus a PCB document, then retry design.drc.'), {
+        code: 'CONTEXT_UNAVAILABLE',
+        suggestion: 'Focus a PCB document, then retry design.drc.',
+      }),
+    );
+
+    const result = await tool?.handler(context, { projectId: 'proj-focus' });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-focus',
+      passed: null,
+      not_available: true,
+      error: 'Focus a PCB document, then retry design.drc.',
+    });
+  });
+
+  it('easyeda_erc_run exposes the focused-schematic precondition as an actionable indeterminate result', async () => {
+    const tool = registry.get('easyeda_erc_run');
+    bridgeCall.mockRejectedValue(
+      Object.assign(new Error('Focus a schematic document, then retry design.erc.'), {
+        code: 'CONTEXT_UNAVAILABLE',
+        suggestion: 'Focus a schematic document, then retry design.erc.',
+      }),
+    );
+
+    const result = await tool?.handler(context, { projectId: 'proj-focus' });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-focus',
+      passed: null,
+      not_available: true,
+      error: 'Focus a schematic document, then retry design.erc.',
+    });
+  });
+
   it('easyeda_rule_check_summary preserves ERC when DRC is unavailable', async () => {
     const tool = registry.get('easyeda_rule_check_summary');
 

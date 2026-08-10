@@ -27,8 +27,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_catalog_verify_device`                    | `pro`   | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.                             |
 | `easyeda_component_probe`                          | `dev`   | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                                             |
 | `easyeda_design_rules_lookup`                      | `core`  | `low`    | Look up generic engineering reference guidance: IPC-2221 trace-width/current-capacity, clearance bands, protocol routing data (USB/RS-485/I2C/SPI/UART/Ethernet), decoupling recipes and bulk capacitance sizing, and a static DFM checklist. Every result cites a source and caveat: these are estimates, not certified values. |
-| `easyeda_drc_run`                                  | `core`  | `medium` | Run the native design rule check (DRC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes in the user's window as a visible side effect. Returns coarse per-severity counts only — which specific wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.                |
-| `easyeda_erc_run`                                  | `core`  | `medium` | Run native ERC and supplement its coarse counts with inferred_floating_pins. Only a strict native noConnected=true readback suppresses a pin; unavailable or malformed state remains visible. Native counts remain authoritative for other categories.                                                                           |
+| `easyeda_drc_run`                                  | `core`  | `medium` | Run EasyEDA Pro's native PCB DRC and refresh its visible DRC panel. Requires a PCB document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Returns coarse severity counts; per-violation detail stays in EasyEDA Pro.                                                    |
+| `easyeda_erc_run`                                  | `core`  | `medium` | Run EasyEDA Pro's native schematic ERC and supplement coarse counts with inferred_floating_pins. Requires a schematic document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Native counts remain authoritative.                                                        |
 | `easyeda_export_gerbers`                           | `core`  | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                           |
 | `easyeda_export_netlist`                           | `pro`   | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                          |
 | `easyeda_export_pdf`                               | `pro`   | `low`    | Export the schematic and/or board layout to PDF.                                                                                                                                                                                                                                                                                 |
@@ -766,7 +766,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Run the native design rule check (DRC): same as clicking "Check DRC" in EasyEDA Pro, so the bottom DRC panel opens/refreshes in the user's window as a visible side effect. Returns coarse per-severity counts only — which specific wire/net/component is affected is shown only in EasyEDA Pro's own DRC panel.
+> Run EasyEDA Pro's native PCB DRC and refresh its visible DRC panel. Requires a PCB document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Returns coarse severity counts; per-violation detail stays in EasyEDA Pro.
 
 ### Input Parameters
 
@@ -798,7 +798,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Run native ERC and supplement its coarse counts with inferred_floating_pins. Only a strict native noConnected=true readback suppresses a pin; unavailable or malformed state remains visible. Native counts remain authoritative for other categories.
+> Run EasyEDA Pro's native schematic ERC and supplement coarse counts with inferred_floating_pins. Requires a schematic document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Native counts remain authoritative.
 
 ### Input Parameters
 
