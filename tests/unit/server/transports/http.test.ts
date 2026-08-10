@@ -12,7 +12,7 @@ import {
 import type { Request, Response, NextFunction } from 'express';
 import * as http from 'node:http';
 import { generateKeyPair, exportJWK, SignJWT } from 'jose';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 
 /** Create mock Express req/res/next for middleware unit tests. */
 function mockReqRes(overrides: Partial<Request> = {}): {

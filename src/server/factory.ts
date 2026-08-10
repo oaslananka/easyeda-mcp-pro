@@ -1,6 +1,6 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
+import { McpServer } from '@modelcontextprotocol/server';
 import { type EnvConfig } from '../config/env.js';
 import { type ToolProfile } from '../config/profiles.js';
 import { SERVER_VERSION } from '../config/version.js';
@@ -32,7 +32,7 @@ export interface CreateServerOptions {
 export interface McpServerInstance {
   server: McpServer;
   registry: ToolRegistry;
-  transport: StdioServerTransport | StreamableHTTPServerTransport;
+  transport: StdioServerTransport | NodeStreamableHTTPServerTransport;
   httpTransport?: HttpTransportInstance;
   context: ToolContext;
   storage?: Storage;
