@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0-rc.3] - 2026-08-11
+
+### Release candidate
+
+- Supersedes RC.2 because verified behavioral/runtime corrections landed after the RC.2 candidate; the required seven-day v1 soak restarts only after RC.3 publication verification.
+- Preserves DRC/ERC unavailability as indeterminate and reports the focused-document precondition explicitly for native PCB DRC and schematic ERC without switching the user’s active document.
+- Exposes native PCB Fill and Region primitives through typed read-only inspection while keeping Pour zones separate and adding no Fill/Region mutation capability.
+- Bounds canvas capture payloads with deterministic proportional downsampling so oversized PNG results stay below the client-result budget without cropping, while small captures remain unchanged.
+- Includes the nullable-inspection regression guards and the repository Mergify merge-protection integration that passed the protected quality/security gates.
+- Uses EasyEDA numeric install version `0.99.3` while preserving `1.0.0-rc.3` as the server and extension runtime product version.
+- Keeps copper-zone restoration, PCB side-aware view-orientation research, and MCP 2026-07-28 compatibility outside the RC.3 stabilization scope.
+
 ## [1.0.0-rc.2] - 2026-08-09
 
 ### Release candidate

@@ -14,11 +14,11 @@ function createTestConfig(overrides: Record<string, unknown> = {}) {
   });
 }
 
-async function getFreePort(): Promise<number> {
+async function getFreePort(host = '127.0.0.1'): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(0, host, () => {
       const address = server.address();
       if (!address || typeof address === 'string') {
         server.close(() => reject(new Error('Unable to allocate a local test port')));
@@ -834,7 +834,7 @@ function openBufferedSocket(
 
 describe('BridgeManager - pairing (non-loopback host)', () => {
   it('requires pairing before handshake and accepts a valid pairing response', async () => {
-    const port = await getFreePort();
+    const port = await getFreePort('0.0.0.0');
     const config = createTestConfig({
       BRIDGE_HOST: '0.0.0.0',
       BRIDGE_PORT_SCAN: String(port),
@@ -864,7 +864,7 @@ describe('BridgeManager - pairing (non-loopback host)', () => {
   });
 
   it('closes the connection on an invalid pairing response', async () => {
-    const port = await getFreePort();
+    const port = await getFreePort('0.0.0.0');
     const config = createTestConfig({
       BRIDGE_HOST: '0.0.0.0',
       BRIDGE_PORT_SCAN: String(port),
@@ -890,7 +890,7 @@ describe('BridgeManager - pairing (non-loopback host)', () => {
   });
 
   it('rejects any message before pairing completes', async () => {
-    const port = await getFreePort();
+    const port = await getFreePort('0.0.0.0');
     const config = createTestConfig({
       BRIDGE_HOST: '0.0.0.0',
       BRIDGE_PORT_SCAN: String(port),

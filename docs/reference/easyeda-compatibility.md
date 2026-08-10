@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-08-10
+- **Last reviewed:** 2026-08-11
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,10 +32,56 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.3           | 1.0.0-rc.3           | 0.99.3            | Live validated  | 2026-08-11 | 2026-11-09 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-10 | 2026-11-08 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-11-v1-rc3-candidate`
+
+### Runtime identity
+
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.4 LTS                         |
+| Kernel                               | `7.0.0-28-generic`                         |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.18.0`                                  |
+| Validation package version           | `1.0.0-rc.3`                               |
+| Release containing validated fixes   | `1.0.0-rc.3`                               |
+| Compatibility-sensitive base commit  | `191499110fc92d3cd666c7726e2b23eaecefe880` |
+| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
+| Installed extension package metadata | `0.99.3`                                   |
+| Loader-reported version              | `1.0.0-rc.3`                               |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `d9e01181ceed32d8`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
+
+The installed extension package reported `0.99.3`, while the loader reported `1.0.0-rc.3`; the distinction is retained as part of the exact runtime evidence.
+
+### Capability evidence
+
+| Capability                                     | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                              | Evidence                                                                                                                                                                                                                                  |
+| ---------------------------------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Packaged RC.3 bridge cold start                | `live` | `passed` | The exact RC.3 candidate installed as EasyEDA package 0.99.3, cold-started with product runtime 1.0.0-rc.3, connected over the local bridge with 69 capabilities, matched method registry hash d9e01181ceed32d8, and reported no server/extension or registry mismatch.                                                             | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-11-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.3-read-only.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| Focused-document DRC/ERC contract              | `live` | `passed` | With the schematic focused, native ERC returned its real result while DRC remained explicitly unavailable and requested PCB focus; with the PCB focused, native DRC returned the fixture netlist-mismatch result while ERC remained explicitly unavailable and requested schematic focus. No automatic document switching occurred. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-11-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.3-read-only.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| Typed PCB Fill and Region read-only inspection | `live` | `passed` | The disposable 80 x 60 mm Quick Start PCB reported 98 tracks, 1 Pour zone, 4 Fill primitives, 0 Region primitives, 83 pads, and 33 components. All four Fills returned bounded non-truncated typed polygons with 32 points, while zones remained counted separately and no Fill/Region mutation capability was added.               | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-11-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.3-read-only.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| Bounded canvas capture payloads                | `live` | `passed` | A normal 737 x 433 PCB capture remained unchanged at 93,594 bytes. A real EasyEDA full-board capture under a 3200 x 1900 DPR2 test viewport downsampled from 5314 x 3226 to 1585 x 962 and 588,053 bytes, below the 629,145-byte raw payload budget; the viewport was then restored to 1280 x 720 DPR1.                             | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-11-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.3-read-only.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+
+### Known limitations
+
+- This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.3 live EasyEDA desktop record.
+- The RC.3 desktop pass was intentionally read-only. It validates the post-RC.2 focused DRC/ERC, Fill/Region inspection, and bounded visual-capture changes without repeating transactional design mutation/rollback.
+- Remote Relay was not dogfooded through a public hosted endpoint during this exact-candidate desktop pass; its repository integration and isolation gates remain separate release checks.
+- EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.3 while the validated server and extension runtime report 1.0.0-rc.3.
+- The recorded npm tarball is a local validation pack from the exact candidate. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time gates.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 
