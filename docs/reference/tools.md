@@ -10,7 +10,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_api_call`                                 | `full`  | `high`   | Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. This is not raw JavaScript execution.                                                                                                                                                                                        |
 | `easyeda_api_inventory`                            | `core`  | `low`    | Inspect the live EasyEDA extension runtime and list available documented API classes, runtime paths, and methods.                                                                                                                                                                                                                |
 | `easyeda_board_dimensions`                         | `core`  | `low`    | Get the PCB board outline dimensions, shape, and mounting hole information.                                                                                                                                                                                                                                                      |
-| `easyeda_board_features`                           | `core`  | `low`    | Get counts of board features including vias, tracks, copper zones, and pads.                                                                                                                                                                                                                                                     |
+| `easyeda_board_features`                           | `core`  | `low`    | Get counts of board features. zones counts copper Pour boundaries only; native Fill and Region primitives are reported separately as fills and regions.                                                                                                                                                                          |
 | `easyeda_board_layers`                             | `core`  | `low`    | List all layers in the PCB design including signal, power, plane, and mechanical layers.                                                                                                                                                                                                                                         |
 | `easyeda_board_stackup`                            | `core`  | `low`    | Get the PCB layer stackup including thickness, material, and dielectric constants.                                                                                                                                                                                                                                               |
 | `easyeda_bom_export`                               | `core`  | `low`    | Export the bill of materials to a file on disk in the specified format.                                                                                                                                                                                                                                                          |
@@ -53,11 +53,13 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_constraint_report`                    | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                                                  |
 | `easyeda_pcb_delete_component`                     | `full`  | `high`   | Delete components, tracks, vias, or other PCB primitives by ID. Checks each id against every deletable PCB class instead of assuming component, since PCB_PrimitiveComponent.delete() reports success for ids it does not own without deleting them.                                                                             |
 | `easyeda_pcb_export_route_context`                 | `pro`   | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                                  |
+| `easyeda_pcb_fills`                                | `core`  | `low`    | List native PCB Fill primitives separately from copper pours/zones, including net/layer, fill mode, line width, lock state, and a bounded normalized polygon representation. Netless fills are returned explicitly with netless=true. Read-only; no Fill mutation is exposed.                                                    |
 | `easyeda_pcb_floorplan`                            | `full`  | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
 | `easyeda_pcb_modify_component`                     | `full`  | `high`   | Preview or apply a PCB component transform for top/bottom side, native X/Y coordinates in mils, and rotation in degrees. Apply requires confirmation, captures a transaction snapshot, verifies fresh native read-back, and restores on mismatch. EasyEDA Pro has no independent component mirror field.                         |
 | `easyeda_pcb_place_component`                      | `full`  | `high`   | Direct PCB component creation is unavailable because the verified EasyEDA runtime does not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in the schematic, sync to PCB, confirm the native dialog, then reposition it with easyeda_pcb_modify_component.                                      |
 | `easyeda_pcb_place_component_group`                | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
 | `easyeda_pcb_production_review`                    | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                   |
+| `easyeda_pcb_regions`                              | `core`  | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                                |
 | `easyeda_pcb_route_path_plan`                      | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                         |
 | `easyeda_pcb_tracks`                               | `core`  | `low`    | List copper track segments on the active PCB layout: primitiveId, net, layer, start/end coordinates, width. A multi-point track drawn by add_track appears as several consecutive segments sharing one net. Returns an empty list (not an error) if no PCB tab is focused.                                                       |
 | `easyeda_pcb_vias`                                 | `core`  | `low`    | List vias on the active PCB layout: primitiveId, net, position, hole/outer diameter (native unit, same scale as x/y — not independently verified against a known physical dimension). Requires a focused PCB tab — returns an empty list (not an error) if none is active.                                                       |
@@ -219,7 +221,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Get counts of board features including vias, tracks, copper zones, and pads.
+> Get counts of board features. zones counts copper Pour boundaries only; native Fill and Region primitives are reported separately as fills and regions.
 
 ### Input Parameters
 
@@ -237,6 +239,8 @@ Returns a JSON object matching the schema:
   vias: number;
   tracks: number;
   zones: number;
+  fills: number;
+  regions: number;
   pads: number;
   components: number(optional);
   not_available: boolean(optional);
@@ -1585,6 +1589,36 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_pcb_fills`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> List native PCB Fill primitives separately from copper pours/zones, including net/layer, fill mode, line width, lock state, and a bounded normalized polygon representation. Netless fills are returned explicitly with netless=true. Read-only; no Fill mutation is exposed.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `limit`     | `number` | Yes      |             |
+| `offset`    | `number` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  fills: object[];
+  total: number;
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
 ## `easyeda_pcb_floorplan`
 
 **Profile:** `full` | **Risk Level:** `high`
@@ -1787,6 +1821,36 @@ Returns a JSON object matching the schema:
   warnings: object[];
   summary: object;
   not_available: boolean (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_regions`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `limit`     | `number` | Yes      |             |
+| `offset`    | `number` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  regions: object[];
+  total: number;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 

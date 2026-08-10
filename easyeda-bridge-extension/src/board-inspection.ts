@@ -305,6 +305,16 @@ async function addOutlinePrimitiveBounds(
   }
 }
 
+async function countPrimitiveCollection(pcbClass: any, description: string): Promise<number> {
+  if (!pcbClass || typeof pcbClass.getAll !== 'function') return 0;
+  try {
+    return (await pcbClass.getAll())?.length || 0;
+  } catch (error) {
+    logRecoverableError(`failed to count ${description}`, error);
+    return 0;
+  }
+}
+
 async function countMountingHoles(pcbPadClass: any): Promise<number> {
   if (!pcbPadClass || typeof pcbPadClass.getAll !== 'function') return 0;
   try {
@@ -461,6 +471,8 @@ export function createBoardInspectionOperations({
     const pcbTrackClass = readPath<any>(globalObj, 'pcb_PrimitiveLine');
     const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
     const pcbPourClass = readPath<any>(globalObj, 'pcb_PrimitivePour');
+    const pcbFillClass = readPath<any>(globalObj, 'pcb_PrimitiveFill');
+    const pcbRegionClass = readPath<any>(globalObj, 'pcb_PrimitiveRegion');
     const pcbCompClass = readPath<any>(globalObj, 'pcb_PrimitiveComponent');
 
     let viasCount = 0;
@@ -501,6 +513,9 @@ export function createBoardInspectionOperations({
       logRecoverableError('failed to count zones', error);
     }
 
+    const fillsCount = await countPrimitiveCollection(pcbFillClass, 'fills');
+    const regionsCount = await countPrimitiveCollection(pcbRegionClass, 'regions');
+
     try {
       if (pcbCompClass && typeof pcbCompClass.getAll === 'function') {
         compsCount = (await pcbCompClass.getAll())?.length || 0;
@@ -513,6 +528,8 @@ export function createBoardInspectionOperations({
       vias: viasCount,
       tracks: tracksCount,
       zones: zonesCount,
+      fills: fillsCount,
+      regions: regionsCount,
       pads: padsCount,
       components: compsCount,
     };

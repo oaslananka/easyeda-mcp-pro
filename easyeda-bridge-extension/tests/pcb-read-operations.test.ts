@@ -227,13 +227,350 @@ describe('PCB read operations', () => {
     });
   });
 
-  it('returns an empty list when a native read class is unavailable', async () => {
+  it('maps Fill state, preserves netless fills, and normalizes complex polygon contours', async () => {
+    const complexPolygon = {
+      toPolygon: () => [
+        {
+          discretize: () => [
+            { x: 0, y: 0 },
+            { x: 20, y: 0 },
+            { x: 20, y: 10 },
+          ],
+        },
+        {
+          discretize: () => [
+            { x: 5, y: 2 },
+            { x: 7, y: 2 },
+            { x: 7, y: 4 },
+          ],
+        },
+      ],
+    };
+    const fill = {
+      getState_PrimitiveId: () => 'fill-1',
+      getState_Layer: () => 1,
+      getState_Net: () => '',
+      getState_FillMode: () => 0,
+      getState_LineWidth: () => 1,
+      getState_PrimitiveLock: () => false,
+      getState_ComplexPolygon: () => complexPolygon,
+    };
+    const { operations } = makeOperations({ PCB_PrimitiveFill: { getAll: async () => [fill] } });
+
+    await expect(operations.listFills()).resolves.toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'fill-1',
+          layer: 1,
+          net: '',
+          netless: true,
+          fillMode: 0,
+          lineWidth: 1,
+          locked: false,
+          polygon: {
+            contours: [
+              {
+                points: [
+                  { x: 0, y: 0 },
+                  { x: 20, y: 0 },
+                  { x: 20, y: 10 },
+                ],
+                pointCount: 3,
+                truncated: false,
+                bounds: { minX: 0, minY: 0, maxX: 20, maxY: 10 },
+              },
+              {
+                points: [
+                  { x: 5, y: 2 },
+                  { x: 7, y: 2 },
+                  { x: 7, y: 4 },
+                ],
+                pointCount: 3,
+                truncated: false,
+                bounds: { minX: 5, minY: 2, maxX: 7, maxY: 4 },
+              },
+            ],
+            contourCount: 2,
+            pointCount: 6,
+            truncated: false,
+            bounds: { minX: 0, minY: 0, maxX: 20, maxY: 10 },
+          },
+        },
+      ],
+    });
+  });
+
+  it('normalizes the live EasyEDA 3.2.149 ComplexPolygon shape that exposes discretize directly', async () => {
+    const complexPolygon = {
+      discretize: () => [
+        { x: 10, y: 20 },
+        { x: 40, y: 20 },
+        { x: 40, y: 60 },
+        { x: 10, y: 60 },
+      ],
+      getSource: () => ['R', 10, 20, 30, 40, 0, 0],
+    };
+    const fill = {
+      getState_PrimitiveId: () => 'fill-live-shape',
+      getState_Net: () => '',
+      getState_ComplexPolygon: () => complexPolygon,
+    };
+    const { operations } = makeOperations({ PCB_PrimitiveFill: { getAll: async () => [fill] } });
+
+    const result = (await operations.listFills()) as { items: Array<Record<string, any>> };
+
+    expect(result.items[0].polygon).toEqual({
+      contours: [
+        {
+          points: [
+            { x: 10, y: 20 },
+            { x: 40, y: 20 },
+            { x: 40, y: 60 },
+            { x: 10, y: 60 },
+          ],
+          pointCount: 4,
+          truncated: false,
+          bounds: { minX: 10, minY: 20, maxX: 40, maxY: 60 },
+        },
+      ],
+      contourCount: 1,
+      pointCount: 4,
+      truncated: false,
+      bounds: { minX: 10, minY: 20, maxX: 40, maxY: 60 },
+    });
+  });
+
+  it('falls back to PCB_MathPolygon when the live wrapper discretize method yields no points', async () => {
+    const source = ['CIRCLE', 90, -95, 61.0236];
+    const directDiscretize = vi.fn(() => []);
+    const staticDiscretize = vi.fn((polygon: unknown) =>
+      polygon === source
+        ? [
+            { x: 29, y: -95 },
+            { x: 90, y: -34 },
+            { x: 151, y: -95 },
+            { x: 90, y: -156 },
+          ]
+        : [],
+    );
+    const complexPolygon = {
+      discretize: directDiscretize,
+      getSource: () => source,
+    };
+    const { operations } = makeOperations({
+      PCB_MathPolygon: { discretize: staticDiscretize },
+      PCB_PrimitiveFill: {
+        getAll: async () => [
+          {
+            getState_PrimitiveId: () => 'fill-live-circle',
+            getState_ComplexPolygon: () => complexPolygon,
+          },
+        ],
+      },
+    });
+
+    const result = (await operations.listFills()) as { items: Array<Record<string, any>> };
+
+    expect(directDiscretize).toHaveBeenCalledOnce();
+    expect(staticDiscretize).toHaveBeenCalledWith(source);
+    expect(result.items[0].polygon).toMatchObject({
+      contourCount: 1,
+      pointCount: 4,
+      bounds: { minX: 29, minY: -156, maxX: 151, maxY: -34 },
+    });
+  });
+
+  it('normalizes documented CIRCLE and axis-aligned R sources when EasyEDA discretizers are not implemented', async () => {
+    const circleSource = ['CIRCLE', 90, -95, 61.0236];
+    const rectangleSource = ['R', 10, 20, 30, 40, 0, 0];
+    const notImplemented = vi.fn(() => {
+      throw new Error('Not implemented');
+    });
+    const { operations } = makeOperations({
+      PCB_MathPolygon: { discretize: notImplemented },
+      PCB_PrimitiveFill: {
+        getAll: async () => [
+          {
+            getState_PrimitiveId: () => 'fill-circle-fallback',
+            getState_ComplexPolygon: () => ({
+              discretize: notImplemented,
+              getSource: () => circleSource,
+            }),
+          },
+        ],
+      },
+      PCB_PrimitiveRegion: {
+        getAll: async () => [
+          {
+            getState_PrimitiveId: () => 'region-rect-fallback',
+            getState_ComplexPolygon: () => ({
+              discretize: notImplemented,
+              getSource: () => rectangleSource,
+            }),
+          },
+        ],
+      },
+    });
+
+    const fills = (await operations.listFills()) as { items: Array<Record<string, any>> };
+    const regions = (await operations.listRegions()) as { items: Array<Record<string, any>> };
+
+    expect(fills.items[0].polygon).toMatchObject({ contourCount: 1, pointCount: 32 });
+    expect(fills.items[0].polygon.bounds.minX).toBeCloseTo(28.9764, 4);
+    expect(fills.items[0].polygon.bounds.maxX).toBeCloseTo(151.0236, 4);
+    expect(fills.items[0].polygon.bounds.minY).toBeCloseTo(-156.0236, 4);
+    expect(fills.items[0].polygon.bounds.maxY).toBeCloseTo(-33.9764, 4);
+    expect(regions.items[0].polygon).toMatchObject({
+      contourCount: 1,
+      pointCount: 4,
+      bounds: { minX: 10, minY: 20, maxX: 40, maxY: 60 },
+    });
+  });
+
+  it('maps Region rule metadata and bounds polygon output to 500 points without hiding truncation', async () => {
+    const points = Array.from({ length: 501 }, (_, index) => ({ x: index, y: index * 2 }));
+    const region = {
+      getState_PrimitiveId: () => 'region-1',
+      getState_Layer: () => 12,
+      getState_RuleType: () => [5, 7],
+      getState_RegionName: () => 'route keepout',
+      getState_LineWidth: () => 2,
+      getState_PrimitiveLock: () => true,
+      getState_ComplexPolygon: () => ({
+        toPolygon: () => [{ discretize: () => points }],
+      }),
+    };
+    const { operations } = makeOperations({
+      pcb_PrimitiveRegion: { getAll: async () => [region] },
+    });
+
+    const result = (await operations.listRegions()) as {
+      total: number;
+      items: Array<Record<string, any>>;
+    };
+    expect(result.total).toBe(1);
+    expect(result.items[0]).toMatchObject({
+      primitiveId: 'region-1',
+      layer: 12,
+      ruleTypes: [5, 7],
+      regionName: 'route keepout',
+      lineWidth: 2,
+      locked: true,
+      polygon: {
+        contourCount: 1,
+        pointCount: 501,
+        truncated: true,
+        bounds: { minX: 0, minY: 0, maxX: 500, maxY: 1000 },
+      },
+    });
+    expect(result.items[0].polygon.contours).toHaveLength(1);
+    expect(result.items[0].polygon.contours[0].points).toHaveLength(500);
+    expect(result.items[0].polygon.contours[0]).toMatchObject({
+      pointCount: 501,
+      truncated: true,
+      bounds: { minX: 0, minY: 0, maxX: 500, maxY: 1000 },
+    });
+  });
+
+  it('normalizes Fill/Region geometry through PCB_MathPolygon when only complex polygon source is exposed', async () => {
+    const staticDiscretize = vi.fn((source: unknown) => {
+      if (Array.isArray(source) && source[0] === 'R') {
+        return [
+          { x: 10, y: 20 },
+          { x: 40, y: 20 },
+          { x: 40, y: 60 },
+          { x: 10, y: 60 },
+        ];
+      }
+      return [];
+    });
+    const geometry = { getSource: () => ['R', 10, 20, 30, 40, 0, 0] };
+    const { operations } = makeOperations({
+      PCB_MathPolygon: { discretize: staticDiscretize },
+      PCB_PrimitiveFill: {
+        getAll: async () => [
+          { getState_PrimitiveId: () => 'fill-source', getState_ComplexPolygon: () => geometry },
+        ],
+      },
+      PCB_PrimitiveRegion: {
+        getAll: async () => [
+          { getState_PrimitiveId: () => 'region-source', getState_ComplexPolygon: () => geometry },
+        ],
+      },
+    });
+
+    const fills = (await operations.listFills()) as { items: Array<Record<string, any>> };
+    const regions = (await operations.listRegions()) as { items: Array<Record<string, any>> };
+    expect(staticDiscretize).toHaveBeenCalled();
+    expect(fills.items[0].polygon.bounds).toEqual({ minX: 10, minY: 20, maxX: 40, maxY: 60 });
+    expect(regions.items[0].polygon.bounds).toEqual({ minX: 10, minY: 20, maxX: 40, maxY: 60 });
+  });
+
+  it('normalizes direct polygon source arrays exposed by the live Fill/Region state API', async () => {
+    const source = ['R', 10, 20, 30, 40, 0, 0];
+    const staticDiscretize = vi.fn((polygon: unknown) => {
+      if (polygon === source) {
+        return [
+          { x: 10, y: 20 },
+          { x: 40, y: 20 },
+          { x: 40, y: 60 },
+          { x: 10, y: 60 },
+        ];
+      }
+      return [];
+    });
+    const { operations } = makeOperations({
+      PCB_MathPolygon: { discretize: staticDiscretize },
+      PCB_PrimitiveFill: {
+        getAll: async () => [
+          { getState_PrimitiveId: () => 'fill-live-source', getState_ComplexPolygon: () => source },
+        ],
+      },
+      PCB_PrimitiveRegion: {
+        getAll: async () => [
+          {
+            getState_PrimitiveId: () => 'region-live-source',
+            getState_ComplexPolygon: () => source,
+          },
+        ],
+      },
+    });
+
+    const fills = (await operations.listFills()) as { items: Array<Record<string, any>> };
+    const regions = (await operations.listRegions()) as { items: Array<Record<string, any>> };
+    expect(staticDiscretize).toHaveBeenCalledWith(source);
+    expect(fills.items[0].polygon).toMatchObject({
+      contourCount: 1,
+      pointCount: 4,
+      bounds: { minX: 10, minY: 20, maxX: 40, maxY: 60 },
+    });
+    expect(regions.items[0].polygon).toMatchObject({
+      contourCount: 1,
+      pointCount: 4,
+      bounds: { minX: 10, minY: 20, maxX: 40, maxY: 60 },
+    });
+  });
+
+  it('returns an empty list for legacy PCB readers when a native read class is unavailable', async () => {
     const { operations, requireActivePcbContext } = makeOperations();
 
     await expect(operations.listComponents()).resolves.toEqual({ total: 0, items: [] });
     await expect(operations.listTracks()).resolves.toEqual({ total: 0, items: [] });
     await expect(operations.listVias()).resolves.toEqual({ total: 0, items: [] });
     expect(requireActivePcbContext).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails cleanly when Fill/Region native APIs are unavailable', async () => {
+    const { operations, requireActivePcbContext } = makeOperations();
+
+    await expect(operations.listFills()).rejects.toThrow(
+      'PCB_PrimitiveFill.getAll is unavailable in this EasyEDA Pro runtime',
+    );
+    await expect(operations.listRegions()).rejects.toThrow(
+      'PCB_PrimitiveRegion.getAll is unavailable in this EasyEDA Pro runtime',
+    );
+    expect(requireActivePcbContext).toHaveBeenCalledTimes(2);
   });
 });
 

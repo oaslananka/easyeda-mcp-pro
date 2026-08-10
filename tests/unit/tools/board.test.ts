@@ -197,6 +197,8 @@ describe('Board Tools', () => {
       vias: 42,
       tracks: 156,
       zones: 8,
+      fills: 3,
+      regions: 2,
       pads: 320,
       components: 45,
     });
@@ -209,6 +211,8 @@ describe('Board Tools', () => {
     expect(result?.vias).toBe(42);
     expect(result?.tracks).toBe(156);
     expect(result?.zones).toBe(8);
+    expect(result?.fills).toBe(3);
+    expect(result?.regions).toBe(2);
     expect(result?.pads).toBe(320);
     expect(result?.components).toBe(45);
   });
@@ -270,6 +274,8 @@ describe('Board Tools', () => {
     expect(result?.vias).toBe(0);
     expect(result?.tracks).toBe(0);
     expect(result?.zones).toBe(0);
+    expect(result?.fills).toBe(0);
+    expect(result?.regions).toBe(0);
     expect(result?.pads).toBe(0);
     expect(result?.error).toBe('Bridge disconnected');
   });

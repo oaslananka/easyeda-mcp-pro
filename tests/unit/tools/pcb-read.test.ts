@@ -123,6 +123,92 @@ describe('PCB Read Tools', () => {
     });
   });
 
+  it('easyeda_pcb_fills returns typed netless fill geometry from the bridge', async () => {
+    const tool = registry.get('easyeda_pcb_fills');
+    expect(tool).toBeDefined();
+    expect(tool?.confirmWrite).toBe(false);
+
+    const fill = {
+      primitiveId: 'fill-1',
+      layer: 1,
+      net: '',
+      netless: true,
+      fillMode: 0,
+      lineWidth: 1,
+      locked: false,
+      polygon: {
+        contours: [
+          {
+            points: [
+              { x: 0, y: 0 },
+              { x: 20, y: 0 },
+              { x: 20, y: 10 },
+            ],
+            pointCount: 3,
+            truncated: false,
+            bounds: { minX: 0, minY: 0, maxX: 20, maxY: 10 },
+          },
+        ],
+        contourCount: 1,
+        pointCount: 3,
+        truncated: false,
+        bounds: { minX: 0, minY: 0, maxX: 20, maxY: 10 },
+      },
+    };
+    bridgeCall.mockResolvedValue({ total: 1, items: [fill] });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', limit: 25, offset: 2 });
+
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listFills', { limit: 25, offset: 2 });
+    expect(result).toEqual({ project_id: 'proj-123', fills: [fill], total: 1 });
+  });
+
+  it('easyeda_pcb_regions returns typed rule metadata and bounded geometry from the bridge', async () => {
+    const tool = registry.get('easyeda_pcb_regions');
+    expect(tool).toBeDefined();
+    expect(tool?.confirmWrite).toBe(false);
+
+    const region = {
+      primitiveId: 'region-1',
+      layer: 12,
+      ruleTypes: [5, 7],
+      regionName: 'route keepout',
+      lineWidth: 1,
+      locked: true,
+      polygon: {
+        contours: [],
+        contourCount: 501,
+        pointCount: 501,
+        truncated: true,
+        bounds: { minX: 0, minY: 0, maxX: 500, maxY: 500 },
+      },
+    };
+    bridgeCall.mockResolvedValue({ total: 1, items: [region] });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', limit: 10, offset: 0 });
+
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listRegions', { limit: 10, offset: 0 });
+    expect(result).toEqual({ project_id: 'proj-123', regions: [region], total: 1 });
+  });
+
+  it.each([
+    ['easyeda_pcb_fills', 'fills', 'pcb.listFills'],
+    ['easyeda_pcb_regions', 'regions', 'pcb.listRegions'],
+  ] as const)('%s reports not_available on bridge error', async (toolName, listKey) => {
+    const tool = registry.get(toolName);
+    bridgeCall.mockRejectedValue(new Error('Bridge not connected'));
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', limit: 100, offset: 0 });
+
+    expect(result).toEqual({
+      project_id: 'proj-123',
+      [listKey]: [],
+      total: 0,
+      not_available: true,
+      error: 'Bridge not connected',
+    });
+  });
+
   it('easyeda_pcb_vias reports not_available on bridge error instead of throwing', async () => {
     const tool = registry.get('easyeda_pcb_vias');
     bridgeCall.mockRejectedValue(new Error('Bridge not connected'));

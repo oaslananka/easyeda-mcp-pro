@@ -118,6 +118,22 @@ export function createDispatcherDomainRouter(
         ),
     },
     {
+      method: 'pcb.listFills',
+      handle: (params) =>
+        dependencies.pcbReadOperations.listFills(
+          optionalNumber(params.limit),
+          offsetNumber(params.offset),
+        ),
+    },
+    {
+      method: 'pcb.listRegions',
+      handle: (params) =>
+        dependencies.pcbReadOperations.listRegions(
+          optionalNumber(params.limit),
+          offsetNumber(params.offset),
+        ),
+    },
+    {
       method: 'pcb.listTracks',
       handle: (params) =>
         dependencies.pcbReadOperations.listTracks(

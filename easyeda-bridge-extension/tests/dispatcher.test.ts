@@ -1379,6 +1379,8 @@ describe('createDispatcher', () => {
         pcb_PrimitivePad: { getAll: padGetAll },
         pcb_PrimitiveVia: { getAll: async () => [1] },
         pcb_PrimitivePour: { getAll: async () => [1, 2, 3, 4] },
+        pcb_PrimitiveFill: { getAll: async () => [1, 2] },
+        pcb_PrimitiveRegion: { getAll: async () => [1, 2, 3] },
         pcb_PrimitiveComponent: { getAll: async () => [1, 2, 3, 4, 5] },
       }),
     );
@@ -1395,6 +1397,8 @@ describe('createDispatcher', () => {
       vias: 1,
       tracks: 3,
       zones: 4,
+      fills: 2,
+      regions: 3,
       pads: 2,
       components: 5,
     });
@@ -1406,13 +1410,25 @@ describe('createDispatcher', () => {
       makeToolkit({
         DMT_Pcb: { getCurrentPcbInfo: async () => null },
         PCB_PrimitiveComponent: { getAll },
+        PCB_PrimitiveFill: { getAll },
+        PCB_PrimitiveRegion: { getAll },
+        PCB_PrimitiveLine: { getAll },
+        PCB_PrimitiveVia: { getAll },
       }),
     );
 
-    await expect(dispatcher.dispatch('pcb.listComponents', {})).rejects.toMatchObject({
-      code: 'CONTEXT_UNAVAILABLE',
-      message: 'No active PCB document is focused.',
-    });
+    for (const method of [
+      'pcb.listComponents',
+      'pcb.listFills',
+      'pcb.listRegions',
+      'pcb.listTracks',
+      'pcb.listVias',
+    ]) {
+      await expect(dispatcher.dispatch(method, {})).rejects.toMatchObject({
+        code: 'CONTEXT_UNAVAILABLE',
+        message: 'No active PCB document is focused.',
+      });
+    }
     expect(getAll).not.toHaveBeenCalled();
   });
 
@@ -2033,20 +2049,24 @@ describe('createDispatcher', () => {
     });
   });
 
-  it('pcb.listVias/listTracks/listComponents return an empty list when the class is unavailable (no PCB tab focused)', async () => {
+  it('legacy PCB read methods return an empty list when their native class is unavailable', async () => {
     const dispatcher = createDispatcher(makeToolkit({}));
-    await expect(dispatcher.dispatch('pcb.listVias', {})).resolves.toEqual({
-      total: 0,
-      items: [],
-    });
-    await expect(dispatcher.dispatch('pcb.listTracks', {})).resolves.toEqual({
-      total: 0,
-      items: [],
-    });
-    await expect(dispatcher.dispatch('pcb.listComponents', {})).resolves.toEqual({
-      total: 0,
-      items: [],
-    });
+    for (const method of ['pcb.listVias', 'pcb.listTracks', 'pcb.listComponents']) {
+      await expect(dispatcher.dispatch(method, {})).resolves.toEqual({
+        total: 0,
+        items: [],
+      });
+    }
+  });
+
+  it('Fill/Region read methods fail cleanly when their native APIs are unavailable', async () => {
+    const dispatcher = createDispatcher(makeToolkit({}));
+    await expect(dispatcher.dispatch('pcb.listFills', {})).rejects.toThrow(
+      'PCB_PrimitiveFill.getAll is unavailable in this EasyEDA Pro runtime',
+    );
+    await expect(dispatcher.dispatch('pcb.listRegions', {})).rejects.toThrow(
+      'PCB_PrimitiveRegion.getAll is unavailable in this EasyEDA Pro runtime',
+    );
   });
 
   // Live-verified (2026-07-07): PCB_PrimitiveComponent.delete() returns true

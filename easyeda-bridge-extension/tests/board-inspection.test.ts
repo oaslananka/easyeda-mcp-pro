@@ -599,6 +599,8 @@ describe('board inspection operations', () => {
         pcb_PrimitiveLine: { getAll: async () => [1, 2, 3] },
         pcb_PrimitivePad: { getAll: async () => [1, 2, 3, 4] },
         pcb_PrimitivePour: { getAll: async () => [1] },
+        pcb_PrimitiveFill: { getAll: async () => [1, 2, 3] },
+        pcb_PrimitiveRegion: { getAll: async () => [1, 2] },
         pcb_PrimitiveComponent: { getAll: async () => [1, 2, 3, 4, 5] },
       },
     );
@@ -607,6 +609,8 @@ describe('board inspection operations', () => {
       vias: 2,
       tracks: 3,
       zones: 1,
+      fills: 3,
+      regions: 2,
       pads: 4,
       components: 5,
     });
@@ -713,7 +717,15 @@ describe('board inspection operations', () => {
       { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) } },
       root,
     );
-    const emptyFeatures = { vias: 0, tracks: 0, zones: 0, pads: 0, components: 0 };
+    const emptyFeatures = {
+      vias: 0,
+      tracks: 0,
+      zones: 0,
+      fills: 0,
+      regions: 0,
+      pads: 0,
+      components: 0,
+    };
 
     await expect(operations.getFeatures()).resolves.toEqual(emptyFeatures);
 
@@ -722,6 +734,8 @@ describe('board inspection operations', () => {
     root.pcb_PrimitiveLine = nullCollection;
     root.pcb_PrimitivePad = nullCollection;
     root.pcb_PrimitivePour = nullCollection;
+    root.pcb_PrimitiveFill = nullCollection;
+    root.pcb_PrimitiveRegion = nullCollection;
     root.pcb_PrimitiveComponent = nullCollection;
     await expect(operations.getFeatures()).resolves.toEqual(emptyFeatures);
   });
@@ -736,6 +750,8 @@ describe('board inspection operations', () => {
         pcb_PrimitiveLine: failing,
         pcb_PrimitivePad: failing,
         pcb_PrimitivePour: failing,
+        pcb_PrimitiveFill: failing,
+        pcb_PrimitiveRegion: failing,
         pcb_PrimitiveComponent: failing,
       },
     );
@@ -744,9 +760,11 @@ describe('board inspection operations', () => {
       vias: 0,
       tracks: 0,
       zones: 0,
+      fills: 0,
+      regions: 0,
       pads: 0,
       components: 0,
     });
-    expect(warn).toHaveBeenCalledTimes(5);
+    expect(warn).toHaveBeenCalledTimes(7);
   });
 });

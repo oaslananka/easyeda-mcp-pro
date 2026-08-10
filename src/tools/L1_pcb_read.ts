@@ -8,7 +8,28 @@ const pcbListInputSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-/** Shared handler for the three PCB list-* tools: call the bridge, map its
+const pcbPointSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
+const pcbBoundsSchema = z.object({
+  minX: z.number().finite(),
+  minY: z.number().finite(),
+  maxX: z.number().finite(),
+  maxY: z.number().finite(),
+});
+const pcbPolygonContourSchema = z.object({
+  points: z.array(pcbPointSchema).max(500),
+  pointCount: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+  bounds: pcbBoundsSchema,
+});
+const pcbPolygonSchema = z.object({
+  contours: z.array(pcbPolygonContourSchema).max(500),
+  contourCount: z.number().int().nonnegative(),
+  pointCount: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+  bounds: pcbBoundsSchema,
+});
+
+/** Shared handler for the PCB list-* tools: call the bridge, map its
  *  {total, items} shape onto the caller-provided list key, and degrade to
  *  an empty (not_available) list instead of throwing — "no PCB tab focused"
  *  is a normal state for these tools, not an error. */
@@ -37,7 +58,7 @@ function makePcbListHandler(bridgeMethod: string, listKey: string) {
   };
 }
 
-/** Shared registration for the three PCB list-* tools: identical profile,
+/** Shared registration for PCB list-* tools: identical profile,
  *  risk, annotations, and output-schema envelope — only name/description/
  *  bridge method/item shape vary. */
 function registerPcbListTool(
@@ -102,6 +123,47 @@ function registerPcbReadTools(
       rotation: z.number().optional(),
       layer: z.number().optional(),
       locked: z.boolean().optional(),
+    }),
+  });
+
+  registerPcbListTool(registry, {
+    name: 'easyeda_pcb_fills',
+    title: 'List PCB fills',
+    description:
+      'List native PCB Fill primitives separately from copper pours/zones, including net/layer, ' +
+      'fill mode, line width, lock state, and a bounded normalized polygon representation. ' +
+      'Netless fills are returned explicitly with netless=true. Read-only; no Fill mutation is exposed.',
+    bridgeMethod: 'pcb.listFills',
+    listKey: 'fills',
+    itemSchema: z.object({
+      primitiveId: z.string(),
+      layer: z.number().optional(),
+      net: z.string(),
+      netless: z.boolean(),
+      fillMode: z.number().int().optional(),
+      lineWidth: z.number().optional(),
+      locked: z.boolean(),
+      polygon: pcbPolygonSchema.optional(),
+    }),
+  });
+
+  registerPcbListTool(registry, {
+    name: 'easyeda_pcb_regions',
+    title: 'List PCB constraint regions',
+    description:
+      'List native PCB Region primitives separately from copper pours/zones, including layer, ' +
+      'region rule types/name, line width, lock state, and a bounded normalized polygon representation. ' +
+      'Read-only; no Region mutation is exposed.',
+    bridgeMethod: 'pcb.listRegions',
+    listKey: 'regions',
+    itemSchema: z.object({
+      primitiveId: z.string(),
+      layer: z.number().optional(),
+      ruleTypes: z.array(z.number().int()),
+      regionName: z.string(),
+      lineWidth: z.number().optional(),
+      locked: z.boolean(),
+      polygon: pcbPolygonSchema.optional(),
     }),
   });
 
