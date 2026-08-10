@@ -237,6 +237,47 @@ describe('ToolRegistry', () => {
       expect(response.content[0].text).toContain('confirmWrite=true');
     });
 
+    it('allows an opt-in apply-mode tool to preview without confirmation but still gates apply', async () => {
+      const handler = vi.fn(
+        async (_ctx, input: { mode?: 'preview' | 'apply'; confirmWrite?: true }) => ({
+          ok: true,
+          mode: input.mode ?? 'preview',
+        }),
+      );
+      const mutableTool = createMockTool('apply_mode_tool', 'core', {
+        confirmWrite: true,
+        confirmationPolicy: 'apply-mode',
+        risk: 'high',
+        inputSchema: z.object({
+          mode: z.enum(['preview', 'apply']).default('preview'),
+          confirmWrite: z.literal(true).optional(),
+        }),
+        outputSchema: z.object({ ok: z.boolean(), mode: z.enum(['preview', 'apply']) }),
+        handler,
+      });
+      registry.register(mutableTool);
+
+      const { server, handlers } = mockMcpServer();
+      registry.registerAllOnServer(server as any, mockContext());
+      const registered = handlers.get('apply_mode_tool');
+      expect(registered).toBeDefined();
+
+      const preview = await registered!({ mode: 'preview' });
+      expect(preview.isError).toBeFalsy();
+      expect(preview.structuredContent).toMatchObject({ ok: true, mode: 'preview' });
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      const blockedApply = await registered!({ mode: 'apply' });
+      expect(blockedApply.isError).toBe(true);
+      expect(blockedApply.content[0].text).toContain(ErrorCodes.CONFIRM_WRITE_REQUIRED);
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      const apply = await registered!({ mode: 'apply', confirmWrite: true });
+      expect(apply.isError).toBeFalsy();
+      expect(apply.structuredContent).toMatchObject({ ok: true, mode: 'apply' });
+      expect(handler).toHaveBeenCalledTimes(2);
+    });
+
     it('should allow confirmWrite=true tool when input has confirmWrite: true', async () => {
       const mutableTool = createMockTool('mutable_tool', 'core', {
         confirmWrite: true,
@@ -914,6 +955,58 @@ describe('ToolRegistry remote relay backend', () => {
       }),
     );
     expect(routeToolRequest.mock.calls[0]?.[0]).not.toHaveProperty('approvalId');
+  });
+
+  it('keeps Remote Relay controls out of strict refined domain schemas', async () => {
+    const domainHandler = vi.fn(async (_ctx, input: { mode: 'preview' | 'apply' }) => ({
+      ok: true,
+      mode: input.mode,
+    }));
+    const strictRefinedSchema = z
+      .object({ mode: z.enum(['preview', 'apply']) })
+      .strict()
+      .refine((value) => value.mode.length > 0);
+    const registry = new ToolRegistry();
+    registry.register(
+      createMockTool('remote_strict_refined', 'core', {
+        inputSchema: strictRefinedSchema,
+        outputSchema: z.object({ ok: z.boolean(), mode: z.enum(['preview', 'apply']) }),
+        handler: domainHandler,
+      }),
+    );
+
+    let registeredInput: z.ZodType | undefined;
+    const { server, handlers } = mockMcpServer();
+    const originalRegister = server.registerTool;
+    server.registerTool = ((name: string, definition: any, handler: any) => {
+      registeredInput = definition.inputSchema;
+      return originalRegister(name, definition, handler);
+    }) as typeof server.registerTool;
+    registry.registerAllOnServer(
+      server as any,
+      mockContext({
+        config: {
+          bridgeTimeoutMs: 1000,
+          artifactDir: '.easyeda-mcp-pro/artifacts',
+          bridgeHost: '127.0.0.1',
+          bridgePort: 49620,
+          MCP_BRIDGE_BACKEND: 'remote_relay',
+        },
+        remote: { gateway: {} as any },
+      }),
+    );
+
+    const wireInput = {
+      mode: 'preview' as const,
+      remoteSessionId: 'sess_strict',
+      remoteApprovalId: 'appr_strict',
+    };
+    const advertised = registeredInput?.safeParse(wireInput);
+    expect(advertised?.success).toBe(true);
+
+    const response = await handlers.get('remote_strict_refined')!(wireInput, {});
+    expect(response.isError).toBeFalsy();
+    expect(domainHandler).toHaveBeenCalledWith(expect.any(Object), { mode: 'preview' });
   });
 
   it('does not advertise Remote Relay controls in local bridge mode', () => {

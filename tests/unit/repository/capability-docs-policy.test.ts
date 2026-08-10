@@ -25,6 +25,15 @@ describe('capability documentation policy', () => {
     expect(result.stdout).toContain('Capability documentation is current');
   }, 15_000);
 
+  it('escapes union types inside generated Markdown parameter tables', () => {
+    const toolsDoc = readFileSync(resolve(repoRoot, 'docs/reference/tools.md'), 'utf8');
+    const section =
+      toolsDoc.split('## `easyeda_pcb_modify_component`')[1]?.split('\n## `')[0] ?? '';
+
+    expect(section).toContain("`'preview'` \\| `'apply'`");
+    expect(section).toContain("`'top'` \\| `'bottom' (optional)`");
+  });
+
   it('does not retain superseded tool-count claims', () => {
     const publicDocs = [
       readFileSync(resolve(repoRoot, 'README.md'), 'utf8'),

@@ -1519,8 +1519,21 @@ describe('createDispatcher', () => {
       primitiveId: 'component1',
       property,
     });
+    await expect(
+      dispatcher.dispatch('pcb.modifyComponent', {
+        primitiveId: 'component1',
+        property: { x: 50, manufacturer: 'not-a-transform-field' },
+      }),
+    ).rejects.toThrow('Unsupported PCB component transform field');
+    await expect(
+      dispatcher.dispatch('pcb.modifyComponent', {
+        primitiveId: 'component1',
+        property: { layer: 15 },
+      }),
+    ).rejects.toThrow('PCB component layer must be 1 (top) or 2 (bottom)');
 
     expect(create).not.toHaveBeenCalled();
+    expect(modify).toHaveBeenCalledTimes(1);
     expect(modify).toHaveBeenCalledWith('component1', property);
   });
 

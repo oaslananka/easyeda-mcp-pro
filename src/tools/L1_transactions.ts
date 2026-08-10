@@ -48,7 +48,7 @@ const transactionPublicSchema = z.object({
       sequence: z.number().int().positive(),
       kind: z.enum(['create', 'modify', 'delete']),
       state: z.enum(['pending', 'applied', 'rolled-back', 'cancelled', 'failed']),
-      target_type: z.literal('schematic-primitive'),
+      target_type: z.enum(['schematic-primitive', 'pcb-primitive']),
       target_id: z.string(),
       before_hash: z.string().optional(),
       snapshot_hash_mode: z.enum(['exact', 'ignore-primitive-id', 'absence']),

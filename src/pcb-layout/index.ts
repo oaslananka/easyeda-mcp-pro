@@ -7,3 +7,5 @@ export type {
   FloorplanInput,
   FloorplanPlan,
 } from './floorplan.js';
+
+export * from './component-transform.js';

@@ -275,6 +275,22 @@ function rawRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function omitRemoteRelayControls(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+  const {
+    remoteSessionId: _remoteSessionId,
+    remoteApprovalId: _remoteApprovalId,
+    ...domainInput
+  } = input as Record<string, unknown>;
+  return domainInput;
+}
+
+function domainInputForTool(context: ToolContext, input: unknown): unknown {
+  return context.config.MCP_BRIDGE_BACKEND === 'remote_relay'
+    ? omitRemoteRelayControls(input)
+    : input;
+}
+
 export function sideEffectForTool(tool: ToolDefinition): ToolSideEffect {
   return tool.sideEffect ?? (tool.confirmWrite ? 'design-mutation' : 'read-only');
 }
@@ -402,13 +418,15 @@ function forbiddenScopeResponse(
 }
 
 function writePlanningResponse(
+  context: ToolContext,
   tool: ToolDefinition,
   raw: Record<string, unknown>,
   writeMode: WriteMode,
   requiredScopes: string[],
 ) {
   if (!tool.confirmWrite || writeMode === 'apply') return undefined;
-  const parsedPlan = tool.inputSchema.safeParse({ ...raw, confirmWrite: true });
+  const domainInput = rawRecord(domainInputForTool(context, raw));
+  const parsedPlan = tool.inputSchema.safeParse({ ...domainInput, confirmWrite: true });
   if (!parsedPlan.success) {
     return structuredErrorResponse({
       errorCode: ErrorCodes.INVALID_INPUT,
@@ -421,6 +439,7 @@ function writePlanningResponse(
 
 function confirmWriteResponse(tool: ToolDefinition, raw: Record<string, unknown>) {
   if (!tool.confirmWrite || raw.confirmWrite === true) return undefined;
+  if (tool.confirmationPolicy === 'apply-mode' && raw.mode !== 'apply') return undefined;
   return structuredErrorResponse({
     errorCode: ErrorCodes.CONFIRM_WRITE_REQUIRED,
     message: `Tool "${tool.name}" can mutate design state and requires confirmWrite=true.`,
@@ -542,13 +561,13 @@ async function handleRegisteredToolCall(
     const scopeError = forbiddenScopeResponse(context, tool, requiredScopes);
     if (scopeError) return scopeError;
 
-    const planned = writePlanningResponse(tool, raw, writeMode, requiredScopes);
+    const planned = writePlanningResponse(context, tool, raw, writeMode, requiredScopes);
     if (planned) return planned;
 
     const confirmError = confirmWriteResponse(tool, raw);
     if (confirmError) return confirmError;
 
-    const parsed = tool.inputSchema.parse(input ?? {});
+    const parsed = tool.inputSchema.parse(domainInputForTool(context, input) ?? {});
     const result = await executeToolWithMetrics(context, tool, raw, extra, parsed);
     return formatToolSuccess(tool, result);
   } catch (err) {
