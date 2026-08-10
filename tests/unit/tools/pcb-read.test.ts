@@ -249,7 +249,7 @@ describe('PCB Read Tools', () => {
       limit: 100,
       offset: 0,
     });
-    const fill = (result?.fills as Array<Record<string, any>>)[0];
+    const fill = ((result?.fills ?? []) as Array<Record<string, any>>)[0];
 
     expect(result?.total).toBe(1);
     expect(fill).toMatchObject({
@@ -287,7 +287,7 @@ describe('PCB Read Tools', () => {
     });
 
     const result = await tool?.handler(context, { projectId: 'proj-long', limit: 100, offset: 0 });
-    const region = (result?.regions as Array<Record<string, any>>)[0];
+    const region = ((result?.regions ?? []) as Array<Record<string, any>>)[0];
 
     expect(region.ruleTypes).toEqual([5, 9]);
     expect(region.polygon).toMatchObject({
@@ -325,7 +325,7 @@ describe('PCB Read Tools', () => {
       limit: 100,
       offset: 0,
     });
-    const polygon = (result?.regions as Array<Record<string, any>>)[0].polygon;
+    const polygon = ((result?.regions ?? []) as Array<Record<string, any>>)[0]?.polygon;
     expect(polygon).toMatchObject({
       contourCount: 2,
       pointCount: 8,
