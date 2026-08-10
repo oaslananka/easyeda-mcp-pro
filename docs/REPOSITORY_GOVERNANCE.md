@@ -106,6 +106,8 @@ A required-check name is a public interface. Renaming, replacing, adding, or rem
 
 Mergify supplements the GitHub `main-protection` ruleset; it does not replace or bypass it. The repository-owned [`.mergify.yml`](../.mergify.yml) keeps the merge queue in conservative in-place mode with one pull request per check (`batch_size: 1`, `max_parallel_checks: 1`), serial scheduling, and squash merges. It deliberately omits separate `merge_conditions`, automatic merge conditions, queue retries, and deprecated `autoqueue`/`allow_inplace_checks` settings so GitHub's injected required checks remain authoritative.
 
+A maintainer may request the queue through Mergify's pull-request queue control or the `@mergifyio queue` command. Queueing never grants a ruleset bypass: GitHub's required checks, strict up-to-date requirement, conversation resolution, and squash-only merge policy remain authoritative.
+
 Merge Protections report through the `Mergify Merge Protections` check. The check must remain informational until it has been observed on a real pull request against the default branch. Promoting it to a required status check follows the same public-interface change process as every other required check: update the live ruleset, this document, the JSON governance policy, and repository-policy tests together, then verify the live GitHub state. Mergify receives no ruleset bypass actor.
 
 ## Emergency exception
