@@ -9,6 +9,10 @@ interface CanvasBinaryResult {
   fileName?: string;
   byteLength?: number;
   selectionCleared?: boolean;
+  downsampled?: boolean;
+  originalDimensions?: { width: number; height: number };
+  imageDimensions?: { width: number; height: number };
+  payloadBudgetBytes?: number;
 }
 
 const captureOutputSchema = z.object({
@@ -21,6 +25,14 @@ const captureOutputSchema = z.object({
    *  structuredContent/the JSON text block by `imageContentOmitFields` below, so
    *  a successful capture doesn't send the same base64 payload three times. */
   image_base64: z.string().optional(),
+  original_image_dimensions: z
+    .object({ width: z.number().int().positive(), height: z.number().int().positive() })
+    .optional(),
+  image_dimensions: z
+    .object({ width: z.number().int().positive(), height: z.number().int().positive() })
+    .optional(),
+  downsampled: z.boolean().optional(),
+  payload_budget_bytes: z.number().int().positive().optional(),
   not_available: z.boolean().optional(),
   error: z.string().optional(),
 });
@@ -45,9 +57,6 @@ const fullPageCaptureOutputSchema = captureOutputSchema.extend({
       bottom: z.number(),
     })
     .optional(),
-  image_dimensions: z
-    .object({ width: z.number().int().positive(), height: z.number().int().positive() })
-    .optional(),
   sheet_to_image_transform: z
     .object({
       scale_x: z.number(),
@@ -70,24 +79,28 @@ function imageContentFromCapture(output: unknown): Array<{ data: string; mimeTyp
 }
 
 /**
- * Build the tool's output from a raw `canvas.capture`/`canvas.captureRegion`
- * bridge result. A successful bridge call already respects the wire's
- * payload-size limit (the extension self-limits before sending — see
- * `easyeda-bridge-extension/src/binary-result.ts` and
- * `normalizeBinaryResultSafely` in the extension), so no size is re-checked
- * here; a too-large capture surfaces as a bridge error caught by the caller.
+ * Build the tool output from a raw `canvas.capture`/`canvas.captureRegion`
+ * bridge result. The extension keeps already-small PNGs byte-identical and
+ * downscales oversized captures before base64 transport, reporting original
+ * and final dimensions plus the enforced raw-byte budget.
  */
 function buildCaptureOutput(result: unknown): CaptureOutput {
   const data = result as CanvasBinaryResult | undefined;
   if (!data?.base64) {
     return { captured: false, not_available: true, error: 'Bridge did not return image data.' };
   }
+  const imageDimensions = data.imageDimensions ?? readPngDimensions(data.base64);
+  const originalDimensions = data.originalDimensions ?? imageDimensions;
   return {
     captured: true,
     mime_type: data.mimeType ?? 'image/png',
     file_name: data.fileName,
     byte_length: data.byteLength,
     image_base64: data.base64,
+    original_image_dimensions: originalDimensions,
+    image_dimensions: imageDimensions,
+    downsampled: data.downsampled ?? false,
+    payload_budget_bytes: data.payloadBudgetBytes,
   };
 }
 
@@ -127,10 +140,8 @@ function registerVisualTools(
     name: 'easyeda_canvas_capture',
     title: 'Capture canvas image',
     description:
-      'Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the ' +
-      'caller can visually verify the result of a draw/place/route action. Captures the ' +
-      'given tab (or last-focused); use easyeda_canvas_capture_region first to frame a ' +
-      'specific area. Image is delivered once, as its own content block.',
+      'Capture the visible EasyEDA schematic/PCB canvas as PNG. Captures the given tab or ' +
+      'last-focused tab. Oversized PNGs are downsampled without cropping and report original/final dimensions.',
     profile: 'core',
     evidence: ['pro-api-types'],
     risk: 'low',
@@ -166,10 +177,8 @@ function registerVisualTools(
     name: 'easyeda_canvas_capture_region',
     title: 'Capture canvas region image',
     description:
-      'Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and ' +
-      'capture it as a PNG, so the caller can visually verify a specific area. This moves ' +
-      "the user's visible viewport — EasyEDA Pro has no offscreen rendering API. The image " +
-      'is delivered once, as its own content block.',
+      'Zoom to a rectangular document/canvas region and capture it as PNG. This moves the visible ' +
+      'viewport. Oversized PNGs are downsampled without cropping, preserving the complete requested region.',
     profile: 'core',
     evidence: ['pro-api-types'],
     risk: 'low',
@@ -219,9 +228,8 @@ function registerVisualTools(
     name: 'easyeda_schematic_capture_full_page',
     title: 'Capture a complete schematic page',
     description:
-      'Read the active schematic sheet geometry, clear selection overlays, frame the complete ' +
-      'sheet including its border and title block, and return a deterministic PNG plus the ' +
-      'sheet-to-image coordinate transform. Refuses guessed geometry unless explicitly allowed.',
+      'Frame and capture the complete schematic sheet with a sheet-to-image transform. Oversized PNGs ' +
+      'are downsampled without cropping; transforms use final image dimensions. Guessed geometry is opt-in.',
     profile: 'pro',
     evidence: ['pro-api-types', 'runtime-probe'],
     risk: 'low',
@@ -284,7 +292,7 @@ function registerVisualTools(
           clearSelection: true,
         })) as CanvasBinaryResult;
         const capture = buildCaptureOutput(raw);
-        const imageDimensions = raw.base64 ? readPngDimensions(raw.base64) : undefined;
+        const imageDimensions = capture.image_dimensions;
         if (!imageDimensions) warnings.push('PNG image dimensions could not be decoded.');
         if (raw.selectionCleared !== true) {
           warnings.push('The bridge could not prove that selection overlays were cleared.');

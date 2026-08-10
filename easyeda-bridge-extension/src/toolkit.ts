@@ -21,6 +21,8 @@ export interface DispatcherToolkit {
   showToast(message: string): void;
   /** The server-advertised BRIDGE_MAX_PAYLOAD_SIZE (updated on hello). */
   getBridgeMaxPayloadSize(): number;
+  /** Loader-owned canvas binary policy; optional for older hot-swap toolkits. */
+  normalizeCanvasBinaryResult?(value: unknown, fallbackFileName: string): Promise<unknown>;
   /** The bridge protocol version string reported by system.getStatus. */
   getBridgeVersion(): string;
 }

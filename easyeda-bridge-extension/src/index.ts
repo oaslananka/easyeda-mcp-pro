@@ -20,6 +20,7 @@ import {
   type RemoteRelayMode,
 } from './remote-client.js';
 import { createDispatcher } from './dispatcher.js';
+import { normalizeCanvasBinaryResult } from './capture-binary-result.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import {
   createRuntimeTimers,
@@ -300,6 +301,8 @@ const dispatcherToolkit: DispatcherToolkit = {
   // the dispatcher's binary self-limit is the aggregate cap, not the frame cap.
   getBridgeMaxPayloadSize: () =>
     serverSupportsChunking ? maxAggregatePayloadSize : bridgeMaxPayloadSize,
+  normalizeCanvasBinaryResult: (value, fallbackFileName) =>
+    normalizeCanvasBinaryResult(value, fallbackFileName, bridgeMaxPayloadSize),
   getBridgeVersion: () => BRIDGE_VERSION,
 };
 

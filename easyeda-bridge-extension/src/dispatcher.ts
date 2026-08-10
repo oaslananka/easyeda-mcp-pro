@@ -1895,7 +1895,7 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
   });
   canvasOperations = createCanvasOperations({
     callFirst,
-    normalizeBinaryResult,
+    normalizeBinaryResult: toolkit.normalizeCanvasBinaryResult ?? normalizeBinaryResult,
     createBridgeError: newBridgeError,
   });
   designRuleCheckOperations = createDesignRuleCheckOperations({
