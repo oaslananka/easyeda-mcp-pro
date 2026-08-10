@@ -19,12 +19,12 @@ Public collaboration happens through GitHub issues, pull requests, discussions, 
 
 The following paths have a higher review burden than ordinary documentation or isolated tests. `.github/CODEOWNERS` names `@oaslananka` explicitly for every listed pattern; the JSON policy test prevents those entries from silently drifting.
 
-| Critical area                 | Covered paths                                                                                                                                        | Owner         |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Security and automation       | GitHub workflows, CODEOWNERS, dependency allowlist, Renovate, Gitleaks, Semgrep, security policy, governance, security architecture, assurance case  | `@oaslananka` |
-| Release                       | Release Please configuration, release channel policy, release policy/process/verification, and release CI runbook                                    | `@oaslananka` |
-| Remote transport and bridge   | `src/remote`, HTTP/OAuth transports, and `src/bridge`                                                                                                | `@oaslananka` |
-| Mutation and transaction code | Server transaction/write tools plus extension dispatcher, remote client, connection policy, PCB mutation/write, and schematic transaction operations | `@oaslananka` |
+| Critical area                 | Covered paths                                                                                                                                                | Owner         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
+| Security and automation       | GitHub workflows, CODEOWNERS, dependency allowlist, Renovate, Mergify, Gitleaks, Semgrep, security policy, governance, security architecture, assurance case | `@oaslananka` |
+| Release                       | Release Please configuration, release channel policy, release policy/process/verification, and release CI runbook                                            | `@oaslananka` |
+| Remote transport and bridge   | `src/remote`, HTTP/OAuth transports, and `src/bridge`                                                                                                        | `@oaslananka` |
+| Mutation and transaction code | Server transaction/write tools plus extension dispatcher, remote client, connection policy, PCB mutation/write, and schematic transaction operations         | `@oaslananka` |
 
 A change is critical-path work when it modifies one of the policy patterns, changes workflow permissions or secret access, changes authentication/authorization, changes release publication, or changes a design-mutation boundary.
 
@@ -101,6 +101,12 @@ The live `main` protection and merge settings must match this table and the mach
 | Automatic branch deletion after merge | Enabled                                                                                                                       |
 
 A required-check name is a public interface. Renaming, replacing, adding, or removing one requires updating the workflow, repository ruleset, JSON policy, documentation, and repository-policy tests together. The setting change must be verified against the live GitHub API after merge.
+
+## Mergify merge controls
+
+Mergify supplements the GitHub `main-protection` ruleset; it does not replace or bypass it. The repository-owned [`.mergify.yml`](../.mergify.yml) keeps the merge queue in conservative in-place mode with one pull request per check (`batch_size: 1`, `max_parallel_checks: 1`), serial scheduling, and squash merges. It deliberately omits separate `merge_conditions`, automatic merge conditions, queue retries, and deprecated `autoqueue`/`allow_inplace_checks` settings so GitHub's injected required checks remain authoritative.
+
+Merge Protections report through the `Mergify Merge Protections` check. The check must remain informational until it has been observed on a real pull request against the default branch. Promoting it to a required status check follows the same public-interface change process as every other required check: update the live ruleset, this document, the JSON governance policy, and repository-policy tests together, then verify the live GitHub state. Mergify receives no ruleset bypass actor.
 
 ## Emergency exception
 
