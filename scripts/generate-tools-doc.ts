@@ -39,6 +39,18 @@ function getFriendlyZodType(schema: z.ZodTypeAny): string {
   return 'any';
 }
 
+function escapeMarkdownTableCell(value: string): string {
+  const escapedPipe = String.raw`\|`;
+  return value.replaceAll('|', escapedPipe).replace(/\r?\n/g, ' ');
+}
+
+function formatMarkdownTypeCell(typeName: string): string {
+  return typeName
+    .split(' | ')
+    .map((part) => `\`${part}\``)
+    .join(` ${String.raw`\|`} `);
+}
+
 function pushParamsTable(md: string[], shape: Record<string, z.ZodTypeAny>): void {
   const keys = Object.keys(shape);
   if (keys.length === 0) {
@@ -52,7 +64,9 @@ function pushParamsTable(md: string[], shape: Record<string, z.ZodTypeAny>): voi
     const isOptional = schema instanceof z.ZodOptional || schema._def?.type === 'optional';
     const typeName = getFriendlyZodType(schema);
     const desc = schema.description ?? '';
-    md.push(`| \`${key}\` | \`${typeName}\` | ${isOptional ? 'No' : 'Yes'} | ${desc} |`);
+    md.push(
+      `| \`${key}\` | ${formatMarkdownTypeCell(typeName)} | ${isOptional ? 'No' : 'Yes'} | ${escapeMarkdownTableCell(desc)} |`,
+    );
   }
   md.push('');
 }

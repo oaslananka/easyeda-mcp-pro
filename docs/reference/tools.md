@@ -54,7 +54,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_delete_component`                     | `full`  | `high`   | Delete components, tracks, vias, or other PCB primitives by ID. Checks each id against every deletable PCB class instead of assuming component, since PCB_PrimitiveComponent.delete() reports success for ids it does not own without deleting them.                                                                             |
 | `easyeda_pcb_export_route_context`                 | `pro`   | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                                  |
 | `easyeda_pcb_floorplan`                            | `full`  | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
-| `easyeda_pcb_modify_component`                     | `full`  | `high`   | Modify component properties in the PCB layout.                                                                                                                                                                                                                                                                                   |
+| `easyeda_pcb_modify_component`                     | `full`  | `high`   | Preview or apply a PCB component transform for top/bottom side, native X/Y coordinates in mils, and rotation in degrees. Apply requires confirmation, captures a transaction snapshot, verifies fresh native read-back, and restores on mismatch. EasyEDA Pro has no independent component mirror field.                         |
 | `easyeda_pcb_place_component`                      | `full`  | `high`   | Direct PCB component creation is unavailable because the verified EasyEDA runtime does not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in the schematic, sync to PCB, confirm the native dialog, then reposition it with easyeda_pcb_modify_component.                                      |
 | `easyeda_pcb_place_component_group`                | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
 | `easyeda_pcb_production_review`                    | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                   |
@@ -311,11 +311,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `format`    | `'csv'   | 'json'   | 'xlsx'`     | Yes |     |
-| `filePath`  | `string` | Yes      |             |
+| Parameter   | Type                            | Required | Description |
+| ----------- | ------------------------------- | -------- | ----------- |
+| `projectId` | `string`                        | Yes      |             |
+| `format`    | `'csv'` \| `'json'` \| `'xlsx'` | Yes      |             |
+| `filePath`  | `string`                        | Yes      |             |
 
 ### Output Format
 
@@ -342,11 +342,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description  |
-| ----------- | -------- | -------- | ------------ |
-| `projectId` | `string` | Yes      |              |
-| `format`    | `'csv'   | 'json'   | 'xlsx'`      | Yes |     |
-| `groupBy`   | `'value' | 'lcsc'   | 'footprint'` | Yes |     |
+| Parameter   | Type                                   | Required | Description |
+| ----------- | -------------------------------------- | -------- | ----------- |
+| `projectId` | `string`                               | Yes      |             |
+| `format`    | `'csv'` \| `'json'` \| `'xlsx'`        | Yes      |             |
+| `groupBy`   | `'value'` \| `'lcsc'` \| `'footprint'` | Yes      |             |
 
 ### Output Format
 
@@ -622,9 +622,9 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type        | Required  | Description              |
-| --------- | ----------- | --------- | ------------------------ |
-| `status`  | `'resolved' | 'partial' | 'unresolved' (optional)` | No  |     |
+| Parameter | Type                                                     | Required | Description |
+| --------- | -------------------------------------------------------- | -------- | ----------- |
+| `status`  | `'resolved'` \| `'partial'` \| `'unresolved' (optional)` | No       |             |
 
 ### Output Format
 
@@ -710,22 +710,22 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                  | Type                | Required               | Description                                                               |
-| -------------------------- | ------------------- | ---------------------- | ------------------------------------------------------------------------- |
-| `topic`                    | `'trace-width'      | 'max-current'          | 'clearance'                                                               | 'protocol-routing'                                                  | 'decoupling'         | 'bulk-capacitance' | 'dfm-checklist'`  | Yes                         | Reference topic to look up. |
-| `currentA`                 | `number (optional)` | No                     | Required when topic is trace-width. Load current in amperes.              |
-| `traceWidthMils`           | `number (optional)` | No                     | Required when topic is max-current. Trace width in mils.                  |
-| `temperatureRiseC`         | `number (optional)` | No                     | Required for trace-width and max-current. Allowed temperature rise in °C. |
-| `layer`                    | `'external'         | 'internal' (optional)` | No                                                                        | Required for trace-width and max-current. Conductor layer location. |
-| `copperWeightOz`           | `number (optional)` | No                     | Required for trace-width and max-current. Copper weight in oz/ft².        |
-| `voltageV`                 | `number (optional)` | No                     | Required when topic is clearance. Working voltage in volts.               |
-| `location`                 | `'external'         | 'internal' (optional)` | No                                                                        | Required when topic is clearance. Clearance location.               |
-| `protocol`                 | `'usb2'             | 'usb3'                 | 'rs485'                                                                   | 'i2c'                                                               | 'spi'                | 'uart'             | 'ethernet-10-100' | 'ethernet-1000' (optional)` | No                          | Optional protocol filter when topic is protocol-routing. |
-| `category`                 | `'digital-logic'    | 'mcu'                  | 'analog'                                                                  | 'rf'                                                                | 'crystal-oscillator' | 'power-regulator'  | 'clearance'       | 'drilling'                  | 'copper'                    | 'solder-mask'                                            | 'silkscreen' | 'panelization' | 'assembly' (optional)` | No  | Optional category filter for decoupling or dfm-checklist. |
-| `loadA`                    | `number (optional)` | No                     | Required when topic is bulk-capacitance. Load current in amperes.         |
-| `minBulkCapacitanceUfPerA` | `number (optional)` | No                     | Optional minimum bulk capacitance per ampere in µF/A.                     |
-| `minBulkCapacitanceUf`     | `number (optional)` | No                     | Optional absolute minimum bulk capacitance in µF.                         |
-| `id`                       | `string (optional)` | No                     | Optional DFM checklist item id.                                           |
+| Parameter                  | Type                                                                                                                                                                                                                                     | Required | Description                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------- |
+| `topic`                    | `'trace-width'` \| `'max-current'` \| `'clearance'` \| `'protocol-routing'` \| `'decoupling'` \| `'bulk-capacitance'` \| `'dfm-checklist'`                                                                                               | Yes      | Reference topic to look up.                                               |
+| `currentA`                 | `number (optional)`                                                                                                                                                                                                                      | No       | Required when topic is trace-width. Load current in amperes.              |
+| `traceWidthMils`           | `number (optional)`                                                                                                                                                                                                                      | No       | Required when topic is max-current. Trace width in mils.                  |
+| `temperatureRiseC`         | `number (optional)`                                                                                                                                                                                                                      | No       | Required for trace-width and max-current. Allowed temperature rise in °C. |
+| `layer`                    | `'external'` \| `'internal' (optional)`                                                                                                                                                                                                  | No       | Required for trace-width and max-current. Conductor layer location.       |
+| `copperWeightOz`           | `number (optional)`                                                                                                                                                                                                                      | No       | Required for trace-width and max-current. Copper weight in oz/ft².        |
+| `voltageV`                 | `number (optional)`                                                                                                                                                                                                                      | No       | Required when topic is clearance. Working voltage in volts.               |
+| `location`                 | `'external'` \| `'internal' (optional)`                                                                                                                                                                                                  | No       | Required when topic is clearance. Clearance location.                     |
+| `protocol`                 | `'usb2'` \| `'usb3'` \| `'rs485'` \| `'i2c'` \| `'spi'` \| `'uart'` \| `'ethernet-10-100'` \| `'ethernet-1000' (optional)`                                                                                                               | No       | Optional protocol filter when topic is protocol-routing.                  |
+| `category`                 | `'digital-logic'` \| `'mcu'` \| `'analog'` \| `'rf'` \| `'crystal-oscillator'` \| `'power-regulator'` \| `'clearance'` \| `'drilling'` \| `'copper'` \| `'solder-mask'` \| `'silkscreen'` \| `'panelization'` \| `'assembly' (optional)` | No       | Optional category filter for decoupling or dfm-checklist.                 |
+| `loadA`                    | `number (optional)`                                                                                                                                                                                                                      | No       | Required when topic is bulk-capacitance. Load current in amperes.         |
+| `minBulkCapacitanceUfPerA` | `number (optional)`                                                                                                                                                                                                                      | No       | Optional minimum bulk capacitance per ampere in µF/A.                     |
+| `minBulkCapacitanceUf`     | `number (optional)`                                                                                                                                                                                                                      | No       | Optional absolute minimum bulk capacitance in µF.                         |
+| `id`                       | `string (optional)`                                                                                                                                                                                                                      | No       | Optional DFM checklist item id.                                           |
 
 ### Output Format
 
@@ -822,14 +822,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter          | Type                  | Required     | Description        |
-| ------------------ | --------------------- | ------------ | ------------------ |
-| `projectId`        | `string`              | Yes          |                    |
-| `filePath`         | `string (optional)`   | No           |                    |
-| `drillFormat`      | `'excellon'           | 'millimeter' | 'inch' (optional)` | No  |     |
-| `excludeLayer`     | `string[] (optional)` | No           |                    |
-| `ledPanel`         | `boolean (optional)`  | No           |                    |
-| `productionReview` | `object (optional)`   | No           |                    |
+| Parameter          | Type                                                  | Required | Description |
+| ------------------ | ----------------------------------------------------- | -------- | ----------- |
+| `projectId`        | `string`                                              | Yes      |             |
+| `filePath`         | `string (optional)`                                   | No       |             |
+| `drillFormat`      | `'excellon'` \| `'millimeter'` \| `'inch' (optional)` | No       |             |
+| `excludeLayer`     | `string[] (optional)`                                 | No       |             |
+| `ledPanel`         | `boolean (optional)`                                  | No       |             |
+| `productionReview` | `object (optional)`                                   | No       |             |
 
 ### Output Format
 
@@ -859,11 +859,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type                | Required  | Description |
-| ----------- | ------------------- | --------- | ----------- |
-| `projectId` | `string`            | Yes       |             |
-| `format`    | `'pads'             | 'allegro' | 'altium'`   | Yes |     |
-| `filePath`  | `string (optional)` | No        |             |
+| Parameter   | Type                                  | Required | Description |
+| ----------- | ------------------------------------- | -------- | ----------- |
+| `projectId` | `string`                              | Yes      |             |
+| `format`    | `'pads'` \| `'allegro'` \| `'altium'` | Yes      |             |
+| `filePath`  | `string (optional)`                   | No       |             |
 
 ### Output Format
 
@@ -892,12 +892,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter     | Type                | Required     | Description |
-| ------------- | ------------------- | ------------ | ----------- |
-| `projectId`   | `string`            | Yes          |             |
-| `scope`       | `'schematic'        | 'board'      | 'both'`     | Yes |     |
-| `orientation` | `'portrait'         | 'landscape'` | Yes         |     |
-| `filePath`    | `string (optional)` | No           |             |
+| Parameter     | Type                                   | Required | Description |
+| ------------- | -------------------------------------- | -------- | ----------- |
+| `projectId`   | `string`                               | Yes      |             |
+| `scope`       | `'schematic'` \| `'board'` \| `'both'` | Yes      |             |
+| `orientation` | `'portrait'` \| `'landscape'`          | Yes      |             |
+| `filePath`    | `string (optional)`                    | No       |             |
 
 ### Output Format
 
@@ -930,7 +930,7 @@ Returns a JSON object matching the schema:
 | Parameter   | Type                | Required | Description |
 | ----------- | ------------------- | -------- | ----------- |
 | `projectId` | `string`            | Yes      |             |
-| `format`    | `'csv'              | 'txt'`   | Yes         |     |
+| `format`    | `'csv'` \| `'txt'`  | Yes      |             |
 | `filePath`  | `string (optional)` | No       |             |
 
 ### Output Format
@@ -1101,19 +1101,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                | Type                 | Required       | Description    |
-| ------------------------ | -------------------- | -------------- | -------------- |
-| `provider`               | `'jlcpcb'            | 'custom'`      | Yes            |     |
-| `action`                 | `'estimate'          | 'verify_quote' | 'place_order'` | Yes |     |
-| `projectId`              | `string (optional)`  | No             |                |
-| `board`                  | `object`             | Yes            |                |
-| `quote`                  | `object (optional)`  | No             |                |
-| `confirmation`           | `object (optional)`  | No             |                |
-| `vendorTermsReviewed`    | `boolean (optional)` | No             |                |
-| `productionFilesReady`   | `boolean (optional)` | No             |                |
-| `exportManifestVerified` | `boolean (optional)` | No             |                |
-| `productionReviewPassed` | `boolean (optional)` | No             |                |
-| `allowedPaidOperations`  | `boolean (optional)` | No             |                |
+| Parameter                | Type                                                | Required | Description |
+| ------------------------ | --------------------------------------------------- | -------- | ----------- |
+| `provider`               | `'jlcpcb'` \| `'custom'`                            | Yes      |             |
+| `action`                 | `'estimate'` \| `'verify_quote'` \| `'place_order'` | Yes      |             |
+| `projectId`              | `string (optional)`                                 | No       |             |
+| `board`                  | `object`                                            | Yes      |             |
+| `quote`                  | `object (optional)`                                 | No       |             |
+| `confirmation`           | `object (optional)`                                 | No       |             |
+| `vendorTermsReviewed`    | `boolean (optional)`                                | No       |             |
+| `productionFilesReady`   | `boolean (optional)`                                | No       |             |
+| `exportManifestVerified` | `boolean (optional)`                                | No       |             |
+| `productionReviewPassed` | `boolean (optional)`                                | No       |             |
+| `allowedPaidOperations`  | `boolean (optional)`                                | No       |             |
 
 ### Output Format
 
@@ -1177,12 +1177,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type         | Required | Description                                                                   |
-| ---------------- | ------------ | -------- | ----------------------------------------------------------------------------- |
-| `projectId`      | `string`     | Yes      |                                                                               |
-| `testDeviceItem` | `object`     | Yes      |                                                                               |
-| `scope`          | `'schematic' | 'pcb'    | 'both'`                                                                       | Yes |     |
-| `confirmWrite`   | `'true'`     | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter        | Type                                 | Required | Description                                                                   |
+| ---------------- | ------------------------------------ | -------- | ----------------------------------------------------------------------------- |
+| `projectId`      | `string`                             | Yes      |                                                                               |
+| `testDeviceItem` | `object`                             | Yes      |                                                                               |
+| `scope`          | `'schematic'` \| `'pcb'` \| `'both'` | Yes      |                                                                               |
+| `confirmWrite`   | `'true'`                             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -1401,17 +1401,17 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter               | Type                  | Required             | Description          |
-| ----------------------- | --------------------- | -------------------- | -------------------- |
-| `projectId`             | `string`              | Yes                  |                      |
-| `routingNets`           | `'selected'           | 'selectedComponents' | string[] (optional)` | No  |     |
-| `cornerStyle`           | `'45'                 | '90' (optional)`     | No                   |     |
-| `existingPrimitiveMode` | `'keep'               | 'remove' (optional)` | No                   |     |
-| `optimization`          | `'completion'         | 'faster' (optional)` | No                   |     |
-| `layers`                | `number[] (optional)` | No                   |                      |
-| `ignoreNets`            | `string[] (optional)` | No                   |                      |
-| `boardData`             | `object (optional)`   | No                   |                      |
-| `confirmWrite`          | `boolean (optional)`  | No                   |                      |
+| Parameter               | Type                                                            | Required | Description |
+| ----------------------- | --------------------------------------------------------------- | -------- | ----------- |
+| `projectId`             | `string`                                                        | Yes      |             |
+| `routingNets`           | `'selected'` \| `'selectedComponents'` \| `string[] (optional)` | No       |             |
+| `cornerStyle`           | `'45'` \| `'90' (optional)`                                     | No       |             |
+| `existingPrimitiveMode` | `'keep'` \| `'remove' (optional)`                               | No       |             |
+| `optimization`          | `'completion'` \| `'faster' (optional)`                         | No       |             |
+| `layers`                | `number[] (optional)`                                           | No       |             |
+| `ignoreNets`            | `string[] (optional)`                                           | No       |             |
+| `boardData`             | `object (optional)`                                             | No       |             |
+| `confirmWrite`          | `boolean (optional)`                                            | No       |             |
 
 ### Output Format
 
@@ -1591,24 +1591,24 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                          | Type                 | Required | Description |
-| ---------------------------------- | -------------------- | -------- | ----------- |
-| `circuitIR`                        | `any`                | Yes      |             |
-| `devices`                          | `object[]`           | Yes      |             |
-| `projectId`                        | `string (optional)`  | No       |             |
-| `mode`                             | `'preview'           | 'apply'` | Yes         |                     |
-| `board`                            | `object`             | Yes      |             |
-| `anchor`                           | `object`             | Yes      |             |
-| `columns`                          | `number (optional)`  | No       |             |
-| `spacingMm`                        | `number (optional)`  | No       |             |
-| `minSpacingMm`                     | `number (optional)`  | No       |             |
-| `topLayer`                         | `number (optional)`  | No       |             |
-| `bottomLayer`                      | `number (optional)`  | No       |             |
-| `connectorEdge`                    | `'top'               | 'bottom' | 'left'      | 'right' (optional)` | No  |     |
-| `connectorEdgeMarginMm`            | `number (optional)`  | No       |             |
-| `thermalSpacingBoostMm`            | `number (optional)`  | No       |             |
-| `thermalDissipationThresholdWatts` | `number (optional)`  | No       |             |
-| `confirmWrite`                     | `boolean (optional)` | No       |             |
+| Parameter                          | Type                                                      | Required | Description |
+| ---------------------------------- | --------------------------------------------------------- | -------- | ----------- |
+| `circuitIR`                        | `any`                                                     | Yes      |             |
+| `devices`                          | `object[]`                                                | Yes      |             |
+| `projectId`                        | `string (optional)`                                       | No       |             |
+| `mode`                             | `'preview'` \| `'apply'`                                  | Yes      |             |
+| `board`                            | `object`                                                  | Yes      |             |
+| `anchor`                           | `object`                                                  | Yes      |             |
+| `columns`                          | `number (optional)`                                       | No       |             |
+| `spacingMm`                        | `number (optional)`                                       | No       |             |
+| `minSpacingMm`                     | `number (optional)`                                       | No       |             |
+| `topLayer`                         | `number (optional)`                                       | No       |             |
+| `bottomLayer`                      | `number (optional)`                                       | No       |             |
+| `connectorEdge`                    | `'top'` \| `'bottom'` \| `'left'` \| `'right' (optional)` | No       |             |
+| `connectorEdgeMarginMm`            | `number (optional)`                                       | No       |             |
+| `thermalSpacingBoostMm`            | `number (optional)`                                       | No       |             |
+| `thermalDissipationThresholdWatts` | `number (optional)`                                       | No       |             |
+| `confirmWrite`                     | `boolean (optional)`                                      | No       |             |
 
 ### Output Format
 
@@ -1639,15 +1639,19 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Modify component properties in the PCB layout.
+> Preview or apply a PCB component transform for top/bottom side, native X/Y coordinates in mils, and rotation in degrees. Apply requires confirmation, captures a transaction snapshot, verifies fresh native read-back, and restores on mismatch. EasyEDA Pro has no independent component mirror field.
 
 ### Input Parameters
 
-| Parameter      | Type                  | Required | Description                                                                   |
-| -------------- | --------------------- | -------- | ----------------------------------------------------------------------------- |
-| `primitiveId`  | `string`              | Yes      |                                                                               |
-| `property`     | `Record<string, any>` | Yes      |                                                                               |
-| `confirmWrite` | `'true'`              | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter      | Type                             | Required | Description                                           |
+| -------------- | -------------------------------- | -------- | ----------------------------------------------------- |
+| `primitiveId`  | `string`                         | Yes      |                                                       |
+| `mode`         | `'preview'` \| `'apply'`         | Yes      |                                                       |
+| `side`         | `'top'` \| `'bottom' (optional)` | No       |                                                       |
+| `xMil`         | `number (optional)`              | No       | Absolute native PCB X coordinate in mils.             |
+| `yMil`         | `number (optional)`              | No       | Absolute native PCB Y coordinate in mils.             |
+| `rotationDeg`  | `number (optional)`              | No       | Component rotation in degrees; normalized modulo 360. |
+| `confirmWrite` | `'true' (optional)`              | No       |                                                       |
 
 ### Output Format
 
@@ -1656,7 +1660,20 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
-  error: string(optional);
+  primitive_id: string;
+  mode: 'preview' | 'apply';
+  applied: boolean;
+  no_op: boolean;
+  mirror_supported: 'false';
+  before: object (optional);
+  planned: object (optional);
+  after: object (optional);
+  restored: object (optional);
+  changes: object[] (optional);
+  transaction_id: string (optional);
+  transaction_state: 'active' | 'validated' | 'committed' | 'rolled-back' | 'failed' (optional);
+  rolled_back: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -1702,19 +1719,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                  | Required | Description |
-| -------------- | --------------------- | -------- | ----------- |
-| `projectId`    | `string (optional)`   | No       |             |
-| `mode`         | `'preview'            | 'apply'` | Yes         |     |
-| `board`        | `object`              | Yes      |             |
-| `anchor`       | `object`              | Yes      |             |
-| `columns`      | `number (optional)`   | No       |             |
-| `spacingMm`    | `number (optional)`   | No       |             |
-| `layer`        | `number`              | Yes      |             |
-| `minSpacingMm` | `number (optional)`   | No       |             |
-| `components`   | `object[]`            | Yes      |             |
-| `keepouts`     | `object[] (optional)` | No       |             |
-| `confirmWrite` | `boolean (optional)`  | No       |             |
+| Parameter      | Type                     | Required | Description |
+| -------------- | ------------------------ | -------- | ----------- |
+| `projectId`    | `string (optional)`      | No       |             |
+| `mode`         | `'preview'` \| `'apply'` | Yes      |             |
+| `board`        | `object`                 | Yes      |             |
+| `anchor`       | `object`                 | Yes      |             |
+| `columns`      | `number (optional)`      | No       |             |
+| `spacingMm`    | `number (optional)`      | No       |             |
+| `layer`        | `'1'` \| `'2'`           | Yes      |             |
+| `minSpacingMm` | `number (optional)`      | No       |             |
+| `components`   | `object[]`               | Yes      |             |
+| `keepouts`     | `object[] (optional)`    | No       |             |
+| `confirmWrite` | `boolean (optional)`     | No       |             |
 
 ### Output Format
 
@@ -1747,11 +1764,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type                | Required | Description |
-| ----------- | ------------------- | -------- | ----------- |
-| `projectId` | `string`            | Yes      |             |
-| `boardData` | `object (optional)` | No       |             |
-| `gateMode`  | `'warn'             | 'block'  | 'off'`      | Yes |     |
+| Parameter   | Type                             | Required | Description |
+| ----------- | -------------------------------- | -------- | ----------- |
+| `projectId` | `string`                         | Yes      |             |
+| `boardData` | `object (optional)`              | No       |             |
+| `gateMode`  | `'warn'` \| `'block'` \| `'off'` | Yes      |             |
 
 ### Output Format
 
@@ -1781,19 +1798,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                  | Required | Description |
-| -------------- | --------------------- | -------- | ----------- |
-| `projectId`    | `string (optional)`   | No       |             |
-| `mode`         | `'preview'            | 'apply'` | Yes         |     |
-| `board`        | `object (optional)`   | No       |             |
-| `netName`      | `string`              | Yes      |             |
-| `layer`        | `number`              | Yes      |             |
-| `widthMm`      | `number`              | Yes      |             |
-| `waypoints`    | `object[]`            | Yes      |             |
-| `keepouts`     | `object[] (optional)` | No       |             |
-| `maxLengthMm`  | `number (optional)`   | No       |             |
-| `minWidthMm`   | `number (optional)`   | No       |             |
-| `confirmWrite` | `boolean (optional)`  | No       |             |
+| Parameter      | Type                     | Required | Description |
+| -------------- | ------------------------ | -------- | ----------- |
+| `projectId`    | `string (optional)`      | No       |             |
+| `mode`         | `'preview'` \| `'apply'` | Yes      |             |
+| `board`        | `object (optional)`      | No       |             |
+| `netName`      | `string`                 | Yes      |             |
+| `layer`        | `number`                 | Yes      |             |
+| `widthMm`      | `number`                 | Yes      |             |
+| `waypoints`    | `object[]`               | Yes      |             |
+| `keepouts`     | `object[] (optional)`    | No       |             |
+| `maxLengthMm`  | `number (optional)`      | No       |             |
+| `minWidthMm`   | `number (optional)`      | No       |             |
+| `confirmWrite` | `boolean (optional)`     | No       |             |
 
 ### Output Format
 
@@ -1889,15 +1906,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter           | Type                  | Required              | Description                                                                                       |
-| ------------------- | --------------------- | --------------------- | ------------------------------------------------------------------------------------------------- |
-| `projectId`         | `string`              | Yes                   |                                                                                                   |
-| `policy`            | `'circuit'            | 'diagnostic-fixture'` | Yes                                                                                               |     |
-| `useNativeChecks`   | `boolean`             | Yes                   |                                                                                                   |
-| `manualDrcMessages` | `string[] (optional)` | No                    | Optional user-copied EasyEDA DRC log lines for classification when native details are unavailable |
-| `manualErcMessages` | `string[] (optional)` | No                    | Optional user-copied EasyEDA ERC log lines for classification when native details are unavailable |
-| `drc`               | `object (optional)`   | No                    | Optional explicit DRC result override for tests or log ingestion                                  |
-| `erc`               | `object (optional)`   | No                    | Optional explicit ERC result override for tests or log ingestion                                  |
+| Parameter           | Type                                  | Required | Description                                                                                       |
+| ------------------- | ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `projectId`         | `string`                              | Yes      |                                                                                                   |
+| `policy`            | `'circuit'` \| `'diagnostic-fixture'` | Yes      |                                                                                                   |
+| `useNativeChecks`   | `boolean`                             | Yes      |                                                                                                   |
+| `manualDrcMessages` | `string[] (optional)`                 | No       | Optional user-copied EasyEDA DRC log lines for classification when native details are unavailable |
+| `manualErcMessages` | `string[] (optional)`                 | No       | Optional user-copied EasyEDA ERC log lines for classification when native details are unavailable |
+| `drc`               | `object (optional)`                   | No       | Optional explicit DRC result override for tests or log ingestion                                  |
+| `erc`               | `object (optional)`                   | No       | Optional explicit ERC result override for tests or log ingestion                                  |
 
 ### Output Format
 
@@ -2450,14 +2467,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                | Required | Description |
-| --------------- | ------------------- | -------- | ----------- |
-| `projectId`     | `string`            | Yes      |             |
-| `transactionId` | `string (optional)` | No       |             |
-| `operations`    | `object             | object   | object      | object | object | object | object | object | object | object | object[]` | Yes |     |
-| `atomic`        | `'true'`            | Yes      |             |
-| `dryRun`        | `boolean`           | Yes      |             |
-| `confirmWrite`  | `'true'`            | Yes      |             |
+| Parameter       | Type                                                                                                                               | Required | Description |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------- |
+| `projectId`     | `string`                                                                                                                           | Yes      |             |
+| `transactionId` | `string (optional)`                                                                                                                | No       |             |
+| `operations`    | `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object[]` | Yes      |             |
+| `atomic`        | `'true'`                                                                                                                           | Yes      |             |
+| `dryRun`        | `boolean`                                                                                                                          | Yes      |             |
+| `confirmWrite`  | `'true'`                                                                                                                           | Yes      |             |
 
 ### Output Format
 
@@ -2758,15 +2775,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type                | Required | Description                                                                   |
-| ---------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`      | `string`            | Yes      | The project/schematic ID                                                      |
-| `netName`        | `string`            | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET)                              |
-| `x`              | `number`            | Yes      | X coordinate on the schematic canvas                                          |
-| `y`              | `number`            | Yes      | Y coordinate on the schematic canvas                                          |
-| `rotation`       | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)                                         |
-| `identification` | `'Power'            | 'Ground' | 'AnalogGround'                                                                | 'ProtectGround' (optional)` | No  | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
-| `confirmWrite`   | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter        | Type                                                                        | Required | Description                                                                                                                                           |
+| ---------------- | --------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`      | `string`                                                                    | Yes      | The project/schematic ID                                                                                                                              |
+| `netName`        | `string`                                                                    | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET)                                                                                                      |
+| `x`              | `number`                                                                    | Yes      | X coordinate on the schematic canvas                                                                                                                  |
+| `y`              | `number`                                                                    | Yes      | Y coordinate on the schematic canvas                                                                                                                  |
+| `rotation`       | `number (optional)`                                                         | No       | Rotation in degrees (0, 90, 180, 270)                                                                                                                 |
+| `identification` | `'Power'` \| `'Ground'` \| `'AnalogGround'` \| `'ProtectGround' (optional)` | No       | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
+| `confirmWrite`   | `'true'`                                                                    | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                                                         |
 
 ### Output Format
 
@@ -2790,15 +2807,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`    | `string`            | Yes      | The project/schematic ID                                                      |
-| `netName`      | `string`            | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS)                           |
-| `x`            | `number`            | Yes      | X coordinate on the schematic canvas                                          |
-| `y`            | `number`            | Yes      | Y coordinate on the schematic canvas                                          |
-| `portType`     | `'input'            | 'output' | 'bidirectional'                                                               | 'triState' | 'passive' (optional)` | No  | Electrical type of the port |
-| `rotation`     | `number (optional)` | No       | Rotation in degrees (0, 90, 180, 270)                                         |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter      | Type                                                                                   | Required | Description                                                                   |
+| -------------- | -------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `projectId`    | `string`                                                                               | Yes      | The project/schematic ID                                                      |
+| `netName`      | `string`                                                                               | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS)                           |
+| `x`            | `number`                                                                               | Yes      | X coordinate on the schematic canvas                                          |
+| `y`            | `number`                                                                               | Yes      | Y coordinate on the schematic canvas                                          |
+| `portType`     | `'input'` \| `'output'` \| `'bidirectional'` \| `'triState'` \| `'passive' (optional)` | No       | Electrical type of the port                                                   |
+| `rotation`     | `number (optional)`                                                                    | No       | Rotation in degrees (0, 90, 180, 270)                                         |
+| `confirmWrite` | `'true'`                                                                               | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -3155,14 +3172,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter           | Type                | Required       | Description                                                                       |
-| ------------------- | ------------------- | -------------- | --------------------------------------------------------------------------------- |
-| `projectId`         | `string (optional)` | No             |                                                                                   |
-| `contentWidth`      | `number`            | Yes            | Estimated width of the planned circuit block in EasyEDA coordinates               |
-| `contentHeight`     | `number`            | Yes            | Estimated height of the planned circuit block in EasyEDA coordinates              |
-| `preferredRegion`   | `'upper-left'       | 'upper-center' | 'upper-right'                                                                     | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
-| `margin`            | `number (optional)` | No             |                                                                                   |
-| `titleBlockKeepout` | `object (optional)` | No             | Optional explicit title-block keep-out rectangle when the sheet template is known |
+| Parameter           | Type                                                                                                                                                                | Required | Description                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------- |
+| `projectId`         | `string (optional)`                                                                                                                                                 | No       |                                                                                   |
+| `contentWidth`      | `number`                                                                                                                                                            | Yes      | Estimated width of the planned circuit block in EasyEDA coordinates               |
+| `contentHeight`     | `number`                                                                                                                                                            | Yes      | Estimated height of the planned circuit block in EasyEDA coordinates              |
+| `preferredRegion`   | `'upper-left'` \| `'upper-center'` \| `'upper-right'` \| `'center-left'` \| `'center'` \| `'center-right'` \| `'lower-left'` \| `'lower-center'` \| `'lower-right'` | Yes      |                                                                                   |
+| `margin`            | `number (optional)`                                                                                                                                                 | No       |                                                                                   |
+| `titleBlockKeepout` | `object (optional)`                                                                                                                                                 | No       | Optional explicit title-block keep-out rectangle when the sheet template is known |
 
 ### Output Format
 
@@ -3258,15 +3275,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type                 | Required             | Description                                                                                                                                                                                                                                        |
-| ---------------- | -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `key`            | `string`             | Yes                  | Search keyword(s), matched against device name/description in the library                                                                                                                                                                          |
-| `libraryUuid`    | `string (optional)`  | No                   |                                                                                                                                                                                                                                                    |
-| `classification` | `string              | string[] (optional)` | No                                                                                                                                                                                                                                                 |     |
-| `symbolType`     | `string (optional)`  | No                   |                                                                                                                                                                                                                                                    |
-| `itemsOfPage`    | `number`             | Yes                  |                                                                                                                                                                                                                                                    |
-| `page`           | `number`             | Yes                  |                                                                                                                                                                                                                                                    |
-| `minimal`        | `boolean (optional)` | No                   | When true, return only uuid/libraryUuid/name/pin_count/symbol_type per device instead of the full library metadata object — use this when the goal is just picking a deviceItem for place_component, to avoid paying for fields you will not read. |
+| Parameter        | Type                              | Required | Description                                                                                                                                                                                                                                        |
+| ---------------- | --------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`            | `string`                          | Yes      | Search keyword(s), matched against device name/description in the library                                                                                                                                                                          |
+| `libraryUuid`    | `string (optional)`               | No       |                                                                                                                                                                                                                                                    |
+| `classification` | `string` \| `string[] (optional)` | No       |                                                                                                                                                                                                                                                    |
+| `symbolType`     | `string (optional)`               | No       |                                                                                                                                                                                                                                                    |
+| `itemsOfPage`    | `number`                          | Yes      |                                                                                                                                                                                                                                                    |
+| `page`           | `number`                          | Yes      |                                                                                                                                                                                                                                                    |
+| `minimal`        | `boolean (optional)`              | No       | When true, return only uuid/libraryUuid/name/pin_count/symbol_type per device instead of the full library metadata object — use this when the goal is just picking a deviceItem for place_component, to avoid paying for fields you will not read. |
 
 ### Output Format
 
@@ -3684,19 +3701,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                 | Required | Description |
-| --------------- | -------------------- | -------- | ----------- |
-| `projectId`     | `string`             | Yes      |             |
-| `mode`          | `'preview'           | 'apply'` | Yes         |     |
-| `anchor`        | `object`             | Yes      |             |
-| `netPortAnchor` | `object (optional)`  | No       |             |
-| `connectorRef`  | `string`             | Yes      |             |
-| `connector`     | `object`             | Yes      |             |
-| `rotation`      | `number (optional)`  | No       |             |
-| `mirror`        | `boolean (optional)` | No       |             |
-| `subPartName`   | `string (optional)`  | No       |             |
-| `pins`          | `object[]`           | Yes      |             |
-| `confirmWrite`  | `boolean (optional)` | No       |             |
+| Parameter       | Type                     | Required | Description |
+| --------------- | ------------------------ | -------- | ----------- |
+| `projectId`     | `string`                 | Yes      |             |
+| `mode`          | `'preview'` \| `'apply'` | Yes      |             |
+| `anchor`        | `object`                 | Yes      |             |
+| `netPortAnchor` | `object (optional)`      | No       |             |
+| `connectorRef`  | `string`                 | Yes      |             |
+| `connector`     | `object`                 | Yes      |             |
+| `rotation`      | `number (optional)`      | No       |             |
+| `mirror`        | `boolean (optional)`     | No       |             |
+| `subPartName`   | `string (optional)`      | No       |             |
+| `pins`          | `object[]`               | Yes      |             |
+| `confirmWrite`  | `boolean (optional)`     | No       |             |
 
 ### Output Format
 
@@ -3731,18 +3748,18 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter            | Type                 | Required | Description |
-| -------------------- | -------------------- | -------- | ----------- |
-| `projectId`          | `string`             | Yes      |             |
-| `mode`               | `'preview'           | 'apply'` | Yes         |      |
-| `anchor`             | `object`             | Yes      |             |
-| `spacing`            | `number (optional)`  | No       |             |
-| `groundNetName`      | `string`             | Yes      |             |
-| `icPowerPins`        | `object[]`           | Yes      |             |
-| `capacitor`          | `object`             | Yes      |             |
-| `capacitorPins`      | `object`             | Yes      |             |
-| `decouplingCategory` | `'digital-logic'     | 'mcu'    | 'analog'    | 'rf' | 'crystal-oscillator' | 'power-regulator'` | Yes |     |
-| `confirmWrite`       | `boolean (optional)` | No       |             |
+| Parameter            | Type                                                                                                  | Required | Description |
+| -------------------- | ----------------------------------------------------------------------------------------------------- | -------- | ----------- |
+| `projectId`          | `string`                                                                                              | Yes      |             |
+| `mode`               | `'preview'` \| `'apply'`                                                                              | Yes      |             |
+| `anchor`             | `object`                                                                                              | Yes      |             |
+| `spacing`            | `number (optional)`                                                                                   | No       |             |
+| `groundNetName`      | `string`                                                                                              | Yes      |             |
+| `icPowerPins`        | `object[]`                                                                                            | Yes      |             |
+| `capacitor`          | `object`                                                                                              | Yes      |             |
+| `capacitorPins`      | `object`                                                                                              | Yes      |             |
+| `decouplingCategory` | `'digital-logic'` \| `'mcu'` \| `'analog'` \| `'rf'` \| `'crystal-oscillator'` \| `'power-regulator'` | Yes      |             |
+| `confirmWrite`       | `boolean (optional)`                                                                                  | No       |             |
 
 ### Output Format
 
@@ -3778,20 +3795,20 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                     | Type                 | Required | Description                                                                   |
-| ----------------------------- | -------------------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`                   | `string`             | Yes      |                                                                               |
-| `mode`                        | `'preview'           | 'apply'` | Yes                                                                           |     |
-| `componentPrimitiveIds`       | `string[]`           | Yes      | Components belonging to this section — their pin extents define the box.      |
-| `title`                       | `string`             | Yes      |                                                                               |
-| `margin`                      | `number`             | Yes      | Padding between the component cluster and the box edge.                       |
-| `componentPadding`            | `number`             | Yes      | Per-component padding around its pins, approximating body extent beyond them. |
-| `titleGap`                    | `number`             | Yes      | Gap between the title and the box top edge.                                   |
-| `titleFontSize`               | `number`             | Yes      |                                                                               |
-| `color`                       | `string`             | Yes      |                                                                               |
-| `replaceRectanglePrimitiveId` | `string (optional)`  | No       | An existing section rectangle to delete and replace with the newly-sized one. |
-| `replaceTitlePrimitiveId`     | `string (optional)`  | No       | An existing section title to delete and replace with the repositioned one.    |
-| `confirmWrite`                | `boolean (optional)` | No       |                                                                               |
+| Parameter                     | Type                     | Required | Description                                                                   |
+| ----------------------------- | ------------------------ | -------- | ----------------------------------------------------------------------------- |
+| `projectId`                   | `string`                 | Yes      |                                                                               |
+| `mode`                        | `'preview'` \| `'apply'` | Yes      |                                                                               |
+| `componentPrimitiveIds`       | `string[]`               | Yes      | Components belonging to this section — their pin extents define the box.      |
+| `title`                       | `string`                 | Yes      |                                                                               |
+| `margin`                      | `number`                 | Yes      | Padding between the component cluster and the box edge.                       |
+| `componentPadding`            | `number`                 | Yes      | Per-component padding around its pins, approximating body extent beyond them. |
+| `titleGap`                    | `number`                 | Yes      | Gap between the title and the box top edge.                                   |
+| `titleFontSize`               | `number`                 | Yes      |                                                                               |
+| `color`                       | `string`                 | Yes      |                                                                               |
+| `replaceRectanglePrimitiveId` | `string (optional)`      | No       | An existing section rectangle to delete and replace with the newly-sized one. |
+| `replaceTitlePrimitiveId`     | `string (optional)`      | No       | An existing section title to delete and replace with the repositioned one.    |
+| `confirmWrite`                | `boolean (optional)`     | No       |                                                                               |
 
 ### Output Format
 
@@ -3821,22 +3838,22 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter         | Type                 | Required       | Description   |
-| ----------------- | -------------------- | -------------- | ------------- |
-| `projectId`       | `string`             | Yes            |               |
-| `mode`            | `'preview'           | 'apply'`       | Yes           |               |
-| `devices`         | `object`             | Yes            |               |
-| `anchor`          | `object (optional)`  | No             |               |
-| `preferredRegion` | `'upper-left'        | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
-| `margin`          | `number (optional)`  | No             |               |
-| `createNetPorts`  | `boolean`            | Yes            |               |
-| `createWireStubs` | `boolean`            | Yes            |               |
-| `refs`            | `object (optional)`  | No             |               |
-| `nets`            | `object (optional)`  | No             |               |
-| `values`          | `object (optional)`  | No             |               |
-| `pinMaps`         | `object (optional)`  | No             |               |
-| `runPostWriteQa`  | `boolean`            | Yes            |               |
-| `confirmWrite`    | `boolean (optional)` | No             |               |
+| Parameter         | Type                                                                                                                                                                | Required | Description |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------- |
+| `projectId`       | `string`                                                                                                                                                            | Yes      |             |
+| `mode`            | `'preview'` \| `'apply'`                                                                                                                                            | Yes      |             |
+| `devices`         | `object`                                                                                                                                                            | Yes      |             |
+| `anchor`          | `object (optional)`                                                                                                                                                 | No       |             |
+| `preferredRegion` | `'upper-left'` \| `'upper-center'` \| `'upper-right'` \| `'center-left'` \| `'center'` \| `'center-right'` \| `'lower-left'` \| `'lower-center'` \| `'lower-right'` | Yes      |             |
+| `margin`          | `number (optional)`                                                                                                                                                 | No       |             |
+| `createNetPorts`  | `boolean`                                                                                                                                                           | Yes      |             |
+| `createWireStubs` | `boolean`                                                                                                                                                           | Yes      |             |
+| `refs`            | `object (optional)`                                                                                                                                                 | No       |             |
+| `nets`            | `object (optional)`                                                                                                                                                 | No       |             |
+| `values`          | `object (optional)`                                                                                                                                                 | No       |             |
+| `pinMaps`         | `object (optional)`                                                                                                                                                 | No       |             |
+| `runPostWriteQa`  | `boolean`                                                                                                                                                           | Yes      |             |
+| `confirmWrite`    | `boolean (optional)`                                                                                                                                                | No       |             |
 
 ### Output Format
 
@@ -3874,22 +3891,22 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter         | Type                 | Required       | Description   |
-| ----------------- | -------------------- | -------------- | ------------- |
-| `projectId`       | `string`             | Yes            |               |
-| `mode`            | `'preview'           | 'apply'`       | Yes           |               |
-| `devices`         | `object`             | Yes            |               |
-| `anchor`          | `object (optional)`  | No             |               |
-| `preferredRegion` | `'upper-left'        | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
-| `margin`          | `number (optional)`  | No             |               |
-| `createNetPorts`  | `boolean`            | Yes            |               |
-| `createWireStubs` | `boolean`            | Yes            |               |
-| `refs`            | `object (optional)`  | No             |               |
-| `nets`            | `object (optional)`  | No             |               |
-| `values`          | `object (optional)`  | No             |               |
-| `pinMaps`         | `object (optional)`  | No             |               |
-| `runPostWriteQa`  | `boolean`            | Yes            |               |
-| `confirmWrite`    | `boolean (optional)` | No             |               |
+| Parameter         | Type                                                                                                                                                                | Required | Description |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------- |
+| `projectId`       | `string`                                                                                                                                                            | Yes      |             |
+| `mode`            | `'preview'` \| `'apply'`                                                                                                                                            | Yes      |             |
+| `devices`         | `object`                                                                                                                                                            | Yes      |             |
+| `anchor`          | `object (optional)`                                                                                                                                                 | No       |             |
+| `preferredRegion` | `'upper-left'` \| `'upper-center'` \| `'upper-right'` \| `'center-left'` \| `'center'` \| `'center-right'` \| `'lower-left'` \| `'lower-center'` \| `'lower-right'` | Yes      |             |
+| `margin`          | `number (optional)`                                                                                                                                                 | No       |             |
+| `createNetPorts`  | `boolean`                                                                                                                                                           | Yes      |             |
+| `createWireStubs` | `boolean`                                                                                                                                                           | Yes      |             |
+| `refs`            | `object (optional)`                                                                                                                                                 | No       |             |
+| `nets`            | `object (optional)`                                                                                                                                                 | No       |             |
+| `values`          | `object (optional)`                                                                                                                                                 | No       |             |
+| `pinMaps`         | `object (optional)`                                                                                                                                                 | No       |             |
+| `runPostWriteQa`  | `boolean`                                                                                                                                                           | Yes      |             |
+| `confirmWrite`    | `boolean (optional)`                                                                                                                                                | No       |             |
 
 ### Output Format
 
@@ -3927,19 +3944,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter            | Type                 | Required | Description |
-| -------------------- | -------------------- | -------- | ----------- |
-| `projectId`          | `string`             | Yes      |             |
-| `mode`               | `'preview'           | 'apply'` | Yes         |     |
-| `anchor`             | `object`             | Yes      |             |
-| `spacing`            | `number (optional)`  | No       |             |
-| `blockName`          | `string (optional)`  | No       |             |
-| `components`         | `object[]`           | Yes      |             |
-| `existingComponents` | `object[]`           | Yes      |             |
-| `netPorts`           | `object[]`           | Yes      |             |
-| `netPortAnchor`      | `object (optional)`  | No       |             |
-| `wires`              | `object[]`           | Yes      |             |
-| `confirmWrite`       | `boolean (optional)` | No       |             |
+| Parameter            | Type                     | Required | Description |
+| -------------------- | ------------------------ | -------- | ----------- |
+| `projectId`          | `string`                 | Yes      |             |
+| `mode`               | `'preview'` \| `'apply'` | Yes      |             |
+| `anchor`             | `object`                 | Yes      |             |
+| `spacing`            | `number (optional)`      | No       |             |
+| `blockName`          | `string (optional)`      | No       |             |
+| `components`         | `object[]`               | Yes      |             |
+| `existingComponents` | `object[]`               | Yes      |             |
+| `netPorts`           | `object[]`               | Yes      |             |
+| `netPortAnchor`      | `object (optional)`      | No       |             |
+| `wires`              | `object[]`               | Yes      |             |
+| `confirmWrite`       | `boolean (optional)`     | No       |             |
 
 ### Output Format
 
@@ -3974,18 +3991,18 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                 | Required | Description |
-| --------------- | -------------------- | -------- | ----------- |
-| `projectId`     | `string`             | Yes      |             |
-| `mode`          | `'preview'           | 'apply'` | Yes         |     |
-| `anchor`        | `object`             | Yes      |             |
-| `spacing`       | `number (optional)`  | No       |             |
-| `groundNetName` | `string`             | Yes      |             |
-| `inputNetName`  | `string`             | Yes      |             |
-| `outputNetName` | `string`             | Yes      |             |
-| `components`    | `object[]`           | Yes      |             |
-| `verifyRail`    | `object (optional)`  | No       |             |
-| `confirmWrite`  | `boolean (optional)` | No       |             |
+| Parameter       | Type                     | Required | Description |
+| --------------- | ------------------------ | -------- | ----------- |
+| `projectId`     | `string`                 | Yes      |             |
+| `mode`          | `'preview'` \| `'apply'` | Yes      |             |
+| `anchor`        | `object`                 | Yes      |             |
+| `spacing`       | `number (optional)`      | No       |             |
+| `groundNetName` | `string`                 | Yes      |             |
+| `inputNetName`  | `string`                 | Yes      |             |
+| `outputNetName` | `string`                 | Yes      |             |
+| `components`    | `object[]`               | Yes      |             |
+| `verifyRail`    | `object (optional)`      | No       |             |
+| `confirmWrite`  | `boolean (optional)`     | No       |             |
 
 ### Output Format
 
@@ -4021,15 +4038,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter         | Type                 | Required       | Description   |
-| ----------------- | -------------------- | -------------- | ------------- |
-| `projectId`       | `string`             | Yes            |               |
-| `mode`            | `'preview'           | 'apply'`       | Yes           |               |
-| `devices`         | `object`             | Yes            |               |
-| `anchor`          | `object (optional)`  | No             |               |
-| `preferredRegion` | `'upper-left'        | 'upper-center' | 'upper-right' | 'center-left' | 'center' | 'center-right' | 'lower-left' | 'lower-center' | 'lower-right'` | Yes |     |
-| `margin`          | `number (optional)`  | No             |               |
-| `confirmWrite`    | `boolean (optional)` | No             |               |
+| Parameter         | Type                                                                                                                                                                | Required | Description |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------- |
+| `projectId`       | `string`                                                                                                                                                            | Yes      |             |
+| `mode`            | `'preview'` \| `'apply'`                                                                                                                                            | Yes      |             |
+| `devices`         | `object`                                                                                                                                                            | Yes      |             |
+| `anchor`          | `object (optional)`                                                                                                                                                 | No       |             |
+| `preferredRegion` | `'upper-left'` \| `'upper-center'` \| `'upper-right'` \| `'center-left'` \| `'center'` \| `'center-right'` \| `'lower-left'` \| `'lower-center'` \| `'lower-right'` | Yes      |             |
+| `margin`          | `number (optional)`                                                                                                                                                 | No       |             |
+| `confirmWrite`    | `boolean (optional)`                                                                                                                                                | No       |             |
 
 ### Output Format
 
