@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "liveStateVerifiedAt": "2026-07-30",
+  "liveStateVerifiedAt": "2026-08-10",
   "owners": ["@oaslananka"],
   "criticalPaths": {
     "securityAndAutomation": [
@@ -74,7 +74,8 @@
       "Socket Security: Project Report",
       "dependency-review",
       "codecov/patch",
-      "SonarCloud Code Analysis"
+      "SonarCloud Code Analysis",
+      "Mergify Merge Protections"
     ],
     "strictStatusChecks": true,
     "requiredApprovals": 0,
@@ -139,7 +140,7 @@
     "recovery": {
       "runbook": "docs/SOLO_MAINTAINER_RECOVERY.md",
       "exerciseEvidence": "docs/evidence/governance/2026-07-25-v0.35.3-release-recovery.json",
-      "branchProtectionEvidence": "docs/evidence/governance/2026-07-30-main-ruleset.json",
+      "branchProtectionEvidence": "docs/evidence/governance/2026-08-10-main-ruleset.json",
       "reviewCadenceDays": 180,
       "lastExerciseAt": "2026-07-25",
       "exerciseStatus": "passed"

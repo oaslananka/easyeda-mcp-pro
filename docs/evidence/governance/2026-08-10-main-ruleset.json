@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-08-10",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "branch": "main",
+  "source": "GitHub REST API",
+  "classicBranchProtectionActive": false,
+  "repositoryRuleset": {
+    "id": 20020112,
+    "name": "main-protection",
+    "target": "branch",
+    "enforcement": "active",
+    "include": ["~DEFAULT_BRANCH"],
+    "exclude": [],
+    "bypassActors": [],
+    "ruleTypes": [
+      "deletion",
+      "non_fast_forward",
+      "required_linear_history",
+      "pull_request",
+      "required_status_checks"
+    ]
+  },
+  "branchProtection": {
+    "requiredChecks": [
+      "quality (24)",
+      "codeql",
+      "Socket Security: Project Report",
+      "dependency-review",
+      "codecov/patch",
+      "SonarCloud Code Analysis",
+      "Mergify Merge Protections"
+    ],
+    "strictStatusChecks": true,
+    "requiredApprovals": 0,
+    "requireCodeOwnerReviews": false,
+    "dismissStaleReviews": false,
+    "requireLastPushApproval": false,
+    "requireConversationResolution": true,
+    "enforceAdmins": true,
+    "requireLinearHistory": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  },
+  "mergeSettings": {
+    "allowSquashMerge": true,
+    "allowMergeCommit": false,
+    "allowRebaseMerge": false,
+    "deleteBranchOnMerge": true
+  },
+  "notes": [
+    "Classic branch protection is inactive; the repository-level main-protection ruleset is the canonical enforcement mechanism.",
+    "Zero human approvals is intentional while the project has one eligible maintainer.",
+    "Required automated checks apply to administrators because the ruleset has no bypass actors.",
+    "Mergify Merge Protections was observed successfully on pull request #499 before it was promoted to a required status check; the Mergify App is not a ruleset bypass actor."
+  ]
+}
