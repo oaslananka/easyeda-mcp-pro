@@ -595,11 +595,11 @@ The server registers profile-gated tools according to the active `TOOL_PROFILE`.
 
 | Profile        | Registered tools |
 | -------------- | ---------------: |
-| `core`         |               71 |
-| `pro`          |               98 |
-| `full`         |              110 |
-| `dev`          |              115 |
-| `experimental` |              115 |
+| `core`         |               73 |
+| `pro`          |              100 |
+| `full`         |              112 |
+| `dev`          |              117 |
+| `experimental` |              117 |
 
 <!-- capability-counts:end -->
 

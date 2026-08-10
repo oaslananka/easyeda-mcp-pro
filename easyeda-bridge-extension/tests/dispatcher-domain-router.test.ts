@@ -71,6 +71,16 @@ function createDependencies() {
       })),
     },
     pcbReadOperations: {
+      listFills: vi.fn(async (limit?: number, offset?: number) => ({
+        method: 'fills',
+        limit,
+        offset,
+      })),
+      listRegions: vi.fn(async (limit?: number, offset?: number) => ({
+        method: 'regions',
+        limit,
+        offset,
+      })),
       listComponents: vi.fn(async (limit?: number, offset?: number) => ({
         method: 'components',
         limit,
@@ -207,6 +217,8 @@ const expectedMethods = [
   'pcb.deleteComponent',
   'pcb.exportRouteContext',
   'pcb.listComponents',
+  'pcb.listFills',
+  'pcb.listRegions',
   'pcb.listTracks',
   'pcb.listVias',
   'pcb.modifyComponent',
@@ -454,6 +466,14 @@ describe('createDispatcherDomainRouter', () => {
     const dependencies = createDependencies();
     const router = createDispatcherDomainRouter(dependencies);
 
+    await expect(router.tryDispatch('pcb.listFills', { limit: 5, offset: 1 })).resolves.toEqual({
+      handled: true,
+      value: { method: 'fills', limit: 5, offset: 1 },
+    });
+    await expect(router.tryDispatch('pcb.listRegions', { limit: 6, offset: 2 })).resolves.toEqual({
+      handled: true,
+      value: { method: 'regions', limit: 6, offset: 2 },
+    });
     await expect(
       router.tryDispatch('pcb.listComponents', { limit: 4, offset: 2 }),
     ).resolves.toEqual({

@@ -12,6 +12,8 @@ export interface PcbReadOperationDependencies {
 
 export interface PcbReadOperations {
   listComponents(limit?: number, offset?: number): Promise<unknown>;
+  listFills(limit?: number, offset?: number): Promise<unknown>;
+  listRegions(limit?: number, offset?: number): Promise<unknown>;
   listTracks(limit?: number, offset?: number): Promise<unknown>;
   listVias(limit?: number, offset?: number): Promise<unknown>;
   deletePrimitives(primitiveIds: string[]): Promise<{ deleted: string[]; notFound: string[] }>;
@@ -44,6 +46,26 @@ const PCB_DELETABLE_CLASSES = [
 
 function paginationEnd(limit: number | undefined, start: number): number | undefined {
   return typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
+}
+
+async function polygonSource(
+  readState: PrimitiveStateReader,
+  value: unknown,
+): Promise<unknown[] | undefined> {
+  const polygon = readState(value, 'ComplexPolygon');
+  if (Array.isArray(polygon)) return polygon;
+  if (!polygon || typeof polygon !== 'object') return undefined;
+  try {
+    const getSource = (polygon as { getSource?: unknown }).getSource;
+    const source =
+      typeof getSource === 'function'
+        ? await (getSource as () => unknown).call(polygon)
+        : (polygon as { polygon?: unknown }).polygon;
+    return Array.isArray(source) ? source : undefined;
+  } catch (error) {
+    logRecoverableError('failed to read PCB Fill/Region polygon source', error);
+    return undefined;
+  }
 }
 
 export function createPcbReadOperations({
@@ -79,6 +101,44 @@ export function createPcbReadOperations({
     });
     return { total: all.length, items };
   }
+
+  async function listPolygonPrimitives(
+    kind: 'Fill' | 'Region',
+    limit?: number,
+    offset = 0,
+  ): Promise<unknown> {
+    await requireActivePcbContext();
+    const pcbClass = readFirstPath<any>([`PCB_Primitive${kind}`, `pcb_Primitive${kind}`]);
+    if (!pcbClass || typeof pcbClass.getAll !== 'function') {
+      throw new Error(`PCB_Primitive${kind}.getAll is unavailable in this EasyEDA Pro runtime`);
+    }
+    const all = (await pcbClass.getAll()) || [];
+    const start = Math.max(0, offset);
+    const fill = kind === 'Fill';
+    const items = await Promise.all(
+      all.slice(start, paginationEnd(limit, start)).map(async (value: any) => ({
+        primitiveId: readState(value, 'PrimitiveId'),
+        layer: readState(value, 'Layer'),
+        ...(fill
+          ? {
+              net: readState(value, 'Net'),
+              fillMode: readState(value, 'FillMode'),
+            }
+          : {
+              ruleTypes: readState(value, 'RuleType'),
+              regionName: readState(value, 'RegionName'),
+            }),
+        lineWidth: readState(value, 'LineWidth'),
+        locked: readState(value, 'PrimitiveLock'),
+        polygonSource: await polygonSource(readState, value),
+      })),
+    );
+    return { total: all.length, items };
+  }
+
+  const listFills = (limit?: number, offset = 0) => listPolygonPrimitives('Fill', limit, offset);
+  const listRegions = (limit?: number, offset = 0) =>
+    listPolygonPrimitives('Region', limit, offset);
 
   async function listTracks(limit?: number, offset = 0): Promise<unknown> {
     await requireActivePcbContext();
@@ -169,6 +229,8 @@ export function createPcbReadOperations({
 
   return {
     listComponents,
+    listFills,
+    listRegions,
     listTracks,
     listVias,
     deletePrimitives,

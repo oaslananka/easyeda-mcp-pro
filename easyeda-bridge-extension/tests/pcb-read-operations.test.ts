@@ -227,13 +227,131 @@ describe('PCB read operations', () => {
     });
   });
 
-  it('returns an empty list when a native read class is unavailable', async () => {
+  it('maps Fill native state and extracts the documented polygon source with pagination', async () => {
+    const source = ['CIRCLE', 90, -95, 61.0236];
+    const fills = [
+      { getState_PrimitiveId: () => 'skip-me' },
+      {
+        getState_PrimitiveId: () => 'fill-1',
+        getState_Layer: () => 12,
+        getState_Net: () => '',
+        getState_FillMode: () => 0,
+        getState_LineWidth: () => 1,
+        getState_PrimitiveLock: () => true,
+        getState_ComplexPolygon: () => ({ getSource: () => source }),
+      },
+    ];
+    const { operations } = makeOperations({ PCB_PrimitiveFill: { getAll: async () => fills } });
+
+    await expect(operations.listFills(1, 1)).resolves.toEqual({
+      total: 2,
+      items: [
+        {
+          primitiveId: 'fill-1',
+          layer: 12,
+          net: '',
+          fillMode: 0,
+          lineWidth: 1,
+          locked: true,
+          polygonSource: source,
+        },
+      ],
+    });
+  });
+
+  it('maps Region state and accepts the runtime polygon property fallback', async () => {
+    const source = ['R', 10, 20, 30, 40, 0, 0];
+    const { operations } = makeOperations({
+      pcb_PrimitiveRegion: {
+        getAll: async () => [
+          {
+            getState_PrimitiveId: () => 'region-1',
+            getState_Layer: () => 12,
+            getState_RuleType: () => [5, 7],
+            getState_RegionName: () => 'route keepout',
+            getState_LineWidth: () => 0.2,
+            getState_PrimitiveLock: () => false,
+            getState_ComplexPolygon: () => ({ polygon: source }),
+          },
+        ],
+      },
+    });
+
+    await expect(operations.listRegions()).resolves.toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'region-1',
+          layer: 12,
+          ruleTypes: [5, 7],
+          regionName: 'route keepout',
+          lineWidth: 0.2,
+          locked: false,
+          polygonSource: source,
+        },
+      ],
+    });
+  });
+
+  it('passes through a direct polygon source array and contains missing geometry', async () => {
+    const source = ['R', 1, 2, 3, 4, 0, 0];
+    const { operations } = makeOperations({
+      PCB_PrimitiveFill: {
+        getAll: async () => [
+          { getState_PrimitiveId: () => 'direct', getState_ComplexPolygon: () => source },
+          { getState_PrimitiveId: () => 'missing', getState_ComplexPolygon: () => null },
+          { getState_PrimitiveId: () => 'scalar', getState_ComplexPolygon: () => 'opaque' },
+        ],
+      },
+    });
+
+    const result = (await operations.listFills()) as { items: Array<Record<string, unknown>> };
+    expect(result.items.map((item) => item.polygonSource)).toEqual([source, undefined, undefined]);
+  });
+
+  it('contains polygon source read failures and non-array getter results', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { operations } = makeOperations({
+      PCB_PrimitiveRegion: {
+        getAll: async () => [
+          {
+            getState_PrimitiveId: () => 'throws',
+            getState_ComplexPolygon: () => ({
+              getSource: () => Promise.reject(new Error('source unavailable')),
+            }),
+          },
+          {
+            getState_PrimitiveId: () => 'not-array',
+            getState_ComplexPolygon: () => ({ getSource: () => ({ opaque: true }) }),
+          },
+        ],
+      },
+    });
+
+    const result = (await operations.listRegions()) as { items: Array<Record<string, unknown>> };
+    expect(result.items.map((item) => item.polygonSource)).toEqual([undefined, undefined]);
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('returns an empty list for legacy PCB readers when a native read class is unavailable', async () => {
     const { operations, requireActivePcbContext } = makeOperations();
 
     await expect(operations.listComponents()).resolves.toEqual({ total: 0, items: [] });
     await expect(operations.listTracks()).resolves.toEqual({ total: 0, items: [] });
     await expect(operations.listVias()).resolves.toEqual({ total: 0, items: [] });
     expect(requireActivePcbContext).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails cleanly when Fill/Region native APIs are unavailable', async () => {
+    const { operations, requireActivePcbContext } = makeOperations();
+
+    await expect(operations.listFills()).rejects.toThrow(
+      'PCB_PrimitiveFill.getAll is unavailable in this EasyEDA Pro runtime',
+    );
+    await expect(operations.listRegions()).rejects.toThrow(
+      'PCB_PrimitiveRegion.getAll is unavailable in this EasyEDA Pro runtime',
+    );
+    expect(requireActivePcbContext).toHaveBeenCalledTimes(2);
   });
 });
 
