@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-08-10T14:24:00+03:00",
+  "candidateCommit": "83577d0a9313a1596283d981b7215e22b3e982c9",
+  "compatibilitySensitiveBaseCommit": "83577d0a9313a1596283d981b7215e22b3e982c9",
+  "server": {
+    "packageVersion": "1.0.0-rc.2",
+    "packageTarballSha256": "d74816ef5d8a798deb0f733ed5557093d8d3b7a837e1ba0b1fb78419a7140f1f",
+    "packedFileCount": 597,
+    "nodeVersion": "24.18.0",
+    "profile": "full",
+    "transport": "stdio"
+  },
+  "extension": {
+    "packageVersion": "0.99.2",
+    "productRuntimeVersion": "1.0.0-rc.2",
+    "packageSha256": "20d3d058030ec5896ce48ebfe1709d54f572f1b729025fc225c025283cecf19e",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "34f1dcf29ebdf3cf",
+    "dispatcherBuildId": "d01edxdbcdx9f0a",
+    "dispatcherSha256": "b5bdc8224d44ff8f770fc9e011af973a1014abe45aa584357cf5268fb1f78a06",
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true,
+    "autoUpdateEnabled": false
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-28-generic"
+  },
+  "fixture": {
+    "project": "Example Quick Start disposable local profile",
+    "schematic": "Schematic / P1",
+    "document": "Schematic and PCB",
+    "disposable": true,
+    "mode": "Half Offline"
+  },
+  "readOnlySmoke": {
+    "status": "passed",
+    "schematic": {
+      "components": 34,
+      "nets": 16,
+      "bomGroups": 20,
+      "erc": {
+        "passed": true,
+        "errors": 0,
+        "warnings": 1,
+        "inferredFloatingPins": 0
+      }
+    },
+    "board": {
+      "widthMm": 80,
+      "heightMm": 60,
+      "areaMm2": 4800,
+      "hasOutline": true,
+      "layerCount": 57,
+      "vias": 0,
+      "tracks": 98,
+      "zones": 1,
+      "pads": 83,
+      "components": 33
+    }
+  },
+  "componentTransform": {
+    "status": "passed",
+    "mode": "public MCP tool",
+    "componentDesignator": "P2",
+    "primitiveIdentifierOmitted": true,
+    "baseline": {
+      "side": "top",
+      "layer": 1,
+      "xMil": 190.1575,
+      "yMil": -1258.2677,
+      "rotationDeg": 0,
+      "locked": false
+    },
+    "preview": {
+      "requested": {
+        "side": "bottom",
+        "layer": 2,
+        "xMil": 210.1575,
+        "yMil": -1238.2677,
+        "rotationDeg": 90
+      },
+      "applied": false,
+      "freshReadBackUnchanged": true
+    },
+    "confirmationGate": {
+      "applyWithoutConfirmRejected": true,
+      "errorCode": "ERR_CONFIRM_WRITE_REQUIRED",
+      "freshReadBackUnchanged": true
+    },
+    "apply": {
+      "confirmed": true,
+      "transactionState": "committed",
+      "freshReadBack": {
+        "side": "bottom",
+        "layer": 2,
+        "xMil": 210.1575,
+        "yMil": -1238.2677,
+        "rotationDeg": 90,
+        "locked": false
+      }
+    },
+    "restore": {
+      "transactionState": "committed",
+      "freshReadBack": {
+        "side": "top",
+        "layer": 1,
+        "xMil": 190.1575,
+        "yMil": -1258.2677,
+        "rotationDeg": 0,
+        "locked": false
+      },
+      "restoredExactly": true
+    }
+  },
+  "compatibilitySnapshot": {
+    "algorithm": "git-tree-sha1",
+    "paths": {
+      "easyeda-bridge-extension/src": "862958340fbcce72db8a7dddbdd0cbb9077c5511",
+      "src/bridge": "f9eb0e0249bc31f1b763ac3f6ecd998e30332f94",
+      "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+      "src/server/transports": "3783cb8d1d0af548e6c6eaeab303fa2ab9247390",
+      "src/tools": "72b8ebeeea3390e6ee0e98fb3a624e2a08ade64b",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "cleanup": {
+    "finalComponentBaselineRestored": true,
+    "normalEasyedaProfileWritesObserved": false,
+    "disposableProcessesStopped": true,
+    "remoteDebuggingPort9231Clear": true,
+    "bridgePort49620Clear": true,
+    "disposableProfileRemoved": true
+  },
+  "redaction": {
+    "localPathsOmitted": true,
+    "projectIdentifiersGeneralized": true,
+    "primitiveIdentifiersOmitted": true,
+    "transactionIdentifiersOmitted": true,
+    "credentialsOmitted": true,
+    "rawApiInventoryOmitted": true
+  }
+}

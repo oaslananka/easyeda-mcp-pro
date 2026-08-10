@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-08-09
+- **Last reviewed:** 2026-08-10
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,9 +32,55 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-10 | 2026-11-08 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-10-v1-rc2-final`
+
+### Runtime identity
+
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.4 LTS                         |
+| Kernel                               | `7.0.0-28-generic`                         |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.18.0`                                  |
+| Validation package version           | `1.0.0-rc.2`                               |
+| Release containing validated fixes   | `1.0.0-rc.2`                               |
+| Compatibility-sensitive base commit  | `83577d0a9313a1596283d981b7215e22b3e982c9` |
+| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
+| Installed extension package metadata | `0.99.2`                                   |
+| Loader-reported version              | `1.0.0-rc.2`                               |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `34f1dcf29ebdf3cf`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
+
+The installed extension package reported `0.99.2`, while the loader reported `1.0.0-rc.2`; the distinction is retained as part of the exact runtime evidence.
+
+### Capability evidence
+
+| Capability                                                            | Level  | Status   | Result                                                                                                                                                                                                                                                                                                               | Evidence                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact merged RC.2 packaged bridge                                     | `live` | `passed` | The exact merged RC.2 commit built a deterministic 0.99.2 EasyEDA package / 1.0.0-rc.2 runtime extension, installed in a disposable EasyEDA Pro 3.2.149 profile, reconnected over the local bridge, and matched method registry hash 34f1dcf29ebdf3cf.                                                               | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-10-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-component-transform.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| Exact merged RC.2 schematic and PCB read-only smoke                   | `live` | `passed` | Public MCP reads against the disposable Quick Start fixture returned 34 schematic components, 16 nets, 20 BOM groups, native ERC with 0 errors and 1 warning, and an 80 x 60 mm PCB with 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.                                                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-10-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-component-transform.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| Typed PCB component transform with confirmation and exact restoration | `live` | `passed` | The RC.2 public component-transform tool previewed a top-to-bottom side/position/rotation change without mutation, rejected apply without confirmWrite, applied the confirmed change with fresh read-back, and restored the disposable component to the exact original layer, coordinates, rotation, and lock state. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-10-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-component-transform.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| Exact merged RC.2 package and protected PR gates                      | `ci`   | `passed` | The exact merged candidate rebuilt and verified the extension package, produced a 597-file npm validation pack, and the release candidate PR merged only after its protected quality, platform, security, Codecov, Socket, and SonarQube Cloud checks passed.                                                        | [PR #495](https://github.com/oaslananka/easyeda-mcp-pro/pull/495), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437)                                                                                                           |
+
+### Known limitations
+
+- This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS receive packed-install CI coverage but do not have equivalent RC.2 live EasyEDA desktop records.
+- Remote Relay was not dogfooded through a public hosted endpoint during this exact-candidate desktop pass; its repository integration and isolation gates remain separate release checks.
+- Copper-zone creation remains intentionally fail closed. This record validates the typed PCB component transform path and does not claim a safe native copper-zone create/rebuild contract.
+- EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.2 while the validated product runtime is 1.0.0-rc.2.
+- The recorded npm tarball is a local validation pack from the exact merged source candidate. Public npm provenance, GitHub release assets, attestations, SBOM, and GHCR identities remain publication-time gates.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 

@@ -1,8 +1,109 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-09",
+  "lastReviewed": "2026-08-10",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-10-v1-rc2-final",
+      "status": "live-validated",
+      "validatedAt": "2026-08-10T14:24:00+03:00",
+      "reviewBy": "2026-11-08",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-28-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.0.0-rc.2",
+        "releaseContainingFixes": "1.0.0-rc.2",
+        "commit": "83577d0a9313a1596283d981b7215e22b3e982c9",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "862958340fbcce72db8a7dddbdd0cbb9077c5511",
+            "src/bridge": "f9eb0e0249bc31f1b763ac3f6ecd998e30332f94",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "3783cb8d1d0af548e6c6eaeab303fa2ab9247390",
+            "src/tools": "72b8ebeeea3390e6ee0e98fb3a624e2a08ade64b",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "0.99.2",
+        "loaderReportedVersion": "1.0.0-rc.2",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "34f1dcf29ebdf3cf",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "Example Quick Start disposable local profile",
+        "schematic": "Schematic / P1",
+        "document": "Schematic and PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-rc2-final-packaged-bridge",
+          "name": "Exact merged RC.2 packaged bridge",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact merged RC.2 commit built a deterministic 0.99.2 EasyEDA package / 1.0.0-rc.2 runtime extension, installed in a disposable EasyEDA Pro 3.2.149 profile, reconnected over the local bridge, and matched method registry hash 34f1dcf29ebdf3cf.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-10-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-component-transform.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc2-final-read-only-smoke",
+          "name": "Exact merged RC.2 schematic and PCB read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Public MCP reads against the disposable Quick Start fixture returned 34 schematic components, 16 nets, 20 BOM groups, native ERC with 0 errors and 1 warning, and an 80 x 60 mm PCB with 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-10-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-component-transform.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc2-final-pcb-component-transform",
+          "name": "Typed PCB component transform with confirmation and exact restoration",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The RC.2 public component-transform tool previewed a top-to-bottom side/position/rotation change without mutation, rejected apply without confirmWrite, applied the confirmed change with fresh read-back, and restored the disposable component to the exact original layer, coordinates, rotation, and lock state.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-10-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-component-transform.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc2-final-package-and-pr-gates",
+          "name": "Exact merged RC.2 package and protected PR gates",
+          "evidenceLevel": "ci",
+          "status": "passed",
+          "summary": "The exact merged candidate rebuilt and verified the extension package, produced a 597-file npm validation pack, and the release candidate PR merged only after its protected quality, platform, security, Codecov, Socket, and SonarQube Cloud checks passed.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/495",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS receive packed-install CI coverage but do not have equivalent RC.2 live EasyEDA desktop records.",
+        "Remote Relay was not dogfooded through a public hosted endpoint during this exact-candidate desktop pass; its repository integration and isolation gates remain separate release checks.",
+        "Copper-zone creation remains intentionally fail closed. This record validates the typed PCB component transform path and does not claim a safe native copper-zone create/rebuild contract.",
+        "EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.2 while the validated product runtime is 1.0.0-rc.2.",
+        "The recorded npm tarball is a local validation pack from the exact merged source candidate. Public npm provenance, GitHub release assets, attestations, SBOM, and GHCR identities remain publication-time gates."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-09-v1-rc2",
       "status": "live-validated",
