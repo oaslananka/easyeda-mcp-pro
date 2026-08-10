@@ -52,6 +52,16 @@ function offsetNumber(value: unknown): number {
 export function createDispatcherDomainRouter(
   dependencies: DispatcherDomainRouterDependencies,
 ): DispatcherDomainRouter {
+  const pcbListRoutes: DomainRoute[] = Object.entries({
+    'pcb.listComponents': dependencies.pcbReadOperations.listComponents,
+    'pcb.listFills': dependencies.pcbReadOperations.listFills,
+    'pcb.listRegions': dependencies.pcbReadOperations.listRegions,
+    'pcb.listTracks': dependencies.pcbReadOperations.listTracks,
+    'pcb.listVias': dependencies.pcbReadOperations.listVias,
+  }).map(([method, read]) => ({
+    method,
+    handle: (params) => read(optionalNumber(params.limit), offsetNumber(params.offset)),
+  }));
   const routes = [
     { method: 'api.call', handle: (params) => dependencies.systemApiOperations.apiCall(params) },
     {
@@ -109,46 +119,7 @@ export function createDispatcherDomainRouter(
       method: 'pcb.exportRouteContext',
       handle: (params) => dependencies.exportOperations.exportRouteContext(params),
     },
-    {
-      method: 'pcb.listComponents',
-      handle: (params) =>
-        dependencies.pcbReadOperations.listComponents(
-          optionalNumber(params.limit),
-          offsetNumber(params.offset),
-        ),
-    },
-    {
-      method: 'pcb.listFills',
-      handle: (params) =>
-        dependencies.pcbReadOperations.listFills(
-          optionalNumber(params.limit),
-          offsetNumber(params.offset),
-        ),
-    },
-    {
-      method: 'pcb.listRegions',
-      handle: (params) =>
-        dependencies.pcbReadOperations.listRegions(
-          optionalNumber(params.limit),
-          offsetNumber(params.offset),
-        ),
-    },
-    {
-      method: 'pcb.listTracks',
-      handle: (params) =>
-        dependencies.pcbReadOperations.listTracks(
-          optionalNumber(params.limit),
-          offsetNumber(params.offset),
-        ),
-    },
-    {
-      method: 'pcb.listVias',
-      handle: (params) =>
-        dependencies.pcbReadOperations.listVias(
-          optionalNumber(params.limit),
-          offsetNumber(params.offset),
-        ),
-    },
+    ...pcbListRoutes,
     {
       method: 'pcb.modifyComponent',
       handle: (params) => dependencies.pcbMutationOperations.modifyComponent(params),

@@ -464,74 +464,27 @@ export function createBoardInspectionOperations({
   async function getFeatures(): Promise<unknown> {
     await requireActivePcbContext();
     const globalObj = getGlobal();
-    const pcbViaClass = readPath<any>(globalObj, 'pcb_PrimitiveVia');
-    // Tracks are PCB_PrimitiveLine segments (confirmed live: PCB_PrimitivePolyline
-    // never accepts a valid create() call). 'pcb_PrimitiveTrack' does not exist in
-    // the runtime at all, so this count was always silently 0.
-    const pcbTrackClass = readPath<any>(globalObj, 'pcb_PrimitiveLine');
-    const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
-    const pcbPourClass = readPath<any>(globalObj, 'pcb_PrimitivePour');
-    const pcbFillClass = readPath<any>(globalObj, 'pcb_PrimitiveFill');
-    const pcbRegionClass = readPath<any>(globalObj, 'pcb_PrimitiveRegion');
-    const pcbCompClass = readPath<any>(globalObj, 'pcb_PrimitiveComponent');
-
-    let viasCount = 0;
-    let tracksCount = 0;
-    let padsCount = 0;
-    let zonesCount = 0;
-    let compsCount = 0;
-
-    try {
-      if (pcbViaClass && typeof pcbViaClass.getAll === 'function') {
-        viasCount = (await pcbViaClass.getAll())?.length || 0;
-      }
-    } catch (error) {
-      logRecoverableError('failed to count vias', error);
-    }
-
-    try {
-      if (pcbTrackClass && typeof pcbTrackClass.getAll === 'function') {
-        tracksCount = (await pcbTrackClass.getAll())?.length || 0;
-      }
-    } catch (error) {
-      logRecoverableError('failed to count tracks', error);
-    }
-
-    try {
-      if (pcbPadClass && typeof pcbPadClass.getAll === 'function') {
-        padsCount = (await pcbPadClass.getAll())?.length || 0;
-      }
-    } catch (error) {
-      logRecoverableError('failed to count pads', error);
-    }
-
-    try {
-      if (pcbPourClass && typeof pcbPourClass.getAll === 'function') {
-        zonesCount = (await pcbPourClass.getAll())?.length || 0;
-      }
-    } catch (error) {
-      logRecoverableError('failed to count zones', error);
-    }
-
-    const fillsCount = await countPrimitiveCollection(pcbFillClass, 'fills');
-    const regionsCount = await countPrimitiveCollection(pcbRegionClass, 'regions');
-
-    try {
-      if (pcbCompClass && typeof pcbCompClass.getAll === 'function') {
-        compsCount = (await pcbCompClass.getAll())?.length || 0;
-      }
-    } catch (error) {
-      logRecoverableError('failed to count PCB components', error);
-    }
-
+    const counts = await Promise.all(
+      [
+        ['pcb_PrimitiveVia', 'vias'],
+        ['pcb_PrimitiveLine', 'tracks'],
+        ['pcb_PrimitivePour', 'zones'],
+        ['pcb_PrimitiveFill', 'fills'],
+        ['pcb_PrimitiveRegion', 'regions'],
+        ['pcb_PrimitivePad', 'pads'],
+        ['pcb_PrimitiveComponent', 'PCB components'],
+      ].map(([path, description]) =>
+        countPrimitiveCollection(readPath<any>(globalObj, path), description),
+      ),
+    );
     return {
-      vias: viasCount,
-      tracks: tracksCount,
-      zones: zonesCount,
-      fills: fillsCount,
-      regions: regionsCount,
-      pads: padsCount,
-      components: compsCount,
+      vias: counts[0],
+      tracks: counts[1],
+      zones: counts[2],
+      fills: counts[3],
+      regions: counts[4],
+      pads: counts[5],
+      components: counts[6],
     };
   }
 

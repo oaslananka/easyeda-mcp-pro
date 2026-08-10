@@ -29,11 +29,158 @@ const pcbPolygonSchema = z.object({
   bounds: pcbBoundsSchema,
 });
 
+type PcbPoint = { x: number; y: number };
+type PcbBounds = { minX: number; minY: number; maxX: number; maxY: number };
+const MAX_PCB_POLYGON_POINTS = 500;
+const FALLBACK_CIRCLE_SEGMENTS = 32;
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function circleSourcePoints(source: unknown[]): PcbPoint[] {
+  const cx = finiteNumber(source[1]);
+  const cy = finiteNumber(source[2]);
+  const radius = finiteNumber(source[3]);
+  if (cx === undefined || cy === undefined || radius === undefined || radius <= 0) return [];
+  return Array.from({ length: FALLBACK_CIRCLE_SEGMENTS }, (_, index) => {
+    const angle = (index / FALLBACK_CIRCLE_SEGMENTS) * Math.PI * 2;
+    return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius };
+  });
+}
+
+function rectangleSourcePoints(source: unknown[]): PcbPoint[] {
+  const [x, y, width, height, rotation, round] = source.slice(1, 7).map(finiteNumber);
+  if ([x, y, width, height].some((value) => value === undefined)) return [];
+  if (rotation !== 0 || round !== 0 || (width as number) < 0 || (height as number) < 0) return [];
+  const right = (x as number) + (width as number);
+  const bottom = (y as number) + (height as number);
+  return [
+    { x: x as number, y: y as number },
+    { x: right, y: y as number },
+    { x: right, y: bottom },
+    { x: x as number, y: bottom },
+  ];
+}
+
+function lineSourcePoints(source: unknown[]): PcbPoint[] {
+  if (source.some((token) => typeof token === 'string' && token !== 'L')) return [];
+  const coordinates = source.filter((token) => token !== 'L');
+  if (coordinates.length < 6 || coordinates.length % 2) return [];
+  const points: PcbPoint[] = [];
+  for (let index = 0; index < coordinates.length; index += 2) {
+    const x = finiteNumber(coordinates[index]);
+    const y = finiteNumber(coordinates[index + 1]);
+    if (x === undefined || y === undefined) return [];
+    points.push({ x, y });
+  }
+  return points;
+}
+
+function sourcePoints(source: unknown[]): PcbPoint[] {
+  if (source[0] === 'CIRCLE') return circleSourcePoints(source);
+  if (source[0] === 'R') return rectangleSourcePoints(source);
+  return lineSourcePoints(source);
+}
+
+function pointBounds(points: PcbPoint[]): PcbBounds {
+  return points.reduce<PcbBounds>(
+    (bounds, point) => ({
+      minX: Math.min(bounds.minX, point.x),
+      minY: Math.min(bounds.minY, point.y),
+      maxX: Math.max(bounds.maxX, point.x),
+      maxY: Math.max(bounds.maxY, point.y),
+    }),
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
+  );
+}
+
+function normalizePolygonSource(source: unknown) {
+  if (!Array.isArray(source) || source.length === 0) return undefined;
+  const candidates = Array.isArray(source[0]) ? source : [source];
+  const contours = [];
+  let pointCount = 0;
+  let storedPointCount = 0;
+  let bounds: PcbBounds | undefined;
+  let contourCount = 0;
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) continue;
+    const points = sourcePoints(candidate);
+    if (points.length === 0) continue;
+    contourCount += 1;
+    pointCount += points.length;
+    const contourBounds = pointBounds(points);
+    bounds = bounds
+      ? {
+          minX: Math.min(bounds.minX, contourBounds.minX),
+          minY: Math.min(bounds.minY, contourBounds.minY),
+          maxX: Math.max(bounds.maxX, contourBounds.maxX),
+          maxY: Math.max(bounds.maxY, contourBounds.maxY),
+        }
+      : contourBounds;
+    const stored = points.slice(0, Math.max(0, MAX_PCB_POLYGON_POINTS - storedPointCount));
+    storedPointCount += stored.length;
+    if (stored.length) {
+      contours.push({
+        points: stored,
+        pointCount: points.length,
+        truncated: stored.length < points.length,
+        bounds: contourBounds,
+      });
+    }
+  }
+  if (!bounds || pointCount === 0) return undefined;
+  return {
+    contours,
+    contourCount,
+    pointCount,
+    truncated: storedPointCount < pointCount,
+    bounds,
+  };
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function withPolygon(item: Record<string, unknown>, publicItem: Record<string, unknown>) {
+  const polygon = normalizePolygonSource(item.polygonSource);
+  return polygon ? { ...publicItem, polygon } : publicItem;
+}
+
+function normalizeFillItem(item: Record<string, unknown>): Record<string, unknown> {
+  const net = typeof item.net === 'string' ? item.net : '';
+  return withPolygon(item, {
+    primitiveId: typeof item.primitiveId === 'string' ? item.primitiveId : '',
+    layer: optionalNumber(item.layer),
+    net,
+    netless: !net,
+    fillMode: Number.isInteger(item.fillMode) ? item.fillMode : undefined,
+    lineWidth: optionalNumber(item.lineWidth),
+    locked: item.locked === true,
+  });
+}
+
+function normalizeRegionItem(item: Record<string, unknown>): Record<string, unknown> {
+  return withPolygon(item, {
+    primitiveId: typeof item.primitiveId === 'string' ? item.primitiveId : '',
+    layer: optionalNumber(item.layer),
+    ruleTypes: Array.isArray(item.ruleTypes) ? item.ruleTypes.filter(Number.isInteger) : [],
+    regionName: typeof item.regionName === 'string' ? item.regionName : '',
+    lineWidth: optionalNumber(item.lineWidth),
+    locked: item.locked === true,
+  });
+}
+
 /** Shared handler for the PCB list-* tools: call the bridge, map its
  *  {total, items} shape onto the caller-provided list key, and degrade to
  *  an empty (not_available) list instead of throwing — "no PCB tab focused"
  *  is a normal state for these tools, not an error. */
-function makePcbListHandler(bridgeMethod: string, listKey: string) {
+function makePcbListHandler(
+  bridgeMethod: string,
+  listKey: string,
+  mapItem?: (item: Record<string, unknown>) => Record<string, unknown>,
+) {
   return async (ctx: ToolContext, params: unknown) => {
     const { projectId, limit, offset } = pcbListInputSchema.parse(params);
     try {
@@ -41,10 +188,11 @@ function makePcbListHandler(bridgeMethod: string, listKey: string) {
         Record<string, unknown>,
         { total?: number; items?: Record<string, unknown>[] }
       >(bridgeMethod, { limit, offset });
+      const items = result?.items ?? [];
       return {
         project_id: projectId,
-        [listKey]: result?.items ?? [],
-        total: result?.total ?? result?.items?.length ?? 0,
+        [listKey]: mapItem ? items.map(mapItem) : items,
+        total: result?.total ?? items.length,
       };
     } catch (err) {
       return {
@@ -70,6 +218,7 @@ function registerPcbListTool(
     bridgeMethod: string;
     listKey: string;
     itemSchema: z.ZodTypeAny;
+    mapItem?: (item: Record<string, unknown>) => Record<string, unknown>;
   },
 ): void {
   registry.register({
@@ -94,7 +243,7 @@ function registerPcbListTool(
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
-    handler: makePcbListHandler(opts.bridgeMethod, opts.listKey),
+    handler: makePcbListHandler(opts.bridgeMethod, opts.listKey, opts.mapItem),
   });
 }
 
@@ -135,6 +284,7 @@ function registerPcbReadTools(
       'Netless fills are returned explicitly with netless=true. Read-only; no Fill mutation is exposed.',
     bridgeMethod: 'pcb.listFills',
     listKey: 'fills',
+    mapItem: normalizeFillItem,
     itemSchema: z.object({
       primitiveId: z.string(),
       layer: z.number().optional(),
@@ -156,6 +306,7 @@ function registerPcbReadTools(
       'Read-only; no Region mutation is exposed.',
     bridgeMethod: 'pcb.listRegions',
     listKey: 'regions',
+    mapItem: normalizeRegionItem,
     itemSchema: z.object({
       primitiveId: z.string(),
       layer: z.number().optional(),

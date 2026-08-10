@@ -217,6 +217,23 @@ describe('Board Tools', () => {
     expect(result?.components).toBe(45);
   });
 
+  it('easyeda_board_features defaults missing Fill/Region counts to zero', async () => {
+    const tool = registry.get('easyeda_board_features');
+    bridgeCall.mockResolvedValue({ vias: 1, tracks: 2, zones: 3, pads: 4 });
+
+    const result = await tool?.handler(context, { projectId: 'proj-sparse' });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-sparse',
+      vias: 1,
+      tracks: 2,
+      zones: 3,
+      fills: 0,
+      regions: 0,
+      pads: 4,
+    });
+  });
+
   it('easyeda_board_layers returns not_available when bridge call fails', async () => {
     const tool = registry.get('easyeda_board_layers');
     expect(tool).toBeDefined();
