@@ -66,6 +66,7 @@ export default defineConfig({
         items: [
           { text: 'MCP Tools', link: '/reference/tools' },
           { text: 'Resources & Prompts', link: '/reference/resources-prompts' },
+          { text: 'MCP Protocol Compatibility', link: '/reference/mcp-protocol-compatibility' },
           { text: 'EasyEDA Compatibility', link: '/reference/easyeda-compatibility' },
           { text: 'Bridge Contract', link: '/reference/bridge-contract' },
           { text: 'Runtime Inventory', link: '/reference/runtime-inventory' },
