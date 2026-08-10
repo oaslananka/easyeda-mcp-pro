@@ -687,6 +687,30 @@ describe('DRC/ERC Tools', () => {
     expect(result?.overall_passed).toBeNull();
   });
 
+  it('easyeda_rule_check_summary normalizes sparse results and non-Error failures', async () => {
+    const tool = registry.get('easyeda_rule_check_summary');
+
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'design.drc') return {};
+      if (method === 'design.erc') return Promise.reject('ERC transport unavailable');
+      return null;
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-sparse' });
+
+    expect(result?.drc).toEqual({ total: 0, errors: 0, warnings: 0, passed: true });
+    expect(result?.erc).toEqual({
+      total: 0,
+      errors: 0,
+      warnings: 0,
+      passed: null,
+      not_available: true,
+      error: 'ERC transport unavailable',
+    });
+    expect(result?.overall_passed).toBeNull();
+    expect(result?.not_available).toBeUndefined();
+  });
+
   it('easyeda_rule_check_summary preserves DRC when ERC is unavailable', async () => {
     const tool = registry.get('easyeda_rule_check_summary');
 
