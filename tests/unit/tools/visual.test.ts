@@ -137,6 +137,36 @@ describe('Visual Tools', () => {
       expect(result).toMatchObject({ captured: true, image_base64: 'cmVnaW9uLWJ5dGVz' });
     });
 
+    it('reports original and final dimensions for a downsampled region capture', async () => {
+      const tool = registry.get('easyeda_canvas_capture_region');
+      bridgeCall.mockResolvedValue({
+        base64: 'Ym91bmRlZA==',
+        mimeType: 'image/png',
+        fileName: 'capture-region.png',
+        byteLength: 500_000,
+        downsampled: true,
+        originalDimensions: { width: 2400, height: 1200 },
+        imageDimensions: { width: 1200, height: 600 },
+        payloadBudgetBytes: 629_145,
+      });
+
+      const result = await tool?.handler(context, {
+        left: 0,
+        right: 100,
+        top: 50,
+        bottom: 0,
+      });
+
+      expect(result).toMatchObject({
+        captured: true,
+        byte_length: 500_000,
+        downsampled: true,
+        original_image_dimensions: { width: 2400, height: 1200 },
+        image_dimensions: { width: 1200, height: 600 },
+        payload_budget_bytes: 629_145,
+      });
+    });
+
     it('rejects a zero-area region before calling the bridge', async () => {
       const tool = registry.get('easyeda_canvas_capture_region');
 
@@ -208,6 +238,38 @@ describe('Visual Tools', () => {
         captured: true,
         deterministic_viewport: true,
         selection_overlays_removed: true,
+        image_dimensions: { width: 1200, height: 800 },
+        sheet_to_image_transform: {
+          scale_x: 2,
+          scale_y: -2,
+          offset_x: 0,
+          offset_y: 800,
+        },
+      });
+    });
+
+    it('uses final downsampled dimensions for the full-page coordinate transform', async () => {
+      const tool = registry.get('easyeda_schematic_capture_full_page');
+      bridgeCall
+        .mockResolvedValueOnce({ pageSize: { width: 600, height: 400, unit: 'mil' } })
+        .mockResolvedValueOnce({
+          base64: 'Ym91bmRlZA==',
+          mimeType: 'image/png',
+          fileName: 'full-page.png',
+          byteLength: 500_000,
+          selectionCleared: true,
+          downsampled: true,
+          originalDimensions: { width: 2400, height: 1600 },
+          imageDimensions: { width: 1200, height: 800 },
+          payloadBudgetBytes: 629_145,
+        });
+
+      const result = await tool?.handler(context, { projectId: 'project-1' });
+
+      expect(result).toMatchObject({
+        captured: true,
+        downsampled: true,
+        original_image_dimensions: { width: 2400, height: 1600 },
         image_dimensions: { width: 1200, height: 800 },
         sheet_to_image_transform: {
           scale_x: 2,

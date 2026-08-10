@@ -20,8 +20,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_bom_validate`                             | `core`  | `medium` | Validate the project BOM against LCSC inventory to identify missing, obsolete, or alternate parts.                                                                                                                                                                                                                               |
 | `easyeda_bridge_probe_methods`                     | `dev`   | `medium` | Query the EasyEDA Pro bridge for available API methods. Requires bridge connection. (dev/pro only)                                                                                                                                                                                                                               |
 | `easyeda_bridge_status`                            | `core`  | `low`    | Check EasyEDA Pro bridge connection status, version, and capabilities.                                                                                                                                                                                                                                                           |
-| `easyeda_canvas_capture`                           | `core`  | `low`    | Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or last-focused); use easyeda_canvas_capture_region first to frame a specific area. Image is delivered once, as its own content block.             |
-| `easyeda_canvas_capture_region`                    | `core`  | `low`    | Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API. The image is delivered once, as its own content block.                            |
+| `easyeda_canvas_capture`                           | `core`  | `low`    | Capture the visible EasyEDA schematic/PCB canvas as PNG. Captures the given tab or last-focused tab. Oversized PNGs are downsampled without cropping and report original/final dimensions.                                                                                                                                       |
+| `easyeda_canvas_capture_region`                    | `core`  | `low`    | Zoom to a rectangular document/canvas region and capture it as PNG. This moves the visible viewport. Oversized PNGs are downsampled without cropping, preserving the complete requested region.                                                                                                                                  |
 | `easyeda_canvas_locate`                            | `core`  | `low`    | Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.                                                                     |
 | `easyeda_catalog_list`                             | `pro`   | `low`    | List devices cached by easyeda_catalog_verify_device, with their validation status and provenance. Optionally filter by status (resolved/partial/unresolved). This is a local cache only — never redistributed.                                                                                                                  |
 | `easyeda_catalog_verify_device`                    | `pro`   | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.                             |
@@ -81,7 +81,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_add_wire`                       | `core`  | `medium` | Add a wire connecting schematic coordinates/pins — real native connectivity. Same `netName` connects pins globally: separate stubs sharing one name merge into one net (no label needed). NET_COLLISION guards touched points against a foreign net's wire, pin, or flag/port — not mid-segment crossings.                       |
 | `easyeda_schematic_audit_imported_design`          | `core`  | `low`    | Read the live schematic without modifying it, build a canonical model, and report imported net aliases, duplicate or missing references, unresolved metadata expressions, missing values/footprints, and ambiguous BOM classification. Includes a preview only; it never renames nets or changes components.                     |
 | `easyeda_schematic_batch_write`                    | `core`  | `high`   | Apply up to 200 validated schematic create, modify, pin no-connect, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.                                                                                          |
-| `easyeda_schematic_capture_full_page`              | `pro`   | `low`    | Read the active schematic sheet geometry, clear selection overlays, frame the complete sheet including its border and title block, and return a deterministic PNG plus the sheet-to-image coordinate transform. Refuses guessed geometry unless explicitly allowed.                                                              |
+| `easyeda_schematic_capture_full_page`              | `pro`   | `low`    | Frame and capture the complete schematic sheet with a sheet-to-image transform. Oversized PNGs are downsampled without cropping; transforms use final image dimensions. Guessed geometry is opt-in.                                                                                                                              |
 | `easyeda_schematic_check_collisions`               | `core`  | `low`    | Scan every component's real pin coordinates and report any (x,y) shared by two or more components — a silent-short risk the native NET_COLLISION guard misses for never-wired pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this automatically).                                            |
 | `easyeda_schematic_check_placement`                | `pro`   | `low`    | Validate a candidate placement (rendered bounds, clearances, conflicts, deterministic alternatives) or -- when x/y are omitted -- search for a safe region of the given size, against real title-block/page-border/existing-primitive constraints. Read-only, no writes.                                                         |
 | `easyeda_schematic_component_pins`                 | `core`  | `low`    | Get exact pin primitive IDs, numbers, names, coordinates, native no-connect state, and pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.                         |
@@ -525,7 +525,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Capture the currently visible EasyEDA schematic/PCB canvas as a PNG image, so the caller can visually verify the result of a draw/place/route action. Captures the given tab (or last-focused); use easyeda_canvas_capture_region first to frame a specific area. Image is delivered once, as its own content block.
+> Capture the visible EasyEDA schematic/PCB canvas as PNG. Captures the given tab or last-focused tab. Oversized PNGs are downsampled without cropping and report original/final dimensions.
 
 ### Input Parameters
 
@@ -544,6 +544,10 @@ Returns a JSON object matching the schema:
   file_name: string(optional);
   byte_length: number(optional);
   image_base64: string(optional);
+  original_image_dimensions: object(optional);
+  image_dimensions: object(optional);
+  downsampled: boolean(optional);
+  payload_budget_bytes: number(optional);
   not_available: boolean(optional);
   error: string(optional);
 }
@@ -555,7 +559,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Zoom the EasyEDA canvas to a rectangular region (document/canvas coordinates) and capture it as a PNG, so the caller can visually verify a specific area. This moves the user's visible viewport — EasyEDA Pro has no offscreen rendering API. The image is delivered once, as its own content block.
+> Zoom to a rectangular document/canvas region and capture it as PNG. This moves the visible viewport. Oversized PNGs are downsampled without cropping, preserving the complete requested region.
 
 ### Input Parameters
 
@@ -578,6 +582,10 @@ Returns a JSON object matching the schema:
   file_name: string(optional);
   byte_length: number(optional);
   image_base64: string(optional);
+  original_image_dimensions: object(optional);
+  image_dimensions: object(optional);
+  downsampled: boolean(optional);
+  payload_budget_bytes: number(optional);
   not_available: boolean(optional);
   error: string(optional);
 }
@@ -2570,7 +2578,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `pro` | **Risk Level:** `low`
 
-> Read the active schematic sheet geometry, clear selection overlays, frame the complete sheet including its border and title block, and return a deterministic PNG plus the sheet-to-image coordinate transform. Refuses guessed geometry unless explicitly allowed.
+> Frame and capture the complete schematic sheet with a sheet-to-image transform. Oversized PNGs are downsampled without cropping; transforms use final image dimensions. Guessed geometry is opt-in.
 
 ### Input Parameters
 
@@ -2592,12 +2600,15 @@ Returns a JSON object matching the schema:
   file_name: string (optional);
   byte_length: number (optional);
   image_base64: string (optional);
+  original_image_dimensions: object (optional);
+  image_dimensions: object (optional);
+  downsampled: boolean (optional);
+  payload_budget_bytes: number (optional);
   not_available: boolean (optional);
   error: string (optional);
   project_id: string;
   sheet: object (optional);
   viewport: object (optional);
-  image_dimensions: object (optional);
   sheet_to_image_transform: object (optional);
   selection_overlays_removed: boolean (optional);
   deterministic_viewport: boolean;

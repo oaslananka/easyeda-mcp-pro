@@ -985,6 +985,34 @@ describe('createDispatcher', () => {
     expect(located).toBe(true);
   });
 
+  it('routes canvas captures through the loader-supplied capture normalizer', async () => {
+    const blob = new Blob([new Uint8Array(1_000)], { type: 'image/png' });
+    const zoomToRegion = vi.fn(async () => true);
+    const getCurrentRenderedAreaImage = vi.fn(async () => blob);
+    const normalizeCanvasBinaryResult = vi.fn(async (value: unknown, fileName: string) => ({
+      value,
+      fileName,
+      byteLength: 500,
+      downsampled: true,
+    }));
+    const dispatcher = createDispatcher(
+      Object.assign(
+        makeToolkit({ DMT_EditorControl: { zoomToRegion, getCurrentRenderedAreaImage } }),
+        { normalizeCanvasBinaryResult },
+      ),
+    );
+
+    const result = await dispatcher.dispatch('canvas.captureRegion', {
+      left: 0,
+      right: 100,
+      top: 50,
+      bottom: 0,
+    });
+
+    expect(normalizeCanvasBinaryResult).toHaveBeenCalledWith(blob, 'capture-region.png');
+    expect(result).toMatchObject({ byteLength: 500, downsampled: true });
+  });
+
   it('canvas.captureRegion normalizes bounds before capturing the settled viewport', async () => {
     const callOrder: string[] = [];
     const zoomToRegion = vi.fn(async () => {
