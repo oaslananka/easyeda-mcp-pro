@@ -99,7 +99,7 @@ describe('repository governance policy', () => {
   it('records the enforceable main-branch protection baseline', () => {
     const policy = readPolicy();
 
-    expect(policy.liveStateVerifiedAt).toBe('2026-07-30');
+    expect(policy.liveStateVerifiedAt).toBe('2026-08-10');
     expect(policy.branchProtection).toEqual({
       requiredChecks: [
         'quality (24)',
@@ -108,6 +108,7 @@ describe('repository governance policy', () => {
         'dependency-review',
         'codecov/patch',
         'SonarCloud Code Analysis',
+        'Mergify Merge Protections',
       ],
       strictStatusChecks: true,
       requiredApprovals: 0,
@@ -176,7 +177,10 @@ describe('repository governance policy', () => {
     };
     const branchEvidence = JSON.parse(
       readText(policy.continuity.recovery.branchProtectionEvidence),
-    ) as { branchProtection: GovernancePolicy['branchProtection'] };
+    ) as {
+      verifiedAt: string;
+      branchProtection: GovernancePolicy['branchProtection'];
+    };
 
     expect(policy.continuity.recovery.reviewCadenceDays).toBe(180);
     expect(policy.continuity.recovery.lastExerciseAt).toBe('2026-07-25');
@@ -197,6 +201,7 @@ describe('repository governance policy', () => {
     expect(exercise.outcomes.githubRelease).toBe('passed');
     expect(exercise.outcomes.ghcr).toBe('passed');
     expect(exercise.outcomes.mcpRegistry).toBe('passed');
+    expect(branchEvidence.verifiedAt).toBe(policy.liveStateVerifiedAt);
     expect(branchEvidence.branchProtection).toEqual(policy.branchProtection);
   });
 

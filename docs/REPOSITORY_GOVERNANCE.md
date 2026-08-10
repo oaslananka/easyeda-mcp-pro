@@ -85,20 +85,20 @@ The pull request must contain a compact disposition table when automated systems
 
 The live `main` protection and merge settings must match this table and the machine-readable policy. The `main-protection` repository ruleset is the canonical enforcement mechanism for `main`. It targets `~DEFAULT_BRANCH`, has no bypass actors, and replaces the former classic branch-protection rule after an overlap-first migration proved the required checks and merge restrictions were equivalent.
 
-| Setting                               | Required state                                                                                                                |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Pull request required                 | Enabled                                                                                                                       |
-| Required approvals                    | `0` only while the documented solo-maintainer limitation exists                                                               |
-| Code-owner review                     | Disabled only while required approvals would deadlock the sole owner                                                          |
-| Dismiss stale approvals               | Disabled while approvals are zero; enable with independent review enforcement                                                 |
-| Require approval after latest push    | Disabled while approvals are zero; enable with independent review enforcement                                                 |
-| Required checks                       | `quality (24)`, `codeql`, `Socket Security: Project Report`, `dependency-review`, `codecov/patch`, `SonarCloud Code Analysis` |
-| Strict/up-to-date status checks       | Enabled                                                                                                                       |
-| Conversation resolution               | Enabled                                                                                                                       |
-| Apply protection to administrators    | Enabled                                                                                                                       |
-| Linear history                        | Enabled; repository merge settings permit squash merge only                                                                   |
-| Force pushes and branch deletion      | Disabled                                                                                                                      |
-| Automatic branch deletion after merge | Enabled                                                                                                                       |
+| Setting                               | Required state                                                                                                                                             |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pull request required                 | Enabled                                                                                                                                                    |
+| Required approvals                    | `0` only while the documented solo-maintainer limitation exists                                                                                            |
+| Code-owner review                     | Disabled only while required approvals would deadlock the sole owner                                                                                       |
+| Dismiss stale approvals               | Disabled while approvals are zero; enable with independent review enforcement                                                                              |
+| Require approval after latest push    | Disabled while approvals are zero; enable with independent review enforcement                                                                              |
+| Required checks                       | `quality (24)`, `codeql`, `Socket Security: Project Report`, `dependency-review`, `codecov/patch`, `SonarCloud Code Analysis`, `Mergify Merge Protections` |
+| Strict/up-to-date status checks       | Enabled                                                                                                                                                    |
+| Conversation resolution               | Enabled                                                                                                                                                    |
+| Apply protection to administrators    | Enabled                                                                                                                                                    |
+| Linear history                        | Enabled; repository merge settings permit squash merge only                                                                                                |
+| Force pushes and branch deletion      | Disabled                                                                                                                                                   |
+| Automatic branch deletion after merge | Enabled                                                                                                                                                    |
 
 A required-check name is a public interface. Renaming, replacing, adding, or removing one requires updating the workflow, repository ruleset, JSON policy, documentation, and repository-policy tests together. The setting change must be verified against the live GitHub API after merge.
 
@@ -108,7 +108,7 @@ Mergify supplements the GitHub `main-protection` ruleset; it does not replace or
 
 A maintainer may request the queue through Mergify's pull-request queue control or the `@mergifyio queue` command. Queueing never grants a ruleset bypass: GitHub's required checks, strict up-to-date requirement, conversation resolution, and squash-only merge policy remain authoritative.
 
-Merge Protections report through the `Mergify Merge Protections` check. The check must remain informational until it has been observed on a real pull request against the default branch. Promoting it to a required status check follows the same public-interface change process as every other required check: update the live ruleset, this document, the JSON governance policy, and repository-policy tests together, then verify the live GitHub state. Mergify receives no ruleset bypass actor.
+Merge Protections report through the `Mergify Merge Protections` check. The provider-owned check was observed successfully on canary pull request #499 and has been required by the live `main-protection` ruleset since 2026-08-10. Mergify receives no ruleset bypass actor. Renaming, replacing, or removing this check follows the same public-interface change process as every other required check.
 
 ## Emergency exception
 
