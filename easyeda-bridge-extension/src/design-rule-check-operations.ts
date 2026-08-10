@@ -207,17 +207,23 @@ export function createDesignRuleCheckOperations(
     return runNative(['SCH_Drc.check']);
   }
 
-  async function runDrc(): Promise<DrcResult> {
+  async function runFocusedNative(
+    paths: string[],
+    document: string,
+    method: string,
+  ): Promise<DrcResult> {
     try {
-      return await runNative(['PCB_Drc.check']);
+      return await runNative(paths);
     } catch (error) {
-      throw dependencies.createBridgeError(
-        'CONTEXT_UNAVAILABLE',
-        'PCB DRC is unavailable in the current editor context.',
-        'Open and focus a PCB document, then retry design.drc.',
-        { cause: dependencies.errorMessage(error) },
-      );
+      const message = `Focus a ${document} document, then retry ${method}.`;
+      throw dependencies.createBridgeError('CONTEXT_UNAVAILABLE', message, message, {
+        cause: dependencies.errorMessage(error),
+      });
     }
+  }
+
+  async function runDrc(): Promise<DrcResult> {
+    return runFocusedNative(['PCB_Drc.check'], 'PCB', 'design.drc');
   }
 
   async function runRuleCheck(): Promise<DrcResult> {
@@ -247,7 +253,7 @@ export function createDesignRuleCheckOperations(
   }
 
   async function runErc(): ReturnType<DesignRuleCheckOperations['runErc']> {
-    const result = await runNative(['SCH_Drc.check']);
+    const result = await runFocusedNative(['SCH_Drc.check'], 'schematic', 'design.erc');
     try {
       const { floatingPins } = await dependencies.findFloatingPins();
       return {

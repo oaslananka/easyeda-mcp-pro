@@ -1276,9 +1276,24 @@ describe('createDispatcher', () => {
 
     await expect(dispatcher.dispatch('design.drc', {})).rejects.toMatchObject({
       code: 'CONTEXT_UNAVAILABLE',
-      message: 'PCB DRC is unavailable in the current editor context.',
-      suggestion: 'Open and focus a PCB document, then retry design.drc.',
+      message: 'Focus a PCB document, then retry design.drc.',
+      suggestion: 'Focus a PCB document, then retry design.drc.',
       data: { cause: 'localized message-bus error' },
+    });
+    expect(check).toHaveBeenCalledWith(true, true, true);
+  });
+
+  it('design.erc translates an inactive schematic canvas failure into CONTEXT_UNAVAILABLE', async () => {
+    const check = vi.fn(async () => {
+      throw new Error('localized schematic message-bus error');
+    });
+    const dispatcher = createDispatcher(makeToolkit({ SCH_Drc: { check } }));
+
+    await expect(dispatcher.dispatch('design.erc', {})).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: 'Focus a schematic document, then retry design.erc.',
+      suggestion: 'Focus a schematic document, then retry design.erc.',
+      data: { cause: 'localized schematic message-bus error' },
     });
     expect(check).toHaveBeenCalledWith(true, true, true);
   });
