@@ -27,6 +27,7 @@
 /.github/requirements/ @oaslananka
 /.github/dependency-audit-allowlist.json @oaslananka
 /.github/renovate.json @oaslananka
+/.mergify.yml @oaslananka
 /.gitleaksignore @oaslananka
 /.semgrep.yml @oaslananka
 /.semgrepignore @oaslananka

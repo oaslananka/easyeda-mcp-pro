@@ -9,6 +9,7 @@
       "/.github/requirements/",
       "/.github/dependency-audit-allowlist.json",
       "/.github/renovate.json",
+      "/.mergify.yml",
       "/.gitleaksignore",
       "/.semgrep.yml",
       "/.semgrepignore",

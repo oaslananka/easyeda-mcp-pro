@@ -1,0 +1,28 @@
+merge_queue:
+  mode: serial
+  max_parallel_checks: 1
+  status_comments: outcomes
+  queue_controls_comment: true
+
+queue_rules:
+  - name: default
+    batch_size: 1
+    merge_method: squash
+    update_method: merge
+    queue_conditions:
+      - base = main
+      - -draft
+      - -conflict
+
+merge_protections_settings:
+  reporting_method: check-runs
+  post_comment: false
+
+merge_protections:
+  - name: Main pull request readiness
+    description: Keep draft or conflicted pull requests from being considered merge-ready.
+    if:
+      - base = main
+    success_conditions:
+      - -draft
+      - -conflict
