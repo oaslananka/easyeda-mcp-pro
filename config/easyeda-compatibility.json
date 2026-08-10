@@ -1,8 +1,109 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-07-29",
+  "lastReviewed": "2026-08-09",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-09-v1-rc2",
+      "status": "live-validated",
+      "validatedAt": "2026-08-09T04:55:26+03:00",
+      "reviewBy": "2026-11-07",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-28-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.0.0-rc.2",
+        "releaseContainingFixes": "1.0.0-rc.2",
+        "commit": "48cd31091f5cbb56dc44aea7fe7aea2a42306ea2",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "d8d4e356e29db5c998034e7bc4029883baa96235",
+            "src/bridge": "f9eb0e0249bc31f1b763ac3f6ecd998e30332f94",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "3783cb8d1d0af548e6c6eaeab303fa2ab9247390",
+            "src/tools": "01f12d56a92673b1bfefd79cf7415906f6c09aeb",
+            "src/transactions": "3270429d2ea4e29484170bfdf55506c2599f107c"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "0.99.2",
+        "loaderReportedVersion": "1.0.0-rc.2",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "34f1dcf29ebdf3cf",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "Example Quick Start disposable local profile",
+        "schematic": "Schematic / P1",
+        "document": "Schematic and PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-rc2-packaged-bridge-cold-start",
+          "name": "Packaged RC.2 bridge cold start",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact 1.0.0-rc.2 candidate installed in EasyEDA Pro as numeric package 0.99.2, reactivated after restart, connected on the local bridge, reported loader/extension/runtime version 1.0.0-rc.2, exposed 67 capabilities, and matched method registry hash 34f1dcf29ebdf3cf without version or registry drift.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-09-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc2-schematic-read-only-smoke",
+          "name": "RC.2 schematic read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "On the disposable Quick Start schematic, all six read-only smoke checks passed: bridge status, runtime API inventory, nets, components, BOM, and native ERC. The fixture reported 34 components, 16 nets, 20 BOM groups, and native ERC passed with 0 errors and 1 warning.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-09-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc2-pcb-read-only-smoke",
+          "name": "RC.2 PCB read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "On the disposable Quick Start PCB, the exact candidate returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-09-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc2-local-quality-and-pr-gates",
+          "name": "Exact-tree quality, package, and PR gates",
+          "evidenceLevel": "ci",
+          "status": "passed",
+          "summary": "The exact candidate tree passed 2,026 server tests, 361 extension tests, metadata/documentation checks, secret hygiene, deterministic extension packaging, and a 594-file npm pack verification; PR #493 also passed the required cross-platform/security checks before the compatibility evidence update.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/493",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact RC.2 live pass was read-only. Transaction-backed mutation and rollback were not repeated for RC.2; the release gate claim is limited to packaged bridge identity plus read-only schematic and PCB compatibility.",
+        "This exact-version live record applies only to Ubuntu x86_64. Windows and macOS receive packed-install CI coverage but do not have equivalent RC.2 live EasyEDA desktop records.",
+        "Remote Relay was not dogfooded through a public hosted endpoint during this exact-candidate pass.",
+        "EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager displays 0.99.2 while the bridge runtime and server report product version 1.0.0-rc.2.",
+        "The recorded npm tarball is a local validation pack from the source candidate. Public npm provenance, GitHub release assets, attestations, SBOM, and GHCR identities remain publication-time gates and are not claimed by this pre-publication record."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-29-v1-rc1",
       "status": "live-validated",

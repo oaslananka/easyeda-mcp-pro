@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-08-09T04:55:26+03:00",
+  "candidateCommit": "48cd31091f5cbb56dc44aea7fe7aea2a42306ea2",
+  "compatibilitySensitiveBaseCommit": "48cd31091f5cbb56dc44aea7fe7aea2a42306ea2",
+  "server": {
+    "packageVersion": "1.0.0-rc.2",
+    "packageTarballSha256": "7d439dbb06a4e605f009ce22259da2896cd88833b9b4126c68ed251b8f6aed32",
+    "nodeVersion": "24.18.0",
+    "profile": "full",
+    "transport": "stdio"
+  },
+  "extension": {
+    "packageVersion": "0.99.2",
+    "loaderReportedVersion": "1.0.0-rc.2",
+    "packageSha256": "3d581cb37146f1d4deeae1e0e07778dd42ae96078a9f5c49be3274c577a0158e",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "34f1dcf29ebdf3cf",
+    "dispatcherBuildId": "d366exa29axf6de",
+    "dispatcherSha256": "794bb37563d46c01338386a656e4c681687e8b1638196622023fa33b4e0caca8",
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true,
+    "autoUpdateEnabled": false
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-28-generic"
+  },
+  "fixture": {
+    "project": "Example Quick Start disposable local profile",
+    "schematic": "Schematic / P1",
+    "document": "Schematic and PCB",
+    "disposable": true,
+    "mode": "Half Offline"
+  },
+  "readOnlySmoke": {
+    "status": "passed",
+    "generatedAt": "2026-08-09T01:51:13.432Z",
+    "methodRegistryHash": "34f1dcf29ebdf3cf",
+    "writeEnabled": false,
+    "checks": [
+      {
+        "id": "system_status",
+        "title": "Read EasyEDA bridge system status",
+        "kind": "system",
+        "method": "system.getStatus",
+        "status": "passed",
+        "durationMs": 6717,
+        "mutates": false
+      },
+      {
+        "id": "api_inventory",
+        "title": "Read EasyEDA runtime API inventory",
+        "kind": "system",
+        "method": "system.apiInventory",
+        "status": "passed",
+        "durationMs": 3,
+        "mutates": false
+      },
+      {
+        "id": "schematic_nets",
+        "title": "List schematic nets",
+        "kind": "schematic",
+        "method": "schematic.listNets",
+        "status": "passed",
+        "durationMs": 253,
+        "mutates": false
+      },
+      {
+        "id": "schematic_components",
+        "title": "List schematic components",
+        "kind": "schematic",
+        "method": "schematic.listComponents",
+        "status": "passed",
+        "durationMs": 91,
+        "mutates": false
+      },
+      {
+        "id": "bom_generate",
+        "title": "Generate BOM snapshot",
+        "kind": "bom",
+        "method": "bom.generate",
+        "status": "passed",
+        "durationMs": 91,
+        "mutates": false
+      },
+      {
+        "id": "erc_check",
+        "title": "Run ERC check",
+        "kind": "design",
+        "method": "design.erc",
+        "status": "passed",
+        "durationMs": 401,
+        "mutates": false
+      }
+    ],
+    "schematic": {
+      "components": 34,
+      "nets": 16,
+      "bomGroups": 20,
+      "erc": {
+        "passed": true,
+        "errors": 0,
+        "warnings": 1,
+        "inferredFloatingPins": 0
+      }
+    },
+    "board": {
+      "widthMm": 80,
+      "heightMm": 60,
+      "areaMm2": 4800,
+      "hasOutline": true,
+      "layerCount": 57,
+      "vias": 0,
+      "tracks": 98,
+      "zones": 1,
+      "pads": 83,
+      "components": 33
+    }
+  },
+  "bridgeHandshake": {
+    "connected": true,
+    "port": 49620,
+    "capabilityCount": 67,
+    "serverVersion": "1.0.0-rc.2",
+    "extensionVersion": "1.0.0-rc.2",
+    "loaderVersion": "1.0.0-rc.2",
+    "extensionVersionMismatch": false,
+    "registryMismatch": false,
+    "methodRegistryHash": "34f1dcf29ebdf3cf"
+  },
+  "redaction": {
+    "localPathsOmitted": true,
+    "projectIdentifiersGeneralized": true,
+    "primitiveIdentifiersOmitted": true,
+    "credentialsOmitted": true,
+    "rawApiInventoryOmitted": true
+  }
+}

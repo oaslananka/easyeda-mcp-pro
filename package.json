@@ -1,6 +1,6 @@
 {
   "name": "easyeda-mcp-pro",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "mcpName": "io.github.oaslananka/easyeda-mcp-pro",
   "description": "MCP server for EasyEDA Pro: PCB inspection, BOM, exports, and hardware review.",
   "keywords": [

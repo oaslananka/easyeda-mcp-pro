@@ -1,6 +1,6 @@
 # Migrating to v1
 
-`1.0.0-rc.1` is the first v1 release candidate. During its soak, npm `latest` and the stable container channel remain on `0.35.4`; candidate users must opt in through the prerelease channel.
+`1.0.0-rc.2` is the next v1 release candidate after RC.1 was superseded by candidate-sensitive corrections. After RC.2 is published, npm `next` and the prerelease container channel point to RC.2 while npm/GHCR `latest` and the stable MCP Registry entry remain on `0.35.4`; candidate users must opt in through the prerelease channel.
 
 ## What stays compatible
 
@@ -21,11 +21,11 @@
 
    An MCP client can also test the candidate with `npx -y easyeda-mcp-pro@next`.
 
-2. Download the matching `easyeda-bridge-extension.eext` asset from the `v1.0.0-rc.1` GitHub prerelease.
-3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro requires a numeric package version, so Extension Manager shows `0.99.1` for this RC; the bridge runtime still reports the product version `1.0.0-rc.1`.
+2. Download the matching `easyeda-bridge-extension.eext` asset from the `easyeda-mcp-pro-v1.0.0-rc.2` GitHub prerelease.
+3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro requires a numeric package version, so Extension Manager shows `0.99.2` for this RC; the bridge runtime still reports the product version `1.0.0-rc.2`.
 4. Start the MCP server and confirm:
    - `easyeda_health_check` returns `status: ok`;
-   - server and extension versions both report `1.0.0-rc.1`;
+   - server and extension versions both report `1.0.0-rc.2`;
    - `extension_version_mismatch` and `registry_mismatch` are both `false`.
 5. Re-run the workflows your project depends on before using the candidate for production work.
 
