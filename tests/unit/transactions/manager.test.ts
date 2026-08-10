@@ -44,6 +44,30 @@ describe('TransactionManager', () => {
     expect(manager.get(transaction.id).operations).toHaveLength(1);
   });
 
+  it('records an explicitly requested PCB primitive target type', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'pcb-doc-1' });
+    let state = { primitiveId: 'pcb1', layer: 1 };
+
+    const result = await manager.runModify(
+      transaction.id,
+      'pcb1',
+      {
+        getSnapshot: async () => structuredClone(state),
+        apply: async () => {
+          state = { primitiveId: 'pcb1', layer: 2 };
+          return true;
+        },
+        restore: async (snapshot) => {
+          state = structuredClone(snapshot as typeof state);
+        },
+      },
+      'pcb-primitive',
+    );
+
+    expect(result.operation.target).toEqual({ type: 'pcb-primitive', id: 'pcb1' });
+  });
+
   it('cancels a failed operation without restoring when state did not change', async () => {
     const manager = new TransactionManager();
     const transaction = manager.begin({ documentId: 'doc-1' });

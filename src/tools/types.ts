@@ -36,8 +36,11 @@ export interface ToolDefinition<
   /** Safety risk level — gates like confirmWrite trigger at 'medium' and above */
   risk: 'low' | 'medium' | 'high';
   /** Whether the tool can mutate project/design state.
-   *  When true the runtime MUST require an explicit acknowledgment before execution. */
+   *  When true the runtime requires explicit acknowledgment according to confirmationPolicy. */
   confirmWrite: boolean;
+  /** Confirmation timing. Defaults to `always`; `apply-mode` permits a non-mutating
+   *  `mode=preview` call while still requiring confirmWrite=true for `mode=apply`. */
+  confirmationPolicy?: 'always' | 'apply-mode';
   /** Explicit side-effect category. Omitted definitions fall back to confirmWrite-based classification. */
   sideEffect?: ToolSideEffect;
   /** Logical group for UI organisation and documentation (e.g. 'schematic', 'bom', 'board') */
