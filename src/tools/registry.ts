@@ -1,4 +1,4 @@
-import { type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { type ToolDefinition, type ToolContext, type ToolSideEffect } from './types.js';
 import {
   registeredOutputSchema,
@@ -200,14 +200,23 @@ function bridgeDisconnectedResponse(
   });
 }
 
+type McpHandlerAuthInfo = {
+  clientId?: string;
+  scopes?: string[];
+  expiresAt?: number;
+  extra?: Record<string, unknown>;
+};
+
 type McpHandlerExtra = {
-  authInfo?: {
-    clientId?: string;
-    scopes?: string[];
-    expiresAt?: number;
-    extra?: Record<string, unknown>;
-  };
+  // v1 and retained 2025-era context shape.
+  authInfo?: McpHandlerAuthInfo;
   requestInfo?: { headers?: unknown };
+  // SDK v2 exposes the HTTP request context under `http` while retaining
+  // the same 2025-era wire lifecycle unless modern serving is explicitly enabled.
+  http?: {
+    authInfo?: McpHandlerAuthInfo;
+    req?: { headers?: unknown };
+  };
 };
 
 function readHeader(headers: unknown, name: string): string | undefined {
@@ -242,9 +251,17 @@ function parseRemoteScopes(value: unknown): RemoteIdentity['scopes'] {
     .filter(Boolean) as RemoteIdentity['scopes'];
 }
 
+function handlerAuthInfo(extra: McpHandlerExtra | undefined): McpHandlerAuthInfo | undefined {
+  return extra?.authInfo ?? extra?.http?.authInfo;
+}
+
+function handlerHeaders(extra: McpHandlerExtra | undefined): unknown {
+  return extra?.requestInfo?.headers ?? extra?.http?.req?.headers;
+}
+
 function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
   const handlerExtra = extra as McpHandlerExtra | undefined;
-  const auth = handlerExtra?.authInfo;
+  const auth = handlerAuthInfo(handlerExtra);
   if (auth) {
     const claims = auth.extra ?? {};
     let userId = auth.clientId;
@@ -258,7 +275,7 @@ function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
     };
   }
 
-  const headers = handlerExtra?.requestInfo?.headers;
+  const headers = handlerHeaders(handlerExtra);
   const userId = readHeader(headers, 'x-remote-user-id');
   if (!userId) return undefined;
   const expiresAtHeader = readHeader(headers, 'x-remote-expires-at');
@@ -639,8 +656,7 @@ export class ToolRegistry {
           outputSchema: registeredOutputSchema(tool),
           annotations: tool.annotations,
         },
-        async (input: unknown, extra: unknown) =>
-          handleRegisteredToolCall(tool, context, input, extra),
+        async (input: unknown, ctx: unknown) => handleRegisteredToolCall(tool, context, input, ctx),
       );
     }
   }

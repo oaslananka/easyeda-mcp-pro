@@ -8,7 +8,7 @@ protocol is already enabled.
 
 | Area                  | Current repository behavior                                                     |
 | --------------------- | ------------------------------------------------------------------------------- |
-| MCP SDK               | `@modelcontextprotocol/sdk` v1, currently locked to `1.29.0`                    |
+| MCP SDK               | Modular v2 packages; server/node lock to `2.0.0`, client is test-only           |
 | Default MCP revision  | `2025-11-25`                                                                    |
 | HTTP era              | Legacy/sessionful                                                               |
 | HTTP initialization   | `initialize` followed by `notifications/initialized`                            |
@@ -40,8 +40,9 @@ The official TypeScript SDK v2 line exposes the two eras through different lifec
 
 Research baseline on 2026-08-09: the stable v2 packages
 `@modelcontextprotocol/server`, `@modelcontextprotocol/client`, `@modelcontextprotocol/node`, and
-`@modelcontextprotocol/core` are published at `2.0.0`. The repository must pin and verify the exact
-v2 package set in a dedicated dependency change before any modern protocol path is enabled.
+`@modelcontextprotocol/core` are published at `2.0.0`. The repository now resolves the direct
+server/node SDK packages to `2.0.0` in the lockfile and keeps the client package test-only. This
+changes SDK packaging and handler context compatibility only; no modern protocol path is enabled.
 
 Primary references:
 
@@ -102,8 +103,9 @@ The compatibility work should remain reviewable as separate changes:
 
 1. **Legacy baseline:** lock the current raw HTTP initialize/session/termination behavior and
    unsupported-modern-version rejection in tests. No production behavior changes.
-2. **SDK v2 compile migration:** pin the stable v2 package set and migrate imports while preserving
-   legacy wire behavior. No modern era enabled by default.
+2. **SDK v2 compile migration:** use the stable modular v2 package set and migrate imports while
+   preserving legacy wire behavior. Keep `MCP_V2_EXPERIMENTAL` non-effective; no modern era is
+   enabled by this step.
 3. **Modern HTTP path:** add explicit era routing and `2026-07-28` request handling while keeping
    the existing sessionful route independent.
 4. **Modern stdio path:** adopt the v2 stdio lifecycle behind an explicit compatibility boundary.

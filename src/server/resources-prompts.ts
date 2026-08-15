@@ -1,4 +1,5 @@
-import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ResourceTemplate } from '@modelcontextprotocol/server';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { type ToolContext } from '../tools/types.js';
 import { listDfmChecklist } from '../design-rules/dfm-checklist.js';
@@ -147,9 +148,9 @@ function promptText(title: string, projectId: string, body: string): string {
   ].join('\n');
 }
 
-const promptArgsSchema = {
+const promptArgsSchema = z.object({
   projectId: z.string().min(1).describe('EasyEDA project identifier to review.'),
-};
+});
 
 export function registerProjectResourcesAndPrompts(server: McpServer, context: ToolContext): void {
   server.registerResource(

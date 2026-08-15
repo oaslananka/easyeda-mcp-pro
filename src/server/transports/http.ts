@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { type Express, type Request, type Response, type NextFunction } from 'express';
-import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
-import { type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import express, { type Express, type Request, type Response, type NextFunction } from 'express';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import { isInitializeRequest } from '@modelcontextprotocol/server';
+import type { McpServer, AuthInfo } from '@modelcontextprotocol/server';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { type EnvConfig } from '../../config/env.js';
 import { SERVER_VERSION } from '../../config/version.js';
 import { getLogger } from '../../utils/logger.js';
@@ -17,7 +15,7 @@ import { RemoteGateway } from '../../remote/gateway.js';
 
 export interface HttpTransportInstance {
   app: Express;
-  transport: StreamableHTTPServerTransport;
+  transport: NodeStreamableHTTPServerTransport;
   readonly activeSessionCount: number;
   start: () => Promise<void>;
   close: () => Promise<void>;
@@ -36,7 +34,7 @@ interface RateLimitEntry {
 
 interface McpHttpSession {
   server: McpServer;
-  transport: StreamableHTTPServerTransport;
+  transport: NodeStreamableHTTPServerTransport;
   closing: boolean;
 }
 
@@ -455,11 +453,12 @@ export function createHttpTransport(
 
   // Retained for compatibility with callers that explicitly attach one MCP
   // server. Production HTTP uses serverFactory and the session map below.
-  const transport = new StreamableHTTPServerTransport({
+  const transport = new NodeStreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
   });
 
-  const app = createMcpExpressApp({ host: config.HTTP_HOST });
+  const app = express();
+  app.use(express.json());
 
   app.use(parseRemoteJsonBody);
   app.use(addSecurityHeaders);
@@ -518,7 +517,7 @@ export function createHttpTransport(
       return;
     }
 
-    const sessionTransport = new StreamableHTTPServerTransport({
+    const sessionTransport = new NodeStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sessionId) => {
         sessions.set(sessionId, session);

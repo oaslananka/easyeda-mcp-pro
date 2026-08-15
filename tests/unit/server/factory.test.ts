@@ -17,17 +17,17 @@ const mocks = vi.hoisted(() => ({
   vendor: vi.fn(),
 }));
 
-vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
+vi.mock('@modelcontextprotocol/server', () => ({
   McpServer: class MockMcpServer {
     server = { onerror: undefined as ((error: unknown) => void) | undefined };
     close = mocks.close;
   },
 }));
-vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
+vi.mock('@modelcontextprotocol/server/stdio', () => ({
   StdioServerTransport: class MockStdioServerTransport {},
 }));
-vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => ({
-  StreamableHTTPServerTransport: class MockStreamableHTTPServerTransport {},
+vi.mock('@modelcontextprotocol/node', () => ({
+  NodeStreamableHTTPServerTransport: class MockStreamableHTTPServerTransport {},
 }));
 vi.mock('../../../src/utils/logger.js', () => ({
   createLogger: () => mocks.logger,

@@ -137,7 +137,9 @@ There are currently no active dependency-audit exceptions. The former
 `GHSA-frvp-7c67-39w9` exception for `@hono/node-server@1.19.14` was removed in #382 after the
 workspace pinned the transitive adapter to patched `@hono/node-server@2.0.10` and the complete MCP
 HTTP, Remote Relay, platform, and security verification matrix passed. The exact override remains
-in `pnpm-workspace.yaml` until the production MCP SDK v1 line publishes a patched dependency range.
+in `pnpm-workspace.yaml` because `@modelcontextprotocol/node@2.0.0` still resolves through
+`@hono/node-server`; it should be removed only when the upstream dependency range resolves safely
+without the repository override.
 
 ### Scheduled advisory monitoring
 

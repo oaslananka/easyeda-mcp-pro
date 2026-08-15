@@ -18,20 +18,20 @@ Third-party dependencies must be kept up to date to receive security patches and
 We choose **Renovate** as our dependency automation provider.
 
 - Renovate will be configured via `.github/renovate.json`.
-- We enforce a **3-day minimum release age** for NPM packages to filter out poisoned versions before they are proposed.
+- We enforce a **7-day minimum release age** for NPM packages to filter out poisoned versions before they are proposed.
 - We enable **Dependency Dashboard** to review major updates and approve them.
 - We enable weekly lockfile maintenance to refresh transient dependencies.
 - We define grouping rules:
   - ESLint toolchain group: `eslint`, `@eslint/js`, `typescript-eslint`.
   - Development toolchain group: `typescript`, `tsx`, `vitest`, `vitepress`.
-  - All other runtime dependencies (`@modelcontextprotocol/sdk`, `zod`, `jose`, `ws`, `undici`) are processed individually.
+  - All other runtime dependencies (`@modelcontextprotocol/server`, `@modelcontextprotocol/node`, `express`, `zod`, `jose`, `ws`, `undici`) are processed individually.
 - We configure **automerge** for patch/minor updates of `devDependencies` if CI passes. We do not automerge `dependencies` (runtime packages).
 
 ## Consequences
 
 - **Pros**:
   - Eliminates manual effort in tracking and upgrading development tools.
-  - Mitigates security risks by filtering out newly published packages (< 3 days old).
+  - Mitigates security risks by filtering out newly published packages (< 7 days old).
   - Groups updates to reduce pull request and CI pipeline noise.
 - **Cons**:
   - Auto-merged PRs require robust unit and integration testing in CI to catch any regressions.
