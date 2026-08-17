@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.0-rc.4] - 2026-08-17
+
+### Release candidate
+
+- Supersedes RC.3 because the MCP runtime/dependency migration in #516 landed after the RC.3 candidate and invalidated its seven-day major-release soak under the release policy.
+- Migrates the existing sessionful MCP runtime to the modular SDK v2 packages while deliberately preserving the current `2025-11-25` wire contract; advertised MCP input/output schemas now use the MCP-compatible JSON Schema 2020-12 dialect instead of the SDK-v1 draft-07 output that caused the Claude Code incompatibility tracked in #520, while MCP `2026-07-28` dual-era/stateless support remains deferred to #476.
+- Adds a real MCP `tools/list` regression gate over every enabled dev-profile tool so an incompatible explicit schema dialect cannot silently return.
+- Updates the reviewed transitive `nanoid` security pin to patched `3.3.18`, restoring the repository dependency audit without weakening supply-chain policy.
+- Adds regression evidence that the global HTTP rate limiter runs before OAuth authorization middleware, preserving fail-closed remote HTTP behavior.
+- Requires fresh EasyEDA Pro 3.2.149 compatibility evidence for the post-RC.3 transport/runtime surface and starts a new seven-day v1 soak only after RC.4 publication and exact published-asset verification.
+- Uses EasyEDA numeric install version `0.99.4` while preserving `1.0.0-rc.4` as the server and extension runtime product version.
+- Keeps copper-zone restoration, PCB side-aware work, and actual MCP `2026-07-28` compatibility outside the RC.4 stabilization scope.
+
 ## [1.0.0-rc.3] - 2026-08-11
 
 ### Release candidate
