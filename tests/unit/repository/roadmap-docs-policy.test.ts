@@ -35,6 +35,8 @@ describe('repository roadmap and CDP documentation policy', () => {
     expect(roadmap).not.toContain(
       'v1.0 readiness — Governance, release quality, and ecosystem confidence',
     );
+    expect(roadmap).not.toContain('/issues/349');
+    expect(roadmap).not.toContain('/issues/350');
     expect(roadmap).toContain('/issues/437');
     expect(roadmap).toContain('/issues/470');
     expect(roadmap).toContain('/issues/480');
