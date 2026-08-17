@@ -1,8 +1,110 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-11",
+  "lastReviewed": "2026-08-17",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-17-v1-rc4-candidate",
+      "status": "live-validated",
+      "validatedAt": "2026-08-17T23:51:11+03:00",
+      "reviewBy": "2026-11-15",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "6.8.0-137-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.0.0-rc.4",
+        "releaseContainingFixes": "1.0.0-rc.4",
+        "commit": "58dbdce90862f64d65199430cd9dd99e37eec610",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "a9d12a3d9e8fb96e2ab2a876e62b963b04ffb0f6",
+            "src/bridge": "5702cb9fc7bbe1f15018e9344191788cf6a00d86",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "98e9f5ec02eabbceb27abe303c4f164e111048cc",
+            "src/tools": "c2e4dc4f680f4ee5043c4e8e871964943dc733dd",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "0.99.4",
+        "loaderReportedVersion": "1.0.0-rc.4",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "d9e01181ceed32d8",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "Example Quick Start disposable local profile",
+        "schematic": "Schematic / P1",
+        "document": "Schematic and PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-rc4-sdk-v2-public-mcp-smoke",
+          "name": "SDK v2 public MCP read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact RC.4 candidate initialized over stdio with MCP 2025-11-25, exposed 112 full-profile tools with only MCP-compatible JSON Schema 2020-12/default input and output dialects, connected to the packaged EasyEDA bridge, returned health=ok, and read 16 schematic nets, 34 components, 20 BOM groups, and the native ERC result.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-17-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.4-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc4-packaged-bridge-cold-start",
+          "name": "Packaged RC.4 bridge cold start",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact RC.4 candidate installed as EasyEDA package 0.99.4, loaded product runtime 1.0.0-rc.4 with 69 bridge capabilities, matched method registry hash d9e01181ceed32d8, and reported no server/extension or registry mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-17-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.4-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc4-focused-drc-erc",
+          "name": "Focused-document DRC/ERC contract",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "With the schematic focused, native ERC returned 0 errors and 1 warning while DRC explicitly requested PCB focus; with the PCB focused, native DRC returned the fixture Import Changes error while ERC explicitly requested schematic focus. No automatic document switching occurred.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-17-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.4-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc4-board-read-only",
+          "name": "RC.4 PCB read-only inventory",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The disposable 80 x 60 mm Quick Start PCB returned 57 layers, 98 tracks, 1 Pour zone, 4 Fill primitives, 0 Region primitives, 0 vias, 83 pads, and 33 components through the exact RC.4 bridge without design mutation.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-17-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.4-read-only.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.4 live EasyEDA desktop record.",
+        "The RC.4 desktop pass was intentionally read-only. It validates the post-RC.3 MCP SDK/runtime, schema-dialect, bridge, focused DRC/ERC, and board-inspection paths without repeating transactional design mutation/rollback.",
+        "Remote Relay was not dogfooded through a public hosted endpoint during this exact-candidate desktop pass; its repository integration and isolation gates remain separate release checks.",
+        "EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.4 while the validated server and extension runtime report 1.0.0-rc.4.",
+        "The recorded npm tarball is a local validation pack from the exact candidate. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time gates.",
+        "Claude Code was not authenticated in this host session; the RC.4 compatibility claim for issue #520 is the exact MCP tools/list schema dialect plus repository regression coverage, not an authenticated Claude API conversation."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-11-v1-rc3-candidate",
       "status": "live-validated",
