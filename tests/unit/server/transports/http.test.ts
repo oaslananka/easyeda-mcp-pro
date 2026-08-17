@@ -656,6 +656,21 @@ describe('createHttpTransport — OAuth/JWKS validation', () => {
     }
   });
 
+  it('should rate-limit unauthenticated OAuth requests before authorization', async () => {
+    const { server, port } = await createOAuthApp({ HTTP_RATE_LIMIT_MAX: 1 });
+    try {
+      const first = await fetchWithPort(port);
+      expect(first.status).toBe(401);
+
+      const second = await fetchWithPort(port);
+      expect(second.status).toBe(429);
+      expect(second.headers.get('x-ratelimit-limit')).toBe('1');
+      expect(second.headers.get('x-ratelimit-remaining')).toBe('0');
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('should reject a no-Origin request without Authorization on non-loopback HTTP', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
