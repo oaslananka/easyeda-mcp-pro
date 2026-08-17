@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Client } from '@modelcontextprotocol/client';
+import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import {
   ToolRegistry,
@@ -142,6 +144,44 @@ describe('ToolRegistry', () => {
       registry.register(createMockTool('b', 'pro'));
       const all = registry.getAllTools();
       expect(all).toHaveLength(2);
+    });
+  });
+
+  describe('MCP schema dialect compatibility', () => {
+    it('publishes only MCP-compatible 2020-12/default schema dialects', async () => {
+      const server = new McpServer({ name: 'schema-dialect-test', version: '1.0.0' });
+      const client = new Client({ name: 'schema-dialect-client', version: '1.0.0' });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+      registry.setProfile('dev');
+      registerBuiltinTools(registry, TEST_CONFIG);
+      registry.registerAllOnServer(server, mockContext({ profile: 'dev' }));
+
+      try {
+        await server.connect(serverTransport);
+        await client.connect(clientTransport);
+
+        const listed = await client.listTools();
+        expect(listed.tools).toHaveLength(registry.getEnabledTools().length);
+        expect(listed.tools.length).toBeGreaterThan(0);
+
+        for (const tool of listed.tools) {
+          const inputSchema = tool.inputSchema as Record<string, unknown>;
+          const outputSchema = tool.outputSchema as Record<string, unknown> | undefined;
+
+          const supportedDialects = [undefined, 'https://json-schema.org/draft/2020-12/schema'];
+
+          expect(supportedDialects, `${tool.name} inputSchema dialect`).toContain(
+            inputSchema.$schema,
+          );
+          expect(outputSchema, `${tool.name} outputSchema`).toBeDefined();
+          expect(supportedDialects, `${tool.name} outputSchema dialect`).toContain(
+            outputSchema?.$schema,
+          );
+        }
+      } finally {
+        await Promise.allSettled([client.close(), server.close()]);
+      }
     });
   });
 
