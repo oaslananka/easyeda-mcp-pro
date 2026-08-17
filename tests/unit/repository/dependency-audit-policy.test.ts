@@ -157,18 +157,18 @@ describe('dependency audit policy', () => {
     expect(lockfile).not.toMatch(/postcss@8\.5\.(?:[0-9]|1[0-9]|2[0-2])(?:\D|$)/);
   });
 
-  it('pins nanoid to the patched release and records the reviewed age exception', () => {
+  it('pins nanoid to the patched release without retaining the obsolete age exception', () => {
     const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8').replace(
       /\r\n/g,
       '\n',
     );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).toContain('  - nanoid@3.3.17\n');
-    expect(workspacePolicy).toMatch(/\n {2}nanoid: 3\.3\.17\n/);
-    expect(lockfile).toContain('nanoid: 3.3.17');
-    expect(lockfile).toContain('nanoid@3.3.17:');
-    expect(lockfile).not.toContain('nanoid@3.3.16:');
+    expect(workspacePolicy).not.toContain('  - nanoid@3.3.17\n');
+    expect(workspacePolicy).toMatch(/\n {2}nanoid: 3\.3\.18\n/);
+    expect(lockfile).toContain('nanoid: 3.3.18');
+    expect(lockfile).toContain('nanoid@3.3.18:');
+    expect(lockfile).not.toMatch(/nanoid@3\.3\.(?:1[0-7]|[0-9])(?:\D|$)/);
   });
 
   it('pins brace-expansion to the patched release and records the reviewed age exception', () => {
