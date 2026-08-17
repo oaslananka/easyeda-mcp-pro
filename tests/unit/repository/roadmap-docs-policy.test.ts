@@ -28,10 +28,19 @@ describe('repository roadmap and CDP documentation policy', () => {
     expect(existsSync(resolve(repoRoot, path))).toBe(true);
     const roadmap = read(path);
 
-    expect(roadmap).toContain('v0.37.0 — Maintainability and operational consistency');
-    expect(roadmap).toContain(
+    expect(roadmap).toContain('v1.0.0 — Release stabilization and promotion');
+    expect(roadmap).toContain('v1.1.0 — PCB side-aware inspection and mutation');
+    expect(roadmap).toContain('v1.2.0 — MCP 2026-07-28 compatibility');
+    expect(roadmap).not.toContain('v0.37.0 — Maintainability and operational consistency');
+    expect(roadmap).not.toContain(
       'v1.0 readiness — Governance, release quality, and ecosystem confidence',
     );
+    expect(roadmap).toContain('/issues/437');
+    expect(roadmap).toContain('/issues/470');
+    expect(roadmap).toContain('/issues/480');
+    expect(roadmap).toContain('/issues/476');
+    expect(roadmap).toContain('Not scheduled');
+    expect(roadmap).toMatch(/epic.*directly scoped issues/i);
     expect(roadmap).toContain('`v<target> — <outcome>`');
     expect(roadmap).toMatch(/close.*milestone.*shipped/i);
     expect(roadmap).toContain('release-please--branches--main--components--easyeda-mcp-pro');

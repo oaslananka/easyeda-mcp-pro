@@ -4,12 +4,13 @@ This roadmap describes the intended direction for `easyeda-mcp-pro` for the next
 
 ## Active delivery milestones
 
-| Milestone                                                                  | Target date       | Public tracker                                                        | Outcome                                                                                                        |
-| -------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **v0.37.0 — Maintainability and operational consistency**                  | 26 August 2026    | [Epic #349](https://github.com/oaslananka/easyeda-mcp-pro/issues/349) | Deterministic automation, accurate repository state, and an incremental dispatcher decomposition.              |
-| **v1.0 readiness — Governance, release quality, and ecosystem confidence** | 16 September 2026 | [Epic #350](https://github.com/oaslananka/easyeda-mcp-pro/issues/350) | Public governance, release, quality, security, and compatibility evidence suitable for a stable v1.0 decision. |
+| Milestone                                           | Target date   | Public tracker                                                                                                                                                              | Outcome                                                                                          |
+| --------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **v1.0.0 — Release stabilization and promotion**    | Not scheduled | [Epic #420](https://github.com/oaslananka/easyeda-mcp-pro/issues/420) · [Release gate #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437)                       | Verify the next release candidate, complete the required soak, and decide stable v1.0 promotion. |
+| **v1.1.0 — PCB side-aware inspection and mutation** | Not scheduled | [Side-aware capture #470](https://github.com/oaslananka/easyeda-mcp-pro/issues/470) · [Copper-zone contract #480](https://github.com/oaslananka/easyeda-mcp-pro/issues/480) | Make side-specific PCB inspection deterministic and restore only verified mutation contracts.    |
+| **v1.2.0 — MCP 2026-07-28 compatibility**           | Not scheduled | [Compatibility program #476](https://github.com/oaslananka/easyeda-mcp-pro/issues/476)                                                                                      | Add explicit dual-era MCP compatibility without weakening transport or authorization controls.   |
 
-Target dates are planning goals, not release guarantees.
+The live GitHub milestones currently have no due dates. A target date belongs here only when it is an explicit planning commitment; absence of a date must not be replaced with an inferred deadline.
 
 ## Milestone and branch lifecycle
 
@@ -17,7 +18,7 @@ Version-bound milestones use the title pattern `v<target> — <outcome>`. Readin
 
 A milestone stays open only while it represents future work. Maintainers close a milestone after its release has shipped and it has no open issues; issue assignments, descriptions, and historical discussion remain intact. Completed work is not moved merely to make progress percentages look cleaner.
 
-Each active milestone has one public epic whose checklist links the deliverable issues. The epic and its child issues share the same milestone so the roadmap can be read from either view.
+Each active milestone has a public tracker: use an epic when several deliverables need coordinated sequencing, or link the directly scoped issues when a separate epic would add no durable value. Trackers and child issues stay assigned to the same milestone so the roadmap can be read from either view.
 
 Remote branches are retained only while they contain active, unmerged work or support an open pull request. Before deleting a stale branch, maintainers verify patch equivalence and preserve any unique, still-valid code or documentation on `main`.
 
