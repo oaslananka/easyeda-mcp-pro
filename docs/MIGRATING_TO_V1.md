@@ -1,6 +1,6 @@
 # Migrating to v1
 
-`1.0.0-rc.3` supersedes RC.2 because behavioral changes landed after the RC.2 candidate was published. After RC.3 is published and verified, npm `next` and the prerelease container channel point to RC.3 while npm/GHCR `latest` and the stable MCP Registry entry remain on `0.35.4`; candidate users must opt in through the prerelease channel.
+`1.0.0-rc.4` supersedes RC.3 because runtime code and runtime dependencies changed after the RC.3 candidate was published. RC.4 keeps the existing sessionful MCP `2025-11-25` wire contract while using the modular SDK v2 packages internally. After RC.4 is published and verified, npm `next` and the prerelease container channel point to RC.4 while npm/GHCR `latest` and the stable MCP Registry entry remain on `0.35.4`; candidate users must opt in through the prerelease channel.
 
 ## What stays compatible
 
@@ -21,11 +21,11 @@
 
    An MCP client can also test the candidate with `npx -y easyeda-mcp-pro@next`.
 
-2. Download the matching `easyeda-bridge-extension.eext` asset from the `easyeda-mcp-pro-v1.0.0-rc.3` GitHub prerelease.
-3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro requires a numeric package version, so Extension Manager shows `0.99.3` for this RC; the bridge runtime still reports the product version `1.0.0-rc.3`.
+2. Download the matching `easyeda-bridge-extension.eext` asset from the `easyeda-mcp-pro-v1.0.0-rc.4` GitHub prerelease.
+3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro requires a numeric package version, so Extension Manager shows `0.99.4` for this RC; the bridge runtime still reports the product version `1.0.0-rc.4`.
 4. Start the MCP server and confirm:
    - `easyeda_health_check` returns `status: ok`;
-   - server and extension versions both report `1.0.0-rc.3`;
+   - server and extension versions both report `1.0.0-rc.4`;
    - `extension_version_mismatch` and `registry_mismatch` are both `false`.
 5. Re-run the workflows your project depends on before using the candidate for production work.
 

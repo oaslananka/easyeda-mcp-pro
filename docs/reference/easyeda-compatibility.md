@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-08-11
+- **Last reviewed:** 2026-08-17
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,11 +32,58 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.4           | 1.0.0-rc.4           | 0.99.4            | Live validated  | 2026-08-17 | 2026-11-15 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.3           | 1.0.0-rc.3           | 0.99.3            | Live validated  | 2026-08-11 | 2026-11-09 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-10 | 2026-11-08 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-17-v1-rc4-candidate`
+
+### Runtime identity
+
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.4 LTS                         |
+| Kernel                               | `6.8.0-137-generic`                        |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.18.0`                                  |
+| Validation package version           | `1.0.0-rc.4`                               |
+| Release containing validated fixes   | `1.0.0-rc.4`                               |
+| Compatibility-sensitive base commit  | `58dbdce90862f64d65199430cd9dd99e37eec610` |
+| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
+| Installed extension package metadata | `0.99.4`                                   |
+| Loader-reported version              | `1.0.0-rc.4`                               |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `d9e01181ceed32d8`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
+
+The installed extension package reported `0.99.4`, while the loader reported `1.0.0-rc.4`; the distinction is retained as part of the exact runtime evidence.
+
+### Capability evidence
+
+| Capability                        | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                                 | Evidence                                                                                                                                                                                                                                  |
+| --------------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SDK v2 public MCP read-only smoke | `live` | `passed` | The exact RC.4 candidate initialized over stdio with MCP 2025-11-25, exposed 112 full-profile tools with only MCP-compatible JSON Schema 2020-12/default input and output dialects, connected to the packaged EasyEDA bridge, returned health=ok, and read 16 schematic nets, 34 components, 20 BOM groups, and the native ERC result. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-17-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.4-read-only.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| Packaged RC.4 bridge cold start   | `live` | `passed` | The exact RC.4 candidate installed as EasyEDA package 0.99.4, loaded product runtime 1.0.0-rc.4 with 69 bridge capabilities, matched method registry hash d9e01181ceed32d8, and reported no server/extension or registry mismatch.                                                                                                     | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-17-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.4-read-only.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| Focused-document DRC/ERC contract | `live` | `passed` | With the schematic focused, native ERC returned 0 errors and 1 warning while DRC explicitly requested PCB focus; with the PCB focused, native DRC returned the fixture Import Changes error while ERC explicitly requested schematic focus. No automatic document switching occurred.                                                  | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-17-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.4-read-only.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| RC.4 PCB read-only inventory      | `live` | `passed` | The disposable 80 x 60 mm Quick Start PCB returned 57 layers, 98 tracks, 1 Pour zone, 4 Fill primitives, 0 Region primitives, 0 vias, 83 pads, and 33 components through the exact RC.4 bridge without design mutation.                                                                                                                | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-17-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.4-read-only.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+
+### Known limitations
+
+- This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.4 live EasyEDA desktop record.
+- The RC.4 desktop pass was intentionally read-only. It validates the post-RC.3 MCP SDK/runtime, schema-dialect, bridge, focused DRC/ERC, and board-inspection paths without repeating transactional design mutation/rollback.
+- Remote Relay was not dogfooded through a public hosted endpoint during this exact-candidate desktop pass; its repository integration and isolation gates remain separate release checks.
+- EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.4 while the validated server and extension runtime report 1.0.0-rc.4.
+- The recorded npm tarball is a local validation pack from the exact candidate. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time gates.
+- Claude Code was not authenticated in this host session; the RC.4 compatibility claim for issue #520 is the exact MCP tools/list schema dialect plus repository regression coverage, not an authenticated Claude API conversation.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 
