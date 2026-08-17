@@ -74,7 +74,7 @@ A failed required step blocks publication. A transient rerun is allowed only whe
 1. Open a candidate PR that sets every release-managed version to `X.Y.Z-rc.N`, updates release notes, and includes the required evidence link.
 2. Merge only after the candidate PR gates pass. Create and push the annotated tag `easyeda-mcp-pro-vX.Y.Z-rc.N` for that exact commit.
 3. Create a GitHub Release marked **prerelease**, not draft, for the same tag.
-4. Dispatch `.github/workflows/release-please.yml` with the tag, `release_channel=prerelease`, and the public `evidence_url`.
+4. Dispatch `.github/workflows/publish-release.yml` with the tag, `release_channel=prerelease`, and the public `evidence_url`.
 5. Verify npm `next`, GHCR `next`, exact-version artifacts, SBOM, provenance, attestations, and documentation. Confirm npm/GHCR `latest` did not move and the MCP Registry was not published.
 6. Start or restart the applicable soak only after all checks and registry verifications pass.
 
