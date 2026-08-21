@@ -62,9 +62,7 @@ describe('Codecov analytics policy', () => {
     expect(extensionVitestConfig).not.toContain("'src/dispatcher-entry.ts'");
     expect(packageJson.scripts?.['validate:codecov']).toContain('codecov.io/validate');
     expect(packageJson.devDependencies?.['@codecov/bundle-analyzer']).toBe('2.0.1');
-    expect(packageJson.scripts?.['analyze:extension-bundle:ci']).toBe(
-      'node scripts/upload-codecov-bundle-analysis.mjs',
-    );
+    expect(packageJson.scripts?.['analyze:extension-bundle:ci']).toBeUndefined();
     const ratchet = readText('docs/coverage-ratchet.md');
     expect(ratchet).toContain('2026-07-23 extension baseline');
     expect(ratchet).toContain('2026-07-23 extension lifecycle ratchet');
@@ -108,18 +106,12 @@ describe('Codecov analytics policy', () => {
     expect(workflow).not.toContain("github.actor == 'dependabot[bot]'");
     expect(workflow).toContain('fetch-depth: 0');
     expect(workflow).toContain('run: pnpm validate:codecov');
-    expect(workflow).toContain(
-      '- name: Upload extension bundle analysis to Codecov (informational)\n' +
-        '        continue-on-error: true',
-    );
-    expect(workflow).toContain('run: pnpm analyze:extension-bundle:ci');
-    expect(workflow).toContain('CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}');
-    expect(workflow).toContain('CODECOV_BUNDLE_SLUG: ${{ github.repository }}');
-    expect(workflow).toContain(
-      'CODECOV_BUNDLE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}',
-    );
-    expect(workflow).toContain('CODECOV_BUNDLE_BRANCH: ${{ github.head_ref || github.ref_name }}');
-    expect(workflow).toContain("CODECOV_BUNDLE_PR: ${{ github.event.pull_request.number || '' }}");
+    expect(workflow).not.toContain('Upload extension bundle analysis to Codecov');
+    expect(workflow).not.toContain('run: pnpm analyze:extension-bundle:ci');
+    expect(workflow).not.toContain('CODECOV_BUNDLE_SLUG:');
+    expect(workflow).not.toContain('CODECOV_BUNDLE_SHA:');
+    expect(workflow).not.toContain('CODECOV_BUNDLE_BRANCH:');
+    expect(workflow).not.toContain('CODECOV_BUNDLE_PR:');
     expect(workflow.match(/if: \$\{\{ !cancelled\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
     expect(gitignore).toContain('reports/');
     expect(gitignore).toContain('easyeda-bridge-extension/coverage/');
