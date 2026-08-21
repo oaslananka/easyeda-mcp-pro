@@ -47,6 +47,12 @@ describe('Project transaction tools', () => {
     );
   });
 
+  it('states that opening a project transaction does not auto-capture standalone schematic writes', () => {
+    const description = registry.get('easyeda_project_begin_transaction')?.description ?? '';
+    expect(description).toContain('standalone schematic writes are not auto-captured');
+    expect(description).toContain('transactionId');
+  });
+
   it('begins a transaction and exposes status without snapshots', async () => {
     const begin = registry.get('easyeda_project_begin_transaction');
     const status = registry.get('easyeda_project_get_transaction_status');
