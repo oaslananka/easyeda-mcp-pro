@@ -214,12 +214,6 @@ jobs:
       - name: Scan source and generated outputs for secret-like material
         run: pnpm security:secrets
       - run: pnpm check:extension-size
-      - name: Upload extension bundle analysis to Codecov (informational)
-        continue-on-error: true
-        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        run: pnpm analyze:extension-bundle:ci
       - run: pnpm verify:extension
       - name: Pack PR test package
         if: github.event_name == 'pull_request'

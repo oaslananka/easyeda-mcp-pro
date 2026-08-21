@@ -45,6 +45,8 @@ The extension uses a custom esbuild script rather than Vite, Rollup, or Webpack.
 
 Bundle Analysis is informational and tracks raw and gzip-size changes for `index.js` and `dispatcher.js`. The upload step is best-effort: Codecov onboarding, repository feature availability, or a transient API error must not fail the repository quality job. It complements, but does not replace, the repository-owned blocking byte budgets:
 
+Remote Bundle Analysis upload is temporarily disabled in CI because `@codecov/bundle-analyzer@2.0.1` repeatedly receives `404 Not Found` from Codecov's pre-signed URL endpoint in the real trusted workflow, including after forcing the analyzer's Local provider path; see [codecov/codecov-action#1946](https://github.com/codecov/codecov-action/issues/1946) and repository issue #534. This removes only the noisy best-effort remote signal. Primary LCOV coverage, Test Analytics, the blocking `codecov/patch` status, and the deterministic extension byte budgets remain unchanged. Keep the exact-pinned analyzer for local non-uploading reports, and restore remote upload only after a separately verified upstream/service fix succeeds in a trusted GitHub Actions run.
+
 ```bash
 pnpm build:extension
 pnpm check:extension-size
