@@ -39,6 +39,16 @@ describe('Schematic Tools', () => {
     };
   });
 
+  it('documents library-search provenance for placement instead of project-instance cloning', () => {
+    const placeDescription = registry.get('easyeda_schematic_place_component')?.description ?? '';
+    const componentsDescription = registry.get('easyeda_schematic_components')?.description ?? '';
+
+    expect(placeDescription).toContain('schematic_search_device');
+    expect(placeDescription).toContain('project-local');
+    expect(componentsDescription).toContain('not valid place_component deviceItem values');
+    expect(componentsDescription).not.toContain('identity for cloning');
+  });
+
   it('documents explicit project transaction participation for standalone placement and deletion', () => {
     const placeDescription = registry.get('easyeda_schematic_place_component')?.description ?? '';
     const deleteDescription = registry.get('easyeda_schematic_delete_primitive')?.description ?? '';
@@ -184,6 +194,76 @@ describe('Schematic Tools', () => {
     });
     expect(result).not.toHaveProperty('sheet');
     expect(result).not.toHaveProperty('page_size');
+  });
+
+  it('easyeda_schematic_place_component preserves typed invalid-device errors', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall.mockRejectedValue(
+      Object.assign(new Error('deviceItem does not resolve to a library device'), {
+        code: 'INVALID_PARAMS',
+        data: {
+          deviceUuid: 'project-device-1',
+          libraryUuid: 'lib-uuid',
+          reason: 'library_device_not_resolved',
+        },
+      }),
+    );
+
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'project-device-1' },
+      x: 100,
+      y: 200,
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error_code: 'INVALID_PARAMS',
+      error: 'deviceItem does not resolve to a library device',
+      details: {
+        deviceUuid: 'project-device-1',
+        libraryUuid: 'lib-uuid',
+        reason: 'library_device_not_resolved',
+      },
+    });
+  });
+
+  it('easyeda_schematic_place_component preserves unstructured bridge failures', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall.mockRejectedValue('bridge exploded');
+
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 100,
+      y: 200,
+      confirmWrite: true,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error_code: undefined,
+      error: 'bridge exploded',
+      details: undefined,
+    });
+  });
+
+  it('easyeda_schematic_place_component ignores non-object structured error data', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall.mockRejectedValue(Object.assign(new Error('bad device'), { data: [] }));
+
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 100,
+      y: 200,
+      confirmWrite: true,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error_code: undefined,
+      error: 'bad device',
+      details: undefined,
+    });
   });
 
   it('easyeda_schematic_place_component should call bridge and return success', async () => {

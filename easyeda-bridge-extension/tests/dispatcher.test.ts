@@ -2975,6 +2975,65 @@ describe('createDispatcher', () => {
     });
   });
 
+  describe('schematic.placeComponent device provenance', () => {
+    it('rejects a malformed device identity before library lookup or native create', async () => {
+      const get = vi.fn();
+      const create = vi.fn();
+      const dispatcher = createDispatcher(
+        makeToolkit({ LIB_Device: { get }, SCH_PrimitiveComponent: { create } }),
+      );
+
+      await expect(
+        dispatcher.dispatch('schematic.placeComponent', {
+          deviceItem: { uuid: '', libraryUuid: 'lib-1' },
+          x: 10,
+          y: 20,
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+      expect(get).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a project-instance device identity before invoking native create', async () => {
+      const get = vi.fn(async () => null);
+      const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          LIB_Device: { get },
+          SCH_PrimitiveComponent: { create },
+        }),
+      );
+
+      await expect(
+        dispatcher.dispatch('schematic.placeComponent', {
+          deviceItem: { uuid: 'project-device-1', libraryUuid: 'lib-1' },
+          x: 10,
+          y: 20,
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+      expect(get).toHaveBeenCalledWith('project-device-1', 'lib-1');
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('allows a library-resolvable device identity to reach native create', async () => {
+      const get = vi.fn(async () => ({ uuid: 'dev-1', libraryUuid: 'lib-1', name: 'R0603' }));
+      const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          LIB_Device: { get },
+          SCH_PrimitiveComponent: { create },
+        }),
+      );
+
+      const deviceItem = { uuid: 'dev-1', libraryUuid: 'lib-1' };
+      await expect(
+        dispatcher.dispatch('schematic.placeComponent', { deviceItem, x: 10, y: 20 }),
+      ).resolves.toMatchObject({ primitiveId: 'comp1' });
+      expect(get).toHaveBeenCalledWith('dev-1', 'lib-1');
+      expect(create).toHaveBeenCalledWith(deviceItem, 10, 20);
+    });
+  });
+
   describe('schematic.placeComponent subPartName', () => {
     it('rejects a subPartName request with NOT_IMPLEMENTED instead of silently dropping it', async () => {
       const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
@@ -2993,7 +3052,10 @@ describe('createDispatcher', () => {
 
     it('places normally when subPartName is omitted', async () => {
       const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
-      const dispatcher = createDispatcher(makeToolkit({ SCH_PrimitiveComponent: { create } }));
+      const get = vi.fn(async () => ({ uuid: 'dev-1', libraryUuid: 'lib-1' }));
+      const dispatcher = createDispatcher(
+        makeToolkit({ LIB_Device: { get }, SCH_PrimitiveComponent: { create } }),
+      );
 
       const result = await dispatcher.dispatch('schematic.placeComponent', {
         deviceItem: { uuid: 'dev-1', libraryUuid: 'lib-1' },

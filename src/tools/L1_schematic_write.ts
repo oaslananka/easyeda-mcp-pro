@@ -216,6 +216,20 @@ function transactionFailure(err: unknown) {
   };
 }
 
+function bridgeFailure(err: unknown) {
+  const record = err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
+  const data =
+    record?.data && typeof record.data === 'object' && !Array.isArray(record.data)
+      ? (record.data as Record<string, unknown>)
+      : undefined;
+  return {
+    success: false as const,
+    error_code: typeof record?.code === 'string' ? record.code : undefined,
+    error: err instanceof Error ? err.message : String(err),
+    details: data,
+  };
+}
+
 function transactionManagerForProject(transactionId: string, projectId: string | undefined) {
   const manager = getGlobalTransactionManager();
   const transaction = manager.get(transactionId);
@@ -354,12 +368,7 @@ async function applyPlaceComponentWrite(ctx: ToolContext, p: PlaceComponentParam
 
 async function handlePlaceComponentError(ctx: ToolContext, p: PlaceComponentParams, err: unknown) {
   if (err instanceof TransactionError) return transactionFailure(err);
-  if (!looksLikeTimeoutOrUnconfirmed(err)) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
+  if (!looksLikeTimeoutOrUnconfirmed(err)) return bridgeFailure(err);
 
   const afterComponents = await readSchematicComponentsForVerification(ctx);
   const match = findMatchingPlacedComponent(
@@ -570,9 +579,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_place_component',
     title: 'Place schematic component',
     description:
-      'Place a library device on the active schematic. Auto-assigns a designator. On timeout inspect ' +
-      'reconciled/unconfirmed before retrying. Pass projectId + transactionId for rollback-backed ' +
-      'placement; without transactionId the write remains standalone.',
+      'Place a searched library device on the active schematic. Use deviceItem from ' +
+      'schematic_search_device; project-local identities from schematic_components are invalid. ' +
+      'On timeout inspect reconciled/unconfirmed before retrying. projectId + transactionId enables ' +
+      'rollback; without transactionId the write is standalone.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
