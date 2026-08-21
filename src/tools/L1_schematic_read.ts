@@ -274,8 +274,8 @@ function registerSchematicReadTools(
     title: 'List schematic components',
     description:
       'List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and ' +
-      'device identity for cloning — deviceUuid+deviceLibraryUuid (a place_component deviceItem ' +
-      'in this project), deviceName, symbolName, lcsc, manufacturerId.',
+      'project-instance deviceUuid/deviceLibraryUuid read-back metadata. Those IDs are not valid ' +
+      'place_component deviceItem values; use schematic_search_device for placement.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',

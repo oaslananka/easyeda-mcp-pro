@@ -171,6 +171,14 @@ function nativeScalarString(value: unknown): string {
     : '';
 }
 
+async function needDevice(v: unknown): Promise<void> {
+  const d = v as Record<string, unknown> | undefined;
+  const u = nativeScalarString(d?.uuid).trim();
+  const l = nativeScalarString(d?.libraryUuid).trim();
+  if (u && l && (await callFirst(['LIB_Device.get'], u, l))) return;
+  throw newBridgeError('INVALID_PARAMS', 'Invalid device.', 'Use search_device.');
+}
+
 /**
  * Best-effort extraction of a primitive id from a value returned by an EasyEDA
  * Pro create* API. The runtime may return a plain object with primitiveId/uuid,
@@ -1491,15 +1499,12 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       if (typeof params.subPartName === 'string' && params.subPartName.length > 0) {
         throw newBridgeError(
           'NOT_IMPLEMENTED',
-          `subPartName ("${params.subPartName}") is not supported: this runtime has no way to ` +
-            'select a specific sub-part when placing a component — every placement creates an ' +
-            'independent component on the default sub-part.',
-          'Omit subPartName. If a specific sub-part/gate is needed, place the device as its own ' +
-            'component and wire it manually instead of relying on sub-part selection.',
+          'subPartName is not supported by this EasyEDA runtime.',
+          'Omit subPartName.',
         );
       }
-      // SCH_PrimitiveComponent.create expects (deviceItem, x, y) only.
-      // Extra arguments cause the API to hang or reject.
+      await needDevice(params.deviceItem);
+
       const createdComp = await callFirst(
         ['SCH_PrimitiveComponent.create', 'sch_PrimitiveComponent.create'],
         params.deviceItem,
