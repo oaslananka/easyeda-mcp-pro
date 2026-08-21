@@ -268,6 +268,59 @@ describe('Export Tools', () => {
     expect(fs.readFileSync(result!.file_path!, 'utf-8')).toBe('%PDF-1.4 fake pdf bytes');
   });
 
+  it('easyeda_export_pdf rejects an empty binary payload instead of reporting a successful export', async () => {
+    const tool = registry.get('easyeda_export_pdf');
+    expect(tool).toBeDefined();
+
+    bridgeCall.mockResolvedValue({
+      base64: '',
+      fileName: 'schematic.pdf',
+      mimeType: 'application/pdf',
+      byteLength: 0,
+    });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-123',
+      scope: 'schematic',
+      orientation: 'landscape',
+    });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      scope: 'schematic',
+      exported: false,
+      not_available: true,
+    });
+    expect(result?.file_path).toBeUndefined();
+    expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+  });
+
+  it('easyeda_export_pdf rejects non-PDF binary data instead of writing a bogus .pdf artifact', async () => {
+    const tool = registry.get('easyeda_export_pdf');
+    expect(tool).toBeDefined();
+
+    bridgeCall.mockResolvedValue({
+      base64: Buffer.from('not actually a pdf').toString('base64'),
+      fileName: 'schematic.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    const result = await tool?.handler(context, {
+      projectId: 'proj-123',
+      scope: 'schematic',
+      orientation: 'landscape',
+    });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      scope: 'schematic',
+      exported: false,
+      not_available: true,
+    });
+    expect(result?.error).toContain('valid PDF');
+    expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+  });
+
   it('easyeda_export_netlist decodes a binary bridge payload and writes it to disk', async () => {
     const tool = registry.get('easyeda_export_netlist');
     expect(tool).toBeDefined();
