@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-08-21T23:43:58+03:00",
+  "candidateCommit": "2de7843403dc5d1b0e2110b845af192dc594b263",
+  "compatibilitySensitiveBaseCommit": "2de7843403dc5d1b0e2110b845af192dc594b263",
+  "server": {
+    "packageVersion": "1.0.0-rc.5",
+    "nodeVersion": "24.18.0"
+  },
+  "extension": {
+    "packageVersion": "0.99.5",
+    "loaderReportedVersion": "1.0.0-rc.5",
+    "packageSha256": "07a791d8e9db06eda34ebc5299ba47c7ec20fd9cddf0615db7b528bf48991456",
+    "packageSizeBytes": 173122,
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "d9e01181ceed32d8",
+    "capabilityCount": 69,
+    "dispatcherBuildId": "d9d1fx9e21xf5aa",
+    "dispatcherSha256": "282c2fa30619c7d06a763df1b75d15030e1096c1a9c25dccda25d908315cf138",
+    "dispatcherByteLength": 184940,
+    "loaderSha256": "fe6393557053cd4f7b8592cb20473273f86640ad1e8584b9f81f47b810befce8",
+    "loaderByteLength": 248835,
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true,
+    "autoUpdateEnabled": false
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-29-generic",
+    "nodeVersion": "24.18.0"
+  },
+  "fixture": {
+    "project": "TestMcp",
+    "schematic": "Schematic1",
+    "page": "P1",
+    "disposable": true,
+    "profileIsolation": "temporary user/config/cache roots"
+  },
+  "liveChecks": {
+    "candidateIdentity": {
+      "status": "passed",
+      "serverVersion": "1.0.0-rc.5",
+      "extensionVersion": "1.0.0-rc.5",
+      "bridgeVersion": "1.0.0",
+      "capabilityCount": 69
+    },
+    "transactionalPlacementRollback": {
+      "status": "passed",
+      "beforeCount": 9,
+      "appliedCount": 10,
+      "afterCount": 9,
+      "operationCount": 1,
+      "rollbackComplete": true,
+      "temporaryDocumentChangeObserved": true
+    },
+    "transactionalSafeDeleteRollback": {
+      "status": "passed",
+      "primitiveKind": "rectangle",
+      "recreatedPrimitiveIdChanged": true,
+      "descriptorHash": "0f9da5898aaa4aa53a27d448e611189e65cb7a5090241c6aac187f1622051912",
+      "operationCount": 1,
+      "rollbackComplete": true
+    },
+    "unsupportedTransactionalDelete": {
+      "status": "passed",
+      "primitiveKind": "component",
+      "errorCode": "TRANSACTION_INVALID_STATE",
+      "operationCount": 0,
+      "inventoryUnchanged": true
+    },
+    "standaloneWriteNotImplicitlyCaptured": {
+      "status": "passed",
+      "beforeCount": 9,
+      "appliedCount": 10,
+      "afterCount": 9,
+      "openTransactionOperationCount": 0
+    },
+    "pdfFalseSuccessGuard": {
+      "status": "passed",
+      "nativeOutcome": "invalid-or-unusable-pdf-payload",
+      "toolOutcome": "typed_not_available",
+      "exported": false,
+      "notAvailable": true,
+      "artifactWritten": false,
+      "error": "Bridge did not return a valid PDF payload.",
+      "scope": "schematic",
+      "orientation": "landscape"
+    },
+    "finalState": {
+      "status": "passed",
+      "allPrimitiveInventoriesRestored": true,
+      "baselineCounts": {
+        "component": 9,
+        "wire": 11,
+        "text": 4,
+        "rectangle": 4,
+        "circle": 0,
+        "polygon": 0
+      },
+      "finalCounts": {
+        "component": 9,
+        "wire": 11,
+        "text": 4,
+        "rectangle": 4,
+        "circle": 0,
+        "polygon": 0
+      }
+    }
+  },
+  "compatibilitySnapshot": {
+    "algorithm": "git-tree-sha1",
+    "paths": {
+      "easyeda-bridge-extension/src": "4b564e31154491a52f0ea152dc7cf9bc715f6807",
+      "src/bridge": "5702cb9fc7bbe1f15018e9344191788cf6a00d86",
+      "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+      "src/server/transports": "98e9f5ec02eabbceb27abe303c4f164e111048cc",
+      "src/tools": "f7333be5fb55378878dfbac6df86c7ac246e2bde",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "cleanup": {
+    "designStateRestored": true,
+    "temporaryPlacementRemoved": true,
+    "deletedRectangleRestored": true,
+    "temporaryExportArtifactRemaining": false,
+    "cleanupErrors": [],
+    "normalEasyedaProfileWritesObserved": false
+  },
+  "redaction": {
+    "temporaryPrimitiveIdsOmitted": true,
+    "transactionOperationIdsOmitted": true,
+    "localPathsOmitted": true,
+    "credentialsOmitted": true,
+    "rawApiInventoryOmitted": true
+  }
+}

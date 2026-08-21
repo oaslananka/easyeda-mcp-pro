@@ -1,8 +1,114 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-17",
+  "lastReviewed": "2026-08-21",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-21-v1-rc5-candidate",
+      "status": "live-validated",
+      "validatedAt": "2026-08-21T23:43:58+03:00",
+      "reviewBy": "2026-11-19",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-29-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.0.0-rc.5",
+        "releaseContainingFixes": "1.0.0-rc.5",
+        "commit": "2de7843403dc5d1b0e2110b845af192dc594b263",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "4b564e31154491a52f0ea152dc7cf9bc715f6807",
+            "src/bridge": "5702cb9fc7bbe1f15018e9344191788cf6a00d86",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "98e9f5ec02eabbceb27abe303c4f164e111048cc",
+            "src/tools": "f7333be5fb55378878dfbac6df86c7ac246e2bde",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "0.99.5",
+        "loaderReportedVersion": "1.0.0-rc.5",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "d9e01181ceed32d8",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "TestMcp",
+        "schematic": "Schematic1",
+        "document": "P1",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-rc5-packaged-bridge-live",
+          "name": "Packaged RC.5 bridge and candidate identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact RC.5 candidate ran with Node 24.18.0 against EasyEDA Pro 3.2.149.88089769, installed as extension package 0.99.5, reported runtime 1.0.0-rc.5, bridge contract 1.0.0, 69 capabilities, and method registry hash d9e01181ceed32d8.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-21-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.5-transaction-export.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/531",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc5-standalone-transaction-rollback",
+          "name": "Standalone schematic transaction rollback safety",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "On disposable TestMcp / Schematic1 / P1, explicit-transaction component placement recorded exactly one operation and rolled back from 10 components to 9; a safely recreatable rectangle delete rolled back with equivalent descriptor state; transactional component delete failed closed before mutation with zero operations; and a transaction-less standalone placement was not implicitly captured by an unrelated open transaction.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-21-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.5-transaction-export.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/524",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/531"
+          ]
+        },
+        {
+          "id": "v1-rc5-pdf-false-success-guard",
+          "name": "PDF false-success rejection on live EasyEDA",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "EasyEDA Pro did not return a valid schematic PDF payload in this run. RC.5 correctly returned exported=false and not_available=true with no artifact written, proving the release-blocking false-success path is closed instead of writing an empty or non-PDF file.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-21-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.5-transaction-export.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/527",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/531"
+          ]
+        },
+        {
+          "id": "v1-rc5-final-state-restoration",
+          "name": "RC.5 live mutation cleanup and state restoration",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "After all self-cleaning placement and delete scenarios, primitive inventories exactly matched the baseline: 9 components, 11 wires, 4 texts, 4 rectangles, 0 circles, and 0 polygons. No cleanup errors remained.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-21-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.5-transaction-export.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/531",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.5 live EasyEDA desktop record.",
+        "EasyEDA Pro 3.2.149 did not supply a valid schematic PDF payload during this live run. RC.5 correctly failed closed with typed not_available and wrote no artifact; this record validates false-success rejection, not successful native PDF production.",
+        "The live mutation pass covers the RC.5 standalone placement/delete transaction changes and final-state restoration; it is not a blanket validation of every write tool.",
+        "Remote Relay was not dogfooded through a public hosted endpoint during this exact-candidate desktop pass; its repository integration and isolation gates remain separate release checks.",
+        "EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.5 while the validated server and extension runtime report 1.0.0-rc.5.",
+        "Public npm provenance, GitHub prerelease assets, attestations, SBOM, GHCR identities, and the RC.5 soak remain publication-time/post-publication gates and are not claimed by this pre-publication live record."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-17-v1-rc4-candidate",
       "status": "live-validated",
@@ -382,7 +488,7 @@
           "name": "RC.2 PCB read-only smoke",
           "evidenceLevel": "live",
           "status": "passed",
-          "summary": "On the disposable Quick Start PCB, the exact candidate returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.",
+          "summary": "On the disposable Quick Start PCB, the exact candidate returned an 80 mm by 60 mm outline, 4,800 mm\u00b2 area, has_outline=true, 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.",
           "evidence": [
             "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-09-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-read-only.json",
             "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
@@ -470,7 +576,7 @@
           "name": "Release-candidate PCB read-only smoke",
           "evidenceLevel": "live",
           "status": "passed",
-          "summary": "On the disposable Quick Start PCB, the public MCP tools returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, and the expected board feature inventory.",
+          "summary": "On the disposable Quick Start PCB, the public MCP tools returned an 80 mm by 60 mm outline, 4,800 mm\u00b2 area, has_outline=true, 57 layers, and the expected board feature inventory.",
           "evidence": [
             "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-29-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.1-read-only.json",
             "https://github.com/oaslananka/easyeda-mcp-pro/issues/389"
