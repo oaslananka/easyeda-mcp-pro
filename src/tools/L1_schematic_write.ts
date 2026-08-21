@@ -1,7 +1,15 @@
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
-import { getGlobalTransactionManager, TransactionError } from '../transactions/index.js';
+import {
+  deletePrimitiveExact,
+  getGlobalTransactionManager,
+  getPrimitiveSnapshot,
+  listPrimitiveIds,
+  primitiveExists,
+  recreatePrimitiveSnapshot,
+  TransactionError,
+} from '../transactions/index.js';
 
 const deviceItemSchema = z
   .object({
@@ -147,23 +155,242 @@ function findMatchingPlacedComponent(
   return undefined;
 }
 
-const placeComponentInputSchema = z.object({
-  deviceItem: deviceItemSchema,
-  x: z.number(),
-  y: z.number(),
-  subPartName: z.string().optional(),
-  rotation: z.number().optional(),
-  mirror: z.boolean().optional(),
-  addIntoBom: z.boolean().optional(),
-  addIntoPcb: z.boolean().optional(),
-  dryRun: z.boolean().optional(),
-  verifyAfterWrite: z.boolean().optional(),
-  checkPlacementCollision: z.boolean().optional(),
-  collisionRadius: z.number().positive().optional(),
-  confirmWrite: z
-    .literal(true)
-    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
-});
+const STANDALONE_CREATE_RECONCILE_ATTEMPTS = 30;
+const STANDALONE_CREATE_RECONCILE_FAILURE_ATTEMPTS = 10;
+const STANDALONE_CREATE_RECONCILE_DELAY_MS = 100;
+const RECREATABLE_TRANSACTION_DELETE_KINDS = new Set([
+  'wire',
+  'text',
+  'rectangle',
+  'circle',
+  'polygon',
+]);
+
+const projectTransactionInputFields = {
+  projectId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Required when transactionId is supplied; must match the transaction document.'),
+  transactionId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Optional snapshot-backed project transaction ID.'),
+};
+
+type ProjectTransactionInput = {
+  projectId?: string;
+  transactionId?: string;
+};
+
+function requireProjectIdForTransaction(
+  value: ProjectTransactionInput,
+  context: z.RefinementCtx<ProjectTransactionInput>,
+) {
+  if (value.transactionId && !value.projectId) {
+    context.addIssue({
+      code: 'custom',
+      path: ['projectId'],
+      message: 'projectId is required when transactionId is supplied',
+      input: value,
+    });
+  }
+}
+
+const transactionOperationStateSchema = z.enum([
+  'pending',
+  'applied',
+  'rolled-back',
+  'cancelled',
+  'failed',
+]);
+
+function transactionFailure(err: unknown) {
+  const transactionError = err instanceof TransactionError ? err : undefined;
+  return {
+    success: false as const,
+    error_code: transactionError?.code,
+    error: err instanceof Error ? err.message : String(err),
+    details: transactionError?.details,
+  };
+}
+
+function transactionManagerForProject(transactionId: string, projectId: string | undefined) {
+  const manager = getGlobalTransactionManager();
+  const transaction = manager.get(transactionId);
+  if (transaction.documentId !== projectId) {
+    throw new TransactionError(
+      'TRANSACTION_INVALID_STATE',
+      `Transaction ${transactionId} belongs to ${transaction.documentId}, not ${projectId}`,
+      { transactionDocumentId: transaction.documentId, requestedProjectId: projectId },
+    );
+  }
+  return manager;
+}
+
+async function pollStandaloneAddedPrimitiveIds(
+  ctx: ToolContext,
+  primitiveKind: string,
+  beforeIds: ReadonlySet<string>,
+  attempts: number,
+): Promise<string[]> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const afterIds = await listPrimitiveIds(ctx.bridge, primitiveKind);
+    const added = afterIds.filter((id) => !beforeIds.has(id));
+    if (added.length > 0) return added;
+    if (attempt + 1 < attempts) {
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, STANDALONE_CREATE_RECONCILE_DELAY_MS),
+      );
+    }
+  }
+  return [];
+}
+
+async function placeComponentInTransaction(
+  ctx: ToolContext,
+  p: z.infer<typeof placeComponentInputSchema>,
+) {
+  if (!p.transactionId || !p.projectId) throw new Error('Transactional placement requires IDs');
+  const manager = transactionManagerForProject(p.transactionId, p.projectId);
+  const beforeIds = new Set(await listPrimitiveIds(ctx.bridge, 'component'));
+  return manager.runCreate(p.transactionId, `component:${p.deviceItem.uuid}`, {
+    apply: async () => {
+      const result = await ctx.bridge.call('schematic.placeComponent', {
+        deviceItem: p.deviceItem,
+        x: p.x,
+        y: p.y,
+        subPartName: p.subPartName,
+        rotation: p.rotation,
+        mirror: p.mirror,
+        addIntoBom: p.addIntoBom,
+        addIntoPcb: p.addIntoPcb,
+      });
+      const added = await pollStandaloneAddedPrimitiveIds(
+        ctx,
+        'component',
+        beforeIds,
+        STANDALONE_CREATE_RECONCILE_ATTEMPTS,
+      );
+      if (added.length > 1) {
+        throw new Error(
+          `Create reconciliation is ambiguous: ${added.length} new component primitives`,
+        );
+      }
+      const targetId = added[0];
+      if (!targetId)
+        throw new Error('Create result did not expose a unique component primitive ID');
+      return { result, targetId };
+    },
+    getSnapshot: async (targetId) => getPrimitiveSnapshot(ctx.bridge, targetId, 'component'),
+    remove: async (targetId) => deletePrimitiveExact(ctx.bridge, targetId),
+    exists: async (targetId) => primitiveExists(ctx.bridge, targetId, 'component'),
+    reconcile: async () => {
+      const added = await pollStandaloneAddedPrimitiveIds(
+        ctx,
+        'component',
+        beforeIds,
+        STANDALONE_CREATE_RECONCILE_FAILURE_ATTEMPTS,
+      );
+      if (added.length === 0) return { status: 'none' as const };
+      if (added.length === 1) return { status: 'created' as const, targetId: added[0] };
+      return { status: 'ambiguous' as const };
+    },
+  });
+}
+
+const placeComponentInputSchema = z
+  .object({
+    deviceItem: deviceItemSchema,
+    x: z.number(),
+    y: z.number(),
+    subPartName: z.string().optional(),
+    rotation: z.number().optional(),
+    mirror: z.boolean().optional(),
+    addIntoBom: z.boolean().optional(),
+    addIntoPcb: z.boolean().optional(),
+    dryRun: z.boolean().optional(),
+    verifyAfterWrite: z.boolean().optional(),
+    checkPlacementCollision: z.boolean().optional(),
+    collisionRadius: z.number().positive().optional(),
+    ...projectTransactionInputFields,
+    confirmWrite: z
+      .literal(true)
+      .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  })
+  .superRefine(requireProjectIdForTransaction);
+
+type PlaceComponentParams = z.infer<typeof placeComponentInputSchema>;
+
+async function applyPlaceComponentWrite(ctx: ToolContext, p: PlaceComponentParams) {
+  if (p.transactionId && p.projectId) {
+    const applied = await placeComponentInTransaction(ctx, p);
+    return {
+      result: applied.result,
+      transaction: {
+        id: p.transactionId,
+        operation_id: applied.operation.id,
+        operation_state: applied.operation.state,
+        target_id: applied.targetId,
+        before_hash: applied.operation.beforeHash,
+        after_hash: applied.operation.afterHash,
+      },
+    };
+  }
+
+  const result = await ctx.bridge.call('schematic.placeComponent', {
+    deviceItem: p.deviceItem,
+    x: p.x,
+    y: p.y,
+    subPartName: p.subPartName,
+    rotation: p.rotation,
+    mirror: p.mirror,
+    addIntoBom: p.addIntoBom,
+    addIntoPcb: p.addIntoPcb,
+  });
+  return { result, transaction: undefined };
+}
+
+async function handlePlaceComponentError(ctx: ToolContext, p: PlaceComponentParams, err: unknown) {
+  if (err instanceof TransactionError) return transactionFailure(err);
+  if (!looksLikeTimeoutOrUnconfirmed(err)) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  const afterComponents = await readSchematicComponentsForVerification(ctx);
+  const match = findMatchingPlacedComponent(
+    afterComponents,
+    p.deviceItem,
+    p.x,
+    p.y,
+    p.collisionRadius ?? 25,
+  );
+  if (match) {
+    return {
+      success: true,
+      component: match,
+      reconciled: true,
+      warning:
+        `Bridge call errored ("${err instanceof Error ? err.message : String(err)}") but ` +
+        `a matching component (primitiveId "${String(match.primitiveId ?? '')}") was found ` +
+        'on the sheet afterward — the placement likely succeeded despite the error. Do not retry this placement.',
+    };
+  }
+  return {
+    success: false,
+    unconfirmed: true,
+    error: err instanceof Error ? err.message : String(err),
+    warning:
+      'This looks like a timeout, not a confirmed failure. No matching component was ' +
+      'found on re-check, but the write may still be landing. Verify with ' +
+      'schematic_components/schematic_nets before retrying — retrying an unconfirmed ' +
+      'placement risks creating a duplicate.',
+  };
+}
 
 const setPinNoConnectInputSchema = z.object({
   projectId: z.string().min(1).describe('The project/schematic ID'),
@@ -255,39 +482,27 @@ const addPolygonInputSchema = z.object({
     .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
 });
 
-const deletePrimitiveInputSchema = z.object({
-  primitiveIds: z.array(z.string()),
-  confirmWrite: z
-    .literal(true)
-    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
-});
+const deletePrimitiveInputSchema = z
+  .object({
+    primitiveIds: z.array(z.string().min(1)).min(1),
+    ...projectTransactionInputFields,
+    confirmWrite: z
+      .literal(true)
+      .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  })
+  .superRefine(requireProjectIdForTransaction);
 
 const modifyPrimitiveInputSchema = z
   .object({
     primitiveId: z.string(),
     property: z.record(z.string(), z.unknown()),
-    projectId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Required when transactionId is supplied; must match the transaction document.'),
-    transactionId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Optional snapshot-backed project transaction ID.'),
+    ...projectTransactionInputFields,
     confirmWrite: z
       .literal(true)
       .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
   })
   .superRefine((value, context) => {
-    if (value.transactionId && !value.projectId) {
-      context.addIssue({
-        code: 'custom',
-        path: ['projectId'],
-        message: 'projectId is required when transactionId is supplied',
-      });
-    }
+    requireProjectIdForTransaction(value, context);
     if (
       Object.hasOwn(value.property, 'alignMode') &&
       !textAlignModeSchema.safeParse(value.property.alignMode).success
@@ -300,6 +515,53 @@ const modifyPrimitiveInputSchema = z
     }
   });
 
+async function deletePrimitivesInTransaction(
+  ctx: ToolContext,
+  projectId: string,
+  transactionId: string,
+  primitiveIds: string[],
+) {
+  const manager = transactionManagerForProject(transactionId, projectId);
+  const snapshots = new Map<string, Awaited<ReturnType<typeof getPrimitiveSnapshot>>>();
+  for (const primitiveId of primitiveIds) {
+    const snapshot = await getPrimitiveSnapshot(ctx.bridge, primitiveId);
+    const primitiveKind = snapshot.primitiveKind;
+    if (
+      typeof primitiveKind !== 'string' ||
+      !RECREATABLE_TRANSACTION_DELETE_KINDS.has(primitiveKind)
+    ) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        `Transactional delete rollback is not supported for ${String(primitiveKind)} primitive ${primitiveId}`,
+        {
+          primitiveId,
+          primitiveKind,
+          supportedKinds: Array.from(RECREATABLE_TRANSACTION_DELETE_KINDS),
+        },
+      );
+    }
+    snapshots.set(primitiveId, snapshot);
+  }
+
+  const operations = [];
+  for (const primitiveId of primitiveIds) {
+    const snapshot = snapshots.get(primitiveId);
+    if (!snapshot) throw new Error(`Missing preflight snapshot for ${primitiveId}`);
+    const primitiveKind = snapshot.primitiveKind as string;
+    const applied = await manager.runDelete(transactionId, primitiveId, {
+      getSnapshot: async () => structuredClone(snapshot),
+      apply: async () => deletePrimitiveExact(ctx.bridge, primitiveId),
+      exists: async () => primitiveExists(ctx.bridge, primitiveId, primitiveKind),
+      recreate: async (beforeSnapshot) => {
+        const recreated = await recreatePrimitiveSnapshot(ctx.bridge, beforeSnapshot);
+        return { targetId: recreated.primitiveId, snapshot: recreated.snapshot };
+      },
+    });
+    operations.push(applied.operation);
+  }
+  return operations;
+}
+
 function registerSchematicWriteTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -308,10 +570,9 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_place_component',
     title: 'Place schematic component',
     description:
-      'Place a library component/device on the active schematic sheet. Auto-assigns the next ' +
-      'free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one ' +
-      'node. On a timeout error, auto-reconciles against the sheet before reporting failure (see ' +
-      'reconciled/unconfirmed) — do not blindly retry.',
+      'Place a library device on the active schematic. Auto-assigns a designator. On timeout inspect ' +
+      'reconciled/unconfirmed before retrying. Pass projectId + transactionId for rollback-backed ' +
+      'placement; without transactionId the write remains standalone.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -335,8 +596,20 @@ function registerSchematicWriteTools(
       /** True when an error looked like a timeout but no matching component was found on
        *  re-check — genuinely unknown whether the write landed; do not assume either way. */
       unconfirmed: z.boolean().optional(),
+      transaction: z
+        .object({
+          id: z.string(),
+          operation_id: z.string(),
+          operation_state: transactionOperationStateSchema,
+          target_id: z.string(),
+          before_hash: z.string().optional(),
+          after_hash: z.string().optional(),
+        })
+        .optional(),
       warning: z.string().optional(),
+      error_code: z.string().optional(),
       error: z.string().optional(),
+      details: z.record(z.string(), z.unknown()).optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const p = placeComponentInputSchema.parse(params);
@@ -372,21 +645,13 @@ function registerSchematicWriteTools(
           };
         }
 
-        const result = await ctx.bridge.call('schematic.placeComponent', {
-          deviceItem: p.deviceItem,
-          x: p.x,
-          y: p.y,
-          subPartName: p.subPartName,
-          rotation: p.rotation,
-          mirror: p.mirror,
-          addIntoBom: p.addIntoBom,
-          addIntoPcb: p.addIntoPcb,
-        });
+        const { result, transaction } = await applyPlaceComponentWrite(ctx, p);
 
         if (!p.verifyAfterWrite && !placementGuard) {
           return {
             success: true,
             component: result,
+            transaction,
           };
         }
 
@@ -396,6 +661,7 @@ function registerSchematicWriteTools(
         return {
           success: true,
           component: result,
+          transaction,
           placement_guard: placementGuard,
           verification: p.verifyAfterWrite
             ? {
@@ -411,41 +677,7 @@ function registerSchematicWriteTools(
             : undefined,
         };
       } catch (err) {
-        if (looksLikeTimeoutOrUnconfirmed(err)) {
-          const afterComponents = await readSchematicComponentsForVerification(ctx);
-          const match = findMatchingPlacedComponent(
-            afterComponents,
-            p.deviceItem,
-            p.x,
-            p.y,
-            p.collisionRadius ?? 25,
-          );
-          if (match) {
-            return {
-              success: true,
-              component: match,
-              reconciled: true,
-              warning:
-                `Bridge call errored ("${err instanceof Error ? err.message : String(err)}") but ` +
-                `a matching component (primitiveId "${String(match.primitiveId ?? '')}") was found ` +
-                'on the sheet afterward — the placement likely succeeded despite the error. Do not retry this placement.',
-            };
-          }
-          return {
-            success: false,
-            unconfirmed: true,
-            error: err instanceof Error ? err.message : String(err),
-            warning:
-              'This looks like a timeout, not a confirmed failure. No matching component was ' +
-              'found on re-check, but the write may still be landing. Verify with ' +
-              'schematic_components/schematic_nets before retrying — retrying an unconfirmed ' +
-              'placement risks creating a duplicate.',
-          };
-        }
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
+        return handlePlaceComponentError(ctx, p, err);
       }
     },
   });
@@ -674,7 +906,9 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_delete_primitive',
     title: 'Delete schematic primitives',
     description:
-      'Delete components, wires, or other drawing objects from the schematic by their primitive UUIDs.',
+      'Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + ' +
+      'transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported ' +
+      'transactional delete kinds fail before mutation. Without transactionId the write is standalone.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -688,20 +922,53 @@ function registerSchematicWriteTools(
     inputSchema: deletePrimitiveInputSchema,
     outputSchema: z.object({
       success: z.boolean(),
+      transaction: z
+        .object({
+          id: z.string(),
+          operations: z.array(
+            z.object({
+              operation_id: z.string(),
+              operation_state: transactionOperationStateSchema,
+              target_id: z.string(),
+              before_hash: z.string().optional(),
+              after_hash: z.string().optional(),
+            }),
+          ),
+        })
+        .optional(),
+      error_code: z.string().optional(),
       error: z.string().optional(),
+      details: z.record(z.string(), z.unknown()).optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { primitiveIds } = deletePrimitiveInputSchema.parse(params);
+      const { primitiveIds, projectId, transactionId } = deletePrimitiveInputSchema.parse(params);
       try {
-        await ctx.bridge.call('schematic.deletePrimitive', { primitiveIds });
+        if (!transactionId || !projectId) {
+          await ctx.bridge.call('schematic.deletePrimitive', { primitiveIds });
+          return { success: true };
+        }
+
+        const operations = await deletePrimitivesInTransaction(
+          ctx,
+          projectId,
+          transactionId,
+          primitiveIds,
+        );
         return {
           success: true,
+          transaction: {
+            id: transactionId,
+            operations: operations.map((operation) => ({
+              operation_id: operation.id,
+              operation_state: operation.state,
+              target_id: operation.target.id,
+              before_hash: operation.beforeHash,
+              after_hash: operation.afterHash,
+            })),
+          },
         };
       } catch (err) {
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
+        return transactionFailure(err);
       }
     },
   });
@@ -731,7 +998,7 @@ function registerSchematicWriteTools(
         .object({
           id: z.string(),
           operation_id: z.string(),
-          operation_state: z.enum(['pending', 'applied', 'rolled-back', 'cancelled', 'failed']),
+          operation_state: transactionOperationStateSchema,
           before_hash: z.string(),
           after_hash: z.string().optional(),
         })
@@ -752,15 +1019,7 @@ function registerSchematicWriteTools(
           return { success: true, result };
         }
 
-        const manager = getGlobalTransactionManager();
-        const transaction = manager.get(transactionId);
-        if (transaction.documentId !== projectId) {
-          throw new TransactionError(
-            'TRANSACTION_INVALID_STATE',
-            `Transaction ${transactionId} belongs to ${transaction.documentId}, not ${projectId}`,
-            { transactionDocumentId: transaction.documentId, requestedProjectId: projectId },
-          );
-        }
+        const manager = transactionManagerForProject(transactionId, projectId);
         const applied = await manager.runModify(transactionId, primitiveId, {
           getSnapshot: async () =>
             ctx.bridge.call('schematic.getPrimitiveSnapshot', { primitiveId }),
@@ -784,12 +1043,7 @@ function registerSchematicWriteTools(
           },
         };
       } catch (err) {
-        return {
-          success: false,
-          error_code: err instanceof TransactionError ? err.code : undefined,
-          error: err instanceof Error ? err.message : String(err),
-          details: err instanceof TransactionError ? err.details : undefined,
-        };
+        return transactionFailure(err);
       }
     },
   });

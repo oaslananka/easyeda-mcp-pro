@@ -39,6 +39,16 @@ describe('Schematic Tools', () => {
     };
   });
 
+  it('documents explicit project transaction participation for standalone placement and deletion', () => {
+    const placeDescription = registry.get('easyeda_schematic_place_component')?.description ?? '';
+    const deleteDescription = registry.get('easyeda_schematic_delete_primitive')?.description ?? '';
+
+    expect(placeDescription).toContain('projectId + transactionId');
+    expect(placeDescription).toContain('without transactionId');
+    expect(deleteDescription).toContain('projectId + transactionId');
+    expect(deleteDescription).toContain('Without transactionId');
+  });
+
   it('easyeda_schematic_net_detail should call schematic.getNetDetail and return net nodes', async () => {
     const tool = registry.get('easyeda_schematic_net_detail');
     expect(tool).toBeDefined();

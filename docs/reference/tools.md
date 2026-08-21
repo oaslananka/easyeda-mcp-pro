@@ -66,7 +66,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_post_write_qa`                            | `core`  | `medium` | Run and classify post-write schematic QA after generated edits. Combines native DRC/ERC results with policy-aware classification so duplicate net names, free networks, and unconnected pins are reported as pass/fail/inconclusive instead of raw warning counts.                                                               |
 | `easyeda_power_tree_analyze`                       | `core`  | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                      |
 | `easyeda_production_qa_artifacts`                  | `pro`   | `low`    | Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.                                                                                                                                                                                        |
-| `easyeda_project_begin_transaction`                | `core`  | `low`    | Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.                                                                                                                                       |
+| `easyeda_project_begin_transaction`                | `core`  | `low`    | Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools passed transactionId participate; standalone schematic writes are not auto-captured. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.                                       |
 | `easyeda_project_commit_transaction`               | `core`  | `medium` | Finalize a transaction after its writes and validation gates succeed. Commit removes rollback eligibility and releases the document transaction lock.                                                                                                                                                                            |
 | `easyeda_project_get_transaction_status`           | `core`  | `low`    | Read transaction state, validation results, operation hashes, and rollback status without exposing captured primitive snapshots.                                                                                                                                                                                                 |
 | `easyeda_project_rollback_transaction`             | `core`  | `medium` | Controlled write: restore applied schematic primitive snapshots in reverse order, verify each restored hash, and report partial rollback explicitly instead of hiding inconsistencies.                                                                                                                                           |
@@ -91,14 +91,14 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_connectivity_fingerprint`       | `pro`   | `low`    | Compute a deterministic connectivity fingerprint (pin/net membership, wire endpoints, labels/ports, no-connects) from the live schematic. Pass the hash as beforeFingerprint/afterFingerprint to easyeda_schematic_layout_qa to prove a cosmetic move left connectivity unchanged.                                               |
 | `easyeda_schematic_create_net_flag`                | `core`  | `medium` | Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/ProtectGround) it places a power-flag symbol binding to a coincident pin (use for VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire stubs sharing one netName.                                               |
 | `easyeda_schematic_create_net_port`                | `core`  | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                                                  |
-| `easyeda_schematic_delete_primitive`               | `core`  | `medium` | Delete components, wires, or other drawing objects from the schematic by their primitive UUIDs.                                                                                                                                                                                                                                  |
+| `easyeda_schematic_delete_primitive`               | `core`  | `medium` | Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported transactional delete kinds fail before mutation. Without transactionId the write is standalone.                                          |
 | `easyeda_schematic_layout_autofix`                 | `pro`   | `low`    | Detect title-block overlap, page-boundary overflow, and component-overlap violations from real rendered bounds, and propose cosmetic-only moves that resolve them. Read-only preview only (requiresConfirmWrite=true, no writes) -- confirmWrite apply with connectivity-fingerprint rollback is tracked separately (#273).      |
 | `easyeda_schematic_layout_autofix_apply`           | `pro`   | `high`   | Apply the layout-autofix cosmetic moves in a snapshot-backed transaction, re-verifying a connectivity fingerprint after every write batch. Any unintended electrical change or write failure rolls the transaction back and is reported, never thrown. dryRun:true previews only.                                                |
 | `easyeda_schematic_layout_qa`                      | `pro`   | `low`    | Run a normalized post-write QA pass combining runtime DRC/ERC, expected component/pin topology, rendered primitive bounds, title-block and page constraints, wiring/grouping checks, and connectivity fingerprints, with optional full-page visual evidence. Critical geometry or connectivity findings always block commit.     |
 | `easyeda_schematic_modify_primitive`               | `core`  | `medium` | Safely modify a schematic primitive while preserving omitted fields. With transactionId and projectId, capture before/after snapshots and automatically restore the prior state if the write or post-write read fails. Component moves keep connected wires attached.                                                            |
 | `easyeda_schematic_net_detail`                     | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                                                |
 | `easyeda_schematic_nets`                           | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
-| `easyeda_schematic_place_component`                | `core`  | `medium` | Place a library component/device on the active schematic sheet. Auto-assigns the next free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one node. On a timeout error, auto-reconciles against the sheet before reporting failure (see reconciled/unconfirmed) — do not blindly retry.          |
+| `easyeda_schematic_place_component`                | `core`  | `medium` | Place a library device on the active schematic. Auto-assigns a designator. On timeout inspect reconciled/unconfirmed before retrying. Pass projectId + transactionId for rollback-backed placement; without transactionId the write remains standalone.                                                                          |
 | `easyeda_schematic_plan_layout`                    | `pro`   | `low`    | Deterministically plan functional-block placement (reserved rectangles, support space, grid-aligned coordinates, occupancy map, A3 fallback, score) from real sheet/primitive geometry -- no writes. Caller supplies roles/blockId/parentId; other primitives read as occupied regions, never overwritten.                       |
 | `easyeda_schematic_plan_safe_region`               | `core`  | `low`    | Compute a safe schematic drawing region before placing components. Uses live sheet info when available, assumes EasyEDA bottom-left coordinates, reserves the default lower-right title-block keep-out, and returns an anchor/bounds plan that avoids title-block overlap.                                                       |
 | `easyeda_schematic_preview_imported_normalization` | `core`  | `low`    | Read the live schematic and produce a deterministic, read-only normalization plan with a stable plan ID, model hash, proposed net-name/reference/metadata operations, validation gates, warnings, and blockers. This tool never writes to EasyEDA.                                                                               |
@@ -2093,7 +2093,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.
+> Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools passed transactionId participate; standalone schematic writes are not auto-captured. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.
 
 ### Input Parameters
 
@@ -2913,14 +2913,16 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Delete components, wires, or other drawing objects from the schematic by their primitive UUIDs.
+> Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported transactional delete kinds fail before mutation. Without transactionId the write is standalone.
 
 ### Input Parameters
 
-| Parameter      | Type       | Required | Description                                                                   |
-| -------------- | ---------- | -------- | ----------------------------------------------------------------------------- |
-| `primitiveIds` | `string[]` | Yes      |                                                                               |
-| `confirmWrite` | `'true'`   | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter       | Type                | Required | Description                                                                   |
+| --------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
+| `primitiveIds`  | `string[]`          | Yes      |                                                                               |
+| `projectId`     | `string (optional)` | No       | Required when transactionId is supplied; must match the transaction document. |
+| `transactionId` | `string (optional)` | No       | Optional snapshot-backed project transaction ID.                              |
+| `confirmWrite`  | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
@@ -2929,7 +2931,10 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
+  transaction: object(optional);
+  error_code: string(optional);
   error: string(optional);
+  details: Record<string, any>(optional);
 }
 ```
 
@@ -3163,7 +3168,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Place a library component/device on the active schematic sheet. Auto-assigns the next free designator ("R?" → "R1") — check the returned value, duplicate "R?" merge into one node. On a timeout error, auto-reconciles against the sheet before reporting failure (see reconciled/unconfirmed) — do not blindly retry.
+> Place a library device on the active schematic. Auto-assigns a designator. On timeout inspect reconciled/unconfirmed before retrying. Pass projectId + transactionId for rollback-backed placement; without transactionId the write remains standalone.
 
 ### Input Parameters
 
@@ -3181,6 +3186,8 @@ Returns a JSON object matching the schema:
 | `verifyAfterWrite`        | `boolean (optional)` | No       |                                                                               |
 | `checkPlacementCollision` | `boolean (optional)` | No       |                                                                               |
 | `collisionRadius`         | `number (optional)`  | No       |                                                                               |
+| `projectId`               | `string (optional)`  | No       | Required when transactionId is supplied; must match the transaction document. |
+| `transactionId`           | `string (optional)`  | No       | Optional snapshot-backed project transaction ID.                              |
 | `confirmWrite`            | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
@@ -3196,8 +3203,11 @@ Returns a JSON object matching the schema:
   verification: any(optional);
   reconciled: boolean(optional);
   unconfirmed: boolean(optional);
+  transaction: object(optional);
   warning: string(optional);
+  error_code: string(optional);
   error: string(optional);
+  details: Record<string, any>(optional);
 }
 ```
 
