@@ -45,6 +45,8 @@ The extension uses a custom esbuild script rather than Vite, Rollup, or Webpack.
 
 Bundle Analysis is informational and tracks raw and gzip-size changes for `index.js` and `dispatcher.js`. The upload step is best-effort: Codecov onboarding, repository feature availability, or a transient API error must not fail the repository quality job. It complements, but does not replace, the repository-owned blocking byte budgets:
 
+Codecov's `@codecov/bundle-analyzer@2.0.1` currently has an upstream GitHub Actions regression ([codecov/codecov-action#1946](https://github.com/codecov/codecov-action/issues/1946)) where its GitHub Actions provider receives `404 Not Found` while requesting the Bundle Analysis pre-signed upload URL even though the same analyzer can upload through its local provider. `scripts/upload-codecov-bundle-analysis.mjs` contains the temporary workaround: the trusted workflow passes the exact repository slug, head SHA, branch, and optional PR number explicitly; the wrapper validates those values, masks only `GITHUB_ACTIONS` while the analyzer runs so it selects the local-provider path, then restores the environment in `finally`. Primary LCOV coverage and Test Analytics uploads are unchanged. Remove this workaround only after a separately verified upstream release fixes the GitHub Actions provider path.
+
 ```bash
 pnpm build:extension
 pnpm check:extension-size

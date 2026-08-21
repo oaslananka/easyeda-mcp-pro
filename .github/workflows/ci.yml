@@ -219,6 +219,10 @@ jobs:
         if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CODECOV_BUNDLE_SLUG: ${{ github.repository }}
+          CODECOV_BUNDLE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CODECOV_BUNDLE_BRANCH: ${{ github.head_ref || github.ref_name }}
+          CODECOV_BUNDLE_PR: ${{ github.event.pull_request.number || '' }}
         run: pnpm analyze:extension-bundle:ci
       - run: pnpm verify:extension
       - name: Pack PR test package
