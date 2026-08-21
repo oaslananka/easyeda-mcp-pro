@@ -794,17 +794,17 @@ async function addCoordinateFallbackNets(
   netMap: Map<string, SchematicNetNode[]>,
   comps: unknown[],
   budget?: NetDetailBudget,
-): Promise<void> {
+): Promise<boolean> {
   const schWireClass = readFirstPath<any>([
     'SCH_PrimitiveWire',
     'SCH_PrimitiveWire3',
     'sch_PrimitiveWire',
   ]);
-  if (!schWireClass || typeof schWireClass.getAll !== 'function') return;
+  if (!schWireClass || typeof schWireClass.getAll !== 'function') return false;
 
   const wires = await awaitNetDetailStage(budget, 'wire_read', () => schWireClass.getAll());
-  const wireItems = Array.isArray(wires) ? wires : [];
-  if (wireItems.length === 0) return;
+  if (!Array.isArray(wires)) return false;
+  const wireItems = wires;
 
   const dsu = createDisjointSet();
   const rootNetNames = new Map<string, Set<string>>();
@@ -888,6 +888,7 @@ async function addCoordinateFallbackNets(
       logRecoverableError('failed to inspect schematic component pins for coordinate nets', error);
     }
   }
+  return true;
 }
 
 async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
@@ -937,7 +938,15 @@ async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
     }
   }
 
-  if (schNetClass && typeof schNetClass.getAllNets === 'function') {
+  let physicalInventory = false;
+  try {
+    physicalInventory = await addCoordinateFallbackNets(netMap, comps || [], budget);
+  } catch (error) {
+    if (isNetDetailTimeout(error)) throw error;
+    logRecoverableError('failed to infer schematic nets from wire coordinates', error);
+  }
+
+  if (!physicalInventory && schNetClass && typeof schNetClass.getAllNets === 'function') {
     try {
       const allNets = await awaitNetDetailStage(budget, 'net_catalog_read', () =>
         schNetClass.getAllNets(),
@@ -952,21 +961,7 @@ async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
     }
   }
 
-  try {
-    await addCoordinateFallbackNets(netMap, comps || [], budget);
-  } catch (error) {
-    if (isNetDetailTimeout(error)) throw error;
-    logRecoverableError('failed to infer schematic nets from wire coordinates', error);
-  }
-
-  const result: SchematicNetEntry[] = [];
-  for (const [netName, nodes] of netMap.entries()) {
-    result.push({
-      netName,
-      nodes,
-    });
-  }
-  return result;
+  return Array.from(netMap, ([netName, nodes]): SchematicNetEntry => ({ netName, nodes }));
 }
 
 /**
