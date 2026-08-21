@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0-rc.5] - 2026-08-21
+
+### Release candidate
+
+- Supersedes RC.4 because P0 EasyEDA runtime corrections landed after the RC.4 candidate; the required seven-day major-release soak restarts only after RC.5 is published and its exact artifacts are verified.
+- Rejects empty or non-PDF bridge payloads before writing a `.pdf` artifact, so PDF export no longer reports success for an unusable file (#527 / #529).
+- Adds explicit `projectId + transactionId` participation for standalone schematic component placement and safely recreatable primitive deletion, with rollback-backed verification; unsupported transactional delete kinds and project mismatches fail closed before mutation while transaction-less writes retain their existing standalone behavior (#524 / #530).
+- Corrects the documented prerelease publication workflow reference to `.github/workflows/publish-release.yml`, keeping RC publication aligned with the protected release process (#523).
+- Requires fresh EasyEDA Pro 3.2.149 live evidence for transactional placement rollback, safe primitive delete rollback, unsupported-delete fail-closed behavior, standalone writes, and a successful non-empty `%PDF-` export before RC.5 publication.
+- Uses EasyEDA numeric install version `0.99.5` while preserving `1.0.0-rc.5` as the server and extension runtime product version.
+- Leaves npm/GHCR `latest` and the stable MCP Registry entry on `0.35.4` until the restarted RC.5 soak and stable promotion gates complete.
+
 ## [1.0.0-rc.4] - 2026-08-17
 
 ### Release candidate
