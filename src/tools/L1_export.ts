@@ -20,6 +20,18 @@ interface WriteExportResult {
   error?: string;
 }
 
+function validatePdfPayload(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return 'Bridge did not return a valid PDF payload.';
+  const binary = data as BinaryBridgeResult;
+  if (typeof binary.base64 !== 'string') return 'Bridge did not return a valid PDF payload.';
+
+  const buffer = Buffer.from(binary.base64, 'base64');
+  if (buffer.byteLength === 0) return 'Bridge returned an empty PDF payload.';
+  const headerWindow = buffer.subarray(0, Math.min(buffer.byteLength, 1024)).toString('latin1');
+  if (!headerWindow.includes('%PDF-')) return 'Bridge did not return a valid PDF payload.';
+  return undefined;
+}
+
 /**
  * Write a bridge export result to disk under `ctx.config.artifactDir`.
  *
@@ -630,6 +642,17 @@ function registerExportTools(
           orientation,
           what: scope,
         });
+        const pdfError = validatePdfPayload(result);
+        if (pdfError) {
+          return {
+            project_id: projectId,
+            scope,
+            orientation,
+            exported: false,
+            not_available: true,
+            error: pdfError,
+          };
+        }
         const written = writeExportPayload(ctx, result, filePath, `${projectId}-${scope}.pdf`);
         if (!written.ok) {
           return {
