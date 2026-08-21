@@ -69,9 +69,22 @@ const RECONNECT_MAX_MS = 30_000;
 const HEARTBEAT_LIVENESS_MS = 45_000;
 const HEARTBEAT_SWEEP_MS = 15_000;
 
+let fallbackMessageSequence = 0;
+
 function makeMessageId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `msg_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const webCrypto = globalThis.crypto;
+  if (typeof webCrypto?.randomUUID === 'function') return webCrypto.randomUUID();
+  if (typeof webCrypto?.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    webCrypto.getRandomValues(bytes);
+    return `msg_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  }
+
+  // Last-resort uniqueness only: when Web Crypto is unavailable, do not pretend
+  // Math.random() provides a security property. The sequence prevents same-tick
+  // collisions within this extension process.
+  fallbackMessageSequence = (fallbackMessageSequence + 1) % Number.MAX_SAFE_INTEGER;
+  return `msg_${Date.now().toString(16)}_${fallbackMessageSequence.toString(16)}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

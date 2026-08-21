@@ -7,7 +7,7 @@ export { sleep };
 export function startStdioMcpServer(options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const timeoutMs = options.timeoutMs ?? 45_000;
-  const child = spawn('node', options.args ?? ['dist/index.js'], {
+  const child = spawn(process.execPath, options.args ?? ['dist/index.js'], {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {

@@ -263,8 +263,16 @@ describe('repository security tooling policy', () => {
     expect(verifyDist).toContain("pathSegments[0] === '..'");
     expect(verifyDist).toContain('entryEscapesRoot');
 
+    const syncVersions = readText('scripts/sync-versions.mjs');
+    expect(syncVersions).toContain("from 'prettier'");
+    expect(syncVersions).toContain('resolveConfig(prettierFile)');
+    expect(syncVersions).not.toContain('resolveConfig(prettierFiles[0])');
+    expect(syncVersions).not.toContain("execFileSync('npx'");
+
     const e2eWaiter = readText('scripts/e2e/waiter.mjs');
-    expect(e2eWaiter).toContain("console.log('%s: %s', method, r.slice(0, 300));");
+    expect(e2eWaiter).toContain("from './log-sanitization.mjs'");
+    expect(e2eWaiter).toContain('sanitizeLogFragment(r, 300)');
+    expect(e2eWaiter).not.toContain("console.log('%s: %s', method, r.slice(0, 300));");
 
     expect(releaseWorkflow).toContain(
       'uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610',

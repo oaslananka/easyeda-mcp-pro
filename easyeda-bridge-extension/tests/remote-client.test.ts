@@ -124,6 +124,52 @@ describe('RemoteRelayClient resilience', () => {
     expect(client.getStatus()).toMatchObject({ state: 'disconnected', sessionId: undefined });
   });
 
+  it('uses Web Crypto bytes for message ids when randomUUID is unavailable', () => {
+    const getRandomValues = vi.fn((values: Uint8Array) => {
+      values.fill(0xab);
+      return values;
+    });
+    vi.stubGlobal('crypto', { getRandomValues });
+    const mathRandom = vi.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('Math.random must not be used for relay message ids');
+    });
+    const { client } = makeClient();
+
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    const registration = JSON.parse(socket.sent[0]) as { messageId: string; type: string };
+    expect(registration.type).toBe('register_session');
+    expect(registration.messageId).toBe(`msg_${'ab'.repeat(16)}`);
+    expect(getRandomValues).toHaveBeenCalledTimes(1);
+    expect(mathRandom).not.toHaveBeenCalled();
+  });
+
+  it('keeps message ids unique without Web Crypto and never falls back to Math.random', () => {
+    vi.stubGlobal('crypto', undefined);
+    const mathRandom = vi.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('Math.random must not be used for relay message ids');
+    });
+    vi.setSystemTime(new Date('2026-08-22T00:00:00.000Z'));
+    const { client } = makeClient();
+
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive(relayMessage('heartbeat'));
+
+    const [registration, heartbeat] = socket.sent.map(
+      (payload) => JSON.parse(payload) as { messageId: string; type: string },
+    );
+    expect(registration.type).toBe('register_session');
+    expect(heartbeat.type).toBe('heartbeat');
+    expect(registration.messageId).toMatch(/^msg_[0-9a-f]+_[0-9a-f]+$/);
+    expect(heartbeat.messageId).toMatch(/^msg_[0-9a-f]+_[0-9a-f]+$/);
+    expect(heartbeat.messageId).not.toBe(registration.messageId);
+    expect(mathRandom).not.toHaveBeenCalled();
+  });
+
   it('updates heartbeat liveness and echoes heartbeat messages', () => {
     const { client } = makeClient();
 

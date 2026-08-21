@@ -1,4 +1,5 @@
 import { spawnTrackedProcess } from './harness.mjs';
+import { sanitizeLogFragment } from './log-sanitization.mjs';
 import { Socket } from 'net';
 import { setTimeout as sleep } from 'timers/promises';
 
@@ -8,7 +9,7 @@ const SRV_TIMEOUT = 5 * 60 * 1000; // 5 min
 console.log('Process started at', new Date().toISOString());
 
 console.log('=== Starting MCP Server ===');
-const serverProcess = spawnTrackedProcess('node', ['dist/index.js'], {
+const serverProcess = spawnTrackedProcess(process.execPath, ['dist/index.js'], {
   env: { LOG_LEVEL: 'info' },
 });
 const server = serverProcess.child;
@@ -47,7 +48,7 @@ const initReq =
 sock.write(initReq);
 await sleep(1000);
 
-console.log('Initial buf:', buf.slice(0, 300));
+console.log('Initial buf: %s', sanitizeLogFragment(buf, 300));
 
 // Poll bridge status
 console.log('\n=== Waiting for Bridge Connection ===');
@@ -113,7 +114,7 @@ if (connected) {
   await sleep(1500);
 
   const capsResp = buf.slice(prevLen);
-  console.log('Capabilities response:', capsResp.slice(0, 2000));
+  console.log('Capabilities response: %s', sanitizeLogFragment(capsResp, 2000));
 
   // Fetch bridge info
   const prevLen2 = buf.length;
@@ -126,7 +127,7 @@ if (connected) {
     }) + '\n',
   );
   await sleep(1500);
-  console.log('Info response:', buf.slice(prevLen2, prevLen2 + 2000));
+  console.log('Info response: %s', sanitizeLogFragment(buf.slice(prevLen2), 2000));
 
   // Try easyeda_bridge_call with schematic methods
   const schematicMethods = [
@@ -150,16 +151,19 @@ if (connected) {
     );
     await sleep(1000);
     const r = buf.slice(p, p + 1000);
-    console.log('%s: %s', method, r.slice(0, 300));
+    console.log('%s: %s', method, sanitizeLogFragment(r, 300));
   }
 }
 
 // Final output
 console.log('\n=== Server Logs ===');
-console.log((serverProcess.stdoutLog + serverProcess.stderrLog).slice(-3000));
+console.log(
+  '%s',
+  sanitizeLogFragment((serverProcess.stdoutLog + serverProcess.stderrLog).slice(-3000), 3000),
+);
 
 console.log('\n=== Raw Buffer (last 2000) ===');
-console.log(buf.slice(-2000));
+console.log('%s', sanitizeLogFragment(buf.slice(-2000), 2000));
 
 sock.destroy();
 serverProcess.shutdown('waiter complete');
