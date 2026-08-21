@@ -532,6 +532,33 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('bounds schematic.getNetDetail when the physical wire inventory never settles', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [] },
+        SCH_PrimitiveWire: { getAll: () => new Promise<never>(() => {}) },
+      }),
+    );
+
+    const outcome = await Promise.race([
+      dispatcher
+        .dispatch('schematic.getNetDetail', { netName: 'VBUS', operationTimeoutMs: 20 })
+        .then((value) => ({ kind: 'resolved' as const, value }))
+        .catch((error: unknown) => ({ kind: 'rejected' as const, error })),
+      new Promise<{ kind: 'outer-timeout' }>((resolve) =>
+        setTimeout(() => resolve({ kind: 'outer-timeout' }), 100),
+      ),
+    ]);
+
+    expect(outcome).toMatchObject({
+      kind: 'rejected',
+      error: {
+        code: 'NET_DETAIL_TIMEOUT',
+        data: { stage: 'wire_read', netName: 'VBUS' },
+      },
+    });
+  });
+
   it('schematic.listNets reports pins joined only by an unnamed wire', async () => {
     const u1 = fakeSchematicPart('U1', [fakeSchematicPin('XL1', 100, 200)]);
     const x1 = fakeSchematicPart('X1', [fakeSchematicPin('1', 300, 200)]);
@@ -579,6 +606,105 @@ describe('createDispatcher', () => {
       getState_Y: () => y,
     };
   }
+
+  it('schematic.listNets treats a null component inventory as empty physical inventory', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => null },
+        SCH_PrimitiveWire: { getAll: async () => [] },
+        SCH_Net: { getAllNets: async () => [{ netName: 'STALE_NET' }] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([]);
+  });
+
+  it('schematic.listNets drops a zero-node name seen only in the native net catalog', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [] },
+        SCH_PrimitiveWire: { getAll: async () => [] },
+        SCH_Net: { getAllNets: async () => [{ netName: 'STALE_NET' }] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([]);
+  });
+
+  it('schematic.listNets keeps catalog-only names when physical wire inventory is unavailable', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [] },
+        SCH_Net: { getAllNets: async () => [{ netName: 'UNVERIFIED_NET' }] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([
+      { netName: 'UNVERIFIED_NET', nodes: [] },
+    ]);
+  });
+
+  it('schematic.listNets falls back to the native catalog when wire inventory read throws', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [] },
+        SCH_PrimitiveWire: {
+          getAll: async () => {
+            throw new Error('wire inventory unavailable');
+          },
+        },
+        SCH_Net: { getAllNets: async () => [{ netName: 'UNVERIFIED_NET' }] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([
+      { netName: 'UNVERIFIED_NET', nodes: [] },
+    ]);
+  });
+
+  it('schematic.listNets keeps catalog-only names when wire inventory is malformed', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [] },
+        SCH_PrimitiveWire: { getAll: async () => null },
+        SCH_Net: { getAllNets: async () => [{ netName: 'UNVERIFIED_NET' }] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([
+      { netName: 'UNVERIFIED_NET', nodes: [] },
+    ]);
+  });
+
+  it('schematic.listNets retains a zero-node named wire that exists on the page', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [] },
+        SCH_PrimitiveWire: {
+          getAll: async () => [fakeWire('w-floating', 'FLOATING_REAL', [100, 200, 300, 200])],
+        },
+        SCH_Net: { getAllNets: async () => [{ netName: 'FLOATING_REAL' }] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([
+      { netName: 'FLOATING_REAL', nodes: [] },
+    ]);
+  });
+
+  it('schematic.listNets retains a zero-node netflag even when there are no wires', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [fakeNetFlag('FLAG_ONLY', 100, 200)] },
+        SCH_PrimitiveWire: { getAll: async () => [] },
+        SCH_Net: { getAllNets: async () => [{ netName: 'FLAG_ONLY' }] },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([
+      { netName: 'FLAG_ONLY', nodes: [] },
+    ]);
+  });
 
   it('schematic.listNets uses a connected net port name instead of an anonymous name', async () => {
     const u1 = fakeSchematicPart('U1', [fakeSchematicPin('XL1', 100, 200)]);
