@@ -4,6 +4,11 @@ import { type EnvConfig } from '../config/env.js';
 import { readStable } from '../live/readback.js';
 import { fetchComponentPins } from './schematic-helpers.js';
 import {
+  scopeErrorDataSchema,
+  scopeErrorFields,
+  withSchematicReadScope,
+} from './schematic-read-scope.js';
+import {
   collisionScanErrorMessage,
   scanSheetForPinCollisionsDetailed,
 } from '../workflows/collision.js';
@@ -194,9 +199,11 @@ function registerSchematicReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string().describe('The project/schematic ID'),
-    }),
+    inputSchema: withSchematicReadScope(
+      z.object({
+        projectId: z.string().describe('The project/schematic ID'),
+      }),
+    ),
     outputSchema: z.object({
       project_id: z.string(),
       nets: z.array(
@@ -286,11 +293,13 @@ function registerSchematicReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string().describe('The project/schematic ID'),
-      limit: z.coerce.number().int().min(1).max(500).default(100),
-      offset: z.coerce.number().int().min(0).default(0),
-    }),
+    inputSchema: withSchematicReadScope(
+      z.object({
+        projectId: z.string().describe('The project/schematic ID'),
+        limit: z.coerce.number().int().min(1).max(500).default(100),
+        offset: z.coerce.number().int().min(0).default(0),
+      }),
+    ),
     outputSchema: z.object({
       project_id: z.string(),
       components: z.array(
@@ -436,11 +445,13 @@ function registerSchematicReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string().describe('The project/schematic ID'),
-      limit: z.coerce.number().int().min(1).max(50).default(50),
-      offset: z.coerce.number().int().min(0).default(0),
-    }),
+    inputSchema: withSchematicReadScope(
+      z.object({
+        projectId: z.string().describe('The project/schematic ID'),
+        limit: z.coerce.number().int().min(1).max(50).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+      }),
+    ),
     outputSchema: z.object({
       project_id: z.string(),
       wires: z.array(
@@ -456,6 +467,8 @@ function registerSchematicReadTools(
       total: z.number().int().nonnegative(),
       read_consistency: readConsistencySchema.optional(),
       not_available: z.boolean().optional(),
+      error_code: z.string().optional(),
+      error_data: scopeErrorDataSchema.optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -503,6 +516,7 @@ function registerSchematicReadTools(
           wires: [],
           total: 0,
           not_available: true,
+          ...scopeErrorFields(err),
           error: err instanceof Error ? err.message : String(err),
         };
       }
@@ -524,10 +538,12 @@ function registerSchematicReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string().describe('The project/schematic ID'),
-      netName: z.string(),
-    }),
+    inputSchema: withSchematicReadScope(
+      z.object({
+        projectId: z.string().describe('The project/schematic ID'),
+        netName: z.string(),
+      }),
+    ),
     outputSchema: z.object({
       project_id: z.string(),
       net_name: z.string(),
@@ -680,9 +696,11 @@ function registerSchematicReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string().optional(),
-    }),
+    inputSchema: withSchematicReadScope(
+      z.object({
+        projectId: z.string().optional(),
+      }),
+    ),
     outputSchema: z.object({
       project_id: z.string().optional(),
       sheet: z.unknown().optional(),
@@ -704,6 +722,7 @@ function registerSchematicReadTools(
       warning: z.string().optional(),
       not_available: z.boolean().optional(),
       error_code: z.string().optional(),
+      error_data: scopeErrorDataSchema.optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -809,7 +828,7 @@ function registerSchematicReadTools(
           project_id: projectId,
           geometry_available: false,
           not_available: true,
-          error_code: typeof record?.code === 'string' ? record.code : undefined,
+          ...scopeErrorFields(err),
           diagnostics: record?.data,
           error: err instanceof Error ? err.message : String(err),
         };
@@ -1234,13 +1253,15 @@ function registerSchematicReadTools(
       readOnlyHint: true,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string().describe('The project/schematic ID'),
-      includeWireCheck: z
-        .boolean()
-        .default(false)
-        .describe('When true, also check for graphical wires without netlist connectivity'),
-    }),
+    inputSchema: withSchematicReadScope(
+      z.object({
+        projectId: z.string().describe('The project/schematic ID'),
+        includeWireCheck: z
+          .boolean()
+          .default(false)
+          .describe('When true, also check for graphical wires without netlist connectivity'),
+      }),
+    ),
     outputSchema: z.object({
       project_id: z.string(),
       netlist: z.array(

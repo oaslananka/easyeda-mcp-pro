@@ -39,6 +39,64 @@ describe('Schematic Tools', () => {
     };
   });
 
+  it('schematic read schemas normalize and validate page selectors consistently', () => {
+    const cases = [
+      ['easyeda_schematic_nets', { projectId: 'proj-123' }],
+      ['easyeda_schematic_components', { projectId: 'proj-123' }],
+      ['easyeda_schematic_wires', { projectId: 'proj-123' }],
+      ['easyeda_schematic_net_detail', { projectId: 'proj-123', netName: 'GND' }],
+      ['easyeda_schematic_sheet_info', { projectId: 'proj-123' }],
+      ['easyeda_schematic_validate_netlist', { projectId: 'proj-123' }],
+    ] as const;
+
+    for (const [name, base] of cases) {
+      const schema = registry.get(name)?.inputSchema;
+      expect(schema).toBeDefined();
+      expect(schema?.parse(base)).toMatchObject({ scope: 'focused' });
+      expect(schema?.parse({ ...base, pageUuid: 'page-2' })).toMatchObject({
+        pageUuid: 'page-2',
+        scope: 'page',
+      });
+      expect(() => schema?.parse({ ...base, scope: 'page' })).toThrow();
+      expect(() => schema?.parse({ ...base, scope: 'focused', pageUuid: 'page-2' })).toThrow();
+      expect(() => schema?.parse({ ...base, scope: 'all_pages', pageUuid: 'page-2' })).toThrow();
+      expect(() => schema?.parse({ ...base, pageUuid: '   ' })).toThrow();
+    }
+  });
+
+  it('schematic scoped-read failures preserve structured PAGE diagnostics', async () => {
+    const pageError = Object.assign(new Error('Wire reads cannot target another page'), {
+      code: 'PAGE_SCOPE_UNSUPPORTED',
+      data: {
+        requestedScope: 'page',
+        pageUuid: 'page-2',
+        focusedPageUuid: 'page-1',
+        operation: 'system.inspectWires',
+        missingCapability: 'page-aware-wire-read',
+        privatePayload: 'must-not-leak',
+      },
+    });
+    bridgeCall.mockRejectedValue(pageError);
+
+    const wires = await registry.get('easyeda_schematic_wires')?.handler(context, {
+      projectId: 'proj-123',
+      pageUuid: 'page-2',
+    });
+
+    expect(wires).toMatchObject({
+      not_available: true,
+      error_code: 'PAGE_SCOPE_UNSUPPORTED',
+      error_data: {
+        requestedScope: 'page',
+        pageUuid: 'page-2',
+        focusedPageUuid: 'page-1',
+        operation: 'system.inspectWires',
+        missingCapability: 'page-aware-wire-read',
+      },
+    });
+    expect(wires?.error_data).not.toHaveProperty('privatePayload');
+  });
+
   it('documents library-search provenance for placement instead of project-instance cloning', () => {
     const placeDescription = registry.get('easyeda_schematic_place_component')?.description ?? '';
     const componentsDescription = registry.get('easyeda_schematic_components')?.description ?? '';

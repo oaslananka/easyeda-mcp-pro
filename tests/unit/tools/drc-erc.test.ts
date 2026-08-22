@@ -39,6 +39,48 @@ describe('DRC/ERC Tools', () => {
     };
   });
 
+  it('easyeda_erc_run validates page selectors and preserves PAGE diagnostics', async () => {
+    const tool = registry.get('easyeda_erc_run');
+    expect(tool?.inputSchema.parse({ projectId: 'proj-123' })).toMatchObject({ scope: 'focused' });
+    expect(tool?.inputSchema.parse({ projectId: 'proj-123', pageUuid: 'page-2' })).toMatchObject({
+      pageUuid: 'page-2',
+      scope: 'page',
+    });
+    expect(() => tool?.inputSchema.parse({ projectId: 'proj-123', scope: 'page' })).toThrow();
+    expect(() =>
+      tool?.inputSchema.parse({ projectId: 'proj-123', scope: 'focused', pageUuid: 'page-2' }),
+    ).toThrow();
+
+    bridgeCall.mockRejectedValue(
+      Object.assign(new Error('ERC is focused-only'), {
+        code: 'PAGE_SCOPE_UNSUPPORTED',
+        data: {
+          requestedScope: 'page',
+          pageUuid: 'page-2',
+          focusedPageUuid: 'page-1',
+          operation: 'design.erc',
+          missingCapability: 'page-aware-erc',
+          privatePayload: 'must-not-leak',
+        },
+      }),
+    );
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', pageUuid: 'page-2' });
+    expect(result).toMatchObject({
+      passed: null,
+      not_available: true,
+      error_code: 'PAGE_SCOPE_UNSUPPORTED',
+      error_data: {
+        requestedScope: 'page',
+        pageUuid: 'page-2',
+        focusedPageUuid: 'page-1',
+        operation: 'design.erc',
+        missingCapability: 'page-aware-erc',
+      },
+    });
+    expect(result?.error_data).not.toHaveProperty('privatePayload');
+  });
+
   it('easyeda_drc_run returns violations from bridge', async () => {
     const tool = registry.get('easyeda_drc_run');
     expect(tool).toBeDefined();

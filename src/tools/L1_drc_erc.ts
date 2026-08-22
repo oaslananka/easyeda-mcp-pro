@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  scopeErrorDataSchema,
+  scopeErrorFields,
+  withSchematicReadScope,
+} from './schematic-read-scope.js';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { validateNets } from '../net-validation/validation.js';
@@ -218,10 +223,12 @@ function registerDrcErcTools(
       destructiveHint: false,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string(),
-      checks: z.array(z.string()).optional(),
-    }),
+    inputSchema: withSchematicReadScope(
+      z.object({
+        projectId: z.string(),
+        checks: z.array(z.string()).optional(),
+      }),
+    ),
     outputSchema: z.object({
       project_id: z.string(),
       violations: z.array(
@@ -253,6 +260,8 @@ function registerDrcErcTools(
         .optional(),
       detail_source: z.enum(['inferred_partial', 'native_aggregate_only']).optional(),
       not_available: z.boolean().optional(),
+      error_code: z.string().optional(),
+      error_data: scopeErrorDataSchema.optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -311,6 +320,7 @@ function registerDrcErcTools(
           warning_count: 0,
           passed: null,
           not_available: true,
+          ...scopeErrorFields(err),
           error: err instanceof Error ? err.message : String(err),
         };
       }
