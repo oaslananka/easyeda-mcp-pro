@@ -31,6 +31,14 @@ describe('live E2E bounded phases', () => {
     expect(source).not.toContain('const pending = new Map()');
   });
 
+  it('starts the stdio MCP server with the exact current Node executable', () => {
+    const harnessPath = fileURLToPath(new URL('../../../scripts/e2e/harness.mjs', import.meta.url));
+    const source = readFileSync(harnessPath, 'utf8');
+
+    expect(source).toContain("spawn(process.execPath, options.args ?? ['dist/index.js']");
+    expect(source).not.toContain("spawn('node', options.args ?? ['dist/index.js']");
+  });
+
   it('returns the connected bridge status without sleeping', async () => {
     const reporter = createReporter();
     const toolCall = vi.fn(async () => ({

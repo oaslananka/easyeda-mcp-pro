@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { format, resolveConfig } from 'prettier';
 import { resolveEasyedaManifestVersion } from './extension-metadata-policy.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -69,11 +69,12 @@ try {
     fs.existsSync(f),
   );
   if (prettierFiles.length > 0) {
-    execFileSync('npx', ['prettier', '--write', ...prettierFiles], {
-      cwd: root,
-      stdio: 'pipe',
-      encoding: 'utf8',
-    });
+    for (const prettierFile of prettierFiles) {
+      const prettierConfig = (await resolveConfig(prettierFile)) ?? {};
+      const source = fs.readFileSync(prettierFile, 'utf8');
+      const formatted = await format(source, { ...prettierConfig, filepath: prettierFile });
+      fs.writeFileSync(prettierFile, formatted);
+    }
     console.log('- Formatted synced JSON files with Prettier');
   }
 } catch (err) {
