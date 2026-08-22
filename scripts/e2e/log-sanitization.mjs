@@ -1,7 +1,7 @@
 function escapeControlCharacter(character) {
   const codePoint = character.codePointAt(0) ?? 0;
   if (codePoint >= 0x20 && (codePoint < 0x7f || codePoint > 0x9f)) return character;
-  return `\\u${codePoint.toString(16).padStart(4, '0')}`;
+  return String.raw`\u${codePoint.toString(16).padStart(4, '0')}`;
 }
 
 export function sanitizeLogFragment(value, maxLength) {
