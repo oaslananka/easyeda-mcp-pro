@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.0-rc.6] - 2026-08-22
+
+### Release candidate
+
+- Supersedes RC.5 because EasyEDA extension runtime security hardening landed after the RC.5 candidate was published; the required seven-day major-release soak restarts only after RC.6 is published and its exact artifacts are verified.
+- Hardens Remote Relay message identifiers to prefer `crypto.randomUUID()`, use `crypto.getRandomValues()` as the cryptographic fallback, and avoid treating `Math.random()` as a security primitive; E2E diagnostics now escape and bound untrusted control characters before terminal output (#536 / #537).
+- Removes avoidable PATH-based executable resolution from the E2E Node launcher and version-sync formatting path by using `process.execPath` and the installed Prettier API, while preserving cross-platform verification behavior (#536 / #537).
+- Removes the persistently broken optional Codecov Bundle Analysis remote upload while retaining blocking Codecov patch coverage, LCOV/Test Analytics uploads, deterministic extension byte budgets, and the full security/platform gate set (#534 / #535).
+- Reduces the legacy Sonar vulnerability backlog from 13 findings to 6; the remaining six are documented safe-by-context portability/timing cases, and RC.6 introduces no new Sonar issues or security hotspots.
+- Requires fresh EasyEDA Pro 3.2.149 live compatibility evidence for the RC.6 exact runtime tree before prerelease publication because extension runtime code changed after RC.5.
+- Uses EasyEDA numeric install version `0.99.6` while preserving `1.0.0-rc.6` as the server and extension runtime product version.
+- Leaves npm/GHCR `latest` and the stable MCP Registry entry on `0.35.4` until the restarted RC.6 soak and stable promotion gates complete.
+
 ## [1.0.0-rc.5] - 2026-08-21
 
 ### Release candidate

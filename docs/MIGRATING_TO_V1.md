@@ -1,6 +1,6 @@
 # Migrating to v1
 
-`1.0.0-rc.5` supersedes RC.4 because P0 PDF-export and transaction-rollback runtime fixes landed after the RC.4 candidate was published. RC.5 preserves the sessionful MCP `2025-11-25` wire contract and modular SDK v2 runtime while tightening fail-closed EasyEDA write/export behavior. After RC.5 is published and verified, npm `next` and the prerelease container channel point to RC.5 while npm/GHCR `latest` and the stable MCP Registry entry remain on `0.35.4`; candidate users must opt in through the prerelease channel.
+`1.0.0-rc.6` supersedes RC.5 because EasyEDA extension runtime security hardening landed after the RC.5 candidate was published. RC.6 preserves the sessionful MCP `2025-11-25` wire contract and modular SDK v2 runtime while hardening Remote Relay message identifiers, E2E process execution, and diagnostic output handling. After RC.6 is published and verified, npm `next` and the prerelease container channel point to RC.6 while npm/GHCR `latest` and the stable MCP Registry entry remain on `0.35.4`; candidate users must opt in through the prerelease channel.
 
 ## What stays compatible
 
@@ -21,11 +21,11 @@
 
    An MCP client can also test the candidate with `npx -y easyeda-mcp-pro@next`.
 
-2. Download the matching `easyeda-bridge-extension.eext` asset from the `easyeda-mcp-pro-v1.0.0-rc.5` GitHub prerelease.
-3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro requires a numeric package version, so Extension Manager shows `0.99.5` for this RC; the bridge runtime still reports the product version `1.0.0-rc.5`.
+2. Download the matching `easyeda-bridge-extension.eext` asset from the `easyeda-mcp-pro-v1.0.0-rc.6` GitHub prerelease.
+3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro requires a numeric package version, so Extension Manager shows `0.99.6` for this RC; the bridge runtime still reports the product version `1.0.0-rc.6`.
 4. Start the MCP server and confirm:
    - `easyeda_health_check` returns `status: ok`;
-   - server and extension versions both report `1.0.0-rc.5`;
+   - server and extension versions both report `1.0.0-rc.6`;
    - `extension_version_mismatch` and `registry_mismatch` are both `false`.
 5. Re-run the workflows your project depends on before using the candidate for production work.
 

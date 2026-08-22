@@ -6,12 +6,12 @@
     "url": "https://github.com/oaslananka/easyeda-mcp-pro",
     "source": "github"
   },
-  "version": "1.0.0-rc.5",
+  "version": "1.0.0-rc.6",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "easyeda-mcp-pro",
-      "version": "1.0.0-rc.5",
+      "version": "1.0.0-rc.6",
       "transport": {
         "type": "stdio"
       },
