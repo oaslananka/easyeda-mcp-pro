@@ -132,15 +132,15 @@ Diagnostic `data` should identify the requested scope, page UUID when present, f
 
 The final implementation matrix is gated by live characterization. No row may be promoted from `probe required` to supported based only on method names.
 
-| Tool                                 | `focused` | `page`                                                          | `all_pages`                                                         | Initial design                                                                                                                                                                                               |
-| ------------------------------------ | --------- | --------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `easyeda_schematic_sheet_info`       | supported | supported                                                       | supported as page-list metadata, not merged geometry                | `DMT_Schematic` already exposes safe page metadata APIs. `page` returns the selected page metadata. `all_pages` returns the known page list with per-page metadata and no invented aggregate sheet geometry. |
-| `easyeda_schematic_components`       | supported | probe required                                                  | probe required                                                      | Current `SCH_PrimitiveComponent.getAll(undefined, true)` is context-bound according to issue behavior. Do not enable another scope until live tests prove a documented native path and page attribution.     |
-| `easyeda_schematic_wires`            | supported | unsupported on 3.2.149 unless probe discovers a documented path | unsupported on 3.2.149 unless probe discovers a documented path     | `SCH_PrimitiveWire.getAll` has no page selector in the captured runtime surface.                                                                                                                             |
-| `easyeda_schematic_nets`             | supported | unsupported unless a page-attributed native result is proven    | probe `SCH_Net.getCurrentProjectAllNets`                            | Project-wide support is plausible but must prove cross-page coverage, stable net identity, and node/page attribution before exposure.                                                                        |
-| `easyeda_schematic_net_detail`       | supported | unsupported unless page-attributed native data is proven        | probe only if project-wide net data contains sufficient node detail | Never filter a focused result and call it page-scoped.                                                                                                                                                       |
-| `easyeda_schematic_validate_netlist` | supported | unsupported initially                                           | unsupported until all required inputs are project-wide              | Validation needs nets, component/pin enumeration, floating-pin inference, wire checks, and native ERC. Partial data must not be reported as a complete validation.                                           |
-| `easyeda_erc_run`                    | supported | unsupported on 3.2.149                                          | unsupported on 3.2.149                                              | `SCH_Drc.check` is current-context native ERC. Do not activate a page behind the user's back.                                                                                                                |
+| Tool                                 | `focused` | `page`                                                          | `all_pages`                                                         | Initial design                                                                                                                                                                                                                                                                      |
+| ------------------------------------ | --------- | --------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `easyeda_schematic_sheet_info`       | supported | supported                                                       | supported as page-list metadata, not merged geometry                | `DMT_Schematic` already exposes safe page metadata APIs. `page` returns the selected page metadata. `all_pages` returns the known page list with per-page metadata and no invented aggregate sheet geometry.                                                                        |
+| `easyeda_schematic_components`       | supported | unsupported on 3.2.149                                          | supported                                                           | Official API docs define `getAll(undefined, true)` as all-schematic-pages and the isolated 3.2.149 probe returned Page A + Page B components while normal `getAll()` stayed focused. Returned components expose no page attribution, so arbitrary `pageUuid` filtering is not safe. |
+| `easyeda_schematic_wires`            | supported | unsupported on 3.2.149 unless probe discovers a documented path | unsupported on 3.2.149 unless probe discovers a documented path     | `SCH_PrimitiveWire.getAll` has no page selector in the captured runtime surface.                                                                                                                                                                                                    |
+| `easyeda_schematic_nets`             | supported | unsupported on 3.2.149                                          | unsupported on 3.2.149                                              | `SCH_Net.getCurrentProjectAllNets()` returned an empty array both for the disposable two-page net-port/wire fixture and the existing real TestMcp schematic, so it does not provide enough evidence for a public project-wide connectivity contract.                                |
+| `easyeda_schematic_net_detail`       | supported | unsupported unless page-attributed native data is proven        | probe only if project-wide net data contains sufficient node detail | Never filter a focused result and call it page-scoped.                                                                                                                                                                                                                              |
+| `easyeda_schematic_validate_netlist` | supported | unsupported initially                                           | unsupported until all required inputs are project-wide              | Validation needs nets, component/pin enumeration, floating-pin inference, wire checks, and native ERC. Partial data must not be reported as a complete validation.                                                                                                                  |
+| `easyeda_erc_run`                    | supported | unsupported on 3.2.149                                          | unsupported on 3.2.149                                              | `SCH_Drc.check` is current-context native ERC. Do not activate a page behind the user's back.                                                                                                                                                                                       |
 
 If live characterization proves a safe documented path for a currently unsupported cell, update this matrix, tests, and the design/issue evidence before implementation of that cell.
 
@@ -166,9 +166,9 @@ No implementation may perform a focused call first and later reject it; unsuppor
 
 ## All-pages net semantics
 
-`SCH_Net.getCurrentProjectAllNets` is a candidate for `schematic_nets(scope: 'all_pages')`, not an assumed implementation.
+`SCH_Net.getCurrentProjectAllNets` was live-characterized on EasyEDA Pro 3.2.149 and is **not** used for `schematic_nets(scope: 'all_pages')` in the initial implementation. It returned an empty array for both the disposable two-page net-port/wire fixture and the existing TestMcp schematic, despite those schematics having observable connectivity through the focused read path.
 
-The live probe must establish:
+The live probe evaluated:
 
 - that the method returns nets from at least two pages while one page remains focused;
 - whether returned nodes include designator/pin identity sufficient for the existing public net shape;
@@ -177,7 +177,22 @@ The live probe must establish:
 - whether stale/zero-node catalog behavior from #528 reappears in the project-wide API;
 - whether the call changes focus or document state (it must not).
 
-If page attribution is absent, `all_pages` may still be exposed only if the semantics are genuinely project-wide and the output does not pretend to identify a source page. If those conditions are not met, the scope remains unsupported.
+Because the 3.2.149 probe did not expose usable project-wide net data, `all_pages` nets remain `PAGE_SCOPE_UNSUPPORTED`. A future EasyEDA runtime may promote this capability only after the same cross-page/focus-safety checks pass with a usable native result.
+
+## Live characterization result (EasyEDA Pro 3.2.149)
+
+The isolated multi-page probe on 2026-08-22 resolved the initial `probe required` cells before implementation:
+
+- `DMT_Schematic.getSchematicPageInfo(nonFocusedPageUuid)` returned the requested page metadata while the focused document UUID remained unchanged.
+- `SCH_PrimitiveComponent.getAll()` returned only the focused page's disposable net-port components.
+- `SCH_PrimitiveComponent.getAll(undefined, true)` returned disposable components from both Page A and Page B with focus unchanged. This matches the official `allSchematicPages` parameter contract.
+- The returned component/public primitive detail contains no owning page UUID, so the bridge cannot safely derive `pageUuid`-specific components from the all-pages result.
+- `SCH_PrimitiveWire.getAll()` returned only the focused page's wires.
+- `SCH_Net.getCurrentProjectAllNets()` returned `[]` on both the disposable two-page fixture and the existing TestMcp schematic; no all-pages net contract is exposed.
+- `SCH_Drc.check()` exposes no page selector/project-wide contract; ERC remains focused-only.
+- The disposable schematic was deleted, original TestMcp focus was restored, and the raw primitive inventory before/after characterization was identical (`11` components including sheet/net flags, `11` wires, `4` texts, `8` rectangles).
+
+The exploratory raw probe stays outside the repository. Final implementation evidence will be regenerated against the exact implementation candidate SHA.
 
 ## Netlist validation and ERC
 
