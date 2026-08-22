@@ -1,8 +1,114 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-21",
+  "lastReviewed": "2026-08-22",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-22-v1-rc6-candidate",
+      "status": "live-validated",
+      "validatedAt": "2026-08-22T03:33:53.830+03:00",
+      "reviewBy": "2026-11-20",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-29-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.0.0-rc.6",
+        "releaseContainingFixes": "1.0.0-rc.6",
+        "commit": "182574275193287fc920e84638909d40488dda75",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "e75d01acd26810859d2b9ee0269cd7a0092f93a0",
+            "src/bridge": "5702cb9fc7bbe1f15018e9344191788cf6a00d86",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "98e9f5ec02eabbceb27abe303c4f164e111048cc",
+            "src/tools": "5c53ce8483fce1d715350eb34a044e02205510ce",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "0.99.6",
+        "loaderReportedVersion": "1.0.0-rc.6",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "d9e01181ceed32d8",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "TestMcp",
+        "schematic": "Schematic1",
+        "document": "P1",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-rc6-packaged-bridge-live",
+          "name": "Packaged RC.6 bridge, upgrade, and candidate identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact RC.6 runtime candidate ran with Node 24.18.0 against EasyEDA Pro 3.2.149.88089769. EasyEDA Extensions Manager persisted package 0.99.6 with external interactions enabled; after the required renderer reload the live bridge reported runtime 1.0.0-rc.6, bridge contract 1.0.0, 69 capabilities, dispatcher build dc297xeff2x3c31, and method registry hash d9e01181ceed32d8.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-22-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.6-transaction-export.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/537",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/536",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc6-standalone-transaction-rollback",
+          "name": "RC.6 schematic transaction rollback regression pass",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "On disposable TestMcp / Schematic1 / P1, explicit-transaction component placement recorded exactly one operation and rolled back from 10 components to 9; a safely recreatable rectangle delete rolled back with equivalent descriptor state; transactional component delete failed closed before mutation with zero operations; and a transaction-less standalone placement was not implicitly captured by an unrelated open transaction.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-22-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.6-transaction-export.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/524",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc6-pdf-false-success-guard",
+          "name": "RC.6 PDF false-success regression pass",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "EasyEDA Pro did not return a valid schematic PDF payload in this run. RC.6 correctly returned exported=false and not_available=true with no artifact written, preserving the release-blocking false-success fix.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-22-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.6-transaction-export.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/527",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-rc6-final-state-restoration",
+          "name": "RC.6 live mutation cleanup and state restoration",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "After all self-cleaning placement and delete scenarios, primitive inventories exactly matched the run baseline: 9 components, 11 wires, 4 texts, 8 rectangles, 0 circles, and 0 polygons. No cleanup errors remained.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-22-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.6-transaction-export.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.6 live EasyEDA desktop record.",
+        "EasyEDA Pro 3.2.149 did not supply a valid schematic PDF payload during this live run. RC.6 correctly failed closed with typed not_available and wrote no artifact; this record validates false-success rejection, not successful native PDF production.",
+        "The live mutation pass revalidates the standalone placement/delete transaction safety and final-state restoration paths; it is not a blanket validation of every write tool.",
+        "The RC.6 Remote Relay message-ID hardening is covered by repository extension tests and security gates; this desktop pass confirms the packaged extension loads and remains compatible but does not dogfood Remote Relay through a public hosted endpoint.",
+        "EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.6 while the validated server and extension runtime report 1.0.0-rc.6. The upgrade required reloading the isolated editor renderer before the new runtime script replaced the already-loaded RC.5 script space.",
+        "The package SHA-256 in this record identifies the deterministic pre-merge candidate artifact. Public npm provenance, GitHub prerelease asset digests, attestations, SBOM, GHCR identities, and the RC.6 soak remain publication-time/post-publication gates and are not claimed by this pre-publication live record."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-21-v1-rc5-candidate",
       "status": "live-validated",

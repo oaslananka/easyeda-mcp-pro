@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-08-21
+- **Last reviewed:** 2026-08-22
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.6           | 1.0.0-rc.6           | 0.99.6            | Live validated  | 2026-08-22 | 2026-11-20 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.5           | 1.0.0-rc.5           | 0.99.5            | Live validated  | 2026-08-21 | 2026-11-19 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.4           | 1.0.0-rc.4           | 0.99.4            | Live validated  | 2026-08-17 | 2026-11-15 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.3           | 1.0.0-rc.3           | 0.99.3            | Live validated  | 2026-08-11 | 2026-11-09 |
@@ -39,6 +40,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-22-v1-rc6-candidate`
+
+### Runtime identity
+
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.4 LTS                         |
+| Kernel                               | `7.0.0-29-generic`                         |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.18.0`                                  |
+| Validation package version           | `1.0.0-rc.6`                               |
+| Release containing validated fixes   | `1.0.0-rc.6`                               |
+| Compatibility-sensitive base commit  | `182574275193287fc920e84638909d40488dda75` |
+| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
+| Installed extension package metadata | `0.99.6`                                   |
+| Loader-reported version              | `1.0.0-rc.6`                               |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `d9e01181ceed32d8`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
+
+The installed extension package reported `0.99.6`, while the loader reported `1.0.0-rc.6`; the distinction is retained as part of the exact runtime evidence.
+
+### Capability evidence
+
+| Capability                                            | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                                                                                                                                     | Evidence                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Packaged RC.6 bridge, upgrade, and candidate identity | `live` | `passed` | The exact RC.6 runtime candidate ran with Node 24.18.0 against EasyEDA Pro 3.2.149.88089769. EasyEDA Extensions Manager persisted package 0.99.6 with external interactions enabled; after the required renderer reload the live bridge reported runtime 1.0.0-rc.6, bridge contract 1.0.0, 69 capabilities, dispatcher build dc297xeff2x3c31, and method registry hash d9e01181ceed32d8.                                                  | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-22-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.6-transaction-export.json), [PR #537](https://github.com/oaslananka/easyeda-mcp-pro/pull/537), [Issue #536](https://github.com/oaslananka/easyeda-mcp-pro/issues/536), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| RC.6 schematic transaction rollback regression pass   | `live` | `passed` | On disposable TestMcp / Schematic1 / P1, explicit-transaction component placement recorded exactly one operation and rolled back from 10 components to 9; a safely recreatable rectangle delete rolled back with equivalent descriptor state; transactional component delete failed closed before mutation with zero operations; and a transaction-less standalone placement was not implicitly captured by an unrelated open transaction. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-22-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.6-transaction-export.json), [Issue #524](https://github.com/oaslananka/easyeda-mcp-pro/issues/524), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437)                                                                    |
+| RC.6 PDF false-success regression pass                | `live` | `passed` | EasyEDA Pro did not return a valid schematic PDF payload in this run. RC.6 correctly returned exported=false and not_available=true with no artifact written, preserving the release-blocking false-success fix.                                                                                                                                                                                                                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-22-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.6-transaction-export.json), [Issue #527](https://github.com/oaslananka/easyeda-mcp-pro/issues/527), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437)                                                                    |
+| RC.6 live mutation cleanup and state restoration      | `live` | `passed` | After all self-cleaning placement and delete scenarios, primitive inventories exactly matched the run baseline: 9 components, 11 wires, 4 texts, 8 rectangles, 0 circles, and 0 polygons. No cleanup errors remained.                                                                                                                                                                                                                      | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-22-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.6-transaction-export.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437)                                                                                                                                            |
+
+### Known limitations
+
+- This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.6 live EasyEDA desktop record.
+- EasyEDA Pro 3.2.149 did not supply a valid schematic PDF payload during this live run. RC.6 correctly failed closed with typed not_available and wrote no artifact; this record validates false-success rejection, not successful native PDF production.
+- The live mutation pass revalidates the standalone placement/delete transaction safety and final-state restoration paths; it is not a blanket validation of every write tool.
+- The RC.6 Remote Relay message-ID hardening is covered by repository extension tests and security gates; this desktop pass confirms the packaged extension loads and remains compatible but does not dogfood Remote Relay through a public hosted endpoint.
+- EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.6 while the validated server and extension runtime report 1.0.0-rc.6. The upgrade required reloading the isolated editor renderer before the new runtime script replaced the already-loaded RC.5 script space.
+- The package SHA-256 in this record identifies the deterministic pre-merge candidate artifact. Public npm provenance, GitHub prerelease asset digests, attestations, SBOM, GHCR identities, and the RC.6 soak remain publication-time/post-publication gates and are not claimed by this pre-publication live record.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 
