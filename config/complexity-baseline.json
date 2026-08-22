@@ -61,7 +61,7 @@
     "src/server/factory.ts": [16],
     "src/tools/L1_board.ts": [18],
     "src/tools/L1_drc_erc.ts": [20],
-    "src/tools/L1_schematic_read.ts": [38, 21, 17],
+    "src/tools/L1_schematic_read.ts": [21, 17],
     "src/tools/L1_schematic_write.ts": [17, 16],
     "src/tools/L2_autorouting.ts": [20],
     "src/tools/L2_schematic_layout.ts": [16],

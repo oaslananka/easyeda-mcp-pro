@@ -5,6 +5,7 @@ import { registerSchematicReadTools } from '../../../src/tools/L1_schematic_read
 import { registerSchematicWriteTools } from '../../../src/tools/L1_schematic_write.js';
 import { EnvSchema } from '../../../src/config/env.js';
 import { resetGlobalTransactionManagerForTests } from '../../../src/transactions/index.js';
+import { schematicReadScopeInputSchema } from '../../../src/tools/schematic-read-scope.js';
 
 describe('Schematic Tools', () => {
   let registry: ToolRegistry;
@@ -52,24 +53,28 @@ describe('Schematic Tools', () => {
     for (const [name, base] of cases) {
       const schema = registry.get(name)?.inputSchema;
       expect(schema).toBeDefined();
-      expect(schema?.parse(base)).toMatchObject({ scope: 'focused' });
+      expect(schema?.parse(base)).not.toHaveProperty('scope');
+      expect(schema?.parse({ ...base, scope: 'focused' })).toMatchObject({ scope: 'focused' });
       expect(schema?.parse({ ...base, pageUuid: 'page-2' })).toMatchObject({
         pageUuid: 'page-2',
-        scope: 'page',
       });
+      expect(schema?.parse({ ...base, pageUuid: 'page-2' })).not.toHaveProperty('scope');
       expect(() => schema?.parse({ ...base, scope: 'page' })).toThrow();
       expect(() => schema?.parse({ ...base, scope: 'focused', pageUuid: 'page-2' })).toThrow();
       expect(() => schema?.parse({ ...base, scope: 'all_pages', pageUuid: 'page-2' })).toThrow();
       expect(() => schema?.parse({ ...base, pageUuid: '   ' })).toThrow();
     }
+    expect(schematicReadScopeInputSchema.parse({ pageUuid: 'page-2' })).toEqual({
+      pageUuid: 'page-2',
+      scope: 'page',
+    });
   });
 
-  it('schematic scoped-read failures preserve structured PAGE diagnostics', async () => {
-    const pageError = Object.assign(new Error('Wire reads cannot target another page'), {
-      code: 'PAGE_SCOPE_UNSUPPORTED',
+  it('schematic scoped-read failures preserve sanitized PAGE diagnostics', async () => {
+    const pageError = Object.assign(new Error('Wire scope metadata became unavailable'), {
+      code: 'PAGE_SCOPE_UNAVAILABLE',
       data: {
-        requestedScope: 'page',
-        pageUuid: 'page-2',
+        requestedScope: 'focused',
         focusedPageUuid: 'page-1',
         operation: 'system.inspectWires',
         missingCapability: 'page-aware-wire-read',
@@ -80,21 +85,126 @@ describe('Schematic Tools', () => {
 
     const wires = await registry.get('easyeda_schematic_wires')?.handler(context, {
       projectId: 'proj-123',
-      pageUuid: 'page-2',
+      scope: 'focused',
     });
 
     expect(wires).toMatchObject({
       not_available: true,
-      error_code: 'PAGE_SCOPE_UNSUPPORTED',
+      error_code: 'PAGE_SCOPE_UNAVAILABLE',
       error_data: {
-        requestedScope: 'page',
-        pageUuid: 'page-2',
+        requestedScope: 'focused',
         focusedPageUuid: 'page-1',
         operation: 'system.inspectWires',
         missingCapability: 'page-aware-wire-read',
       },
     });
     expect(wires?.error_data).not.toHaveProperty('privatePayload');
+  });
+
+  it('unsupported schematic scopes fail closed before primitive bridge reads', async () => {
+    const cases = [
+      [
+        'easyeda_schematic_nets',
+        { projectId: 'proj-123', pageUuid: 'page-2' },
+        'schematic.listNets',
+      ],
+      [
+        'easyeda_schematic_nets',
+        { projectId: 'proj-123', scope: 'all_pages' },
+        'schematic.listNets',
+      ],
+      [
+        'easyeda_schematic_components',
+        { projectId: 'proj-123', pageUuid: 'page-2' },
+        'schematic.listComponents',
+      ],
+      [
+        'easyeda_schematic_wires',
+        { projectId: 'proj-123', pageUuid: 'page-2' },
+        'system.inspectWires',
+      ],
+      [
+        'easyeda_schematic_wires',
+        { projectId: 'proj-123', scope: 'all_pages' },
+        'system.inspectWires',
+      ],
+      [
+        'easyeda_schematic_net_detail',
+        { projectId: 'proj-123', netName: 'GND', pageUuid: 'page-2' },
+        'schematic.getNetDetail',
+      ],
+      [
+        'easyeda_schematic_net_detail',
+        { projectId: 'proj-123', netName: 'GND', scope: 'all_pages' },
+        'schematic.getNetDetail',
+      ],
+      [
+        'easyeda_schematic_validate_netlist',
+        { projectId: 'proj-123', pageUuid: 'page-2' },
+        'schematic.validateNetlist',
+      ],
+      [
+        'easyeda_schematic_validate_netlist',
+        { projectId: 'proj-123', scope: 'all_pages' },
+        'schematic.validateNetlist',
+      ],
+    ] as const;
+
+    for (const [name, input, operation] of cases) {
+      bridgeCall.mockClear();
+      const result = await registry.get(name)?.handler(context, input);
+      expect(result).toMatchObject({
+        not_available: true,
+        error_code: 'PAGE_SCOPE_UNSUPPORTED',
+        error_data: {
+          requestedScope: input.scope ?? 'page',
+          ...(input.pageUuid ? { pageUuid: input.pageUuid } : {}),
+          operation,
+        },
+      });
+      expect(bridgeCall).not.toHaveBeenCalled();
+    }
+  });
+
+  it('explicit focused schematic reads report scope metadata without changing native operations', async () => {
+    const focusedScope = (source: string) => ({
+      requested: 'focused',
+      resolved: 'focused',
+      focus_changed: false,
+      source,
+    });
+
+    bridgeCall.mockResolvedValue([]);
+    const nets = await registry.get('easyeda_schematic_nets')?.handler(context, {
+      projectId: 'proj-123',
+      scope: 'focused',
+    });
+    expect(nets).toMatchObject({ read_scope: focusedScope('schematic.listNets') });
+
+    bridgeCall.mockReset().mockResolvedValue({ total: 0, samples: [] });
+    const wires = await registry.get('easyeda_schematic_wires')?.handler(context, {
+      projectId: 'proj-123',
+      limit: 50,
+      offset: 0,
+      scope: 'focused',
+    });
+    expect(wires).toMatchObject({ read_scope: focusedScope('system.inspectWires') });
+
+    bridgeCall.mockReset().mockResolvedValue({ netName: 'GND', nodes: [] });
+    const detail = await registry.get('easyeda_schematic_net_detail')?.handler(context, {
+      projectId: 'proj-123',
+      netName: 'GND',
+      scope: 'focused',
+    });
+    expect(detail).toMatchObject({ read_scope: focusedScope('schematic.getNetDetail') });
+
+    bridgeCall.mockReset().mockResolvedValue({ nets: [], floatingPins: [], warnings: [] });
+    const validation = await registry.get('easyeda_schematic_validate_netlist')?.handler(context, {
+      projectId: 'proj-123',
+      includeWireCheck: false,
+      scope: 'focused',
+    });
+    expect(validation).toMatchObject({ read_scope: focusedScope('schematic.validateNetlist') });
   });
 
   it('documents library-search provenance for placement instead of project-instance cloning', () => {
@@ -205,6 +315,53 @@ describe('Schematic Tools', () => {
     });
   });
 
+  it('easyeda_schematic_sheet_info preserves the legacy argument-less call', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    bridgeCall.mockResolvedValue({
+      currentPage: { uuid: 'page-1', name: 'Main' },
+      pages: [{ uuid: 'page-1', name: 'Main' }],
+      source: 'current_page',
+      focusedDocument: { uuid: 'page-1' },
+    });
+
+    await expect(tool?.handler(context, undefined)).resolves.toMatchObject({
+      sheet: { uuid: 'page-1', name: 'Main' },
+      geometry_available: false,
+    });
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', { projectId: undefined });
+  });
+
+  it('easyeda_schematic_sheet_info sanitizes PAGE diagnostics from bridge failures', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    bridgeCall.mockRejectedValue(
+      Object.assign(new Error('scope metadata unavailable'), {
+        code: 'PAGE_SCOPE_UNAVAILABLE',
+        data: {
+          requestedScope: 'focused',
+          focusedPageUuid: 'page-1',
+          operation: 'schematic.getSheetInfo',
+          missingCapability: 'page-metadata',
+          privatePayload: 'must-not-leak',
+        },
+      }),
+    );
+
+    const result = await tool?.handler(context, { scope: 'focused' });
+
+    expect(result).toMatchObject({
+      not_available: true,
+      error_code: 'PAGE_SCOPE_UNAVAILABLE',
+      error_data: {
+        requestedScope: 'focused',
+        focusedPageUuid: 'page-1',
+        operation: 'schematic.getSheetInfo',
+        missingCapability: 'page-metadata',
+      },
+    });
+    expect(result?.error_data).not.toHaveProperty('privatePayload');
+    expect(result?.diagnostics).not.toHaveProperty('privatePayload');
+  });
+
   it('easyeda_schematic_sheet_info reports focused page identity without inventing geometry', async () => {
     const tool = registry.get('easyeda_schematic_sheet_info');
     bridgeCall.mockResolvedValue({
@@ -232,6 +389,176 @@ describe('Schematic Tools', () => {
     });
     expect(result).not.toHaveProperty('page_size');
     expect(result).not.toHaveProperty('not_available');
+  });
+
+  it('easyeda_schematic_sheet_info falls back to current page identity and parses numeric string geometry', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    bridgeCall.mockResolvedValue({
+      currentPage: { uuid: 'page-1', name: 'Main', width: '1170', height: '826' },
+      pages: [{ uuid: 'page-1', name: 'Main' }],
+      source: 'current_page',
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', scope: 'focused' });
+
+    expect(result).toMatchObject({
+      geometry_available: true,
+      page_size: { width: 1170, height: 826 },
+      read_scope: {
+        requested: 'focused',
+        resolved: 'focused',
+        focused_page_uuid: 'page-1',
+        focus_changed: false,
+        source: 'current_page',
+      },
+    });
+  });
+
+  it('easyeda_schematic_sheet_info fails closed when an explicit non-focused scope has no page list', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    bridgeCall.mockResolvedValue({
+      currentPage: { uuid: 'page-1', name: 'Main' },
+      pages: [],
+      source: 'current_page',
+      focusedDocument: { uuid: 'page-1' },
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', scope: 'all_pages' });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      geometry_available: false,
+      not_available: true,
+      error_code: 'PAGE_SCOPE_UNAVAILABLE',
+      error_data: {
+        requestedScope: 'all_pages',
+        focusedPageUuid: 'page-1',
+        operation: 'schematic.getSheetInfo',
+      },
+    });
+  });
+
+  it('easyeda_schematic_sheet_info selects non-focused page metadata from the native page list without changing focus', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    const page1 = { uuid: 'page-1', name: 'Main' };
+    const page2 = { uuid: 'page-2', name: 'Power', titleBlockData: { Width: { value: '1170' } } };
+    bridgeCall.mockResolvedValue({
+      currentPage: page1,
+      pages: [page1, page2],
+      source: 'current_page',
+      focusedDocument: { uuid: 'page-1', tabId: 'tab-1' },
+      diagnostics: { currentPageAvailable: true, pageListAvailable: true },
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', pageUuid: 'page-2' });
+
+    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      sheet: page2,
+      metadata_source: 'page_list',
+      focused_document: { uuid: 'page-1', tabId: 'tab-1' },
+      geometry_available: false,
+      read_scope: {
+        requested: 'page',
+        resolved: 'page',
+        page_uuid: 'page-2',
+        focused_page_uuid: 'page-1',
+        focus_changed: false,
+        source: 'page_list',
+      },
+    });
+  });
+
+  it('easyeda_schematic_sheet_info returns all page metadata without inventing combined geometry', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    const pages = [
+      { uuid: 'page-1', name: 'Main' },
+      { uuid: 'page-2', name: 'Power' },
+    ];
+    bridgeCall.mockResolvedValue({
+      currentPage: pages[0],
+      pages,
+      source: 'current_page',
+      focusedDocument: { uuid: 'page-1' },
+      diagnostics: { currentPageAvailable: true, pageListAvailable: true },
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', scope: 'all_pages' });
+
+    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      pages,
+      metadata_source: 'page_list',
+      geometry_available: false,
+      read_scope: {
+        requested: 'all_pages',
+        resolved: 'all_pages',
+        focused_page_uuid: 'page-1',
+        focus_changed: false,
+        source: 'page_list',
+      },
+    });
+    expect(result).not.toHaveProperty('sheet');
+    expect(result).not.toHaveProperty('page_size');
+  });
+
+  it('easyeda_schematic_sheet_info fails unknown page UUIDs before any fallback read', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    bridgeCall.mockResolvedValue({
+      currentPage: { uuid: 'page-1', name: 'Main' },
+      pages: [{ uuid: 'page-1', name: 'Main' }],
+      focusedDocument: { uuid: 'page-1' },
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123', pageUuid: 'missing' });
+
+    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      geometry_available: false,
+      not_available: true,
+      error_code: 'PAGE_NOT_FOUND',
+      error_data: {
+        requestedScope: 'page',
+        pageUuid: 'missing',
+        focusedPageUuid: 'page-1',
+        operation: 'schematic.getSheetInfo',
+      },
+    });
+  });
+
+  it('easyeda_schematic_sheet_info adds scope metadata only for explicit focused requests', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    bridgeCall.mockResolvedValue({
+      currentPage: { uuid: 'page-1', name: 'Main' },
+      pages: [{ uuid: 'page-1', name: 'Main' }],
+      source: 'current_page',
+      focusedDocument: { uuid: 'page-1' },
+    });
+
+    const explicit = await tool?.handler(context, { projectId: 'proj-123', scope: 'focused' });
+    expect(explicit).toMatchObject({
+      read_scope: {
+        requested: 'focused',
+        resolved: 'focused',
+        focused_page_uuid: 'page-1',
+        focus_changed: false,
+        source: 'current_page',
+      },
+    });
+
+    bridgeCall.mockClear();
+    bridgeCall.mockResolvedValue({
+      currentPage: { uuid: 'page-1', name: 'Main' },
+      pages: [{ uuid: 'page-1', name: 'Main' }],
+      source: 'current_page',
+      focusedDocument: { uuid: 'page-1' },
+    });
+    const legacy = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(legacy).not.toHaveProperty('read_scope');
   });
 
   it('easyeda_schematic_sheet_info rejects empty metadata as unavailable', async () => {
@@ -1411,6 +1738,54 @@ describe('Schematic Tools', () => {
         total: 1,
         components: [{ reference: 'R1', value: '10k', footprint: '' }],
         read_consistency: { stable: true, attempts: 2 },
+      });
+    });
+
+    it('forwards explicit focused/all-pages component scope without changing legacy calls', async () => {
+      const tool = registry.get('easyeda_schematic_components');
+      bridgeCall.mockResolvedValue({ total: 0, items: [] });
+
+      const focused = await tool?.handler(context, {
+        projectId: 'proj-123',
+        limit: 100,
+        offset: 0,
+        scope: 'focused',
+      });
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.listComponents', {
+        projectId: 'proj-123',
+        limit: 100,
+        offset: 0,
+        allPages: false,
+      });
+      expect(focused).toMatchObject({
+        read_scope: {
+          requested: 'focused',
+          resolved: 'focused',
+          focus_changed: false,
+          source: 'SCH_PrimitiveComponent.getAll',
+        },
+      });
+
+      bridgeCall.mockClear();
+      const allPages = await tool?.handler(context, {
+        projectId: 'proj-123',
+        limit: 100,
+        offset: 0,
+        scope: 'all_pages',
+      });
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.listComponents', {
+        projectId: 'proj-123',
+        limit: 100,
+        offset: 0,
+        allPages: true,
+      });
+      expect(allPages).toMatchObject({
+        read_scope: {
+          requested: 'all_pages',
+          resolved: 'all_pages',
+          focus_changed: false,
+          source: 'SCH_PrimitiveComponent.getAll',
+        },
       });
     });
 

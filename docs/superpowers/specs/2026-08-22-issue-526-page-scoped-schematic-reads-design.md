@@ -14,7 +14,7 @@ The design therefore must not equate “a page can be described by `DMT_Schemati
 
 ## Goals
 
-- Preserve every existing focused-page read call unchanged when no selector is supplied.
+- Preserve each tool's existing read scope unchanged when no selector is supplied; this is focused for most tools, while the current component list is already all-pages via `getAll(undefined, true)`.
 - Allow agents to identify and request a schematic page by `pageUuid` without changing EasyEDA focus.
 - Support non-focused page reads only where EasyEDA exposes a documented/read-only native path whose semantics are verified live.
 - Expose project-wide/all-pages connectivity only where the runtime proves that the data really spans pages.
@@ -26,7 +26,7 @@ The design therefore must not equate “a page can be described by `DMT_Schemati
 
 - Do not call `DMT_EditorControl.openDocument`, `activateDocument`, or equivalent focus-changing APIs as an implementation detail of a read tool.
 - Do not mutate IndexedDB, renderer internals, private EasyEDA state, or undocumented page-context globals to force `SCH_*` classes onto another page.
-- Do not claim that `SCH_PrimitiveComponent.getAll(..., true)` is an all-pages query without live proof; the existing bridge already uses that call while #526 reports focused-page behavior.
+- Do not reinterpret legacy component enumeration as focused: the existing bridge has used `SCH_PrimitiveComponent.getAll(undefined, true)` since July 2026, and live characterization proved it is all-pages on EasyEDA Pro 3.2.149.
 - Do not synthesize a complete all-pages ERC result by combining incomplete focused-page checks.
 - Do not merge unrelated read-model or routing refactors into the feature PR.
 - Do not change write-tool page/focus semantics in this issue.
@@ -67,7 +67,7 @@ The existing tool inputs remain valid. A common selector shape is added only to 
 
 Resolution rules:
 
-1. Neither field supplied: behave exactly as today; resolved scope is `focused`.
+1. Neither field supplied: behave exactly as today and do not inject a scope. Most existing reads are focused; `easyeda_schematic_components` remains all-pages because that is its established RC.6 behavior.
 2. `pageUuid` supplied with no `scope`: treat as `scope: 'page'`.
 3. `scope: 'page'` requires a non-empty `pageUuid`.
 4. `scope: 'focused'` rejects `pageUuid`; callers must not provide contradictory intent.
@@ -78,7 +78,7 @@ The server should use a shared Zod selector schema so every participating tool v
 
 ## Scope metadata in outputs
 
-Successful scoped reads add an optional, backward-compatible envelope field:
+Successful **explicitly scoped** reads add an optional, backward-compatible envelope field. Legacy calls with neither selector field do not gain mandatory scope metadata or changed semantics:
 
 ```ts
 read_scope?: {
@@ -95,12 +95,14 @@ The existing result fields remain unchanged. `focus_changed` is always `false` f
 
 For errors, existing tool-specific output shapes continue to be used, with bridge `code`/`data` preserved where the tool already exposes them. Tools touched by this feature must not flatten `PAGE_*` bridge errors to an unstructured string.
 
-## Bridge read-scope resolver
+## Read-scope resolver
 
-Add a small read-only resolver in the bridge extension, separate from the primitive implementations. Conceptually:
+Keep scope orchestration in the MCP server unless a native primitive operation itself needs a scope flag. The extension dispatcher is already at its enforced byte budget, and `schematic.getSheetInfo` already returns the native page list plus focused-document metadata needed for safe page selection. Adding a duplicate metadata resolver to the extension would increase risk and duplicate existing code without adding capability.
+
+Conceptually the server resolves explicit selectors as:
 
 ```ts
-resolveSchematicReadScope({ pageUuid, scope }) -> {
+resolveSchematicReadScope({ pageUuid, scope }, focusedSheetInfo) -> {
   requestedScope,
   pageUuid?,
   focusedPageUuid?,
@@ -110,13 +112,12 @@ resolveSchematicReadScope({ pageUuid, scope }) -> {
 }
 ```
 
-The resolver uses only `DMT_Schematic`/`DMT_SelectControl` metadata calls:
+For sheet metadata it uses only existing read-only bridge calls:
 
-- page list: `getCurrentSchematicAllSchematicPagesInfo`, then `getAllSchematicPagesInfo` as fallback;
-- focused document identity: `DMT_SelectControl.getCurrentDocumentInfo`;
-- requested page metadata: `DMT_Schematic.getSchematicPageInfo(pageUuid)` after validating membership in the current schematic/project page set.
+- `schematic.getSheetInfo` for the current page list and focused document identity;
+- `schematic.getSheetInfo` page-list metadata -> exact UUID membership validation and requested non-focused page selection in the MCP server.
 
-The resolver must not call an editor activation/open API.
+The resolver must not call an editor activation/open API. The extension changes only where a primitive API already has a proven scope flag, notably component enumeration's `allSchematicPages` boolean.
 
 Errors:
 
@@ -132,15 +133,15 @@ Diagnostic `data` should identify the requested scope, page UUID when present, f
 
 The final implementation matrix is gated by live characterization. No row may be promoted from `probe required` to supported based only on method names.
 
-| Tool                                 | `focused` | `page`                                                          | `all_pages`                                                         | Initial design                                                                                                                                                                                                                                                                      |
-| ------------------------------------ | --------- | --------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `easyeda_schematic_sheet_info`       | supported | supported                                                       | supported as page-list metadata, not merged geometry                | `DMT_Schematic` already exposes safe page metadata APIs. `page` returns the selected page metadata. `all_pages` returns the known page list with per-page metadata and no invented aggregate sheet geometry.                                                                        |
-| `easyeda_schematic_components`       | supported | unsupported on 3.2.149                                          | supported                                                           | Official API docs define `getAll(undefined, true)` as all-schematic-pages and the isolated 3.2.149 probe returned Page A + Page B components while normal `getAll()` stayed focused. Returned components expose no page attribution, so arbitrary `pageUuid` filtering is not safe. |
-| `easyeda_schematic_wires`            | supported | unsupported on 3.2.149 unless probe discovers a documented path | unsupported on 3.2.149 unless probe discovers a documented path     | `SCH_PrimitiveWire.getAll` has no page selector in the captured runtime surface.                                                                                                                                                                                                    |
-| `easyeda_schematic_nets`             | supported | unsupported on 3.2.149                                          | unsupported on 3.2.149                                              | `SCH_Net.getCurrentProjectAllNets()` returned an empty array both for the disposable two-page net-port/wire fixture and the existing real TestMcp schematic, so it does not provide enough evidence for a public project-wide connectivity contract.                                |
-| `easyeda_schematic_net_detail`       | supported | unsupported unless page-attributed native data is proven        | probe only if project-wide net data contains sufficient node detail | Never filter a focused result and call it page-scoped.                                                                                                                                                                                                                              |
-| `easyeda_schematic_validate_netlist` | supported | unsupported initially                                           | unsupported until all required inputs are project-wide              | Validation needs nets, component/pin enumeration, floating-pin inference, wire checks, and native ERC. Partial data must not be reported as a complete validation.                                                                                                                  |
-| `easyeda_erc_run`                    | supported | unsupported on 3.2.149                                          | unsupported on 3.2.149                                              | `SCH_Drc.check` is current-context native ERC. Do not activate a page behind the user's back.                                                                                                                                                                                       |
+| Tool                                 | `focused` | `page`                 | `all_pages`                                          | Initial design                                                                                                                                                                                                                                                                      |
+| ------------------------------------ | --------- | ---------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `easyeda_schematic_sheet_info`       | supported | supported              | supported as page-list metadata, not merged geometry | `DMT_Schematic` already exposes safe page metadata APIs. `page` returns the selected page metadata. `all_pages` returns the known page list with per-page metadata and no invented aggregate sheet geometry.                                                                        |
+| `easyeda_schematic_components`       | supported | unsupported on 3.2.149 | supported                                            | Official API docs define `getAll(undefined, true)` as all-schematic-pages and the isolated 3.2.149 probe returned Page A + Page B components while normal `getAll()` stayed focused. Returned components expose no page attribution, so arbitrary `pageUuid` filtering is not safe. |
+| `easyeda_schematic_wires`            | supported | unsupported on 3.2.149 | unsupported on 3.2.149                               | `SCH_PrimitiveWire.getAll` has no page selector in the captured runtime surface.                                                                                                                                                                                                    |
+| `easyeda_schematic_nets`             | supported | unsupported on 3.2.149 | unsupported on 3.2.149                               | `SCH_Net.getCurrentProjectAllNets()` returned an empty array both for the disposable two-page net-port/wire fixture and the existing real TestMcp schematic, so it does not provide enough evidence for a public project-wide connectivity contract.                                |
+| `easyeda_schematic_net_detail`       | supported | unsupported on 3.2.149 | unsupported on 3.2.149                               | No page-attributed/project-wide native detail source was proven; never filter a focused result and call it page-scoped.                                                                                                                                                             |
+| `easyeda_schematic_validate_netlist` | supported | unsupported on 3.2.149 | unsupported on 3.2.149                               | Validation needs nets, component/pin enumeration, floating-pin inference, wire checks, and native ERC. Partial data must not be reported as a complete validation.                                                                                                                  |
+| `easyeda_erc_run`                    | supported | unsupported on 3.2.149 | unsupported on 3.2.149                               | `SCH_Drc.check` is current-context native ERC. Do not activate a page behind the user's back.                                                                                                                                                                                       |
 
 If live characterization proves a safe documented path for a currently unsupported cell, update this matrix, tests, and the design/issue evidence before implementation of that cell.
 
@@ -150,7 +151,7 @@ If live characterization proves a safe documented path for a currently unsupport
 
 Focused behavior remains unchanged.
 
-For `scope: 'page'`/`pageUuid`, the bridge returns that page as `currentPage`/selected page and includes the complete page list plus focused document metadata for diagnostics. The server output reports the selected page's geometry only when the native page record actually contains it; it must retain today's `geometry_available` semantics and never infer dimensions.
+For `scope: 'page'`/`pageUuid`, the server reads the existing sheet-info envelope, verifies the requested UUID is in the reported page set, and selects that native page record directly. The server reports selected-page geometry only when that native record actually contains it; it retains today's `geometry_available` semantics and never infers dimensions.
 
 For `scope: 'all_pages'`, the server returns page-list metadata in a dedicated additive field such as `pages`; singular `sheet`/geometry fields remain unset unless there is an unambiguous documented meaning. This prevents fake “combined sheet” geometry.
 
@@ -158,9 +159,10 @@ For `scope: 'all_pages'`, the server returns page-list metadata in a dedicated a
 
 Every primitive operation receives the resolved scope before calling `SCH_*` APIs.
 
-- `focused`: call the existing implementation unchanged.
-- `page`: call a verified page-aware native implementation if one exists; otherwise throw `PAGE_SCOPE_UNSUPPORTED` before calling a focused primitive class.
-- `all_pages`: call a verified project/all-page native implementation if one exists; otherwise throw `PAGE_SCOPE_UNSUPPORTED`.
+- omitted selector: call the existing implementation unchanged; do not reinterpret legacy scope.
+- explicit `focused`: call a verified focused native implementation. For components this uses `getAll(undefined, false)` rather than the legacy all-pages call.
+- `page`: call a verified page-aware native implementation if one exists; otherwise return `PAGE_SCOPE_UNSUPPORTED` before calling a focused primitive class.
+- `all_pages`: call a verified project/all-page native implementation if one exists; otherwise return `PAGE_SCOPE_UNSUPPORTED`. Components reuse their established `getAll(undefined, true)` path.
 
 No implementation may perform a focused call first and later reject it; unsupported scope should fail before expensive primitive enumeration when possible.
 
@@ -204,21 +206,21 @@ All-pages validation is enabled only when every required component has a verifie
 
 ## Server and bridge architecture
 
-Expected implementation boundaries:
+Implementation boundaries after live characterization:
 
-- `src/tools/L1_schematic_read.ts`: shared selector schema, additive output `read_scope`, and selector forwarding for schematic read tools.
-- `src/tools/L1_drc_erc.ts`: selector validation/forwarding for `easyeda_erc_run`, including structured unsupported-scope handling.
-- `easyeda-bridge-extension/src/schematic-inspection.ts` or a small adjacent module: shared read-scope/page resolver built on `DMT_Schematic` metadata.
-- `easyeda-bridge-extension/src/read-only-operations.ts`: accepts scope and routes only to operations that declare support.
-- `easyeda-bridge-extension/src/dispatcher.ts` and/or narrowly scoped inspection modules: native implementation for any live-proven all-pages/page-aware primitive read.
-- `src/bridge/cdp-manager.ts`: parity implementation for the CDP bridge path; it must enforce the same selector and fail-closed capability rules.
+- `src/tools/schematic-read-scope.ts`: shared selector validation, structured PAGE diagnostics, fail-closed capability checks, and page selection from the existing `schematic.getSheetInfo` metadata envelope.
+- `src/tools/schematic-sheet-info.ts`: backward-compatible sheet metadata formatting for focused, selected-page, and all-page-list results without invented aggregate geometry.
+- `src/tools/L1_schematic_read.ts`: applies the shared selector contract and additive `read_scope` metadata to participating schematic reads.
+- `src/tools/L1_drc_erc.ts`: applies the same selector/error contract to `easyeda_erc_run`.
+- `easyeda-bridge-extension/src/schematic-component-inspection.ts` and `read-only-operations.ts`: carry only the live-proven component `allSchematicPages` flag; page metadata resolution is not duplicated in the extension.
+- `src/bridge/cdp-manager.ts`: mirrors the component `allSchematicPages` flag while reusing the existing sheet-info metadata envelope; unsupported scopes are rejected by the MCP server before primitive reads.
 - generated tool reference docs are regenerated through the existing generator rather than hand-edited.
 
 Do not create a new generic service layer if the existing inspection/read-only modules can own the behavior cleanly.
 
 ## Backward compatibility
 
-- Existing calls without `pageUuid`/`scope` must produce the same data shapes and focused semantics, except for additive optional `read_scope` metadata if enabled for default calls.
+- Existing calls without `pageUuid`/`scope` must produce the same data shapes and the same pre-#526 scope semantics. In particular, component enumeration remains all-pages by default; other affected read tools retain their current focused behavior.
 - Existing tool names and required parameters do not change.
 - `projectId` remains accepted exactly as today; #526 does not redefine its identity semantics.
 - No read tool gains `confirmWrite` or triggers a write confirmation.
@@ -276,21 +278,23 @@ The characterization itself may temporarily switch pages under explicit test-har
 
 ### Bridge extension tests
 
-- resolver matches a requested page from the page list and calls `getSchematicPageInfo(pageUuid)`;
-- missing/unknown pages fail before primitive calls;
-- unsupported page/all-pages scopes do not call focused `SCH_*` APIs;
-- focused/default path continues to call existing implementations;
-- all-pages nets tests are added only after live result semantics are captured in fixtures;
-- no resolver code calls editor activation/open methods.
+- selector-omitted component enumeration keeps the established `getAll(undefined, true)` behavior;
+- explicit focused component enumeration passes `false` to the documented `allSchematicPages` flag;
+- explicit `all_pages` component enumeration passes `true` to that flag;
+- the read-only router forwards the optional native scope flag without coercing malformed values into focused reads;
+- unsupported page/all-pages operations are rejected by the MCP server before the bridge primitive method is called;
+- no scoped implementation calls editor activation/open methods.
 
 ### CDP parity tests
 
-- same selector-resolution and structured-error behavior as extension bridge;
+- component enumeration embeds the same documented `allSchematicPages` boolean as the extension bridge;
+- selector omission remains all-pages for component enumeration;
+- `sheet_info` page/all-pages selection is performed from the existing native page-list envelope in the MCP server;
 - no generated expression contains `openDocument`, `activateDocument`, or another focus-changing fallback for scoped reads.
 
 ### Repository gates
 
-- focused server/extension tests first under TDD;
+- legacy-scope preservation and explicit focused/server tests first under TDD;
 - format, typecheck, lint, complexity ratchet, tool metadata/docs generation;
 - full `pnpm verify` on Node 24.18.0 / pnpm 11.5.1;
 - extension size budget;
@@ -315,7 +319,7 @@ If the project intentionally decides to merge #526 before stable, that is a rele
 
 ## Acceptance criteria
 
-- Existing focused calls remain backward compatible.
+- Existing selector-free calls remain backward compatible, including the established all-pages component list behavior.
 - No scoped read changes EasyEDA focus.
 - `sheet_info(pageUuid)` can return verified metadata for a non-focused page.
 - Every requested scope either returns data from a proven native scope or fails with a structured `PAGE_SCOPE_UNSUPPORTED`/related error; no silent focused fallback exists.

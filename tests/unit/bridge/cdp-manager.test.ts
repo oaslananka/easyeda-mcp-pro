@@ -276,6 +276,25 @@ describe('CdpBridgeManager transport lifecycle', () => {
     expect(manager.connected).toBe(true);
   });
 
+  it('routes scoped component reads through the mapped CDP expression', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+
+    await expect(
+      manager.call('schematic.listComponents', { allPages: false }),
+    ).resolves.toMatchObject({
+      appVersion: '2.2.39',
+    });
+
+    const evaluation = harness.requests.findLast(
+      (request) =>
+        request.method === 'Runtime.evaluate' &&
+        String(request.params?.expression ?? '').includes('SCH_PrimitiveComponent.getAll'),
+    );
+    expect(String(evaluation?.params?.expression ?? '')).toContain('getAll(undefined, false)');
+  });
+
   it('times out an unanswered CDP command and removes it from pending work', async () => {
     const harness = await createHarness();
     activeHarnesses.add(harness);

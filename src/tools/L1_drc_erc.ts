@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import {
+  assertSchematicReadScopeSupported,
+  readScopeOutputSchema,
+  readScopeResult,
+  schematicReadScopeInputSchema,
   scopeErrorDataSchema,
   scopeErrorFields,
   withSchematicReadScope,
@@ -209,9 +213,9 @@ function registerDrcErcTools(
     name: 'easyeda_erc_run',
     title: 'Run electrical rule check',
     description:
-      "Run EasyEDA Pro's native schematic ERC and supplement coarse counts with inferred_floating_pins. " +
-      'Requires a schematic document to be focused; otherwise returns an indeterminate not_available result ' +
-      'with an actionable focus error. Native counts remain authoritative.',
+      'Run native schematic ERC and supplement aggregate counts with inferred_floating_pins. Requires a focused schematic. ' +
+      'Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. ' +
+      'Native counts remain authoritative; unavailable focus returns not_available.',
     profile: 'core',
     evidence: ['official-docs', 'runtime-probe'],
     risk: 'medium',
@@ -259,6 +263,7 @@ function registerDrcErcTools(
         )
         .optional(),
       detail_source: z.enum(['inferred_partial', 'native_aggregate_only']).optional(),
+      read_scope: readScopeOutputSchema.optional(),
       not_available: z.boolean().optional(),
       error_code: z.string().optional(),
       error_data: scopeErrorDataSchema.optional(),
@@ -266,7 +271,15 @@ function registerDrcErcTools(
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId, checks } = params as { projectId: string; checks?: string[] };
+      const { scope, pageUuid } = schematicReadScopeInputSchema.parse(params);
       try {
+        assertSchematicReadScopeSupported(
+          scope,
+          pageUuid,
+          ['focused'],
+          'design.erc',
+          'page-aware-erc',
+        );
         const result = await ctx.bridge.call('design.erc', { projectId, checks });
         const data = result as {
           violations?: Array<{
@@ -310,6 +323,7 @@ function registerDrcErcTools(
           passed: (data.errorCount ?? 0) === 0,
           inferred_floating_pins: data.inferredFloatingPins,
           detail_source: data.detailSource,
+          ...readScopeResult(scope, 'design.erc'),
         };
       } catch (err) {
         return {

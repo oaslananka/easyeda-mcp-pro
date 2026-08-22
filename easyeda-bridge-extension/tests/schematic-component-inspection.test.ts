@@ -136,6 +136,17 @@ describe('schematic component inspection operations', () => {
     expect(getAll).toHaveBeenCalledWith(undefined, true);
   });
 
+  it('uses focused component inventory only when allPages is explicitly false', async () => {
+    const getAll = vi.fn(async () => []);
+    const { operations } = makeOperations({ SCH_PrimitiveComponent: { getAll } });
+
+    await operations.listComponents(undefined, 0, false);
+    expect(getAll).toHaveBeenLastCalledWith(undefined, false);
+
+    await operations.listComponents(undefined, 0, true);
+    expect(getAll).toHaveBeenLastCalledWith(undefined, true);
+  });
+
   it('resolves an unnamed footprint from the library and prefers native names', async () => {
     const footprintGet = vi.fn(async () => ({ name: 'SOT-23' }));
     const direct = makeStateful({

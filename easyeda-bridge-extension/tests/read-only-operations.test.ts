@@ -12,9 +12,10 @@ function createDependencies(overrides: Record<string, unknown> = {}) {
       listPrimitiveIds: vi.fn(async (primitiveKind: unknown) => ({ primitiveKind })),
     },
     schematicComponentInspection: {
-      listComponents: vi.fn(async (limit?: number, offset?: number) => ({
+      listComponents: vi.fn(async (limit?: number, offset?: number, allPages?: unknown) => ({
         limit,
         offset,
+        allPages,
         items: [],
       })),
     },
@@ -58,9 +59,12 @@ describe('read-only dispatcher operations', () => {
     await expect(operations.listPrimitiveIds({ primitiveKind: 'wire' })).resolves.toEqual({
       primitiveKind: 'wire',
     });
-    await expect(operations.listComponents({ limit: 2, offset: 3 })).resolves.toMatchObject({
+    await expect(
+      operations.listComponents({ limit: 2, offset: 3, allPages: false }),
+    ).resolves.toMatchObject({
       limit: 2,
       offset: 3,
+      allPages: false,
     });
     await expect(operations.listComponents({ limit: 'bad', offset: 'bad' })).resolves.toMatchObject(
       {

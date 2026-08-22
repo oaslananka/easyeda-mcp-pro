@@ -205,6 +205,7 @@ export function createReadOnlyOperations(
       return dependencies.schematicComponentInspection.listComponents(
         optionalNumber(params.limit),
         offsetNumber(params.offset),
+        params.allPages,
       );
     },
 

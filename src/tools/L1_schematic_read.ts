@@ -4,10 +4,17 @@ import { type EnvConfig } from '../config/env.js';
 import { readStable } from '../live/readback.js';
 import { fetchComponentPins } from './schematic-helpers.js';
 import {
+  assertSchematicReadScopeSupported,
+  componentReadScope,
+  readScopeOutputSchema,
+  readScopeResult,
+  schematicReadScopeInputSchema,
   scopeErrorDataSchema,
+  scopeErrorDiagnostics,
   scopeErrorFields,
   withSchematicReadScope,
 } from './schematic-read-scope.js';
+import { formatSchematicSheetInfo } from './schematic-sheet-info.js';
 import {
   collisionScanErrorMessage,
   scanSheetForPinCollisionsDetailed,
@@ -188,7 +195,8 @@ function registerSchematicReadTools(
   registry.register({
     name: 'easyeda_schematic_nets',
     title: 'List schematic nets',
-    description: 'List all nets in the schematic with their node connections.',
+    description:
+      'List nets from the current schematic context. Explicit focused scope is supported; page/all_pages scopes fail closed on EasyEDA Pro 3.2.149.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -225,12 +233,23 @@ function registerSchematicReadTools(
       ),
       total: z.number().int().nonnegative(),
       read_consistency: readConsistencySchema.optional(),
+      read_scope: readScopeOutputSchema.optional(),
       not_available: z.boolean().optional(),
+      error_code: z.string().optional(),
+      error_data: scopeErrorDataSchema.optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = params as { projectId: string };
+      const { scope, pageUuid } = schematicReadScopeInputSchema.parse(params);
       try {
+        assertSchematicReadScopeSupported(
+          scope,
+          pageUuid,
+          ['focused'],
+          'schematic.listNets',
+          'page-aware-net-read',
+        );
         const observation = await readStable(
           () => ctx.bridge.call('schematic.listNets', { projectId }),
           stableReadOptions,
@@ -263,6 +282,7 @@ function registerSchematicReadTools(
             stable: observation.stable,
             attempts: observation.attempts,
           },
+          ...readScopeResult(scope, 'schematic.listNets'),
         };
       } catch (err) {
         return {
@@ -270,6 +290,7 @@ function registerSchematicReadTools(
           nets: [],
           total: 0,
           not_available: true,
+          ...scopeErrorFields(err),
           error: err instanceof Error ? err.message : String(err),
         };
       }
@@ -280,9 +301,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_components',
     title: 'List schematic components',
     description:
-      'List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and ' +
-      'project-instance deviceUuid/deviceLibraryUuid read-back metadata. Those IDs are not valid ' +
-      'place_component deviceItem values; use schematic_search_device for placement.',
+      'List schematic components with IDs, references, values, footprints, placement, and project-instance device IDs. ' +
+      'Omitted scope preserves legacy all-pages; focused/all_pages are supported, pageUuid is not. ' +
+      'Project-instance device IDs are not valid place_component deviceItem values; use schematic_search_device.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -340,7 +361,10 @@ function registerSchematicReadTools(
       ),
       total: z.number().int().nonnegative(),
       read_consistency: readConsistencySchema.optional(),
+      read_scope: readScopeOutputSchema.optional(),
       not_available: z.boolean().optional(),
+      error_code: z.string().optional(),
+      error_data: scopeErrorDataSchema.optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -349,13 +373,23 @@ function registerSchematicReadTools(
         limit: number;
         offset: number;
       };
+      const { scope, pageUuid } = schematicReadScopeInputSchema.parse(params);
       try {
+        assertSchematicReadScopeSupported(
+          scope,
+          pageUuid,
+          ['focused', 'all_pages'],
+          'schematic.listComponents',
+          'page-attributed-component-read',
+        );
+        const componentScope = componentReadScope(scope);
         const observation = await readStable(
           () =>
             ctx.bridge.call('schematic.listComponents', {
               projectId,
               limit,
               offset,
+              ...componentScope.bridgeParams,
             }),
           stableReadOptions,
         );
@@ -415,6 +449,7 @@ function registerSchematicReadTools(
             stable: observation.stable,
             attempts: observation.attempts,
           },
+          ...(componentScope.readScope ? { read_scope: componentScope.readScope } : {}),
         };
       } catch (err) {
         return {
@@ -422,6 +457,7 @@ function registerSchematicReadTools(
           components: [],
           total: 0,
           not_available: true,
+          ...scopeErrorFields(err),
           error: err instanceof Error ? err.message : String(err),
         };
       }
@@ -432,9 +468,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_wires',
     title: 'List schematic wires',
     description:
-      'List wire segments: primitiveId, line coordinates, net name, color, style. Page with ' +
-      'offset (check total) past the 50-wire-per-call cap. primitiveId is required by ' +
-      'delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.',
+      'List wire segments with primitiveId, coordinates, net, color, and style; paginate past 50 with offset. ' +
+      'Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. ' +
+      'primitiveId is required by delete_primitive/modify_primitive.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -466,6 +502,7 @@ function registerSchematicReadTools(
       ),
       total: z.number().int().nonnegative(),
       read_consistency: readConsistencySchema.optional(),
+      read_scope: readScopeOutputSchema.optional(),
       not_available: z.boolean().optional(),
       error_code: z.string().optional(),
       error_data: scopeErrorDataSchema.optional(),
@@ -477,7 +514,15 @@ function registerSchematicReadTools(
         limit: number;
         offset: number;
       };
+      const { scope, pageUuid } = schematicReadScopeInputSchema.parse(params);
       try {
+        assertSchematicReadScopeSupported(
+          scope,
+          pageUuid,
+          ['focused'],
+          'system.inspectWires',
+          'page-aware-wire-read',
+        );
         const observation = await readStable(
           () => ctx.bridge.call('system.inspectWires', { limit, offset }),
           stableReadOptions,
@@ -509,6 +554,7 @@ function registerSchematicReadTools(
             stable: observation.stable,
             attempts: observation.attempts,
           },
+          ...readScopeResult(scope, 'system.inspectWires'),
         };
       } catch (err) {
         return {
@@ -527,7 +573,8 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_net_detail',
     title: 'Get schematic net detail',
     description:
-      'Get full details for a specific net in the schematic including all connected pins and components.',
+      'Get full details for a specific net in the current schematic context including connected pins ' +
+      'and components. Explicit focused scope is supported; page/all_pages scopes fail closed on EasyEDA Pro 3.2.149.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -554,16 +601,26 @@ function registerSchematicReadTools(
           pin: z.string(),
         }),
       ),
+      read_scope: readScopeOutputSchema.optional(),
       not_available: z.boolean().optional(),
       timed_out: z.boolean().optional(),
       error_code: z.string().optional(),
+      error_data: scopeErrorDataSchema.optional(),
       timeout_stage: z.string().optional(),
       timeout_component: z.string().optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId, netName } = params as { projectId: string; netName: string };
+      const { scope, pageUuid } = schematicReadScopeInputSchema.parse(params);
       try {
+        assertSchematicReadScopeSupported(
+          scope,
+          pageUuid,
+          ['focused'],
+          'schematic.getNetDetail',
+          'page-aware-net-detail-read',
+        );
         const result = await ctx.bridge.call(
           'schematic.getNetDetail',
           { projectId, netName, operationTimeoutMs: 15_000 },
@@ -590,6 +647,7 @@ function registerSchematicReadTools(
             component_ref: nd.component ?? '',
             pin: nd.pin ?? '',
           })),
+          ...readScopeResult(scope, 'schematic.getNetDetail'),
         };
       } catch (err) {
         const record =
@@ -609,6 +667,7 @@ function registerSchematicReadTools(
           not_available: true,
           timed_out: timedOut || undefined,
           error_code: errorCode,
+          error_data: scopeErrorFields(err).error_data,
           timeout_stage: typeof data?.stage === 'string' ? data.stage : undefined,
           timeout_component: typeof data?.component === 'string' ? data.component : undefined,
           error: message,
@@ -685,7 +744,7 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_sheet_info',
     title: 'Get schematic sheet info',
     description:
-      'Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.',
+      'Return read-only schematic sheet metadata. Supports focused, pageUuid/page, and all_pages page-list reads without changing EasyEDA focus; aggregate geometry is never invented.',
     profile: 'core',
     evidence: ['runtime-probe'],
     risk: 'low',
@@ -704,6 +763,8 @@ function registerSchematicReadTools(
     outputSchema: z.object({
       project_id: z.string().optional(),
       sheet: z.unknown().optional(),
+      pages: z.array(z.unknown()).optional(),
+      read_scope: readScopeOutputSchema.optional(),
       page_size: z
         .object({
           width: z.number().optional(),
@@ -727,109 +788,17 @@ function registerSchematicReadTools(
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = z.object({ projectId: z.string().optional() }).parse(params ?? {});
+      const { scope, pageUuid } = schematicReadScopeInputSchema.parse(params ?? {});
       try {
         const result = await ctx.bridge.call('schematic.getSheetInfo', { projectId });
-        const root =
-          result && typeof result === 'object' && !Array.isArray(result)
-            ? (result as Record<string, unknown>)
-            : {};
-        const isNonEmptyRecord = (value: unknown): value is Record<string, unknown> =>
-          Boolean(
-            value &&
-            typeof value === 'object' &&
-            !Array.isArray(value) &&
-            Object.keys(value as Record<string, unknown>).length > 0,
-          );
-        const wrappedCurrent = isNonEmptyRecord(root.currentPage) ? root.currentPage : undefined;
-        const hasLegacyDirectSheetData = [
-          'uuid',
-          'name',
-          'width',
-          'height',
-          'pageWidth',
-          'pageHeight',
-          'paperWidth',
-          'paperHeight',
-          'frame',
-          'titleBlock',
-          'origin',
-          'canvasOrigin',
-          'grid',
-          'gridSize',
-        ].some((key) => root[key] !== undefined && root[key] !== null);
-        const current = wrappedCurrent ?? (hasLegacyDirectSheetData ? root : undefined);
-        if (!current) {
-          return {
-            project_id: projectId,
-            geometry_available: false,
-            not_available: true,
-            diagnostics: root.diagnostics,
-            error: 'EasyEDA did not expose metadata for the focused schematic page.',
-          };
-        }
-        const readNumber = (keys: string[]): number | undefined => {
-          for (const key of keys) {
-            const value = current[key] ?? root[key];
-            if (typeof value === 'number' && Number.isFinite(value)) return value;
-            if (typeof value === 'string') {
-              const parsed = Number(value.trim());
-              if (Number.isFinite(parsed)) return parsed;
-            }
-          }
-          return undefined;
-        };
-        const readString = (keys: string[]): string | undefined => {
-          for (const key of keys) {
-            const value = current[key] ?? root[key];
-            if (typeof value === 'string' && value.trim()) return value;
-          }
-          return undefined;
-        };
-        const width = readNumber(['width', 'pageWidth', 'paperWidth', 'w']);
-        const height = readNumber(['height', 'pageHeight', 'paperHeight', 'h']);
-        const unit = readString(['unit', 'units', 'pageUnit']);
-        const frame = current.frame ?? current.titleBlock ?? root.frame;
-        const origin = current.origin ?? current.canvasOrigin ?? root.origin;
-        const grid = current.grid ?? current.gridSize ?? root.grid;
-        const geometryAvailable =
-          width !== undefined ||
-          height !== undefined ||
-          unit !== undefined ||
-          frame !== undefined ||
-          origin !== undefined ||
-          grid !== undefined;
-        const pageSize =
-          width !== undefined || height !== undefined || unit !== undefined
-            ? { width, height, unit }
-            : undefined;
-        return {
-          project_id: projectId,
-          sheet: current,
-          ...(pageSize ? { page_size: pageSize } : {}),
-          ...(frame !== undefined ? { frame } : {}),
-          ...(origin !== undefined ? { origin } : {}),
-          ...(grid !== undefined ? { grid } : {}),
-          raw: result,
-          ...(typeof root.source === 'string' ? { metadata_source: root.source } : {}),
-          ...(root.focusedDocument !== undefined ? { focused_document: root.focusedDocument } : {}),
-          ...(root.diagnostics !== undefined ? { diagnostics: root.diagnostics } : {}),
-          geometry_available: geometryAvailable,
-          ...(geometryAvailable
-            ? {}
-            : {
-                warning:
-                  'Focused schematic page identity is available, but this EasyEDA runtime did not expose page geometry.',
-              }),
-        };
+        return formatSchematicSheetInfo(result, projectId, scope, pageUuid);
       } catch (err) {
-        const record =
-          err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
         return {
           project_id: projectId,
           geometry_available: false,
           not_available: true,
           ...scopeErrorFields(err),
-          diagnostics: record?.data,
+          diagnostics: scopeErrorDiagnostics(err),
           error: err instanceof Error ? err.message : String(err),
         };
       }
@@ -1240,9 +1209,9 @@ function registerSchematicReadTools(
     name: 'easyeda_schematic_validate_netlist',
     title: 'Validate netlist',
     description:
-      'Validate inferred nets and floating pins, then cross-check native ERC. A pin is excluded ' +
-      'from floating inference only when native noConnected readback is boolean true; unavailable ' +
-      'or malformed state stays visible. `valid` requires clean inference and zero native errors.',
+      'Validate inferred nets/floating pins and cross-check native ERC. Only native noConnected=true excludes a pin; ' +
+      'unavailable/malformed state stays visible. `valid` requires clean inference and zero native errors. ' +
+      'Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'low',
@@ -1297,7 +1266,10 @@ function registerSchematicReadTools(
         .optional(),
       valid: z.boolean(),
       warnings: z.array(z.string()),
+      read_scope: readScopeOutputSchema.optional(),
       not_available: z.boolean().optional(),
+      error_code: z.string().optional(),
+      error_data: scopeErrorDataSchema.optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -1305,7 +1277,15 @@ function registerSchematicReadTools(
         projectId: string;
         includeWireCheck: boolean;
       };
+      const { scope, pageUuid } = schematicReadScopeInputSchema.parse(params);
       try {
+        assertSchematicReadScopeSupported(
+          scope,
+          pageUuid,
+          ['focused'],
+          'schematic.validateNetlist',
+          'page-aware-net-validation',
+        );
         const result = await ctx.bridge.call('schematic.validateNetlist', {
           projectId,
           includeWireCheck,
@@ -1355,6 +1335,7 @@ function registerSchematicReadTools(
           // the inference but fail native ERC).
           valid: data.warnings?.length === 0 && nativeErcPassed,
           warnings: data.warnings ?? [],
+          ...readScopeResult(scope, 'schematic.validateNetlist'),
         };
       } catch (err) {
         return {
@@ -1365,6 +1346,7 @@ function registerSchematicReadTools(
           valid: false,
           warnings: [],
           not_available: true,
+          ...scopeErrorFields(err),
           error: err instanceof Error ? err.message : String(err),
         };
       }

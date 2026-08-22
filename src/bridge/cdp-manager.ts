@@ -261,7 +261,7 @@ export class CdpBridgeManager extends EventEmitter {
     }
 
     if (method === 'schematic.listComponents') {
-      return this.evaluateObject(this.componentListExpression(), timeoutMs);
+      return this.evaluateObject(this.componentListExpression(params), timeoutMs);
     }
 
     if (method === 'schematic.listNets') {
@@ -567,14 +567,15 @@ export class CdpBridgeManager extends EventEmitter {
     );
   }
 
-  private componentListExpression(): string {
+  private componentListExpression(params?: unknown): string {
+    const allPages = (params as { allPages?: boolean } | undefined)?.allPages !== false;
     return `
       (async () => {
         ${this.runtimePrelude()}
         const klass = readFirst(['SCH_PrimitiveComponent','SCH_PrimitiveComponent3','sch_PrimitiveComponent']);
         const fpKlass = readFirst(['LIB_Footprint','lib_Footprint']);
         if (!klass || typeof klass.getAll !== 'function') throw new Error('SCH_PrimitiveComponent.getAll is not available');
-        const comps = await klass.getAll(undefined, true);
+        const comps = await klass.getAll(undefined, ${allPages});
         const result = [];
         for (const c of comps || []) {
           const reference = typeof c.getState_Designator === 'function' ? c.getState_Designator() : '';
