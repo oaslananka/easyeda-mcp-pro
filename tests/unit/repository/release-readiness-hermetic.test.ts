@@ -96,6 +96,39 @@ async function writeCompatibilitySnapshot({
   await writeJson(sourcePath, source);
 }
 
+async function createExtensionVersionPromotionFixture() {
+  const root = await mkdtemp(join(tmpdir(), 'release-readiness-version-promotion-'));
+  temporaryRoots.push(root);
+  await mkdir(join(root, 'easyeda-bridge-extension/src'), { recursive: true });
+  await writeFile(
+    join(root, 'easyeda-bridge-extension/src/index.ts'),
+    "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.0.0-rc.6', behavior: 'unchanged' };\n",
+  );
+  git(root, ['init']);
+  git(root, ['config', 'user.email', 'fixture@example.invalid']);
+  git(root, ['config', 'user.name', 'Release Readiness Fixture']);
+  git(root, ['add', '.']);
+  git(root, ['commit', '-m', 'fixture: add prerelease extension source']);
+  const evidenceCommit = git(root, ['rev-parse', 'HEAD']);
+
+  await writeJson(join(root, 'config/easyeda-compatibility.json'), {
+    schemaVersion: 1,
+    releaseGate: {
+      sensitivePaths: ['easyeda-bridge-extension/src'],
+      requiredFreshLiveRecords: 1,
+    },
+    records: [
+      {
+        id: 'extension-version-promotion',
+        server: { commit: evidenceCommit },
+      },
+    ],
+  });
+  git(root, ['add', 'config/easyeda-compatibility.json']);
+  git(root, ['commit', '-m', 'fixture: bind prerelease compatibility evidence']);
+  return { root, evidenceCommit };
+}
+
 async function createPassingCommand(directory: string, name: string) {
   await mkdir(directory, { recursive: true });
   if (process.platform === 'win32') {
@@ -174,6 +207,51 @@ describe('hermetic release readiness', { timeout: GIT_FIXTURE_TEST_TIMEOUT_MS },
     },
     GIT_FIXTURE_TEST_TIMEOUT_MS,
   );
+
+  it('accepts a stable promotion when only the release-managed extension version changes', async () => {
+    const fixture = await createExtensionVersionPromotionFixture();
+    await writeFile(
+      join(fixture.root, 'easyeda-bridge-extension/src/index.ts'),
+      "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.0.0', behavior: 'unchanged' };\n",
+    );
+    git(fixture.root, ['add', 'easyeda-bridge-extension/src/index.ts']);
+    git(fixture.root, ['commit', '-m', 'chore: promote extension version to stable']);
+
+    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
+
+    expect(report.status).toBe('current');
+    expect(report.records[0]).toMatchObject({ status: 'current', changedFiles: [] });
+  });
+
+  it('rejects an RC-to-RC version-only change without fresh live evidence', async () => {
+    const fixture = await createExtensionVersionPromotionFixture();
+    await writeFile(
+      join(fixture.root, 'easyeda-bridge-extension/src/index.ts'),
+      "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.0.0-rc.7', behavior: 'unchanged' };\n",
+    );
+    git(fixture.root, ['add', 'easyeda-bridge-extension/src/index.ts']);
+    git(fixture.root, ['commit', '-m', 'chore: advance release candidate']);
+
+    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
+
+    expect(report.status).toBe('stale');
+    expect(report.records[0]?.changedFiles).toEqual(['easyeda-bridge-extension/src/index.ts']);
+  });
+
+  it('rejects stable promotion when extension behavior changes with the version', async () => {
+    const fixture = await createExtensionVersionPromotionFixture();
+    await writeFile(
+      join(fixture.root, 'easyeda-bridge-extension/src/index.ts'),
+      "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.0.0', behavior: 'changed' };\n",
+    );
+    git(fixture.root, ['add', 'easyeda-bridge-extension/src/index.ts']);
+    git(fixture.root, ['commit', '-m', 'fix: change behavior during promotion']);
+
+    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
+
+    expect(report.status).toBe('stale');
+    expect(report.records[0]?.changedFiles).toEqual(['easyeda-bridge-extension/src/index.ts']);
+  });
 
   it('reports stale evidence after a committed sensitive change', async () => {
     const fixture = await createGitFixture();
