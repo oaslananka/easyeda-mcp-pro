@@ -8,10 +8,7 @@ import type { PcbWriteOperations } from './pcb-write-operations.js';
 import type { ProjectOperations } from './project-operations.js';
 import type { ReadOnlyOperations } from './read-only-operations.js';
 import type { SchematicTransactionOperations } from './schematic-transaction-operations.js';
-import {
-  assertSchematicReadScopeSupported,
-  type SchematicReadScope,
-} from './schematic-read-scope.js';
+import { assertSchematicReadOperationScope } from './schematic-read-scope.js';
 import type { SystemApiOperations } from './system-api-operations.js';
 
 export interface DispatcherDomainRouterDependencies {
@@ -53,34 +50,8 @@ function offsetNumber(value: unknown): number {
   return typeof value === 'number' ? value : 0;
 }
 
-const schematicScopePolicies: Partial<
-  Record<string, { supported: readonly SchematicReadScope[]; missingCapability: string }>
-> = {
-  'design.erc': { supported: ['focused'], missingCapability: 'page-aware-erc' },
-  'schematic.getNetDetail': {
-    supported: ['focused'],
-    missingCapability: 'page-aware-net-detail-read',
-  },
-  'schematic.getSheetInfo': {
-    supported: ['focused', 'page', 'all_pages'],
-    missingCapability: 'schematic-page-metadata',
-  },
-  'schematic.listComponents': {
-    supported: ['focused', 'all_pages'],
-    missingCapability: 'page-attributed-component-read',
-  },
-  'schematic.listNets': { supported: ['focused'], missingCapability: 'page-aware-net-read' },
-  'schematic.validateNetlist': {
-    supported: ['focused'],
-    missingCapability: 'project-wide-complete-netlist-validation',
-  },
-  'system.inspectWires': { supported: ['focused'], missingCapability: 'page-aware-wire-read' },
-};
-
 function assertRouterSchematicScope(method: string, params: Record<string, unknown>): void {
-  const policy = schematicScopePolicies[method];
-  if (!policy) return;
-  assertSchematicReadScopeSupported(params, policy.supported, method, policy.missingCapability);
+  assertSchematicReadOperationScope(params, method);
 }
 
 export function createDispatcherDomainRouter(

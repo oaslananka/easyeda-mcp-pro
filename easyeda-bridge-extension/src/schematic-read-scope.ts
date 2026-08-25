@@ -92,3 +92,42 @@ export function assertSchematicReadScopeSupported(
     },
   );
 }
+
+const focusedScope = ['focused'] as const;
+const focusedAndAllPagesScopes = ['focused', 'all_pages'] as const;
+const allMetadataScopes = ['focused', 'page', 'all_pages'] as const;
+
+const focusedOnlyCapabilityByOperation = new Map<string, string>([
+  ['design.erc', 'page-aware-erc'],
+  ['schematic.getNetDetail', 'page-aware-net-detail-read'],
+  ['schematic.listNets', 'page-aware-net-read'],
+  ['schematic.validateNetlist', 'project-wide-complete-netlist-validation'],
+  ['system.inspectWires', 'page-aware-wire-read'],
+]);
+
+export function assertSchematicReadOperationScope(
+  params: Record<string, unknown> | undefined,
+  operation: string,
+): void {
+  if (operation === 'schematic.getSheetInfo') {
+    assertSchematicReadScopeSupported(
+      params,
+      allMetadataScopes,
+      operation,
+      'schematic-page-metadata',
+    );
+    return;
+  }
+  if (operation === 'schematic.listComponents') {
+    assertSchematicReadScopeSupported(
+      params,
+      focusedAndAllPagesScopes,
+      operation,
+      'page-attributed-component-read',
+    );
+    return;
+  }
+  const missingCapability = focusedOnlyCapabilityByOperation.get(operation);
+  if (!missingCapability) return;
+  assertSchematicReadScopeSupported(params, focusedScope, operation, missingCapability);
+}
