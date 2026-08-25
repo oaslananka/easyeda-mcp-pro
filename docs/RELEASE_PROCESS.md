@@ -100,6 +100,8 @@ After a successful workflow:
 7. require the **Verify published release** workflow step to pass and archive `published-release.json`;
 8. publish the final evidence comment before announcing or closing the tracking issue.
 
+GitHub Actions keeps only bounded operational copies: SBOM workflow artifact: `14 days`; published-release verification artifact: `30 days`. The immutable GitHub Release assets, attestations, checksums, and public evidence record remain the long-lived release evidence and are not governed by these workflow-artifact retention windows.
+
 See [Release Verification](RELEASE_VERIFICATION.md) for commands and [Release & CI Runbook](release-ci-runbook.md) for failure recovery.
 
 ## 7. Failed releases and emergency publication

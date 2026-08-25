@@ -307,4 +307,6 @@ pnpm smoke:schematic-transactions
 
 The final publication job runs **Verify published release** after GHCR publication and uploads `reports/published-release.json`. The report must pass before the version is announced.
 
+Workflow-artifact retention is intentionally bounded: SBOM workflow artifact: `14 days`; published-release verification artifact: `30 days`. For investigation beyond those windows, use the immutable GitHub Release SBOM/provenance assets and the public release evidence instead of extending Actions storage indefinitely.
+
 For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.

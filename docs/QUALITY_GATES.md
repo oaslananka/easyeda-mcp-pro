@@ -27,6 +27,8 @@ SonarQube Cloud uses **GitHub App automatic analysis** for project `oaslananka_e
 
 Maintainers should use SonarQube for IDE Connected Mode for editor feedback. The provider-owned GitHub check remains authoritative for merge decisions.
 
+Live provider state was re-verified on **2026-08-25**. The project uses the default **Sonar way** Quality Gate and a **previous version** new-code period. That gate is rating-based: it enforces new-code reliability, security, maintainability, duplication, and security-hotspot review conditions rather than requiring the raw issue count to be zero. Legacy findings must still be fixed or explicitly dispositioned; the six remaining legacy vulnerability records are the safe-by-context cases documented in #536/#537. Repository workflows do not consume `SONAR_TOKEN`; GitHub App automatic analysis remains the authoritative path.
+
 ## Failure triage
 
 When `codecov/patch` fails:
