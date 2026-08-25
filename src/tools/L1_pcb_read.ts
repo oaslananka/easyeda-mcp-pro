@@ -51,7 +51,7 @@ function circleSourcePoints(source: unknown[]): PcbPoint[] {
 
 function rectangleSourcePoints(source: unknown[]): PcbPoint[] {
   const [x, y, width, height, rotation, round] = source.slice(1, 7).map(finiteNumber);
-  if ([x, y, width, height].some((value) => value === undefined)) return [];
+  if ([x, y, width, height].includes(undefined)) return [];
   if (rotation !== 0 || round !== 0 || (width as number) < 0 || (height as number) < 0) return [];
   const right = (x as number) + (width as number);
   const bottom = (y as number) + (height as number);

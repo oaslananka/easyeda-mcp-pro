@@ -8,9 +8,11 @@ import {
   planComponentGroupPlacement,
   planPcbComponentTransform,
   planRoutePath,
+  type PcbComponentTransformPlan,
+  type PcbComponentTransformRequest,
   type PcbComponentTransformState,
 } from '../pcb-layout/index.js';
-import { getGlobalTransactionManager } from '../transactions/manager.js';
+import { getGlobalTransactionManager, type TransactionManager } from '../transactions/manager.js';
 
 const layoutPointSchema = z.object({ x: z.number(), y: z.number() });
 const layoutBoardSchema = z.object({
@@ -126,6 +128,230 @@ export async function applyLayoutOperations(
     }
   }
   return results;
+}
+
+type PcbComponentTransformToolRequest = PcbComponentTransformRequest & {
+  primitiveId: string;
+  mode: 'preview' | 'apply';
+  confirmWrite?: true;
+};
+
+type PcbComponentTransformBase = {
+  primitive_id: string;
+  mode: 'preview' | 'apply';
+  mirror_supported: false;
+  before: PcbComponentTransformState;
+  planned: PcbComponentTransformState;
+  changes: PcbComponentTransformPlan['changes'];
+};
+
+async function readPcbComponentState(
+  ctx: ToolContext,
+  primitiveId: string,
+): Promise<PcbComponentTransformState> {
+  const listed = await ctx.bridge.call<
+    Record<string, never>,
+    { items?: unknown[]; total?: number }
+  >('pcb.listComponents', {});
+  const raw = Array.isArray(listed?.items)
+    ? listed.items.find(
+        (item) =>
+          !!item &&
+          typeof item === 'object' &&
+          !Array.isArray(item) &&
+          (item as Record<string, unknown>).primitiveId === primitiveId,
+      )
+    : undefined;
+  if (!raw) throw new Error(`PCB component ${primitiveId} was not found on the active PCB`);
+  const state = parsePcbComponentTransformState(raw);
+  if (!state) {
+    throw new Error(
+      `PCB component ${primitiveId} does not expose a complete supported transform state`,
+    );
+  }
+  return state;
+}
+
+async function rollbackPcbComponentTransform(
+  manager: TransactionManager,
+  transactionId: string,
+  ctx: ToolContext,
+  primitiveId: string,
+): Promise<{
+  rolledBack: boolean;
+  transactionState: 'rolled-back' | 'failed';
+  restored?: PcbComponentTransformState;
+  rollbackError?: string;
+}> {
+  let rolledBack = false;
+  let transactionState: 'rolled-back' | 'failed' = 'failed';
+  let restored: PcbComponentTransformState | undefined;
+  let rollbackError: string | undefined;
+  try {
+    const rollback = await manager.rollback(transactionId, {
+      restore: async (operation) => {
+        const snapshot = operation.beforeSnapshot as PcbComponentTransformState;
+        await ctx.bridge.call('pcb.modifyComponent', {
+          primitiveId,
+          property: nativePcbComponentRestoreProperty(snapshot),
+        });
+      },
+      verify: async (operation) => {
+        const snapshot = operation.beforeSnapshot as PcbComponentTransformState;
+        const current = await readPcbComponentState(ctx, primitiveId);
+        return pcbComponentStateMatches(current, snapshot);
+      },
+    });
+    rolledBack = rollback.transaction.rollbackComplete === true;
+    transactionState = rollback.transaction.state === 'rolled-back' ? 'rolled-back' : 'failed';
+    if (rolledBack) restored = await readPcbComponentState(ctx, primitiveId);
+  } catch (error_) {
+    rollbackError = error_ instanceof Error ? error_.message : String(error_);
+  }
+  return {
+    rolledBack,
+    transactionState,
+    ...(restored ? { restored } : {}),
+    ...(rollbackError ? { rollbackError } : {}),
+  };
+}
+
+async function applyPcbComponentTransform(
+  ctx: ToolContext,
+  parsed: PcbComponentTransformToolRequest,
+  plan: PcbComponentTransformPlan,
+  base: PcbComponentTransformBase,
+) {
+  const manager = getGlobalTransactionManager();
+  const transaction = manager.begin({
+    documentId: `active-pcb:${parsed.primitiveId}`,
+    label: `pcb-component-transform:${parsed.primitiveId}`,
+    maxOperations: 1,
+  });
+  try {
+    const executed = await manager.runModify(
+      transaction.id,
+      parsed.primitiveId,
+      {
+        getSnapshot: () => readPcbComponentState(ctx, parsed.primitiveId),
+        apply: async () => {
+          await ctx.bridge.call('pcb.modifyComponent', {
+            primitiveId: parsed.primitiveId,
+            property: plan.nativeProperty,
+          });
+          const readBack = await readPcbComponentState(ctx, parsed.primitiveId);
+          if (!pcbComponentStateMatches(readBack, plan.planned)) {
+            throw new Error(
+              `PCB component read-back did not match the requested transform for ${parsed.primitiveId}`,
+            );
+          }
+          return readBack;
+        },
+        restore: async (snapshot) => {
+          const previous = snapshot as PcbComponentTransformState;
+          await ctx.bridge.call('pcb.modifyComponent', {
+            primitiveId: parsed.primitiveId,
+            property: nativePcbComponentRestoreProperty(previous),
+          });
+        },
+      },
+      'pcb-primitive',
+    );
+    await manager.validate(transaction.id, [
+      {
+        name: 'pcb-component-read-back',
+        run: () => {
+          const after = executed.operation.afterSnapshot as PcbComponentTransformState | undefined;
+          const passed = !!after && pcbComponentStateMatches(after, plan.planned);
+          return {
+            gate: 'pcb-component-read-back',
+            passed,
+            message: passed
+              ? 'PCB component transform matched the requested state.'
+              : 'PCB component transform read-back was incomplete or mismatched.',
+          };
+        },
+      },
+    ]);
+    const committed = manager.commit(transaction.id);
+    return {
+      ...base,
+      success: true,
+      applied: true,
+      no_op: false,
+      after: executed.operation.afterSnapshot as PcbComponentTransformState,
+      transaction_id: transaction.id,
+      transaction_state: committed.state,
+      rolled_back: false,
+    };
+  } catch (error) {
+    const rollback = await rollbackPcbComponentTransform(
+      manager,
+      transaction.id,
+      ctx,
+      parsed.primitiveId,
+    );
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ...base,
+      success: false,
+      applied: false,
+      no_op: false,
+      transaction_id: transaction.id,
+      transaction_state: rollback.transactionState,
+      rolled_back: rollback.rolledBack,
+      ...(rollback.restored ? { restored: rollback.restored } : {}),
+      error: rollback.rollbackError
+        ? `${message}; rollback failed: ${rollback.rollbackError}`
+        : message,
+    };
+  }
+}
+
+async function handlePcbComponentTransform(
+  ctx: ToolContext,
+  parsed: PcbComponentTransformToolRequest,
+) {
+  let before: PcbComponentTransformState | undefined;
+  try {
+    before = await readPcbComponentState(ctx, parsed.primitiveId);
+    const plan = planPcbComponentTransform(before, parsed);
+    const base: PcbComponentTransformBase = {
+      primitive_id: parsed.primitiveId,
+      mode: parsed.mode,
+      mirror_supported: false,
+      before,
+      planned: plan.planned,
+      changes: plan.changes,
+    };
+    if (parsed.mode === 'preview') {
+      return { ...base, success: true, applied: false, no_op: plan.changes.length === 0 };
+    }
+    if (parsed.confirmWrite !== true) {
+      return {
+        ...base,
+        success: false,
+        applied: false,
+        no_op: plan.changes.length === 0,
+        error: 'Apply mode requires confirmWrite=true.',
+      };
+    }
+    if (plan.changes.length === 0) {
+      return { ...base, success: true, applied: false, no_op: true, after: before };
+    }
+    return await applyPcbComponentTransform(ctx, parsed, plan, base);
+  } catch (error) {
+    return {
+      success: false,
+      primitive_id: parsed.primitiveId,
+      mode: parsed.mode,
+      applied: false,
+      no_op: false,
+      mirror_supported: false,
+      ...(before ? { before } : {}),
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function registerPcbWriteTools(
@@ -812,33 +1038,6 @@ function registerPcbWriteTools(
     error: z.string().optional(),
   });
 
-  async function readPcbComponentState(
-    ctx: ToolContext,
-    primitiveId: string,
-  ): Promise<PcbComponentTransformState> {
-    const listed = await ctx.bridge.call<
-      Record<string, never>,
-      { items?: unknown[]; total?: number }
-    >('pcb.listComponents', {});
-    const raw = Array.isArray(listed?.items)
-      ? listed.items.find(
-          (item) =>
-            !!item &&
-            typeof item === 'object' &&
-            !Array.isArray(item) &&
-            (item as Record<string, unknown>).primitiveId === primitiveId,
-        )
-      : undefined;
-    if (!raw) throw new Error(`PCB component ${primitiveId} was not found on the active PCB`);
-    const state = parsePcbComponentTransformState(raw);
-    if (!state) {
-      throw new Error(
-        `PCB component ${primitiveId} does not expose a complete supported transform state`,
-      );
-    }
-    return state;
-  }
-
   registry.register({
     name: 'easyeda_pcb_modify_component',
     title: 'Preview or apply a typed PCB component transform',
@@ -862,150 +1061,7 @@ function registerPcbWriteTools(
     outputSchema: pcbComponentTransformOutputSchema,
     handler: async (ctx: ToolContext, params: unknown) => {
       const parsed = pcbComponentTransformInputSchema.parse(params);
-      let before: PcbComponentTransformState | undefined;
-      try {
-        before = await readPcbComponentState(ctx, parsed.primitiveId);
-        const plan = planPcbComponentTransform(before, parsed);
-        const base = {
-          primitive_id: parsed.primitiveId,
-          mode: parsed.mode,
-          mirror_supported: false as const,
-          before,
-          planned: plan.planned,
-          changes: plan.changes,
-        };
-        if (parsed.mode === 'preview') {
-          return { ...base, success: true, applied: false, no_op: plan.changes.length === 0 };
-        }
-        if (parsed.confirmWrite !== true) {
-          return {
-            ...base,
-            success: false,
-            applied: false,
-            no_op: plan.changes.length === 0,
-            error: 'Apply mode requires confirmWrite=true.',
-          };
-        }
-        if (plan.changes.length === 0) {
-          return { ...base, success: true, applied: false, no_op: true, after: before };
-        }
-
-        const manager = getGlobalTransactionManager();
-        const transaction = manager.begin({
-          documentId: `active-pcb:${parsed.primitiveId}`,
-          label: `pcb-component-transform:${parsed.primitiveId}`,
-          maxOperations: 1,
-        });
-        try {
-          const executed = await manager.runModify(
-            transaction.id,
-            parsed.primitiveId,
-            {
-              getSnapshot: () => readPcbComponentState(ctx, parsed.primitiveId),
-              apply: async () => {
-                await ctx.bridge.call('pcb.modifyComponent', {
-                  primitiveId: parsed.primitiveId,
-                  property: plan.nativeProperty,
-                });
-                const readBack = await readPcbComponentState(ctx, parsed.primitiveId);
-                if (!pcbComponentStateMatches(readBack, plan.planned)) {
-                  throw new Error(
-                    `PCB component read-back did not match the requested transform for ${parsed.primitiveId}`,
-                  );
-                }
-                return readBack;
-              },
-              restore: async (snapshot) => {
-                const previous = snapshot as PcbComponentTransformState;
-                await ctx.bridge.call('pcb.modifyComponent', {
-                  primitiveId: parsed.primitiveId,
-                  property: nativePcbComponentRestoreProperty(previous),
-                });
-              },
-            },
-            'pcb-primitive',
-          );
-          await manager.validate(transaction.id, [
-            {
-              name: 'pcb-component-read-back',
-              run: () => {
-                const after = executed.operation.afterSnapshot as
-                  PcbComponentTransformState | undefined;
-                const passed = !!after && pcbComponentStateMatches(after, plan.planned);
-                return {
-                  gate: 'pcb-component-read-back',
-                  passed,
-                  message: passed
-                    ? 'PCB component transform matched the requested state.'
-                    : 'PCB component transform read-back was incomplete or mismatched.',
-                };
-              },
-            },
-          ]);
-          const committed = manager.commit(transaction.id);
-          return {
-            ...base,
-            success: true,
-            applied: true,
-            no_op: false,
-            after: executed.operation.afterSnapshot as PcbComponentTransformState,
-            transaction_id: transaction.id,
-            transaction_state: committed.state,
-            rolled_back: false,
-          };
-        } catch (error) {
-          let rolledBack = false;
-          let transactionState: 'rolled-back' | 'failed' = 'failed';
-          let restored: PcbComponentTransformState | undefined;
-          let rollbackError: string | undefined;
-          try {
-            const rollback = await manager.rollback(transaction.id, {
-              restore: async (operation) => {
-                const snapshot = operation.beforeSnapshot as PcbComponentTransformState;
-                await ctx.bridge.call('pcb.modifyComponent', {
-                  primitiveId: parsed.primitiveId,
-                  property: nativePcbComponentRestoreProperty(snapshot),
-                });
-              },
-              verify: async (operation) => {
-                const snapshot = operation.beforeSnapshot as PcbComponentTransformState;
-                const current = await readPcbComponentState(ctx, parsed.primitiveId);
-                return pcbComponentStateMatches(current, snapshot);
-              },
-            });
-            rolledBack = rollback.transaction.rollbackComplete === true;
-            transactionState =
-              rollback.transaction.state === 'rolled-back' ? 'rolled-back' : 'failed';
-            if (rolledBack) restored = await readPcbComponentState(ctx, parsed.primitiveId);
-          } catch (rollbackFailure) {
-            rollbackError =
-              rollbackFailure instanceof Error ? rollbackFailure.message : String(rollbackFailure);
-          }
-          const message = error instanceof Error ? error.message : String(error);
-          return {
-            ...base,
-            success: false,
-            applied: false,
-            no_op: false,
-            transaction_id: transaction.id,
-            transaction_state: transactionState,
-            rolled_back: rolledBack,
-            ...(restored ? { restored } : {}),
-            error: rollbackError ? `${message}; rollback failed: ${rollbackError}` : message,
-          };
-        }
-      } catch (error) {
-        return {
-          success: false,
-          primitive_id: parsed.primitiveId,
-          mode: parsed.mode,
-          applied: false,
-          no_op: false,
-          mirror_supported: false,
-          ...(before ? { before } : {}),
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
+      return handlePcbComponentTransform(ctx, parsed);
     },
   });
 }

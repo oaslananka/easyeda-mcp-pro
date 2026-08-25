@@ -39,16 +39,17 @@ function getFriendlyZodType(schema: z.ZodTypeAny): string {
   return 'any';
 }
 
+const escapedMarkdownPipe = String.raw`\|`;
+
 function escapeMarkdownTableCell(value: string): string {
-  const escapedPipe = String.raw`\|`;
-  return value.replaceAll('|', escapedPipe).replace(/\r?\n/g, ' ');
+  return value.replaceAll('|', escapedMarkdownPipe).replace(/\r?\n/g, ' ');
 }
 
 function formatMarkdownTypeCell(typeName: string): string {
   return typeName
     .split(' | ')
     .map((part) => `\`${part}\``)
-    .join(` ${String.raw`\|`} `);
+    .join(` ${escapedMarkdownPipe} `);
 }
 
 function pushParamsTable(md: string[], shape: Record<string, z.ZodTypeAny>): void {
