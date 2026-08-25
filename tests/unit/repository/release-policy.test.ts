@@ -146,6 +146,7 @@ describe('release channel policy', () => {
     const recovery = readText('docs/SOLO_MAINTAINER_RECOVERY.md');
 
     expect(process).toContain('Release Please PR');
+    expect(process).toContain('Release-As: X.Y.Z');
     expect(process).toContain('Publish Release');
     expect(process).toContain('before the immutable tag and GitHub Release are created');
     expect(process).toContain('npm Trusted Publishing');
