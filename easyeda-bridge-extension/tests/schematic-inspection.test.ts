@@ -191,6 +191,29 @@ describe('schematic inspection operations', () => {
     });
   });
 
+  it('fails closed when requested page scope has no page-list metadata', async () => {
+    const getPageInfo = vi.fn(async () => ({ uuid: 'page-2' }));
+    const { operations } = makeOperations({
+      'DMT_Schematic.getCurrentSchematicPageInfo': async () => ({ uuid: 'page-1' }),
+      'DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo': async () => [],
+      'DMT_Schematic.getAllSchematicPagesInfo': async () => [],
+      'DMT_SelectControl.getCurrentDocumentInfo': async () => ({ uuid: 'page-1' }),
+      'DMT_Schematic.getCurrentSchematicInfo': async () => ({ page: [] }),
+      'DMT_Schematic.getSchematicPageInfo': getPageInfo,
+    });
+
+    await expect(operations.getSheetInfo({ pageUuid: 'page-2' })).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNAVAILABLE',
+      data: expect.objectContaining({
+        requestedScope: 'page',
+        pageUuid: 'page-2',
+        operation: 'schematic.getSheetInfo',
+        missingCapability: 'schematic-page-metadata',
+      }),
+    });
+    expect(getPageInfo).not.toHaveBeenCalled();
+  });
+
   it('rejects an unknown requested page before direct page lookup', async () => {
     const getPageInfo = vi.fn(async () => ({ uuid: 'should-not-be-read' }));
     const { operations } = makeOperations({
@@ -213,6 +236,25 @@ describe('schematic inspection operations', () => {
       }),
     });
     expect(getPageInfo).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when all-pages scope has no page-list metadata', async () => {
+    const { operations } = makeOperations({
+      'DMT_Schematic.getCurrentSchematicPageInfo': async () => null,
+      'DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo': async () => [],
+      'DMT_Schematic.getAllSchematicPagesInfo': async () => [],
+      'DMT_SelectControl.getCurrentDocumentInfo': async () => ({ uuid: 'page-1' }),
+      'DMT_Schematic.getCurrentSchematicInfo': async () => ({ page: [] }),
+    });
+
+    await expect(operations.getSheetInfo({ scope: 'all_pages' })).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNAVAILABLE',
+      data: expect.objectContaining({
+        requestedScope: 'all_pages',
+        operation: 'schematic.getSheetInfo',
+        missingCapability: 'schematic-page-metadata',
+      }),
+    });
   });
 
   it('returns all-pages metadata even when focused-page metadata is unavailable', async () => {

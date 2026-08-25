@@ -343,6 +343,37 @@ describe('CdpBridgeManager transport lifecycle', () => {
     });
   });
 
+  it('treats only record-shaped CDP sheet error envelopes as structured failures', async () => {
+    const malformedHarness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution')
+          ? { __easyedaBridgeError: ['not', 'a', 'record'] }
+          : undefined,
+    });
+    activeHarnesses.add(malformedHarness);
+    const malformedManager = await connectedManager(malformedHarness);
+
+    await expect(
+      malformedManager.call('schematic.getSheetInfo', { pageUuid: 'page-2' }),
+    ).resolves.toEqual({ __easyedaBridgeError: ['not', 'a', 'record'] });
+
+    const minimalHarness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution')
+          ? { __easyedaBridgeError: { code: 'PAGE_SCOPE_UNAVAILABLE' } }
+          : undefined,
+    });
+    activeHarnesses.add(minimalHarness);
+    const minimalManager = await connectedManager(minimalHarness);
+
+    await expect(
+      minimalManager.call('schematic.getSheetInfo', { pageUuid: 'page-2' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNAVAILABLE',
+      message: expect.stringContaining('CDP bridge sheet read failed.'),
+    });
+  });
+
   it('rejects contradictory schematic selectors before Runtime.evaluate', async () => {
     const harness = await createHarness();
     activeHarnesses.add(harness);
@@ -357,6 +388,9 @@ describe('CdpBridgeManager transport lifecycle', () => {
     await expect(manager.call('schematic.getSheetInfo', { scope: 'page' })).rejects.toMatchObject({
       code: 'PAGE_UUID_REQUIRED',
     });
+    await expect(manager.call('schematic.getSheetInfo', { pageUuid: '   ' })).rejects.toMatchObject(
+      { code: 'PAGE_UUID_REQUIRED' },
+    );
     expect(
       harness.requests.filter((request) => request.method === 'Runtime.evaluate'),
     ).toHaveLength(evaluationsBefore);

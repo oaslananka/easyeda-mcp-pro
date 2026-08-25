@@ -5,7 +5,11 @@ import { registerSchematicReadTools } from '../../../src/tools/L1_schematic_read
 import { registerSchematicWriteTools } from '../../../src/tools/L1_schematic_write.js';
 import { EnvSchema } from '../../../src/config/env.js';
 import { resetGlobalTransactionManagerForTests } from '../../../src/transactions/index.js';
-import { schematicReadScopeInputSchema } from '../../../src/tools/schematic-read-scope.js';
+import {
+  schematicReadScopeInputSchema,
+  scopeErrorDiagnostics,
+  scopeErrorFields,
+} from '../../../src/tools/schematic-read-scope.js';
 
 describe('Schematic Tools', () => {
   let registry: ToolRegistry;
@@ -99,6 +103,19 @@ describe('Schematic Tools', () => {
       },
     });
     expect(wires?.error_data).not.toHaveProperty('privatePayload');
+  });
+
+  it('sanitizes arbitrary scope-error shapes without leaking unapproved PAGE data', () => {
+    expect(scopeErrorFields('transport failed')).toEqual({});
+    expect(scopeErrorFields({ code: 'NETWORK_FAILURE', data: { privatePayload: 'raw' } })).toEqual({
+      error_code: 'NETWORK_FAILURE',
+    });
+    expect(scopeErrorDiagnostics({ code: 'NETWORK_FAILURE', data: { retryable: true } })).toEqual({
+      retryable: true,
+    });
+    expect(scopeErrorFields({ code: 'PAGE_NOT_FOUND', data: ['must', 'not', 'leak'] })).toEqual({
+      error_code: 'PAGE_NOT_FOUND',
+    });
   });
 
   it('unsupported schematic scopes fail closed before primitive bridge reads', async () => {
@@ -384,6 +401,36 @@ describe('Schematic Tools', () => {
     });
     expect(result?.error_data).not.toHaveProperty('privatePayload');
     expect(result?.diagnostics).not.toHaveProperty('privatePayload');
+  });
+
+  it('easyeda_schematic_sheet_info preserves legacy root-level sheet metadata', async () => {
+    const tool = registry.get('easyeda_schematic_sheet_info');
+    const frame = { enabled: true };
+    const origin = { x: 10, y: 20 };
+    bridgeCall.mockResolvedValue({
+      name: 'Legacy sheet',
+      width: '1170',
+      height: '826',
+      units: 'mil',
+      frame,
+      origin,
+      gridSize: 5,
+      source: 'legacy_direct',
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+    expect(result).toMatchObject({
+      project_id: 'proj-123',
+      sheet: { name: 'Legacy sheet' },
+      page_size: { width: 1170, height: 826, unit: 'mil' },
+      frame,
+      origin,
+      grid: 5,
+      metadata_source: 'legacy_direct',
+      geometry_available: true,
+    });
+    expect(result).not.toHaveProperty('not_available');
   });
 
   it('easyeda_schematic_sheet_info reports focused page identity without inventing geometry', async () => {

@@ -504,6 +504,9 @@ describe('createDispatcherDomainRouter', () => {
     ).rejects.toMatchObject({
       code: 'PAGE_UUID_REQUIRED',
     });
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { pageUuid: '   ' }),
+    ).rejects.toMatchObject({ code: 'PAGE_UUID_REQUIRED' });
     expect(dependencies.readOnlyOperations.getSheetInfo).not.toHaveBeenCalled();
   });
 
