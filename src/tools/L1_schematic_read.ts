@@ -92,6 +92,14 @@ const readConsistencySchema = z.object({
 
 const stableReadOptions = { attempts: 4, delayMs: 80 } as const;
 
+function schematicReadUnavailable(error: unknown) {
+  return {
+    not_available: true as const,
+    ...scopeErrorFields(error),
+    error: error instanceof Error ? error.message : String(error),
+  };
+}
+
 const _deviceItemSchema = z
   .object({
     libraryUuid: z.string(),
@@ -294,9 +302,7 @@ function registerSchematicReadTools(
           project_id: projectId,
           nets: [],
           total: 0,
-          not_available: true,
-          ...scopeErrorFields(err),
-          error: err instanceof Error ? err.message : String(err),
+          ...schematicReadUnavailable(err),
         };
       }
     },
@@ -461,9 +467,7 @@ function registerSchematicReadTools(
           project_id: projectId,
           components: [],
           total: 0,
-          not_available: true,
-          ...scopeErrorFields(err),
-          error: err instanceof Error ? err.message : String(err),
+          ...schematicReadUnavailable(err),
         };
       }
     },
@@ -571,9 +575,7 @@ function registerSchematicReadTools(
           project_id: projectId,
           wires: [],
           total: 0,
-          not_available: true,
-          ...scopeErrorFields(err),
-          error: err instanceof Error ? err.message : String(err),
+          ...schematicReadUnavailable(err),
         };
       }
     },
@@ -814,10 +816,8 @@ function registerSchematicReadTools(
         return {
           project_id: projectId,
           geometry_available: false,
-          not_available: true,
-          ...scopeErrorFields(err),
+          ...schematicReadUnavailable(err),
           diagnostics: scopeErrorDiagnostics(err),
-          error: err instanceof Error ? err.message : String(err),
         };
       }
     },
@@ -1364,9 +1364,7 @@ function registerSchematicReadTools(
           floating_pins: [],
           valid: false,
           warnings: [],
-          not_available: true,
-          ...scopeErrorFields(err),
-          error: err instanceof Error ? err.message : String(err),
+          ...schematicReadUnavailable(err),
         };
       }
     },
