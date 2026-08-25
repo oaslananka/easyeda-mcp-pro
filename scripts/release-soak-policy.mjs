@@ -215,9 +215,8 @@ export function evaluateStableSoak({
   let startTimestamp;
 
   if (candidateVersion) {
-    const candidatePattern = new RegExp(
-      String.raw`^${targetVersion.replaceAll('.', String.raw`\.`)}-rc\.[1-9]\d*$`,
-    );
+    const escapedTargetVersion = targetVersion.replaceAll('.', String.raw`\.`);
+    const candidatePattern = new RegExp(String.raw`^${escapedTargetVersion}-rc\.[1-9]\d*$`);
     if (!candidatePattern.test(candidateVersion)) {
       throw new Error(
         `Release candidate ${candidateVersion} does not belong to stable ${targetVersion}.`,
