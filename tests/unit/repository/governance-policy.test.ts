@@ -131,6 +131,49 @@ describe('repository governance policy', () => {
     });
   });
 
+  it('keeps architecture docs aligned with the live solo-maintainer ruleset', () => {
+    const architecture = readText('docs/security-architecture.md');
+
+    expect(architecture).toContain('required human approvals: `0`');
+    expect(architecture).toContain('second eligible human maintainer');
+    for (const check of readPolicy().branchProtection.requiredChecks) {
+      expect(architecture).toContain(`\`${check}\``);
+    }
+    expect(architecture).not.toContain('minimum 1 reviewer');
+  });
+
+  it('bounds disposable GitHub Actions artifacts with explicit retention windows', () => {
+    const ci = readText('.github/workflows/ci.yml');
+    const release = readText('.github/workflows/publish-release.yml');
+
+    const prArtifact = ci.slice(
+      ci.indexOf('- name: Upload PR test artifact'),
+      ci.indexOf('- run: pnpm generate:tools-doc'),
+    );
+    expect(prArtifact).toContain('retention-days: 14');
+
+    const sbomArtifact = release.slice(
+      release.indexOf('- name: Upload SBOM Artifact'),
+      release.indexOf('- name: Attach Build Provenance'),
+    );
+    expect(sbomArtifact).toContain('retention-days: 14');
+
+    const publishedReleaseArtifact = release.slice(
+      release.indexOf('- name: Upload published release verification'),
+    );
+    expect(publishedReleaseArtifact).toContain('retention-days: 30');
+
+    for (const path of [
+      'docs/RELEASE_PROCESS.md',
+      'docs/RELEASE_VERIFICATION.md',
+      'docs/release-ci-runbook.md',
+    ]) {
+      const guide = readText(path);
+      expect(guide).toContain('SBOM workflow artifact: `14 days`');
+      expect(guide).toContain('published-release verification artifact: `30 days`');
+    }
+  });
+
   it('defines a fail-safe activation target for a second eligible maintainer', () => {
     const policy = readPolicy();
 

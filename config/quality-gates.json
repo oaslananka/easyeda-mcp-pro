@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastVerifiedAt": "2026-07-24",
+  "lastVerifiedAt": "2026-08-25",
   "requiredPullRequestChecks": [
     {
       "context": "codecov/patch",
@@ -33,6 +33,8 @@
     "projectKey": "oaslananka_easyeda-mcp-pro",
     "analysisMethod": "github-app-automatic-analysis",
     "checkContext": "SonarCloud Code Analysis",
-    "repositorySecretRequired": false
+    "repositorySecretRequired": false,
+    "qualityGateName": "Sonar way",
+    "newCodePeriodMode": "previous_version"
   }
 }
