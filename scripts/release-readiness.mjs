@@ -397,11 +397,12 @@ function compareAvailableEvidence({
     recordedTrees && headTrees
       ? listSnapshotDifferences({ recordedTrees, actualTrees: headTrees, paths })
       : [];
-  const comparedFiles = promotionOnly
-    ? []
-    : changedFiles.length > 0
-      ? changedFiles
-      : snapshotDifferences;
+  let comparedFiles = snapshotDifferences;
+  if (promotionOnly) {
+    comparedFiles = [];
+  } else if (changedFiles.length > 0) {
+    comparedFiles = changedFiles;
+  }
   const combined = uniqueSorted([...comparedFiles, ...dirtyFiles]);
   const current = combined.length === 0;
   return recordResult({
