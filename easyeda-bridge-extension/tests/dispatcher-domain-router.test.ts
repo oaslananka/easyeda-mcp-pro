@@ -507,6 +507,19 @@ describe('createDispatcherDomainRouter', () => {
     expect(dependencies.readOnlyOperations.getSheetInfo).not.toHaveBeenCalled();
   });
 
+  it('describes invalid object scope values without default object stringification', async () => {
+    const dependencies = createDependencies();
+    const router = createDispatcherDomainRouter(dependencies);
+
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { scope: { unexpected: true } }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_CONFLICT',
+      data: expect.objectContaining({ requestedScope: 'object' }),
+    });
+    expect(dependencies.readOnlyOperations.getSheetInfo).not.toHaveBeenCalled();
+  });
+
   it('fails closed on unsupported schematic scopes before invoking focused route handlers', async () => {
     const dependencies = createDependencies();
     const router = createDispatcherDomainRouter(dependencies);

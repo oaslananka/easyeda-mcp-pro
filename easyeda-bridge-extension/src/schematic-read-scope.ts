@@ -21,6 +21,10 @@ function normalizedPageUuid(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
+function describeInvalidScope(value: unknown): string {
+  return typeof value === 'string' ? value : typeof value;
+}
+
 export function resolveSchematicReadSelector(
   params: Record<string, unknown> = {},
   operation = 'schematic.read',
@@ -33,11 +37,12 @@ export function resolveSchematicReadSelector(
     rawScope !== undefined &&
     !schematicReadScopeValues.includes(rawScope as SchematicReadScope)
   ) {
+    const requestedScope = describeInvalidScope(rawScope);
     throw scopeError(
       'PAGE_SCOPE_CONFLICT',
       `Invalid schematic read scope for ${operation}.`,
       `Use one of: ${schematicReadScopeValues.join(', ')}.`,
-      { operation, requestedScope: String(rawScope) },
+      { operation, requestedScope },
     );
   }
 

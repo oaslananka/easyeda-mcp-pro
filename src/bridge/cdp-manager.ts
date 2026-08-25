@@ -92,6 +92,10 @@ function cdpScopeError(
   return Object.assign(new Error(message), { code, suggestion, data });
 }
 
+function describeInvalidCdpScope(value: unknown): string {
+  return typeof value === 'string' ? value : typeof value;
+}
+
 function resolveCdpSchematicReadSelector(
   value: unknown,
   operation: string,
@@ -105,11 +109,12 @@ function resolveCdpSchematicReadSelector(
     rawScope !== undefined &&
     !CDP_SCHEMATIC_READ_SCOPES.includes(rawScope as CdpSchematicReadScope)
   ) {
+    const requestedScope = describeInvalidCdpScope(rawScope);
     throw cdpScopeError(
       'PAGE_SCOPE_CONFLICT',
       `Invalid schematic read scope for ${operation}.`,
       `Use one of: ${CDP_SCHEMATIC_READ_SCOPES.join(', ')}.`,
-      { operation, requestedScope: String(rawScope) },
+      { operation, requestedScope },
     );
   }
 
@@ -177,6 +182,26 @@ function unwrapCdpSheetResult(value: unknown): unknown {
     ...(record.data !== undefined ? { data: record.data } : {}),
   });
   throw error;
+}
+
+function copyStructuredCdpErrorFields(target: Error, error: unknown): void {
+  if (!error || typeof error !== 'object') return;
+  const record = error as Record<string, unknown>;
+  if (typeof record.code !== 'string') return;
+
+  Object.assign(target, { code: record.code });
+  if (record.suggestion !== undefined) Object.assign(target, { suggestion: record.suggestion });
+  if (record.data !== undefined) Object.assign(target, { data: record.data });
+}
+
+function wrapCdpMethodError(method: string, startedAt: number, error: unknown): Error {
+  const elapsed = Date.now() - startedAt;
+  const detail = error instanceof Error ? error.message : String(error);
+  const wrapped = new Error(`CDP bridge method "${method}" failed after ${elapsed}ms: ${detail}`, {
+    cause: error,
+  });
+  copyStructuredCdpErrorFields(wrapped, error);
+  return wrapped;
 }
 
 export class CdpBridgeManager extends EventEmitter {
@@ -333,25 +358,7 @@ export class CdpBridgeManager extends EventEmitter {
       this._lastHeartbeatMs = Date.now();
       return result as TResult;
     } catch (err) {
-      const elapsed = Date.now() - startedAt;
-      const detail = err instanceof Error ? err.message : String(err);
-      const wrapped = new Error(
-        `CDP bridge method "${method}" failed after ${elapsed}ms: ${detail}`,
-        {
-          cause: err,
-        },
-      );
-      if (err && typeof err === 'object') {
-        const record = err as Record<string, unknown>;
-        if (typeof record.code === 'string') {
-          Object.assign(wrapped, {
-            code: record.code,
-            ...(record.suggestion !== undefined ? { suggestion: record.suggestion } : {}),
-            ...(record.data !== undefined ? { data: record.data } : {}),
-          });
-        }
-      }
-      throw wrapped;
+      throw wrapCdpMethodError(method, startedAt, err);
     }
   }
 
@@ -812,12 +819,9 @@ export class CdpBridgeManager extends EventEmitter {
   private componentListExpression(params?: unknown): string {
     const selector = resolveCdpSchematicReadSelector(params, 'schematic.listComponents');
     const record = cdpParamsRecord(params);
-    const allPages =
-      selector.scope === 'focused'
-        ? false
-        : selector.scope === 'all_pages'
-          ? true
-          : record.allPages !== false;
+    let allPages = record.allPages !== false;
+    if (selector.scope === 'focused') allPages = false;
+    if (selector.scope === 'all_pages') allPages = true;
     return `
       (async () => {
         ${this.runtimePrelude()}

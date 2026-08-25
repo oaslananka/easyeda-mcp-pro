@@ -91,11 +91,13 @@ function formatCurrentSheetInfo(
   const geometry = sheetGeometry(current, root);
   const metadataSource =
     resolved.metadataSource ?? (typeof root.source === 'string' ? root.source : undefined);
-  const warning = geometry.available
-    ? undefined
-    : scope === 'page'
-      ? 'Selected schematic page identity is available, but this EasyEDA runtime did not expose page geometry.'
-      : 'Focused schematic page identity is available, but this EasyEDA runtime did not expose page geometry.';
+  let warning: string | undefined;
+  if (!geometry.available) {
+    warning =
+      scope === 'page'
+        ? 'Selected schematic page identity is available, but this EasyEDA runtime did not expose page geometry.'
+        : 'Focused schematic page identity is available, but this EasyEDA runtime did not expose page geometry.';
+  }
   return {
     project_id: projectId,
     sheet: current,

@@ -221,12 +221,9 @@ export function createReadOnlyOperations(
         'schematic.listComponents',
         'page-attributed-component-read',
       );
-      const allPages =
-        selector.scope === 'focused'
-          ? false
-          : selector.scope === 'all_pages'
-            ? true
-            : params.allPages;
+      let allPages = params.allPages;
+      if (selector.scope === 'focused') allPages = false;
+      if (selector.scope === 'all_pages') allPages = true;
       return dependencies.schematicComponentInspection.listComponents(
         optionalNumber(params.limit),
         offsetNumber(params.offset),

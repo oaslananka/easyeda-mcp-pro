@@ -362,6 +362,19 @@ describe('CdpBridgeManager transport lifecycle', () => {
     ).toHaveLength(evaluationsBefore);
   });
 
+  it('describes invalid object scope values without default object stringification', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+
+    await expect(
+      manager.call('schematic.getSheetInfo', { scope: { unexpected: true } }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_CONFLICT',
+      data: expect.objectContaining({ requestedScope: 'object' }),
+    });
+  });
+
   it('rejects unsupported schematic scopes before issuing Runtime.evaluate', async () => {
     const harness = await createHarness();
     activeHarnesses.add(harness);
