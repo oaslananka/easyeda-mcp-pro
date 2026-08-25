@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../../..');
 const renovateConfigPath = resolve(repoRoot, '.github/renovate.json');
 const dependabotConfigPath = resolve(repoRoot, '.github/dependabot.yml');
+const releaseCiRunbookPath = resolve(repoRoot, 'docs/release-ci-runbook.md');
 
 interface RenovatePackageRule {
   matchManagers?: string[];
@@ -31,6 +32,15 @@ describe('dependency updater ownership', () => {
     expect(config.minimumReleaseAge).toBe('7 days');
     expect(config.dependencyDashboard).toBe(true);
     expect(config.osvVulnerabilityAlerts).toBe(true);
+  });
+
+  it('documents hosted Renovate activation without hard-coding a dashboard issue number', () => {
+    const runbook = readFileSync(releaseCiRunbookPath, 'utf8');
+
+    expect(runbook).not.toContain('easyeda-mcp-pro/issues/1');
+    expect(runbook).toContain('Mend Renovate App');
+    expect(runbook).toContain('Interactive mode');
+    expect(runbook).toContain('Dependency Dashboard');
   });
 
   it('keeps GitHub Actions and pre-commit hooks under Renovate management', () => {
