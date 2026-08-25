@@ -42,6 +42,8 @@ Renovate is the **only** tool that opens automated dependency-update pull reques
 
 GitHub's platform-level Dependabot features — dependency graph, Dependabot alerts, and Dependabot security updates — remain **enabled** as vulnerability _detection_ (Settings > Security & analysis; see `docs/REPOSITORY_GOVERNANCE.md#5-maintainer-setup-checklist`). Those features do not require a `dependabot.yml` file; only Dependabot's _version-update_ PR feature does, and that is the piece this repository delegates to Renovate.
 
+The repository configuration and the hosted provider are separate controls. For Mend-hosted Renovate, the Mend Renovate App must be installed with access to this repository and the repository job must run in Interactive mode. The config file alone cannot establish that account-level state. Operational verification is the presence of the Renovate-created **Dependency Dashboard** or Renovate-authored update activity; if both are absent, investigate the provider installation and job log instead of enabling another version-update bot.
+
 ## Addendum: time-bounded audit exceptions (2026-07-22)
 
 `pnpm security:audit` is the blocking dependency-audit command for pull requests and releases. It

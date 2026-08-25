@@ -107,7 +107,9 @@ git push --force-with-lease
 
 ## Dependency PRs: Dependabot vs Renovate
 
-This repository uses **Renovate** for all dependency management. Dependabot is disabled for GitHub Actions to avoid duplicate PRs.
+This repository is configured to use **Renovate** as the sole dependency version-update provider. Dependabot version-update configuration is intentionally absent to avoid duplicate PRs; GitHub's Dependabot alert/security-update features remain independent.
+
+The repository config does not activate the hosted service by itself. For Mend-hosted Renovate, the **Mend Renovate App** must be installed for this repository and its repository job must run in **Interactive mode**. Treat the absence of both a Renovate-authored update PR and the Dependency Dashboard as an account-level provider setup incident before changing `.github/renovate.json` or enabling a second updater.
 
 ### Renovate Behavior
 
@@ -120,11 +122,13 @@ This repository uses **Renovate** for all dependency management. Dependabot is d
 
 ### Dependency Dashboard
 
-The [Dependency Dashboard](https://github.com/oaslananka/easyeda-mcp-pro/issues/1) shows all pending updates. Open it to:
+A healthy hosted Renovate run creates an issue titled **Dependency Dashboard**. [Find the current dashboard by title](https://github.com/oaslananka/easyeda-mcp-pro/issues?q=is%3Aissue+%22Dependency+Dashboard%22) rather than hard-coding an issue number. Open it to:
 
 - Approve major updates that need manual review
 - See which updates are blocked by failing CI
 - Check for vulnerability alerts
+
+If that search returns no dashboard, verify the Mend Renovate App installation/repository selection and the repository job's Interactive mode in the Mend Developer Portal. Review the Renovate job log before changing repository policy. Do **not** re-enable Dependabot version updates as a workaround, because that would recreate competing update ownership.
 
 ### Triaging a Failed Dependency PR
 
@@ -268,8 +272,8 @@ Before deciding a release is safe:
 ## Monitoring
 
 - **CI status**: [![CI](https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml)
-- **Dependency Dashboard**: [Issue #1](https://github.com/oaslananka/easyeda-mcp-pro/issues/1)
-- **Renovate Dashboard**: Available via GitHub app
+- **Dependency Dashboard**: [find the Renovate-created issue by title](https://github.com/oaslananka/easyeda-mcp-pro/issues?q=is%3Aissue+%22Dependency+Dashboard%22); an empty result means hosted-provider setup must be verified
+- **Renovate provider**: verify Mend Renovate App repository access, Interactive mode, and the latest job log
 - **CodeQL**: Runs on every push and PR
 - **Socket.dev**: Dependency vulnerability scanning on every PR
 
