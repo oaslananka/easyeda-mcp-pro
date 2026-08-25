@@ -310,7 +310,7 @@ RC.6 is already published to prerelease/`next` channels and its seven-day soak s
 
 Therefore:
 
-1. develop #526 on `feature/526-page-scoped-reads` from the RC.6 main baseline;
+1. develop #526 on `feature/526-page-scoped-reads`; keep it updated from `main` with normal merge commits while the PR remains draft, without changing the immutable RC.6 tag/release;
 2. keep the implementation PR draft/non-mergeable for stable release while RC.6 soaks;
 3. run normal CI/security review on every pushed implementation head;
 4. after v1.0.0 stable promotion, rebase/update the feature branch onto the then-current `main`, rerun full and live verification, and merge only if all gates remain green.
