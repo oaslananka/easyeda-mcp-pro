@@ -19,6 +19,8 @@ Both channels publish the npm package, GitHub Release assets, SBOM, provenance/a
 5. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; the workflow then uploads release artifacts and publishes the remaining registries.
 6. The final **Verify published release** step compares npm, GitHub Release, GHCR, MCP Registry, assets, and Git commit identity and stores `published-release.json`.
 
+GitHub Actions keeps bounded operational copies after publication: SBOM workflow artifact: `14 days`; published-release verification artifact: `30 days`. Long-lived verification must use the immutable GitHub Release assets, provenance/attestation evidence, checksums, and public release record rather than depending on expiring workflow artifacts.
+
 ## Verification checks for maintainers
 
 For each release, maintainers should start with the commit-bound compatibility check:

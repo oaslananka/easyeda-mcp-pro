@@ -39,6 +39,8 @@ graph TD
 
 The Release Please PR updates `package.json`, `.release-please-manifest.json`, `server.json`, `easyeda-bridge-extension/extension.json`, release-managed TypeScript version constants, plugin metadata, and `CHANGELOG.md`. Do not manually create the normal stable tag. The automated gates finish **before the immutable tag and GitHub Release are created**.
 
+When the final `rc.N` already contains all user-facing changes, Release Please can legitimately report `No user facing commits found` and skip opening the stable PR. In that case, create a reviewed promotion-only PR whose squash-merge commit body contains `Release-As: X.Y.Z` for the intended stable version. The promotion PR must not change runtime code, runtime dependencies, generated executable artifacts, or compatibility-sensitive behavior; it only seeds the stable Release Please PR after the final candidate has otherwise satisfied release policy. Never use `Release-As` to waive the required soak or a failed release gate.
+
 ## 4. Prerelease automation
 
 A prerelease is prepared in an ordinary reviewed candidate PR. The PR sets all release-managed versions to `X.Y.Z-rc.N`, updates release notes, and links the public evidence record. After merge:
@@ -99,6 +101,8 @@ After a successful workflow:
 6. verify deployed documentation describes the released version and support claims;
 7. require the **Verify published release** workflow step to pass and archive `published-release.json`;
 8. publish the final evidence comment before announcing or closing the tracking issue.
+
+GitHub Actions keeps only bounded operational copies: SBOM workflow artifact: `14 days`; published-release verification artifact: `30 days`. The immutable GitHub Release assets, attestations, checksums, and public evidence record remain the long-lived release evidence and are not governed by these workflow-artifact retention windows.
 
 See [Release Verification](RELEASE_VERIFICATION.md) for commands and [Release & CI Runbook](release-ci-runbook.md) for failure recovery.
 

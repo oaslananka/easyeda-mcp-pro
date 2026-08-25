@@ -227,6 +227,7 @@ jobs:
         with:
           name: sbom-${{ needs.plan.outputs.release_tag }}
           path: sbom.json
+          retention-days: 14
 
       - name: Attach Build Provenance (SLSA + Sigstore)
         id: build_provenance
@@ -443,3 +444,4 @@ jobs:
           name: published-release-${{ env.RELEASE_TAG }}
           path: reports/published-release.json
           if-no-files-found: warn
+          retention-days: 30

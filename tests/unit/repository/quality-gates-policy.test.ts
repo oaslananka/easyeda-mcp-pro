@@ -13,6 +13,7 @@ const readText = (path: string): string => {
 
 interface QualityGatePolicy {
   schemaVersion: number;
+  lastVerifiedAt: string;
   requiredPullRequestChecks: Array<{
     context: string;
     appId: number;
@@ -30,6 +31,8 @@ interface QualityGatePolicy {
     analysisMethod: string;
     checkContext: string;
     repositorySecretRequired: boolean;
+    qualityGateName: string;
+    newCodePeriodMode: string;
   };
 }
 
@@ -64,7 +67,10 @@ describe('changed-code quality gate policy', () => {
       analysisMethod: 'github-app-automatic-analysis',
       checkContext: 'SonarCloud Code Analysis',
       repositorySecretRequired: false,
+      qualityGateName: 'Sonar way',
+      newCodePeriodMode: 'previous_version',
     });
+    expect(policy.lastVerifiedAt).toBe('2026-08-25');
   });
 
   it('enforces an explicit blocking patch target while retaining separate components', () => {
