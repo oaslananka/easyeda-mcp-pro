@@ -1,11 +1,39 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const RELEASE_TAG_PREFIX = 'easyeda-mcp-pro-v';
 const STABLE_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const HOUR_MS = 60 * 60 * 1000;
 const PUBLISH_JOB_NAME = 'Gate and publish immutable release';
+
+function resolveGitExecutable(platform = process.platform) {
+  let candidates;
+  if (platform === 'win32') {
+    candidates = [
+      String.raw`C:\Program Files\Git\cmd\git.exe`,
+      String.raw`C:\Program Files\Git\bin\git.exe`,
+    ];
+  } else if (platform === 'darwin') {
+    candidates = ['/usr/bin/git', '/opt/homebrew/bin/git', '/usr/local/bin/git'];
+  } else {
+    candidates = ['/usr/bin/git', '/usr/local/bin/git', '/bin/git'];
+  }
+  const executable = candidates.find((candidate) => isAbsolute(candidate) && existsSync(candidate));
+  if (!executable) {
+    throw new Error(`Git executable was not found in the fixed allowlist for ${platform}.`);
+  }
+  return executable;
+}
+
+const GIT_EXECUTABLE = resolveGitExecutable();
+
+function compareStrings(left, right) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
 const ADDITIONAL_RC_REQUIRED_ROOTS = [
   'src/index.ts',
   'src/cli',
@@ -117,7 +145,7 @@ export function filterPostCandidateRuntimeChanges(changes) {
     .filter(({ path }) => isRuntimePromotionPath(path))
     .filter(sourcesDifferBeyondReleaseManagedVersion)
     .map(({ path }) => path)
-    .sort();
+    .sort(compareStrings);
 }
 
 export function filterReleaseCandidateRequiredChanges(changes, sensitiveRoots) {
@@ -125,7 +153,7 @@ export function filterReleaseCandidateRequiredChanges(changes, sensitiveRoots) {
     .filter(({ path }) => sensitiveRoots.some((root) => pathMatchesRoot(path, root)))
     .filter(sourcesDifferBeyondReleaseManagedVersion)
     .map(({ path }) => path)
-    .sort();
+    .sort(compareStrings);
 }
 
 export function validatePatchCandidateRequirement({ releaseKind, candidateTag, sensitiveChanges }) {
@@ -187,7 +215,9 @@ export function evaluateStableSoak({
   let startTimestamp;
 
   if (candidateVersion) {
-    const candidatePattern = new RegExp(`^${targetVersion.replaceAll('.', '\\.')}-rc\\.[1-9]\\d*$`);
+    const candidatePattern = new RegExp(
+      String.raw`^${targetVersion.replaceAll('.', String.raw`\.`)}-rc\.[1-9]\d*$`,
+    );
     if (!candidatePattern.test(candidateVersion)) {
       throw new Error(
         `Release candidate ${candidateVersion} does not belong to stable ${targetVersion}.`,
@@ -215,8 +245,8 @@ export function evaluateStableSoak({
 }
 
 export function selectLatestReleaseCandidate(tags, targetVersion) {
-  const escaped = targetVersion.replaceAll('.', '\\.');
-  const pattern = new RegExp(`^${RELEASE_TAG_PREFIX}${escaped}-rc\\.([1-9]\\d*)$`);
+  const escaped = targetVersion.replaceAll('.', String.raw`\.`);
+  const pattern = new RegExp(String.raw`^${RELEASE_TAG_PREFIX}${escaped}-rc\.([1-9]\d*)$`);
   let best = null;
   let bestNumber = -1;
   for (const tag of tags) {
@@ -247,7 +277,7 @@ export function selectCandidatePublicationRun(runs, candidateCommit) {
 }
 
 function git(root, args) {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  return execFileSync(GIT_EXECUTABLE, args, { cwd: root, encoding: 'utf8' }).trim();
 }
 
 function listTags(root) {
@@ -286,7 +316,7 @@ function commitTimestamp(root, ref) {
 
 function readFileAtRef(root, ref, path) {
   try {
-    return execFileSync('git', ['show', `${ref}:${path}`], {
+    return execFileSync(GIT_EXECUTABLE, ['show', `${ref}:${path}`], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -318,7 +348,7 @@ function releaseCandidateRequiredRoots(root) {
       'EasyEDA compatibility releaseGate.sensitivePaths must be a non-empty string array.',
     );
   }
-  return [...new Set([...configured, ...ADDITIONAL_RC_REQUIRED_ROOTS])].sort();
+  return [...new Set([...configured, ...ADDITIONAL_RC_REQUIRED_ROOTS])].sort(compareStrings);
 }
 
 function patchCandidateRequirement({
@@ -369,7 +399,7 @@ async function publicationJobConclusion({ repository, runId, token, fetchImpl })
     label: 'GitHub Actions publication-job lookup',
   });
   if (!Array.isArray(body.jobs)) {
-    throw new Error('GitHub Actions publication-job lookup returned an invalid response.');
+    throw new TypeError('GitHub Actions publication-job lookup returned an invalid response.');
   }
   return body.jobs.find((job) => job.name === PUBLISH_JOB_NAME)?.conclusion ?? null;
 }
@@ -392,7 +422,7 @@ async function listPublicationRuns({ repository, candidateCommit, token, fetchIm
     label: 'GitHub Actions publication lookup',
   });
   if (!Array.isArray(body.workflow_runs)) {
-    throw new Error('GitHub Actions publication lookup returned an invalid response.');
+    throw new TypeError('GitHub Actions publication lookup returned an invalid response.');
   }
   return Promise.all(
     body.workflow_runs.map(async (run) => ({
@@ -499,24 +529,22 @@ function emergencyResult({ targetVersion, previousVersion, candidateTag, now }) 
 }
 
 function resolveVerifyOptions(options) {
-  return Object.assign(
-    {
-      root: process.cwd(),
-      mode: 'publish',
-      releaseChannel: '',
-      releaseTag: '',
-      targetRef: 'HEAD',
-      baseRef: '',
-      repository: '',
-      token: '',
-      eventName: '',
-      evidenceUrl: '',
-      emergencySoakOverride: false,
-      now: new Date().toISOString(),
-      fetchImpl: fetch,
-    },
-    options,
-  );
+  return {
+    root: process.cwd(),
+    mode: 'publish',
+    releaseChannel: '',
+    releaseTag: '',
+    targetRef: 'HEAD',
+    baseRef: '',
+    repository: '',
+    token: '',
+    eventName: '',
+    evidenceUrl: '',
+    emergencySoakOverride: false,
+    now: new Date().toISOString(),
+    fetchImpl: fetch,
+    ...options,
+  };
 }
 
 export async function verifyStableSoak(options) {
@@ -630,9 +658,11 @@ export async function runCli(env = process.env) {
 
 /* c8 ignore start -- exercised through workflow policy and unit orchestration tests. */
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runCli().catch((error) => {
+  try {
+    await runCli();
+  } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
-  });
+  }
 }
 /* c8 ignore stop */
