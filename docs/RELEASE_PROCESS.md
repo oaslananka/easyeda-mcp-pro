@@ -65,6 +65,10 @@ Release Please and GitHub Release asset mutations authenticate with the reposito
 
 ## 5. Release-blocking gates
 
+Stable releases first pass `scripts/release-soak-policy.mjs`. For major and minor Release Please PRs, the required `quality (24)` check fetches immutable release tags and blocks merge until the final numbered RC has completed its required soak. The clock is derived only from a `Publish Release` workflow-dispatch run for that exact RC commit whose **Gate and publish immutable release** job concluded successfully, rather than from a mutable issue comment or a workflow run whose publish job was skipped. Patch Release Please PRs may merge so an RC-free patch can begin its required 24-hour green soak on `main`; the publication workflow then blocks until that release commit has aged 24 hours. A patch that touches compatibility-sensitive, authentication, transport, transaction/rollback, save/export, installer/setup, or other configured release-candidate-required paths is not eligible for that shortcut: the PR gate requires a numbered RC and the 72-hour candidate soak.
+
+The publication copy of the gate is defense in depth. It runs before compatibility and quality publication steps, rejects post-candidate runtime changes (release-managed version-only promotion is allowed), and blocks early publication even if a release PR was merged through an administrative or integration bypass. A manual emergency stable patch may set `emergency_soak_override=true` only when the public evidence URL satisfies the Emergency patch procedure; every non-time-based publication gate still runs.
+
 Before publication begins, `pnpm release:readiness:compatibility` must confirm that at least one live
 EasyEDA record is current for the exact candidate commit. The release workflow runs this command
 after runtime and dependency installation and before the remaining quality gates. Any later change
@@ -108,8 +112,8 @@ See [Release Verification](RELEASE_VERIFICATION.md) for commands and [Release & 
 
 ## 7. Failed releases and emergency publication
 
-For a transient failure, rerun only when the tag, commit, channel, and evidence are unchanged. A code, dependency, generated artifact, or release-metadata change requires a new version; never overwrite an immutable release.
+For a transient failure, rerun the original workflow only when the tag, commit, channel, and evidence are unchanged **and that original run already contains every currently mandatory release gate**. If release policy was hardened after the failed attempt, do not rerun the historical workflow execution: dispatch the current `publish-release.yml` from `main` against the exact audited source and public evidence. A code, dependency, generated artifact, or release-metadata change requires a new version; never overwrite an immutable release.
 
-Normal stable releases must use Release Please. A manual stable dispatch is reserved for the Emergency patch procedure in the Release Policy and requires an existing stable-format tag, a non-draft/non-prerelease GitHub Release, and a public evidence URL. The same quality, provenance, and registry checks still run.
+Normal stable releases must use Release Please. Manual stable dispatch is allowed only for the documented **missing stable release identity recovery** path (exact reviewed release commit, no immutable stable identity yet) or the Emergency patch procedure. Emergency dispatch requires an existing stable-format tag, a non-draft/non-prerelease GitHub Release, and a public evidence URL. Both paths run the current quality, soak, compatibility, provenance, and registry gates; neither is a shortcut around release policy.
 
 If publication partially succeeds, stop promotion claims and follow the rollback/yanking sequence in the Release Policy plus the registry-specific procedures in [Solo-maintainer continuity and release recovery](SOLO_MAINTAINER_RECOVERY.md). Keep immutable tags, SBOMs, checksums, attestations, and the public evidence issue for auditability. Manual recovery runs use the current workflow policy from `main` and then build the immutable requested tag.

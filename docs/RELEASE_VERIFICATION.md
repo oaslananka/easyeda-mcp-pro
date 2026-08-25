@@ -23,6 +23,10 @@ GitHub Actions keeps bounded operational copies after publication: SBOM workflow
 
 ## Verification checks for maintainers
 
+Stable promotion also has an executable soak check in `scripts/release-soak-policy.mjs`. Major/minor release PRs cannot satisfy the required quality check until the exact final RC has the policy soak; the publication workflow repeats the check before any immutable release or registry mutation. The gate uses a successful manual RC publication run for the exact candidate SHA only when its **Gate and publish immutable release** job also succeeded, using that run as a conservative clock source and rejects post-candidate runtime changes or dependency drift. For a patch without an RC, the 24-hour clock starts from the stable release commit after it is merged to `main`. This RC-free path is rejected when the patch changes compatibility-sensitive, authentication, transport, transaction/rollback, save/export, installer/setup, or other configured release-candidate-required paths; those patches require an RC and at least 72 hours.
+
+An early automatic publication failure caused by this gate is expected and safe: do not create a replacement tag or change the source commit. Re-run the original Publish Release workflow only if that historical run already contained the current mandatory soak gate. If the failed attempt predates a mandatory gate, use the current workflow from `main` and the exact audited source through missing stable release identity recovery after the reported eligibility timestamp. `emergency_soak_override=true` is reserved for the documented manual emergency stable-patch procedure and does not bypass compatibility, quality, live validation, provenance, or final published-release verification.
+
 For each release, maintainers should start with the commit-bound compatibility check:
 
 ```bash
