@@ -227,12 +227,7 @@ function isStablePromotionVersionPair({ evidenceVersion, targetVersion }) {
   return /^[0-9A-Za-z][0-9A-Za-z.-]*$/.test(prerelease);
 }
 
-function isReleaseManagedStablePromotionOnly({ gitBinary, root, base, head, path }) {
-  if (path !== RELEASE_MANAGED_EXTENSION_VERSION_PATH) return false;
-  const evidenceSource = readFileAtCommit({ gitBinary, root, commit: base, path });
-  const targetSource = readFileAtCommit({ gitBinary, root, commit: head, path });
-  if (evidenceSource === undefined || targetSource === undefined) return false;
-
+function isStablePromotionSourceOnly({ evidenceSource, targetSource }) {
   const evidenceVersion = parseSingleExtensionVersion(evidenceSource);
   const targetVersion = parseSingleExtensionVersion(targetSource);
   if (!isStablePromotionVersionPair({ evidenceVersion, targetVersion })) return false;
@@ -241,6 +236,15 @@ function isReleaseManagedStablePromotionOnly({ gitBinary, root, base, head, path
     normalizeReleaseManagedExtensionVersion(evidenceSource) ===
     normalizeReleaseManagedExtensionVersion(targetSource)
   );
+}
+
+function isReleaseManagedStablePromotionOnly({ gitBinary, root, base, head, path }) {
+  if (path !== RELEASE_MANAGED_EXTENSION_VERSION_PATH) return false;
+  const evidenceSource = readFileAtCommit({ gitBinary, root, commit: base, path });
+  const targetSource = readFileAtCommit({ gitBinary, root, commit: head, path });
+  if (evidenceSource === undefined || targetSource === undefined) return false;
+
+  return isStablePromotionSourceOnly({ evidenceSource, targetSource });
 }
 
 function filterReleaseManagedStablePromotion({ gitBinary, root, base, head, changedFiles }) {
@@ -298,10 +302,57 @@ function recordResult({
   };
 }
 
-function snapshotResult({ record, headTrees, paths, dirtyFiles }) {
+function isSnapshotStablePromotionOnly({
+  gitBinary,
+  root,
+  recordedTrees,
+  headTrees,
+  changedPaths,
+}) {
+  const sensitiveRoot = 'easyeda-bridge-extension/src';
+  if (changedPaths.length !== 1 || changedPaths[0] !== sensitiveRoot) return false;
+
+  const recordedTree = recordedTrees[sensitiveRoot];
+  const headTree = headTrees[sensitiveRoot];
+  if (!recordedTree || !headTree) return false;
+
+  const diff = runGit({
+    gitBinary,
+    root,
+    args: ['diff', '--name-only', recordedTree, headTree],
+  });
+  if (diff.status !== 0 || diff.stdout !== 'index.ts') return false;
+
+  const evidenceSource = readFileAtCommit({
+    gitBinary,
+    root,
+    commit: recordedTree,
+    path: 'index.ts',
+  });
+  const targetSource = readFileAtCommit({
+    gitBinary,
+    root,
+    commit: headTree,
+    path: 'index.ts',
+  });
+  if (evidenceSource === undefined || targetSource === undefined) return false;
+
+  return isStablePromotionSourceOnly({ evidenceSource, targetSource });
+}
+
+function snapshotResult({ record, gitBinary, root, headTrees, paths, dirtyFiles }) {
   const recordedTrees = record.server.compatibilitySnapshot.paths;
   const changedPaths = listSnapshotDifferences({ recordedTrees, actualTrees: headTrees, paths });
-  const combined = uniqueSorted([...changedPaths, ...dirtyFiles]);
+  const comparedPaths = isSnapshotStablePromotionOnly({
+    gitBinary,
+    root,
+    recordedTrees,
+    headTrees,
+    changedPaths,
+  })
+    ? []
+    : changedPaths;
+  const combined = uniqueSorted([...comparedPaths, ...dirtyFiles]);
   return recordResult({
     record,
     status: combined.length === 0 ? 'current' : 'stale',
@@ -431,7 +482,7 @@ function inspectRecord({ record, gitBinary, root, headCommit, paths, dirtyFiles 
   const evidenceCommit = resolveCommit({ gitBinary, root, ref: record.server.commit });
   if (!evidenceCommit) {
     return recordedSnapshot && headTrees
-      ? snapshotResult({ record, headTrees, paths, dirtyFiles })
+      ? snapshotResult({ record, gitBinary, root, headTrees, paths, dirtyFiles })
       : recordResult({
           record,
           status: 'unavailable',
