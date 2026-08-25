@@ -7,6 +7,8 @@ const COMMIT_RE = /^[0-9a-f]{40}$/;
 const SAFE_TARGET_REF_RE = /^[A-Za-z0-9._/@{}^~:+-]{1,200}$/;
 const NO_GIT_REASON =
   'Git metadata is unavailable. Run this check from a complete Git checkout before publishing.';
+const RELEASE_MANAGED_EXTENSION_VERSION_PATH = 'easyeda-bridge-extension/src/index.ts';
+const EXTENSION_VERSION_LITERAL_RE = /extensionVersion:\s*'([^']+)',/g;
 
 function comparePaths(left, right) {
   if (left < right) return -1;
@@ -203,6 +205,50 @@ function listChangedFiles({ gitBinary, root, base, head, paths }) {
   return result.stdout ? result.stdout.split('\n').filter(Boolean).sort(comparePaths) : [];
 }
 
+function readFileAtCommit({ gitBinary, root, commit, path }) {
+  const result = runGit({ gitBinary, root, args: ['show', `${commit}:${path}`] });
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+function parseSingleExtensionVersion(source) {
+  if (typeof source !== 'string') return undefined;
+  const matches = [...source.matchAll(EXTENSION_VERSION_LITERAL_RE)];
+  return matches.length === 1 ? matches[0]?.[1] : undefined;
+}
+
+function normalizeReleaseManagedExtensionVersion(source) {
+  return source.replace(/(extensionVersion:\s*')[^']+(',)/, '$1<release-managed-version>$2');
+}
+
+function isStablePromotionVersionPair({ evidenceVersion, targetVersion }) {
+  if (!/^\d+\.\d+\.\d+$/.test(targetVersion ?? '')) return false;
+  if (!evidenceVersion?.startsWith(`${targetVersion}-`)) return false;
+  const prerelease = evidenceVersion.slice(targetVersion.length + 1);
+  return /^[0-9A-Za-z][0-9A-Za-z.-]*$/.test(prerelease);
+}
+
+function isReleaseManagedStablePromotionOnly({ gitBinary, root, base, head, path }) {
+  if (path !== RELEASE_MANAGED_EXTENSION_VERSION_PATH) return false;
+  const evidenceSource = readFileAtCommit({ gitBinary, root, commit: base, path });
+  const targetSource = readFileAtCommit({ gitBinary, root, commit: head, path });
+  if (evidenceSource === undefined || targetSource === undefined) return false;
+
+  const evidenceVersion = parseSingleExtensionVersion(evidenceSource);
+  const targetVersion = parseSingleExtensionVersion(targetSource);
+  if (!isStablePromotionVersionPair({ evidenceVersion, targetVersion })) return false;
+
+  return (
+    normalizeReleaseManagedExtensionVersion(evidenceSource) ===
+    normalizeReleaseManagedExtensionVersion(targetSource)
+  );
+}
+
+function filterReleaseManagedStablePromotion({ gitBinary, root, base, head, changedFiles }) {
+  return changedFiles.filter(
+    (path) => !isReleaseManagedStablePromotionOnly({ gitBinary, root, base, head, path }),
+  );
+}
+
 function listDirtyFiles({ gitBinary, root, paths }) {
   const worktree = runGit({
     gitBinary,
@@ -322,14 +368,14 @@ function compareAvailableEvidence({
       reason: 'The evidence ancestry could not be verified.',
     });
   }
-  const changedFiles = listChangedFiles({
+  const rawChangedFiles = listChangedFiles({
     gitBinary,
     root,
     base: evidenceCommit,
     head: headCommit,
     paths,
   });
-  if (!changedFiles) {
+  if (!rawChangedFiles) {
     return recordResult({
       record,
       evidenceCommit,
@@ -338,12 +384,25 @@ function compareAvailableEvidence({
       reason: 'Compatibility-sensitive changes could not be compared.',
     });
   }
+  const changedFiles = filterReleaseManagedStablePromotion({
+    gitBinary,
+    root,
+    base: evidenceCommit,
+    head: headCommit,
+    changedFiles: rawChangedFiles,
+  });
+  const promotionOnly = rawChangedFiles.length > 0 && changedFiles.length === 0;
   const recordedTrees = record.server.compatibilitySnapshot?.paths;
   const snapshotDifferences =
     recordedTrees && headTrees
       ? listSnapshotDifferences({ recordedTrees, actualTrees: headTrees, paths })
       : [];
-  const comparedFiles = changedFiles.length > 0 ? changedFiles : snapshotDifferences;
+  let comparedFiles = snapshotDifferences;
+  if (promotionOnly) {
+    comparedFiles = [];
+  } else if (changedFiles.length > 0) {
+    comparedFiles = changedFiles;
+  }
   const combined = uniqueSorted([...comparedFiles, ...dirtyFiles]);
   const current = combined.length === 0;
   return recordResult({
