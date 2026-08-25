@@ -3,6 +3,7 @@ import {
   assertSchematicReadScopeSupported,
   readScopeOutputSchema,
   readScopeResult,
+  schematicReadBridgeParams,
   schematicReadScopeInputSchema,
   scopeErrorDataSchema,
   scopeErrorFields,
@@ -280,7 +281,11 @@ function registerDrcErcTools(
           'design.erc',
           'page-aware-erc',
         );
-        const result = await ctx.bridge.call('design.erc', { projectId, checks });
+        const result = await ctx.bridge.call('design.erc', {
+          projectId,
+          checks,
+          ...schematicReadBridgeParams(scope, pageUuid),
+        });
         const data = result as {
           violations?: Array<{
             net?: string;

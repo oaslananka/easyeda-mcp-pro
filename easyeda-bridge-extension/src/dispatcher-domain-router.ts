@@ -8,6 +8,10 @@ import type { PcbWriteOperations } from './pcb-write-operations.js';
 import type { ProjectOperations } from './project-operations.js';
 import type { ReadOnlyOperations } from './read-only-operations.js';
 import type { SchematicTransactionOperations } from './schematic-transaction-operations.js';
+import {
+  assertSchematicReadScopeSupported,
+  type SchematicReadScope,
+} from './schematic-read-scope.js';
 import type { SystemApiOperations } from './system-api-operations.js';
 
 export interface DispatcherDomainRouterDependencies {
@@ -47,6 +51,36 @@ function optionalNumber(value: unknown): number | undefined {
 
 function offsetNumber(value: unknown): number {
   return typeof value === 'number' ? value : 0;
+}
+
+const schematicScopePolicies: Partial<
+  Record<string, { supported: readonly SchematicReadScope[]; missingCapability: string }>
+> = {
+  'design.erc': { supported: ['focused'], missingCapability: 'page-aware-erc' },
+  'schematic.getNetDetail': {
+    supported: ['focused'],
+    missingCapability: 'page-aware-net-detail-read',
+  },
+  'schematic.getSheetInfo': {
+    supported: ['focused', 'page', 'all_pages'],
+    missingCapability: 'schematic-page-metadata',
+  },
+  'schematic.listComponents': {
+    supported: ['focused', 'all_pages'],
+    missingCapability: 'page-attributed-component-read',
+  },
+  'schematic.listNets': { supported: ['focused'], missingCapability: 'page-aware-net-read' },
+  'schematic.validateNetlist': {
+    supported: ['focused'],
+    missingCapability: 'project-wide-complete-netlist-validation',
+  },
+  'system.inspectWires': { supported: ['focused'], missingCapability: 'page-aware-wire-read' },
+};
+
+function assertRouterSchematicScope(method: string, params: Record<string, unknown>): void {
+  const policy = schematicScopePolicies[method];
+  if (!policy) return;
+  assertSchematicReadScopeSupported(params, policy.supported, method, policy.missingCapability);
 }
 
 export function createDispatcherDomainRouter(
@@ -163,13 +197,16 @@ export function createDispatcherDomainRouter(
     },
     {
       method: 'schematic.getSheetInfo',
-      handle: () => dependencies.readOnlyOperations.getSheetInfo(),
+      handle: (params) => dependencies.readOnlyOperations.getSheetInfo(params),
     },
     {
       method: 'schematic.listComponents',
       handle: (params) => dependencies.readOnlyOperations.listComponents(params),
     },
-    { method: 'schematic.listNets', handle: () => dependencies.readOnlyOperations.listNets() },
+    {
+      method: 'schematic.listNets',
+      handle: (params) => dependencies.readOnlyOperations.listNets(params),
+    },
     {
       method: 'schematic.listPrimitiveIds',
       handle: (params) => dependencies.readOnlyOperations.listPrimitiveIds(params),
@@ -206,7 +243,7 @@ export function createDispatcherDomainRouter(
     },
     {
       method: 'schematic.validateNetlist',
-      handle: () => dependencies.readOnlyOperations.validateNetlist(),
+      handle: (params) => dependencies.readOnlyOperations.validateNetlist(params),
     },
     {
       method: 'system.apiInventory',
@@ -231,6 +268,7 @@ export function createDispatcherDomainRouter(
     async tryDispatch(method, params = {}) {
       const route = routes.find((candidate) => candidate.method === method);
       if (!route) return { handled: false };
+      assertRouterSchematicScope(method, params);
       return { handled: true, value: await route.handle(params) };
     },
   };

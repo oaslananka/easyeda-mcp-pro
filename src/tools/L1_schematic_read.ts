@@ -8,6 +8,7 @@ import {
   componentReadScope,
   readScopeOutputSchema,
   readScopeResult,
+  schematicReadBridgeParams,
   schematicReadScopeInputSchema,
   scopeErrorDataSchema,
   scopeErrorDiagnostics,
@@ -251,7 +252,11 @@ function registerSchematicReadTools(
           'page-aware-net-read',
         );
         const observation = await readStable(
-          () => ctx.bridge.call('schematic.listNets', { projectId }),
+          () =>
+            ctx.bridge.call('schematic.listNets', {
+              projectId,
+              ...schematicReadBridgeParams(scope, pageUuid),
+            }),
           stableReadOptions,
         );
         const result = observation.value;
@@ -524,7 +529,12 @@ function registerSchematicReadTools(
           'page-aware-wire-read',
         );
         const observation = await readStable(
-          () => ctx.bridge.call('system.inspectWires', { limit, offset }),
+          () =>
+            ctx.bridge.call('system.inspectWires', {
+              limit,
+              offset,
+              ...schematicReadBridgeParams(scope, pageUuid),
+            }),
           stableReadOptions,
         );
         const result = observation.value;
@@ -623,7 +633,12 @@ function registerSchematicReadTools(
         );
         const result = await ctx.bridge.call(
           'schematic.getNetDetail',
-          { projectId, netName, operationTimeoutMs: 15_000 },
+          {
+            projectId,
+            netName,
+            operationTimeoutMs: 15_000,
+            ...schematicReadBridgeParams(scope, pageUuid),
+          },
           { timeoutMs: 20_000 },
         );
         const net = result as {
@@ -790,7 +805,10 @@ function registerSchematicReadTools(
       const { projectId } = z.object({ projectId: z.string().optional() }).parse(params ?? {});
       const { scope, pageUuid } = schematicReadScopeInputSchema.parse(params ?? {});
       try {
-        const result = await ctx.bridge.call('schematic.getSheetInfo', { projectId });
+        const result = await ctx.bridge.call('schematic.getSheetInfo', {
+          projectId,
+          ...schematicReadBridgeParams(scope, pageUuid),
+        });
         return formatSchematicSheetInfo(result, projectId, scope, pageUuid);
       } catch (err) {
         return {
@@ -1289,6 +1307,7 @@ function registerSchematicReadTools(
         const result = await ctx.bridge.call('schematic.validateNetlist', {
           projectId,
           includeWireCheck,
+          ...schematicReadBridgeParams(scope, pageUuid),
         });
         const data = result as {
           nets?: Array<{

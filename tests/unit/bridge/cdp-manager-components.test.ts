@@ -3,13 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import { CdpBridgeManager } from '../../../src/bridge/cdp-manager.js';
 
-function componentListExpression(allPages?: boolean): string {
+function componentListExpression(
+  params: { allPages?: boolean; scope?: 'focused' | 'all_pages' } = {},
+): string {
   const manager = new CdpBridgeManager(EnvSchema.parse({ NODE_ENV: 'test' }));
   return (
     manager as unknown as {
-      componentListExpression(params?: { allPages?: boolean }): string;
+      componentListExpression(params?: {
+        allPages?: boolean;
+        scope?: 'focused' | 'all_pages';
+      }): string;
     }
-  ).componentListExpression(allPages === undefined ? {} : { allPages });
+  ).componentListExpression(params);
 }
 
 describe('CdpBridgeManager component scope', () => {
@@ -17,10 +22,10 @@ describe('CdpBridgeManager component scope', () => {
     const getAll = vi.fn(async () => []);
     const context = vm.createContext({ eda: { SCH_PrimitiveComponent: { getAll } } });
 
-    await vm.runInContext(componentListExpression(false), context);
+    await vm.runInContext(componentListExpression({ scope: 'focused' }), context);
     expect(getAll).toHaveBeenLastCalledWith(undefined, false);
 
-    await vm.runInContext(componentListExpression(true), context);
+    await vm.runInContext(componentListExpression({ scope: 'all_pages' }), context);
     expect(getAll).toHaveBeenLastCalledWith(undefined, true);
   });
 

@@ -180,6 +180,10 @@ describe('Schematic Tools', () => {
       scope: 'focused',
     });
     expect(nets).toMatchObject({ read_scope: focusedScope('schematic.listNets') });
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.listNets', {
+      projectId: 'proj-123',
+      scope: 'focused',
+    });
 
     bridgeCall.mockReset().mockResolvedValue({ total: 0, samples: [] });
     const wires = await registry.get('easyeda_schematic_wires')?.handler(context, {
@@ -189,6 +193,11 @@ describe('Schematic Tools', () => {
       scope: 'focused',
     });
     expect(wires).toMatchObject({ read_scope: focusedScope('system.inspectWires') });
+    expect(bridgeCall).toHaveBeenCalledWith('system.inspectWires', {
+      limit: 50,
+      offset: 0,
+      scope: 'focused',
+    });
 
     bridgeCall.mockReset().mockResolvedValue({ netName: 'GND', nodes: [] });
     const detail = await registry.get('easyeda_schematic_net_detail')?.handler(context, {
@@ -197,6 +206,16 @@ describe('Schematic Tools', () => {
       scope: 'focused',
     });
     expect(detail).toMatchObject({ read_scope: focusedScope('schematic.getNetDetail') });
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'schematic.getNetDetail',
+      {
+        projectId: 'proj-123',
+        netName: 'GND',
+        operationTimeoutMs: 15_000,
+        scope: 'focused',
+      },
+      { timeoutMs: 20_000 },
+    );
 
     bridgeCall.mockReset().mockResolvedValue({ nets: [], floatingPins: [], warnings: [] });
     const validation = await registry.get('easyeda_schematic_validate_netlist')?.handler(context, {
@@ -205,6 +224,11 @@ describe('Schematic Tools', () => {
       scope: 'focused',
     });
     expect(validation).toMatchObject({ read_scope: focusedScope('schematic.validateNetlist') });
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.validateNetlist', {
+      projectId: 'proj-123',
+      includeWireCheck: false,
+      scope: 'focused',
+    });
   });
 
   it('documents library-search provenance for placement instead of project-instance cloning', () => {
@@ -438,35 +462,46 @@ describe('Schematic Tools', () => {
     });
   });
 
-  it('easyeda_schematic_sheet_info selects non-focused page metadata from the native page list without changing focus', async () => {
+  it('easyeda_schematic_sheet_info prefers bridge-selected non-focused page metadata without changing focus', async () => {
     const tool = registry.get('easyeda_schematic_sheet_info');
     const page1 = { uuid: 'page-1', name: 'Main' };
-    const page2 = { uuid: 'page-2', name: 'Power', titleBlockData: { Width: { value: '1170' } } };
+    const listedPage2 = { uuid: 'page-2', name: 'Power' };
+    const selectedPage2 = { uuid: 'page-2', name: 'Power', width: 1170, height: 826 };
     bridgeCall.mockResolvedValue({
-      currentPage: page1,
-      pages: [page1, page2],
-      source: 'current_page',
+      currentPage: selectedPage2,
+      pages: [page1, listedPage2],
+      source: 'requested_page',
       focusedDocument: { uuid: 'page-1', tabId: 'tab-1' },
-      diagnostics: { currentPageAvailable: true, pageListAvailable: true },
+      diagnostics: {
+        stage: 'page_scope_resolution',
+        requestedScope: 'page',
+        requestedPageUuid: 'page-2',
+        focusedPageUuid: 'page-1',
+      },
     });
 
     const result = await tool?.handler(context, { projectId: 'proj-123', pageUuid: 'page-2' });
 
     expect(bridgeCall).toHaveBeenCalledTimes(1);
-    expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', { projectId: 'proj-123' });
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', {
+      projectId: 'proj-123',
+      pageUuid: 'page-2',
+      scope: 'page',
+    });
     expect(result).toMatchObject({
       project_id: 'proj-123',
-      sheet: page2,
-      metadata_source: 'page_list',
+      sheet: selectedPage2,
+      page_size: { width: 1170, height: 826 },
+      metadata_source: 'requested_page',
       focused_document: { uuid: 'page-1', tabId: 'tab-1' },
-      geometry_available: false,
+      geometry_available: true,
       read_scope: {
         requested: 'page',
         resolved: 'page',
         page_uuid: 'page-2',
         focused_page_uuid: 'page-1',
         focus_changed: false,
-        source: 'page_list',
+        source: 'requested_page',
       },
     });
   });
@@ -488,6 +523,10 @@ describe('Schematic Tools', () => {
     const result = await tool?.handler(context, { projectId: 'proj-123', scope: 'all_pages' });
 
     expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', {
+      projectId: 'proj-123',
+      scope: 'all_pages',
+    });
     expect(result).toMatchObject({
       project_id: 'proj-123',
       pages,
@@ -1755,6 +1794,7 @@ describe('Schematic Tools', () => {
         projectId: 'proj-123',
         limit: 100,
         offset: 0,
+        scope: 'focused',
         allPages: false,
       });
       expect(focused).toMatchObject({
@@ -1777,6 +1817,7 @@ describe('Schematic Tools', () => {
         projectId: 'proj-123',
         limit: 100,
         offset: 0,
+        scope: 'all_pages',
         allPages: true,
       });
       expect(allPages).toMatchObject({

@@ -492,6 +492,68 @@ describe('createDispatcherDomainRouter', () => {
     });
   });
 
+  it('rejects contradictory schematic selectors before route handlers', async () => {
+    const dependencies = createDependencies();
+    const router = createDispatcherDomainRouter(dependencies);
+
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { scope: 'focused', pageUuid: 'page-2' }),
+    ).rejects.toMatchObject({ code: 'PAGE_SCOPE_CONFLICT' });
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { scope: 'page' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_UUID_REQUIRED',
+    });
+    expect(dependencies.readOnlyOperations.getSheetInfo).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on unsupported schematic scopes before invoking focused route handlers', async () => {
+    const dependencies = createDependencies();
+    const router = createDispatcherDomainRouter(dependencies);
+    const pageRequest = { scope: 'page', pageUuid: 'page-2' };
+
+    const cases = [
+      ['schematic.listNets', dependencies.readOnlyOperations.listNets],
+      ['schematic.getNetDetail', dependencies.readOnlyOperations.getNetDetail],
+      ['schematic.validateNetlist', dependencies.readOnlyOperations.validateNetlist],
+      ['system.inspectWires', dependencies.systemApiOperations.inspectWires],
+      ['design.erc', dependencies.designRuleCheckOperations.runErc],
+      ['schematic.listComponents', dependencies.readOnlyOperations.listComponents],
+    ] as const;
+
+    for (const [method, handler] of cases) {
+      await expect(router.tryDispatch(method, pageRequest)).rejects.toMatchObject({
+        code: 'PAGE_SCOPE_UNSUPPORTED',
+        data: expect.objectContaining({
+          requestedScope: 'page',
+          pageUuid: 'page-2',
+          operation: method,
+        }),
+      });
+      expect(handler).not.toHaveBeenCalled();
+    }
+  });
+
+  it('forwards supported schematic selector intent to read-only routes', async () => {
+    const dependencies = createDependencies();
+    const router = createDispatcherDomainRouter(dependencies);
+
+    await expect(
+      router.tryDispatch('schematic.listComponents', { scope: 'focused', limit: 5 }),
+    ).resolves.toMatchObject({ handled: true });
+    expect(dependencies.readOnlyOperations.listComponents).toHaveBeenCalledWith({
+      scope: 'focused',
+      limit: 5,
+    });
+
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { pageUuid: 'page-2' }),
+    ).resolves.toMatchObject({ handled: true });
+    expect(dependencies.readOnlyOperations.getSheetInfo).toHaveBeenCalledWith({
+      pageUuid: 'page-2',
+    });
+  });
+
   it('keeps extracted methods out of the central dispatcher switch', () => {
     const dispatcherSource = readFileSync(
       fileURLToPath(new URL('../src/dispatcher.ts', import.meta.url)),

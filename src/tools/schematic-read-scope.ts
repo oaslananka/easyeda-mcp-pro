@@ -136,10 +136,18 @@ export function assertSchematicReadScopeSupported(
   });
 }
 
+export function schematicReadBridgeParams(
+  scope: SchematicReadScope | undefined,
+  pageUuid?: string,
+) {
+  if (!scope) return {};
+  return { scope, ...(pageUuid ? { pageUuid } : {}) };
+}
+
 export function componentReadScope(scope: SchematicReadScope | undefined) {
   if (!scope) return { bridgeParams: {} };
   return {
-    bridgeParams: { allPages: scope === 'all_pages' },
+    bridgeParams: { scope, allPages: scope === 'all_pages' },
     readScope: readScope(scope, 'SCH_PrimitiveComponent.getAll'),
   };
 }
@@ -217,6 +225,8 @@ function resolveNonFocusedSheetScope(
   scope: 'page' | 'all_pages',
   pageUuid: string | undefined,
   focusedUuid: string | undefined,
+  bridgeCurrent?: Record<string, unknown>,
+  bridgeSource?: string,
 ): SheetScopeResolution {
   const data = pageErrorData(scope, pageUuid, focusedUuid);
   if (!pages.length) {
@@ -234,15 +244,17 @@ function resolveNonFocusedSheetScope(
       readScope: readScope(scope, 'page_list', focusedUuid),
     };
   }
-  const current = pages.find((page) => page.uuid === pageUuid);
+  const selectedBridgeCurrent = bridgeCurrent?.uuid === pageUuid ? bridgeCurrent : undefined;
+  const current = selectedBridgeCurrent ?? pages.find((page) => page.uuid === pageUuid);
   if (!current)
     throw pageScopeError('PAGE_NOT_FOUND', 'Requested schematic page was not found.', data);
+  const source = selectedBridgeCurrent && bridgeSource ? bridgeSource : 'page_list';
   return {
     current,
     pages,
-    metadataSource: 'page_list',
+    metadataSource: source,
     allPages: false,
-    readScope: readScope(scope, 'page_list', focusedUuid, pageUuid),
+    readScope: readScope(scope, source, focusedUuid, pageUuid),
   };
 }
 
@@ -255,8 +267,16 @@ export function resolveSheetInfoScope(
   const current = record(root.currentPage) ?? (typeof root.uuid === 'string' ? root : undefined);
   const pages = pageRecords(root.pages);
   if (!scope) return { current, pages, allPages: false };
-  const focusedUuid = focusedPageUuid(root, current);
-  if (scope !== 'focused') return resolveNonFocusedSheetScope(pages, scope, pageUuid, focusedUuid);
+  const focusedUuid = focusedPageUuid(root, scope === 'page' ? undefined : current);
+  if (scope !== 'focused')
+    return resolveNonFocusedSheetScope(
+      pages,
+      scope,
+      pageUuid,
+      focusedUuid,
+      current,
+      typeof root.source === 'string' ? root.source : undefined,
+    );
   const source = typeof root.source === 'string' ? root.source : 'focused';
   return {
     current,

@@ -40,6 +40,145 @@ const DEFAULT_CDP_URL = 'http://127.0.0.1:9222';
 const EASYEDA_EDITOR_URL_PART = 'pro.easyeda.com/editor';
 const WRITE_METHOD_RE = /^(schematic\.|pcb\.|project\.(save|export)|board\.|export\.)/;
 
+type CdpSchematicReadScope = 'focused' | 'page' | 'all_pages';
+
+type CdpSchematicReadSelector = {
+  scope?: CdpSchematicReadScope;
+  pageUuid?: string;
+};
+
+const CDP_SCHEMATIC_READ_SCOPES: readonly CdpSchematicReadScope[] = [
+  'focused',
+  'page',
+  'all_pages',
+];
+
+const CDP_SCHEMATIC_SCOPE_POLICIES: Partial<
+  Record<string, { supported: readonly CdpSchematicReadScope[]; missingCapability: string }>
+> = {
+  'design.erc': { supported: ['focused'], missingCapability: 'page-aware-erc' },
+  'schematic.getNetDetail': {
+    supported: ['focused'],
+    missingCapability: 'page-aware-net-detail-read',
+  },
+  'schematic.getSheetInfo': {
+    supported: ['focused', 'page', 'all_pages'],
+    missingCapability: 'schematic-page-metadata',
+  },
+  'schematic.listComponents': {
+    supported: ['focused', 'all_pages'],
+    missingCapability: 'page-attributed-component-read',
+  },
+  'schematic.listNets': { supported: ['focused'], missingCapability: 'page-aware-net-read' },
+  'schematic.validateNetlist': {
+    supported: ['focused'],
+    missingCapability: 'project-wide-complete-netlist-validation',
+  },
+  'system.inspectWires': { supported: ['focused'], missingCapability: 'page-aware-wire-read' },
+};
+
+function cdpParamsRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function cdpScopeError(
+  code: 'PAGE_UUID_REQUIRED' | 'PAGE_SCOPE_CONFLICT' | 'PAGE_SCOPE_UNSUPPORTED',
+  message: string,
+  suggestion: string,
+  data: Record<string, unknown>,
+): Error {
+  return Object.assign(new Error(message), { code, suggestion, data });
+}
+
+function resolveCdpSchematicReadSelector(
+  value: unknown,
+  operation: string,
+): CdpSchematicReadSelector {
+  const params = cdpParamsRecord(value);
+  const rawScope = params.scope;
+  const rawPageUuid = params.pageUuid;
+  const pageUuid = typeof rawPageUuid === 'string' ? rawPageUuid.trim() || undefined : undefined;
+
+  if (
+    rawScope !== undefined &&
+    !CDP_SCHEMATIC_READ_SCOPES.includes(rawScope as CdpSchematicReadScope)
+  ) {
+    throw cdpScopeError(
+      'PAGE_SCOPE_CONFLICT',
+      `Invalid schematic read scope for ${operation}.`,
+      `Use one of: ${CDP_SCHEMATIC_READ_SCOPES.join(', ')}.`,
+      { operation, requestedScope: String(rawScope) },
+    );
+  }
+
+  const explicitScope = rawScope as CdpSchematicReadScope | undefined;
+  const scope = explicitScope ?? (pageUuid ? 'page' : undefined);
+  if (rawPageUuid !== undefined && !pageUuid) {
+    throw cdpScopeError(
+      'PAGE_UUID_REQUIRED',
+      `pageUuid must be a non-empty string for ${operation}.`,
+      'Provide a valid schematic page UUID or omit pageUuid.',
+      { operation, ...(scope ? { requestedScope: scope } : {}) },
+    );
+  }
+  if (scope === 'page' && !pageUuid) {
+    throw cdpScopeError(
+      'PAGE_UUID_REQUIRED',
+      `scope 'page' requires pageUuid for ${operation}.`,
+      'Provide the target schematic page UUID.',
+      { operation, requestedScope: scope },
+    );
+  }
+  if (pageUuid && (scope === 'focused' || scope === 'all_pages')) {
+    throw cdpScopeError(
+      'PAGE_SCOPE_CONFLICT',
+      `pageUuid cannot be combined with scope '${scope}' for ${operation}.`,
+      "Use scope 'page' with pageUuid, or omit pageUuid for focused/all_pages.",
+      { operation, requestedScope: scope, pageUuid },
+    );
+  }
+  return { scope, pageUuid };
+}
+
+function assertCdpSchematicScopeSupported(
+  method: string,
+  params: unknown,
+): CdpSchematicReadSelector {
+  const policy = CDP_SCHEMATIC_SCOPE_POLICIES[method];
+  if (!policy) return {};
+  const selector = resolveCdpSchematicReadSelector(params, method);
+  if (!selector.scope || policy.supported.includes(selector.scope)) return selector;
+  throw cdpScopeError(
+    'PAGE_SCOPE_UNSUPPORTED',
+    `Schematic ${selector.scope} scope is not supported for ${method}.`,
+    'Use the focused scope or a runtime capability that explicitly supports the requested scope.',
+    {
+      requestedScope: selector.scope,
+      ...(selector.pageUuid ? { pageUuid: selector.pageUuid } : {}),
+      operation: method,
+      missingCapability: policy.missingCapability,
+    },
+  );
+}
+
+function unwrapCdpSheetResult(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const envelope = (value as Record<string, unknown>).__easyedaBridgeError;
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) return value;
+  const record = envelope as Record<string, unknown>;
+  const message =
+    typeof record.message === 'string' ? record.message : 'CDP bridge sheet read failed.';
+  const error = new Error(message);
+  Object.assign(error, {
+    ...(typeof record.code === 'string' ? { code: record.code } : {}),
+    ...(typeof record.suggestion === 'string' ? { suggestion: record.suggestion } : {}),
+    ...(record.data !== undefined ? { data: record.data } : {}),
+  });
+  throw error;
+}
+
 export class CdpBridgeManager extends EventEmitter {
   public state: BridgeState = 'disconnected';
   public hello: BridgeHello | null = null;
@@ -196,9 +335,23 @@ export class CdpBridgeManager extends EventEmitter {
     } catch (err) {
       const elapsed = Date.now() - startedAt;
       const detail = err instanceof Error ? err.message : String(err);
-      throw new Error(`CDP bridge method "${method}" failed after ${elapsed}ms: ${detail}`, {
-        cause: err,
-      });
+      const wrapped = new Error(
+        `CDP bridge method "${method}" failed after ${elapsed}ms: ${detail}`,
+        {
+          cause: err,
+        },
+      );
+      if (err && typeof err === 'object') {
+        const record = err as Record<string, unknown>;
+        if (typeof record.code === 'string') {
+          Object.assign(wrapped, {
+            code: record.code,
+            ...(record.suggestion !== undefined ? { suggestion: record.suggestion } : {}),
+            ...(record.data !== undefined ? { data: record.data } : {}),
+          });
+        }
+      }
+      throw wrapped;
     }
   }
 
@@ -235,6 +388,8 @@ export class CdpBridgeManager extends EventEmitter {
     params: TParams,
     timeoutMs: number,
   ): Promise<unknown> {
+    assertCdpSchematicScopeSupported(method, params);
+
     if (method === 'system.getStatus') {
       return this.evaluateObject(this.statusExpression());
     }
@@ -257,7 +412,8 @@ export class CdpBridgeManager extends EventEmitter {
     }
 
     if (method === 'schematic.getSheetInfo') {
-      return this.evaluateObject(this.sheetInfoExpression(), timeoutMs);
+      const result = await this.evaluateObject(this.sheetInfoExpression(params), timeoutMs);
+      return unwrapCdpSheetResult(result);
     }
 
     if (method === 'schematic.listComponents') {
@@ -495,15 +651,21 @@ export class CdpBridgeManager extends EventEmitter {
     `;
   }
 
-  private sheetInfoExpression(): string {
+  private sheetInfoExpression(params?: unknown): string {
+    const selector = resolveCdpSchematicReadSelector(params, 'schematic.getSheetInfo');
+    const selectorJson = JSON.stringify(selector);
     return `async () => {}`.replace(
       'async () => {}',
       `
       (async () => {
         ${this.runtimePrelude()}
+        const selector = ${selectorJson};
         const attempts = [];
         const asRecord = (value) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0 ? value : undefined;
         const asRecordArray = (value) => Array.isArray(value) ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : [];
+        const scopeError = (code, message, suggestion, data) => ({
+          __easyedaBridgeError: { code, message, suggestion, data },
+        });
         const tryCall = async (stage, paths, ...args) => {
           try {
             const value = await callFirst(paths, ...args);
@@ -531,14 +693,92 @@ export class CdpBridgeManager extends EventEmitter {
         if (!currentPage || pages.length === 0) {
           currentSchematic = asRecord(await tryCall('current_schematic', ['DMT_Schematic.getCurrentSchematicInfo','dmt_Schematic.getCurrentSchematicInfo']));
         }
+        const schematicPages = asRecordArray(currentSchematic?.page);
+        if (pages.length === 0 && schematicPages.length > 0) pages = schematicPages;
+
+        if (selector.scope === 'page') {
+          const diagnostics = {
+            stage: 'page_scope_resolution',
+            requestedScope: 'page',
+            requestedPageUuid: selector.pageUuid,
+            focusedPageUuid,
+            currentPageAvailable: Boolean(currentPage),
+            pageListAvailable: pages.length > 0,
+            focusedDocumentAvailable: Boolean(focusedDocument),
+            attempts,
+          };
+          if (pages.length === 0) {
+            return scopeError(
+              'PAGE_SCOPE_UNAVAILABLE',
+              'EasyEDA did not expose a schematic page list for the requested page scope.',
+              'Focus a schematic in the target project and retry after page metadata becomes available.',
+              {
+              requestedScope: 'page',
+              pageUuid: selector.pageUuid,
+              focusedPageUuid,
+              operation: 'schematic.getSheetInfo',
+              missingCapability: 'schematic-page-metadata',
+              diagnostics,
+              },
+            );
+          }
+          const listedPage = pages.find((page) => page.uuid === selector.pageUuid);
+          if (!listedPage) {
+            return scopeError(
+              'PAGE_NOT_FOUND',
+              'Requested schematic page was not found in the current project page list.',
+              'Refresh the schematic page list and use a page UUID returned by EasyEDA.',
+              {
+              requestedScope: 'page',
+              pageUuid: selector.pageUuid,
+              focusedPageUuid,
+              operation: 'schematic.getSheetInfo',
+              },
+            );
+          }
+          const directPageCandidate = asRecord(await tryCall('requested_page', ['DMT_Schematic.getSchematicPageInfo','dmt_Schematic.getSchematicPageInfo'], selector.pageUuid));
+          const directPage = directPageCandidate?.uuid === selector.pageUuid ? directPageCandidate : undefined;
+          return {
+            currentPage: directPage || listedPage,
+            pages,
+            source: directPage ? 'requested_page' : 'page_list',
+            focusedDocument,
+            diagnostics,
+          };
+        }
+
+        if (selector.scope === 'all_pages') {
+          const diagnostics = {
+            stage: 'all_pages_scope_resolution',
+            requestedScope: 'all_pages',
+            focusedPageUuid,
+            currentPageAvailable: Boolean(currentPage),
+            pageListAvailable: pages.length > 0,
+            focusedDocumentAvailable: Boolean(focusedDocument),
+            attempts,
+          };
+          if (pages.length === 0) {
+            return scopeError(
+              'PAGE_SCOPE_UNAVAILABLE',
+              'EasyEDA did not expose a schematic page list for all-pages scope.',
+              'Focus a schematic in the target project and retry after page metadata becomes available.',
+              {
+              requestedScope: 'all_pages',
+              focusedPageUuid,
+              operation: 'schematic.getSheetInfo',
+              missingCapability: 'schematic-page-metadata',
+              diagnostics,
+              },
+            );
+          }
+          if (!currentPage && focusedPageUuid) currentPage = pages.find((page) => page.uuid === focusedPageUuid);
+          return { currentPage, pages, source: currentPage ? source || 'page_list' : 'page_list', focusedDocument, diagnostics };
+        }
 
         if (!currentPage && focusedPageUuid) {
           currentPage = asRecord(await tryCall('focused_document_page', ['DMT_Schematic.getSchematicPageInfo','dmt_Schematic.getSchematicPageInfo'], focusedPageUuid));
           if (currentPage) source = 'focused_document';
         }
-
-        const schematicPages = asRecordArray(currentSchematic?.page);
-        if (pages.length === 0 && schematicPages.length > 0) pages = schematicPages;
         if (!currentPage && focusedPageUuid && pages.length > 0) {
           currentPage = pages.find((page) => page.uuid === focusedPageUuid);
           if (currentPage) source = 'focused_document';
@@ -556,10 +796,12 @@ export class CdpBridgeManager extends EventEmitter {
           attempts,
         };
         if (!currentPage) {
-          const error = new Error('EasyEDA did not expose metadata for the focused schematic page.');
-          error.code = 'SHEET_INFO_UNAVAILABLE';
-          error.data = diagnostics;
-          throw error;
+          return scopeError(
+            'SHEET_INFO_UNAVAILABLE',
+            'EasyEDA did not expose metadata for the focused schematic page.',
+            'Focus the schematic editor tab and retry.',
+            diagnostics,
+          );
         }
         return { currentPage, pages, source, focusedDocument, diagnostics };
       })()
@@ -568,7 +810,14 @@ export class CdpBridgeManager extends EventEmitter {
   }
 
   private componentListExpression(params?: unknown): string {
-    const allPages = (params as { allPages?: boolean } | undefined)?.allPages !== false;
+    const selector = resolveCdpSchematicReadSelector(params, 'schematic.listComponents');
+    const record = cdpParamsRecord(params);
+    const allPages =
+      selector.scope === 'focused'
+        ? false
+        : selector.scope === 'all_pages'
+          ? true
+          : record.allPages !== false;
     return `
       (async () => {
         ${this.runtimePrelude()}

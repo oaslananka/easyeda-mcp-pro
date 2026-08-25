@@ -105,6 +105,7 @@ describe('DRC/ERC Tools', () => {
     expect(bridgeCall).toHaveBeenCalledWith('design.erc', {
       projectId: 'proj-123',
       checks: undefined,
+      scope: 'focused',
     });
   });
 

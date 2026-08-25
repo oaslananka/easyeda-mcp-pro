@@ -1,6 +1,7 @@
 import type { ApiRuntime } from './api-runtime.js';
 import { normalizeValue } from './api-introspection.js';
 import { isRecord, logRecoverableError } from './utils.js';
+import { resolveSchematicReadSelector } from './schematic-read-scope.js';
 
 interface RawPrimitiveBBox {
   minX: number;
@@ -9,7 +10,12 @@ interface RawPrimitiveBBox {
   maxY: number;
 }
 
-type SheetInfoSource = 'current_page' | 'focused_document' | 'current_schematic_page_list';
+type SheetInfoSource =
+  | 'current_page'
+  | 'focused_document'
+  | 'current_schematic_page_list'
+  | 'requested_page'
+  | 'page_list';
 
 type SheetInfoAttempt = {
   stage: string;
@@ -27,7 +33,7 @@ export interface SchematicInspectionOperationDependencies {
 
 export interface SchematicInspectionOperations {
   primitiveBounds(primitiveIds: unknown): Promise<unknown>;
-  getSheetInfo(): Promise<unknown>;
+  getSheetInfo(params?: Record<string, unknown>): Promise<unknown>;
   listRectangles(): Promise<unknown>;
 }
 
@@ -198,7 +204,8 @@ export function createSchematicInspectionOperations({
     );
   }
 
-  async function getSheetInfo(): Promise<unknown> {
+  async function getSheetInfo(params: Record<string, unknown> = {}): Promise<unknown> {
+    const selector = resolveSchematicReadSelector(params, 'schematic.getSheetInfo');
     const attempts: SheetInfoAttempt[] = [];
     const initialCurrentPage = asNonEmptyRecord(
       await trySheetInfoCall(
@@ -221,12 +228,108 @@ export function createSchematicInspectionOperations({
       initialPages,
       attempts,
     );
+    const pages = mergeSchematicPages(initialPages, currentSchematic);
+
+    if (selector.scope === 'page') {
+      const pageUuid = selector.pageUuid as string;
+      const diagnostics = {
+        stage: 'page_scope_resolution',
+        requestedScope: 'page',
+        requestedPageUuid: pageUuid,
+        focusedPageUuid,
+        currentPageAvailable: Boolean(initialCurrentPage),
+        pageListAvailable: pages.length > 0,
+        focusedDocumentAvailable: Boolean(focusedDocument),
+        attempts,
+      };
+      if (!pages.length) {
+        throw createBridgeError(
+          'PAGE_SCOPE_UNAVAILABLE',
+          'EasyEDA did not expose a schematic page list for the requested page scope.',
+          'Focus a schematic in the target project and retry after page metadata becomes available.',
+          {
+            requestedScope: 'page',
+            pageUuid,
+            focusedPageUuid,
+            operation: 'schematic.getSheetInfo',
+            missingCapability: 'schematic-page-metadata',
+            diagnostics,
+          },
+        );
+      }
+      const listedPage = pages.find((page) => page.uuid === pageUuid);
+      if (!listedPage) {
+        throw createBridgeError(
+          'PAGE_NOT_FOUND',
+          `Schematic page "${pageUuid}" was not found in the current project page list.`,
+          'Refresh the schematic page list and use a page UUID returned by EasyEDA.',
+          {
+            requestedScope: 'page',
+            pageUuid,
+            focusedPageUuid,
+            operation: 'schematic.getSheetInfo',
+          },
+        );
+      }
+      const directPageCandidate = asNonEmptyRecord(
+        await trySheetInfoCall(
+          'requested_page',
+          ['DMT_Schematic.getSchematicPageInfo'],
+          attempts,
+          pageUuid,
+        ),
+      );
+      const directPage = directPageCandidate?.uuid === pageUuid ? directPageCandidate : undefined;
+      return {
+        currentPage: directPage ?? listedPage,
+        pages,
+        source: directPage ? 'requested_page' : 'page_list',
+        focusedDocument,
+        diagnostics,
+      };
+    }
+
+    if (selector.scope === 'all_pages') {
+      const diagnostics = {
+        stage: 'all_pages_scope_resolution',
+        requestedScope: 'all_pages',
+        focusedPageUuid,
+        currentPageAvailable: Boolean(initialCurrentPage),
+        pageListAvailable: pages.length > 0,
+        focusedDocumentAvailable: Boolean(focusedDocument),
+        attempts,
+      };
+      if (!pages.length) {
+        throw createBridgeError(
+          'PAGE_SCOPE_UNAVAILABLE',
+          'EasyEDA did not expose a schematic page list for all-pages scope.',
+          'Focus a schematic in the target project and retry after page metadata becomes available.',
+          {
+            requestedScope: 'all_pages',
+            focusedPageUuid,
+            operation: 'schematic.getSheetInfo',
+            missingCapability: 'schematic-page-metadata',
+            diagnostics,
+          },
+        );
+      }
+      const currentPage =
+        initialCurrentPage ??
+        (focusedPageUuid ? pages.find((page) => page.uuid === focusedPageUuid) : undefined);
+      return {
+        currentPage,
+        pages,
+        source: initialCurrentPage ? 'current_page' : 'page_list',
+        focusedDocument,
+        diagnostics,
+      };
+    }
+
     const focusedDocumentPage = await readFocusedDocumentPage(
       initialCurrentPage,
       focusedPageUuid,
       attempts,
     );
-    const pages = mergeSchematicPages(initialPages, currentSchematic);
     const resolution = resolveCurrentPage(
       initialCurrentPage,
       focusedDocumentPage,

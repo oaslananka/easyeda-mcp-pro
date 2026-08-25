@@ -1,6 +1,7 @@
 import type { ApiRuntime } from './api-runtime.js';
 import type { SchematicComponentInspectionOperations } from './schematic-component-inspection.js';
 import type { SchematicInspectionOperations } from './schematic-inspection.js';
+import { assertSchematicReadScopeSupported } from './schematic-read-scope.js';
 import type {
   SchematicPrimitiveSnapshotKind,
   SchematicTransactionOperations,
@@ -41,17 +42,17 @@ export interface ReadOnlyOperationsDependencies {
 }
 
 export interface ReadOnlyOperations {
-  listNets(): Promise<unknown>;
+  listNets(params?: Record<string, unknown>): Promise<unknown>;
   getNetDetail(params: Record<string, unknown>): Promise<unknown>;
   getPrimitiveSnapshot(params: Record<string, unknown>): Promise<unknown>;
   listPrimitiveIds(params: Record<string, unknown>): Promise<unknown>;
   listComponents(params: Record<string, unknown>): Promise<unknown>;
-  getSheetInfo(): Promise<unknown>;
+  getSheetInfo(params?: Record<string, unknown>): Promise<unknown>;
   primitiveBounds(params: Record<string, unknown>): Promise<unknown>;
   searchDevice(params: Record<string, unknown>): Promise<unknown>;
   listRectangles(): Promise<unknown>;
   getPinNoConnect(params: Record<string, unknown>): Promise<unknown>;
-  validateNetlist(): Promise<unknown>;
+  validateNetlist(params?: Record<string, unknown>): Promise<unknown>;
   getDeviceByLcscId(params: Record<string, unknown>): Promise<unknown>;
   generateBom(params: Record<string, unknown>): Promise<unknown>;
   validateBom(): Promise<unknown>;
@@ -182,11 +183,23 @@ export function createReadOnlyOperations(
   dependencies: ReadOnlyOperationsDependencies,
 ): ReadOnlyOperations {
   return {
-    async listNets() {
+    async listNets(params = {}) {
+      assertSchematicReadScopeSupported(
+        params,
+        ['focused'],
+        'schematic.listNets',
+        'page-aware-net-read',
+      );
       return dependencies.listNets();
     },
 
     async getNetDetail(params) {
+      assertSchematicReadScopeSupported(
+        params,
+        ['focused'],
+        'schematic.getNetDetail',
+        'page-aware-net-detail-read',
+      );
       return dependencies.getNetDetail(params.netName as string, params.operationTimeoutMs);
     },
 
@@ -202,15 +215,33 @@ export function createReadOnlyOperations(
     },
 
     async listComponents(params) {
+      const selector = assertSchematicReadScopeSupported(
+        params,
+        ['focused', 'all_pages'],
+        'schematic.listComponents',
+        'page-attributed-component-read',
+      );
+      const allPages =
+        selector.scope === 'focused'
+          ? false
+          : selector.scope === 'all_pages'
+            ? true
+            : params.allPages;
       return dependencies.schematicComponentInspection.listComponents(
         optionalNumber(params.limit),
         offsetNumber(params.offset),
-        params.allPages,
+        allPages,
       );
     },
 
-    async getSheetInfo() {
-      return dependencies.schematicInspection.getSheetInfo();
+    async getSheetInfo(params = {}) {
+      assertSchematicReadScopeSupported(
+        params,
+        ['focused', 'page', 'all_pages'],
+        'schematic.getSheetInfo',
+        'schematic-page-metadata',
+      );
+      return dependencies.schematicInspection.getSheetInfo(params);
     },
 
     async primitiveBounds(params) {
@@ -237,7 +268,13 @@ export function createReadOnlyOperations(
       return dependencies.getPinNoConnect(params.primitiveId as string, params.pinNumber as string);
     },
 
-    async validateNetlist() {
+    async validateNetlist(params = {}) {
+      assertSchematicReadScopeSupported(
+        params,
+        ['focused'],
+        'schematic.validateNetlist',
+        'project-wide-complete-netlist-validation',
+      );
       return validateNetlist(dependencies);
     },
 
