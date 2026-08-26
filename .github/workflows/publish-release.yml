@@ -26,6 +26,11 @@ on:
         description: 'Public issue or PR with release verification, soak, and rollback evidence'
         required: true
         type: string
+      emergency_soak_override:
+        description: 'Emergency stable patch only: waive the normal soak; evidence must justify the incident and rollback plan'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -107,6 +112,7 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write # Create releases and upload immutable assets.
+      actions: read # Verify the exact RC publication run that starts the soak clock.
       id-token: write # npm Trusted Publishing, attestations, and MCP Registry OIDC.
       attestations: write # Publish build provenance.
       packages: write # Publish exact and channel-safe GHCR tags.
@@ -147,6 +153,10 @@ jobs:
           else
             git cat-file -e "${TARGET_REF}^{commit}"
           fi
+          if ! git merge-base --is-ancestor "${TARGET_REF}^{commit}" HEAD; then
+            echo "Publication target ${TARGET_REF} is not an ancestor of the current main policy checkout." >&2
+            exit 1
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -162,6 +172,13 @@ jobs:
 
       - name: Verify runtime pin parity
         run: node scripts/check-runtime-pins.mjs
+      - name: Verify stable release soak
+        env:
+          RELEASE_SOAK_MODE: publish
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          EMERGENCY_SOAK_OVERRIDE: ${{ inputs.emergency_soak_override }}
+        run: node scripts/release-soak-policy.mjs
       - name: Verify commit-bound EasyEDA compatibility evidence
         run: node scripts/check-release-readiness.mjs --compatibility-only --target-ref="${TARGET_REF}"
 

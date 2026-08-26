@@ -54,11 +54,15 @@ Evidence must identify the exact EasyEDA Pro version and operating system, the e
 
 ## Release-blocking automation
 
+Stable promotion timing is executable policy, not a checklist-only decision. `scripts/release-soak-policy.mjs` runs in the required PR quality job for major/minor stable promotions and again in **Publish Release** before compatibility or publication mutations. It derives an RC soak start only from a `Publish Release` workflow-dispatch run for the exact final-candidate commit whose **Gate and publish immutable release** job actually succeeded, enforces 72-hour/7-day boundaries, rejects post-candidate runtime or dependency changes that are not release-managed version promotion, and enforces an RC-free patch's 24-hour clock from the stable release commit after it reaches `main`.
+
+A normal push cannot bypass this gate. The only automation-level waiver is the explicit `emergency_soak_override` input on a manual stable **patch** dispatch; it requires the repository evidence URL and is valid only under the Emergency patch criteria below. The override waives time, not the remaining quality, compatibility, live-validation, provenance, or published-release verification gates.
+
 Every stable and prerelease publication reruns the supported Node.js/pnpm preflight, dependency audit and peer checks, formatting, server and extension typechecks, lint, tool metadata/coverage validation, server tests and coverage, extension tests and coverage, generated-tool documentation drift checks, documentation build, server/extension builds, extension distribution verification, and extension size budgets.
 
 The workflow then produces the CycloneDX SBOM, GitHub build attestations, and a tag-bound portable Sigstore bundle and in-toto provenance asset, verifies the GitHub Release channel, publishes npm with provenance to the channel-specific dist-tag, uploads the extension, SBOM, `<tag>.provenance.sigstore.json`, and `<tag>.intoto.jsonl`, and publishes channel-safe GHCR tags. MCP Registry publication runs only for stable releases.
 
-A failed required step blocks publication. A transient rerun is allowed only when the source tag and evidence are unchanged; otherwise publish a new candidate or patch version.
+A failed required step blocks publication. A transient rerun is allowed only when the source tag and evidence are unchanged **and the original workflow run already contained every currently mandatory release gate**; otherwise publish a new candidate or patch version. If a mandatory gate was added after an earlier failed run, maintainers **must not re-run a pre-gate workflow attempt**. Use the current workflow definition from `main` against the exact audited source and public evidence through the documented missing stable release identity recovery path. Recovery never waives the applicable soak or any current executable gate.
 
 ## Stable release procedure
 
