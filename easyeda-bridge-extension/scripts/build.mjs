@@ -44,6 +44,10 @@ await build({
   ...commonOptions,
   entryPoints: [join(root, 'src', 'dispatcher-entry.ts')],
   outfile: join(distDir, 'dispatcher.js'),
+  // Keep the developer hot-swap artifact within its byte budget without
+  // minifying identifiers or whitespace. The production index.js build below
+  // remains unchanged.
+  minifySyntax: true,
 });
 
 // Content-addressed build id: hash the placeholder-built bundle, then stamp it.

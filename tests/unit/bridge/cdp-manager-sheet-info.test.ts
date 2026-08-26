@@ -1,65 +1,100 @@
 import vm from 'node:vm';
-import { describe, expect, it } from 'vitest';
-import { EnvSchema } from '../../../src/config/env.js';
+import { describe, expect, it, vi } from 'vitest';
 import { CdpBridgeManager } from '../../../src/bridge/cdp-manager.js';
+import { EnvSchema } from '../../../src/config/env.js';
 
-function sheetInfoExpression(): string {
-  const config = EnvSchema.parse({ NODE_ENV: 'test' });
-  const manager = new CdpBridgeManager(config);
-  return (manager as unknown as { sheetInfoExpression(): string }).sheetInfoExpression();
+function sheetInfoExpression(params: Record<string, unknown>): string {
+  const manager = new CdpBridgeManager(EnvSchema.parse({ NODE_ENV: 'test' }));
+  return (
+    manager as unknown as {
+      sheetInfoExpression(params?: Record<string, unknown>): string;
+    }
+  ).sheetInfoExpression(params);
 }
 
-describe('CdpBridgeManager sheet info fallback', () => {
-  it('resolves a focused schematic page through DMT_SelectControl', async () => {
-    const page = {
-      uuid: 'page-1',
-      name: 'Sheet 1',
-      parentSchematicUuid: 'sch-1',
-      showTitleBlock: true,
-      titleBlockData: {},
-    };
+describe('CdpBridgeManager sheet scope', () => {
+  it('selects a non-focused page with DMT metadata and never emits focus-changing APIs', async () => {
+    const focusedPage = { uuid: 'page-1', name: 'Main' };
+    const listedTarget = { uuid: 'page-2', name: 'Power' };
+    const detailedTarget = { uuid: 'page-2', name: 'Power', width: 420 };
+    const getSchematicPageInfo = vi.fn(async (uuid: string) =>
+      uuid === 'page-2' ? detailedTarget : undefined,
+    );
+    const expression = sheetInfoExpression({ pageUuid: 'page-2' });
+    expect(expression).not.toMatch(/openDocument|activateDocument/);
+
     const context = vm.createContext({
       eda: {
-        DMT_SelectControl: {
-          getCurrentDocumentInfo: async () => ({ uuid: 'page-1', tabId: 'tab-1' }),
-        },
         DMT_Schematic: {
-          getCurrentSchematicPageInfo: async () => null,
-          getCurrentSchematicAllSchematicPagesInfo: async () => [],
-          getAllSchematicPagesInfo: async () => [],
-          getCurrentSchematicInfo: async () => ({ uuid: 'sch-1', page: [page] }),
-          getSchematicPageInfo: async (uuid: string) => (uuid === 'page-1' ? page : undefined),
+          getCurrentSchematicPageInfo: async () => focusedPage,
+          getCurrentSchematicAllSchematicPagesInfo: async () => [focusedPage, listedTarget],
+          getSchematicPageInfo,
+        },
+        DMT_SelectControl: {
+          getCurrentDocumentInfo: async () => ({ uuid: 'page-1', documentType: 'schematic' }),
         },
       },
     });
 
-    const result = await vm.runInContext(sheetInfoExpression(), context);
+    await expect(vm.runInContext(expression, context)).resolves.toMatchObject({
+      currentPage: detailedTarget,
+      pages: [focusedPage, listedTarget],
+      source: 'requested_page',
+      focusedDocument: { uuid: 'page-1', documentType: 'schematic' },
+      diagnostics: {
+        stage: 'page_scope_resolution',
+        requestedScope: 'page',
+        requestedPageUuid: 'page-2',
+        focusedPageUuid: 'page-1',
+      },
+    });
+    expect(getSchematicPageInfo).toHaveBeenCalledWith('page-2');
+  });
 
-    expect(result).toMatchObject({
-      currentPage: page,
-      pages: [page],
-      source: 'focused_document',
-      focusedDocument: { uuid: 'page-1', tabId: 'tab-1' },
-      diagnostics: { currentPageAvailable: true, pageListAvailable: true },
+  it('falls back to verified page-list metadata when direct page UUID mismatches', async () => {
+    const listedTarget = { uuid: 'page-2', name: 'Power' };
+    const expression = sheetInfoExpression({ pageUuid: 'page-2' });
+    const context = vm.createContext({
+      eda: {
+        DMT_Schematic: {
+          getCurrentSchematicPageInfo: async () => ({ uuid: 'page-1' }),
+          getCurrentSchematicAllSchematicPagesInfo: async () => [{ uuid: 'page-1' }, listedTarget],
+          getSchematicPageInfo: async () => ({ uuid: 'page-3', width: 999 }),
+        },
+        DMT_SelectControl: { getCurrentDocumentInfo: async () => ({ uuid: 'page-1' }) },
+      },
+    });
+
+    await expect(vm.runInContext(expression, context)).resolves.toMatchObject({
+      currentPage: listedTarget,
+      source: 'page_list',
     });
   });
 
-  it('rejects empty focused-sheet metadata instead of returning a valid empty object', async () => {
+  it('rejects an unknown page before the direct DMT page lookup', async () => {
+    const getSchematicPageInfo = vi.fn(async () => ({ uuid: 'unexpected' }));
+    const expression = sheetInfoExpression({ pageUuid: 'missing' });
     const context = vm.createContext({
       eda: {
-        DMT_SelectControl: { getCurrentDocumentInfo: async () => undefined },
         DMT_Schematic: {
-          getCurrentSchematicPageInfo: async () => null,
-          getCurrentSchematicAllSchematicPagesInfo: async () => [],
-          getAllSchematicPagesInfo: async () => [],
-          getCurrentSchematicInfo: async () => undefined,
+          getCurrentSchematicPageInfo: async () => ({ uuid: 'page-1' }),
+          getCurrentSchematicAllSchematicPagesInfo: async () => [
+            { uuid: 'page-1' },
+            { uuid: 'page-2' },
+          ],
+          getSchematicPageInfo,
         },
+        DMT_SelectControl: { getCurrentDocumentInfo: async () => ({ uuid: 'page-1' }) },
       },
     });
 
-    await expect(vm.runInContext(sheetInfoExpression(), context)).rejects.toMatchObject({
-      code: 'SHEET_INFO_UNAVAILABLE',
-      data: { stage: 'focused_sheet_resolution', currentPageAvailable: false },
+    await expect(vm.runInContext(expression, context)).resolves.toMatchObject({
+      __easyedaBridgeError: {
+        code: 'PAGE_NOT_FOUND',
+        suggestion: expect.any(String),
+        data: expect.objectContaining({ pageUuid: 'missing' }),
+      },
     });
+    expect(getSchematicPageInfo).not.toHaveBeenCalled();
   });
 });
