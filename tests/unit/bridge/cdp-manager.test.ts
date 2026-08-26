@@ -409,6 +409,70 @@ describe('CdpBridgeManager transport lifecycle', () => {
     });
   });
 
+  it('covers malformed CDP selector shapes and optional scope diagnostics', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+
+    await expect(manager.call('schematic.getSheetInfo', null)).resolves.toMatchObject({
+      appVersion: '2.2.39',
+    });
+    await expect(
+      manager.call('schematic.getSheetInfo', { scope: 'invalid-scope' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_CONFLICT',
+      data: expect.objectContaining({ requestedScope: 'invalid-scope' }),
+    });
+    await expect(
+      manager.call('schematic.getSheetInfo', { scope: 'focused', pageUuid: '   ' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_UUID_REQUIRED',
+      data: expect.objectContaining({ requestedScope: 'focused' }),
+    });
+    await expect(manager.call('schematic.listNets', { scope: 'all_pages' })).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNSUPPORTED',
+      data: expect.not.objectContaining({ pageUuid: expect.anything() }),
+    });
+  });
+
+  it('preserves primitive CDP sheet results and minimal unstructured error envelopes', async () => {
+    const primitiveHarness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution') ? 'legacy-sheet-result' : undefined,
+    });
+    activeHarnesses.add(primitiveHarness);
+    const primitiveManager = await connectedManager(primitiveHarness);
+    await expect(primitiveManager.call('schematic.getSheetInfo', {})).resolves.toBe(
+      'legacy-sheet-result',
+    );
+
+    const errorHarness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution')
+          ? { __easyedaBridgeError: { message: 'sheet metadata failed' } }
+          : undefined,
+    });
+    activeHarnesses.add(errorHarness);
+    const errorManager = await connectedManager(errorHarness);
+    await expect(errorManager.call('schematic.getSheetInfo', {})).rejects.toMatchObject({
+      message: expect.stringContaining('sheet metadata failed'),
+    });
+  });
+
+  it('normalizes non-Error CDP dispatch failures without inventing structured fields', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+    Object.defineProperty(manager, 'dispatchMethod', {
+      value: vi.fn().mockRejectedValue('raw CDP dispatch failure'),
+    });
+
+    await expect(manager.call('api.call', {})).rejects.toMatchObject({
+      message: expect.stringContaining('raw CDP dispatch failure'),
+      cause: 'raw CDP dispatch failure',
+    });
+  });
+
   it('rejects unsupported schematic scopes before issuing Runtime.evaluate', async () => {
     const harness = await createHarness();
     activeHarnesses.add(harness);

@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { createDispatcherDomainRouter } from '../src/dispatcher-domain-router.js';
+import {
+  assertSchematicReadScopeSupported,
+  resolveSchematicReadSelector,
+} from '../src/schematic-read-scope.js';
 
 function createDependencies() {
   return {
@@ -490,6 +494,33 @@ describe('createDispatcherDomainRouter', () => {
       handled: true,
       value: { method: 'vias', limit: undefined, offset: 3 },
     });
+  });
+
+  it('normalizes direct schematic selector edge cases consistently', () => {
+    expect(() =>
+      resolveSchematicReadSelector({ scope: 'invalid-scope' }, 'schematic.getSheetInfo'),
+    ).toThrowError(
+      expect.objectContaining({
+        code: 'PAGE_SCOPE_CONFLICT',
+        data: expect.objectContaining({ requestedScope: 'invalid-scope' }),
+      }),
+    );
+    expect(() =>
+      resolveSchematicReadSelector({ scope: 'focused', pageUuid: '   ' }, 'schematic.getSheetInfo'),
+    ).toThrowError(
+      expect.objectContaining({
+        code: 'PAGE_UUID_REQUIRED',
+        data: expect.objectContaining({ requestedScope: 'focused' }),
+      }),
+    );
+    expect(
+      assertSchematicReadScopeSupported(
+        undefined,
+        ['focused'],
+        'schematic.listNets',
+        'page-aware-net-read',
+      ),
+    ).toEqual({});
   });
 
   it('rejects contradictory schematic selectors before route handlers', async () => {

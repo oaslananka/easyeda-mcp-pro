@@ -280,6 +280,35 @@ describe('schematic inspection operations', () => {
     });
   });
 
+  it('keeps all-pages source on the current page when current metadata is available', async () => {
+    const currentPage = { uuid: 'page-1', name: 'Main' };
+    const pages = [currentPage, { uuid: 'page-2', name: 'Power' }];
+    const { operations } = makeOperations({
+      'DMT_Schematic.getCurrentSchematicPageInfo': async () => currentPage,
+      'DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo': async () => pages,
+      'DMT_SelectControl.getCurrentDocumentInfo': async () => ({ uuid: 'page-1' }),
+    });
+
+    await expect(operations.getSheetInfo({ scope: 'all_pages' })).resolves.toMatchObject({
+      currentPage,
+      pages,
+      source: 'current_page',
+    });
+  });
+
+  it('returns all-pages metadata without inventing current-page identity when focus is unavailable', async () => {
+    const pages = [{ uuid: 'page-2', name: 'Power' }];
+    const { operations } = makeOperations({
+      'DMT_Schematic.getCurrentSchematicPageInfo': async () => null,
+      'DMT_Schematic.getCurrentSchematicAllSchematicPagesInfo': async () => pages,
+      'DMT_SelectControl.getCurrentDocumentInfo': async () => null,
+    });
+
+    const result = await operations.getSheetInfo({ scope: 'all_pages' });
+    expect(result).toMatchObject({ pages, source: 'page_list' });
+    expect((result as { currentPage?: unknown }).currentPage).toBeUndefined();
+  });
+
   it('recovers a focused page through the direct UUID lookup', async () => {
     const page = { uuid: 'focused-page', name: 'Recovered' };
     const { operations, callFirst } = makeOperations({
