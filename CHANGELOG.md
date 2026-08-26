@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0-rc.7] - 2026-08-27
+
+### Release candidate
+
+- Supersedes RC.6 because candidate-sensitive runtime work landed after the immutable RC.6 publication: fail-closed page-scoped schematic reads (#526 / #539) and the behavior-preserving PCB read/write maintainability refactor plus rollback/input regression coverage (#544). A fresh seven-day major-release soak starts only after RC.7 is published and its exact artifacts are independently verified.
+- Adds explicit `pageUuid` / `scope: focused | page | all_pages` selection for supported schematic reads while preserving selector-free legacy behavior, never switching the user's active EasyEDA document, and failing closed for unsupported or contradictory scope requests (#526 / #539).
+- Clears the remaining Sonar new-code maintainability findings in the PCB read/write surface without relaxing Sonar, Codecov, lint, complexity, or security gates; added resilience coverage preserves explicit-confirmation, transaction rollback, read-back verification, and fail-closed behavior (#544).
+- Records that the earlier version-only `1.0.0` Release Please source PR merged before stable publication, but no `easyeda-mcp-pro-v1.0.0` tag/release or stable registry/channel was created; stable npm `latest`, GHCR `latest`, and MCP Registry remain on `0.35.4`.
+- Requires fresh EasyEDA Pro 3.2.149 live compatibility evidence for the RC.7 exact runtime tree, with page-scoped schematic reads and affected PCB transaction/read paths explicitly covered where the disposable fixture supports them.
+- Uses EasyEDA numeric install version `0.99.7` while preserving `1.0.0-rc.7` as the server and extension runtime product version.
+- Keeps #470, #476, and #480 outside the RC.7 stabilization payload so unrelated runtime/research work cannot reset the candidate soak.
+
 ## [1.0.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.0.0-rc.6...easyeda-mcp-pro-v1.0.0) (2026-08-25)
 
 
