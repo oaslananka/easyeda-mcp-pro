@@ -689,7 +689,7 @@ describe('PCB Write Tools', () => {
 
   it('easyeda_pcb_modify_component fails closed when the component cannot be read back', async () => {
     const tool = registry.get('easyeda_pcb_modify_component');
-    bridgeCall.mockResolvedValue({ total: 0, items: [] });
+    bridgeCall.mockResolvedValue({ total: 0 });
 
     const result = await tool?.handler(context, {
       primitiveId: 'missing',
@@ -743,6 +743,82 @@ describe('PCB Write Tools', () => {
       },
     });
     expect(result?.error).toContain('connection lost after native write');
+  });
+
+  it('easyeda_pcb_modify_component retries rollback when automatic compensation cannot be verified', async () => {
+    const tool = registry.get('easyeda_pcb_modify_component');
+    let state = { primitiveId: 'comp-1', x: 10, y: 20, rotation: 0, layer: 1, locked: false };
+    let modifyCount = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'pcb.listComponents') return { total: 1, items: [{ ...state }] };
+      if (method === 'pcb.modifyComponent') {
+        modifyCount += 1;
+        if (modifyCount === 1) {
+          state = { ...state, ...params.property };
+          throw new Error('connection lost after native write');
+        }
+        if (modifyCount === 2) throw new Error('automatic compensation unavailable');
+        state = { ...state, ...params.property };
+        return { primitiveId: state.primitiveId };
+      }
+      throw new Error(`unexpected method ${method}`);
+    });
+
+    const result = await tool?.handler(context, {
+      primitiveId: 'comp-1',
+      mode: 'apply',
+      side: 'bottom',
+      xMil: 15,
+      confirmWrite: true,
+    });
+
+    expect(modifyCount).toBe(3);
+    expect(state).toMatchObject({ layer: 1, x: 10, y: 20, rotation: 0, locked: false });
+    expect(result).toMatchObject({
+      success: false,
+      applied: false,
+      rolled_back: true,
+      transaction_state: 'rolled-back',
+      restored: { side: 'top', layer: 1, xMil: 10, yMil: 20, rotationDeg: 0, locked: false },
+    });
+    expect(result?.error).toContain('connection lost after native write');
+  });
+
+  it('easyeda_pcb_modify_component reports fail-closed state when explicit rollback also fails', async () => {
+    const tool = registry.get('easyeda_pcb_modify_component');
+    let state = { primitiveId: 'comp-1', x: 10, y: 20, rotation: 0, layer: 1, locked: false };
+    let modifyCount = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'pcb.listComponents') return { total: 1, items: [{ ...state }] };
+      if (method === 'pcb.modifyComponent') {
+        modifyCount += 1;
+        if (modifyCount === 1) {
+          state = { ...state, ...params.property };
+          throw new Error('connection lost after native write');
+        }
+        throw new Error('rollback transport unavailable');
+      }
+      throw new Error(`unexpected method ${method}`);
+    });
+
+    const result = await tool?.handler(context, {
+      primitiveId: 'comp-1',
+      mode: 'apply',
+      side: 'bottom',
+      xMil: 15,
+      confirmWrite: true,
+    });
+
+    expect(modifyCount).toBe(3);
+    expect(state).toMatchObject({ layer: 2, x: 15, y: 20, rotation: 0, locked: false });
+    expect(result).toMatchObject({
+      success: false,
+      applied: false,
+      rolled_back: false,
+      transaction_state: 'failed',
+    });
+    expect(result?.error).toContain('connection lost after native write');
+    expect(result?.error).toContain('rollback failed');
   });
 
   it('easyeda_pcb_modify_component rolls back when native success cannot be proven by read-back', async () => {
