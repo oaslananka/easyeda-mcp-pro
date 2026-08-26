@@ -28,7 +28,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_component_probe`                          | `dev`   | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                                             |
 | `easyeda_design_rules_lookup`                      | `core`  | `low`    | Look up generic engineering reference guidance: IPC-2221 trace-width/current-capacity, clearance bands, protocol routing data (USB/RS-485/I2C/SPI/UART/Ethernet), decoupling recipes and bulk capacitance sizing, and a static DFM checklist. Every result cites a source and caveat: these are estimates, not certified values. |
 | `easyeda_drc_run`                                  | `core`  | `medium` | Run EasyEDA Pro's native PCB DRC and refresh its visible DRC panel. Requires a PCB document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Returns coarse severity counts; per-violation detail stays in EasyEDA Pro.                                                    |
-| `easyeda_erc_run`                                  | `core`  | `medium` | Run EasyEDA Pro's native schematic ERC and supplement coarse counts with inferred_floating_pins. Requires a schematic document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Native counts remain authoritative.                                                        |
+| `easyeda_erc_run`                                  | `core`  | `medium` | Run native schematic ERC and supplement aggregate counts with inferred_floating_pins. Requires a focused schematic. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. Native counts remain authoritative; unavailable focus returns not_available.                                               |
 | `easyeda_export_gerbers`                           | `core`  | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                           |
 | `easyeda_export_netlist`                           | `pro`   | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                          |
 | `easyeda_export_pdf`                               | `pro`   | `low`    | Export the schematic and/or board layout to PDF.                                                                                                                                                                                                                                                                                 |
@@ -85,7 +85,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_check_collisions`               | `core`  | `low`    | Scan every component's real pin coordinates and report any (x,y) shared by two or more components — a silent-short risk the native NET_COLLISION guard misses for never-wired pins. Run after manual placement outside easyeda_workflow_* tools (which reconcile this automatically).                                            |
 | `easyeda_schematic_check_placement`                | `pro`   | `low`    | Validate a candidate placement (rendered bounds, clearances, conflicts, deterministic alternatives) or -- when x/y are omitted -- search for a safe region of the given size, against real title-block/page-border/existing-primitive constraints. Read-only, no writes.                                                         |
 | `easyeda_schematic_component_pins`                 | `core`  | `low`    | Get exact pin primitive IDs, numbers, names, coordinates, native no-connect state, and pinType for a schematic component by its primitive ID. pinType is EasyEDA's own symbol-library field and is unreliably authored (often "Undefined" even on real ICs) — treat it as a weak hint, not ground truth.                         |
-| `easyeda_schematic_components`                     | `core`  | `low`    | List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and project-instance deviceUuid/deviceLibraryUuid read-back metadata. Those IDs are not valid place_component deviceItem values; use schematic_search_device for placement.                                                                   |
+| `easyeda_schematic_components`                     | `core`  | `low`    | List schematic components with IDs, references, values, footprints, placement, and project-instance device IDs. Omitted scope preserves legacy all-pages; focused/all_pages are supported, pageUuid is not. Project-instance device IDs are not valid place_component deviceItem values; use schematic_search_device.            |
 | `easyeda_schematic_connect_pin_to_net`             | `core`  | `medium` | Create real EasyEDA connectivity for a pin: draws a short wire stub from its exact coordinate, tagged with netName. Same-netName wires merge globally, so this joins the pin to everything else on that net — visible to ERC, ratsnest, and autorouting.                                                                         |
 | `easyeda_schematic_connect_pins_by_net`            | `core`  | `medium` | Bulk variant of connect_pin_to_net: draws a real wire stub from each pin, tagged with netName, so all listed pins (and anything else already on that net) merge into one net. Visible to ERC, ratsnest, and autorouting. A pin that fails (e.g. collision) is reported in failures rather than aborting the batch.               |
 | `easyeda_schematic_connectivity_fingerprint`       | `pro`   | `low`    | Compute a deterministic connectivity fingerprint (pin/net membership, wire endpoints, labels/ports, no-connects) from the live schematic. Pass the hash as beforeFingerprint/afterFingerprint to easyeda_schematic_layout_qa to prove a cosmetic move left connectivity unchanged.                                               |
@@ -96,8 +96,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_layout_autofix_apply`           | `pro`   | `high`   | Apply the layout-autofix cosmetic moves in a snapshot-backed transaction, re-verifying a connectivity fingerprint after every write batch. Any unintended electrical change or write failure rolls the transaction back and is reported, never thrown. dryRun:true previews only.                                                |
 | `easyeda_schematic_layout_qa`                      | `pro`   | `low`    | Run a normalized post-write QA pass combining runtime DRC/ERC, expected component/pin topology, rendered primitive bounds, title-block and page constraints, wiring/grouping checks, and connectivity fingerprints, with optional full-page visual evidence. Critical geometry or connectivity findings always block commit.     |
 | `easyeda_schematic_modify_primitive`               | `core`  | `medium` | Safely modify a schematic primitive while preserving omitted fields. With transactionId and projectId, capture before/after snapshots and automatically restore the prior state if the write or post-write read fails. Component moves keep connected wires attached.                                                            |
-| `easyeda_schematic_net_detail`                     | `core`  | `low`    | Get full details for a specific net in the schematic including all connected pins and components.                                                                                                                                                                                                                                |
-| `easyeda_schematic_nets`                           | `core`  | `low`    | List all nets in the schematic with their node connections.                                                                                                                                                                                                                                                                      |
+| `easyeda_schematic_net_detail`                     | `core`  | `low`    | Get full details for a specific net in the current schematic context including connected pins and components. Explicit focused scope is supported; page/all_pages scopes fail closed on EasyEDA Pro 3.2.149.                                                                                                                     |
+| `easyeda_schematic_nets`                           | `core`  | `low`    | List nets from the current schematic context. Explicit focused scope is supported; page/all_pages scopes fail closed on EasyEDA Pro 3.2.149.                                                                                                                                                                                     |
 | `easyeda_schematic_place_component`                | `core`  | `medium` | Place a searched library device on the active schematic. Use deviceItem from schematic_search_device; project-local identities from schematic_components are invalid. On timeout inspect reconciled/unconfirmed before retrying. projectId + transactionId enables rollback; without transactionId the write is standalone.      |
 | `easyeda_schematic_plan_layout`                    | `pro`   | `low`    | Deterministically plan functional-block placement (reserved rectangles, support space, grid-aligned coordinates, occupancy map, A3 fallback, score) from real sheet/primitive geometry -- no writes. Caller supplies roles/blockId/parentId; other primitives read as occupied regions, never overwritten.                       |
 | `easyeda_schematic_plan_safe_region`               | `core`  | `low`    | Compute a safe schematic drawing region before placing components. Uses live sheet info when available, assumes EasyEDA bottom-left coordinates, reserves the default lower-right title-block keep-out, and returns an anchor/bounds plan that avoids title-block overlap.                                                       |
@@ -106,11 +106,11 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_search_device`                  | `core`  | `low`    | Search for schematic symbols/devices in the EasyEDA library by keywords. Full results carry the library's complete metadata object per device; pass minimal:true to get back only uuid/libraryUuid/name/pin_count/symbol_type when that is all you need.                                                                         |
 | `easyeda_schematic_set_pin_no_connect`             | `core`  | `medium` | Set or clear EasyEDA Pro's native No Connect marker on one exact component pin. This changes the component pin noConnected state; it does not create a net, label, power flag, or short-circuit flag. The bridge rejects missing/ambiguous pins and verifies the native readback after the write.                                |
 | `easyeda_schematic_set_title_block`                | `core`  | `medium` | Update schematic title block text fields (Company, Version, Drawn, Reviewed, Page Size). Only these 5 are exposed — writing Symbol/Border/Device/etc once corrupted a real title block; those are read-only natively and must be fixed via the EasyEDA Pro UI.                                                                   |
-| `easyeda_schematic_sheet_info`                     | `core`  | `low`    | Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.                                                                                                                                                                                               |
+| `easyeda_schematic_sheet_info`                     | `core`  | `low`    | Return read-only schematic sheet metadata. Supports focused, pageUuid/page, and all_pages page-list reads without changing EasyEDA focus; aggregate geometry is never invented.                                                                                                                                                  |
 | `easyeda_schematic_sync_to_pcb`                    | `core`  | `medium` | Request a schematic-to-PCB sync (SCH_Document.importChanges). CAUTION (live-verified): opens a confirmation dialog in EasyEDA Pro's UI a HUMAN must approve — success here only means the request was sent, not that components appeared. Ask the user to approve the dialog, then verify with pcb_components.                   |
-| `easyeda_schematic_validate_netlist`               | `core`  | `low`    | Validate inferred nets and floating pins, then cross-check native ERC. A pin is excluded from floating inference only when native noConnected readback is boolean true; unavailable or malformed state stays visible. `valid` requires clean inference and zero native errors.                                                   |
+| `easyeda_schematic_validate_netlist`               | `core`  | `low`    | Validate inferred nets/floating pins and cross-check native ERC. Only native noConnected=true excludes a pin; unavailable/malformed state stays visible. `valid` requires clean inference and zero native errors. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149.                              |
 | `easyeda_schematic_verify_write`                   | `core`  | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                               |
-| `easyeda_schematic_wires`                          | `core`  | `low`    | List wire segments: primitiveId, line coordinates, net name, color, style. Page with offset (check total) past the 50-wire-per-call cap. primitiveId is required by delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.                                                                           |
+| `easyeda_schematic_wires`                          | `core`  | `low`    | List wire segments with primitiveId, coordinates, net, color, and style; paginate past 50 with offset. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. primitiveId is required by delete_primitive/modify_primitive.                                                                           |
 | `easyeda_semantic_erc_auto`                        | `core`  | `low`    | Extract nets/devices/pins from the LIVE schematic and run semantic ERC — no hand-authored netlist needed. Net/pin electrical types are INFERRED from naming conventions, not verified — treat findings as a first-pass signal, not a substitute for semantic_erc_validate.                                                       |
 | `easyeda_semantic_erc_validate`                    | `core`  | `medium` | Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.                                                                                                           |
 | `easyeda_simulate_operating_point`                 | `pro`   | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                          |
@@ -798,14 +798,16 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Run EasyEDA Pro's native schematic ERC and supplement coarse counts with inferred_floating_pins. Requires a schematic document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Native counts remain authoritative.
+> Run native schematic ERC and supplement aggregate counts with inferred_floating_pins. Requires a focused schematic. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. Native counts remain authoritative; unavailable focus returns not_available.
 
 ### Input Parameters
 
-| Parameter   | Type                  | Required | Description |
-| ----------- | --------------------- | -------- | ----------- |
-| `projectId` | `string`              | Yes      |             |
-| `checks`    | `string[] (optional)` | No       |             |
+| Parameter   | Type                                                | Required | Description |
+| ----------- | --------------------------------------------------- | -------- | ----------- |
+| `projectId` | `string`                                            | Yes      |             |
+| `checks`    | `string[] (optional)`                               | No       |             |
+| `pageUuid`  | `string (optional)`                                 | No       |             |
+| `scope`     | `'focused'` \| `'page'` \| `'all_pages' (optional)` | No       |             |
 
 ### Output Format
 
@@ -821,7 +823,10 @@ Returns a JSON object matching the schema:
   passed: boolean | null;
   inferred_floating_pins: object[] (optional);
   detail_source: 'inferred_partial' | 'native_aggregate_only' (optional);
+  read_scope: object (optional);
   not_available: boolean (optional);
+  error_code: string (optional);
+  error_data: object (optional);
   error: string (optional);
 }
 ```
@@ -2719,15 +2724,17 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> List schematic components: primitiveId, reference, value, footprint, x/y/rotation, and project-instance deviceUuid/deviceLibraryUuid read-back metadata. Those IDs are not valid place_component deviceItem values; use schematic_search_device for placement.
+> List schematic components with IDs, references, values, footprints, placement, and project-instance device IDs. Omitted scope preserves legacy all-pages; focused/all_pages are supported, pageUuid is not. Project-instance device IDs are not valid place_component deviceItem values; use schematic_search_device.
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description              |
-| ----------- | -------- | -------- | ------------------------ |
-| `projectId` | `string` | Yes      | The project/schematic ID |
-| `limit`     | `number` | Yes      |                          |
-| `offset`    | `number` | Yes      |                          |
+| Parameter   | Type                                                | Required | Description              |
+| ----------- | --------------------------------------------------- | -------- | ------------------------ |
+| `projectId` | `string`                                            | Yes      | The project/schematic ID |
+| `limit`     | `number`                                            | Yes      |                          |
+| `offset`    | `number`                                            | Yes      |                          |
+| `pageUuid`  | `string (optional)`                                 | No       |                          |
+| `scope`     | `'focused'` \| `'page'` \| `'all_pages' (optional)` | No       |                          |
 
 ### Output Format
 
@@ -2739,7 +2746,10 @@ Returns a JSON object matching the schema:
   components: object[];
   total: number;
   read_consistency: object (optional);
+  read_scope: object (optional);
   not_available: boolean (optional);
+  error_code: string (optional);
+  error_data: object (optional);
   error: string (optional);
 }
 ```
@@ -3105,14 +3115,16 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Get full details for a specific net in the schematic including all connected pins and components.
+> Get full details for a specific net in the current schematic context including connected pins and components. Explicit focused scope is supported; page/all_pages scopes fail closed on EasyEDA Pro 3.2.149.
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description              |
-| ----------- | -------- | -------- | ------------------------ |
-| `projectId` | `string` | Yes      | The project/schematic ID |
-| `netName`   | `string` | Yes      |                          |
+| Parameter   | Type                                                | Required | Description              |
+| ----------- | --------------------------------------------------- | -------- | ------------------------ |
+| `projectId` | `string`                                            | Yes      | The project/schematic ID |
+| `netName`   | `string`                                            | Yes      |                          |
+| `pageUuid`  | `string (optional)`                                 | No       |                          |
+| `scope`     | `'focused'` \| `'page'` \| `'all_pages' (optional)` | No       |                          |
 
 ### Output Format
 
@@ -3124,9 +3136,11 @@ Returns a JSON object matching the schema:
   net_name: string;
   node_count: number;
   nodes: object[];
+  read_scope: object (optional);
   not_available: boolean (optional);
   timed_out: boolean (optional);
   error_code: string (optional);
+  error_data: object (optional);
   timeout_stage: string (optional);
   timeout_component: string (optional);
   error: string (optional);
@@ -3139,13 +3153,15 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> List all nets in the schematic with their node connections.
+> List nets from the current schematic context. Explicit focused scope is supported; page/all_pages scopes fail closed on EasyEDA Pro 3.2.149.
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description              |
-| ----------- | -------- | -------- | ------------------------ |
-| `projectId` | `string` | Yes      | The project/schematic ID |
+| Parameter   | Type                                                | Required | Description              |
+| ----------- | --------------------------------------------------- | -------- | ------------------------ |
+| `projectId` | `string`                                            | Yes      | The project/schematic ID |
+| `pageUuid`  | `string (optional)`                                 | No       |                          |
+| `scope`     | `'focused'` \| `'page'` \| `'all_pages' (optional)` | No       |                          |
 
 ### Output Format
 
@@ -3157,7 +3173,10 @@ Returns a JSON object matching the schema:
   nets: object[];
   total: number;
   read_consistency: object (optional);
+  read_scope: object (optional);
   not_available: boolean (optional);
+  error_code: string (optional);
+  error_data: object (optional);
   error: string (optional);
 }
 ```
@@ -3458,13 +3477,15 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Return read-only active schematic sheet metadata including page size, frame, origin, and grid hints for safer component placement.
+> Return read-only schematic sheet metadata. Supports focused, pageUuid/page, and all_pages page-list reads without changing EasyEDA focus; aggregate geometry is never invented.
 
 ### Input Parameters
 
-| Parameter   | Type                | Required | Description |
-| ----------- | ------------------- | -------- | ----------- |
-| `projectId` | `string (optional)` | No       |             |
+| Parameter   | Type                                                | Required | Description |
+| ----------- | --------------------------------------------------- | -------- | ----------- |
+| `projectId` | `string (optional)`                                 | No       |             |
+| `pageUuid`  | `string (optional)`                                 | No       |             |
+| `scope`     | `'focused'` \| `'page'` \| `'all_pages' (optional)` | No       |             |
 
 ### Output Format
 
@@ -3472,21 +3493,24 @@ Returns a JSON object matching the schema:
 
 ```ts
 {
-  project_id: string(optional);
-  sheet: any(optional);
-  page_size: object(optional);
-  frame: any(optional);
-  origin: any(optional);
-  grid: any(optional);
-  raw: any(optional);
-  metadata_source: string(optional);
-  focused_document: any(optional);
-  diagnostics: any(optional);
+  project_id: string (optional);
+  sheet: any (optional);
+  pages: any[] (optional);
+  read_scope: object (optional);
+  page_size: object (optional);
+  frame: any (optional);
+  origin: any (optional);
+  grid: any (optional);
+  raw: any (optional);
+  metadata_source: string (optional);
+  focused_document: any (optional);
+  diagnostics: any (optional);
   geometry_available: boolean;
-  warning: string(optional);
-  not_available: boolean(optional);
-  error_code: string(optional);
-  error: string(optional);
+  warning: string (optional);
+  not_available: boolean (optional);
+  error_code: string (optional);
+  error_data: object (optional);
+  error: string (optional);
 }
 ```
 
@@ -3524,14 +3548,16 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Validate inferred nets and floating pins, then cross-check native ERC. A pin is excluded from floating inference only when native noConnected readback is boolean true; unavailable or malformed state stays visible. `valid` requires clean inference and zero native errors.
+> Validate inferred nets/floating pins and cross-check native ERC. Only native noConnected=true excludes a pin; unavailable/malformed state stays visible. `valid` requires clean inference and zero native errors. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149.
 
 ### Input Parameters
 
-| Parameter          | Type      | Required | Description                                                            |
-| ------------------ | --------- | -------- | ---------------------------------------------------------------------- |
-| `projectId`        | `string`  | Yes      | The project/schematic ID                                               |
-| `includeWireCheck` | `boolean` | Yes      | When true, also check for graphical wires without netlist connectivity |
+| Parameter          | Type                                                | Required | Description                                                            |
+| ------------------ | --------------------------------------------------- | -------- | ---------------------------------------------------------------------- |
+| `projectId`        | `string`                                            | Yes      | The project/schematic ID                                               |
+| `includeWireCheck` | `boolean`                                           | Yes      | When true, also check for graphical wires without netlist connectivity |
+| `pageUuid`         | `string (optional)`                                 | No       |                                                                        |
+| `scope`            | `'focused'` \| `'page'` \| `'all_pages' (optional)` | No       |                                                                        |
 
 ### Output Format
 
@@ -3547,7 +3573,10 @@ Returns a JSON object matching the schema:
   native_erc: object (optional);
   valid: boolean;
   warnings: string[];
+  read_scope: object (optional);
   not_available: boolean (optional);
+  error_code: string (optional);
+  error_data: object (optional);
   error: string (optional);
 }
 ```
@@ -3595,15 +3624,17 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> List wire segments: primitiveId, line coordinates, net name, color, style. Page with offset (check total) past the 50-wire-per-call cap. primitiveId is required by delete_primitive/modify_primitive — schematic_nets alone cannot resolve a wire ID.
+> List wire segments with primitiveId, coordinates, net, color, and style; paginate past 50 with offset. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. primitiveId is required by delete_primitive/modify_primitive.
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description              |
-| ----------- | -------- | -------- | ------------------------ |
-| `projectId` | `string` | Yes      | The project/schematic ID |
-| `limit`     | `number` | Yes      |                          |
-| `offset`    | `number` | Yes      |                          |
+| Parameter   | Type                                                | Required | Description              |
+| ----------- | --------------------------------------------------- | -------- | ------------------------ |
+| `projectId` | `string`                                            | Yes      | The project/schematic ID |
+| `limit`     | `number`                                            | Yes      |                          |
+| `offset`    | `number`                                            | Yes      |                          |
+| `pageUuid`  | `string (optional)`                                 | No       |                          |
+| `scope`     | `'focused'` \| `'page'` \| `'all_pages' (optional)` | No       |                          |
 
 ### Output Format
 
@@ -3615,7 +3646,10 @@ Returns a JSON object matching the schema:
   wires: object[];
   total: number;
   read_consistency: object (optional);
+  read_scope: object (optional);
   not_available: boolean (optional);
+  error_code: string (optional);
+  error_data: object (optional);
   error: string (optional);
 }
 ```

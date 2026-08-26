@@ -6,7 +6,7 @@ export interface SchematicComponentInspectionOperationDependencies {
 }
 
 export interface SchematicComponentInspectionOperations {
-  listComponents(limit?: number, offset?: number): Promise<unknown>;
+  listComponents(limit?: number, offset?: number, allPages?: unknown): Promise<unknown>;
 }
 
 function nativeScalarString(value: unknown): string {
@@ -137,7 +137,7 @@ export function createSchematicComponentInspectionOperations({
     };
   }
 
-  async function listComponents(limit?: number, offset = 0): Promise<unknown> {
+  async function listComponents(limit?: number, offset = 0, allPages?: unknown): Promise<unknown> {
     const componentClass = readFirstPath<{
       getAll(include?: unknown, recursive?: boolean): Promise<unknown[] | null | undefined>;
     }>(['SCH_PrimitiveComponent', 'SCH_PrimitiveComponent3', 'sch_PrimitiveComponent']);
@@ -149,12 +149,12 @@ export function createSchematicComponentInspectionOperations({
       throw new Error('SCH_PrimitiveComponent class not found in EasyEDA Pro API');
     }
 
-    const allComponents = (await componentClass.getAll(undefined, true)) || [];
-    const bomComponents = allComponents.filter(isBomComponent);
-    const total = bomComponents.length;
+    const all = (await componentClass.getAll(undefined, allPages !== false)) || [];
+    const bom = all.filter(isBomComponent);
+    const total = bom.length;
     const start = Math.max(0, offset);
     const end = typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
-    const selected = bomComponents.slice(start, end);
+    const selected = bom.slice(start, end);
     const items: Array<Record<string, unknown>> = [];
     for (const component of selected) {
       items.push(await mapComponent(component, footprintClass));

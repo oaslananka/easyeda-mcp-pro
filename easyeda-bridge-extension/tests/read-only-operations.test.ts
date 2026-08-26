@@ -12,9 +12,10 @@ function createDependencies(overrides: Record<string, unknown> = {}) {
       listPrimitiveIds: vi.fn(async (primitiveKind: unknown) => ({ primitiveKind })),
     },
     schematicComponentInspection: {
-      listComponents: vi.fn(async (limit?: number, offset?: number) => ({
+      listComponents: vi.fn(async (limit?: number, offset?: number, allPages?: unknown) => ({
         limit,
         offset,
+        allPages,
         items: [],
       })),
     },
@@ -58,9 +59,12 @@ describe('read-only dispatcher operations', () => {
     await expect(operations.listPrimitiveIds({ primitiveKind: 'wire' })).resolves.toEqual({
       primitiveKind: 'wire',
     });
-    await expect(operations.listComponents({ limit: 2, offset: 3 })).resolves.toMatchObject({
+    await expect(
+      operations.listComponents({ limit: 2, offset: 3, allPages: false }),
+    ).resolves.toMatchObject({
       limit: 2,
       offset: 3,
+      allPages: false,
     });
     await expect(operations.listComponents({ limit: 'bad', offset: 'bad' })).resolves.toMatchObject(
       {
@@ -69,6 +73,10 @@ describe('read-only dispatcher operations', () => {
       },
     );
     await expect(operations.getSheetInfo()).resolves.toEqual({ sheet: true });
+    await expect(operations.getSheetInfo({ pageUuid: 'page-2' })).resolves.toEqual({ sheet: true });
+    expect(dependencies.schematicInspection.getSheetInfo).toHaveBeenLastCalledWith({
+      pageUuid: 'page-2',
+    });
     await expect(operations.primitiveBounds({ primitiveIds: ['p1'] })).resolves.toEqual({
       primitiveIds: ['p1'],
     });
@@ -76,6 +84,67 @@ describe('read-only dispatcher operations', () => {
     await expect(
       operations.getPinNoConnect({ primitiveId: 'cmp-1', pinNumber: '2' }),
     ).resolves.toEqual({ componentPrimitiveId: 'cmp-1', pinNumber: '2', noConnected: true });
+  });
+
+  it('enforces schematic scope support before direct focused reads', async () => {
+    const dependencies = createDependencies();
+    const operations = createReadOnlyOperations(dependencies as any);
+
+    await expect(operations.listNets({ scope: 'page', pageUuid: 'page-2' })).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNSUPPORTED',
+      data: expect.objectContaining({ operation: 'schematic.listNets' }),
+    });
+    expect(dependencies.listNets).not.toHaveBeenCalled();
+
+    await expect(
+      operations.getNetDetail({ netName: 'VBUS', scope: 'all_pages' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNSUPPORTED',
+      data: expect.objectContaining({ operation: 'schematic.getNetDetail' }),
+    });
+    expect(dependencies.getNetDetail).not.toHaveBeenCalled();
+
+    await expect(
+      operations.validateNetlist({ scope: 'page', pageUuid: 'page-2' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNSUPPORTED',
+      data: expect.objectContaining({ operation: 'schematic.validateNetlist' }),
+    });
+    expect(dependencies.findFloatingPins).not.toHaveBeenCalled();
+  });
+
+  it('maps component scope without changing selector-less legacy all-pages behavior', async () => {
+    const dependencies = createDependencies();
+    const operations = createReadOnlyOperations(dependencies as any);
+
+    await operations.listComponents({ limit: 2, offset: 1 });
+    expect(dependencies.schematicComponentInspection.listComponents).toHaveBeenNthCalledWith(
+      1,
+      2,
+      1,
+      undefined,
+    );
+
+    await operations.listComponents({ scope: 'focused', limit: 2, offset: 1 });
+    expect(dependencies.schematicComponentInspection.listComponents).toHaveBeenNthCalledWith(
+      2,
+      2,
+      1,
+      false,
+    );
+
+    await operations.listComponents({ scope: 'all_pages', limit: 2, offset: 1 });
+    expect(dependencies.schematicComponentInspection.listComponents).toHaveBeenNthCalledWith(
+      3,
+      2,
+      1,
+      true,
+    );
+
+    await expect(
+      operations.listComponents({ scope: 'page', pageUuid: 'page-2' }),
+    ).rejects.toMatchObject({ code: 'PAGE_SCOPE_UNSUPPORTED' });
+    expect(dependencies.schematicComponentInspection.listComponents).toHaveBeenCalledTimes(3);
   });
 
   it('preserves device search and LCSC lookup argument order/defaults', async () => {

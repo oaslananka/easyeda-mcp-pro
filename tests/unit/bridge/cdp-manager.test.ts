@@ -40,7 +40,11 @@ async function closeServer(server: Server): Promise<void> {
 }
 
 async function createHarness(
-  options: { targets?: unknown[]; evaluateError?: string } = {},
+  options: {
+    targets?: unknown[];
+    evaluateError?: string;
+    evaluateValue?: (expression: string) => unknown;
+  } = {},
 ): Promise<Harness> {
   const websocketServer = new WebSocketServer({ noServer: true });
   const clients = new Set<WebSocket>();
@@ -115,17 +119,13 @@ async function createHarness(
           );
           return;
         }
+        const expression = String(request.params?.expression ?? '');
+        const defaultValue = { appVersion: '2.2.39', title: 'EasyEDA Pro' };
+        const value = options.evaluateValue?.(expression) ?? defaultValue;
         client.send(
           JSON.stringify({
             id: request.id,
-            result: {
-              result: {
-                value: {
-                  appVersion: '2.2.39',
-                  title: 'EasyEDA Pro',
-                },
-              },
-            },
+            result: { result: { value } },
           }),
         );
       }
@@ -274,6 +274,234 @@ describe('CdpBridgeManager transport lifecycle', () => {
     expect(fetchJson).toHaveBeenCalledWith('http://127.0.0.1/json/list');
     expect(manager.activePort).toBe(9222);
     expect(manager.connected).toBe(true);
+  });
+
+  it('routes scoped component reads through the mapped CDP expression', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+
+    await expect(
+      manager.call('schematic.listComponents', { allPages: false }),
+    ).resolves.toMatchObject({
+      appVersion: '2.2.39',
+    });
+
+    const evaluation = harness.requests.findLast(
+      (request) =>
+        request.method === 'Runtime.evaluate' &&
+        String(request.params?.expression ?? '').includes('SCH_PrimitiveComponent.getAll'),
+    );
+    expect(String(evaluation?.params?.expression ?? '')).toContain('getAll(undefined, false)');
+  });
+
+  it('does not interpret scope-like fields on methods outside schematic scope policy', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+
+    await expect(
+      manager.call('api.call', {
+        method: 'DMT_Schematic.getCurrentSchematicPageInfo',
+        args: [],
+        scope: 'vendor-specific-value',
+      }),
+    ).resolves.toMatchObject({ appVersion: '2.2.39' });
+  });
+
+  it('reconstructs structured page errors returned by the CDP sheet expression', async () => {
+    const harness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution')
+          ? {
+              __easyedaBridgeError: {
+                code: 'PAGE_NOT_FOUND',
+                message: 'Requested schematic page was not found.',
+                suggestion: 'Refresh the page list and retry.',
+                data: {
+                  operation: 'schematic.getSheetInfo',
+                  requestedScope: 'page',
+                  pageUuid: 'missing',
+                },
+              },
+            }
+          : undefined,
+    });
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+
+    await expect(
+      manager.call('schematic.getSheetInfo', { pageUuid: 'missing' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_NOT_FOUND',
+      suggestion: 'Refresh the page list and retry.',
+      data: expect.objectContaining({
+        operation: 'schematic.getSheetInfo',
+        requestedScope: 'page',
+        pageUuid: 'missing',
+      }),
+    });
+  });
+
+  it('treats only record-shaped CDP sheet error envelopes as structured failures', async () => {
+    const malformedHarness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution')
+          ? { __easyedaBridgeError: ['not', 'a', 'record'] }
+          : undefined,
+    });
+    activeHarnesses.add(malformedHarness);
+    const malformedManager = await connectedManager(malformedHarness);
+
+    await expect(
+      malformedManager.call('schematic.getSheetInfo', { pageUuid: 'page-2' }),
+    ).resolves.toEqual({ __easyedaBridgeError: ['not', 'a', 'record'] });
+
+    const minimalHarness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution')
+          ? { __easyedaBridgeError: { code: 'PAGE_SCOPE_UNAVAILABLE' } }
+          : undefined,
+    });
+    activeHarnesses.add(minimalHarness);
+    const minimalManager = await connectedManager(minimalHarness);
+
+    await expect(
+      minimalManager.call('schematic.getSheetInfo', { pageUuid: 'page-2' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNAVAILABLE',
+      message: expect.stringContaining('CDP bridge sheet read failed.'),
+    });
+  });
+
+  it('rejects contradictory schematic selectors before Runtime.evaluate', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+    const evaluationsBefore = harness.requests.filter(
+      (request) => request.method === 'Runtime.evaluate',
+    ).length;
+
+    await expect(
+      manager.call('schematic.getSheetInfo', { scope: 'focused', pageUuid: 'page-2' }),
+    ).rejects.toMatchObject({ code: 'PAGE_SCOPE_CONFLICT' });
+    await expect(manager.call('schematic.getSheetInfo', { scope: 'page' })).rejects.toMatchObject({
+      code: 'PAGE_UUID_REQUIRED',
+    });
+    await expect(manager.call('schematic.getSheetInfo', { pageUuid: '   ' })).rejects.toMatchObject(
+      { code: 'PAGE_UUID_REQUIRED' },
+    );
+    expect(
+      harness.requests.filter((request) => request.method === 'Runtime.evaluate'),
+    ).toHaveLength(evaluationsBefore);
+  });
+
+  it('describes invalid object scope values without default object stringification', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+
+    await expect(
+      manager.call('schematic.getSheetInfo', { scope: { unexpected: true } }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_CONFLICT',
+      data: expect.objectContaining({ requestedScope: 'object' }),
+    });
+  });
+
+  it('covers malformed CDP selector shapes and optional scope diagnostics', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+
+    await expect(manager.call('schematic.getSheetInfo', null)).resolves.toMatchObject({
+      appVersion: '2.2.39',
+    });
+    await expect(
+      manager.call('schematic.getSheetInfo', { scope: 'invalid-scope' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_CONFLICT',
+      data: expect.objectContaining({ requestedScope: 'invalid-scope' }),
+    });
+    await expect(
+      manager.call('schematic.getSheetInfo', { scope: 'focused', pageUuid: '   ' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_UUID_REQUIRED',
+      data: expect.objectContaining({ requestedScope: 'focused' }),
+    });
+    await expect(manager.call('schematic.listNets', { scope: 'all_pages' })).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_UNSUPPORTED',
+      data: expect.not.objectContaining({ pageUuid: expect.anything() }),
+    });
+  });
+
+  it('preserves primitive CDP sheet results and minimal unstructured error envelopes', async () => {
+    const primitiveHarness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution') ? 'legacy-sheet-result' : undefined,
+    });
+    activeHarnesses.add(primitiveHarness);
+    const primitiveManager = await connectedManager(primitiveHarness);
+    await expect(primitiveManager.call('schematic.getSheetInfo', {})).resolves.toBe(
+      'legacy-sheet-result',
+    );
+
+    const errorHarness = await createHarness({
+      evaluateValue: (expression) =>
+        expression.includes('page_scope_resolution')
+          ? { __easyedaBridgeError: { message: 'sheet metadata failed' } }
+          : undefined,
+    });
+    activeHarnesses.add(errorHarness);
+    const errorManager = await connectedManager(errorHarness);
+    await expect(errorManager.call('schematic.getSheetInfo', {})).rejects.toMatchObject({
+      message: expect.stringContaining('sheet metadata failed'),
+    });
+  });
+
+  it('normalizes non-Error CDP dispatch failures without inventing structured fields', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+    Object.defineProperty(manager, 'dispatchMethod', {
+      value: vi.fn().mockRejectedValue('raw CDP dispatch failure'),
+    });
+
+    await expect(manager.call('api.call', {})).rejects.toMatchObject({
+      message: expect.stringContaining('raw CDP dispatch failure'),
+      cause: 'raw CDP dispatch failure',
+    });
+  });
+
+  it('rejects unsupported schematic scopes before issuing Runtime.evaluate', async () => {
+    const harness = await createHarness();
+    activeHarnesses.add(harness);
+    const manager = await connectedManager(harness);
+    const evaluationsBefore = harness.requests.filter(
+      (request) => request.method === 'Runtime.evaluate',
+    ).length;
+
+    for (const method of [
+      'schematic.listNets',
+      'system.inspectWires',
+      'design.erc',
+      'schematic.listComponents',
+    ]) {
+      await expect(
+        manager.call(method, { scope: 'page', pageUuid: 'page-2' }),
+      ).rejects.toMatchObject({
+        code: 'PAGE_SCOPE_UNSUPPORTED',
+        data: expect.objectContaining({
+          requestedScope: 'page',
+          pageUuid: 'page-2',
+          operation: method,
+        }),
+      });
+    }
+
+    expect(
+      harness.requests.filter((request) => request.method === 'Runtime.evaluate'),
+    ).toHaveLength(evaluationsBefore);
   });
 
   it('times out an unanswered CDP command and removes it from pending work', async () => {

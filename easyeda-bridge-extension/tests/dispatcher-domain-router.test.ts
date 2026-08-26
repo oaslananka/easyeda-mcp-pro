@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { createDispatcherDomainRouter } from '../src/dispatcher-domain-router.js';
+import {
+  assertSchematicReadScopeSupported,
+  resolveSchematicReadSelector,
+} from '../src/schematic-read-scope.js';
 
 function createDependencies() {
   return {
@@ -489,6 +493,111 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('pcb.listVias', { offset: 3 })).resolves.toEqual({
       handled: true,
       value: { method: 'vias', limit: undefined, offset: 3 },
+    });
+  });
+
+  it('normalizes direct schematic selector edge cases consistently', () => {
+    expect(() =>
+      resolveSchematicReadSelector({ scope: 'invalid-scope' }, 'schematic.getSheetInfo'),
+    ).toThrowError(
+      expect.objectContaining({
+        code: 'PAGE_SCOPE_CONFLICT',
+        data: expect.objectContaining({ requestedScope: 'invalid-scope' }),
+      }),
+    );
+    expect(() =>
+      resolveSchematicReadSelector({ scope: 'focused', pageUuid: '   ' }, 'schematic.getSheetInfo'),
+    ).toThrowError(
+      expect.objectContaining({
+        code: 'PAGE_UUID_REQUIRED',
+        data: expect.objectContaining({ requestedScope: 'focused' }),
+      }),
+    );
+    expect(
+      assertSchematicReadScopeSupported(
+        undefined,
+        ['focused'],
+        'schematic.listNets',
+        'page-aware-net-read',
+      ),
+    ).toEqual({});
+  });
+
+  it('rejects contradictory schematic selectors before route handlers', async () => {
+    const dependencies = createDependencies();
+    const router = createDispatcherDomainRouter(dependencies);
+
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { scope: 'focused', pageUuid: 'page-2' }),
+    ).rejects.toMatchObject({ code: 'PAGE_SCOPE_CONFLICT' });
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { scope: 'page' }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_UUID_REQUIRED',
+    });
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { pageUuid: '   ' }),
+    ).rejects.toMatchObject({ code: 'PAGE_UUID_REQUIRED' });
+    expect(dependencies.readOnlyOperations.getSheetInfo).not.toHaveBeenCalled();
+  });
+
+  it('describes invalid object scope values without default object stringification', async () => {
+    const dependencies = createDependencies();
+    const router = createDispatcherDomainRouter(dependencies);
+
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { scope: { unexpected: true } }),
+    ).rejects.toMatchObject({
+      code: 'PAGE_SCOPE_CONFLICT',
+      data: expect.objectContaining({ requestedScope: 'object' }),
+    });
+    expect(dependencies.readOnlyOperations.getSheetInfo).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on unsupported schematic scopes before invoking focused route handlers', async () => {
+    const dependencies = createDependencies();
+    const router = createDispatcherDomainRouter(dependencies);
+    const pageRequest = { scope: 'page', pageUuid: 'page-2' };
+
+    const cases = [
+      ['schematic.listNets', dependencies.readOnlyOperations.listNets],
+      ['schematic.getNetDetail', dependencies.readOnlyOperations.getNetDetail],
+      ['schematic.validateNetlist', dependencies.readOnlyOperations.validateNetlist],
+      ['system.inspectWires', dependencies.systemApiOperations.inspectWires],
+      ['design.erc', dependencies.designRuleCheckOperations.runErc],
+      ['schematic.listComponents', dependencies.readOnlyOperations.listComponents],
+    ] as const;
+
+    for (const [method, handler] of cases) {
+      await expect(router.tryDispatch(method, pageRequest)).rejects.toMatchObject({
+        code: 'PAGE_SCOPE_UNSUPPORTED',
+        data: expect.objectContaining({
+          requestedScope: 'page',
+          pageUuid: 'page-2',
+          operation: method,
+        }),
+      });
+      expect(handler).not.toHaveBeenCalled();
+    }
+  });
+
+  it('forwards supported schematic selector intent to read-only routes', async () => {
+    const dependencies = createDependencies();
+    const router = createDispatcherDomainRouter(dependencies);
+
+    await expect(
+      router.tryDispatch('schematic.listComponents', { scope: 'focused', limit: 5 }),
+    ).resolves.toMatchObject({ handled: true });
+    expect(dependencies.readOnlyOperations.listComponents).toHaveBeenCalledWith({
+      scope: 'focused',
+      limit: 5,
+    });
+
+    await expect(
+      router.tryDispatch('schematic.getSheetInfo', { pageUuid: 'page-2' }),
+    ).resolves.toMatchObject({ handled: true });
+    expect(dependencies.readOnlyOperations.getSheetInfo).toHaveBeenCalledWith({
+      pageUuid: 'page-2',
     });
   });
 

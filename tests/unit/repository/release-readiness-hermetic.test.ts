@@ -223,6 +223,101 @@ describe('hermetic release readiness', { timeout: GIT_FIXTURE_TEST_TIMEOUT_MS },
     expect(report.records[0]).toMatchObject({ status: 'current', changedFiles: [] });
   });
 
+  it('accepts a stable promotion from a recorded snapshot when the evidence commit is unavailable', async () => {
+    const fixture = await createExtensionVersionPromotionFixture();
+    const sourcePath = join(fixture.root, 'config/easyeda-compatibility.json');
+    const source = JSON.parse(await readFile(sourcePath, 'utf8')) as {
+      records: Array<{
+        server: {
+          commit: string;
+          compatibilitySnapshot?: { algorithm: string; paths: Record<string, string> };
+        };
+      }>;
+    };
+    source.records[0]!.server = {
+      commit: 'f'.repeat(40),
+      compatibilitySnapshot: {
+        algorithm: 'git-tree-sha1',
+        paths: {
+          'easyeda-bridge-extension/src': git(fixture.root, [
+            'rev-parse',
+            `${fixture.evidenceCommit}:easyeda-bridge-extension/src`,
+          ]),
+        },
+      },
+    };
+    await writeJson(sourcePath, source);
+    git(fixture.root, ['add', 'config/easyeda-compatibility.json']);
+    git(fixture.root, [
+      'commit',
+      '-m',
+      'fixture: preserve prerelease snapshot without evidence object',
+    ]);
+
+    await writeFile(
+      join(fixture.root, 'easyeda-bridge-extension/src/index.ts'),
+      "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.0.0', behavior: 'unchanged' };\n",
+    );
+    git(fixture.root, ['add', 'easyeda-bridge-extension/src/index.ts']);
+    git(fixture.root, [
+      'commit',
+      '-m',
+      'chore: promote snapshot-backed extension version to stable',
+    ]);
+
+    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
+
+    expect(report.status).toBe('current');
+    expect(report.records[0]).toMatchObject({ status: 'current', changedFiles: [] });
+  });
+
+  it('rejects a snapshot-backed stable promotion when extension behavior also changes', async () => {
+    const fixture = await createExtensionVersionPromotionFixture();
+    const sourcePath = join(fixture.root, 'config/easyeda-compatibility.json');
+    const source = JSON.parse(await readFile(sourcePath, 'utf8')) as {
+      records: Array<{
+        server: {
+          commit: string;
+          compatibilitySnapshot?: { algorithm: string; paths: Record<string, string> };
+        };
+      }>;
+    };
+    source.records[0]!.server = {
+      commit: 'f'.repeat(40),
+      compatibilitySnapshot: {
+        algorithm: 'git-tree-sha1',
+        paths: {
+          'easyeda-bridge-extension/src': git(fixture.root, [
+            'rev-parse',
+            `${fixture.evidenceCommit}:easyeda-bridge-extension/src`,
+          ]),
+        },
+      },
+    };
+    await writeJson(sourcePath, source);
+    git(fixture.root, ['add', 'config/easyeda-compatibility.json']);
+    git(fixture.root, [
+      'commit',
+      '-m',
+      'fixture: preserve prerelease snapshot without evidence object',
+    ]);
+
+    await writeFile(
+      join(fixture.root, 'easyeda-bridge-extension/src/index.ts'),
+      "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.0.0', behavior: 'changed' };\n",
+    );
+    git(fixture.root, ['add', 'easyeda-bridge-extension/src/index.ts']);
+    git(fixture.root, ['commit', '-m', 'fix: change behavior during snapshot-backed promotion']);
+
+    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
+
+    expect(report.status).toBe('stale');
+    expect(report.records[0]).toMatchObject({
+      status: 'stale',
+      changedFiles: ['easyeda-bridge-extension/src'],
+    });
+  });
+
   it('rejects an RC-to-RC version-only change without fresh live evidence', async () => {
     const fixture = await createExtensionVersionPromotionFixture();
     await writeFile(

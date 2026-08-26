@@ -58,6 +58,11 @@ describe('release channel policy', () => {
     expect(publisher).toContain('TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"');
     expect(publisher).toContain('cancel-in-progress: false');
     expect(publisher).toContain('group: publish-${{ needs.plan.outputs.release_tag }}');
+    expect(publisher).toContain('actions: read');
+    expect(publisher).toContain('Verify stable release soak');
+    expect(publisher).toContain('RELEASE_SOAK_MODE: publish');
+    expect(publisher).toContain('run: node scripts/release-soak-policy.mjs');
+    expect(publisher).toContain('GITHUB_TOKEN: ${{ github.token }}');
     expect(publisher).toContain('Verify commit-bound EasyEDA compatibility evidence');
     expect(publisher).toContain('Verify Quality Gates');
     expect(publisher).toContain('Create commit-bound GitHub Release');
@@ -112,6 +117,46 @@ describe('release channel policy', () => {
     expect(publisher).not.toContain('continue-on-error: true');
   });
 
+  it('blocks stable release pull requests on the executable soak gate', () => {
+    const ci = readText('.github/workflows/ci.yml');
+
+    expect(ci).toContain('actions: read');
+    expect(ci).toContain('Verify stable promotion soak');
+    expect(ci).toContain('RELEASE_SOAK_MODE: pull_request');
+    expect(ci).toContain('BASE_REF: origin/${{ github.base_ref }}');
+    expect(ci).toContain('node scripts/release-soak-policy.mjs');
+    expect(ci).toContain('GITHUB_TOKEN: ${{ github.token }}');
+  });
+
+  it('keeps executable soak enforcement documented across the release manuals', () => {
+    const policy = readText('docs/RELEASE_POLICY.md');
+    const process = readText('docs/RELEASE_PROCESS.md');
+    const verification = readText('docs/RELEASE_VERIFICATION.md');
+    const runbook = readText('docs/release-ci-runbook.md');
+    const publisher = readText('.github/workflows/publish-release.yml');
+
+    for (const document of [policy, process, verification, runbook]) {
+      expect(document).toContain('release-soak-policy.mjs');
+    }
+    expect(process).toContain('Gate and publish immutable release');
+    expect(process).toContain('publish job was skipped');
+    expect(process).toContain('release-candidate-required paths');
+    expect(verification).toContain('post-candidate runtime changes');
+    expect(verification).toContain('require an RC and at least 72 hours');
+    expect(runbook).toContain('emergency_soak_override=true');
+    expect(policy).toContain('must not re-run a pre-gate workflow attempt');
+    expect(runbook).toContain('missing stable release identity recovery');
+    expect(runbook).toContain(
+      'numbered prereleases, missing stable release identity recovery, and the documented emergency stable path',
+    );
+    expect(runbook).toContain('SOURCE_COMMIT=<40-character-reviewed-release-commit>');
+    expect(runbook).toContain('-f source_commit="$SOURCE_COMMIT"');
+    expect(runbook).not.toContain('For the unpublished `0.35.4` incident');
+    expect(publisher).toContain('git merge-base --is-ancestor "${TARGET_REF}^{commit}" HEAD');
+    expect(publisher).toContain('emergency_soak_override:');
+    expect(publisher).toContain('EMERGENCY_SOAK_OVERRIDE: ${{ inputs.emergency_soak_override }}');
+  });
+
   it('pins the current release toolchain and grants write permissions only to publication', () => {
     const manager = readText('.github/workflows/release-please.yml');
     const publisher = readText('.github/workflows/publish-release.yml');
@@ -157,7 +202,7 @@ describe('release channel policy', () => {
     expect(runbook).toContain('.provenance.sigstore.json');
     expect(runbook).toContain('.intoto.jsonl');
     expect(runbook).toContain('gh workflow run publish-release.yml --ref main');
-    expect(runbook).toContain('-f source_commit=69892876b5cf2ddcc1de1b590c0ce35c61a36698');
+    expect(runbook).toContain('-f source_commit="$SOURCE_COMMIT"');
     expect(runbook).not.toContain('gh workflow run release-please.yml');
     expect(recovery).toContain('gh workflow run publish-release.yml --ref main');
     expect(recovery).toContain('NPM_TOKEN is retained only for dist-tag repair');
