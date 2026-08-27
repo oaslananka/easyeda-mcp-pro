@@ -51,6 +51,11 @@ ENV ALLOWED_ORIGINS=
 # owned by the non-root "node" user baked into the official image (uid/gid 1000).
 COPY --from=builder --chown=node:node /prod ./
 
+# Keep the immutable Node base image while applying the reviewed Alpine OpenSSL
+# security patch published after that digest. Pin the patched runtime packages so
+# identical source cannot silently resolve to different versions on later builds.
+RUN apk add --no-cache --upgrade libcrypto3=3.5.8-r0 libssl3=3.5.8-r0
+
 # The production process invokes Node directly and never needs npm, npx, or
 # corepack. Remove package-manager payloads from the runtime stage to reduce
 # image size and eliminate vulnerabilities in tooling that is not executed.
