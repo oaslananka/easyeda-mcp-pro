@@ -317,6 +317,9 @@ describe('repository security tooling policy', () => {
     const dockerfile = readText('Dockerfile');
     expect(dockerfile).toContain('rm -rf /usr/local/lib/node_modules/npm');
     expect(dockerfile).toContain('/usr/local/lib/node_modules/corepack');
+    expect(dockerfile).toContain(
+      'apk add --no-cache --upgrade libcrypto3=3.5.8-r0 libssl3=3.5.8-r0',
+    );
     expect(dockerfile).toContain('USER node');
   });
 });
