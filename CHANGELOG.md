@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.0.0-rc.8...easyeda-mcp-pro-v1.0.0) (2026-08-27)
+
+
+### Documentation
+
+* **release:** seed RC.8 stable promotion ([#555](https://github.com/oaslananka/easyeda-mcp-pro/issues/555)) ([23e6cc8](https://github.com/oaslananka/easyeda-mcp-pro/commit/23e6cc80f8a9bbe0d7f57021dc17b82aac22646b))
+
 ## [1.0.0-rc.8] - 2026-08-27
 
 ### Release candidate
