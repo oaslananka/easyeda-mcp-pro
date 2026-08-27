@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-08-27T02:55:41.664+03:00",
+  "candidateCommit": "410abc17d53988bab678ec80e03e3207ae83ccaf",
+  "compatibilitySensitiveBaseCommit": "410abc17d53988bab678ec80e03e3207ae83ccaf",
+  "server": {
+    "packageVersion": "1.0.0-rc.7",
+    "nodeVersion": "24.18.0",
+    "pnpmVersion": "11.5.1"
+  },
+  "extension": {
+    "packageVersion": "0.99.7",
+    "loaderReportedVersion": "1.0.0-rc.7",
+    "packageSha256": "c3eac5d683a9615ce52e583eb208f6fdc1534ce039502d890c1fd65644690b78",
+    "packageSizeBytes": 175900,
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "d9e01181ceed32d8",
+    "capabilityCount": 69,
+    "dispatcherBuildId": "d6593xd76cx3f63",
+    "dispatcherSha256": "aaface2faf26c14d8344ee236a32d5b9d3e38cb4f4df95272b2c36bf17012bca",
+    "dispatcherByteLength": 184304,
+    "loaderSha256": "9eee2727698c558260397c3107db94ae9d9b51ca8bec698517d787160b6663cc",
+    "loaderByteLength": 258472,
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true,
+    "autoUpdateEnabled": false,
+    "install": {
+      "mechanism": "EasyEDA Extensions Manager import",
+      "persistedPackageVersion": "0.99.7",
+      "runtimeVersion": "1.0.0-rc.7"
+    }
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "mode": "Half Offline"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-30-generic",
+    "nodeVersion": "24.18.0"
+  },
+  "fixture": {
+    "project": "TestMcp RC7 Live",
+    "sourceBackupProject": "TestMcp",
+    "schematic": "Schematic1",
+    "page": "P1",
+    "pcb": "PCB1",
+    "disposable": true,
+    "profileIsolation": "bubblewrap temporary user/config/cache/data roots"
+  },
+  "liveChecks": {
+    "candidateIdentity": {
+      "status": "passed",
+      "serverVersion": "1.0.0-rc.7",
+      "extensionVersion": "1.0.0-rc.7",
+      "bridgeVersion": "1.0.0",
+      "capabilityCount": 69,
+      "dispatcherBuildId": "d6593xd76cx3f63",
+      "methodRegistryHash": "d9e01181ceed32d8",
+      "registryMismatch": false,
+      "extensionVersionMismatch": false
+    },
+    "readOnlySmoke": {
+      "status": "passed",
+      "nodeVersion": "24.18.0",
+      "checkCount": 6,
+      "checks": [
+        "system.getStatus",
+        "system.apiInventory",
+        "schematic.listNets",
+        "schematic.listComponents",
+        "bom.generate",
+        "design.erc"
+      ],
+      "writeEnabled": false
+    },
+    "schematicScope": {
+      "status": "passed",
+      "requestedPageUuid": "071cc274e58f8a24",
+      "requestedPageName": "P1",
+      "pageMetadataSource": "requested_page",
+      "focusedDocumentDuringPageRead": "PCB1",
+      "focusChanged": false,
+      "allPagesCount": 1,
+      "allPagesComponentCount": 8,
+      "failClosed": [
+        {
+          "operation": "schematic.listComponents",
+          "code": "PAGE_SCOPE_UNSUPPORTED",
+          "missingCapability": "page-attributed-component-read"
+        },
+        {
+          "operation": "schematic.listNets",
+          "code": "PAGE_SCOPE_UNSUPPORTED",
+          "missingCapability": "page-aware-net-read"
+        },
+        {
+          "operation": "schematic.getSheetInfo",
+          "case": "missing pageUuid",
+          "code": "PAGE_UUID_REQUIRED"
+        },
+        {
+          "operation": "schematic.getSheetInfo",
+          "case": "focused plus pageUuid",
+          "code": "PAGE_SCOPE_CONFLICT"
+        }
+      ]
+    },
+    "pcbReadOnly": {
+      "status": "passed",
+      "focusedPcb": "PCB1",
+      "dimensions": {
+        "widthMm": 19.812,
+        "heightMm": 18.542,
+        "shape": "custom",
+        "areaMm2": 367.3541,
+        "mountingHoleCount": 0,
+        "hasOutline": true
+      },
+      "componentCount": 8,
+      "trackCount": 45,
+      "viaCount": 0,
+      "fillCount": 0,
+      "regionCount": 0,
+      "drcErrorCount": 0,
+      "drcWarningCount": 0
+    },
+    "zeroOperationTransaction": {
+      "status": "passed",
+      "beforeState": "active",
+      "operationCount": 0,
+      "afterState": "rolled-back",
+      "rollbackComplete": true,
+      "restoredOperationCount": 0,
+      "failedOperationCount": 0,
+      "rollbackBridgeCalls": 0
+    },
+    "finalFocus": {
+      "status": "passed",
+      "activeDocument": "PCB1",
+      "pageMetadataReadWithoutFocusChange": true
+    }
+  },
+  "compatibilitySnapshot": {
+    "algorithm": "git-tree-sha1",
+    "paths": {
+      "easyeda-bridge-extension/src": "a8b6b4d9b13e6702581ea7aea603352f34d68502",
+      "src/bridge": "bcb46fd302bed9ffd4953cf3b67a9567e79489c8",
+      "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+      "src/server/transports": "98e9f5ec02eabbceb27abe303c4f164e111048cc",
+      "src/tools": "225974c7048f91126934be7796bfe92f7b4e6a06",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "cleanup": {
+    "designMutationApplied": false,
+    "zeroOperationTransactionOnly": true,
+    "disposableProjectOnly": true,
+    "sandboxRemoved": true,
+    "realEasyedaConfigLatestMtimeUnchanged": "1787626004.2591761260",
+    "realEasyedaProjectLatestMtimeUnchanged": "1787626004.2491760570",
+    "cleanupErrors": []
+  },
+  "knownLimitations": [
+    "No PCB design mutation was applied in this pass. PCB write rollback remains covered by repository regression tests; the live transaction proof is intentionally zero-operation and confirms rollback completes without any bridge write call.",
+    "EasyEDA Pro 3.2.149 does not expose page-attributed component or page-aware net reads. RC.7 rejects those explicit page scopes with PAGE_SCOPE_UNSUPPORTED while page metadata and all-pages component reads remain available.",
+    "The isolated EasyEDA startup emitted sandbox-only SQLite read-only and desktop integration warnings. They did not prevent the extension, project import, read-only smoke, PCB inspection, or selector error checks from completing.",
+    "This pre-publication package digest identifies the exact locally imported RC.7 candidate package. Public GitHub/npm/container artifact identity remains a publication-time verification gate."
+  ],
+  "redaction": {
+    "localAbsolutePathsOmitted": true,
+    "ephemeralProjectUuidOmitted": true,
+    "credentialsOmitted": true,
+    "rawApiInventoryOmitted": true
+  }
+}
