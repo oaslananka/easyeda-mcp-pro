@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 
@@ -234,8 +234,10 @@ export function openFileLocation(filePath: string): void {
   try {
     switch (process.platform) {
       case 'win32': {
-        const windowsRoot = process.env.SystemRoot ?? 'C:\\Windows';
-        execFile(join(windowsRoot, 'explorer.exe'), ['/select,' + filePath.replace(/\//g, '\\')]);
+        const windowsRoot = process.env.SystemRoot ?? String.raw`C:\Windows`;
+        execFile(join(windowsRoot, 'explorer.exe'), [
+          '/select,' + filePath.replaceAll('/', win32.sep),
+        ]);
         break;
       }
       case 'darwin':

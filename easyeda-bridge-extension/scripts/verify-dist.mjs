@@ -21,7 +21,7 @@ function resolvePathWithinRoot(candidate) {
 
 function resolveTrustedPythonExecutable() {
   if (process.platform === 'win32') {
-    const windowsRoot = process.env.SystemRoot ?? 'C:\\Windows';
+    const windowsRoot = process.env.SystemRoot ?? String.raw`C:\Windows`;
     const launcher = join(windowsRoot, 'py.exe');
     if (existsSync(launcher)) return launcher;
     throw new Error(`trusted Python launcher not found at ${launcher}`);
