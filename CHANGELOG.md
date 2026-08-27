@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0-rc.8] - 2026-08-27
+
+### Release candidate
+
+- Supersedes RC.7 because the production container changed after the RC.7 candidate: the pinned Alpine runtime received the OpenSSL security update that clears the Trivy finding tracked in #551.
+- Carries the no-time-wait stable-promotion policy from #550 while retaining numbered-RC source identity, live EasyEDA compatibility, CI/security, provenance, publication-integrity, rollback, and post-candidate runtime-drift gates.
+- Makes no new EasyEDA behavioral change relative to RC.7; page-scoped schematic reads, PCB read/write safety, transaction rollback, and MCP 2025-11-25 compatibility remain unchanged.
+- Requires fresh RC.8 package/bridge identity validation against EasyEDA Pro 3.2.149 and reuses no stale candidate identity.
+- Uses EasyEDA numeric install version `0.99.8` while preserving `1.0.0-rc.8` as the server and extension runtime product version.
+- Leaves #470, #476, and #480 outside the v1 stabilization payload.
+
 ## [1.0.0-rc.7] - 2026-08-27
 
 ### Release candidate
