@@ -85,7 +85,7 @@ The installed extension package reported `0.99.7`, while the loader reported `1.
 - No PCB design mutation was applied. The live transaction check intentionally used zero operations and made zero bridge write calls; PCB component write/read-back/rollback behavior remains covered by repository regression tests rather than this live record.
 - EasyEDA Pro 3.2.149 does not expose page-attributed component or page-aware net reads. RC.7 intentionally fails those explicit page scopes closed while supporting requested-page metadata and all-pages component reads.
 - The isolated desktop emitted sandbox-only SQLite read-only and desktop integration warnings during startup; the bridge and exercised API paths remained operational, and no real EasyEDA profile/project mtime changed.
-- The package SHA-256 in this record identifies the exact pre-merge candidate imported for live validation. Public npm provenance, GitHub prerelease assets, attestations, SBOM, GHCR identities, and the RC.7 soak remain publication-time/post-publication gates.
+- The package SHA-256 in this record identifies the exact pre-merge candidate imported for live validation. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 

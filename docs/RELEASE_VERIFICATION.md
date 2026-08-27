@@ -2,7 +2,7 @@
 
 This document explains how `easyeda-mcp-pro` releases are produced and how users can verify release integrity.
 
-Channel selection, soak periods, live-validation requirements, and rollback ownership are defined by the authoritative [Release Policy](RELEASE_POLICY.md).
+Channel selection, live-validation requirements, and rollback ownership are defined by the authoritative [Release Policy](RELEASE_POLICY.md).
 
 ## Release channels
 
@@ -23,9 +23,9 @@ GitHub Actions keeps bounded operational copies after publication: SBOM workflow
 
 ## Verification checks for maintainers
 
-Stable promotion also has an executable soak check in `scripts/release-soak-policy.mjs`. Major/minor release PRs cannot satisfy the required quality check until the exact final RC has the policy soak; the publication workflow repeats the check before any immutable release or registry mutation. The gate uses a successful manual RC publication run for the exact candidate SHA only when its **Gate and publish immutable release** job also succeeded, using that run as a conservative clock source and rejects post-candidate runtime changes or dependency drift. For a patch without an RC, the 24-hour clock starts from the stable release commit after it is merged to `main`. This RC-free path is rejected when the patch changes compatibility-sensitive, authentication, transport, transaction/rollback, save/export, installer/setup, or other configured release-candidate-required paths; those patches require an RC and at least 72 hours.
+Stable promotion has no time-based waiting gate. The release can proceed as soon as the exact source commit has passed required review and CI/security checks and its required release evidence is current. Publication still fails closed before immutable release or registry mutation if source identity, channel/version metadata, or commit-bound EasyEDA compatibility evidence is invalid.
 
-An early automatic publication failure caused by this gate is expected and safe: do not create a replacement tag or change the source commit. Re-run the original Publish Release workflow only if that historical run already contained the current mandatory soak gate. If the failed attempt predates a mandatory gate, use the current workflow from `main` and the exact audited source through missing stable release identity recovery after the reported eligibility timestamp. `emergency_soak_override=true` is reserved for the documented manual emergency stable-patch procedure and does not bypass compatibility, quality, live validation, provenance, or final published-release verification.
+A rerun must use the same audited source and evidence. If a mandatory gate was added after an earlier failed attempt, use the current **Publish Release** workflow from `main` through the documented missing stable release identity recovery path rather than replaying an older workflow definition.
 
 For each release, maintainers should start with the commit-bound compatibility check:
 

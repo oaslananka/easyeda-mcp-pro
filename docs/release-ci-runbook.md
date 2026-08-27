@@ -139,13 +139,11 @@ If that search returns no dashboard, verify the Mend Renovate App installation/r
    - Fix the code to accommodate the breaking change, then merge.
    - Close the PR and pin the old version with a comment explaining why.
 
-## Stable soak gate failures
+## Stable release gate failures
 
-`scripts/release-soak-policy.mjs` is fail-closed in both the required release-PR quality path and Publish Release. If a major/minor release PR reports an incomplete soak, keep it unmerged until the timestamp printed by the check. If an RC-free patch has already merged and its automatic Publish Release run fails on the 24-hour main soak, leave the exact release commit unchanged. Re-run that historical workflow only when it already contains the current mandatory soak gate; if the failed attempt predates the gate, use the current workflow from `main` and the documented missing stable release identity recovery path against the exact audited release commit after the printed eligibility timestamp. If the PR touches a release-candidate-required sensitive path, do not merge it as an RC-free patch; prepare a numbered RC and complete the 72-hour candidate soak instead. Do not create a substitute tag or move the release to a later commit.
+Stable publication does not use a time-based promotion delay. If a release gate fails, keep the exact audited source unchanged, fix the underlying policy/evidence problem, and rerun only when the current workflow still targets that same source. Do not create a substitute tag or move the release to a later commit to bypass a failed check.
 
-A workflow-dispatch run whose publication job was skipped does not start the soak clock; only an exact-candidate run with a successful **Gate and publish immutable release** job qualifies.
-
-If the gate reports runtime changes after the final RC, the fix is a new numbered candidate and a restarted soak; do not weaken the check or treat release automation changes as evidence for runtime changes.
+If a compatibility-sensitive change landed after the validated candidate, prepare a new numbered candidate and record fresh commit-bound live evidence. If an older workflow attempt predates a newly mandatory gate, use the current workflow definition from `main` and the documented missing stable release identity recovery path rather than replaying the older definition.
 
 ## Manual Release Procedure
 
@@ -153,7 +151,7 @@ Normal stable releases are prepared by merging the Release Please PR and publish
 
 ### Numbered prerelease
 
-1. Merge a reviewed candidate PR whose version is `X.Y.Z-rc.N` and whose public issue/PR contains soak, verification, live-validation, and rollback evidence.
+1. Merge a reviewed candidate PR whose version is `X.Y.Z-rc.N` and whose public issue/PR contains verification, live-validation, and rollback evidence.
 2. Create the annotated tag and a non-draft GitHub prerelease for the exact candidate commit.
 3. Dispatch the release workflow:
 
@@ -176,7 +174,7 @@ Normal stable releases are prepared by merging the Release Please PR and publish
 
 Use this path only when a stable release commit passed review but the first publication attempt failed before creating both the immutable Git tag and GitHub Release. The recovery must use the exact audited release commit; it must not rebuild the same version from a later source state.
 
-Confirm the requested stable tag and GitHub Release are both absent, then dispatch the **current** workflow definition from `main` only after every applicable gate (including soak) is eligible:
+Confirm the requested stable tag and GitHub Release are both absent, then dispatch the **current** workflow definition from `main` only after every applicable gate is satisfied:
 
 ```bash
 TAG=easyeda-mcp-pro-vX.Y.Z
@@ -200,11 +198,10 @@ Use only when the Release Policy's Emergency patch criteria are met. The stable-
 gh workflow run publish-release.yml --ref main \
   -f tag_name=easyeda-mcp-pro-vX.Y.Z \
   -f release_channel=stable \
-  -f evidence_url=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER \
-  -f emergency_soak_override=true
+  -f evidence_url=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER
 ```
 
-The Publish Release workflow rejects a channel/tag mismatch, package-version mismatch, draft release, incorrect GitHub prerelease classification, or evidence URL outside this repository. The `emergency_soak_override=true` switch is accepted only for a manually dispatched stable SemVer patch with public evidence; it waives only the normal soak duration and leaves every other executable release gate intact.
+The Publish Release workflow rejects a channel/tag mismatch, package-version mismatch, draft release, incorrect GitHub prerelease classification, or evidence URL outside this repository. Emergency publication uses the same executable quality, compatibility, provenance, and registry gates as every other stable publication.
 
 The Publish Release workflow must be dispatched from `main`, not from the immutable release tag. It first evaluates the current recovery and compatibility policy against the requested tag commit, then checks out the tag for reproducible build and publication. Running an older workflow definition from the tag can repeat the original failure and cannot use a recovery fix merged after the tag was created.
 

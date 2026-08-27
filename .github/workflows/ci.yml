@@ -20,7 +20,6 @@ jobs:
     name: quality (24)
     permissions:
       contents: read
-      actions: read
     if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     runs-on: ubuntu-latest
 
@@ -42,15 +41,6 @@ jobs:
           package-manager-cache: false
       - name: Verify runtime pin parity
         run: node scripts/check-runtime-pins.mjs
-      - name: Verify stable promotion soak
-        if: github.event_name == 'pull_request'
-        env:
-          RELEASE_SOAK_MODE: pull_request
-          BASE_REF: origin/${{ github.base_ref }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          git fetch --force --tags origin
-          node scripts/release-soak-policy.mjs
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify runtime policy
         run: pnpm runtime:check
