@@ -19,6 +19,23 @@ function resolvePathWithinRoot(candidate) {
   return resolvedPath;
 }
 
+function resolveTrustedPythonExecutable() {
+  if (process.platform === 'win32') {
+    const windowsRoot = process.env.SystemRoot ?? 'C:\\Windows';
+    const launcher = join(windowsRoot, 'py.exe');
+    if (existsSync(launcher)) return launcher;
+    throw new Error(`trusted Python launcher not found at ${launcher}`);
+  }
+
+  const executable = '/usr/bin/python3';
+  if (existsSync(executable)) return executable;
+  throw new Error(`trusted Python executable not found at ${executable}`);
+}
+
+function trustedPythonArgs(args) {
+  return process.platform === 'win32' ? ['-3', ...args] : args;
+}
+
 function readPngDimensions(path) {
   const buffer = readFileSync(path);
   const pngSignature = '89504e470d0a1a0a';
@@ -183,9 +200,14 @@ if (existsSync(packagePath) && existsSync(checksumPath)) {
 
 if (existsSync(packagePath)) {
   try {
-    const listing = execFileSync('python3', ['-m', 'zipfile', '-l', packagePath], {
-      encoding: 'utf8',
-    });
+    const pythonExecutable = resolveTrustedPythonExecutable();
+    const listing = execFileSync(
+      pythonExecutable,
+      trustedPythonArgs(['-m', 'zipfile', '-l', packagePath]),
+      {
+        encoding: 'utf8',
+      },
+    );
     for (const packagedFile of [
       'README.md',
       'CHANGELOG.md',
@@ -202,12 +224,12 @@ if (existsSync(packagePath)) {
     }
 
     const packageContent = execFileSync(
-      'python3',
-      [
+      pythonExecutable,
+      trustedPythonArgs([
         '-c',
         "import sys, zipfile; z=zipfile.ZipFile(sys.argv[1]); files=['README.md','CHANGELOG.md','extension.json','dist/index.js']; print('\\n'.join(z.read(f).decode('utf-8', 'ignore') for f in files))",
         packagePath,
-      ],
+      ]),
       { encoding: 'utf8', maxBuffer: 5 * 1024 * 1024 },
     );
     const packagePhoneLikeMatches = findPhoneLikeContent(packageContent);

@@ -233,14 +233,16 @@ export function openFileLocation(filePath: string): void {
   const dir = dirname(filePath);
   try {
     switch (process.platform) {
-      case 'win32':
-        execFile('explorer', ['/select,' + filePath.replace(/\//g, '\\')]);
+      case 'win32': {
+        const windowsRoot = process.env.SystemRoot ?? 'C:\\Windows';
+        execFile(join(windowsRoot, 'explorer.exe'), ['/select,' + filePath.replace(/\//g, '\\')]);
         break;
+      }
       case 'darwin':
-        execFile('open', ['-R', filePath]);
+        execFile('/usr/bin/open', ['-R', filePath]);
         break;
       default:
-        execFile('xdg-open', [dir]);
+        execFile('/usr/bin/xdg-open', [dir]);
         break;
     }
   } catch {

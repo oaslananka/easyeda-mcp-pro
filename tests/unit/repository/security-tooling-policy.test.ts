@@ -269,6 +269,20 @@ describe('repository security tooling policy', () => {
     expect(syncVersions).not.toContain('resolveConfig(prettierFiles[0])');
     expect(syncVersions).not.toContain("execFileSync('npx'");
 
+    const bridgeManager = readText('src/bridge/manager.ts');
+    expect(bridgeManager).not.toContain('Math.random()');
+    expect(bridgeManager).toContain('crypto.randomInt(');
+
+    const clientDefinitions = readText('src/cli/client-definitions.ts');
+    expect(clientDefinitions).not.toContain("execFile('explorer'");
+    expect(clientDefinitions).not.toContain("execFile('open'");
+    expect(clientDefinitions).not.toContain("execFile('xdg-open'");
+    expect(clientDefinitions).toContain("'/usr/bin/xdg-open'");
+    expect(clientDefinitions).toContain("'/usr/bin/open'");
+
+    expect(verifyDist).not.toContain("execFileSync('python3'");
+    expect(verifyDist).toContain('resolveTrustedPythonExecutable()');
+
     const e2eWaiter = readText('scripts/e2e/waiter.mjs');
     expect(e2eWaiter).toContain("from './log-sanitization.mjs'");
     expect(e2eWaiter).toContain('sanitizeLogFragment(r, 300)');

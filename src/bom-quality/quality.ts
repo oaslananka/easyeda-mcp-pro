@@ -293,10 +293,10 @@ function assessComponentQuality(
     (max, result) => Math.max(max, result.cacheAgeSeconds ?? 0),
     0,
   );
-  const newestQueryAt = supplierData
-    .map((result) => result.queriedAt)
-    .sort()
-    .at(-1);
+  const newestQueryAt = supplierData.reduce<string | undefined>((latest, result) => {
+    if (latest === undefined) return result.queriedAt;
+    return Date.parse(result.queriedAt) > Date.parse(latest) ? result.queriedAt : latest;
+  }, undefined);
   const allDiscontinued =
     found.length > 0 && found.every((result) => result.lifecycle === 'discontinued');
   const anyUnknownLifecycle = found.some((result) => result.lifecycle === 'unknown');

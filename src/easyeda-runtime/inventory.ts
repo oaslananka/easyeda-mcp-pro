@@ -65,7 +65,7 @@ interface InventoryBridgeResponse {
 function sortedUnique(values: string[]): string[] {
   return Array.from(
     new Set(values.filter((value) => value.trim()).map((value) => value.trim())),
-  ).sort();
+  ).sort((left, right) => left.localeCompare(right, 'en'));
 }
 
 export function normalizeRuntimeInventoryClasses(
