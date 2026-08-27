@@ -1,6 +1,6 @@
 # Release Policy
 
-This policy defines the public release channels, verification evidence, soak periods, promotion rules, and recovery responsibilities for `easyeda-mcp-pro`. It is authoritative for npm, GitHub Releases, the EasyEDA extension asset, GHCR, the MCP Registry, and the published documentation.
+This policy defines the public release channels, verification evidence, promotion rules, and recovery responsibilities for `easyeda-mcp-pro`. It is authoritative for npm, GitHub Releases, the EasyEDA extension asset, GHCR, the MCP Registry, and the published documentation.
 
 ## Ownership
 
@@ -15,19 +15,18 @@ No release is approved only because a version tag exists. The evidence and chann
 | Stable     | `X.Y.Z`                   | `easyeda-mcp-pro-vX.Y.Z`      | non-prerelease | npm dist-tag `latest` | exact version, `X.Y`, and `latest`  | publish        |
 | Prerelease | `X.Y.Z-rc.N`, where N ≥ 1 | `easyeda-mcp-pro-vX.Y.Z-rc.N` | prerelease     | npm dist-tag `next`   | exact version and moving tag `next` | do not publish |
 
-Release Please is stable-only. `release-please-config.json` keeps `prerelease: false`; merging its release PR creates the stable tag and GitHub Release. Prereleases use the manual workflow path and must never move npm `latest`, GHCR `latest`, or the stable MCP Registry entry.
+Release Please is stable-only. `release-please-config.json` keeps `prerelease: false`; merging its release PR creates the reviewed stable release commit, while the separate **Publish Release** workflow creates the immutable tag and GitHub Release only after publication gates pass. Prereleases use the manual workflow path and must never move npm `latest`, GHCR `latest`, or the stable MCP Registry entry.
 
 Other prerelease identifiers such as `alpha`, `beta`, or an unnumbered `rc` are not supported. Increment `N` whenever candidate code, dependencies, generated artifacts, or release metadata changes.
 
-## Soak requirements
+## Candidate and promotion requirements
 
-The clock starts when the exact candidate commit has all required checks passing and the evidence record links that commit.
+Stable promotion has **no time-based waiting period**. Once the exact source commit has the required review, CI/security results, release evidence, and applicable live EasyEDA validation, publication may proceed immediately.
 
-- A non-safety patch release requires a **24-hour** green soak on `main`. A separate release candidate is optional when the change is narrow and reversible.
-- A minor stable release requires at least one `rc.N` prerelease and a **72-hour** green soak.
-- A major stable release requires at least one `rc.N` prerelease and a **7-day** green soak.
-- A release that changes the EasyEDA bridge, transport, authentication, transaction/rollback behavior, installer/setup path, save/export behavior, or any confirmed write path requires an `rc.N`, a minimum **72-hour** soak, and live validation even when the SemVer bump would otherwise be a patch.
-- Any code or runtime-dependency change after the final candidate resets the soak clock and requires a new `rc.N`.
+- Minor and major stable releases require at least one numbered `rc.N` prerelease so the exact candidate can be validated before promotion.
+- A narrow, reversible patch may publish without a separate release candidate when it does not touch a compatibility-sensitive path.
+- A release that changes the EasyEDA bridge, transport, authentication, transaction/rollback behavior, installer/setup path, save/export behavior, or any confirmed write path requires an `rc.N` and live validation even when the SemVer bump would otherwise be a patch.
+- Any code or runtime-dependency change after the final candidate requires a new `rc.N` so release evidence remains bound to the code that will actually ship.
 - Stable promotion may change only version, changelog, release notes, and promotion metadata after the final candidate. Behavioral changes require another candidate.
 
 ## Required release evidence
@@ -35,7 +34,7 @@ The clock starts when the exact candidate commit has all required checks passing
 The release PR, or the public issue/PR supplied to a manual workflow dispatch, must record:
 
 1. the exact source commit and intended tag;
-2. channel, SemVer rationale, and soak start/end timestamps;
+2. channel, SemVer rationale, candidate identity, and promotion decision;
 3. passing CI, CodeQL, Semgrep, dependency audit/review, Sonar quality gate, and Codecov changed-code status;
 4. server and extension test totals, coverage summary, build results, and extension size-budget results;
 5. Docker startup smoke evidence;
@@ -54,19 +53,17 @@ Evidence must identify the exact EasyEDA Pro version and operating system, the e
 
 ## Release-blocking automation
 
-Stable promotion timing is executable policy, not a checklist-only decision. `scripts/release-soak-policy.mjs` runs in the required PR quality job for major/minor stable promotions and again in **Publish Release** before compatibility or publication mutations. It derives an RC soak start only from a `Publish Release` workflow-dispatch run for the exact final-candidate commit whose **Gate and publish immutable release** job actually succeeded, enforces 72-hour/7-day boundaries, rejects post-candidate runtime or dependency changes that are not release-managed version promotion, and enforces an RC-free patch's 24-hour clock from the stable release commit after it reaches `main`.
-
-A normal push cannot bypass this gate. The only automation-level waiver is the explicit `emergency_soak_override` input on a manual stable **patch** dispatch; it requires the repository evidence URL and is valid only under the Emergency patch criteria below. The override waives time, not the remaining quality, compatibility, live-validation, provenance, or published-release verification gates.
+Stable promotion has no clock-based gate. The required PR checks and **Publish Release** workflow instead fail closed on source identity, channel/version consistency, commit-bound EasyEDA compatibility evidence, quality/security gates, and publication integrity. A passing candidate can therefore move directly to publication without weakening any non-time-based control.
 
 Every stable and prerelease publication reruns the supported Node.js/pnpm preflight, dependency audit and peer checks, formatting, server and extension typechecks, lint, tool metadata/coverage validation, server tests and coverage, extension tests and coverage, generated-tool documentation drift checks, documentation build, server/extension builds, extension distribution verification, and extension size budgets.
 
 The workflow then produces the CycloneDX SBOM, GitHub build attestations, and a tag-bound portable Sigstore bundle and in-toto provenance asset, verifies the GitHub Release channel, publishes npm with provenance to the channel-specific dist-tag, uploads the extension, SBOM, `<tag>.provenance.sigstore.json`, and `<tag>.intoto.jsonl`, and publishes channel-safe GHCR tags. MCP Registry publication runs only for stable releases.
 
-A failed required step blocks publication. A transient rerun is allowed only when the source tag and evidence are unchanged **and the original workflow run already contained every currently mandatory release gate**; otherwise publish a new candidate or patch version. If a mandatory gate was added after an earlier failed run, maintainers **must not re-run a pre-gate workflow attempt**. Use the current workflow definition from `main` against the exact audited source and public evidence through the documented missing stable release identity recovery path. Recovery never waives the applicable soak or any current executable gate.
+A failed required step blocks publication. A transient rerun is allowed only when the source tag and evidence are unchanged **and the original workflow run already contained every currently mandatory release gate**; otherwise publish a new candidate or patch version. If a mandatory gate was added after an earlier failed run, maintainers **must not re-run a pre-gate workflow attempt**. Use the current workflow definition from `main` against the exact audited source and public evidence through the documented missing stable release identity recovery path. Recovery never waives a current executable gate.
 
 ## Stable release procedure
 
-1. Confirm the applicable soak and live-validation evidence is complete.
+1. Confirm the required release evidence and applicable live-validation evidence is complete.
 2. Review the Release Please PR and verify that only the expected version, changelog, and release metadata changed.
 3. Confirm every required PR check and bot/agent review thread is resolved.
 4. Merge the Release Please PR. Do not create the stable tag manually in the normal path.
@@ -80,13 +77,13 @@ A failed required step blocks publication. A transient rerun is allowed only whe
 3. Create a GitHub Release marked **prerelease**, not draft, for the same tag.
 4. Dispatch `.github/workflows/publish-release.yml` with the tag, `release_channel=prerelease`, and the public `evidence_url`.
 5. Verify npm `next`, GHCR `next`, exact-version artifacts, SBOM, provenance, attestations, and documentation. Confirm npm/GHCR `latest` did not move and the MCP Registry was not published.
-6. Start or restart the applicable soak only after all checks and registry verifications pass.
+6. Record the final prerelease verification evidence after all checks and registry verifications pass.
 
 ## Emergency patch
 
-An **Emergency patch** may shorten or waive the normal soak only for an active security incident, a broken stable installation, data-loss risk, or a release-system outage that prevents normal recovery. It still requires all executable automated gates and live EasyEDA validation when the affected path requires it.
+An **Emergency patch** path is reserved for an active security incident, a broken stable installation, data-loss risk, or a release-system outage that prevents normal recovery. It does not skip executable automated gates or required live EasyEDA validation.
 
-The public evidence issue must state the incident, customer impact, why waiting is riskier, the exact known-good rollback target, the release manager, and the follow-up owner. Use a normal stable SemVer patch, not an untracked build suffix. Record a follow-up review within two business days and create a new issue for every waived non-automated check.
+The public evidence issue must state the incident, customer impact, urgency, the exact known-good rollback target, the release manager, and the follow-up owner. Use a normal stable SemVer patch, not an untracked build suffix. Record a follow-up review within two business days and create a new issue for every deferred non-automated follow-up.
 
 ## Rollback and yanking
 
@@ -109,7 +106,7 @@ Public MCP tool names, schemas, bridge protocol fields, environment variables, c
 - Announce deprecation in the changelog, release notes, migration documentation, and runtime warning where feasible.
 - Keep the deprecated path for at least one minor release and **30 days** before removal.
 - Security or correctness risks may shorten the notice period, but the release evidence must explain the risk, migration, and accelerated timeline.
-- Major releases require the 7-day candidate soak, migration guide, rollback plan, and live validation for every affected EasyEDA path.
+- Major releases require a numbered candidate, migration guide, rollback plan, and live validation for every affected EasyEDA path.
 
 ## Documentation consistency
 

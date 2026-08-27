@@ -1,6 +1,6 @@
 # Release Process
 
-This document describes how the repository implements the channel, soak, validation, and recovery rules in the authoritative [Release Policy](RELEASE_POLICY.md). The **Release Please PR** workflow automates stable version bumps and changelog PRs; the separate **Publish Release** workflow owns gated immutable release creation and registry publication; numbered release candidates use an explicit manual path that cannot update stable moving tags.
+This document describes how the repository implements the channel, validation, and recovery rules in the authoritative [Release Policy](RELEASE_POLICY.md). The **Release Please PR** workflow automates stable version bumps and changelog PRs; the separate **Publish Release** workflow owns gated immutable release creation and registry publication; numbered release candidates use an explicit manual path that cannot update stable moving tags.
 
 ## 1. Conventional Commits
 
@@ -27,19 +27,19 @@ Release Please remains stable-only (`prerelease: false`). The PR manager uses `s
 ```mermaid
 graph TD
     A[Conventional commits merge to main] --> B[Release Please PR workflow opens or updates stable release PR]
-    B --> C[Maintainer verifies policy evidence and soak]
+    B --> C[Maintainer verifies policy evidence and required gates]
     C --> D[Merge release PR]
     D --> E[Publish Release detects exact release commit]
     E --> F[Compatibility and quality gates run against exact commit]
     F --> G[Build extension, SBOM, and attestations]
-    G --> H[Release Please release-only mode creates immutable tag and GitHub Release]
+    G --> H[Publish Release creates immutable tag and GitHub Release]
     H --> I[Publish npm, assets, MCP Registry, and GHCR]
     I --> J[Verify registries, docs, and evidence]
 ```
 
 The Release Please PR updates `package.json`, `.release-please-manifest.json`, `server.json`, `easyeda-bridge-extension/extension.json`, release-managed TypeScript version constants, plugin metadata, and `CHANGELOG.md`. Do not manually create the normal stable tag. The automated gates finish **before the immutable tag and GitHub Release are created**.
 
-When the final `rc.N` already contains all user-facing changes, Release Please can legitimately report `No user facing commits found` and skip opening the stable PR. In that case, create a reviewed promotion-only PR whose squash-merge commit body contains `Release-As: X.Y.Z` for the intended stable version. The promotion PR must not change runtime code, runtime dependencies, generated executable artifacts, or compatibility-sensitive behavior; it only seeds the stable Release Please PR after the final candidate has otherwise satisfied release policy. Never use `Release-As` to waive the required soak or a failed release gate.
+When the final `rc.N` already contains all user-facing changes, Release Please can legitimately report `No user facing commits found` and skip opening the stable PR. In that case, create a reviewed promotion-only PR whose squash-merge commit body contains `Release-As: X.Y.Z` for the intended stable version. The promotion PR must not change runtime code, runtime dependencies, generated executable artifacts, or compatibility-sensitive behavior; it only seeds the stable Release Please PR after the final candidate has otherwise satisfied release policy. Never use `Release-As` to waive a failed release gate.
 
 ## 4. Prerelease automation
 
@@ -65,9 +65,7 @@ Release Please and GitHub Release asset mutations authenticate with the reposito
 
 ## 5. Release-blocking gates
 
-Stable releases first pass `scripts/release-soak-policy.mjs`. For major and minor Release Please PRs, the required `quality (24)` check fetches immutable release tags and blocks merge until the final numbered RC has completed its required soak. The clock is derived only from a `Publish Release` workflow-dispatch run for that exact RC commit whose **Gate and publish immutable release** job concluded successfully, rather than from a mutable issue comment or a workflow run whose publish job was skipped. Patch Release Please PRs may merge so an RC-free patch can begin its required 24-hour green soak on `main`; the publication workflow then blocks until that release commit has aged 24 hours. A patch that touches compatibility-sensitive, authentication, transport, transaction/rollback, save/export, installer/setup, or other configured release-candidate-required paths is not eligible for that shortcut: the PR gate requires a numbered RC and the 72-hour candidate soak.
-
-The publication copy of the gate is defense in depth. It runs before compatibility and quality publication steps, rejects post-candidate runtime changes (release-managed version-only promotion is allowed), and blocks early publication even if a release PR was merged through an administrative or integration bypass. A manual emergency stable patch may set `emergency_soak_override=true` only when the public evidence URL satisfies the Emergency patch procedure; every non-time-based publication gate still runs.
+Stable promotion has no time-based waiting gate. Once the release PR is reviewable and the exact candidate satisfies required checks and release evidence, it may proceed to publication. The publication workflow still fails closed before immutable release creation on source ancestry, channel/version identity, commit-bound EasyEDA compatibility evidence, and the full quality/security sequence. The publication job remains **Gate and publish immutable release**, making that mutation boundary explicit in workflow logs.
 
 Before publication begins, `pnpm release:readiness:compatibility` must confirm that at least one live
 EasyEDA record is current for the exact candidate commit. The release workflow runs this command
@@ -91,7 +89,7 @@ Both channels must pass:
 - Docker loopback, fail-closed, and published-host-port smoke; CodeQL; Semgrep; Sonar; Codecov; dependency review; workflow/container security; and required platform CI checks;
 - SBOM generation, npm provenance, GitHub artifact attestation, and a portable Sigstore bundle and in-toto provenance asset named `<tag>.provenance.sigstore.json` and `<tag>.intoto.jsonl`. The npm path uses npm Trusted Publishing. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.
 
-The evidence record must also satisfy the soak and live EasyEDA validation rules in the Release Policy. Automation success alone does not waive those requirements. The full local convenience command is `pnpm release:readiness`; it intentionally fails before the expensive quality sequence when the compatibility evidence is stale.
+The evidence record must also satisfy the live EasyEDA validation rules in the Release Policy. Automation success alone does not waive those requirements. The full local convenience command is `pnpm release:readiness`; it intentionally fails before the expensive quality sequence when the compatibility evidence is stale.
 
 ## 6. Publication and verification
 
@@ -114,6 +112,6 @@ See [Release Verification](RELEASE_VERIFICATION.md) for commands and [Release & 
 
 For a transient failure, rerun the original workflow only when the tag, commit, channel, and evidence are unchanged **and that original run already contains every currently mandatory release gate**. If release policy was hardened after the failed attempt, do not rerun the historical workflow execution: dispatch the current `publish-release.yml` from `main` against the exact audited source and public evidence. A code, dependency, generated artifact, or release-metadata change requires a new version; never overwrite an immutable release.
 
-Normal stable releases must use Release Please. Manual stable dispatch is allowed only for the documented **missing stable release identity recovery** path (exact reviewed release commit, no immutable stable identity yet) or the Emergency patch procedure. Emergency dispatch requires an existing stable-format tag, a non-draft/non-prerelease GitHub Release, and a public evidence URL. Both paths run the current quality, soak, compatibility, provenance, and registry gates; neither is a shortcut around release policy.
+Normal stable releases must use Release Please. Manual stable dispatch is allowed only for the documented **missing stable release identity recovery** path (exact reviewed release commit, no immutable stable identity yet) or the Emergency patch procedure. Emergency dispatch requires an existing stable-format tag, a non-draft/non-prerelease GitHub Release, and a public evidence URL. Both paths run the current quality, compatibility, provenance, and registry gates; neither is a shortcut around release policy.
 
 If publication partially succeeds, stop promotion claims and follow the rollback/yanking sequence in the Release Policy plus the registry-specific procedures in [Solo-maintainer continuity and release recovery](SOLO_MAINTAINER_RECOVERY.md). Keep immutable tags, SBOMs, checksums, attestations, and the public evidence issue for auditability. Manual recovery runs use the current workflow policy from `main` and then build the immutable requested tag.
