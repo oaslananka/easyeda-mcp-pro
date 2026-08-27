@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.8           | 1.0.0-rc.8           | 0.99.8            | Live validated  | 2026-08-27 | 2026-11-25 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.7           | 1.0.0-rc.7           | 0.99.7            | Live validated  | 2026-08-27 | 2026-11-25 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.6           | 1.0.0-rc.6           | 0.99.6            | Live validated  | 2026-08-22 | 2026-11-20 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.5           | 1.0.0-rc.5           | 0.99.5            | Live validated  | 2026-08-21 | 2026-11-19 |
@@ -41,6 +42,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-27-v1-rc8-candidate`
+
+### Runtime identity
+
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.4 LTS                         |
+| Kernel                               | `7.0.0-30-generic`                         |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.18.0`                                  |
+| Validation package version           | `1.0.0-rc.8`                               |
+| Release containing validated fixes   | `1.0.0-rc.8`                               |
+| Compatibility-sensitive base commit  | `d947271c0878c11ef1c0f7540767ba8fc7919e5b` |
+| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
+| Installed extension package metadata | `0.99.8`                                   |
+| Loader-reported version              | `1.0.0-rc.8`                               |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `d9e01181ceed32d8`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
+
+The installed extension package reported `0.99.8`, while the loader reported `1.0.0-rc.8`; the distinction is retained as part of the exact runtime evidence.
+
+### Capability evidence
+
+| Capability                                                    | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Evidence                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Packaged RC.8 bridge identity on the pinned Node runtime      | `live` | `passed` | The exact RC.8 candidate .eext built from 869149929750700af039bad3d3ca3daa25fb4924 was imported into a bubblewrap-isolated EasyEDA Pro 3.2.149 Half Offline profile; that source commit has the identical Git tree as merged candidate d947271c0878c11ef1c0f7540767ba8fc7919e5b. With the validation server on Node 24.18.0, the extension runtime reported 1.0.0-rc.8, bridge contract 1.0.0, 69 capabilities, baked dispatcher d6593xd76cx3f63, and method registry hash d9e01181ceed32d8; the six-check read-only smoke passed. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-27-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.8-read-scope-pcb.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| RC.8 page-scoped schematic metadata and fail-closed selectors | `live` | `passed` | While the PCB remained focused, schematic.getSheetInfo with scope=page resolved P1 from requested-page metadata without changing focus; all_pages exposed one page and 34 components. Unsupported page-scoped component/net reads returned PAGE_SCOPE_UNSUPPORTED, missing pageUuid returned PAGE_UUID_REQUIRED, and conflicting focused+pageUuid returned PAGE_SCOPE_CONFLICT.                                                                                                                                                    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-27-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.8-read-scope-pcb.json), [Issue #526](https://github.com/oaslananka/easyeda-mcp-pro/issues/526) |
+| RC.8 PCB read surface and zero-operation transaction cleanup  | `live` | `passed` | With the example PCB focused, RC.8 read dimensions, 33 components, 98 tracks, no vias, four fills, no regions, and surfaced the fixture pre-existing Import Changes DRC error. A zero-operation transaction rolled back completely with zero restored/failed operations and zero bridge write calls.                                                                                                                                                                                                                               | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-27-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.8-read-scope-pcb.json), [Issue #437](https://github.com/oaslananka/easyeda-mcp-pro/issues/437) |
+| RC.8 live isolation and cleanup                               | `live` | `passed` | The bundled example and RC.8 extension ran only inside the bubblewrap-isolated Half Offline profile. After validation, the EasyEDA process tree and sandbox were removed, and the full path/mtime/size/mode snapshot of the real EasyEDA config and project trees matched exactly before versus after.                                                                                                                                                                                                                             | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-27-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.8-read-scope-pcb.json)                                                                         |
+
+### Known limitations
+
+- This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.8 live EasyEDA desktop record.
+- No PCB or schematic design mutation was applied. The transaction check intentionally used zero operations and made zero bridge write calls; write rollback remains covered by repository regression tests and earlier live records.
+- EasyEDA Pro 3.2.149 does not expose page-attributed component or page-aware net reads. RC.8 intentionally fails those explicit page scopes closed while supporting requested-page metadata and all-pages component reads.
+- This RC.8 validation used the bundled Example_Quick Start design copied into the disposable sandbox rather than the TestMcp backup. The page-scope/focus-preservation contract and PCB read surface were exercised on that real bundled schematic/PCB pair.
+- The bundled example contains one pre-existing PCB/schematic netlist mismatch, which design.drc correctly surfaced as an Import Changes error. This is a fixture finding, not a bridge false-success.
+- The package SHA-256 in this record identifies the exact pre-merge RC.8 candidate built from 869149929750700af039bad3d3ca3daa25fb4924; its Git tree is identical to the merged candidate d947271c0878c11ef1c0f7540767ba8fc7919e5b. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 
