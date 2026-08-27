@@ -22,11 +22,7 @@
           "isRequired": false,
           "format": "string",
           "default": "development",
-          "choices": [
-            "development",
-            "test",
-            "production"
-          ]
+          "choices": ["development", "test", "production"]
         },
         {
           "name": "LOG_LEVEL",
@@ -34,15 +30,7 @@
           "isRequired": false,
           "format": "string",
           "default": "info",
-          "choices": [
-            "trace",
-            "debug",
-            "info",
-            "warn",
-            "error",
-            "fatal",
-            "silent"
-          ]
+          "choices": ["trace", "debug", "info", "warn", "error", "fatal", "silent"]
         },
         {
           "name": "TOOL_PROFILE",
@@ -50,13 +38,7 @@
           "isRequired": false,
           "format": "string",
           "default": "core",
-          "choices": [
-            "core",
-            "pro",
-            "full",
-            "dev",
-            "experimental"
-          ]
+          "choices": ["core", "pro", "full", "dev", "experimental"]
         },
         {
           "name": "TOOL_SCOPES",
@@ -78,10 +60,7 @@
           "isRequired": false,
           "format": "string",
           "default": "local_bridge",
-          "choices": [
-            "local_bridge",
-            "remote_relay"
-          ]
+          "choices": ["local_bridge", "remote_relay"]
         },
         {
           "name": "MCP_REMOTE_SESSION_ID",
@@ -96,10 +75,7 @@
           "isRequired": false,
           "format": "string",
           "default": "stdio",
-          "choices": [
-            "stdio",
-            "http"
-          ]
+          "choices": ["stdio", "http"]
         },
         {
           "name": "HTTP_HOST",
@@ -276,13 +252,7 @@
           "isRequired": false,
           "format": "string",
           "default": "none",
-          "choices": [
-            "none",
-            "anthropic",
-            "openai",
-            "openrouter",
-            "local"
-          ]
+          "choices": ["none", "anthropic", "openai", "openrouter", "local"]
         },
         {
           "name": "AI_MODEL",
@@ -326,11 +296,7 @@
           "isRequired": false,
           "format": "string",
           "default": "disabled",
-          "choices": [
-            "disabled",
-            "mock",
-            "approved_api"
-          ]
+          "choices": ["disabled", "mock", "approved_api"]
         },
         {
           "name": "JLCPCB_CLIENT_ID",
