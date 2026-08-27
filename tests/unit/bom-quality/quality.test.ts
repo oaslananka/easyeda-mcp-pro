@@ -286,6 +286,36 @@ describe('generateBomQualityReport', () => {
     expect(report.summary.totalIssues).toBeGreaterThanOrEqual(2);
   });
 
+  it('records the chronologically newest supplier query across timezone offsets', async () => {
+    const chronologicallyNewest = '2026-06-11T21:00:00-05:00';
+    const lexicallyLaterButOlder = '2026-06-12T01:30:00+00:00';
+    const adapters = mockAdapters({
+      lcsc: {
+        queryPart: vi
+          .fn()
+          .mockResolvedValue(activeResult({ queriedAt: chronologicallyNewest, supplier: 'lcsc' })),
+      } as any,
+      mouser: {
+        queryPart: vi
+          .fn()
+          .mockResolvedValue(
+            activeResult({ queriedAt: lexicallyLaterButOlder, supplier: 'mouser' }),
+          ),
+      } as any,
+      digikey: { queryPart: vi.fn().mockResolvedValue(null) } as any,
+    });
+
+    const report = await generateBomQualityReport(
+      'bom-chronology',
+      [entry({ reference: 'R-time', lcsc: 'C12345', mpn: 'CRCW080510K0' })],
+      adapters,
+    );
+
+    expect(report.entries[0]!.componentQuality.provenance.newestQueryAt).toBe(
+      chronologicallyNewest,
+    );
+  });
+
   it('adds component quality score and drop-in alternate candidates', async () => {
     const adapters = mockAdapters({
       lcsc: {

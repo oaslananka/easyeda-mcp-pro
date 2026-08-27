@@ -51,6 +51,22 @@ describe('runtime inventory snapshots', () => {
     expect(snapshot.classes[1]?.methods).toEqual(['add', 'getAll']);
   });
 
+  it('sorts normalized runtime identifiers alphabetically with an explicit locale', () => {
+    const snapshot = createRuntimeInventorySnapshot({
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      classes: [
+        {
+          className: 'SCH_Document',
+          runtimePaths: ['eda.zeta', 'eda.äther', 'eda.Alpha'],
+          methods: ['zeta', 'äther', 'Alpha'],
+        },
+      ],
+    });
+
+    expect(snapshot.classes[0]!.runtimePaths).toEqual(['eda.Alpha', 'eda.äther', 'eda.zeta']);
+    expect(snapshot.classes[0]!.methods).toEqual(['Alpha', 'äther', 'zeta']);
+  });
+
   it('should capture runtime inventory through the bridge when enabled', async () => {
     const bridge = {
       connect: vi.fn(async () => undefined),

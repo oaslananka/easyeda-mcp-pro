@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import { execFile } from 'node:child_process';
+import { join } from 'node:path';
 import {
   CLIENTS,
   SERVER_NAME,
@@ -82,9 +83,36 @@ describe('client definitions', () => {
     expect(warn('careful')).toContain('careful');
   });
 
-  it('opens file locations with a platform-specific command', () => {
+  it('opens file locations with the trusted Linux helper path', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+
     openFileLocation('/tmp/example/mcp.json');
 
-    expect(execFile).toHaveBeenCalled();
+    expect(execFile).toHaveBeenCalledWith('/usr/bin/xdg-open', ['/tmp/example']);
+  });
+
+  it('opens file locations with the trusted macOS helper path', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin');
+
+    openFileLocation('/tmp/example/mcp.json');
+
+    expect(execFile).toHaveBeenCalledWith('/usr/bin/open', ['-R', '/tmp/example/mcp.json']);
+  });
+
+  it('opens file locations with the trusted Windows Explorer path', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    const previousSystemRoot = process.env.SystemRoot;
+    delete process.env.SystemRoot;
+
+    try {
+      openFileLocation('C:/Users/example/mcp.json');
+
+      expect(execFile).toHaveBeenCalledWith(join(String.raw`C:\Windows`, 'explorer.exe'), [
+        String.raw`/select,C:\Users\example\mcp.json`,
+      ]);
+    } finally {
+      if (previousSystemRoot === undefined) delete process.env.SystemRoot;
+      else process.env.SystemRoot = previousSystemRoot;
+    }
   });
 });

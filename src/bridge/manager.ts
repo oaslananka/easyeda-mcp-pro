@@ -775,8 +775,8 @@ export class BridgeManager extends EventEmitter {
     else if (elapsed < 120_000) base = RECONNECT_BASE_MS * 3;
     else base = Math.min(RECONNECT_BASE_MS * 10, RECONNECT_MAX_DELAY_MS);
 
-    const jitter = base * 0.1 * (Math.random() * 2 - 1);
-    const delay = Math.round(base + jitter);
+    const jitterBasisPoints = crypto.randomInt(-1_000, 1_001);
+    const delay = Math.round(base * (1 + jitterBasisPoints / 10_000));
 
     getLogger().info(
       { attempt: this.reconnectAttempts, delay, elapsed },
