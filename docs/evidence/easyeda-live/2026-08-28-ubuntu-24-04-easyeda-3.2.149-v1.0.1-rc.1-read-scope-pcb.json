@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-08-28T03:52:31.637+03:00",
+  "candidateCommit": "6562f248b063c8e263ee02637b36803beee10350",
+  "compatibilitySensitiveBaseCommit": "6562f248b063c8e263ee02637b36803beee10350",
+  "server": {
+    "packageVersion": "1.0.1-rc.1",
+    "nodeVersion": "24.18.0",
+    "pnpmVersion": "11.5.1"
+  },
+  "extension": {
+    "packageVersion": "1.0.1-rc.1",
+    "loaderReportedVersion": "1.0.1-rc.1",
+    "packageSha256": "bef6f9f53b8bf7c610a4d395bd767b5121aa21e8a6d9ae953556e09028d30f22",
+    "packageSizeBytes": 175905,
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "d9e01181ceed32d8",
+    "capabilityCount": 69,
+    "dispatcherBuildId": "d6593xd76cx3f63",
+    "dispatcherSha256": "aaface2faf26c14d8344ee236a32d5b9d3e38cb4f4df95272b2c36bf17012bca",
+    "dispatcherByteLength": 184304,
+    "loaderSha256": "ef70c7299e837054341e53efcc773af9560368208797272aef31adb47b3e1477",
+    "loaderByteLength": 258472,
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true,
+    "autoUpdateEnabled": false,
+    "install": {
+      "mechanism": "EasyEDA Extensions Manager import",
+      "persistedPackageVersion": "1.0.1-rc.1",
+      "runtimeVersion": "1.0.1-rc.1",
+      "packageSourceCommit": "6562f248b063c8e263ee02637b36803beee10350",
+      "packageSourceTreeMatchesCandidate": true
+    }
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "mode": "Half Offline"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-30-generic",
+    "nodeVersion": "24.18.0"
+  },
+  "fixture": {
+    "project": "Example_Quick Start",
+    "source": "EasyEDA bundled example copied inside the disposable profile",
+    "schematic": "Schematic",
+    "page": "P1",
+    "pcb": "PCB",
+    "disposable": true,
+    "profileIsolation": "bubblewrap temporary user/config/cache/data roots"
+  },
+  "liveChecks": {
+    "candidateIdentity": {
+      "status": "passed",
+      "serverVersion": "1.0.1-rc.1",
+      "extensionVersion": "1.0.1-rc.1",
+      "bridgeVersion": "1.0.0",
+      "capabilityCount": 69,
+      "dispatcherBuildId": "d6593xd76cx3f63",
+      "methodRegistryHash": "d9e01181ceed32d8",
+      "registryMismatch": false,
+      "extensionVersionMismatch": false
+    },
+    "readOnlySmoke": {
+      "status": "passed",
+      "nodeVersion": "24.18.0",
+      "checkCount": 6,
+      "checks": [
+        "system.getStatus",
+        "system.apiInventory",
+        "schematic.listNets",
+        "schematic.listComponents",
+        "bom.generate",
+        "design.erc"
+      ],
+      "writeEnabled": false
+    },
+    "schematicScope": {
+      "status": "passed",
+      "requestedPageUuid": "3f7813647fb0430f886cf9d8f5171f62",
+      "requestedPageName": "P1",
+      "pageMetadataSource": "requested_page",
+      "focusedDocumentDuringPageRead": "PCB",
+      "focusChanged": false,
+      "allPagesCount": 1,
+      "allPagesComponentCount": 34,
+      "failClosed": [
+        {
+          "operation": "schematic.listComponents",
+          "code": "PAGE_SCOPE_UNSUPPORTED",
+          "missingCapability": "page-attributed-component-read"
+        },
+        {
+          "operation": "schematic.listNets",
+          "code": "PAGE_SCOPE_UNSUPPORTED",
+          "missingCapability": "page-aware-net-read"
+        },
+        {
+          "operation": "schematic.getSheetInfo",
+          "case": "missing pageUuid",
+          "code": "PAGE_UUID_REQUIRED"
+        },
+        {
+          "operation": "schematic.getSheetInfo",
+          "case": "focused plus pageUuid",
+          "code": "PAGE_SCOPE_CONFLICT"
+        }
+      ]
+    },
+    "pcbReadOnly": {
+      "status": "passed",
+      "focusedPcb": "PCB",
+      "dimensions": {
+        "widthMm": 80,
+        "heightMm": 60,
+        "shape": "custom",
+        "mountingHoleCount": 0,
+        "areaMm2": 4800,
+        "hasOutline": true
+      },
+      "componentCount": 33,
+      "trackCount": 98,
+      "viaCount": 0,
+      "fillCount": 4,
+      "regionCount": 0,
+      "drcErrorCount": 1,
+      "drcWarningCount": 0,
+      "drcPassed": false,
+      "drcFinding": "Import Changes: PCB and schematic netlist does not match"
+    },
+    "zeroOperationTransaction": {
+      "status": "passed",
+      "beforeState": "active",
+      "operationCount": 0,
+      "afterState": "rolled-back",
+      "rollbackComplete": true,
+      "restoredOperationCount": 0,
+      "failedOperationCount": 0,
+      "rollbackBridgeCalls": 0
+    },
+    "finalFocus": {
+      "status": "passed",
+      "activeDocument": "PCB",
+      "pageMetadataReadWithoutFocusChange": true
+    }
+  },
+  "compatibilitySnapshot": {
+    "algorithm": "git-tree-sha1",
+    "paths": {
+      "easyeda-bridge-extension/src": "35e4095bb627e69b597addaac4731df854622fc3",
+      "src/bridge": "8d68f46c3a9883edf447314cf155850403489690",
+      "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+      "src/server/transports": "98e9f5ec02eabbceb27abe303c4f164e111048cc",
+      "src/tools": "225974c7048f91126934be7796bfe92f7b4e6a06",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "cleanup": {
+    "designMutationApplied": false,
+    "zeroOperationTransactionOnly": true,
+    "disposableProjectOnly": true,
+    "sandboxRemoved": true,
+    "realEasyedaTreeDiffClean": true,
+    "realEasyedaProfileMetadataSnapshotSha256": "f81413aa982acb2ea1a1b6cfc681721c0af89cc803520e85961ae37353b97c5f",
+    "realEasyedaConfigLatestMtimeUnchanged": "1787626004.2591761260",
+    "realEasyedaDocumentsLatestMtimeUnchanged": "1787342729.0610233290",
+    "realEasyedaProjectLatestMtimeUnchanged": "1787626004.2491760570",
+    "cleanupErrors": []
+  },
+  "knownLimitations": [
+    "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.1 live EasyEDA desktop record.",
+    "No PCB or schematic design mutation was applied. The transaction check intentionally used zero operations and made zero bridge write calls; write rollback remains covered by repository regression tests and earlier live records.",
+    "EasyEDA Pro 3.2.149 does not expose page-attributed component or page-aware net reads. RC.1 intentionally fails those explicit page scopes closed while supporting requested-page metadata and all-pages component reads.",
+    "This RC.1 validation used the bundled Example_Quick Start design copied into the disposable bubblewrap profile. The page-scope/focus-preservation contract and PCB read surface were exercised on that real bundled schematic/PCB pair.",
+    "The bundled example contains one pre-existing PCB/schematic netlist mismatch, which design.drc correctly surfaced as an Import Changes error. This is a fixture finding, not a bridge false-success.",
+    "The package SHA-256 identifies the exact RC.1 candidate built and imported from 6562f248b063c8e263ee02637b36803beee10350. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates."
+  ],
+  "redaction": {
+    "localAbsolutePathsOmitted": true,
+    "ephemeralProjectUuidOmitted": true,
+    "credentialsOmitted": true,
+    "rawApiInventoryOmitted": true
+  }
+}
