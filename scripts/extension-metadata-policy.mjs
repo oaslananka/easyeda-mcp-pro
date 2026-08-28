@@ -1,13 +1,14 @@
 export const PRIVATE_EXTENSION_WORKSPACE_VERSION = '0.0.0-private';
 
 const STABLE_PRODUCT_VERSION = /^\d+\.\d+\.\d+$/;
-const V1_RELEASE_CANDIDATE = /^1\.0\.0-rc\.(\d+)$/;
+const V1_0_0_RELEASE_CANDIDATE = /^1\.0\.0-rc\.(\d+)$/;
+const V1_0_1_RELEASE_CANDIDATE = /^1\.0\.1-rc\.([1-9]\d*)$/;
 
 /**
- * EasyEDA Pro 3.2.149 accepts numeric x.y.z extension package versions but
- * rejects SemVer prerelease identifiers in extension.json. Keep the runtime
- * product version unchanged and map only the v1.0 RC package identity into the
- * monotonic pre-1.0 range. Stable 1.0.0 remains greater than every 0.99.N RC.
+ * Keep the legacy v1.0.0 RC package mapping because those published candidates
+ * used the monotonic 0.99.N install identity. EasyEDA Pro 3.2.149 has also been
+ * live-validated to accept standard 1.0.1-rc.N SemVer package versions and to
+ * upgrade them to stable 1.0.1. Other prerelease families remain fail-closed.
  */
 export function resolveEasyedaManifestVersion(productVersion) {
   if (typeof productVersion !== 'string') {
@@ -15,14 +16,20 @@ export function resolveEasyedaManifestVersion(productVersion) {
   }
   if (STABLE_PRODUCT_VERSION.test(productVersion)) return productVersion;
 
-  const candidate = V1_RELEASE_CANDIDATE.exec(productVersion);
+  const candidate = V1_0_0_RELEASE_CANDIDATE.exec(productVersion);
   if (candidate?.[1]) {
     const sequence = Number(candidate[1]);
     if (Number.isSafeInteger(sequence) && sequence > 0) return `0.99.${sequence}`;
   }
 
+  const patchCandidate = V1_0_1_RELEASE_CANDIDATE.exec(productVersion);
+  if (patchCandidate?.[1]) {
+    const sequence = Number(patchCandidate[1]);
+    if (Number.isSafeInteger(sequence)) return productVersion;
+  }
+
   throw new Error(
-    `Unsupported EasyEDA prerelease product version ${productVersion}; add an explicit numeric manifest mapping before publishing.`,
+    `Unsupported EasyEDA prerelease product version ${productVersion}; add an explicit manifest mapping before publishing.`,
   );
 }
 

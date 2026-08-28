@@ -1,6 +1,6 @@
 # Migrating to v1
 
-`1.0.0-rc.8` supersedes RC.7 because the production container received the Alpine OpenSSL security update after the RC.7 candidate was prepared. RC.8 makes no new EasyEDA behavioral change: it preserves the sessionful MCP `2025-11-25` wire contract, modular SDK v2 runtime, fail-closed schematic page selection, and verified transaction/read-back safety behavior. After RC.8 is published and verified, npm `next` and the prerelease container channel point to RC.8 while stable channels remain on `0.35.4` until the stable publication path completes.
+`1.0.1-rc.1` is the patch candidate for the security/correctness hardening merged after stable `1.0.0`. It preserves the public MCP and bridge contracts while validating cryptographic reconnect jitter, trusted helper/Python launcher resolution, chronological provenance ordering, and deterministic EasyEDA runtime identifier ordering before stable `1.0.1` promotion. After RC.1 is published and verified, npm/GHCR `next` point to RC.1 while stable channels remain on `1.0.0`.
 
 ## What stays compatible
 
@@ -21,24 +21,24 @@
 
    An MCP client can also test the candidate with `npx -y easyeda-mcp-pro@next`.
 
-2. Download the matching `easyeda-bridge-extension.eext` asset from the `easyeda-mcp-pro-v1.0.0-rc.8` GitHub prerelease.
-3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro requires a numeric package version, so Extension Manager shows `0.99.8` for this RC; the bridge runtime still reports the product version `1.0.0-rc.8`.
+2. Download the matching `easyeda-bridge-extension.eext` asset from the `easyeda-mcp-pro-v1.0.1-rc.1` GitHub prerelease.
+3. In EasyEDA Pro, replace the existing MCP Pro Bridge extension with that asset and enable **Allow External Interaction**. EasyEDA Pro 3.2.149 accepts this standard SemVer prerelease package identity, so Extension Manager and the bridge runtime both report `1.0.1-rc.1`. The earlier `1.0.0-rc.N` candidates retain their published `0.99.N` install identities for compatibility.
 4. Start the MCP server and confirm:
    - `easyeda_health_check` returns `status: ok`;
-   - server and extension versions both report `1.0.0-rc.8`;
+   - server and extension versions both report `1.0.1-rc.1`;
    - `extension_version_mismatch` and `registry_mismatch` are both `false`.
 5. Re-run the workflows your project depends on before using the candidate for production work.
 
-## Roll back to 0.35.4
+## Roll back to 1.0.0
 
 The release candidate does not move stable channels. To return explicitly to the previous stable version:
 
 ```bash
-npm install --global easyeda-mcp-pro@0.35.4
+npm install --global easyeda-mcp-pro@1.0.0
 easyeda-mcp-pro --doctor
 ```
 
-For container deployments, pin `ghcr.io/oaslananka/easyeda-mcp-pro:0.35.4`. Reinstall the `0.35.4` extension asset from the corresponding GitHub release so the server and extension versions remain aligned.
+For container deployments, pin `ghcr.io/oaslananka/easyeda-mcp-pro:1.0.0`. Reinstall the `1.0.0` extension asset from the corresponding GitHub release so the server and extension versions remain aligned.
 
 ## Reporting candidate regressions
 

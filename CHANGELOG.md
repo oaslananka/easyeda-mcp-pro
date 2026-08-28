@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.1-rc.1] - 2026-08-28
+
+### Release candidate
+
+- Validates the post-`1.0.0` security/correctness hardening from #558 before stable `1.0.1` promotion; no public MCP API, bridge contract, configuration, or project-file format is intentionally changed.
+- Replaces reconnect jitter's weak PRNG with the existing cryptographic Node primitive, resolves platform helper/Python launchers through trusted absolute paths, and makes provenance timestamp and EasyEDA runtime identifier ordering deterministic.
+- Preserves the published legacy `1.0.0-rc.N -> 0.99.N` EasyEDA install identities while explicitly allowing standard `1.0.1-rc.N` package SemVer after disposable EasyEDA Pro 3.2.149 validation confirmed import, restart persistence, and upgrade to stable `1.0.1`.
+- Keeps every other prerelease family fail-closed until separately reviewed and validated.
+- Requires fresh commit-bound EasyEDA live evidence for the exact RC.1 package before prerelease publication because connection-lifecycle/runtime-sensitive code changed after stable `1.0.0`.
+- Leaves npm/GHCR `latest` and the MCP Registry on verified stable `1.0.0` while RC.1 uses prerelease channels only.
+
 ## [1.0.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.0.0-rc.8...easyeda-mcp-pro-v1.0.0) (2026-08-27)
 
 

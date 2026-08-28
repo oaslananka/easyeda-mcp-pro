@@ -28,10 +28,15 @@ describe('extension metadata policy', () => {
     expect(collectExtensionMetadataErrors(validInput())).toEqual([]);
   });
 
-  it('maps the v1 release candidate to EasyEDA numeric-only package metadata', () => {
+  it('maps the legacy v1.0.0 release candidate to EasyEDA numeric-only package metadata', () => {
     expect(resolveEasyedaManifestVersion('1.0.0-rc.1')).toBe('0.99.1');
     expect(resolveEasyedaManifestVersion('1.0.0-rc.12')).toBe('0.99.12');
     expect(resolveEasyedaManifestVersion('1.0.0')).toBe('1.0.0');
+  });
+
+  it('preserves the explicitly reviewed v1.0.1 release-candidate SemVer package version', () => {
+    expect(resolveEasyedaManifestVersion('1.0.1-rc.1')).toBe('1.0.1-rc.1');
+    expect(resolveEasyedaManifestVersion('1.0.1-rc.12')).toBe('1.0.1-rc.12');
   });
 
   it('accepts a numeric EasyEDA package version while preserving the RC runtime version', () => {
@@ -47,7 +52,16 @@ describe('extension metadata policy', () => {
   });
 
   it('fails closed for unsupported prerelease mappings', () => {
+    expect(() => resolveEasyedaManifestVersion('1.0.2-rc.1')).toThrow(
+      'Unsupported EasyEDA prerelease product version',
+    );
     expect(() => resolveEasyedaManifestVersion('1.1.0-rc.1')).toThrow(
+      'Unsupported EasyEDA prerelease product version',
+    );
+    expect(() => resolveEasyedaManifestVersion('1.0.1-rc.0')).toThrow(
+      'Unsupported EasyEDA prerelease product version',
+    );
+    expect(() => resolveEasyedaManifestVersion('1.0.1-rc.01')).toThrow(
       'Unsupported EasyEDA prerelease product version',
     );
     expect(() => resolveEasyedaManifestVersion('1.0.0-beta.1')).toThrow(

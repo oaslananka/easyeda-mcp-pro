@@ -1,8 +1,114 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-27",
+  "lastReviewed": "2026-08-28",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-28-v1-0-1-rc1-candidate",
+      "status": "live-validated",
+      "validatedAt": "2026-08-28T03:52:31.637+03:00",
+      "reviewBy": "2026-11-26",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.4 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-30-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.0.1-rc.1",
+        "releaseContainingFixes": "1.0.1-rc.1",
+        "commit": "6562f248b063c8e263ee02637b36803beee10350",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "35e4095bb627e69b597addaac4731df854622fc3",
+            "src/bridge": "8d68f46c3a9883edf447314cf155850403489690",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "98e9f5ec02eabbceb27abe303c4f164e111048cc",
+            "src/tools": "225974c7048f91126934be7796bfe92f7b4e6a06",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.0.1-rc.1",
+        "loaderReportedVersion": "1.0.1-rc.1",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "d9e01181ceed32d8",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "Example_Quick Start",
+        "schematic": "Schematic",
+        "page": "P1",
+        "pcb": "PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-0-1-rc1-packaged-bridge-node24-live",
+          "name": "Packaged v1.0.1 RC.1 bridge identity and read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact 6562f248b063c8e263ee02637b36803beee10350 RC.1 candidate package was imported into a bubblewrap-isolated EasyEDA Pro 3.2.149 Half Offline profile. With the validation server on Node 24.18.0, the extension and loader reported 1.0.1-rc.1, bridge contract 1.0.0, 69 capabilities, baked dispatcher d6593xd76cx3f63, and method registry hash d9e01181ceed32d8; the repository six-check read-only smoke passed with writes disabled.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-28-ubuntu-24-04-easyeda-3.2.149-v1.0.1-rc.1-read-scope-pcb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/560",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-0-1-rc1-page-scope-fail-closed-live",
+          "name": "v1.0.1 RC.1 page-scoped schematic metadata and fail-closed selectors",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "While the example PCB remained focused, schematic.getSheetInfo with scope=page resolved P1 from requested-page metadata without changing focus; all_pages exposed one page and 34 components. Unsupported page-scoped component/net reads returned PAGE_SCOPE_UNSUPPORTED, missing pageUuid returned PAGE_UUID_REQUIRED, and conflicting focused+pageUuid returned PAGE_SCOPE_CONFLICT.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-28-ubuntu-24-04-easyeda-3.2.149-v1.0.1-rc.1-read-scope-pcb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/560",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/526"
+          ]
+        },
+        {
+          "id": "v1-0-1-rc1-pcb-read-zero-op-transaction-live",
+          "name": "v1.0.1 RC.1 PCB read surface and zero-operation transaction cleanup",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "With the example PCB focused, RC.1 read dimensions, 33 components, 98 tracks, no vias, four fills, no regions, and surfaced the fixture pre-existing Import Changes DRC error. A zero-operation transaction rolled back completely with zero restored/failed operations and zero bridge write calls.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-28-ubuntu-24-04-easyeda-3.2.149-v1.0.1-rc.1-read-scope-pcb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/560",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
+          ]
+        },
+        {
+          "id": "v1-0-1-rc1-disposable-isolation-cleanup",
+          "name": "v1.0.1 RC.1 live isolation and cleanup",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The bundled example and RC.1 extension ran only inside the bubblewrap-isolated Half Offline profile. After validation, the EasyEDA process tree and sandbox were removed, and the full path/mtime/size/mode metadata snapshot of the real EasyEDA config, Documents, and project trees matched exactly before versus after (SHA-256 f81413aa982acb2ea1a1b6cfc681721c0af89cc803520e85961ae37353b97c5f).",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-28-ubuntu-24-04-easyeda-3.2.149-v1.0.1-rc.1-read-scope-pcb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/560"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent RC.1 live EasyEDA desktop record.",
+        "No PCB or schematic design mutation was applied. The live transaction proof intentionally used zero operations and made zero bridge write calls; write rollback remains covered by repository regression tests and earlier live records.",
+        "EasyEDA Pro 3.2.149 does not expose page-attributed component or page-aware net reads. RC.1 intentionally fails those explicit page scopes closed while supporting requested-page metadata and all-pages component reads.",
+        "This RC.1 validation used the bundled Example_Quick Start design copied into the disposable sandbox. The page-scope/focus-preservation contract and PCB read surface were exercised on that real bundled schematic/PCB pair.",
+        "The bundled example contains one pre-existing PCB/schematic netlist mismatch, which design.drc correctly surfaced as an Import Changes error. This is a fixture finding, not a bridge false-success.",
+        "The package SHA-256 in the public evidence identifies the exact 6562f248b063c8e263ee02637b36803beee10350 prerelease candidate. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-27-v1-rc8-candidate",
       "status": "live-validated",
