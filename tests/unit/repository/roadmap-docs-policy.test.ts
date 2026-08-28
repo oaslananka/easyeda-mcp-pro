@@ -28,7 +28,7 @@ describe('repository roadmap and CDP documentation policy', () => {
     expect(existsSync(resolve(repoRoot, path))).toBe(true);
     const roadmap = read(path);
 
-    expect(roadmap).toContain('v1.0.0 — Release stabilization and promotion');
+    expect(roadmap).toContain('v1.0.1 — Patch stabilization and promotion');
     expect(roadmap).toContain('v1.1.0 — PCB side-aware inspection and mutation');
     expect(roadmap).toContain('v1.2.0 — MCP 2026-07-28 compatibility');
     expect(roadmap).not.toContain('v0.37.0 — Maintainability and operational consistency');
@@ -37,7 +37,7 @@ describe('repository roadmap and CDP documentation policy', () => {
     );
     expect(roadmap).not.toContain('/issues/349');
     expect(roadmap).not.toContain('/issues/350');
-    expect(roadmap).toContain('/issues/554');
+    expect(roadmap).toContain('/issues/561');
     expect(roadmap).toContain('/issues/470');
     expect(roadmap).toContain('/issues/480');
     expect(roadmap).toContain('/issues/476');
