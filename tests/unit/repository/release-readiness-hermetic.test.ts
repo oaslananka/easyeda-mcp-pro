@@ -166,6 +166,12 @@ async function commitExtensionSource(root: string, source: string, message: stri
   git(root, ['commit', '-m', message]);
 }
 
+async function expectCurrentCompatibilityFreshness(root: string) {
+  const report = await inspectCompatibilityFreshness({ root, gitBinary });
+  expect(report.status).toBe('current');
+  expect(report.records[0]).toMatchObject({ status: 'current', changedFiles: [] });
+}
+
 async function createPassingCommand(directory: string, name: string) {
   await mkdir(directory, { recursive: true });
   if (process.platform === 'win32') {
@@ -254,10 +260,7 @@ describe('hermetic release readiness', { timeout: GIT_FIXTURE_TEST_TIMEOUT_MS },
     git(fixture.root, ['add', 'easyeda-bridge-extension/src/index.ts']);
     git(fixture.root, ['commit', '-m', 'chore: promote extension version to stable']);
 
-    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
-
-    expect(report.status).toBe('current');
-    expect(report.records[0]).toMatchObject({ status: 'current', changedFiles: [] });
+    await expectCurrentCompatibilityFreshness(fixture.root);
   });
 
   it('accepts a stable promotion from a recorded snapshot when the evidence commit is unavailable', async () => {
@@ -269,10 +272,7 @@ describe('hermetic release readiness', { timeout: GIT_FIXTURE_TEST_TIMEOUT_MS },
       'chore: promote snapshot-backed extension version to stable',
     );
 
-    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
-
-    expect(report.status).toBe('current');
-    expect(report.records[0]).toMatchObject({ status: 'current', changedFiles: [] });
+    await expectCurrentCompatibilityFreshness(fixture.root);
   });
 
   it('rejects a snapshot-backed stable promotion when extension behavior also changes', async () => {
