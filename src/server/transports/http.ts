@@ -390,7 +390,7 @@ export function handleCorsPreflight(req: Request, res: Response, next: NextFunct
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID',
+      'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID, Mcp-Method, Mcp-Name',
     );
     res.setHeader('Access-Control-Max-Age', '86400');
     res.status(204).end();
