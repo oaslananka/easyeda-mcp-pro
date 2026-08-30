@@ -44,7 +44,7 @@ export function getFeatureMaturity(config: EnvConfig): FeatureMaturityReport {
       maturity: 'experimental',
       configured: config.MCP_V2_EXPERIMENTAL,
       effective: config.MCP_V2_EXPERIMENTAL,
-      note: 'Enables opt-in dual-era HTTP routing for MCP 2026-07-28 while retaining the legacy sessionful path.',
+      note: 'Enables opt-in dual-era HTTP and stdio support for MCP 2026-07-28 while retaining legacy defaults.',
     },
     ai_provider: {
       maturity: 'reserved',

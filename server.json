@@ -135,7 +135,7 @@
         },
         {
           "name": "MCP_V2_EXPERIMENTAL",
-          "description": "Experimental; enables opt-in dual-era HTTP routing for MCP 2026-07-28 while legacy HTTP remains the default.",
+          "description": "Experimental; enables opt-in dual-era HTTP and stdio support for MCP 2026-07-28 while legacy behavior remains the default.",
           "isRequired": false,
           "format": "boolean",
           "default": "false"

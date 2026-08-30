@@ -1,5 +1,9 @@
 import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
-import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
+import {
+  StdioServerTransport,
+  serveStdio,
+  type StdioServerHandle,
+} from '@modelcontextprotocol/server/stdio';
 import { McpServer } from '@modelcontextprotocol/server';
 import { type EnvConfig } from '../config/env.js';
 import { type ToolProfile } from '../config/profiles.js';
@@ -38,6 +42,7 @@ export interface McpServerInstance {
   storage?: Storage;
   bridge: BridgeManager | CdpBridgeManager;
   createSessionServer: () => McpServer;
+  startStdio: () => Promise<void>;
   shutdown: () => Promise<void>;
 }
 
@@ -178,12 +183,25 @@ export async function createServer(
 
   const server = createSessionServer();
   const transport = new StdioServerTransport();
+  let stdioHandle: StdioServerHandle | undefined;
+
+  const startStdio = async () => {
+    if (config.MCP_V2_EXPERIMENTAL) {
+      stdioHandle = serveStdio(createSessionServer, {
+        legacy: 'serve',
+        onerror: (error) => logger.error({ err: error }, 'stdio server error'),
+      });
+      return;
+    }
+    await server.connect(transport);
+  };
 
   const shutdown = async () => {
     logger.info('server shutting down');
     stopHotSwapWatcher?.();
     storage.close();
     if (localBridgeEnabled) bridge.disconnect('server shutdown');
+    await stdioHandle?.close();
     await server.close();
   };
 
@@ -195,6 +213,7 @@ export async function createServer(
     storage,
     bridge,
     createSessionServer,
+    startStdio,
     shutdown,
   };
 }

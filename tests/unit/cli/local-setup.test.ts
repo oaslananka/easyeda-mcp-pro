@@ -404,6 +404,15 @@ describe('local setup CLI helpers', () => {
     expect(formatDoctorReport(report)).toContain(
       'Remote backend: local_bridge / transport=stdio / session=per-request / oauth=disabled',
     );
+    report.mcpProtocol = {
+      transport: 'stdio',
+      defaultEra: 'legacy',
+      supportedVersions: ['2025-11-25', '2026-07-28'],
+      modernExperimentalEnabled: true,
+    };
+    expect(formatDoctorReport(report)).toContain(
+      'MCP protocol: transport=stdio / default=legacy (2025-11-25) / supported=2025-11-25,2026-07-28 / modern=experimental-enabled',
+    );
     expect(formatDoctorReport(report)).not.toContain('Suggested fixes:');
     expect(formatDoctorReport(report, { fix: true })).toContain(
       'pnpm 9.0.0 is not supported (required: 11.5.1).',
@@ -889,6 +898,26 @@ describe('local setup CLI helpers', () => {
       } finally {
         server.close();
       }
+    });
+
+    it('reports dual-era MCP protocol support when the experimental flag is enabled', async () => {
+      await withEnv(
+        {
+          TRANSPORT: 'stdio',
+          MCP_V2_EXPERIMENTAL: 'true',
+          BRIDGE_PORT_SCAN: '1',
+        },
+        async () => {
+          const report = await createDoctorReport();
+
+          expect(report.mcpProtocol).toEqual({
+            transport: 'stdio',
+            defaultEra: 'legacy',
+            supportedVersions: ['2025-11-25', '2026-07-28'],
+            modernExperimentalEnabled: true,
+          });
+        },
+      );
     });
 
     it('reports Remote Relay readiness warnings from environment configuration', async () => {
