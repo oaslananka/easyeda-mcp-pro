@@ -1019,4 +1019,111 @@ describe('createHttpTransport — legacy protocol migration baseline', () => {
       await harness.close();
     }
   });
+
+  it('routes 2026-era discovery through the modern handler when explicitly enabled', async () => {
+    const config = createTestConfig({
+      HTTP_AUTH_DISABLED: true,
+      MCP_V2_EXPERIMENTAL: true,
+    });
+    const transport = createHttpTransport(config, {
+      serverFactory: () =>
+        new McpServer({ name: 'dual-era', version: '1.0.0' }, { capabilities: { tools: {} } }),
+    });
+    const server = http.createServer(transport.app);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('HTTP test server has no TCP port');
+    const mcpUrl = `http://127.0.0.1:${address.port}/mcp`;
+
+    try {
+      const malformedModern = await fetch(mcpUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'MCP-Protocol-Version': '2026-07-28',
+          'Mcp-Method': 'ping',
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 40, method: 'ping', params: {} }),
+      });
+      expect(malformedModern.status).toBe(400);
+      await expect(malformedModern.json()).resolves.toMatchObject({
+        jsonrpc: '2.0',
+        id: 40,
+        error: { code: -32602 },
+      });
+      expect(transport.activeSessionCount).toBe(0);
+
+      const response = await fetch(mcpUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'MCP-Protocol-Version': '2026-07-28',
+          'Mcp-Method': 'server/discover',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 41,
+          method: 'server/discover',
+          params: {
+            _meta: {
+              'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+              'io.modelcontextprotocol/clientInfo': { name: 'dual-era-test', version: '1.0.0' },
+              'io.modelcontextprotocol/clientCapabilities': {},
+            },
+          },
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('mcp-session-id')).toBeNull();
+      await expect(response.json()).resolves.toMatchObject({
+        jsonrpc: '2.0',
+        id: 41,
+        result: {
+          supportedVersions: ['2026-07-28'],
+          ttlMs: 0,
+          cacheScope: 'private',
+        },
+      });
+      expect(transport.activeSessionCount).toBe(0);
+
+      const legacyInitialize = await fetch(mcpUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 42,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: { name: 'legacy-alongside-modern', version: '1.0.0' },
+          },
+        }),
+      });
+      expect(legacyInitialize.status).toBe(200);
+      const legacySessionId = legacyInitialize.headers.get('mcp-session-id');
+      expect(legacySessionId).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(transport.activeSessionCount).toBe(1);
+
+      const legacyDelete = await fetch(mcpUrl, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json, text/event-stream',
+          'MCP-Session-Id': legacySessionId!,
+        },
+      });
+      expect(legacyDelete.status).toBe(200);
+      expect(transport.activeSessionCount).toBe(0);
+    } finally {
+      await transport.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 });

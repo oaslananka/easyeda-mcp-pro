@@ -41,10 +41,10 @@ export function getFeatureMaturity(config: EnvConfig): FeatureMaturityReport {
       note: 'The setting is reserved; no MCP Apps UI/resource runtime is registered.',
     },
     mcp_v2: {
-      maturity: 'reserved',
+      maturity: 'experimental',
       configured: config.MCP_V2_EXPERIMENTAL,
-      effective: false,
-      note: 'The setting is reserved and does not change the negotiated MCP protocol.',
+      effective: config.MCP_V2_EXPERIMENTAL,
+      note: 'Enables opt-in dual-era HTTP routing for MCP 2026-07-28 while retaining the legacy sessionful path.',
     },
     ai_provider: {
       maturity: 'reserved',

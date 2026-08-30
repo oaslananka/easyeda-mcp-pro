@@ -137,10 +137,10 @@
     },
     {
       "name": "MCP_V2_EXPERIMENTAL",
-      "description": "Reserved; currently non-functional: does not change MCP protocol negotiation.",
+      "description": "Experimental; enables opt-in dual-era HTTP routing for MCP 2026-07-28 while legacy HTTP remains the default.",
       "format": "boolean",
       "defaultSource": "runtime",
-      "status": "reserved"
+      "status": "experimental"
     },
     {
       "name": "MCP_RAW_EXEC_EXPERIMENTAL",

@@ -214,7 +214,7 @@ describe('Diagnostics Tools', () => {
     expect(activeProfile?.name).toBe('core');
   });
 
-  it('reports reserved feature configuration as configured but not effective', async () => {
+  it('reports reserved features as ineffective and the MCP v2 rollout as experimental', async () => {
     const configuredRegistry = new ToolRegistry();
     registerDiagnosticsCore(
       configuredRegistry,
@@ -232,14 +232,14 @@ describe('Diagnostics Tools', () => {
     expect(flags?.flags).toMatchObject({
       mcp_tasks_enabled: false,
       mcp_apps_enabled: false,
-      mcp_v2_experimental: false,
+      mcp_v2_experimental: true,
       ai_enabled: false,
       otel_enabled: false,
     });
     expect(flags?.maturity).toMatchObject({
       mcp_tasks: { maturity: 'reserved', configured: true, effective: false },
       mcp_apps: { maturity: 'reserved', configured: true, effective: false },
-      mcp_v2: { maturity: 'reserved', configured: true, effective: false },
+      mcp_v2: { maturity: 'experimental', configured: true, effective: true },
       ai_provider: { maturity: 'reserved', configured: true, effective: false },
       otel_export: { maturity: 'reserved', configured: true, effective: false },
     });

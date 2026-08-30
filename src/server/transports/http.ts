@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
-import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
-import { isInitializeRequest } from '@modelcontextprotocol/server';
+import {
+  NodeStreamableHTTPServerTransport,
+  toNodeHandler,
+  toWebRequest,
+} from '@modelcontextprotocol/node';
+import {
+  createMcpHandler,
+  isInitializeRequest,
+  isLegacyRequest,
+} from '@modelcontextprotocol/server';
 import type { McpServer, AuthInfo } from '@modelcontextprotocol/server';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { type EnvConfig } from '../../config/env.js';
@@ -356,7 +364,11 @@ export function validateMcpProtocolVersion(config: EnvConfig) {
 
     const header = req.headers['mcp-protocol-version'];
     const requestedVersion = Array.isArray(header) ? header[0] : header;
-    if (requestedVersion === undefined || requestedVersion === config.MCP_PROTOCOL_VERSION) {
+    if (
+      config.MCP_V2_EXPERIMENTAL ||
+      requestedVersion === undefined ||
+      requestedVersion === config.MCP_PROTOCOL_VERSION
+    ) {
       next();
       return;
     }
@@ -450,6 +462,19 @@ export function createHttpTransport(
   const logger = getLogger();
   const gateway = options.gateway ?? new RemoteGateway();
   const sessions = new Map<string, McpHttpSession>();
+  const serverFactory = options.serverFactory;
+  const modernHandler =
+    config.MCP_V2_EXPERIMENTAL && serverFactory
+      ? createMcpHandler(() => serverFactory(), {
+          legacy: 'reject',
+          onerror: (error) => logger.error({ err: error.message }, 'modern MCP HTTP handler error'),
+        })
+      : undefined;
+  const modernNodeHandler = modernHandler
+    ? toNodeHandler(modernHandler, {
+        onerror: (error) => logger.error({ err: error.message }, 'modern MCP HTTP adapter error'),
+      })
+    : undefined;
 
   // Retained for compatibility with callers that explicitly attach one MCP
   // server. Production HTTP uses serverFactory and the session map below.
@@ -560,6 +585,13 @@ export function createHttpTransport(
   };
 
   app.post('/mcp', async (req, res) => {
+    if (modernNodeHandler) {
+      if (!(await isLegacyRequest(await toWebRequest(req), req.body))) {
+        await modernNodeHandler(req, res, req.body);
+        return;
+      }
+    }
+
     if (!options.serverFactory) {
       await transport.handleRequest(req, res, req.body);
       return;
@@ -629,6 +661,7 @@ export function createHttpTransport(
     const activeSessions = [...sessions.values()];
     await Promise.allSettled(activeSessions.map(closeMcpSession));
     await transport.close();
+    await modernHandler?.close();
     const s = server;
     if (s) {
       await new Promise<void>((resolve) => s.close(() => resolve()));
