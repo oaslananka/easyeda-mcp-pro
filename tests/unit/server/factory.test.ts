@@ -147,6 +147,10 @@ describe('createServer', () => {
       legacy: 'serve',
       onerror: expect.any(Function),
     });
+    const options = mocks.serveStdio.mock.calls[0]?.[1];
+    const stdioError = new Error('stdio failed');
+    options?.onerror(stdioError);
+    expect(mocks.logger.error).toHaveBeenCalledWith({ err: stdioError }, 'stdio server error');
 
     await instance.shutdown();
     expect(mocks.stdioHandleClose).toHaveBeenCalledTimes(1);
