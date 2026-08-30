@@ -1035,6 +1035,7 @@ describe('createHttpTransport — legacy protocol migration baseline', () => {
     if (!address || typeof address === 'string')
       throw new Error('HTTP test server has no TCP port');
     const mcpUrl = `http://127.0.0.1:${address.port}/mcp`;
+    let transportClosed = false;
 
     try {
       const malformedModern = await fetch(mcpUrl, {
@@ -1121,8 +1122,36 @@ describe('createHttpTransport — legacy protocol migration baseline', () => {
       });
       expect(legacyDelete.status).toBe(200);
       expect(transport.activeSessionCount).toBe(0);
-    } finally {
+
       await transport.close();
+      transportClosed = true;
+      const afterClose = await fetch(mcpUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'MCP-Protocol-Version': '2026-07-28',
+          'Mcp-Method': 'server/discover',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 43,
+          method: 'server/discover',
+          params: {
+            _meta: {
+              'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+              'io.modelcontextprotocol/clientInfo': {
+                name: 'closed-handler-test',
+                version: '1.0.0',
+              },
+              'io.modelcontextprotocol/clientCapabilities': {},
+            },
+          },
+        }),
+      });
+      expect(afterClose.status).toBe(500);
+    } finally {
+      if (!transportClosed) await transport.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
