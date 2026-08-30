@@ -94,6 +94,13 @@ export interface UserServiceRuntimeStatus {
   issues: string[];
 }
 
+export interface McpProtocolDoctorStatus {
+  transport: 'stdio' | 'http';
+  defaultEra: 'legacy';
+  supportedVersions: string[];
+  modernExperimentalEnabled: boolean;
+}
+
 export interface DoctorReport {
   setup: LocalSetupInfo;
   installationMode?: DoctorInstallationMode;
@@ -111,11 +118,34 @@ export interface DoctorReport {
   vendorsConfigured: Record<string, boolean>;
   vendorDiagnostics?: Record<string, VendorDoctorStatus>;
   remoteBackend?: RemoteBackendDoctorStatus;
+  mcpProtocol?: McpProtocolDoctorStatus;
 }
 
 export interface CreateDoctorReportOptions {
   nodeEnv?: string;
   pnpmVersion?: string | null;
+}
+
+function mcpProtocolStatusFromConfig(
+  config: EnvConfig | undefined,
+): McpProtocolDoctorStatus | undefined {
+  if (!config) return undefined;
+  const supportedVersions = ['2025-11-25'];
+  if (config.MCP_V2_EXPERIMENTAL) supportedVersions.push('2026-07-28');
+  return {
+    transport: config.TRANSPORT,
+    defaultEra: 'legacy',
+    supportedVersions,
+    modernExperimentalEnabled: config.MCP_V2_EXPERIMENTAL,
+  };
+}
+
+function formatMcpProtocolStatus(status: McpProtocolDoctorStatus | undefined): string[] {
+  if (!status) return [];
+  const modern = status.modernExperimentalEnabled ? 'experimental-enabled' : 'disabled';
+  return [
+    `MCP protocol: transport=${status.transport} / default=${status.defaultEra} (2025-11-25) / supported=${status.supportedVersions.join(',')} / modern=${modern}`,
+  ];
 }
 
 function remoteBackendStatusFromConfig(
@@ -657,6 +687,7 @@ export async function createDoctorReport(
     vendorsConfigured,
     vendorDiagnostics,
     remoteBackend,
+    mcpProtocol: mcpProtocolStatusFromConfig(env.config),
   };
 }
 
@@ -833,6 +864,7 @@ export function formatDoctorReport(report: DoctorReport, options?: { fix?: boole
       : []),
     `Bridge server: ${reachable ? 'OK' : 'INFO'} ${bridgeStatus}`,
     `Remote backend: ${remoteBackendStr}`,
+    ...formatMcpProtocolStatus(report.mcpProtocol),
     ...(report.remoteBackend?.warnings.length
       ? report.remoteBackend.warnings.map((warning) => `Remote warning: ${warning}`)
       : []),

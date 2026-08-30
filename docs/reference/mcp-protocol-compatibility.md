@@ -1,21 +1,20 @@
 # MCP protocol compatibility
 
 This document records the protocol boundary that must remain explicit while `easyeda-mcp-pro`
-adds support for MCP `2026-07-28`. The modern HTTP era is opt-in behind
-`MCP_V2_EXPERIMENTAL`; legacy/sessionful HTTP remains the default and modern stdio remains pending.
+adds support for MCP `2026-07-28`. Modern HTTP and stdio are opt-in behind `MCP_V2_EXPERIMENTAL`; legacy/sessionful HTTP and the legacy stdio handshake remain the defaults.
 
 ## Current support
 
-| Area                  | Current repository behavior                                                 |
-| --------------------- | --------------------------------------------------------------------------- |
-| MCP SDK               | Modular v2 packages; server/node lock to `2.0.0`, client is test-only       |
-| Default MCP revision  | `2025-11-25`                                                                |
-| HTTP era              | Legacy/sessionful by default; dual-era when `MCP_V2_EXPERIMENTAL=true`      |
-| HTTP initialization   | `initialize` followed by `notifications/initialized`                        |
-| HTTP session identity | `MCP-Session-Id`                                                            |
-| HTTP session routing  | Per-session `McpServer` + `StreamableHTTPServerTransport` instances         |
-| Stdio                 | `McpServer.connect(new StdioServerTransport())`                             |
-| MCP `2026-07-28`      | Experimental HTTP support behind `MCP_V2_EXPERIMENTAL`; disabled by default |
+| Area                  | Current repository behavior                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| MCP SDK               | Modular v2 packages; server/node lock to `2.0.0`, client is test-only  |
+| Default MCP revision  | `2025-11-25`                                                           |
+| HTTP era              | Legacy/sessionful by default; dual-era when `MCP_V2_EXPERIMENTAL=true` |
+| HTTP initialization   | `initialize` followed by `notifications/initialized`                   |
+| HTTP session identity | `MCP-Session-Id`                                                       |
+| HTTP session routing  | Per-session `McpServer` + `StreamableHTTPServerTransport` instances    |
+| Stdio                 | Legacy by default; dual-era `serveStdio(...)` when the flag is enabled |
+| MCP `2026-07-28`      | Experimental HTTP + stdio support behind `MCP_V2_EXPERIMENTAL`         |
 
 The server intentionally accepts a missing `MCP-Protocol-Version` header for retained legacy
 clients. With the experimental flag disabled, an explicit non-legacy version is rejected before
@@ -44,7 +43,7 @@ Research baseline on 2026-08-09: the stable v2 packages
 `@modelcontextprotocol/server`, `@modelcontextprotocol/client`, `@modelcontextprotocol/node`, and
 `@modelcontextprotocol/core` are published at `2.0.0`. The repository now resolves the direct
 server/node SDK packages to `2.0.0` in the lockfile and keeps the client package test-only. This
-provides the modular SDK foundation used by the opt-in modern HTTP path.
+provides the modular SDK foundation used by the opt-in modern HTTP and stdio paths.
 
 Primary references:
 
@@ -77,7 +76,7 @@ not leak into modern requests.
 | Origin allowlist / CORS                                   | Retain                                     | Retain, with modern MCP headers added only as required      | Never use permissive CORS as protocol negotiation.                                                                                          |
 | Rate limiting and security headers                        | Retain                                     | Retain                                                      | Apply before dispatch for both eras.                                                                                                        |
 | Remote Relay authorization and invocation grants          | Retain                                     | Retain                                                      | Protocol-era changes must not weaken user/session isolation, approval requirements, or one-invocation grant scope.                          |
-| `MCP_V2_EXPERIMENTAL` rollout gate                        | Retain for legacy/default-off behavior     | Experimental opt-in for modern HTTP                         | Flag-on uses official era classification; flag-off preserves the pre-existing legacy contract.                                              |
+| `MCP_V2_EXPERIMENTAL` rollout gate                        | Retain for legacy/default-off behavior     | Experimental opt-in for modern HTTP and stdio               | Flag-on uses official era negotiation/classification; flag-off preserves the pre-existing legacy contract.                                  |
 
 ## Security invariants
 
@@ -109,12 +108,10 @@ The compatibility work should remain reviewable as separate changes:
    preserving legacy wire behavior. This foundation is complete.
 3. **Modern HTTP path:** explicit era routing and `2026-07-28` request handling are available
    behind `MCP_V2_EXPERIMENTAL`; the existing sessionful route remains independent.
-4. **Modern stdio path:** adopt the v2 stdio lifecycle behind an explicit compatibility boundary.
+4. **Modern stdio path:** `serveStdio(...)` is enabled behind the same experimental flag; pinned modern and default legacy clients are covered by hermetic process-level interop tests.
 5. **Security and Remote Relay parity:** prove OAuth, origin/Host, rate-limit, scope, approval, and
    relay isolation on both eras with independent fixtures.
 6. **Rollout:** document supported/experimental/deprecated states, verify rollback to the retained
    legacy path, then consider changing defaults only through a separate release decision.
 
-Until the remaining stdio, parity, and rollout steps are complete, `2025-11-25` remains the
-default supported MCP application protocol. Experimental `2026-07-28` HTTP support requires
-`MCP_V2_EXPERIMENTAL=true`.
+Until the remaining security/Remote Relay parity and rollout steps are complete, `2025-11-25` remains the default supported MCP application protocol. Experimental `2026-07-28` HTTP and stdio support requires `MCP_V2_EXPERIMENTAL=true`. `easyeda-mcp-pro doctor` reports the configured transport, default era, supported revisions, and whether the modern experimental path is enabled.

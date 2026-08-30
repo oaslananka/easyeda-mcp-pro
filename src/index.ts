@@ -74,7 +74,7 @@ async function main() {
     instance.httpTransport = httpTransport;
     await httpTransport.start();
   } else {
-    await instance.server.connect(instance.transport);
+    await instance.startStdio();
   }
 
   process.stderr.write(`easyeda-mcp-pro ready on ${config.TRANSPORT} transport\n`);

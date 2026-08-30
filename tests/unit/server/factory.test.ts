@@ -4,6 +4,9 @@ import type { EnvConfig } from '../../../src/config/env.js';
 const mocks = vi.hoisted(() => ({
   logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn() },
   close: vi.fn(async () => undefined),
+  serverConnect: vi.fn(async () => undefined),
+  stdioHandleClose: vi.fn(async () => undefined),
+  serveStdio: vi.fn(() => ({ close: mocks.stdioHandleClose })),
   connect: vi.fn(async () => undefined),
   disconnect: vi.fn(),
   call: vi.fn(async () => ({ ok: true })),
@@ -21,10 +24,12 @@ vi.mock('@modelcontextprotocol/server', () => ({
   McpServer: class MockMcpServer {
     server = { onerror: undefined as ((error: unknown) => void) | undefined };
     close = mocks.close;
+    connect = mocks.serverConnect;
   },
 }));
 vi.mock('@modelcontextprotocol/server/stdio', () => ({
   StdioServerTransport: class MockStdioServerTransport {},
+  serveStdio: mocks.serveStdio,
 }));
 vi.mock('@modelcontextprotocol/node', () => ({
   NodeStreamableHTTPServerTransport: class MockStreamableHTTPServerTransport {},
@@ -101,6 +106,8 @@ describe('createServer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.connect.mockResolvedValue(undefined);
+    mocks.serverConnect.mockResolvedValue(undefined);
+    mocks.serveStdio.mockReturnValue({ close: mocks.stdioHandleClose });
     mocks.call.mockResolvedValue({ ok: true });
   });
 
@@ -119,6 +126,30 @@ describe('createServer', () => {
     expect(mocks.storageClose).toHaveBeenCalledTimes(1);
     expect(mocks.disconnect).toHaveBeenCalledWith('server shutdown');
     expect(mocks.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps legacy stdio as the default connection path', async () => {
+    const instance = await createServer(config({ MCP_V2_EXPERIMENTAL: false }));
+
+    await instance.startStdio();
+
+    expect(mocks.serverConnect).toHaveBeenCalledWith(instance.transport);
+    expect(mocks.serveStdio).not.toHaveBeenCalled();
+  });
+
+  it('uses the SDK dual-era stdio entry when MCP_V2_EXPERIMENTAL is enabled', async () => {
+    const instance = await createServer(config({ MCP_V2_EXPERIMENTAL: true }));
+
+    await instance.startStdio();
+
+    expect(mocks.serverConnect).not.toHaveBeenCalled();
+    expect(mocks.serveStdio).toHaveBeenCalledWith(instance.createSessionServer, {
+      legacy: 'serve',
+      onerror: expect.any(Function),
+    });
+
+    await instance.shutdown();
+    expect(mocks.stdioHandleClose).toHaveBeenCalledTimes(1);
   });
 
   it('does not open the local bridge or hot-swap watcher in Remote Relay mode', async () => {
