@@ -77,19 +77,20 @@ feature is active. `easyeda_get_feature_flags`, `easyeda_get_capabilities`, and
 `easyeda_get_server_config` expose a maturity report with separate `configured` and `effective`
 values.
 
-| Settings                                                                                               | Maturity     | Runtime effect                                                                                                      |
-| ------------------------------------------------------------------------------------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `MCP_TASKS_ENABLED`                                                                                    | Reserved     | Parsed for compatibility; the server does not advertise or execute MCP Tasks.                                       |
-| `MCP_APPS_ENABLED`                                                                                     | Reserved     | Parsed for compatibility; no Apps UI/resource runtime is registered.                                                |
-| `MCP_V2_EXPERIMENTAL`                                                                                  | Reserved     | Does not change protocol negotiation. See [MCP protocol compatibility](../reference/mcp-protocol-compatibility.md). |
-| `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_MAX_TOKENS`, `AI_TIMEOUT_MS`, `AI_ALLOW_DESIGN_MUTATIONS` | Reserved     | No in-process AI provider is called and no AI design mutation is enabled.                                           |
-| `OTEL_ENABLED`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `TRACE_SAMPLE_RATE`                | Reserved     | No OTLP exporter is started; local structured metrics remain available.                                             |
-| `MCP_BRIDGE_BACKEND=remote_relay`                                                                      | Experimental | Activates the implemented paired relay path with documented non-Beta limitations.                                   |
-| Raw execution gates                                                                                    | Experimental | Effective only when both explicit development-only gates are enabled; refused in production.                        |
-| OAuth/JWKS settings                                                                                    | Implemented  | Enforced for non-loopback HTTP and used for token validation.                                                       |
+| Settings                                                                                               | Maturity     | Runtime effect                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MCP_TASKS_ENABLED`                                                                                    | Reserved     | Parsed for compatibility; the server does not advertise or execute MCP Tasks.                                                                                                                             |
+| `MCP_APPS_ENABLED`                                                                                     | Reserved     | Parsed for compatibility; no Apps UI/resource runtime is registered.                                                                                                                                      |
+| `MCP_V2_EXPERIMENTAL`                                                                                  | Experimental | Enables opt-in dual-era HTTP routing for MCP `2026-07-28`; legacy HTTP remains the default and modern stdio is not enabled. See [MCP protocol compatibility](../reference/mcp-protocol-compatibility.md). |
+| `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_MAX_TOKENS`, `AI_TIMEOUT_MS`, `AI_ALLOW_DESIGN_MUTATIONS` | Reserved     | No in-process AI provider is called and no AI design mutation is enabled.                                                                                                                                 |
+| `OTEL_ENABLED`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `TRACE_SAMPLE_RATE`                | Reserved     | No OTLP exporter is started; local structured metrics remain available.                                                                                                                                   |
+| `MCP_BRIDGE_BACKEND=remote_relay`                                                                      | Experimental | Activates the implemented paired relay path with documented non-Beta limitations.                                                                                                                         |
+| Raw execution gates                                                                                    | Experimental | Effective only when both explicit development-only gates are enabled; refused in production.                                                                                                              |
+| OAuth/JWKS settings                                                                                    | Implemented  | Enforced for non-loopback HTTP and used for token validation.                                                                                                                                             |
 
-Reserved settings report `effective: false` even when configured. They are retained so future
-implementation can avoid unnecessary configuration churn, but must not be presented as shipped
+Reserved settings report `effective: false` even when configured. Experimental settings report
+their actual runtime state. Reserved settings are retained so future implementation can avoid
+unnecessary configuration churn, but must not be presented as shipped
 product capabilities.
 
 ---

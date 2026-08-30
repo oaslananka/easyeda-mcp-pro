@@ -32,18 +32,18 @@ describe('diagnostics feature reporting', () => {
     MCP_RAW_EXEC_EXPERIMENTAL: 'true',
   });
 
-  it('keeps reserved flags ineffective across every public diagnostics view', () => {
+  it('keeps reserved flags ineffective while reporting the experimental MCP v2 flag', () => {
     expect(buildCapabilityFeatureFlags(config)).toEqual({
       tasks_enabled: false,
       apps_enabled: false,
-      v2_experimental: false,
+      v2_experimental: true,
       ordering_enabled: true,
     });
 
     expect(buildServerConfigFeatureFlags(config)).toEqual({
       mcp_tasks_enabled: false,
       mcp_apps_enabled: false,
-      mcp_v2_experimental: false,
+      mcp_v2_experimental: true,
       ai_enabled: false,
       otel_enabled: false,
     });
@@ -53,7 +53,7 @@ describe('diagnostics feature reporting', () => {
     expect(buildDetailedFeatureFlags(config)).toEqual({
       mcp_tasks_enabled: false,
       mcp_apps_enabled: false,
-      mcp_v2_experimental: false,
+      mcp_v2_experimental: true,
       jlcpcb_ordering_enabled: true,
       jlcsearch_enabled: true,
       mouser_enabled: true,
