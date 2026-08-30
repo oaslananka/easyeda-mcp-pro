@@ -244,7 +244,7 @@ describe('createHttpTransport', () => {
       expect(res.status).toBe(204);
       expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST, DELETE, OPTIONS');
       expect(res.headers.get('access-control-allow-headers')).toBe(
-        'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID',
+        'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID, Mcp-Method, Mcp-Name',
       );
       expect(res.headers.get('access-control-max-age')).toBe('86400');
       expect(res.headers.get('vary')).toBe('Origin');
@@ -588,7 +588,7 @@ describe('handleCorsPreflight', () => {
     );
     expect(res.setHeader).toHaveBeenCalledWith(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID',
+      'Content-Type, Authorization, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID, Mcp-Method, Mcp-Name',
     );
     expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Max-Age', '86400');
     expect(res.end).toHaveBeenCalled();

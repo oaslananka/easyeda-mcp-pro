@@ -53,14 +53,17 @@ interface RemoteHttpHarness {
   readonly closedSessionServerCount: number;
   instance: McpServerInstance;
   httpTransport: HttpTransportInstance;
-  createClient: (name: string) => {
+  createClient: (
+    name: string,
+    modern?: boolean,
+  ) => {
     client: Client;
     transport: StreamableHTTPClientTransport;
   };
   close: () => Promise<void>;
 }
 
-async function createHarness(): Promise<RemoteHttpHarness> {
+async function createHarness(modernEnabled = false): Promise<RemoteHttpHarness> {
   const port = await reservePort();
   const dataDir = await mkdtemp(join(tmpdir(), 'easyeda-remote-http-'));
   const config = EnvSchema.parse({
@@ -71,6 +74,7 @@ async function createHarness(): Promise<RemoteHttpHarness> {
     HTTP_HOST: '127.0.0.1',
     HTTP_PORT: port,
     HTTP_AUTH_DISABLED: true,
+    MCP_V2_EXPERIMENTAL: modernEnabled,
     MCP_BRIDGE_BACKEND: 'remote_relay',
     BRIDGE_TIMEOUT_MS: 1000,
     JLCSEARCH_ENABLED: false,
@@ -161,8 +165,11 @@ async function createHarness(): Promise<RemoteHttpHarness> {
   await httpTransport.start();
 
   const clients = new Set<Client>();
-  const createClient = (name: string) => {
-    const client = new Client({ name, version: '1.0.0' });
+  const createClient = (name: string, modern = false) => {
+    const client = new Client(
+      { name, version: '1.0.0' },
+      modern ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : undefined,
+    );
     const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
       requestInit: {
         headers: {
@@ -207,6 +214,53 @@ describe('Remote Relay MCP HTTP integration', () => {
       if (task) await task();
     }
   });
+
+  it('preserves Remote Relay identity, isolation, and approval gating for modern HTTP requests', async () => {
+    const harness = await createHarness(true);
+    cleanup.push(harness.close);
+    const { client, transport } = harness.createClient('remote-http-modern', true);
+    await client.connect(transport);
+
+    expect(client.getProtocolEra()).toBe('modern');
+    expect(client.getNegotiatedProtocolVersion()).toBe('2026-07-28');
+    expect(harness.httpTransport.activeSessionCount).toBe(0);
+
+    const readResult = await client.callTool({
+      name: 'easyeda_schematic_components',
+      arguments: {
+        projectId: 'project-modern',
+        remoteSessionId: harness.remoteSessionId,
+      },
+    });
+    expect(readResult.isError).not.toBe(true);
+    expect(harness.dispatched.at(-1)).toMatchObject({
+      sessionId: harness.remoteSessionId,
+      toolName: 'schematic.listComponents',
+      riskLevel: 'read',
+      input: { projectId: 'project-modern' },
+    });
+
+    const writeResult = await client.callTool({
+      name: 'easyeda_schematic_add_text',
+      arguments: {
+        x: 10,
+        y: 20,
+        content: 'Modern approval required',
+        confirmWrite: true,
+        remoteSessionId: harness.remoteSessionId,
+      },
+    });
+    expect(writeResult.isError).toBe(true);
+    expect(writeResult.structuredContent).toMatchObject({
+      errorCode: 'ERR_REMOTE_RELAY',
+      details: {
+        remoteCode: 'APPROVAL_REQUIRED',
+        approvalId: expect.stringMatching(/^appr_/),
+      },
+    });
+    expect(harness.approvalRequests).toHaveLength(1);
+    expect(harness.httpTransport.activeSessionCount).toBe(0);
+  }, 15_000);
 
   it('routes read calls and approval-gated write calls through a paired fake extension without a local bridge listener', async () => {
     const harness = await createHarness();
