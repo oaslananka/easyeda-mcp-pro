@@ -22,7 +22,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     environment:
       name: github-pages
       url: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}
