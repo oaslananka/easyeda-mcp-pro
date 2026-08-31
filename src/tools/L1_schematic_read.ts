@@ -197,6 +197,16 @@ function minimalSearchDeviceItem(item: SearchDeviceItem): SearchDeviceItem {
   return minimal;
 }
 
+function componentCountFromReadback(result: unknown): number | undefined {
+  if (Array.isArray(result)) return result.length;
+  if (!result || typeof result !== 'object') return undefined;
+
+  const { total, items } = result as { total?: unknown; items?: unknown };
+  if (!Array.isArray(items)) return undefined;
+  if (typeof total === 'number' && Number.isInteger(total) && total >= items.length) return total;
+  return items.length;
+}
+
 function registerSchematicReadTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -721,8 +731,6 @@ function registerSchematicReadTools(
           .passthrough(),
       ),
       total: z.number().int().nonnegative(),
-      /** Where the result came from. Always 'local_library' — this tool queries the
-       *  active EasyEDA Pro session's device library, not vendor/supplier catalogs. */
       provider_tier: z.literal('local_library').optional(),
       not_available: z.boolean().optional(),
       error: z.string().optional(),
@@ -923,8 +931,6 @@ function registerSchematicReadTools(
       try {
         sheetInfo = await ctx.bridge.call('schematic.getSheetInfo', { projectId: p.projectId });
       } catch {
-        // Degrade to the conservative A4 default rather than blocking preview
-        // planning, because this tool is often used before a live sheet is fully ready.
         sheetInfo = undefined;
       }
       const plan = planSafeSchematicRegion({
@@ -1009,9 +1015,10 @@ function registerSchematicReadTools(
           limit: 500,
           offset: 0,
         });
-        if (Array.isArray(components)) {
+        const readbackComponentCount = componentCountFromReadback(components);
+        if (readbackComponentCount !== undefined) {
           componentsAvailable = true;
-          componentCount = components.length;
+          componentCount = readbackComponentCount;
           if (p.beforeComponentCount !== undefined) {
             componentCountDelta = componentCount - p.beforeComponentCount;
             if (p.expectedComponentCountDelta !== undefined) {
@@ -1349,9 +1356,6 @@ function registerSchematicReadTools(
                 passed: data.nativeErc.passed ?? false,
               }
             : undefined,
-          // Authoritative: only valid when the inference is clean AND EasyEDA's
-          // native ERC reports zero errors (overlapping-but-unwired pins pass
-          // the inference but fail native ERC).
           valid: data.warnings?.length === 0 && nativeErcPassed,
           warnings: data.warnings ?? [],
           ...readScopeResult(scope, 'schematic.validateNetlist'),
