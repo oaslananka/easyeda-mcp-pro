@@ -33,7 +33,6 @@ permissions:
 jobs:
   plan:
     name: Resolve publication plan
-    if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     runs-on: ubuntu-latest
     outputs:
       release_run: ${{ steps.plan.outputs.release_run }}

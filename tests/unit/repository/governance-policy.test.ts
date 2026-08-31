@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -140,6 +140,33 @@ describe('repository governance policy', () => {
       expect(architecture).toContain(`\`${check}\``);
     }
     expect(architecture).not.toContain('minimum 1 reviewer');
+  });
+
+  it('does not gate repository workflows on the known repository owner', () => {
+    const workflowsDir = resolve(repoRoot, '.github/workflows');
+    const workflowFiles = readdirSync(workflowsDir).filter((name) => name.endsWith('.yml'));
+
+    for (const workflowFile of workflowFiles) {
+      expect(readText(`.github/workflows/${workflowFile}`)).not.toContain(
+        'github.repository_owner',
+      );
+    }
+  });
+
+  it('cleans up only expired GitHub Actions artifacts with least privilege', () => {
+    const cleanup = readText('.github/workflows/artifact-cleanup.yml');
+
+    expect(cleanup).toContain('name: GitHub Actions Artifact Cleanup');
+    expect(cleanup).toContain('schedule:');
+    expect(cleanup).toContain('workflow_dispatch:');
+    expect(cleanup).toContain('actions: write');
+    expect(cleanup).toContain('contents: read');
+    expect(cleanup).not.toContain('contents: write');
+    expect(cleanup).toContain('actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3');
+    expect(cleanup).toContain('listArtifactsForRepo');
+    expect(cleanup).toContain('artifact.expired');
+    expect(cleanup).toContain('deleteArtifact');
+    expect(cleanup).not.toContain('deleteWorkflowRun');
   });
 
   it('bounds disposable GitHub Actions artifacts with explicit retention windows', () => {

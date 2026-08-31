@@ -1,0 +1,45 @@
+---
+name: GitHub Actions Artifact Cleanup
+
+'on':
+  schedule:
+    - cron: '17 4 * * 0'
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: github-actions-artifact-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Delete expired workflow artifacts
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const expiredArtifacts = artifacts.filter((artifact) => artifact.expired);
+
+            for (const artifact of expiredArtifacts) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+              });
+              core.info(`Deleted expired artifact ${artifact.id}: ${artifact.name}`);
+            }
+
+            await core.summary
+              .addHeading('GitHub Actions artifact cleanup')
+              .addRaw(`Deleted ${expiredArtifacts.length} expired artifact(s).`)
+              .write();

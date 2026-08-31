@@ -15,7 +15,6 @@ permissions:
 jobs:
   release-please:
     name: Maintain stable release PR
-    if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     runs-on: ubuntu-latest
     permissions:
       contents: write # Create and update the release PR branch.
