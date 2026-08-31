@@ -641,6 +641,137 @@ describe('createHttpTransport — OAuth/JWKS validation', () => {
     return fetch(`http://127.0.0.1:${port}/healthz`, init);
   }
 
+  async function createModernOAuthApp(overrides: Record<string, unknown> = {}) {
+    const port = nextPort++;
+    const config = createTestConfig({
+      HTTP_PORT: port,
+      OAUTH_ENABLED: true,
+      OAUTH_JWKS_URI: ctx.jwksUrl,
+      OAUTH_ISSUER: 'https://auth.example.com',
+      OAUTH_AUDIENCE: 'test-audience',
+      MCP_V2_EXPERIMENTAL: true,
+      ...overrides,
+    });
+    const httpTransport = createHttpTransport(config, {
+      serverFactory: () =>
+        new McpServer({ name: 'modern-oauth', version: '1.0.0' }, { capabilities: { tools: {} } }),
+    });
+    const server = http.createServer(httpTransport.app);
+    await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+    return {
+      server,
+      port,
+      transport: httpTransport,
+      close: async () => {
+        await httpTransport.close();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      },
+    };
+  }
+
+  function modernDiscover(port: number, init: RequestInit = {}) {
+    return fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: 'POST',
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'MCP-Protocol-Version': '2026-07-28',
+        'Mcp-Method': 'server/discover',
+        ...(init.headers ?? {}),
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'server/discover',
+        params: {
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+            'io.modelcontextprotocol/clientInfo': { name: 'modern-oauth-test', version: '1.0.0' },
+            'io.modelcontextprotocol/clientCapabilities': {},
+          },
+        },
+      }),
+    });
+  }
+
+  it('keeps modern MCP discovery behind issuer, audience, and scope validation without legacy session state', async () => {
+    const harness = await createModernOAuthApp();
+    try {
+      const wrongIssuer = await ctx.signToken({ issuer: 'https://evil.example.com' });
+      const issuerResponse = await modernDiscover(harness.port, {
+        headers: { Authorization: `Bearer ${wrongIssuer}` },
+      });
+      expect(issuerResponse.status).toBe(401);
+      await expect(issuerResponse.json()).resolves.toMatchObject({ code: 'invalid_issuer' });
+      expect(harness.transport.activeSessionCount).toBe(0);
+
+      const wrongAudience = await ctx.signToken({ audience: 'wrong-audience' });
+      const audienceResponse = await modernDiscover(harness.port, {
+        headers: { Authorization: `Bearer ${wrongAudience}` },
+      });
+      expect(audienceResponse.status).toBe(401);
+      await expect(audienceResponse.json()).resolves.toMatchObject({ code: 'invalid_audience' });
+      expect(harness.transport.activeSessionCount).toBe(0);
+
+      const missingScope = await ctx.signToken({ scope: '' });
+      const scopeResponse = await modernDiscover(harness.port, {
+        headers: { Authorization: `Bearer ${missingScope}` },
+      });
+      expect(scopeResponse.status).toBe(403);
+      await expect(scopeResponse.json()).resolves.toMatchObject({
+        code: 'insufficient_scope',
+        requiredScopes: ['easyeda:read'],
+      });
+      expect(harness.transport.activeSessionCount).toBe(0);
+
+      const validToken = await ctx.signToken({});
+      const validResponse = await modernDiscover(harness.port, {
+        headers: { Authorization: `Bearer ${validToken}` },
+      });
+      expect(validResponse.status).toBe(200);
+      await expect(validResponse.json()).resolves.toMatchObject({
+        jsonrpc: '2.0',
+        result: { supportedVersions: ['2026-07-28'] },
+      });
+      expect(harness.transport.activeSessionCount).toBe(0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('applies origin and rate-limit policy before modern MCP dispatch', async () => {
+    const originHarness = await createModernOAuthApp({
+      ALLOWED_ORIGINS: 'https://app.example.com',
+    });
+    try {
+      const validToken = await ctx.signToken({});
+      const originResponse = await modernDiscover(originHarness.port, {
+        headers: {
+          Authorization: `Bearer ${validToken}`,
+          Origin: 'https://evil.example.com',
+        },
+      });
+      expect(originResponse.status).toBe(403);
+      await expect(originResponse.json()).resolves.toMatchObject({ code: 'origin_not_allowed' });
+      expect(originHarness.transport.activeSessionCount).toBe(0);
+    } finally {
+      await originHarness.close();
+    }
+
+    const rateHarness = await createModernOAuthApp({ HTTP_RATE_LIMIT_MAX: 1 });
+    try {
+      const first = await modernDiscover(rateHarness.port);
+      expect(first.status).toBe(401);
+      const second = await modernDiscover(rateHarness.port);
+      expect(second.status).toBe(429);
+      expect(second.headers.get('x-ratelimit-limit')).toBe('1');
+      expect(rateHarness.transport.activeSessionCount).toBe(0);
+    } finally {
+      await rateHarness.close();
+    }
+  });
+
   it('should allow CORS preflight before OAuth token validation', async () => {
     const { server, port } = await createOAuthApp();
     try {

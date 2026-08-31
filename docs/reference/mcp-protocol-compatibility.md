@@ -94,9 +94,15 @@ A modern protocol implementation is not acceptable unless all of these remain tr
 6. Unsupported or malformed era metadata fails before any EasyEDA bridge mutation or remote action
    can execute.
 
-The SDK's 2026 authorization migration also adds requirements that are not satisfied merely by
-changing the transport. Those SDK-level auth changes must be evaluated separately against the
-server's existing JWT/JWKS enforcement before modern support is declared conformant.
+The SDK's 2026 authorization migration also documents client/authorization-server opt-ins such as
+`finishAuth`, credential-store issuer binding, discovery state, step-up scope handling, DCR changes,
+and authorization-server TLS requirements. `easyeda-mcp-pro` is the protected MCP resource in this
+flow: it does not implement an SDK OAuth client credential store or an authorization server. Those
+client/authorization-server APIs therefore are not invoked by this runtime. The applicable resource
+server obligations remain fail-closed bearer validation (JWKS signature, issuer, audience, expiry,
+token type, and required scopes), protected-resource metadata, origin/Host policy, and rate limiting.
+The modern `/mcp` integration suite exercises those controls before modern protocol dispatch and
+asserts that rejected requests create no legacy session state.
 
 ## Delivery sequence
 
@@ -109,9 +115,27 @@ The compatibility work should remain reviewable as separate changes:
 3. **Modern HTTP path:** explicit era routing and `2026-07-28` request handling are available
    behind `MCP_V2_EXPERIMENTAL`; the existing sessionful route remains independent.
 4. **Modern stdio path:** `serveStdio(...)` is enabled behind the same experimental flag; pinned modern and default legacy clients are covered by hermetic process-level interop tests.
-5. **Security and Remote Relay parity:** prove OAuth, origin/Host, rate-limit, scope, approval, and
-   relay isolation on both eras with independent fixtures.
-6. **Rollout:** document supported/experimental/deprecated states, verify rollback to the retained
-   legacy path, then consider changing defaults only through a separate release decision.
+5. **Security and Remote Relay parity:** complete. Modern `/mcp` fixtures prove issuer, audience,
+   scope, origin, rate-limit, Remote Relay identity, approval gating, and legacy-session isolation;
+   the shared pre-dispatch middleware and existing Host-header tests retain DNS-rebinding protection.
+6. **Rollout:** complete for the experimental phase. Supported/experimental states and rollback are
+   explicit below. Changing the default era remains a separate release decision rather than part of
+   this compatibility program.
 
-Until the remaining security/Remote Relay parity and rollout steps are complete, `2025-11-25` remains the default supported MCP application protocol. Experimental `2026-07-28` HTTP and stdio support requires `MCP_V2_EXPERIMENTAL=true`. `easyeda-mcp-pro doctor` reports the configured transport, default era, supported revisions, and whether the modern experimental path is enabled.
+## Experimental rollout and rollback
+
+- `2025-11-25` remains the default and supported legacy application protocol for HTTP and stdio.
+- `2026-07-28` remains **experimental** and requires `MCP_V2_EXPERIMENTAL=true`; no legacy revision
+  is deprecated or removed by this program.
+- Rollback is configuration-only: set `MCP_V2_EXPERIMENTAL=false` and restart the server. No database
+  migration, persisted protocol state, or legacy-session conversion is required. The retained
+  sessionful HTTP and direct legacy stdio paths remain the same paths used before modern opt-in.
+- A client explicitly pinned to the modern era must receive a modern rejection or become unavailable
+  after rollback; the server must not silently reinterpret modern envelopes as legacy sessions.
+- `easyeda-mcp-pro doctor` reports the configured transport, default era, supported revisions, and
+  whether modern experimental routing is enabled so operators can verify activation or rollback.
+- Promoting `2026-07-28` from experimental, changing the default era, or deprecating a legacy revision
+  requires a separate release decision and fresh compatibility/security evidence.
+
+The compatibility program therefore supports controlled dual-era experimentation without changing
+the default protocol contract.
