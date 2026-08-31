@@ -43,4 +43,73 @@ describe('easyeda_schematic_verify_write component read-back', () => {
       warnings: [],
     });
   });
+
+  it('preserves the legacy bare-array component read-back contract', async () => {
+    bridgeCall.mockResolvedValueOnce([{ reference: 'R1' }, { reference: 'R2' }]);
+
+    const result = await registry.get('easyeda_schematic_verify_write')?.handler(context, {
+      projectId: 'proj-123',
+      beforeComponentCount: 1,
+      expectedComponentCountDelta: 1,
+    });
+
+    expect(result).toMatchObject({
+      components_available: true,
+      component_count: 2,
+      component_count_delta: 1,
+      component_delta_matches: true,
+    });
+  });
+
+  it('falls back to the item count when an envelope total is smaller than the returned page', async () => {
+    bridgeCall.mockResolvedValueOnce({
+      total: 1,
+      items: [{ reference: 'R1' }, { reference: 'R2' }],
+    });
+
+    const result = await registry.get('easyeda_schematic_verify_write')?.handler(context, {
+      projectId: 'proj-123',
+      beforeComponentCount: 1,
+      expectedComponentCountDelta: 1,
+    });
+
+    expect(result).toMatchObject({
+      components_available: true,
+      component_count: 2,
+      component_count_delta: 1,
+      component_delta_matches: true,
+    });
+  });
+
+  it('treats an envelope without an items array as unavailable', async () => {
+    bridgeCall.mockResolvedValueOnce({ total: 2, items: null });
+
+    const result = await registry.get('easyeda_schematic_verify_write')?.handler(context, {
+      projectId: 'proj-123',
+      beforeComponentCount: 1,
+      expectedComponentCountDelta: 1,
+    });
+
+    expect(result).toMatchObject({
+      components_available: false,
+      component_count: undefined,
+      component_count_delta: undefined,
+      component_delta_matches: undefined,
+    });
+    expect(result?.warnings).toContain('Component read-back returned a non-array response.');
+  });
+
+  it('treats a null component read-back as unavailable', async () => {
+    bridgeCall.mockResolvedValueOnce(null);
+
+    const result = await registry.get('easyeda_schematic_verify_write')?.handler(context, {
+      projectId: 'proj-123',
+    });
+
+    expect(result).toMatchObject({
+      components_available: false,
+      component_count: undefined,
+    });
+    expect(result?.warnings).toContain('Component read-back returned a non-array response.');
+  });
 });
