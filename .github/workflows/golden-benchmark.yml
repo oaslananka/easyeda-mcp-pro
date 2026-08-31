@@ -13,7 +13,6 @@ permissions:
 
 jobs:
   benchmark:
-    if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     runs-on: ubuntu-latest
 
     steps:
