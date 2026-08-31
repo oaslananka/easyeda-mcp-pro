@@ -225,10 +225,13 @@ describe('BOM Tools Sourcing & Validate', () => {
       fs.rmSync(tmpArtifactDir, { recursive: true, force: true });
     });
 
-    it('exports the BOM to a file inside the artifact directory', async () => {
+    it('exports only when the bridge materializes a non-empty artifact and counts array entries', async () => {
       const tool = registry.get('easyeda_bom_export');
-      bridgeCall.mockResolvedValue({ entryCount: 3 });
       const filePath = path.join(tmpArtifactDir, 'bom.csv');
+      bridgeCall.mockImplementation(async () => {
+        fs.writeFileSync(filePath, 'reference,value\nR1,10k\n');
+        return [{ reference: 'R1' }, { reference: 'R2' }, { reference: 'R3' }];
+      });
 
       const result = await tool?.handler(context, {
         projectId: 'proj-1',
@@ -238,12 +241,76 @@ describe('BOM Tools Sourcing & Validate', () => {
 
       expect(result.exported).toBe(true);
       expect(result.entry_count).toBe(3);
+      expect(fs.statSync(filePath).size).toBeGreaterThan(0);
+    });
+
+    it('preserves the legacy entryCount response when the artifact is materialized', async () => {
+      const tool = registry.get('easyeda_bom_export');
+      const filePath = path.join(tmpArtifactDir, 'legacy.csv');
+      bridgeCall.mockImplementation(async () => {
+        fs.writeFileSync(filePath, 'reference,value\nR1,10k\n');
+        return { entryCount: 4 };
+      });
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        filePath,
+      });
+
+      expect(result).toMatchObject({
+        exported: true,
+        entry_count: 4,
+      });
+    });
+
+    it('does not report success when the bridge resolves without writing the artifact', async () => {
+      const tool = registry.get('easyeda_bom_export');
+      const filePath = path.join(tmpArtifactDir, 'bom.csv');
+      bridgeCall.mockResolvedValue([{ reference: 'R1' }, { reference: 'R2' }]);
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        filePath,
+      });
+
+      expect(result).toMatchObject({
+        exported: false,
+        entry_count: 2,
+        not_available: true,
+      });
+      expect(fs.existsSync(filePath)).toBe(false);
+    });
+
+    it('does not report success for an empty artifact', async () => {
+      const tool = registry.get('easyeda_bom_export');
+      const filePath = path.join(tmpArtifactDir, 'bom.csv');
+      bridgeCall.mockImplementation(async () => {
+        fs.writeFileSync(filePath, '');
+        return [{ reference: 'R1' }];
+      });
+
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        filePath,
+      });
+
+      expect(result).toMatchObject({
+        exported: false,
+        entry_count: 1,
+        not_available: true,
+      });
     });
 
     it('creates missing parent directories before exporting', async () => {
       const tool = registry.get('easyeda_bom_export');
-      bridgeCall.mockResolvedValue({ entryCount: 1 });
       const filePath = path.join(tmpArtifactDir, 'nested', 'dir', 'bom.csv');
+      bridgeCall.mockImplementation(async () => {
+        fs.writeFileSync(filePath, 'reference,value\nR1,10k\n');
+        return [{ reference: 'R1' }];
+      });
 
       const result = await tool?.handler(context, {
         projectId: 'proj-1',
@@ -252,6 +319,7 @@ describe('BOM Tools Sourcing & Validate', () => {
       });
 
       expect(result.exported).toBe(true);
+      expect(result.entry_count).toBe(1);
       expect(fs.existsSync(path.dirname(filePath))).toBe(true);
     });
 
