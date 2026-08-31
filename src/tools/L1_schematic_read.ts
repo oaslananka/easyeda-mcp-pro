@@ -197,6 +197,16 @@ function minimalSearchDeviceItem(item: SearchDeviceItem): SearchDeviceItem {
   return minimal;
 }
 
+function componentCountFromReadback(result: unknown): number | undefined {
+  if (Array.isArray(result)) return result.length;
+  if (!result || typeof result !== 'object') return undefined;
+
+  const { total, items } = result as { total?: unknown; items?: unknown };
+  if (!Array.isArray(items)) return undefined;
+  if (typeof total === 'number' && Number.isInteger(total) && total >= items.length) return total;
+  return items.length;
+}
+
 function registerSchematicReadTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -1009,9 +1019,10 @@ function registerSchematicReadTools(
           limit: 500,
           offset: 0,
         });
-        if (Array.isArray(components)) {
+        const readbackComponentCount = componentCountFromReadback(components);
+        if (readbackComponentCount !== undefined) {
           componentsAvailable = true;
-          componentCount = components.length;
+          componentCount = readbackComponentCount;
           if (p.beforeComponentCount !== undefined) {
             componentCountDelta = componentCount - p.beforeComponentCount;
             if (p.expectedComponentCountDelta !== undefined) {
