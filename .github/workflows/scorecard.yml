@@ -12,7 +12,6 @@ permissions: {}
 
 jobs:
   analysis:
-    if: github.repository_owner == 'oaslananka' || github.repository_owner == 'oaslananka-ops'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
