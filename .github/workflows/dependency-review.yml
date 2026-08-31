@@ -15,7 +15,6 @@ concurrency:
 
 jobs:
   dependency-review:
-    if: github.repository_owner == 'oaslananka'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
