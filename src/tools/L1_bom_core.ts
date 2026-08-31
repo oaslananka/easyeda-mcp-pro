@@ -4,6 +4,25 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 
+function bomEntryCount(result: unknown): number {
+  if (Array.isArray(result)) return result.length;
+  if (!result || typeof result !== 'object') return 0;
+
+  const { entryCount } = result as { entryCount?: unknown };
+  return typeof entryCount === 'number' && Number.isInteger(entryCount) && entryCount >= 0
+    ? entryCount
+    : 0;
+}
+
+function isNonEmptyFile(filePath: string): boolean {
+  try {
+    const stat = fs.statSync(filePath);
+    return stat.isFile() && stat.size > 0;
+  } catch {
+    return false;
+  }
+}
+
 function registerBomCoreTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -234,13 +253,23 @@ function registerBomCoreTools(
           format,
           exportPath: filePath,
         });
-        const data = result as { entryCount?: number };
+        const entryCount = bomEntryCount(result);
+        if (!isNonEmptyFile(resolved)) {
+          return {
+            project_id: projectId,
+            format,
+            file_path: filePath,
+            exported: false,
+            entry_count: entryCount,
+            not_available: true,
+          };
+        }
         return {
           project_id: projectId,
           format,
           file_path: filePath,
           exported: true,
-          entry_count: data.entryCount ?? 0,
+          entry_count: entryCount,
         };
       } catch (err) {
         return {
