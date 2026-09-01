@@ -38,10 +38,14 @@ const bridgeDiagnosticsSchema = z.object({
   heartbeat_silence_ms: z.number().optional(),
   method_registry_hash: z.string().optional(),
   reconnect: z.unknown().optional(),
+  blocked_by_other_instance: z.boolean().optional(),
+  owner_pid: z.number().int().positive().optional(),
+  owner_port: z.number().int().min(1).max(65535).optional(),
 });
 
 function getBridgeDiagnostics(ctx: ToolContext): BridgeDiagnosticsSnapshot {
   const lastHeartbeat = ctx.bridge.lastHeartbeatMs;
+  const ownershipConflict = ctx.bridge.ownershipConflict;
   return {
     manager_uptime_ms: ctx.bridge.uptimeMs,
     active_port: ctx.bridge.activePort,
@@ -50,6 +54,9 @@ function getBridgeDiagnostics(ctx: ToolContext): BridgeDiagnosticsSnapshot {
       lastHeartbeat && lastHeartbeat > 0 ? Date.now() - lastHeartbeat : undefined,
     method_registry_hash: ctx.bridge.methodRegistryHash,
     reconnect: ctx.bridge.telemetry,
+    blocked_by_other_instance: ownershipConflict?.blockedByOtherInstance,
+    owner_pid: ownershipConflict?.ownerPid,
+    owner_port: ownershipConflict?.ownerPort,
   };
 }
 
@@ -86,11 +93,16 @@ function registerDiagnosticsCore(
       registry_mismatch: z.boolean(),
       keyless_sourcing_enabled: z.boolean(),
       catalog_device_count: z.number().int().nonnegative(),
+      blocked_by_other_instance: z.boolean().optional(),
+      owner_pid: z.number().int().positive().optional(),
+      owner_port: z.number().int().min(1).max(65535).optional(),
+      status_error: z.string().optional(),
       ups: z.number(),
     }),
     handler: async (ctx: ToolContext, _params: unknown) => {
       const extensionVersionMismatch = ctx.bridge.extensionVersionMismatch ?? false;
       const registryMismatch = ctx.bridge.registryMismatch ?? false;
+      const ownershipConflict = ctx.bridge.ownershipConflict;
       return {
         status: !ctx.bridge.connected
           ? ('degraded' as const)
@@ -108,6 +120,10 @@ function registerDiagnosticsCore(
         registry_mismatch: registryMismatch,
         keyless_sourcing_enabled: ctx.config.keylessSourcingEnabled ?? true,
         catalog_device_count: STARTER_DEVICE_CATALOG.length,
+        blocked_by_other_instance: ownershipConflict?.blockedByOtherInstance,
+        owner_pid: ownershipConflict?.ownerPid,
+        owner_port: ownershipConflict?.ownerPort,
+        status_error: ownershipConflict?.message,
         ups: process.uptime(),
       };
     },
@@ -137,13 +153,21 @@ function registerDiagnosticsCore(
       last_heartbeat_ms: z.number().optional(),
       uptime_ms: z.number().optional(),
       status_error: z.string().optional(),
+      blocked_by_other_instance: z.boolean().optional(),
+      owner_pid: z.number().int().positive().optional(),
+      owner_port: z.number().int().min(1).max(65535).optional(),
       diagnostics: bridgeDiagnosticsSchema.optional(),
     }),
     handler: async (ctx: ToolContext) => {
       if (!ctx.bridge.connected) {
+        const ownershipConflict = ctx.bridge.ownershipConflict;
         return {
           connected: false,
           uptime_ms: process.uptime() * 1000,
+          status_error: ownershipConflict?.message,
+          blocked_by_other_instance: ownershipConflict?.blockedByOtherInstance,
+          owner_pid: ownershipConflict?.ownerPid,
+          owner_port: ownershipConflict?.ownerPort,
           diagnostics: getBridgeDiagnostics(ctx),
         };
       }
