@@ -116,20 +116,7 @@ export class BridgeListenerOwnership {
     mkdirSync(this.dataDirectory, { recursive: true, mode: 0o700 });
 
     for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt += 1) {
-      try {
-        mkdirSync(this.lockDirectory, { mode: 0o700 });
-        this.held = true;
-        try {
-          this.writeOwnerRecord();
-        } catch (error) {
-          this.held = false;
-          rmSync(this.lockDirectory, { recursive: true, force: true });
-          throw error;
-        }
-        return;
-      } catch (error) {
-        if (errnoCode(error) !== 'EEXIST') throw error;
-      }
+      if (this.tryAcquireFreshLock()) return;
 
       const snapshot = this.readLockSnapshot();
       if (snapshot.owner && isProcessAlive(snapshot.owner.pid)) {
@@ -149,6 +136,25 @@ export class BridgeListenerOwnership {
     }
 
     throw new Error('Unable to acquire local EasyEDA bridge listener ownership after retries.');
+  }
+
+  private tryAcquireFreshLock(): boolean {
+    try {
+      mkdirSync(this.lockDirectory, { mode: 0o700 });
+    } catch (error) {
+      if (errnoCode(error) === 'EEXIST') return false;
+      throw error;
+    }
+
+    this.held = true;
+    try {
+      this.writeOwnerRecord();
+      return true;
+    } catch (error) {
+      this.held = false;
+      rmSync(this.lockDirectory, { recursive: true, force: true });
+      throw error;
+    }
   }
 
   updatePort(port: number): void {
