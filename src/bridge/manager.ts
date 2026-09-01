@@ -59,14 +59,14 @@ export class BridgeManager extends EventEmitter {
   private staleSweepTimer: ReturnType<typeof setInterval> | null = null;
   private _activePort = 0;
   private _connectedAtMs = 0;
-  private requestMap = new Map<string, PendingRequest>();
+  private readonly requestMap = new Map<string, PendingRequest>();
   private requestIdCounter = 0;
-  private config: EnvConfig;
+  private readonly config: EnvConfig;
   private _lastHeartbeatMs = 0;
   private reconnectAttempts = 0;
   private reconnectStartMs = 0;
-  private pairingChallenges = new Map<string, PairingEntry>();
-  private _methodRegistryHash: string;
+  private readonly pairingChallenges = new Map<string, PairingEntry>();
+  private readonly _methodRegistryHash: string;
   private _extensionVersion: string | undefined;
   private _extensionMethodListHash: string | undefined;
   private _loaderVersion: string | undefined;

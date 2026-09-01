@@ -27,8 +27,8 @@ function rowToVerifiedDeviceRecord(row: Record<string, unknown>): VerifiedDevice
  * never thrown to the caller.
  */
 export class Storage {
-  private db: DatabaseSync;
-  private config: EnvConfig;
+  private readonly db: DatabaseSync;
+  private readonly config: EnvConfig;
   private initialized = false;
 
   constructor(config: EnvConfig) {

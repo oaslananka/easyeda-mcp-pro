@@ -142,12 +142,12 @@ function normalizeRawPart(raw: RawJlcsearchComponent, category: LcscCategory): L
 }
 
 export class LcscClient {
-  private config: EnvConfig;
-  private logger: pino.Logger;
-  private jlcsearchBase: string;
-  private lcscApiKey: string;
-  private cache: VendorCache;
-  private cacheTtlSeconds: number;
+  private readonly config: EnvConfig;
+  private readonly logger: pino.Logger;
+  private readonly jlcsearchBase: string;
+  private readonly lcscApiKey: string;
+  private readonly cache: VendorCache;
+  private readonly cacheTtlSeconds: number;
 
   constructor(config: EnvConfig, cache: VendorCache = createNoopVendorCache()) {
     this.config = config;

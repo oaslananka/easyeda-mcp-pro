@@ -610,7 +610,7 @@ export interface ToolMetadata {
 // ── Registry ──────────────────────────────────────────────────────────────
 
 export class ToolRegistry {
-  private tools: Map<string, ToolDefinition> = new Map();
+  private readonly tools: Map<string, ToolDefinition> = new Map();
   private currentProfile: ToolProfile = 'core';
 
   setProfile(profile: ToolProfile): void {

@@ -58,9 +58,9 @@ export interface JlcPcbCapability {
 const JLCPCB_MAX_RETRIES = 3;
 
 export class JlcpcbClient {
-  private config: EnvConfig;
-  private logger: pino.Logger;
-  private baseUrl: string;
+  private readonly config: EnvConfig;
+  private readonly logger: pino.Logger;
+  private readonly baseUrl: string;
 
   constructor(config: EnvConfig) {
     this.config = config;

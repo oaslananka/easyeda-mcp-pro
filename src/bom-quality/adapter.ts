@@ -215,8 +215,8 @@ export interface SupplierAdapter {
 export class LcscAdapter implements SupplierAdapter {
   readonly kind: SupplierKind = 'lcsc';
   readonly displayName = 'LCSC';
-  private client: LcscClient | null;
-  private logger: pino.Logger;
+  private readonly client: LcscClient | null;
+  private readonly logger: pino.Logger;
 
   constructor(client: LcscClient | null) {
     this.client = client;
@@ -299,8 +299,8 @@ export class LcscAdapter implements SupplierAdapter {
 export class MouserAdapter implements SupplierAdapter {
   readonly kind: SupplierKind = 'mouser';
   readonly displayName = 'Mouser';
-  private client: MouserClient | null;
-  private logger: pino.Logger;
+  private readonly client: MouserClient | null;
+  private readonly logger: pino.Logger;
 
   constructor(client: MouserClient | null) {
     this.client = client;
@@ -373,8 +373,8 @@ export class MouserAdapter implements SupplierAdapter {
 export class DigiKeyAdapter implements SupplierAdapter {
   readonly kind: SupplierKind = 'digikey';
   readonly displayName = 'DigiKey';
-  private client: DigiKeyClient | null;
-  private logger: pino.Logger;
+  private readonly client: DigiKeyClient | null;
+  private readonly logger: pino.Logger;
 
   constructor(client: DigiKeyClient | null) {
     this.client = client;

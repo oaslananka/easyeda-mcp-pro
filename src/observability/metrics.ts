@@ -65,9 +65,9 @@ function round(value: number, digits = 2): number {
 export class MetricsCollector {
   private readonly startedAt = new Date().toISOString();
   private events: MetricEvent[] = [];
-  private categoryStats = new Map<ObservabilityCategory, CategoryStats>();
+  private readonly categoryStats = new Map<ObservabilityCategory, CategoryStats>();
   private cacheStats = { hits: 0, misses: 0, writes: 0, deletes: 0 };
-  private vendorStats = new Map<
+  private readonly vendorStats = new Map<
     string,
     { count: number; errors: number; totalDurationMs: number; lastStatusCode?: number }
   >();

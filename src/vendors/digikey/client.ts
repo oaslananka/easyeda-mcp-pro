@@ -28,12 +28,12 @@ interface DigiKeyTokenResponse {
 }
 
 export class DigiKeyClient {
-  private config: EnvConfig;
-  private logger: pino.Logger;
-  private baseUrl: string;
-  private authUrl: string;
-  private clientId: string;
-  private clientSecret: string;
+  private readonly config: EnvConfig;
+  private readonly logger: pino.Logger;
+  private readonly baseUrl: string;
+  private readonly authUrl: string;
+  private readonly clientId: string;
+  private readonly clientSecret: string;
   private accessToken: string | null = null;
   private tokenExpiresAt: number = 0;
 
