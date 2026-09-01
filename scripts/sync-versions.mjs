@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { format, resolveConfig } from 'prettier';
 import { resolveEasyedaManifestVersion } from './extension-metadata-policy.mjs';
 
