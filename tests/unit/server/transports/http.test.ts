@@ -328,6 +328,18 @@ describe('parseOriginAllowlist', () => {
 });
 
 describe('createOriginValidator', () => {
+  function validateLoopbackOrigin(origin: string, allowedOrigins: string) {
+    const config = EnvSchema.parse({
+      HTTP_HOST: '127.0.0.1',
+      HTTP_PORT: 3000,
+      ALLOWED_ORIGINS: allowedOrigins,
+    });
+    const middleware = createOriginValidator(config);
+    const result = mockReqRes({ headers: { origin } });
+    middleware(result.req, result.res, result.next);
+    return result;
+  }
+
   it('should pass through requests without Origin header', () => {
     const config = EnvSchema.parse({
       HTTP_HOST: '127.0.0.1',
@@ -358,70 +370,45 @@ describe('createOriginValidator', () => {
     expect(next).toHaveBeenCalled();
   });
 
-  it('should reject request with unknown origin', () => {
-    const config = EnvSchema.parse({
-      HTTP_HOST: '127.0.0.1',
-      HTTP_PORT: 3000,
-      ALLOWED_ORIGINS: 'https://trusted.com',
-    });
-    const middleware = createOriginValidator(config);
-    const { req, res, next } = mockReqRes({
-      headers: { origin: 'https://evil.com' },
-    });
-    middleware(req, res, next);
+  it.each([
+    {
+      description: 'when it is not on the explicit allowlist',
+      origin: 'https://evil.com',
+      allowedOrigins: 'https://trusted.com',
+    },
+    {
+      description: 'when the loopback allowlist is empty',
+      origin: 'https://evil.example.com',
+      allowedOrigins: '',
+    },
+  ])('should reject an external browser origin $description', ({ origin, allowedOrigins }) => {
+    const { res, next } = validateLoopbackOrigin(origin, allowedOrigins);
+
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
       error: 'Origin not allowed',
       code: 'origin_not_allowed',
     });
+    expect(res.setHeader).not.toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
     expect(next).not.toHaveBeenCalled();
   });
 
   it('should allow all origins when wildcard is set', () => {
-    const config = EnvSchema.parse({
-      HTTP_HOST: '127.0.0.1',
-      HTTP_PORT: 3000,
-      ALLOWED_ORIGINS: '*',
-    });
-    const middleware = createOriginValidator(config);
-    const { req, res, next } = mockReqRes({
-      headers: { origin: 'https://anything.com' },
-    });
-    middleware(req, res, next);
+    const { res, next } = validateLoopbackOrigin('https://anything.com', '*');
+
     expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
     expect(next).toHaveBeenCalled();
   });
 
-  it('should allow a validated loopback origin without reflecting request input', () => {
-    const config = EnvSchema.parse({
-      HTTP_HOST: '127.0.0.1',
-      HTTP_PORT: 3000,
-      ALLOWED_ORIGINS: '',
-    });
-    const middleware = createOriginValidator(config);
-    const { req, res, next } = mockReqRes({
-      headers: { origin: 'http://localhost:5173' },
-    });
-    middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
-    expect(next).toHaveBeenCalled();
-  });
+  it.each(['http://localhost:5173', 'http://localhost', 'null'])(
+    'should allow loopback-safe origin %s without reflecting request input',
+    (origin) => {
+      const { res, next } = validateLoopbackOrigin(origin, '');
 
-  it('should reject an external browser origin while bound to loopback', () => {
-    const config = EnvSchema.parse({
-      HTTP_HOST: '127.0.0.1',
-      HTTP_PORT: 3000,
-      ALLOWED_ORIGINS: '',
-    });
-    const middleware = createOriginValidator(config);
-    const { req, res, next } = mockReqRes({
-      headers: { origin: 'https://evil.example.com' },
-    });
-    middleware(req, res, next);
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.setHeader).not.toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
-    expect(next).not.toHaveBeenCalled();
-  });
+      expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
+      expect(next).toHaveBeenCalled();
+    },
+  );
 
   it('should reject non-loopback Host header while bound to loopback', () => {
     const config = EnvSchema.parse({
@@ -440,36 +427,6 @@ describe('createOriginValidator', () => {
       code: 'host_mismatch',
     });
     expect(next).not.toHaveBeenCalled();
-  });
-
-  it('should allow localhost origin on loopback', () => {
-    const config = EnvSchema.parse({
-      HTTP_HOST: '127.0.0.1',
-      HTTP_PORT: 3000,
-      ALLOWED_ORIGINS: '',
-    });
-    const middleware = createOriginValidator(config);
-    const { req, res, next } = mockReqRes({
-      headers: { origin: 'http://localhost' },
-    });
-    middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
-    expect(next).toHaveBeenCalled();
-  });
-
-  it('should allow null origin on loopback', () => {
-    const config = EnvSchema.parse({
-      HTTP_HOST: '127.0.0.1',
-      HTTP_PORT: 3000,
-      ALLOWED_ORIGINS: '',
-    });
-    const middleware = createOriginValidator(config);
-    const { req, res, next } = mockReqRes({
-      headers: { origin: 'null' },
-    });
-    middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
-    expect(next).toHaveBeenCalled();
   });
 
   it('should reject unknown origin on non-loopback with empty allowlist', () => {
