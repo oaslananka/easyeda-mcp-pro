@@ -14,7 +14,7 @@
   "files": {
     "easyeda-bridge-extension/src/board-inspection.ts": [16],
     "easyeda-bridge-extension/src/design-rule-check-operations.ts": [24],
-    "easyeda-bridge-extension/src/dispatcher.ts": [76, 30, 29, 19, 17, 16, 16],
+    "easyeda-bridge-extension/src/dispatcher.ts": [76, 30, 29, 19, 17, 16],
     "easyeda-bridge-extension/src/index.ts": [26],
     "easyeda-bridge-extension/src/schematic-snapshot-recreation.ts": [32],
     "scripts/check-complexity-ratchet.mjs": [16],

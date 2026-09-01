@@ -260,7 +260,10 @@ describe('repository security tooling policy', () => {
 
     const verifyDist = readText('easyeda-bridge-extension/scripts/verify-dist.mjs');
     expect(verifyDist).toContain('function resolvePathWithinRoot(candidate)');
-    expect(verifyDist).toContain("pathSegments[0] === '..'");
+    expect(verifyDist).toContain('isAbsolute(candidate)');
+    expect(verifyDist).toContain("candidate.startsWith('\\\\\\\\')");
+    expect(verifyDist).toContain("segment === '.' || segment === '..'");
+    expect(verifyDist).toContain('pathSegments.join(sep)');
     expect(verifyDist).toContain('entryEscapesRoot');
 
     const syncVersions = readText('scripts/sync-versions.mjs');

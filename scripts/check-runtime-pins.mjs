@@ -60,8 +60,11 @@ function expectContains(errors, path, text, expected) {
   }
 }
 
-function countMatches(text, pattern) {
-  return [...text.matchAll(pattern)].length;
+function countTrimmedLines(text, predicate) {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(predicate).length;
 }
 
 async function listWorkflowFiles(root) {
@@ -218,18 +221,21 @@ export async function inspectRuntimePinParity(root = defaultRepoRoot) {
   );
 
   const dockerfile = await readRequired(root, 'Dockerfile', errors);
-  const escapedNodeVersion = nodeVersion.replaceAll('.', '\\.');
-  const escapedImage = policy.docker.nodeAlpineImage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const nodeVersionComment = `# node:${nodeVersion}-alpine`;
+  const nodeImagePrefix = `FROM ${policy.docker.nodeAlpineImage}`;
   expectEqual(
     errors,
     'Dockerfile Node version comments',
-    countMatches(dockerfile, new RegExp(`# node:${escapedNodeVersion}-alpine`, 'g')),
+    countTrimmedLines(dockerfile, (line) => line === nodeVersionComment),
     2,
   );
   expectEqual(
     errors,
     'Dockerfile Node image digest',
-    countMatches(dockerfile, new RegExp(`^FROM ${escapedImage}(?: AS .+)?$`, 'gm')),
+    countTrimmedLines(
+      dockerfile,
+      (line) => line === nodeImagePrefix || line.startsWith(`${nodeImagePrefix} AS `),
+    ),
     2,
   );
   expectContains(

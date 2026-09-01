@@ -1,2 +1,2 @@
 export { Storage } from './database.js';
-export type * from './types.js';
+export type { ArtifactRecord, ProjectCache, VerifiedDeviceRecord } from './types.js';

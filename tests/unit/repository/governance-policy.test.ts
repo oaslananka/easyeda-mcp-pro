@@ -153,20 +153,14 @@ describe('repository governance policy', () => {
     }
   });
 
-  it('cleans up only expired GitHub Actions artifacts with least privilege', () => {
-    const cleanup = readText('.github/workflows/artifact-cleanup.yml');
+  it('uses bounded artifact retention instead of a scheduled write-token cleanup workflow', () => {
+    expect(existsSync(resolve(repoRoot, '.github/workflows/artifact-cleanup.yml'))).toBe(false);
 
-    expect(cleanup).toContain('name: GitHub Actions Artifact Cleanup');
-    expect(cleanup).toContain('schedule:');
-    expect(cleanup).toContain('workflow_dispatch:');
-    expect(cleanup).toContain('actions: write');
-    expect(cleanup).toContain('contents: read');
-    expect(cleanup).not.toContain('contents: write');
-    expect(cleanup).toContain('actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3');
-    expect(cleanup).toContain('listArtifactsForRepo');
-    expect(cleanup).toContain('artifact.expired');
-    expect(cleanup).toContain('deleteArtifact');
-    expect(cleanup).not.toContain('deleteWorkflowRun');
+    const workflowsDir = resolve(repoRoot, '.github/workflows');
+    const workflowFiles = readdirSync(workflowsDir).filter((name) => name.endsWith('.yml'));
+    const workflows = workflowFiles.map((name) => readText(`.github/workflows/${name}`)).join('\n');
+
+    expect(workflows).not.toContain('actions: write');
   });
 
   it('bounds disposable GitHub Actions artifacts with explicit retention windows', () => {

@@ -14,6 +14,25 @@ export const HEARTBEAT_INTERVAL_MS = 15_000;
 export const HEARTBEAT_LIVENESS_MULTIPLIER = 3;
 export const HEARTBEAT_TIMEOUT_MS = HEARTBEAT_INTERVAL_MS * HEARTBEAT_LIVENESS_MULTIPLIER;
 
+const LOCAL_BRIDGE_HOST = '127.0.0.1';
+
+/**
+ * Build the only cleartext WebSocket endpoint the extension may use locally.
+ * The bridge does not terminate TLS, so `ws:` is intentionally restricted to
+ * the fixed OS-loopback host and the bounded bridge scan range. Remote relay
+ * connections use `wss:` through RemoteRelayClient instead.
+ */
+export function buildLocalBridgeWebSocketUrl(port: number): string {
+  const lastBridgePort = BRIDGE_PORT + PORT_SCAN_COUNT - 1;
+  if (!Number.isSafeInteger(port) || port < BRIDGE_PORT || port > lastBridgePort) {
+    throw new RangeError(`Invalid local bridge port: ${port}`);
+  }
+
+  const url = new URL(`http://${LOCAL_BRIDGE_HOST}:${port}/`);
+  url.protocol = 'ws:';
+  return `${url.protocol}//${url.host}`;
+}
+
 /**
  * Produce a deterministic local-port scan order that retries the last known
  * working port first, then covers the configured bridge range exactly once.

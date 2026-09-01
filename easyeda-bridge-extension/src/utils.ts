@@ -30,17 +30,32 @@ export function log(message: string, data?: unknown): void {
   console.log(`[easyeda-mcp-pro ${new Date().toISOString()}] ${message}${suffix}`);
 }
 
+const unsafePathSegments = new Set(['__proto__', 'constructor', 'prototype']);
+
+function readPropertyDescriptorValue(source: Record<string, unknown>, property: string): unknown {
+  let owner: object | null = source;
+  while (owner) {
+    const descriptor = Object.getOwnPropertyDescriptor(owner, property);
+    if (descriptor) {
+      return 'value' in descriptor ? descriptor.value : descriptor.get?.call(source);
+    }
+    owner = Object.getPrototypeOf(owner);
+  }
+  return undefined;
+}
+
 export function readPath<T>(source: unknown, path: string): T | undefined {
   const parts = path.split('.');
   let cursor: unknown = source;
   for (const part of parts) {
-    if (!isRecord(cursor) || !(part in cursor)) return undefined;
+    if (unsafePathSegments.has(part) || !isRecord(cursor)) return undefined;
     try {
-      cursor = cursor[part];
+      cursor = readPropertyDescriptorValue(cursor, part);
     } catch (error) {
       logRecoverableError(`failed to read path segment ${part}`, error);
       return undefined;
     }
+    if (cursor === undefined) return undefined;
   }
   return cursor as T;
 }

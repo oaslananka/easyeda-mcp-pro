@@ -98,7 +98,7 @@ Default retention policy:
 | cleanup cadence     |  manual |
 | max artifact bytes  | 512 MiB |
 
-Cache entries with explicit TTL expire automatically on read. Artifact cleanup is conservative and should be invoked explicitly before deleting handoff files. GitHub Actions workflow artifacts use their declared retention windows; `.github/workflows/artifact-cleanup.yml` removes only artifacts that GitHub already marks expired, on a weekly schedule or manual dispatch. Immutable GitHub Release assets and provenance are outside this cleanup path.
+Cache entries with explicit TTL expire automatically on read. Artifact cleanup is conservative and should be invoked explicitly before deleting handoff files. GitHub Actions workflow artifacts rely on their declared retention windows so the repository does not need a scheduled workflow with a write-capable Actions token. Immutable GitHub Release assets and provenance are outside this retention path.
 
 ## Regression guard
 

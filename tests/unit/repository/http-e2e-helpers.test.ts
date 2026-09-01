@@ -8,24 +8,16 @@ import {
 describe('HTTP live E2E helpers', () => {
   it('initializes the MCP session and sends the initialized notification', async () => {
     const mcpCall = vi.fn(async () => ({ ok: true }));
-    const fetchImpl = vi.fn(async () => ({ ok: true }));
+    const sendInitializedNotification = vi.fn(async () => undefined);
 
-    await initializeHttpSession({
-      mcpCall,
-      fetchImpl,
-      mcpUrl: 'http://127.0.0.1:18600/mcp',
-    });
+    await initializeHttpSession({ mcpCall, sendInitializedNotification });
 
     expect(mcpCall).toHaveBeenCalledWith('initialize', {
       protocolVersion: '2025-11-25',
       capabilities: {},
       clientInfo: { name: 'e2e-http', version: '1.0' },
     });
-    expect(fetchImpl).toHaveBeenCalledWith('http://127.0.0.1:18600/mcp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
-    });
+    expect(sendInitializedNotification).toHaveBeenCalledTimes(1);
   });
 
   it('returns immediately when the bridge is connected', async () => {
