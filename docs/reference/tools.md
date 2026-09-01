@@ -2462,7 +2462,7 @@ Returns a JSON object matching the schema:
 | `italic`       | `boolean (optional)` | No       |                                                                               |
 | `underline`    | `boolean (optional)` | No       |                                                                               |
 | `alignMode`    | `number (optional)`  | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| `confirmWrite` | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
