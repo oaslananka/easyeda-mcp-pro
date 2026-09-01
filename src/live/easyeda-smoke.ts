@@ -1,6 +1,5 @@
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { mkdir } from 'node:fs/promises';
 import { type BridgeManager } from '../bridge/manager.js';
 import { type BridgeHello } from '../bridge/protocol.js';
 
