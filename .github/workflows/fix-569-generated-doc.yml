@@ -1,0 +1,45 @@
+---
+name: Fix 569 generated docs handoff
+
+'on':
+  push:
+    branches: [fix/569-bridge-multiprocess-coordination]
+    paths:
+      - '.github/workflows/fix-569-generated-doc.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # actions/checkout v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/569-bridge-multiprocess-coordination
+          fetch-depth: 0
+      - name: Restore exact generated output and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/reference/tools.md')
+          text = path.read_text()
+          old = "| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string \"true\") to allow this write. |"
+          new = "| `confirmWrite` | `'true'`             | Yes      | Must be the literal boolean true (not the string \"true\") to allow this write. |"
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one generated-doc spacing mismatch, found {text.count(old)}')
+          path.write_text(text.replace(old, new))
+          PY
+          test "$(git hash-object docs/reference/tools.md)" = "9b8823ee4ec5e22a88176ec8b3eec7790beb8014"
+          git rm .github/workflows/fix-569-generated-doc.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/reference/tools.md
+          git commit -m 'docs: restore generated tool reference'
+          git push origin HEAD:fix/569-bridge-multiprocess-coordination
