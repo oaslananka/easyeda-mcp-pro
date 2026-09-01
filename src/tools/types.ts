@@ -7,6 +7,7 @@ import { type MouserClient } from '../vendors/mouser/client.js';
 import { type DigiKeyClient } from '../vendors/digikey/client.js';
 import { type Storage } from '../storage/index.js';
 import { type RemoteGateway } from '../remote/gateway.js';
+import { type BridgeOwnershipConflict } from '../bridge/listener-ownership.js';
 
 export type ToolSideEffect =
   'read-only' | 'design-mutation' | 'artifact-write' | 'local-state-write' | 'external-action';
@@ -83,6 +84,9 @@ export interface BridgeDiagnosticsSnapshot {
   heartbeat_silence_ms?: number;
   method_registry_hash?: string;
   reconnect?: unknown;
+  blocked_by_other_instance?: boolean;
+  owner_pid?: number;
+  owner_port?: number;
 }
 
 export interface ToolContext {
@@ -108,6 +112,8 @@ export interface ToolContext {
     loaderVersion?: string;
     /** True when the extension dispatcher's method list differs from the server registry. */
     registryMismatch?: boolean;
+    /** Details about a live local process that currently owns the bridge listener. */
+    ownershipConflict?: BridgeOwnershipConflict;
   };
   config: {
     bridgeTimeoutMs: number;
