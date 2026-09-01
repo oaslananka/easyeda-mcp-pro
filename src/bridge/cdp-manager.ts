@@ -208,15 +208,15 @@ export class CdpBridgeManager extends EventEmitter {
   public state: BridgeState = 'disconnected';
   public hello: BridgeHello | null = null;
 
-  private config: EnvConfig;
+  private readonly config: EnvConfig;
   private ws: WebSocket | null = null;
   private requestIdCounter = 0;
-  private pending = new Map<number, PendingCdpCall>();
+  private readonly pending = new Map<number, PendingCdpCall>();
   private _connectedAtMs = 0;
   private _lastHeartbeatMs = 0;
   private _activePort = 9222;
   private _target: CdpTarget | null = null;
-  private _methodRegistryHash: string;
+  private readonly _methodRegistryHash: string;
 
   constructor(config: EnvConfig) {
     super();

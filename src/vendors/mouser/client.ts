@@ -21,10 +21,10 @@ export interface MouserPart {
 }
 
 export class MouserClient {
-  private config: EnvConfig;
-  private logger: pino.Logger;
-  private baseUrl: string;
-  private apiKey: string;
+  private readonly config: EnvConfig;
+  private readonly logger: pino.Logger;
+  private readonly baseUrl: string;
+  private readonly apiKey: string;
 
   constructor(config: EnvConfig) {
     this.config = config;
