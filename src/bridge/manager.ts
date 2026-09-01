@@ -15,6 +15,11 @@ import {
 import { EasyedaApiMethodSchema } from './types.js';
 import { SERVER_VERSION } from '../config/version.js';
 import { getGlobalMetricsCollector } from '../observability/index.js';
+import {
+  BridgeListenerOwnership,
+  BridgeOwnershipConflictError,
+  type BridgeOwnershipConflict,
+} from './listener-ownership.js';
 
 const PAIRING_TIMEOUT_MS = 10_000;
 const STALE_SWEEP_MS = 30_000;
@@ -65,6 +70,8 @@ export class BridgeManager extends EventEmitter {
   private _extensionVersion: string | undefined;
   private _extensionMethodListHash: string | undefined;
   private _loaderVersion: string | undefined;
+  private listenerOwnership: BridgeListenerOwnership | undefined;
+  private _ownershipConflict: BridgeOwnershipConflict | undefined;
 
   constructor(config: EnvConfig) {
     super();
@@ -78,6 +85,10 @@ export class BridgeManager extends EventEmitter {
 
   get activePort(): number {
     return this._activePort;
+  }
+
+  get ownershipConflict(): BridgeOwnershipConflict | undefined {
+    return this._ownershipConflict;
   }
 
   get uptimeMs(): number {
@@ -169,12 +180,27 @@ export class BridgeManager extends EventEmitter {
     this.emit('stateChanged', this.state, prev);
 
     const logger = getLogger();
+    this._ownershipConflict = undefined;
+    const ownership = new BridgeListenerOwnership(this.config.DATA_DIR, this.config.BRIDGE_HOST);
+
+    try {
+      ownership.acquire();
+      this.listenerOwnership = ownership;
+    } catch (err) {
+      if (err instanceof BridgeOwnershipConflictError) {
+        this._ownershipConflict = err.conflict;
+      }
+      this.state = 'error';
+      this.emit('stateChanged', 'error', 'connecting');
+      throw err;
+    }
 
     const ports = parsePortScanSpec(this.config.BRIDGE_PORT_SCAN);
     let lastErr: Error | null = null;
 
     for (const port of ports) {
       try {
+        ownership.updatePort(port);
         await this.tryListen(port);
         logger.info({ port }, 'bridge websocket server listening');
         return;
@@ -184,6 +210,8 @@ export class BridgeManager extends EventEmitter {
       }
     }
 
+    ownership.release();
+    this.listenerOwnership = undefined;
     logger.error({ ports, err: lastErr?.message }, 'failed to start bridge server on any port');
     this.state = 'error';
     this.emit('stateChanged', 'error', 'connecting');
@@ -226,7 +254,6 @@ export class BridgeManager extends EventEmitter {
 
     logger.info({ needsPairing, isLoopback }, 'new bridge client connection');
 
-    // Issue pairing challenge for non-loopback connections with a token configured
     if (needsPairing) {
       const challenge = crypto.randomUUID();
       pairingChallengeId = challenge;
@@ -243,9 +270,6 @@ export class BridgeManager extends EventEmitter {
       logger.info('sent pairing challenge to new client');
     }
 
-    // A5: reassembly buffers for `{type:'chunk'}` envelopes from this client.
-    // A chunked payload may exceed the per-frame cap but is bounded by the
-    // aggregate cap; partial assemblies expire after CHUNK_ASSEMBLY_TTL_MS.
     const chunkAssemblies = new Map<
       string,
       {
@@ -326,7 +350,6 @@ export class BridgeManager extends EventEmitter {
 
     ws.on('message', (raw) => {
       try {
-        // 0. Payload size enforcement (before parsing)
         const rawSize = Array.isArray(raw)
           ? raw.reduce((sum, chunk) => sum + chunk.byteLength, 0)
           : raw.byteLength;
@@ -338,7 +361,6 @@ export class BridgeManager extends EventEmitter {
 
         const data = JSON.parse(raw.toString());
 
-        // 1. Handle pairing response (if challenge was issued)
         if (!paired && pairingChallengeId && data.type === 'pairing_response') {
           const parsed = BridgePairingResponseSchema.safeParse(data);
           if (
@@ -350,7 +372,6 @@ export class BridgeManager extends EventEmitter {
             ws.close(4001, 'invalid_pairing');
             return;
           }
-          // Pairing successful — clean up challenge and allow handshake
           const entry = this.pairingChallenges.get(pairingChallengeId);
           if (entry) {
             clearTimeout(entry.timer);
@@ -358,16 +379,14 @@ export class BridgeManager extends EventEmitter {
           }
           paired = true;
           logger.info('client pairing successful');
-          return; // Wait for the next message (handshake)
+          return;
         }
 
-        // 2. Reject if pairing is required but not yet completed
         if (needsPairing && !paired) {
           ws.close(4001, 'pairing_required');
           return;
         }
 
-        // 3. Normal message routing (chunk envelopes reassemble, then route)
         if (data.type === 'chunk') {
           handleChunk(data);
           return;
@@ -396,7 +415,6 @@ export class BridgeManager extends EventEmitter {
       this.stopStaleSweep();
       this.stopHeartbeat();
 
-      // Clean up any pending pairing challenges
       for (const [, entry] of this.pairingChallenges) {
         clearTimeout(entry.timer);
       }
@@ -408,7 +426,6 @@ export class BridgeManager extends EventEmitter {
       this.emit('stateChanged', this.state, prevState);
       this.emit('disconnected', reason.toString() || 'connection closed');
       this.scheduleReconnect();
-      // The WSS is still listening; no reconnect needed — wait for the next client.
     });
 
     ws.on('error', (err) => {
@@ -416,10 +433,6 @@ export class BridgeManager extends EventEmitter {
     });
   }
 
-  /**
-   * Validate and accept a handshake message. Sets up the bridge session
-   * and replies with a hello containing the server's capabilities.
-   */
   private handleHandshake(ws: WebSocket, data: unknown): void {
     const logger = getLogger();
     const parsed = BridgeHandshakeSchema.safeParse(data);
@@ -429,7 +442,6 @@ export class BridgeManager extends EventEmitter {
       return;
     }
 
-    // Session token enforcement
     if (this.config.BRIDGE_TOKEN) {
       if (!parsed.data.sessionToken) {
         logger.warn('bridge handshake rejected: session token required');
@@ -443,7 +455,6 @@ export class BridgeManager extends EventEmitter {
       }
     }
 
-    // Replace existing connection if any
     const previousWs = this.ws;
     const prevState = this.state;
 
@@ -458,11 +469,10 @@ export class BridgeManager extends EventEmitter {
     this.ws = ws;
     this.state = 'connected';
     this._connectedAtMs = Date.now();
-    this._lastHeartbeatMs = Date.now(); // seed so first liveness check doesn't fire immediately
+    this._lastHeartbeatMs = Date.now();
     this.reconnectAttempts = 0;
     this.reconnectStartMs = 0;
 
-    // Extension version mismatch warning
     const extVer = parsed.data.extensionVersion;
     this._extensionVersion = extVer;
     if (extVer && extVer !== SERVER_VERSION) {
@@ -471,9 +481,6 @@ export class BridgeManager extends EventEmitter {
       );
     }
 
-    // Dispatcher registry staleness: unlike the advisory version warning, this
-    // compares the actual method surface, so a stale dispatcher fails loudly
-    // in health_check/run_self_test (and triggers an auto-push in hot-swap dev mode).
     this._extensionMethodListHash = parsed.data.methodListHash;
     this._loaderVersion = parsed.data.loaderVersion;
     if (this.registryMismatch) {
@@ -506,7 +513,6 @@ export class BridgeManager extends EventEmitter {
       devMode: parsed.data.devMode ?? false,
     };
 
-    // Reply with hello
     ws.send(JSON.stringify(this.hello));
     if (prevState !== 'connected') {
       this.emit('stateChanged', 'connected', prevState);
@@ -516,11 +522,6 @@ export class BridgeManager extends EventEmitter {
     this.startStaleSweep();
   }
 
-  /**
-   * Validate and handle an incoming request from the extension.
-   * The server does not currently accept arbitrary extension requests,
-   * so unknown methods are rejected with a structured error response.
-   */
   private handleIncomingRequest(ws: WebSocket, data: unknown): void {
     const logger = getLogger();
     const parsed = BridgeRequestSchema.safeParse(data);
@@ -543,7 +544,6 @@ export class BridgeManager extends EventEmitter {
       return;
     }
 
-    // Reject unknown methods
     if (!(EasyedaApiMethodSchema.options as readonly string[]).includes(parsed.data.method)) {
       logger.warn({ method: parsed.data.method }, 'unknown bridge method requested');
       ws.send(
@@ -562,8 +562,6 @@ export class BridgeManager extends EventEmitter {
       return;
     }
 
-    // Known method, but the server does not handle incoming extension requests directly.
-    // This path is reserved for future use (e.g., event notifications from the extension).
     logger.warn({ method: parsed.data.method }, 'incoming request not supported');
     ws.send(
       JSON.stringify({
@@ -594,6 +592,7 @@ export class BridgeManager extends EventEmitter {
 
     const ws = this.ws;
     if (this.state !== 'connected' || !ws) {
+      if (this._ownershipConflict) throw new Error(this._ownershipConflict.message);
       throw new Error(`Bridge not connected. Cannot call method "${method}".`);
     }
 
@@ -644,7 +643,6 @@ export class BridgeManager extends EventEmitter {
     this.stopStaleSweep();
     this.clearReconnectTimer();
 
-    // Clean up pending pairing challenges
     for (const [, entry] of this.pairingChallenges) {
       clearTimeout(entry.timer);
     }
@@ -661,6 +659,11 @@ export class BridgeManager extends EventEmitter {
       this.wss.close();
       this.wss = null;
     }
+    this._activePort = 0;
+
+    this.listenerOwnership?.release();
+    this.listenerOwnership = undefined;
+    this._ownershipConflict = undefined;
 
     this.hello = null;
     this._extensionVersion = undefined;
@@ -695,10 +698,6 @@ export class BridgeManager extends EventEmitter {
       entry.resolve(data.result);
     } else {
       const error = new Error(data.error?.message ?? `Bridge method "${entry.method}" failed`);
-      // Preserve the dispatcher's structured error fields (code/suggestion/data) across
-      // the wire — without this, every caller checking `err.code` (e.g. to distinguish
-      // NOT_IMPLEMENTED from a timeout, or NET_COLLISION from a generic failure) always
-      // sees `undefined`, regardless of what the dispatcher actually reported.
       if (data.error) {
         Object.assign(error, {
           code: data.error.code,
@@ -723,7 +722,6 @@ export class BridgeManager extends EventEmitter {
     this.heartbeatTimer = setInterval(() => {
       if (!this.ws || this.state !== 'connected') return;
 
-      // Zombie detection: close if no heartbeat received within 3x the interval.
       const silenceMs = Date.now() - this._lastHeartbeatMs;
       const timeoutMs = this.config.BRIDGE_HEARTBEAT_MS * HEARTBEAT_LIVENESS_MULTIPLIER;
       if (silenceMs > timeoutMs) {
@@ -753,14 +751,6 @@ export class BridgeManager extends EventEmitter {
     }
   }
 
-  /**
-   * Schedule a reconnect attempt with tiered backoff. Never stops retrying.
-   * Tiers (elapsed since first disconnect):
-   *   0–30 s  → 1 s interval
-   *   30–120 s → 3 s interval
-   *   >120 s  → 10 s interval
-   * Each delay has ±10 % jitter.
-   */
   private scheduleReconnect(): void {
     if (this.state === 'disconnected') return;
 
@@ -799,11 +789,6 @@ export class BridgeManager extends EventEmitter {
     }
   }
 
-  /**
-   * Periodically sweep the pending-request map for entries whose
-   * timeout has elapsed but whose `setTimeout` may have been leaked
-   * (defence-in-depth). Runs every 30 s while connected.
-   */
   private startStaleSweep(): void {
     if (this.staleSweepTimer) clearInterval(this.staleSweepTimer);
     this.staleSweepTimer = setInterval(() => {
@@ -831,14 +816,6 @@ export class BridgeManager extends EventEmitter {
   }
 }
 
-/**
- * Parse a port scan specification string into an ordered array of ports.
- * Supports comma-separated values and dash ranges:
- *   "18601"           → [18601]
- *   "18601,49620"     → [18601, 49620]
- *   "49620-49629"     → [49620, 49621, ..., 49629]
- *   "18601,49620-49629" → [18601, 49620, 49621, ..., 49629]
- */
 export function parsePortScanSpec(spec: string): number[] {
   const ports: number[] = [];
   const parts = spec.split(',');
