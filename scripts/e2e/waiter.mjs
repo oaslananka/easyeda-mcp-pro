@@ -1,7 +1,7 @@
 import { spawnTrackedProcess } from './harness.mjs';
 import { sanitizeLogFragment } from './log-sanitization.mjs';
-import { Socket } from 'net';
-import { setTimeout as sleep } from 'timers/promises';
+import { Socket } from 'node:net';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const SRV_TIMEOUT = 5 * 60 * 1000; // 5 min
 

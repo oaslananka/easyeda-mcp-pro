@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, statSync } from 'fs';
-import { execFileSync } from 'child_process';
-import { dirname, isAbsolute, join, resolve, sep } from 'path';
-import { fileURLToPath } from 'url';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CHECKSUM_MANIFEST_NAME, verifyChecksumManifest } from './checksums.mjs';
 
 const __filename = fileURLToPath(import.meta.url);

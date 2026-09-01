@@ -454,7 +454,7 @@ async function main() {
   // Print extension file info
   console.log('\nExtension file:');
   try {
-    const fs = await import('fs');
+    const fs = await import('node:fs');
     const p = `${__dirname}/easyeda-bridge-extension.eext`;
     const stat = fs.statSync(p);
     const hash = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
