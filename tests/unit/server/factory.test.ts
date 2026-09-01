@@ -18,6 +18,9 @@ const mocks = vi.hoisted(() => ({
   registerResources: vi.fn(),
   startHotSwapWatcher: vi.fn(() => vi.fn()),
   vendor: vi.fn(),
+  ownershipConflict: undefined as
+    | { blockedByOtherInstance: true; ownerPid?: number; ownerPort?: number; message: string }
+    | undefined,
 }));
 
 vi.mock('@modelcontextprotocol/server', () => ({
@@ -61,6 +64,9 @@ vi.mock('../../../src/bridge/manager.js', () => ({
     easyedaVersion = '2.0.0';
     extensionVersion = '0.20.0';
     extensionVersionMismatch = true;
+    get ownershipConflict() {
+      return mocks.ownershipConflict;
+    }
   },
 }));
 vi.mock('../../../src/bridge/hotswap-watcher.js', () => ({
@@ -109,6 +115,7 @@ describe('createServer', () => {
     mocks.serverConnect.mockResolvedValue(undefined);
     mocks.serveStdio.mockReturnValue({ close: mocks.stdioHandleClose });
     mocks.call.mockResolvedValue({ ok: true });
+    mocks.ownershipConflict = undefined;
   });
 
   it('wires registry, resources, storage, and shutdown', async () => {
@@ -126,6 +133,33 @@ describe('createServer', () => {
     expect(mocks.storageClose).toHaveBeenCalledTimes(1);
     expect(mocks.disconnect).toHaveBeenCalledWith('server shutdown');
     expect(mocks.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the MCP server available when another process owns the local bridge listener', async () => {
+    const ownershipConflict = {
+      blockedByOtherInstance: true as const,
+      ownerPid: 4321,
+      ownerPort: 49620,
+      message:
+        'Local EasyEDA bridge listener is owned by another easyeda-mcp-pro process (PID 4321, port 49620).',
+    };
+    mocks.ownershipConflict = ownershipConflict;
+    mocks.connect.mockRejectedValueOnce(new Error(ownershipConflict.message));
+
+    const instance = await createServer(config());
+
+    expect(instance.context.bridge.ownershipConflict).toEqual(ownershipConflict);
+    expect(mocks.logger.error).not.toHaveBeenCalled();
+    expect(mocks.logger.info).toHaveBeenCalled();
+    expect(mocks.storageInit).toHaveBeenCalledTimes(1);
+
+    await instance.shutdown();
+  });
+
+  it('still fails server creation for unrelated local bridge startup errors', async () => {
+    mocks.connect.mockRejectedValueOnce(new Error('unexpected bridge bind failure'));
+
+    await expect(createServer(config())).rejects.toThrow('unexpected bridge bind failure');
   });
 
   it('keeps legacy stdio as the default connection path', async () => {
