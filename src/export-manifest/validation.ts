@@ -24,9 +24,13 @@
  */
 
 import { ExportManifestCode, manifestError, manifestWarning } from './errors.js';
-import { ExportArtifactRole } from './types.js';
-import type { ExportManifestIssue } from './types.js';
-import type { ExportManifestInput, ExportManifestReport, ExportManifestSummary } from './types.js';
+import {
+  ExportArtifactRole,
+  type ExportManifestInput,
+  type ExportManifestIssue,
+  type ExportManifestReport,
+  type ExportManifestSummary,
+} from './types.js';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
