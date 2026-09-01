@@ -147,7 +147,7 @@ describe('release channel policy', () => {
     expect(publisher).not.toContain('emergency_soak_override:');
   });
 
-  it('pins the current release toolchain and grants write permissions only to publication', () => {
+  it('pins the current release toolchain and keeps GITHUB_TOKEN contents read-only', () => {
     const manager = readText('.github/workflows/release-please.yml');
     const publisher = readText('.github/workflows/publish-release.yml');
 
@@ -158,8 +158,10 @@ describe('release channel policy', () => {
     expect(publisher).toContain('pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271');
     expect(publisher).toContain('actions/setup-node@820762786026740c76f36085b0efc47a31fe5020');
     expect(publisher).toContain('docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7');
-    expect(manager).toContain('contents: write');
-    expect(manager).toContain('pull-requests: write');
+    expect(manager).not.toContain('contents: write');
+    expect(manager).not.toContain('pull-requests: write');
+    expect(manager).not.toContain('issues: write');
+    expect(manager).toContain('contents: read');
     expect(manager).toContain('token: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
     expect(manager).not.toContain('token: ${{ secrets.GITHUB_TOKEN }}');
     expect(publisher).not.toContain(
@@ -170,6 +172,8 @@ describe('release channel policy', () => {
     expect(publisher).not.toContain('token: ${{ secrets.GITHUB_TOKEN }}');
     expect(manager.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(1);
     expect(publisher.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(2);
+    expect(publisher).not.toContain('contents: write');
+    expect(publisher).toContain('contents: read');
     expect(publisher).toContain('id-token: write');
     expect(publisher).toContain('attestations: write');
     expect(publisher).toContain('packages: write');

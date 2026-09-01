@@ -4,13 +4,17 @@
  * Connects to already-running MCP server via HTTP transport.
  * Waits for bridge connection, then validates all 5 net-creation handlers.
  */
+import { request as httpRequest } from 'node:http';
 import {
   findDeviceCandidates,
   initializeHttpSession,
   waitForBridgeConnection,
 } from './http-helpers.mjs';
 
-const MCP_URL = 'http://127.0.0.1:18600/mcp';
+const MCP_HOST = '127.0.0.1';
+const MCP_PORT = 18600;
+const MCP_PATH = '/mcp';
+const MCP_URL = `http://${MCP_HOST}:${MCP_PORT}${MCP_PATH}`;
 const BRIDGE_MAX_WAIT_S = 120;
 const CMD_TIMEOUT = 30_000;
 
@@ -27,29 +31,55 @@ function fail_(label, detail) {
   fail++;
 }
 
+function postMcpJson(body) {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        host: MCP_HOST,
+        port: MCP_PORT,
+        path: MCP_PATH,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let text = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          text += chunk;
+        });
+        res.on('end', () => resolve(text));
+      },
+    );
+    req.setTimeout(CMD_TIMEOUT, () => {
+      req.destroy(new Error('HTTP MCP request timed out'));
+    });
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
 let reqId = 0;
 async function mcpCall(method, params = {}) {
   const id = ++reqId;
   const body = JSON.stringify({ jsonrpc: '2.0', id, method, params });
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CMD_TIMEOUT);
   try {
-    const res = await fetch(MCP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      signal: controller.signal,
-    });
-    const text = await res.text();
-    clearTimeout(timer);
+    const text = await postMcpJson(body);
     const parsed = JSON.parse(text);
     if (parsed.error) throw new Error(parsed.error.message);
     return parsed.result;
   } catch (e) {
-    clearTimeout(timer);
-    if (e.name === 'AbortError') throw new Error(`TIMEOUT ${method}`, { cause: e });
+    if (e instanceof Error && e.message === 'HTTP MCP request timed out') {
+      throw new Error(`TIMEOUT ${method}`, { cause: e });
+    }
     throw e;
   }
+}
+
+async function sendInitializedNotification() {
+  await postMcpJson(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }));
 }
 
 async function toolCall(name, args = {}) {
@@ -73,7 +103,7 @@ async function main() {
 
   // Verify server is reachable
   try {
-    await initializeHttpSession({ mcpCall, fetchImpl: fetch, mcpUrl: MCP_URL });
+    await initializeHttpSession({ mcpCall, sendInitializedNotification });
     ok('Server reachable', `HTTP ${MCP_URL}`);
   } catch (e) {
     fail_('Server reachable', e.message);

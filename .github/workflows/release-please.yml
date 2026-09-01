@@ -16,10 +16,6 @@ jobs:
   release-please:
     name: Maintain stable release PR
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Create and update the release PR branch.
-      pull-requests: write # Create and update the stable release PR.
-      issues: write # Maintain release labels and linked issue metadata.
     steps:
       - name: Checkout release metadata
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

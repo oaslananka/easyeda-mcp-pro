@@ -11,6 +11,7 @@ const releaseCiRunbookPath = resolve(repoRoot, 'docs/release-ci-runbook.md');
 
 interface RenovatePackageRule {
   matchManagers?: string[];
+  minimumReleaseAge?: string;
 }
 
 interface RenovateConfig {
@@ -30,6 +31,7 @@ describe('dependency updater ownership', () => {
     const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig;
 
     expect(config.minimumReleaseAge).toBe('7 days');
+    expect(config.packageRules?.every((rule) => rule.minimumReleaseAge === '7 days')).toBe(true);
     expect(config.dependencyDashboard).toBe(true);
     expect(config.osvVulnerabilityAlerts).toBe(true);
   });

@@ -105,7 +105,7 @@ jobs:
       group: publish-${{ needs.plan.outputs.release_tag }}
       cancel-in-progress: false
     permissions:
-      contents: write # Create releases and upload immutable assets.
+      contents: read # GitHub Release mutations use the dedicated release token.
       id-token: write # npm Trusted Publishing, attestations, and MCP Registry OIDC.
       attestations: write # Publish build provenance.
       packages: write # Publish exact and channel-safe GHCR tags.

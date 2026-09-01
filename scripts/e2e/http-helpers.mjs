@@ -1,16 +1,12 @@
 const DEFAULT_DEVICE_KEYWORDS = ['resistor', 'R_0603', 'R_0805', 'capacitor'];
 
-export async function initializeHttpSession({ mcpCall, fetchImpl, mcpUrl }) {
+export async function initializeHttpSession({ mcpCall, sendInitializedNotification }) {
   await mcpCall('initialize', {
     protocolVersion: '2025-11-25',
     capabilities: {},
     clientInfo: { name: 'e2e-http', version: '1.0' },
   });
-  await fetchImpl(mcpUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
-  });
+  await sendInitializedNotification();
 }
 
 export async function waitForBridgeConnection({

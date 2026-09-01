@@ -5,6 +5,7 @@
 // the .eext.
 import {
   BRIDGE_PORT,
+  buildLocalBridgeWebSocketUrl,
   getLocalBridgeConnectionAttempts,
   hasHeartbeatTimedOut,
   HEARTBEAT_INTERVAL_MS,
@@ -182,7 +183,6 @@ interface LocalConnectionDiagnostic {
 const BRIDGE_PROTOCOL = 'easyeda-mcp-pro.bridge';
 const BRIDGE_VERSION = '1.0.0';
 const BRIDGE_CONTRACT_VERSION = 1;
-const LOOPBACK_HOST = ['127', '0', '0', '1'].join('.');
 const SOCKET_ID = 'easyeda-mcp-pro-bridge';
 
 let socketHandle: SocketHandle | null = null;
@@ -1066,7 +1066,7 @@ async function connectToPort(
   showSuccessToast: boolean,
   timeoutMs: number,
 ): Promise<boolean> {
-  const url = `ws://${LOOPBACK_HOST}:${port}`;
+  const url = buildLocalBridgeWebSocketUrl(port);
   const socketId = `${SOCKET_ID}-${runId}-${port}`;
   return new Promise((resolve) => {
     let settled = false;

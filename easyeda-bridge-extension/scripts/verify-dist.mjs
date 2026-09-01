@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'fs';
 import { execFileSync } from 'child_process';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'path';
+import { dirname, isAbsolute, join, resolve, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { CHECKSUM_MANIFEST_NAME, verifyChecksumManifest } from './checksums.mjs';
 
@@ -12,11 +12,12 @@ const required = ['dist/index.js', 'extension.json', 'images/logo.png'];
 const marketplaceSourceFiles = ['README.md', 'CHANGELOG.md'];
 
 function resolvePathWithinRoot(candidate) {
-  const resolvedPath = resolve(root, candidate);
-  const relativePath = relative(root, resolvedPath);
-  const pathSegments = relativePath.split(sep);
-  if (!relativePath || isAbsolute(relativePath) || pathSegments[0] === '..') return undefined;
-  return resolvedPath;
+  if (typeof candidate !== 'string' || !candidate || isAbsolute(candidate)) return undefined;
+  if (/^[A-Za-z]:[\\/]/.test(candidate) || candidate.startsWith('\\\\')) return undefined;
+  const pathSegments = candidate.split(/[\\/]+/);
+  if (pathSegments.some((segment) => !segment || segment === '.' || segment === '..'))
+    return undefined;
+  return `${root}${sep}${pathSegments.join(sep)}`;
 }
 
 function resolveTrustedPythonExecutable() {

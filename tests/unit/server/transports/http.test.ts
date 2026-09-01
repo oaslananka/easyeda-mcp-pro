@@ -388,14 +388,11 @@ describe('createOriginValidator', () => {
       headers: { origin: 'https://anything.com' },
     });
     middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith(
-      'Access-Control-Allow-Origin',
-      'https://anything.com',
-    );
+    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
     expect(next).toHaveBeenCalled();
   });
 
-  it('should allow loopback origin with an explicit development port', () => {
+  it('should allow a validated loopback origin without reflecting request input', () => {
     const config = EnvSchema.parse({
       HTTP_HOST: '127.0.0.1',
       HTTP_PORT: 3000,
@@ -406,11 +403,24 @@ describe('createOriginValidator', () => {
       headers: { origin: 'http://localhost:5173' },
     });
     middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith(
-      'Access-Control-Allow-Origin',
-      'http://localhost:5173',
-    );
+    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
     expect(next).toHaveBeenCalled();
+  });
+
+  it('should reject an external browser origin while bound to loopback', () => {
+    const config = EnvSchema.parse({
+      HTTP_HOST: '127.0.0.1',
+      HTTP_PORT: 3000,
+      ALLOWED_ORIGINS: '',
+    });
+    const middleware = createOriginValidator(config);
+    const { req, res, next } = mockReqRes({
+      headers: { origin: 'https://evil.example.com' },
+    });
+    middleware(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.setHeader).not.toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('should reject non-loopback Host header while bound to loopback', () => {
@@ -443,7 +453,7 @@ describe('createOriginValidator', () => {
       headers: { origin: 'http://localhost' },
     });
     middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', 'http://localhost');
+    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
     expect(next).toHaveBeenCalled();
   });
 
@@ -458,7 +468,7 @@ describe('createOriginValidator', () => {
       headers: { origin: 'null' },
     });
     middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', 'null');
+    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
     expect(next).toHaveBeenCalled();
   });
 
@@ -780,7 +790,7 @@ describe('createHttpTransport — OAuth/JWKS validation', () => {
         headers: { Origin: 'http://localhost:5173' },
       });
       expect(res.status).toBe(204);
-      expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
+      expect(res.headers.get('access-control-allow-origin')).toBe('*');
       expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST, DELETE, OPTIONS');
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));

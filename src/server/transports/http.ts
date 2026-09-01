@@ -254,6 +254,13 @@ function isAllowedLoopbackOrigin(origin: string): boolean {
   }
 }
 
+function configuredOriginMatch(allowedOrigins: Set<string>, origin: string): string | undefined {
+  for (const allowedOrigin of allowedOrigins) {
+    if (allowedOrigin === origin) return allowedOrigin;
+  }
+  return undefined;
+}
+
 function validateHostHeader(config: EnvConfig, host: string | undefined): boolean {
   if (!host) return true;
   const hostname = hostWithoutPort(host).toLowerCase();
@@ -324,24 +331,33 @@ export function createOriginValidator(config: EnvConfig) {
 
     // Wildcard allows everything.
     if (allowAll) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Origin', '*');
       next();
       return;
     }
 
-    // On loopback, accept known localhost origins and the legacy CORS_ORIGIN.
+    // On loopback, accept a configured legacy origin or a validated localhost origin.
     if (loopbackMode) {
-      const legacyMatch = config.CORS_ORIGIN && origin === config.CORS_ORIGIN;
-      if (isAllowedLoopbackOrigin(origin) || legacyMatch) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
+      if (config.CORS_ORIGIN && origin === config.CORS_ORIGIN) {
+        res.setHeader('Access-Control-Allow-Origin', config.CORS_ORIGIN);
+        next();
+        return;
+      }
+      if (isAllowedLoopbackOrigin(origin)) {
+        // The request origin has already been constrained to loopback/null above.
+        // Use a literal response value so untrusted header input is never reflected.
+        res.setHeader('Access-Control-Allow-Origin', '*');
         next();
         return;
       }
     }
 
-    // Check the explicit allowlist.
-    if (hasExplicitAllowlist && allowedOrigins.has(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
+    // Check the explicit allowlist and echo the configured value, not request input.
+    const allowedOrigin = hasExplicitAllowlist
+      ? configuredOriginMatch(allowedOrigins, origin)
+      : undefined;
+    if (allowedOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
       next();
       return;
     }

@@ -964,6 +964,13 @@ async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
   return Array.from(netMap, ([netName, nodes]): SchematicNetEntry => ({ netName, nodes }));
 }
 
+function designatorOrdinal(ref: string, prefix: string): number {
+  if (!ref.startsWith(prefix)) return 0;
+  const suffix = ref.slice(prefix.length);
+  if (!/^\d+$/.test(suffix)) return 0;
+  return Number.parseInt(suffix, 10);
+}
+
 /**
  * Assign the next free designator to a freshly placed component whose
  * designator is still an unresolved placeholder ("R?", "U?", "LED?", ...).
@@ -1009,15 +1016,10 @@ async function assignAutoDesignator(created: unknown): Promise<string | undefine
   let maxN = 0;
   try {
     const comps = await schCompClass.getAll(undefined, true);
-    const rx = new RegExp(`^${prefix}(\\d+)$`);
     for (const c of comps || []) {
       const ref =
         typeof c.getState_Designator === 'function' ? String(c.getState_Designator()) : '';
-      const rm = rx.exec(ref);
-      if (rm) {
-        const n = parseInt(rm[1], 10);
-        if (n > maxN) maxN = n;
-      }
+      maxN = Math.max(maxN, designatorOrdinal(ref, prefix));
     }
   } catch (e) {
     logRecoverableError('auto-designator: scan failed', e);

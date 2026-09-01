@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BRIDGE_PORT,
+  buildLocalBridgeWebSocketUrl,
   FALLBACK_CONNECT_TIMEOUT_MS,
   getLocalBridgeConnectionAttempts,
   hasHeartbeatTimedOut,
@@ -29,6 +30,15 @@ describe('local bridge connection policy', () => {
   it('falls back to the standard range when the preferred port is outside it', () => {
     const attempts = getLocalBridgeConnectionAttempts(1234);
     expect(attempts[0]?.port).toBe(BRIDGE_PORT);
+  });
+
+  it('builds local WebSocket URLs only for the fixed loopback bridge range', () => {
+    expect(buildLocalBridgeWebSocketUrl(BRIDGE_PORT)).toBe(`ws://127.0.0.1:${BRIDGE_PORT}`);
+    expect(buildLocalBridgeWebSocketUrl(BRIDGE_PORT + 9)).toBe(`ws://127.0.0.1:${BRIDGE_PORT + 9}`);
+
+    expect(() => buildLocalBridgeWebSocketUrl(BRIDGE_PORT - 1)).toThrow(/bridge port/i);
+    expect(() => buildLocalBridgeWebSocketUrl(BRIDGE_PORT + 10)).toThrow(/bridge port/i);
+    expect(() => buildLocalBridgeWebSocketUrl(BRIDGE_PORT + 0.5)).toThrow(/bridge port/i);
   });
 
   it('caps reconnect backoff at five seconds', () => {

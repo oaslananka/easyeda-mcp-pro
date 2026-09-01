@@ -401,7 +401,7 @@ Path traversal protection is enforced in all export tools — artifact paths are
 - Renovate automates dependency updates.
 - Runtime dependencies require manual review — never auto-merged.
 - Patch/minor devDependencies auto-merge if CI passes.
-- Minimum release age of 3 days before Renovate creates a PR (mitigates zero-day package poisoning).
+- Minimum release age of 7 days before Renovate creates a PR (mitigates zero-day package poisoning).
 - Vulnerability alerts via OSV database.
 
 ### 9.3 Branch Protection
@@ -504,7 +504,7 @@ Path traversal protection is enforced in all export tools — artifact paths are
 #### T8: Dependency supply chain attack
 
 - **Risk**: Compromised dependency introduces malicious code.
-- **Mitigation**: SHA-pinned actions, 3-day minimum release age, manual review of runtime dep upgrades, OSV vulnerability scanning, Socket.dev PR scanning.
+- **Mitigation**: SHA-pinned actions, 7-day minimum release age, manual review of runtime dep upgrades, OSV vulnerability scanning, Socket.dev PR scanning.
 - **Residual risk**: Low-Medium. Zero-day in a widely-used dependency may not be detected immediately.
 
 #### T9: Bridge connection hijacking
