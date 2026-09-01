@@ -29,11 +29,15 @@ jobs:
 
           path = Path('docs/reference/tools.md')
           text = path.read_text()
+          section_start = text.index("## `easyeda_schematic_add_text`")
+          section_end = text.index("\n---\n\n## `easyeda_schematic_add_wire`", section_start)
+          section = text[section_start:section_end]
           old = "| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string \"true\") to allow this write. |"
           new = "| `confirmWrite` | `'true'`             | Yes      | Must be the literal boolean true (not the string \"true\") to allow this write. |"
-          if text.count(old) != 1:
-              raise SystemExit(f'expected exactly one generated-doc spacing mismatch, found {text.count(old)}')
-          path.write_text(text.replace(old, new))
+          if section.count(old) != 1:
+              raise SystemExit(f'expected one add_text spacing mismatch, found {section.count(old)}')
+          repaired = section.replace(old, new)
+          path.write_text(text[:section_start] + repaired + text[section_end:])
           PY
           test "$(git hash-object docs/reference/tools.md)" = "9b8823ee4ec5e22a88176ec8b3eec7790beb8014"
           git rm .github/workflows/fix-569-generated-doc.yml
