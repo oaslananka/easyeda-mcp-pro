@@ -15,6 +15,11 @@ import {
 import { EasyedaApiMethodSchema } from './types.js';
 import { SERVER_VERSION } from '../config/version.js';
 import { getGlobalMetricsCollector } from '../observability/index.js';
+import {
+  BridgeListenerOwnership,
+  BridgeOwnershipConflictError,
+  type BridgeOwnershipConflict,
+} from './listener-ownership.js';
 
 const PAIRING_TIMEOUT_MS = 10_000;
 const STALE_SWEEP_MS = 30_000;
@@ -65,6 +70,8 @@ export class BridgeManager extends EventEmitter {
   private _extensionVersion: string | undefined;
   private _extensionMethodListHash: string | undefined;
   private _loaderVersion: string | undefined;
+  private listenerOwnership: BridgeListenerOwnership | undefined;
+  private _ownershipConflict: BridgeOwnershipConflict | undefined;
 
   constructor(config: EnvConfig) {
     super();
@@ -78,6 +85,10 @@ export class BridgeManager extends EventEmitter {
 
   get activePort(): number {
     return this._activePort;
+  }
+
+  get ownershipConflict(): BridgeOwnershipConflict | undefined {
+    return this._ownershipConflict;
   }
 
   get uptimeMs(): number {
@@ -169,12 +180,27 @@ export class BridgeManager extends EventEmitter {
     this.emit('stateChanged', this.state, prev);
 
     const logger = getLogger();
+    this._ownershipConflict = undefined;
+    const ownership = new BridgeListenerOwnership(this.config.DATA_DIR, this.config.BRIDGE_HOST);
+
+    try {
+      ownership.acquire();
+      this.listenerOwnership = ownership;
+    } catch (err) {
+      if (err instanceof BridgeOwnershipConflictError) {
+        this._ownershipConflict = err.conflict;
+      }
+      this.state = 'error';
+      this.emit('stateChanged', 'error', 'connecting');
+      throw err;
+    }
 
     const ports = parsePortScanSpec(this.config.BRIDGE_PORT_SCAN);
     let lastErr: Error | null = null;
 
     for (const port of ports) {
       try {
+        ownership.updatePort(port);
         await this.tryListen(port);
         logger.info({ port }, 'bridge websocket server listening');
         return;
@@ -184,6 +210,8 @@ export class BridgeManager extends EventEmitter {
       }
     }
 
+    ownership.release();
+    this.listenerOwnership = undefined;
     logger.error({ ports, err: lastErr?.message }, 'failed to start bridge server on any port');
     this.state = 'error';
     this.emit('stateChanged', 'error', 'connecting');
@@ -594,6 +622,7 @@ export class BridgeManager extends EventEmitter {
 
     const ws = this.ws;
     if (this.state !== 'connected' || !ws) {
+      if (this._ownershipConflict) throw new Error(this._ownershipConflict.message);
       throw new Error(`Bridge not connected. Cannot call method "${method}".`);
     }
 
@@ -661,6 +690,11 @@ export class BridgeManager extends EventEmitter {
       this.wss.close();
       this.wss = null;
     }
+    this._activePort = 0;
+
+    this.listenerOwnership?.release();
+    this.listenerOwnership = undefined;
+    this._ownershipConflict = undefined;
 
     this.hello = null;
     this._extensionVersion = undefined;

@@ -1,18 +1,34 @@
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { WebSocket } from 'ws';
-import { describe, it, expect, vi } from 'vitest';
+import { afterAll, describe, it, expect, vi } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import { BridgeManager, parsePortScanSpec } from '../../../src/bridge/manager.js';
 import { getLogger } from '../../../src/utils/logger.js';
 import { SERVER_VERSION } from '../../../src/config/version.js';
 
+const testDataDirs = new Set<string>();
+
 function createTestConfig(overrides: Record<string, unknown> = {}) {
+  const dataDir =
+    typeof overrides.DATA_DIR === 'string'
+      ? overrides.DATA_DIR
+      : mkdtempSync(join(tmpdir(), 'easyeda-bridge-manager-'));
+  testDataDirs.add(dataDir);
   return EnvSchema.parse({
     NODE_ENV: 'test',
     BRIDGE_WAIT_FOR_EDA_MS: 0,
+    DATA_DIR: dataDir,
     ...overrides,
   });
 }
+
+afterAll(() => {
+  for (const dataDir of testDataDirs) rmSync(dataDir, { recursive: true, force: true });
+});
 
 async function getFreePort(host = '127.0.0.1'): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -906,6 +922,207 @@ describe('BridgeManager - pairing (non-loopback host)', () => {
     const code = await waitForClose(socket);
     expect(code).toBe(4001);
     manager.disconnect('test complete');
+  });
+});
+
+describe('BridgeManager - process ownership', () => {
+  it('detects a bridge listener lock owned by a separate live process', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-child-owner-'));
+    testDataDirs.add(dataDir);
+    const lockDir = join(dataDir, 'bridge-listener.lock');
+    const ownerPort = await getFreePort();
+    const script = `
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const lockDir = process.argv[1];
+      const port = Number(process.argv[2]);
+      fs.mkdirSync(lockDir, { recursive: true });
+      fs.writeFileSync(path.join(lockDir, 'owner.json'), JSON.stringify({
+        schemaVersion: 1,
+        token: 'child-owner',
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+        host: '127.0.0.1',
+        port,
+      }));
+      console.log('ready');
+      setInterval(() => {}, 1000);
+    `;
+    const child = spawn(process.execPath, ['-e', script, lockDir, String(ownerPort)], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, NODE_OPTIONS: '' },
+    });
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        let stderr = '';
+        const timer = setTimeout(
+          () => reject(new Error(`child owner did not start: ${stderr}`)),
+          5_000,
+        );
+        child.stderr.on('data', (chunk) => {
+          stderr += chunk.toString();
+        });
+        child.once('error', (error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+        child.once('exit', (code) => {
+          clearTimeout(timer);
+          reject(new Error(`child owner exited before ready (code ${String(code)}): ${stderr}`));
+        });
+        child.stdout.once('data', (chunk) => {
+          clearTimeout(timer);
+          if (chunk.toString().includes('ready')) resolve();
+          else reject(new Error(`unexpected child output: ${chunk.toString()}`));
+        });
+      });
+
+      const manager = new BridgeManager(
+        createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(await getFreePort()) }),
+      );
+      await expect(manager.connect()).rejects.toThrow(/another easyeda-mcp-pro process/i);
+      expect(manager.ownershipConflict).toMatchObject({
+        blockedByOtherInstance: true,
+        ownerPid: child.pid,
+        ownerPort,
+      });
+      manager.disconnect('test complete');
+    } finally {
+      child.kill();
+      await new Promise<void>((resolve) => {
+        if (child.exitCode !== null) resolve();
+        else child.once('exit', () => resolve());
+      });
+      rmSync(lockDir, { recursive: true, force: true });
+    }
+  }, 10_000);
+
+  it('fails safely when a fresh ownership lock contains malformed owner metadata', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-malformed-owner-'));
+    testDataDirs.add(dataDir);
+    const lockDir = join(dataDir, 'bridge-listener.lock');
+    mkdirSync(lockDir, { recursive: true });
+    writeFileSync(join(lockDir, 'owner.json'), '{not-json');
+
+    const manager = new BridgeManager(
+      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(await getFreePort()) }),
+    );
+
+    await expect(manager.connect()).rejects.toThrow(/no valid owner metadata/i);
+    expect(manager.activePort).toBe(0);
+    expect(() => manager.disconnect('test complete')).not.toThrow();
+  });
+
+  it('tolerates the ownership directory disappearing before disconnect', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-owner-removed-'));
+    testDataDirs.add(dataDir);
+    const lockDir = join(dataDir, 'bridge-listener.lock');
+    const manager = new BridgeManager(
+      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(await getFreePort()) }),
+    );
+
+    await manager.connect();
+    rmSync(lockDir, { recursive: true, force: true });
+
+    expect(() => manager.disconnect('external lock cleanup')).not.toThrow();
+    expect(manager.activePort).toBe(0);
+  });
+
+  it('does not remove a replacement ownership lock during disconnect', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-owner-replaced-'));
+    testDataDirs.add(dataDir);
+    const lockDir = join(dataDir, 'bridge-listener.lock');
+    const ownerFile = join(lockDir, 'owner.json');
+    const manager = new BridgeManager(
+      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(await getFreePort()) }),
+    );
+
+    await manager.connect();
+    const replacement = JSON.parse(readFileSync(ownerFile, 'utf8')) as Record<string, unknown>;
+    replacement.token = 'replacement-owner';
+    writeFileSync(ownerFile, `${JSON.stringify(replacement)}\n`);
+
+    manager.disconnect('test complete');
+
+    expect(JSON.parse(readFileSync(ownerFile, 'utf8'))).toMatchObject({
+      token: 'replacement-owner',
+    });
+    rmSync(lockDir, { recursive: true, force: true });
+  });
+
+  it('blocks a second manager from binding another bridge port and exposes the live owner', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-owner-'));
+    testDataDirs.add(dataDir);
+    const ownerPort = await getFreePort();
+    const fallbackPort = await getFreePort();
+    const config = createTestConfig({
+      DATA_DIR: dataDir,
+      BRIDGE_HOST: '127.0.0.1',
+      BRIDGE_PORT_SCAN: `${ownerPort},${fallbackPort}`,
+    });
+    const owner = new BridgeManager(config);
+    const blocked = new BridgeManager(config);
+
+    try {
+      await owner.connect();
+      await expect(blocked.connect()).rejects.toThrow(/another easyeda-mcp-pro process/i);
+
+      expect(owner.activePort).toBe(ownerPort);
+      expect(blocked.activePort).toBe(0);
+      expect(blocked.state).toBe('error');
+      expect(blocked.ownershipConflict).toMatchObject({
+        blockedByOtherInstance: true,
+        ownerPid: process.pid,
+        ownerPort,
+      });
+      await expect(blocked.call('system.getStatus', {})).rejects.toThrow(
+        new RegExp(`PID ${process.pid}.*port ${ownerPort}`, 'i'),
+      );
+    } finally {
+      blocked.disconnect('test complete');
+      owner.disconnect('test complete');
+    }
+  });
+
+  it('reclaims a stale ownership lock whose recorded process is no longer alive', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-stale-owner-'));
+    testDataDirs.add(dataDir);
+    const lockDir = join(dataDir, 'bridge-listener.lock');
+    mkdirSync(lockDir, { recursive: true });
+    writeFileSync(
+      join(lockDir, 'owner.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        token: 'stale-owner',
+        pid: 2147483647,
+        startedAt: '2000-01-01T00:00:00.000Z',
+        host: '127.0.0.1',
+        port: 49620,
+      }),
+    );
+
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(port) }),
+    );
+
+    try {
+      await manager.connect();
+      expect(manager.activePort).toBe(port);
+      expect(manager.ownershipConflict).toBeUndefined();
+      const owner = JSON.parse(
+        await import('node:fs').then(({ readFileSync }) =>
+          readFileSync(join(lockDir, 'owner.json'), 'utf8'),
+        ),
+      ) as { pid: number; port?: number };
+      expect(owner).toMatchObject({ pid: process.pid, port });
+    } finally {
+      manager.disconnect('test complete');
+    }
+
+    expect(() => mkdirSync(lockDir)).not.toThrow();
+    rmSync(lockDir, { recursive: true, force: true });
   });
 });
 

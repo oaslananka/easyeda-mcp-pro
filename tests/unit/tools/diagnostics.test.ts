@@ -154,6 +154,55 @@ describe('Diagnostics Tools', () => {
     expect(bridgeCall).not.toHaveBeenCalled();
   });
 
+  it('surfaces another process owning the local bridge listener', async () => {
+    const health = registry.get('easyeda_health_check');
+    const status = registry.get('easyeda_bridge_status');
+    const ownershipConflict = {
+      blockedByOtherInstance: true,
+      ownerPid: 4321,
+      ownerPort: 49620,
+      message:
+        'Local EasyEDA bridge listener is owned by another easyeda-mcp-pro process (PID 4321, port 49620).',
+    };
+    const blockedContext = {
+      ...context,
+      bridge: {
+        connected: false,
+        call: bridgeCall,
+        activePort: 0,
+        ownershipConflict,
+      },
+    } as ToolContext & {
+      bridge: ToolContext['bridge'] & { ownershipConflict: typeof ownershipConflict };
+    };
+
+    const healthResult = await health?.handler(blockedContext, {});
+    const statusResult = await status?.handler(blockedContext, {});
+
+    expect(healthResult).toMatchObject({
+      status: 'degraded',
+      bridge_connected: false,
+      blocked_by_other_instance: true,
+      owner_pid: 4321,
+      owner_port: 49620,
+      status_error: expect.stringMatching(/another easyeda-mcp-pro process/i),
+    });
+    expect(statusResult).toMatchObject({
+      connected: false,
+      blocked_by_other_instance: true,
+      owner_pid: 4321,
+      owner_port: 49620,
+      status_error: expect.stringMatching(/another easyeda-mcp-pro process/i),
+      diagnostics: {
+        active_port: 0,
+        blocked_by_other_instance: true,
+        owner_pid: 4321,
+        owner_port: 49620,
+      },
+    });
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_bridge_status handles bridge call error gracefully', async () => {
     const tool = registry.get('easyeda_bridge_status');
     expect(tool).toBeDefined();

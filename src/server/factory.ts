@@ -46,6 +46,23 @@ export interface McpServerInstance {
   shutdown: () => Promise<void>;
 }
 
+async function connectLocalBridge(
+  bridge: BridgeManager | CdpBridgeManager,
+  logger: ReturnType<typeof createLogger>,
+): Promise<void> {
+  try {
+    await bridge.connect();
+  } catch (error) {
+    const ownershipConflict =
+      bridge instanceof BridgeManager ? bridge.ownershipConflict : undefined;
+    if (!ownershipConflict) throw error;
+    logger.info(
+      { ownerPid: ownershipConflict.ownerPid, ownerPort: ownershipConflict.ownerPort },
+      'another process owns the local EasyEDA bridge listener; continuing with degraded diagnostics',
+    );
+  }
+}
+
 export async function createServer(
   config: EnvConfig,
   options: CreateServerOptions = {},
@@ -75,7 +92,7 @@ export async function createServer(
 
   const bridge =
     process.env.EASYEDA_BRIDGE === 'cdp' ? new CdpBridgeManager(config) : new BridgeManager(config);
-  if (localBridgeEnabled) await bridge.connect();
+  if (localBridgeEnabled) await connectLocalBridge(bridge, logger);
   const stopHotSwapWatcher =
     localBridgeEnabled && bridge instanceof BridgeManager
       ? startHotSwapWatcher(bridge, config)
@@ -135,6 +152,9 @@ export async function createServer(
       },
       get registryMismatch() {
         return bridge.registryMismatch;
+      },
+      get ownershipConflict() {
+        return bridge instanceof BridgeManager ? bridge.ownershipConflict : undefined;
       },
     },
     config: {

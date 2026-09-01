@@ -515,6 +515,9 @@ Returns a JSON object matching the schema:
   last_heartbeat_ms: number (optional);
   uptime_ms: number (optional);
   status_error: string (optional);
+  blocked_by_other_instance: boolean (optional);
+  owner_pid: number (optional);
+  owner_port: number (optional);
   diagnostics: object (optional);
 }
 ```
@@ -1106,6 +1109,10 @@ Returns a JSON object matching the schema:
   registry_mismatch: boolean;
   keyless_sourcing_enabled: boolean;
   catalog_device_count: number;
+  blocked_by_other_instance: boolean(optional);
+  owner_pid: number(optional);
+  owner_port: number(optional);
+  status_error: string(optional);
   ups: number;
 }
 ```
