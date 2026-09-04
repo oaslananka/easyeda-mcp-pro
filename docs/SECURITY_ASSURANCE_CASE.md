@@ -84,7 +84,7 @@ The main threats are documented in `docs/security-architecture.md` and include:
 - Release verification: [`docs/RELEASE_VERIFICATION.md`](./RELEASE_VERIFICATION.md)
 - Supply chain verification: [`docs/supply-chain-verification.md`](./supply-chain-verification.md)
 - CI workflow: [`.github/workflows/ci.yml`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/.github/workflows/ci.yml)
-- Dependency automation: [`.github/dependabot.yml`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/.github/dependabot.yml), [`.github/renovate.json`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/.github/renovate.json)
+- Dependency automation: [`.github/renovate.json`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/.github/renovate.json)
 
 ## Residual risks
 

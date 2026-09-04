@@ -36,8 +36,8 @@ describe('repository lint surface policy', () => {
       'lint:scripts': 'eslint scripts eslint.config.js --max-warnings 0',
       'lint:tools': 'tsx scripts/lint-tool-metadata.mts',
     });
-    expect(packageJson.scripts.verify).toContain('pnpm lint');
-    expect(packageJson.scripts.verify).not.toContain('pnpm lint:tools');
+    expect(packageJson.scripts['verify:fast']).toContain('pnpm lint');
+    expect(packageJson.scripts['verify:fast']).not.toContain('pnpm lint:tools');
 
     expect(config).not.toContain("'scripts/'");
     expect(config).not.toContain("'easyeda-bridge-extension/'");

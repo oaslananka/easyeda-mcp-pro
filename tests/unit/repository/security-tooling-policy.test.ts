@@ -181,6 +181,20 @@ describe('repository security tooling policy', () => {
     expect(dependencyAuditAllowlist.exceptions).toEqual([]);
   });
 
+  it('runs the non-live golden benchmark inside the required quality PR gate', () => {
+    const ciWorkflow = readText('.github/workflows/ci.yml');
+    const qualityJob = ciWorkflow.slice(
+      ciWorkflow.indexOf('  quality:'),
+      ciWorkflow.indexOf('  test-matrix:'),
+    );
+
+    expect(qualityJob).toContain('Run golden eval benchmark (non-live, mocked-fixture tier)');
+    expect(qualityJob).toContain('run: pnpm eval:golden');
+
+    const guide = readText('docs/benchmark-suite.md');
+    expect(guide).toContain('required `quality (24)` pull-request gate');
+  });
+
   it('runs a least-privilege scheduled dependency advisory monitor', () => {
     const workflow = readText('.github/workflows/dependency-advisory-monitor.yml');
 

@@ -37,11 +37,12 @@ tasks:
       - node scripts/check-runtime.mjs --require-pnpm
       - pnpm build
 
-  verify:
-    desc: Run all quality gates
+  verify-fast:
+    desc: Run deterministic fast quality gates
     cmds:
-      - task: lint
-      - task: format
-      - task: typecheck
-      - task: test
-      - task: build
+      - pnpm verify:fast
+
+  verify:
+    desc: Run the canonical full verification contract
+    cmds:
+      - pnpm verify

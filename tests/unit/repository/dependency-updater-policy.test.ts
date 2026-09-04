@@ -45,6 +45,16 @@ describe('dependency updater ownership', () => {
     expect(runbook).toContain('Dependency Dashboard');
   });
 
+  it('keeps the security assurance evidence aligned with Renovate-only ownership', () => {
+    const assuranceCase = readFileSync(
+      resolve(repoRoot, 'docs/SECURITY_ASSURANCE_CASE.md'),
+      'utf8',
+    );
+
+    expect(assuranceCase).toContain('.github/renovate.json');
+    expect(assuranceCase).not.toContain('.github/dependabot.yml');
+  });
+
   it('keeps GitHub Actions and pre-commit hooks under Renovate management', () => {
     const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig;
     const managesGitHubActions = config.packageRules?.some((rule) =>

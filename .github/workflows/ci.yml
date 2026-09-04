@@ -55,6 +55,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm lint:tools
       - run: pnpm verify:tool-coverage
+      - name: Run golden eval benchmark (non-live, mocked-fixture tier)
+        run: pnpm eval:golden
       - name: Run server tests with coverage and JUnit output
         id: server_coverage
         run: pnpm test:coverage:ci

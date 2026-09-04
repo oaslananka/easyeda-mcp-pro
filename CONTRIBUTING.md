@@ -93,7 +93,7 @@ the swap path out entirely.
 
 ## 2. Quality Gates Checklist
 
-Before proposing a pull request, you must ensure that all local quality checks pass:
+Before proposing a pull request, you must ensure that all local quality checks pass. Use `pnpm verify:fast` while iterating and run the canonical `pnpm verify` contract before handoff or pull request creation. The individual commands below remain useful for focused debugging:
 
 ```bash
 # Verify formatting (Prettier)
