@@ -56,6 +56,7 @@ jobs:
         run: pnpm runtime:check
 
       - name: Evaluate dependency advisories
+        timeout-minutes: 11
         run: >-
           pnpm security:audit --
           --report-json reports/dependency-audit.json
