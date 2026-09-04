@@ -153,6 +153,26 @@ describe('package script target policy', () => {
     });
   });
 
+  it('publishes one fast and one full verification contract for coding agents', async () => {
+    const packageJson = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    const taskfile = await readFile(join(repoRoot, 'Taskfile.yml'), 'utf8');
+    const agentRouter = await readFile(join(repoRoot, 'AGENTS.md'), 'utf8').catch(() => '');
+
+    expect(packageJson.scripts['preverify:fast']).toBe('pnpm runtime:check');
+    expect(packageJson.scripts['verify:fast']).toContain('pnpm check:complexity');
+    expect(packageJson.scripts['verify:fast']).toContain('pnpm security:secrets');
+    expect(packageJson.scripts.verify).toMatch(/^pnpm verify:fast && /);
+    expect(packageJson.scripts.verify).toContain('pnpm eval:golden');
+    expect(taskfile).toContain('pnpm verify:fast');
+    expect(taskfile).toContain('pnpm verify');
+    expect(agentRouter).toContain('## Verification contract');
+    expect(agentRouter).toContain('pnpm verify:fast');
+    expect(agentRouter).toContain('pnpm verify');
+    expect(agentRouter).toContain('explicit user approval');
+  });
+
   it('removes the obsolete generator and wires the checker into protected verification', async () => {
     const packageJson = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8')) as {
       scripts: Record<string, string>;
@@ -163,7 +183,8 @@ describe('package script target policy', () => {
     expect(packageJson.scripts['check:package-scripts']).toBe(
       'node scripts/check-package-script-targets.mjs',
     );
-    expect(packageJson.scripts.verify).toContain('pnpm check:package-scripts');
-    expect(workflow).toContain('pnpm verify');
+    expect(packageJson.scripts['verify:fast']).toContain('pnpm check:package-scripts');
+    expect(packageJson.scripts.verify).toContain('pnpm verify:fast');
+    expect(workflow).toContain('pnpm verify:tool-coverage');
   });
 });
