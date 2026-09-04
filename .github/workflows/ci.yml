@@ -47,7 +47,7 @@ jobs:
         run: pnpm validate:codecov
       - name: Run dependency audit
         id: dependency_audit
-        timeout-minutes: 6
+        timeout-minutes: 11
         run: pnpm security:audit
       - run: pnpm peers check
       - run: pnpm format:check

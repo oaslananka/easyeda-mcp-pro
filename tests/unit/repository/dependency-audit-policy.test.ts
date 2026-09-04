@@ -227,20 +227,116 @@ describe('dependency audit policy', () => {
     expect(result.stderr).toContain('pnpm audit timed out after 1000ms');
   });
 
+  it('retries one registry error payload and succeeds only after verified advisory JSON', () => {
+    const { directory, allowlistPath } = createPolicyFixture(makeAudit(), {
+      schemaVersion: 1,
+      exceptions: [],
+    });
+    const fakeBin = resolve(directory, 'fake-bin');
+    const statePath = resolve(directory, 'attempt.txt');
+    const fakeCli = resolve(fakeBin, 'fake-pnpm.mjs');
+    mkdirSync(fakeBin);
+    writeFileSync(
+      fakeCli,
+      `import { existsSync, writeFileSync } from 'node:fs';\n` +
+        `const state = process.env.FAKE_PNPM_STATE;\n` +
+        `if (!existsSync(state)) { writeFileSync(state, '1'); console.log(JSON.stringify({ error: { summary: 'registry unavailable' } })); process.exit(1); }\n` +
+        `console.log(JSON.stringify({ advisories: {}, metadata: { vulnerabilities: {} } }));\n`,
+    );
+    const fakePnpm = resolve(fakeBin, process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm');
+    if (process.platform === 'win32') {
+      writeFileSync(fakePnpm, '@echo off\r\nnode "%~dp0fake-pnpm.mjs" %*\r\n');
+    } else {
+      writeFileSync(fakePnpm, '#!/bin/sh\nexec node "$(dirname "$0")/fake-pnpm.mjs" "$@"\n');
+      chmodSync(fakePnpm, 0o755);
+    }
+
+    const result = spawnSync(process.execPath, [scriptPath, '--allowlist', allowlistPath], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ''}`,
+        FAKE_PNPM_STATE: statePath,
+      },
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(statePath, 'utf8')).toBe('1');
+    expect(result.stderr).toContain('retrying once');
+    expect(result.stdout).toContain('Dependency audit passed with no advisories');
+  });
+
+  it('writes failure evidence after two registry error payloads', () => {
+    const { directory, allowlistPath } = createPolicyFixture(makeAudit(), {
+      schemaVersion: 1,
+      exceptions: [],
+    });
+    const fakeBin = resolve(directory, 'fake-bin');
+    const fakeCli = resolve(fakeBin, 'fake-pnpm.mjs');
+    const reportPath = resolve(directory, 'registry-failure.json');
+    const summaryPath = resolve(directory, 'registry-failure.md');
+    mkdirSync(fakeBin);
+    writeFileSync(
+      fakeCli,
+      `console.log(JSON.stringify({ error: { code: 'E503', summary: 'registry unavailable' } })); process.exit(1);\n`,
+    );
+    const fakePnpm = resolve(fakeBin, process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm');
+    if (process.platform === 'win32') {
+      writeFileSync(fakePnpm, '@echo off\r\nnode "%~dp0fake-pnpm.mjs" %*\r\n');
+    } else {
+      writeFileSync(fakePnpm, '#!/bin/sh\nexec node "$(dirname "$0")/fake-pnpm.mjs" "$@"\n');
+      chmodSync(fakePnpm, 0o755);
+    }
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        scriptPath,
+        '--allowlist',
+        allowlistPath,
+        '--report-json',
+        reportPath,
+        '--summary-file',
+        summaryPath,
+      ],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ''}` },
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('registry unavailable');
+    const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
+      status: string;
+      findings: unknown[];
+      errors: string[];
+    };
+    expect(report.status).toBe('failed');
+    expect(report.findings).toEqual([]);
+    expect(report.errors.join('\n')).toContain('registry unavailable');
+    expect(readFileSync(summaryPath, 'utf8')).toContain('❌ Policy failed');
+  });
+
   it('bounds online advisory lookup at both process and workflow levels', () => {
     const checker = readFileSync(scriptPath, 'utf8');
-    const ciWorkflow = readFileSync(resolve(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+    const ciWorkflow = readFileSync(resolve(repoRoot, '.github/workflows/ci.yml'), 'utf8').replace(
+      /\r\n/g,
+      '\n',
+    );
     const monitorWorkflow = readFileSync(
       resolve(repoRoot, '.github/workflows/dependency-advisory-monitor.yml'),
       'utf8',
-    );
+    ).replace(/\r\n/g, '\n');
 
     expect(checker).toContain('DEFAULT_AUDIT_TIMEOUT_MS = 300_000');
     expect(ciWorkflow).toMatch(
-      /- name: Run dependency audit\n\s+id: dependency_audit\n\s+timeout-minutes: 6/,
+      /- name: Run dependency audit\n\s+id: dependency_audit\n\s+timeout-minutes: 11/,
     );
     expect(monitorWorkflow).toMatch(
-      /- name: Evaluate dependency advisories\n\s+timeout-minutes: 6/,
+      /- name: Evaluate dependency advisories\n\s+timeout-minutes: 11/,
     );
   });
 

@@ -75,13 +75,14 @@ const getAuditTimeoutMs = () => {
   return timeoutMs;
 };
 
-const runPnpmAudit = () => {
+const runPnpmAuditAttempt = () => {
   const command = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
   const timeoutMs = getAuditTimeoutMs();
   const result = spawnSync(command, ['audit', '--json'], {
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
     timeout: timeoutMs,
+    shell: process.platform === 'win32',
   });
 
   if (result.error) {
@@ -108,6 +109,36 @@ const runPnpmAudit = () => {
   } catch (error) {
     throw new Error(`pnpm audit returned invalid JSON: ${error.message}`, { cause: error });
   }
+};
+
+const auditErrorMessage = (audit) => {
+  if (!audit || typeof audit !== 'object' || Array.isArray(audit) || !('error' in audit)) {
+    return undefined;
+  }
+  const values = [];
+  const error = audit.error;
+  if (typeof error === 'string') values.push(error);
+  else if (error && typeof error === 'object' && !Array.isArray(error)) {
+    for (const key of ['code', 'summary', 'detail', 'message']) {
+      if (typeof error[key] === 'string' && error[key].trim()) values.push(error[key].trim());
+    }
+  }
+  if (typeof audit.message === 'string' && audit.message.trim()) values.push(audit.message.trim());
+  return values.length > 0 ? [...new Set(values)].join(': ') : 'unknown pnpm audit error';
+};
+
+const runPnpmAudit = () => {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const audit = runPnpmAuditAttempt();
+    const errorMessage = auditErrorMessage(audit);
+    if (!errorMessage) return audit;
+    if (attempt === 1) {
+      console.error(`pnpm audit returned an error payload (${errorMessage}); retrying once.`);
+      continue;
+    }
+    throw new Error(`pnpm audit returned an error payload after 2 attempts: ${errorMessage}`);
+  }
+  throw new Error('pnpm audit retry state is unreachable');
 };
 
 const requireNonEmptyString = (value, field, advisory) => {
@@ -310,6 +341,15 @@ const evaluate = (audit, exceptions, today) => {
   return { evaluatedFindings, errors };
 };
 
+const createExecutionFailureReport = (message, generatedAt) => ({
+  schemaVersion: 1,
+  generatedAt,
+  status: 'failed',
+  vulnerabilityCounts: {},
+  findings: [],
+  errors: [message],
+});
+
 const createReport = (audit, evaluation, generatedAt) => ({
   schemaVersion: 1,
   generatedAt,
@@ -411,8 +451,9 @@ const printEvaluation = (evaluation) => {
   }
 };
 
+let options;
 try {
-  const options = parseArguments(process.argv.slice(2));
+  options = parseArguments(process.argv.slice(2));
   const allowlist = parseJsonFile(options.allowlistPath, 'dependency audit allowlist');
   const exceptions = validateAllowlist(allowlist);
   const audit = options.auditJsonPath
@@ -423,5 +464,21 @@ try {
   writeReports(options, report);
   printEvaluation(evaluation);
 } catch (error) {
-  fail(error instanceof Error ? error.message : String(error));
+  const message = error instanceof Error ? error.message : String(error);
+  if (options?.reportJsonPath || options?.summaryFilePath) {
+    try {
+      let generatedAt;
+      try {
+        generatedAt = getGeneratedAt();
+      } catch {
+        generatedAt = new Date().toISOString();
+      }
+      writeReports(options, createExecutionFailureReport(message, generatedAt));
+    } catch (reportError) {
+      console.error(
+        `Unable to write dependency audit failure evidence: ${reportError instanceof Error ? reportError.message : String(reportError)}`,
+      );
+    }
+  }
+  fail(message);
 }
