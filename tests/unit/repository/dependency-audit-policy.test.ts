@@ -1,6 +1,6 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { delimiter, dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -196,6 +196,52 @@ describe('dependency audit policy', () => {
     expect(lockfile).toContain('qs: 6.16.0');
     expect(lockfile).toContain('qs@6.16.0:');
     expect(lockfile).not.toMatch(/qs@6\.15\.3(?:\D|$)/);
+  });
+
+  it('fails closed when pnpm audit exceeds the bounded execution timeout', () => {
+    const { directory, allowlistPath } = createPolicyFixture(makeAudit(), {
+      schemaVersion: 1,
+      exceptions: [],
+    });
+    const fakeBin = resolve(directory, 'fake-bin');
+    const fakePnpm = resolve(fakeBin, process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm');
+    mkdirSync(fakeBin);
+    if (process.platform === 'win32') {
+      writeFileSync(fakePnpm, '@echo off\r\nping -n 6 127.0.0.1 >nul\r\n');
+    } else {
+      writeFileSync(fakePnpm, '#!/bin/sh\nsleep 5\n');
+      chmodSync(fakePnpm, 0o755);
+    }
+
+    const result = spawnSync(process.execPath, [scriptPath, '--allowlist', allowlistPath], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ''}`,
+        DEPENDENCY_AUDIT_TIMEOUT_MS: '1000',
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('pnpm audit timed out after 1000ms');
+  });
+
+  it('bounds online advisory lookup at both process and workflow levels', () => {
+    const checker = readFileSync(scriptPath, 'utf8');
+    const ciWorkflow = readFileSync(resolve(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+    const monitorWorkflow = readFileSync(
+      resolve(repoRoot, '.github/workflows/dependency-advisory-monitor.yml'),
+      'utf8',
+    );
+
+    expect(checker).toContain('DEFAULT_AUDIT_TIMEOUT_MS = 300_000');
+    expect(ciWorkflow).toMatch(
+      /- name: Run dependency audit\n\s+id: dependency_audit\n\s+timeout-minutes: 6/,
+    );
+    expect(monitorWorkflow).toMatch(
+      /- name: Evaluate dependency advisories\n\s+timeout-minutes: 6/,
+    );
   });
 
   it('allows one exact, documented, unexpired moderate advisory', () => {

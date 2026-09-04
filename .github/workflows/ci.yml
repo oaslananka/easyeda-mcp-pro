@@ -47,6 +47,7 @@ jobs:
         run: pnpm validate:codecov
       - name: Run dependency audit
         id: dependency_audit
+        timeout-minutes: 6
         run: pnpm security:audit
       - run: pnpm peers check
       - run: pnpm format:check
@@ -54,6 +55,8 @@ jobs:
       - run: pnpm typecheck:extension
       - run: pnpm lint
       - run: pnpm lint:tools
+      - name: Run pnpm check:architecture
+        run: pnpm check:architecture
       - run: pnpm verify:tool-coverage
       - name: Run golden eval benchmark (non-live, mocked-fixture tier)
         run: pnpm eval:golden

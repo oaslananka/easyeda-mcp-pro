@@ -7,6 +7,9 @@ import { spawnSync } from 'node:child_process';
 const DEFAULT_ALLOWLIST = '.github/dependency-audit-allowlist.json';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const GHSA_PATTERN = /^GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/i;
+const DEFAULT_AUDIT_TIMEOUT_MS = 300_000;
+const MIN_AUDIT_TIMEOUT_MS = 1_000;
+const MAX_AUDIT_TIMEOUT_MS = 900_000;
 
 const fail = (message) => {
   console.error(message);
@@ -55,14 +58,38 @@ const parseJsonFile = (path, description) => {
   }
 };
 
+const getAuditTimeoutMs = () => {
+  const raw = process.env.DEPENDENCY_AUDIT_TIMEOUT_MS;
+  if (raw === undefined || raw === '') return DEFAULT_AUDIT_TIMEOUT_MS;
+
+  const timeoutMs = Number(raw);
+  if (
+    !Number.isInteger(timeoutMs) ||
+    timeoutMs < MIN_AUDIT_TIMEOUT_MS ||
+    timeoutMs > MAX_AUDIT_TIMEOUT_MS
+  ) {
+    throw new Error(
+      `DEPENDENCY_AUDIT_TIMEOUT_MS must be an integer between ${MIN_AUDIT_TIMEOUT_MS} and ${MAX_AUDIT_TIMEOUT_MS}`,
+    );
+  }
+  return timeoutMs;
+};
+
 const runPnpmAudit = () => {
   const command = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  const timeoutMs = getAuditTimeoutMs();
   const result = spawnSync(command, ['audit', '--json'], {
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
+    timeout: timeoutMs,
   });
 
   if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') {
+      throw new Error(
+        `pnpm audit timed out after ${timeoutMs}ms; dependency audit failed closed because advisory data could not be verified`,
+      );
+    }
     throw new Error(`Unable to run pnpm audit: ${result.error.message}`);
   }
   if (!result.stdout.trim()) {
