@@ -688,9 +688,13 @@ function parseLinePoints(line: unknown): SchematicPoint[] {
   const points: SchematicPoint[] = [];
   for (const item of line) {
     if (!Array.isArray(item) || item.length < 2) continue;
-    const x = Number(item[0]);
-    const y = Number(item[1]);
-    if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
+    // A segment holds a flat run of coordinate pairs, so every pair in it is a
+    // point on the wire, not just the first one.
+    for (let i = 0; i + 1 < item.length; i += 2) {
+      const x = Number(item[i]);
+      const y = Number(item[i + 1]);
+      if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
+    }
   }
   return points;
 }
