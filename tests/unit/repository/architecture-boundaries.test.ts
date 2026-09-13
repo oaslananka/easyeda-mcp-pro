@@ -48,6 +48,37 @@ describe('architecture dependency boundaries', () => {
     expect(result.stderr).toContain('config may not depend on tools');
   });
 
+  it('detects static, re-export, and dynamic imports without regex parsing', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'architecture-boundaries-imports-'));
+    temporaryDirectories.push(root);
+    mkdirSync(resolve(root, '.github'), { recursive: true });
+    mkdirSync(resolve(root, 'src/config'), { recursive: true });
+    mkdirSync(resolve(root, 'src/tools'), { recursive: true });
+    writeFileSync(
+      resolve(root, '.github/architecture-boundaries.json'),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        sourceRoot: 'src',
+        rules: [{ name: 'test-boundary', from: ['config'], disallow: ['tools'] }],
+      })}\n`,
+    );
+    writeFileSync(
+      resolve(root, 'src/config/env.ts'),
+      [
+        "export { tool } from '../tools/types.js';",
+        "const lazy = () => import('../tools/lazy.js');",
+        'void lazy;',
+      ].join('\n'),
+    );
+    writeFileSync(resolve(root, 'src/tools/types.ts'), 'export const tool = true;\n');
+    writeFileSync(resolve(root, 'src/tools/lazy.ts'), 'export const lazy = true;\n');
+
+    const result = runChecker(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr.match(/config may not depend on tools/g)).toHaveLength(2);
+  });
+
   it('keeps the live repository inside the committed architecture boundaries', () => {
     const result = runChecker(repoRoot);
 
