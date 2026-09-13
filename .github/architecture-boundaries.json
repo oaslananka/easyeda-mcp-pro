@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "sourceRoot": "src",
+  "rules": [
+    {
+      "name": "foundation-does-not-depend-on-orchestration",
+      "from": ["config", "observability", "runtime", "safety", "schemas", "transactions"],
+      "disallow": [
+        "bridge",
+        "cli",
+        "easyeda-runtime",
+        "live",
+        "remote",
+        "server",
+        "tools",
+        "vendors",
+        "workflows"
+      ]
+    }
+  ]
+}
