@@ -16,6 +16,24 @@ const runChecker = (root: string) =>
     encoding: 'utf8',
   });
 
+const createBoundaryFixture = (name: string, source: string) => {
+  const root = mkdtempSync(resolve(tmpdir(), name));
+  temporaryDirectories.push(root);
+  mkdirSync(resolve(root, '.github'), { recursive: true });
+  mkdirSync(resolve(root, 'src/config'), { recursive: true });
+  mkdirSync(resolve(root, 'src/tools'), { recursive: true });
+  writeFileSync(
+    resolve(root, '.github/architecture-boundaries.json'),
+    `${JSON.stringify({
+      schemaVersion: 1,
+      sourceRoot: 'src',
+      rules: [{ name: 'test-boundary', from: ['config'], disallow: ['tools'] }],
+    })}\n`,
+  );
+  writeFileSync(resolve(root, 'src/config/env.ts'), source);
+  return root;
+};
+
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
@@ -24,20 +42,7 @@ afterEach(() => {
 
 describe('architecture dependency boundaries', () => {
   it('rejects foundational modules importing orchestration modules', () => {
-    const root = mkdtempSync(resolve(tmpdir(), 'architecture-boundaries-'));
-    temporaryDirectories.push(root);
-    mkdirSync(resolve(root, '.github'), { recursive: true });
-    mkdirSync(resolve(root, 'src/config'), { recursive: true });
-    mkdirSync(resolve(root, 'src/tools'), { recursive: true });
-    writeFileSync(
-      resolve(root, '.github/architecture-boundaries.json'),
-      `${JSON.stringify({
-        schemaVersion: 1,
-        sourceRoot: 'src',
-        rules: [{ name: 'test-boundary', from: ['config'], disallow: ['tools'] }],
-      })}\n`,
-    );
-    writeFileSync(resolve(root, 'src/config/env.ts'), "import '../tools/types.js';\n");
+    const root = createBoundaryFixture('architecture-boundaries-', "import '../tools/types.js';\n");
     writeFileSync(resolve(root, 'src/tools/types.ts'), 'export const tool = true;\n');
 
     const result = runChecker(root);
@@ -49,21 +54,8 @@ describe('architecture dependency boundaries', () => {
   });
 
   it('detects static, re-export, and dynamic imports without regex parsing', () => {
-    const root = mkdtempSync(resolve(tmpdir(), 'architecture-boundaries-imports-'));
-    temporaryDirectories.push(root);
-    mkdirSync(resolve(root, '.github'), { recursive: true });
-    mkdirSync(resolve(root, 'src/config'), { recursive: true });
-    mkdirSync(resolve(root, 'src/tools'), { recursive: true });
-    writeFileSync(
-      resolve(root, '.github/architecture-boundaries.json'),
-      `${JSON.stringify({
-        schemaVersion: 1,
-        sourceRoot: 'src',
-        rules: [{ name: 'test-boundary', from: ['config'], disallow: ['tools'] }],
-      })}\n`,
-    );
-    writeFileSync(
-      resolve(root, 'src/config/env.ts'),
+    const root = createBoundaryFixture(
+      'architecture-boundaries-imports-',
       [
         "export { tool } from '../tools/types.js';",
         "const lazy = () => import('../tools/lazy.js');",
