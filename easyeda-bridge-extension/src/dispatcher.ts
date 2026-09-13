@@ -675,21 +675,10 @@ function pointKey(point: SchematicPoint): string {
 function parseLinePoints(line: unknown): SchematicPoint[] {
   if (!Array.isArray(line)) return [];
 
-  if (line.every((item) => typeof item === 'number')) {
-    const points: SchematicPoint[] = [];
-    for (let i = 0; i + 1 < line.length; i += 2) {
-      const x = Number(line[i]);
-      const y = Number(line[i + 1]);
-      if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
-    }
-    return points;
-  }
-
+  const segments = line.every((item) => typeof item === 'number') ? [line] : line;
   const points: SchematicPoint[] = [];
-  for (const item of line) {
+  for (const item of segments) {
     if (!Array.isArray(item) || item.length < 2) continue;
-    // A segment holds a flat run of coordinate pairs, so every pair in it is a
-    // point on the wire, not just the first one.
     for (let i = 0; i + 1 < item.length; i += 2) {
       const x = Number(item[i]);
       const y = Number(item[i + 1]);
