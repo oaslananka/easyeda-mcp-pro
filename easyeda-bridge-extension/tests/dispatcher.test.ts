@@ -16,7 +16,7 @@ function makeToolkit(edaGlobal: Record<string, unknown>): DispatcherToolkit {
 }
 
 /** Minimal wire primitive exposing the getState_* getters the dispatcher reads. */
-function fakeWire(id: string, net: string, line: number[]): Record<string, unknown> {
+function fakeWire(id: string, net: string, line: number[] | number[][]): Record<string, unknown> {
   return {
     getState_PrimitiveType: () => 'Wire',
     getState_PrimitiveId: () => id,
@@ -585,6 +585,46 @@ describe('createDispatcher', () => {
             pin: '1',
             x: 300,
             y: 200,
+            source: 'coordinate-fallback',
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('schematic.listNets reports a pin sitting on a wire segment end point', async () => {
+    const u1 = fakeSchematicPart('U1', [fakeSchematicPin('XL1', 100, 200)]);
+    const x1 = fakeSchematicPart('X1', [fakeSchematicPin('1', 300, 400)]);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: { getAll: async () => [u1, x1] },
+        SCH_PrimitiveWire: {
+          getAll: async () => [
+            fakeWire('w1', '', [
+              [100, 200, 300, 200],
+              [300, 200, 300, 400],
+            ]),
+          ],
+        },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([
+      {
+        netName: 'N$1',
+        nodes: [
+          {
+            component: 'U1',
+            pin: 'XL1',
+            x: 100,
+            y: 200,
+            source: 'coordinate-fallback',
+          },
+          {
+            component: 'X1',
+            pin: '1',
+            x: 300,
+            y: 400,
             source: 'coordinate-fallback',
           },
         ],
