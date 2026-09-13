@@ -43,6 +43,9 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify runtime policy
         run: pnpm runtime:check
+      - name: Verify Release Please compatibility evidence
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--') }}
+        run: pnpm release:readiness:compatibility
       - name: Validate Codecov configuration
         run: pnpm validate:codecov
       - name: Run dependency audit
