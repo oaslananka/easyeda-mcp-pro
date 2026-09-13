@@ -2,11 +2,10 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
+import ts from 'typescript';
 
 const DEFAULT_POLICY = '.github/architecture-boundaries.json';
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts']);
-const IMPORT_PATTERN =
-  /(?:import|export)\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
 const normalizePath = (path) => path.split(sep).join('/');
 
@@ -15,10 +14,10 @@ const parseArguments = (argv) => {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument !== '--root' && argument !== '--policy') {
-      throw new Error(`Unknown argument: ${argument}`);
+      throw new TypeError(`Unknown argument: ${argument}`);
     }
     const value = argv[index + 1];
-    if (!value || value.startsWith('--')) throw new Error(`${argument} requires a path`);
+    if (!value || value.startsWith('--')) throw new TypeError(`${argument} requires a path`);
     if (argument === '--root') options.root = resolve(value);
     else options.policy = value;
     index += 1;
@@ -31,10 +30,12 @@ const isNonEmptyStringArray = (value) =>
 
 const validateRule = (rule) => {
   if (typeof rule?.name !== 'string') {
-    throw new Error('each architecture boundary rule requires a name');
+    throw new TypeError('each architecture boundary rule requires a name');
   }
   if (!isNonEmptyStringArray(rule.from) || !isNonEmptyStringArray(rule.disallow)) {
-    throw new Error('each architecture boundary rule requires non-empty from and disallow arrays');
+    throw new TypeError(
+      'each architecture boundary rule requires non-empty from and disallow arrays',
+    );
   }
 };
 
@@ -42,10 +43,12 @@ const readPolicy = (root, policyPath) => {
   const absolutePath = resolve(root, policyPath);
   const policy = JSON.parse(readFileSync(absolutePath, 'utf8'));
   if (policy?.schemaVersion !== 1 || typeof policy?.sourceRoot !== 'string') {
-    throw new Error('architecture boundary policy must use schemaVersion 1 and define sourceRoot');
+    throw new TypeError(
+      'architecture boundary policy must use schemaVersion 1 and define sourceRoot',
+    );
   }
   if (!Array.isArray(policy.rules) || policy.rules.length === 0) {
-    throw new Error('architecture boundary policy must define at least one rule');
+    throw new TypeError('architecture boundary policy must define at least one rule');
   }
   for (const rule of policy.rules) validateRule(rule);
   return policy;
@@ -61,27 +64,47 @@ const sourceFiles = (directory) => {
   return files;
 };
 
-const findViolations = (root, policy) => {
-  const sourceRoot = resolve(root, policy.sourceRoot);
+const moduleSpecifiers = (file, text) => {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false);
+  const specifiers = [];
+  const visit = (node) => {
+    const declaration = ts.isImportDeclaration(node) || ts.isExportDeclaration(node);
+    if (declaration && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      specifiers.push(node.arguments[0].text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return specifiers;
+};
+
+const targetAreaForSpecifier = (sourceRoot, file, specifier) => {
+  if (!specifier.startsWith('.')) return null;
+  const targetRelative = relative(sourceRoot, resolve(dirname(file), specifier));
+  if (targetRelative === '..' || targetRelative.startsWith(`..${sep}`)) return null;
+  return targetRelative.split(sep)[0];
+};
+
+const inspectFile = (root, sourceRoot, file, rules) => {
+  const sourceRelative = relative(sourceRoot, file);
+  const sourceArea = sourceRelative.split(sep)[0];
+  const applicableRules = rules.filter((rule) => rule.from.includes(sourceArea));
+  if (applicableRules.length === 0) return { checked: false, violations: [] };
+
+  const targets = moduleSpecifiers(file, readFileSync(file, 'utf8'))
+    .map((specifier) => targetAreaForSpecifier(sourceRoot, file, specifier))
+    .filter(Boolean);
   const violations = [];
-  let checkedFiles = 0;
-  for (const file of sourceFiles(sourceRoot)) {
-    const sourceRelative = relative(sourceRoot, file);
-    const sourceArea = sourceRelative.split(sep)[0];
-    const rules = policy.rules.filter((rule) => rule.from.includes(sourceArea));
-    if (rules.length === 0) continue;
-    checkedFiles += 1;
-    const text = readFileSync(file, 'utf8');
-    IMPORT_PATTERN.lastIndex = 0;
-    for (const match of text.matchAll(IMPORT_PATTERN)) {
-      const specifier = match[1] ?? match[2];
-      if (!specifier?.startsWith('.')) continue;
-      const target = resolve(dirname(file), specifier);
-      const targetRelative = relative(sourceRoot, target);
-      if (targetRelative === '..' || targetRelative.startsWith(`..${sep}`)) continue;
-      const targetArea = targetRelative.split(sep)[0];
-      for (const rule of rules) {
-        if (!rule.disallow.includes(targetArea)) continue;
+  for (const targetArea of targets) {
+    for (const rule of applicableRules) {
+      if (rule.disallow.includes(targetArea)) {
         violations.push({
           file: normalizePath(relative(root, file)),
           sourceArea,
@@ -91,7 +114,18 @@ const findViolations = (root, policy) => {
       }
     }
   }
-  return { checkedFiles, violations };
+  return { checked: true, violations };
+};
+
+const findViolations = (root, policy) => {
+  const sourceRoot = resolve(root, policy.sourceRoot);
+  const results = sourceFiles(sourceRoot).map((file) =>
+    inspectFile(root, sourceRoot, file, policy.rules),
+  );
+  return {
+    checkedFiles: results.filter((result) => result.checked).length,
+    violations: results.flatMap((result) => result.violations),
+  };
 };
 
 try {
