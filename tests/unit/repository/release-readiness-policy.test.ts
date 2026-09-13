@@ -35,6 +35,16 @@ describe('release readiness policy', () => {
     );
   });
 
+  it('fails Release Please pull requests closed when compatibility evidence is stale', () => {
+    const workflow = read('.github/workflows/ci.yml');
+
+    expect(workflow).toContain('name: Verify Release Please compatibility evidence');
+    expect(workflow).toContain(
+      "if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--') }}",
+    );
+    expect(workflow).toContain('run: pnpm release:readiness:compatibility');
+  });
+
   it('runs the compatibility gate before release publication and exposes a full local command', () => {
     const workflow = read('.github/workflows/publish-release.yml');
     const packageJson = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
