@@ -86,7 +86,7 @@ describe('repository security tooling policy', () => {
     expect(workspace).toContain('minimumReleaseAgeExclude:');
     expect(workspace).toContain('fast-uri@3.1.5');
     expect(workspace).not.toContain('hono@4.12.34');
-    expect(workspace).toMatch(/\n {2}hono: 4\.13\.7\n/);
+    expect(workspace).toMatch(/\r?\n {2}hono: 4\.13\.7\r?\n/);
     expect(workspace).toContain("'@hono/node-server': 2.0.10");
     expect(workspace).toContain('minimumReleaseAgeStrict: true');
     expect(workspace).toContain('minimumReleaseAgeIgnoreMissingTime: false');
