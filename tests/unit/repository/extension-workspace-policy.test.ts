@@ -77,6 +77,15 @@ describe('private extension workspace policy', () => {
     );
   });
 
+  it('keeps Release Please JSON metadata rewrites out of the Prettier gate', () => {
+    const prettierIgnore = readText('.prettierignore')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    expect(prettierIgnore).toContain('server.json');
+  });
+
   it('passes the executable metadata checker for the current repository state', async () => {
     await expect(import('../../../scripts/check-metadata.mjs')).resolves.toBeDefined();
   });
