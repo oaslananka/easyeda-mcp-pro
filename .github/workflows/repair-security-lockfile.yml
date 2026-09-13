@@ -1,0 +1,57 @@
+name: Repair security branch lockfile
+
+on:
+  push:
+    branches:
+      - fix/security-advisories-2026-09-13
+    paths:
+      - .github/workflows/repair-security-lockfile.yml
+
+concurrency:
+  group: repair-security-lockfile-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+        with:
+          version: 11.5.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24.18.0
+          cache: pnpm
+
+      - name: Regenerate, verify, and commit lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git show origin/main:pnpm-lock.yaml > pnpm-lock.yaml
+          pnpm install --lockfile-only --no-frozen-lockfile
+          actual_hash="$(sha256sum pnpm-lock.yaml | awk '{print $1}')"
+          expected_hash="c18fff2e5ebf579f9d15035b55e2de0602491fb2b750c2f4bbdbd304dda7a8b9"
+          test "$actual_hash" = "$expected_hash"
+          pnpm install --frozen-lockfile
+          pnpm peers check
+          pnpm security:audit
+          rm .github/workflows/repair-security-lockfile.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml .github/workflows/repair-security-lockfile.yml
+          git commit -m "fix(security): regenerate verified dependency lockfile"
+          git push origin HEAD:fix/security-advisories-2026-09-13
