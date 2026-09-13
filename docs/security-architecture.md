@@ -386,6 +386,8 @@ Path traversal protection is enforced in all export tools — artifact paths are
 
 ### 9.1 GitHub Actions
 
+The required quality gate runs `pnpm check:architecture` against `.github/architecture-boundaries.json`. The current executable boundary keeps foundational `config`, `observability`, `runtime`, `safety`, `schemas`, and `transactions` modules independent from orchestration and transport areas such as `tools`, `server`, `bridge`, `live`, and `workflows`. Boundary changes therefore require an explicit policy diff rather than silently introducing a reverse dependency.
+
 - All action references are pinned to full 40-character commit SHAs.
 - Workflows default to `permissions: contents: read` (least privilege).
 - The release workflow has elevated permissions scoped to the specific job.
@@ -399,6 +401,7 @@ Path traversal protection is enforced in all export tools — artifact paths are
 ### 9.2 Dependency Management
 
 - Renovate automates dependency updates.
+- `pnpm security:audit` fails closed if a registry-backed `pnpm audit --json` attempt exceeds 300 seconds. A structured audit error payload is retried exactly once; a second error still fails closed and emits JSON/summary evidence. CI applies an 11-minute step timeout across both bounded attempts. `DEPENDENCY_AUDIT_TIMEOUT_MS` is available only as a bounded per-attempt operational override (1–900 seconds).
 - Runtime dependencies require manual review — never auto-merged.
 - Patch/minor devDependencies auto-merge if CI passes.
 - Minimum release age of 7 days before Renovate creates a PR (mitigates zero-day package poisoning).

@@ -190,7 +190,8 @@ describe('complexity ratchet', () => {
     expect(packageJson.scripts['complexity:update']).toBe(
       'node scripts/check-complexity-ratchet.mjs --write',
     );
-    expect(packageJson.scripts['verify:fast']).toContain('pnpm lint && pnpm check:complexity');
+    expect(packageJson.scripts['verify:fast']).toContain('pnpm check:architecture');
+    expect(packageJson.scripts['verify:fast']).toContain('pnpm check:complexity');
     expect(readFileSync('vitest.config.ts', 'utf8')).toContain(
       "'scripts/check-complexity-ratchet.mjs'",
     );
