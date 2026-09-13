@@ -675,22 +675,15 @@ function pointKey(point: SchematicPoint): string {
 function parseLinePoints(line: unknown): SchematicPoint[] {
   if (!Array.isArray(line)) return [];
 
-  if (line.every((item) => typeof item === 'number')) {
-    const points: SchematicPoint[] = [];
-    for (let i = 0; i + 1 < line.length; i += 2) {
-      const x = Number(line[i]);
-      const y = Number(line[i + 1]);
+  const segments = line.every((item) => typeof item === 'number') ? [line] : line;
+  const points: SchematicPoint[] = [];
+  for (const item of segments) {
+    if (!Array.isArray(item) || item.length < 2) continue;
+    for (let i = 0; i + 1 < item.length; i += 2) {
+      const x = Number(item[i]);
+      const y = Number(item[i + 1]);
       if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
     }
-    return points;
-  }
-
-  const points: SchematicPoint[] = [];
-  for (const item of line) {
-    if (!Array.isArray(item) || item.length < 2) continue;
-    const x = Number(item[0]);
-    const y = Number(item[1]);
-    if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
   }
   return points;
 }
