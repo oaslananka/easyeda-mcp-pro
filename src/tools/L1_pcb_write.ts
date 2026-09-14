@@ -523,7 +523,7 @@ function registerPcbWriteTools(
     name: 'easyeda_pcb_route_path_plan',
     title: 'Plan or apply constrained PCB route path',
     description:
-      'Create a high-level, constraint-checked route path using native EasyEDA PCB coordinates in mil; physical width and length constraints are expressed in millimetres. Optionally apply after explicit confirmation.',
+      'Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.',
     profile: 'full',
     evidence: ['inferred'],
     risk: 'high',
