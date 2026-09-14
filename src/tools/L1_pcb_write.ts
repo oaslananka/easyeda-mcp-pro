@@ -14,16 +14,43 @@ import {
 } from '../pcb-layout/index.js';
 import { getGlobalTransactionManager, type TransactionManager } from '../transactions/manager.js';
 
-const layoutPointSchema = z.object({ x: z.number(), y: z.number() });
+const layoutPointSchema = z.object({
+  x: z.number().describe('X coordinate in millimetres in the layout-planning coordinate space.'),
+  y: z.number().describe('Y coordinate in millimetres in the layout-planning coordinate space.'),
+});
 const layoutBoardSchema = z.object({
   widthMm: z.number().positive(),
   heightMm: z.number().positive(),
 });
 const layoutRectSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  widthMm: z.number().positive(),
-  heightMm: z.number().positive(),
+  x: z.number().describe('Rectangle X coordinate in millimetres.'),
+  y: z.number().describe('Rectangle Y coordinate in millimetres.'),
+  widthMm: z.number().positive().describe('Rectangle width in millimetres.'),
+  heightMm: z.number().positive().describe('Rectangle height in millimetres.'),
+  name: z.string().optional(),
+});
+
+const nativePcbPointSchema = z.object({
+  x: z.number().describe('EasyEDA native PCB X coordinate in mil (1 mil = 0.0254 mm).'),
+  y: z
+    .number()
+    .describe('EasyEDA native PCB Y coordinate in mil; preserve the active board Y direction.'),
+});
+const nativePcbBoardSchema = z
+  .object({
+    minX: z.number().describe('Minimum native PCB X coordinate in mil.'),
+    maxX: z.number().describe('Maximum native PCB X coordinate in mil.'),
+    minY: z.number().describe('Minimum native PCB Y coordinate in mil.'),
+    maxY: z.number().describe('Maximum native PCB Y coordinate in mil.'),
+  })
+  .refine((board) => board.minX < board.maxX && board.minY < board.maxY, {
+    message: 'Native PCB board bounds must satisfy minX < maxX and minY < maxY.',
+  });
+const nativePcbRectSchema = z.object({
+  x: z.number().describe('Keepout minimum X coordinate in native PCB mil.'),
+  y: z.number().describe('Keepout minimum Y coordinate in native PCB mil.'),
+  width: z.number().positive().describe('Keepout width in native PCB mil.'),
+  height: z.number().positive().describe('Keepout height in native PCB mil.'),
   name: z.string().optional(),
 });
 export const layoutIssueSchema = z.object({
@@ -496,13 +523,14 @@ function registerPcbWriteTools(
     name: 'easyeda_pcb_route_path_plan',
     title: 'Plan or apply constrained PCB route path',
     description:
-      'Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.',
+      'Create a high-level, constraint-checked route path using native EasyEDA PCB coordinates in mil; physical width and length constraints are expressed in millimetres. Optionally apply after explicit confirmation.',
     profile: 'full',
     evidence: ['inferred'],
     risk: 'high',
     confirmWrite: true,
+    confirmationPolicy: 'apply-mode',
     group: 'pcb-write',
-    version: '1.0.0',
+    version: '2.0.0',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -511,12 +539,12 @@ function registerPcbWriteTools(
     inputSchema: z.object({
       projectId: z.string().optional(),
       mode: z.enum(['preview', 'apply']).default('preview'),
-      board: layoutBoardSchema.optional(),
+      board: nativePcbBoardSchema.optional(),
       netName: z.string(),
       layer: z.number().int(),
       widthMm: z.number().positive(),
-      waypoints: z.array(layoutPointSchema),
-      keepouts: z.array(layoutRectSchema).optional(),
+      waypoints: z.array(nativePcbPointSchema),
+      keepouts: z.array(nativePcbRectSchema).optional(),
       maxLengthMm: z.number().positive().optional(),
       minWidthMm: z.number().positive().optional(),
       confirmWrite: z.boolean().optional(),
