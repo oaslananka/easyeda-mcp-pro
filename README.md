@@ -37,9 +37,6 @@
   <a href="https://scorecard.dev/viewer/?uri=github.com/oaslananka/easyeda-mcp-pro">
     <img src="https://api.scorecard.dev/projects/github.com/oaslananka/easyeda-mcp-pro/badge" alt="OpenSSF Scorecard" />
   </a>
-    <a href="https://www.bestpractices.dev/projects/13406">
-    <img src="https://www.bestpractices.dev/projects/13406/badge" alt="OpenSSF Best Practices" />
-  </a>
 </p>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
@@ -75,9 +72,9 @@
 
 ## Trust and Supply Chain
 
-easyeda-mcp-pro keeps its public OpenSSF Best Practices evidence in [`docs/OPENSSF_BEST_PRACTICES.md`](docs/OPENSSF_BEST_PRACTICES.md) and its security assurance case in [`docs/SECURITY_ASSURANCE_CASE.md`](docs/SECURITY_ASSURANCE_CASE.md). The header badges link to workflow-backed signals only: CI, generated docs deployment, the project security policy, OpenSSF Best Practices self-certification, and the OpenSSF Scorecard. Release integrity evidence (npm provenance, signed-release status) is tracked in [`docs/RELEASE_VERIFICATION.md`](docs/RELEASE_VERIFICATION.md). Coverage, Test Analytics, and extension bundle monitoring are documented in [`docs/CODECOV_ANALYTICS.md`](docs/CODECOV_ANALYTICS.md).
+easyeda-mcp-pro keeps historical OpenSSF Best Practices evidence in [`docs/OPENSSF_BEST_PRACTICES.md`](docs/OPENSSF_BEST_PRACTICES.md) and its security assurance case in [`docs/SECURITY_ASSURANCE_CASE.md`](docs/SECURITY_ASSURANCE_CASE.md). The header badges link to current workflow-backed signals only: CI, generated docs deployment, the project security policy, and the OpenSSF Scorecard. Release integrity evidence (npm provenance, signed-release status) is tracked in [`docs/RELEASE_VERIFICATION.md`](docs/RELEASE_VERIFICATION.md). Coverage, Test Analytics, and extension bundle monitoring are documented in [`docs/CODECOV_ANALYTICS.md`](docs/CODECOV_ANALYTICS.md).
 
-**Current OpenSSF Best Practices status:** Passing (100%) — see [live badge](https://www.bestpractices.dev/projects/13406) and [Silver evidence map](docs/OPENSSF_BEST_PRACTICES.md#silver-evidence) for in-progress Silver criteria.
+**Licensing note:** the repository is now source-available under PolyForm Noncommercial 1.0.0 rather than an OSI-approved open-source license. Historical OpenSSF evidence remains for audit history and must not be treated as a current FLOSS-license claim.
 
 ---
 
@@ -947,7 +944,7 @@ If this project helps you save time while working with EasyEDA Pro, BOM workflow
 
 ## License
 
-[MIT](LICENSE)
+Current project-authored source is licensed under [PolyForm Noncommercial 1.0.0](LICENSE). Commercial use requires a separate written license; see [Commercial Licensing](COMMERCIAL-LICENSING.md). Earlier MIT releases keep the MIT rights that applied when published. See [Licensing](LICENSING.md).
 
 ---
 

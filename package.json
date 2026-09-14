@@ -17,7 +17,7 @@
     "bom"
   ],
   "author": "oaslananka",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/oaslananka/easyeda-mcp-pro.git"
@@ -37,6 +37,8 @@
     "easyeda-bridge-extension.checksums.json",
     "README.md",
     "LICENSE",
+    "COMMERCIAL-LICENSING.md",
+    "LICENSING.md",
     "THIRD_PARTY_NOTICES.md",
     "config/runtime-policy.json",
     "scripts/check-runtime.mjs"

@@ -159,6 +159,8 @@ The authoritative channel, soak, live-validation, emergency, and rollback requir
 
 By contributing to this project, you certify that you have the right to submit the contribution under the project license and that you agree to the [Developer Certificate of Origin](https://developercertificate.org/).
 
+For non-trivial external code contributions, also review [CONTRIBUTOR-LICENSING.md](CONTRIBUTOR-LICENSING.md). A CLA must be reviewed and accepted before such code is merged so the project can preserve both community and commercial licensing options.
+
 Every non-trivial commit should include a `Signed-off-by` trailer:
 
 ```text
