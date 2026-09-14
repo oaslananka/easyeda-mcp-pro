@@ -1,8 +1,11 @@
 # OpenSSF Best Practices Map
 
+> [!IMPORTANT]
+> This file records historical OpenSSF/FLOSS evidence from the project's MIT-licensed period. The current source is licensed under PolyForm Noncommercial 1.0.0 and is source-available, not OSI-approved open source. Do not use this evidence as a current FLOSS-license claim.
+
 BadgeApp project: <https://www.bestpractices.dev/projects/13406>
 
-This file is a copy-ready evidence map for OpenSSF Best Practices self-certification. It records the current Passing, Silver, and future badge evidence in one stable location. The BadgeApp entry is owned by the maintainer, so this repository can provide evidence links, but the final `Met`, `Unmet`, or `N/A` selections must be saved by the logged-in project owner.
+This file preserves the evidence map from the project's earlier MIT-licensed OpenSSF Best Practices self-certification period. It is retained for audit history, not as a statement of current FLOSS eligibility. The BadgeApp entry is owned by the maintainer, so this repository can provide evidence links, but the final `Met`, `Unmet`, or `N/A` selections must be saved by the logged-in project owner.
 
 ## How to use this file
 

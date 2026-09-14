@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This project is distributed under the MIT License. This notice file summarizes third-party materials and external services that maintainers should review before each release. It is not legal advice.
+Current project-authored source is distributed under the PolyForm Noncommercial License 1.0.0. Previously published MIT-licensed releases retain their original terms. This notice file summarizes third-party materials and external services that maintainers should review before each release. It is not legal advice.
 
 ## Runtime and development dependencies
 
