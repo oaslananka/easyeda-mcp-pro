@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-09-15T01:21:35+03:00",
+  "candidateCommit": "f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec",
+  "compatibilitySensitiveBaseCommit": "f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec",
+  "server": {
+    "packageVersion": "1.1.0",
+    "nodeVersion": "24.18.0",
+    "pnpmVersion": "11.5.1",
+    "compatibilitySnapshot": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "ac4f437faae477d3d7b713edeb636e49e4459a95",
+        "src/bridge": "e47313404c0bf7ce9372014f501c071e6cb6338c",
+        "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+        "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+        "src/tools": "3b6297d9c25e1b8738f0c58e18bacf53c8f3d2dc",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "extension": {
+    "packageVersion": "1.1.0",
+    "loaderReportedVersion": "1.1.0",
+    "packageSha256": "056ee3a334fbf916afe139cd5a12a099a78a115cbb56395402ae75c738cdc1ab",
+    "packageSizeBytes": 176557,
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "d9e01181ceed32d8",
+    "capabilityCount": 69,
+    "dispatcherBuildId": "dcdf3x26ebx11ee",
+    "dispatcherSha256": "7da290e34601ca8fb20310fa418cdbd907e155d078fb472c2acb2a0649066db9",
+    "dispatcherByteLength": 185386,
+    "loaderSha256": "94c5558167af5611421d69c56edf88eb7b4705bf2db1f9f4b32e4d60a9f30293",
+    "loaderByteLength": 259997,
+    "manifestSha256": "f168a25197db15bd9e7635411c8965f3d5f0a4564f4cc46df28c574acbef7046",
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true,
+    "autoUpdateEnabled": false,
+    "showAtHeaderMenuEnabled": false,
+    "install": {
+      "mechanism": "EasyEDA Extensions Manager import",
+      "persistedPackageVersion": "1.1.0",
+      "runtimeVersion": "1.1.0",
+      "packageSourceCommit": "f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec",
+      "packageSourceTreeMatchesCandidate": true
+    }
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "mode": "Half Offline",
+    "runtimeIdentitySource": "local-only DevTools Browser/User-Agent identity on 127.0.0.1 during validation; endpoint removed during cleanup"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "6.8.0-139-generic",
+    "nodeVersion": "24.18.0"
+  },
+  "fixture": {
+    "project": "Example_Quick Start",
+    "source": "EasyEDA bundled example opened inside the disposable validation profile",
+    "schematic": "Schematic",
+    "page": "P1",
+    "pcb": "PCB",
+    "disposable": true,
+    "profileIsolation": "temporary HOME/XDG config/cache/data roots; only the disposable profile was modified by project upgrade, extension import, and validation"
+  },
+  "liveChecks": {
+    "candidateIdentity": {
+      "status": "passed",
+      "serverVersion": "1.1.0",
+      "extensionVersion": "1.1.0",
+      "loaderVersion": "1.1.0",
+      "bridgeContractVersion": "1.0.0",
+      "capabilityCount": 69,
+      "dispatcherBuildId": "dcdf3x26ebx11ee",
+      "methodRegistryHash": "d9e01181ceed32d8",
+      "registryMismatch": false,
+      "extensionVersionMismatch": false,
+      "handshakeEasyedaVersion": null,
+      "runtimeEasyedaVersion": "3.2.149.88089769",
+      "runtimeVersionVerifiedIndependently": true
+    },
+    "readOnlySmoke": {
+      "status": "passed",
+      "nodeVersion": "24.18.0",
+      "checkCount": 6,
+      "checks": [
+        "system.getStatus",
+        "system.apiInventory",
+        "schematic.listNets",
+        "schematic.listComponents",
+        "bom.generate",
+        "design.erc"
+      ],
+      "writeEnabled": false,
+      "netCount": 16,
+      "componentCount": 34,
+      "ercPassed": true
+    },
+    "wireRuntimeShape": {
+      "status": "passed",
+      "wireCount": 34,
+      "sampleCount": 10,
+      "sampleShapes": ["flat-number-array"]
+    },
+    "schematicScope": {
+      "status": "passed",
+      "focusedDocument": "P1.Schematic",
+      "requestedPageName": "P1",
+      "pageMetadataSource": "requested_page",
+      "focusChanged": false,
+      "allPagesCount": 1,
+      "allPagesComponentCount": 34,
+      "failClosed": [
+        {
+          "operation": "schematic.listComponents",
+          "code": "PAGE_SCOPE_UNSUPPORTED"
+        },
+        {
+          "operation": "schematic.listNets",
+          "code": "PAGE_SCOPE_UNSUPPORTED"
+        },
+        {
+          "operation": "schematic.getSheetInfo",
+          "case": "missing pageUuid",
+          "code": "PAGE_UUID_REQUIRED"
+        },
+        {
+          "operation": "schematic.getSheetInfo",
+          "case": "focused plus pageUuid",
+          "code": "PAGE_SCOPE_CONFLICT"
+        }
+      ]
+    },
+    "pcbReadOnly": {
+      "status": "passed",
+      "focusedPcb": "PCB",
+      "dimensions": {
+        "widthMm": 80,
+        "heightMm": 60,
+        "shape": "custom",
+        "mountingHoleCount": 0,
+        "areaMm2": 4800,
+        "hasOutline": true
+      },
+      "componentCount": 33,
+      "trackCount": 98,
+      "viaCount": 0,
+      "fillCount": 4,
+      "regionCount": 0,
+      "drcCallSucceeded": true,
+      "drcPassed": false
+    }
+  },
+  "compatibilitySnapshot": {
+    "algorithm": "git-tree-sha1",
+    "paths": {
+      "easyeda-bridge-extension/src": "ac4f437faae477d3d7b713edeb636e49e4459a95",
+      "src/bridge": "e47313404c0bf7ce9372014f501c071e6cb6338c",
+      "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+      "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+      "src/tools": "3b6297d9c25e1b8738f0c58e18bacf53c8f3d2dc",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "cleanup": {
+    "designMutationApplied": false,
+    "disposableProjectOnly": true,
+    "disposableProfileRemoved": true,
+    "easyedaProcessTreeStopped": true,
+    "bridgeListenerClosed": true,
+    "localDebugEndpointClosed": true,
+    "realEasyedaTreeDiffClean": true,
+    "realEasyedaProfileMetadataSnapshotSha256": "c0171ef91b64cb1965bc94e00c020daf2386f408978d16ed5c9fd1875b6963d9",
+    "cleanupErrors": []
+  },
+  "knownLimitations": [
+    "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent v1.1.0 live EasyEDA desktop record.",
+    "This validation was read-only at the design API layer. No PCB or schematic design mutation was applied. In particular, the pcb_route_path_plan / pcb.addTrack write path changed by PR #593 was not live-applied; its native-mil waypoint and mm-to-mil width behavior remains covered by repository regression tests rather than this live record.",
+    "EasyEDA Pro 3.2.149 did not expose sys_Environment.getVersion to the extension handshake in this runtime, so the optional handshake easyedaVersion field was absent. The exact EasyEDA/Electron/Chromium runtime identity was independently verified from the local-only desktop DevTools Browser/User-Agent endpoint and the installed application identity; the endpoint was bound to 127.0.0.1 and removed during cleanup.",
+    "EasyEDA Pro 3.2.149 does not expose page-attributed component or page-aware net reads. The candidate intentionally fails those explicit page scopes closed while supporting requested-page metadata and all-pages component reads.",
+    "The bundled example produced a real non-passing DRC result while the DRC call itself completed successfully. This record validates the live DRC surface and does not reinterpret the fixture result as a clean board.",
+    "The exact package SHA-256 identifies the f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec release candidate imported for validation. Public npm provenance, GitHub Release assets, attestations, SBOM, GHCR identities, and MCP Registry publication remain publication-time/post-publication gates."
+  ],
+  "redaction": {
+    "localAbsolutePathsOmitted": true,
+    "ephemeralProjectUuidOmitted": true,
+    "credentialsOmitted": true,
+    "activationMaterialOmitted": true,
+    "rawApiInventoryOmitted": true
+  }
+}

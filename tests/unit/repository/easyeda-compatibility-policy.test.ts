@@ -87,11 +87,11 @@ describe('EasyEDA compatibility evidence policy', () => {
       expect(record.easyedaPro.electronVersion).toMatch(/^36\./);
       expect(record.easyedaPro.chromiumVersion).toMatch(/^136\./);
       expect(record.server.validationPackageVersion).toMatch(
-        /^(?:0\.35\.\d+|1\.0\.(?:0|1)-rc\.[1-9]\d*)$/,
+        /^(?:0\.35\.\d+|\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?)$/,
       );
       expect(record.server.releaseContainingFixes).toBe(record.server.validationPackageVersion);
       expect(record.server.commit).toMatch(/^[0-9a-f]{40}$/);
-      if (/^1\.0\.(?:0|1)-rc\./.test(record.server.validationPackageVersion)) {
+      if (!/^0\.35\./.test(record.server.validationPackageVersion)) {
         expect(record.server.compatibilitySnapshot?.algorithm).toBe('git-tree-sha1');
         expect(Object.keys(record.server.compatibilitySnapshot?.paths ?? {}).sort()).toEqual(
           [...source.releaseGate.sensitivePaths].sort(),
@@ -100,9 +100,7 @@ describe('EasyEDA compatibility evidence policy', () => {
           expect(tree).toMatch(/^[0-9a-f]{40}$/);
         }
       }
-      expect(record.extension.installedPackageVersion).toMatch(
-        /^(?:\d+\.\d+\.\d+|1\.0\.1-rc\.[1-9]\d*)$/,
-      );
+      expect(record.extension.installedPackageVersion).toMatch(/^\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?$/);
       expect(record.extension.loaderReportedVersion).toBe(record.server.releaseContainingFixes);
       const rcMatch = /^1\.0\.0-rc\.([1-9]\d*)$/.exec(record.server.releaseContainingFixes);
       expect(record.extension.installedPackageVersion).toBe(

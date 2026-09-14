@@ -1,8 +1,113 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-28",
+  "lastReviewed": "2026-09-15",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-15-v1-1-0-candidate",
+      "status": "live-validated",
+      "validatedAt": "2026-09-15T01:21:35+03:00",
+      "reviewBy": "2026-12-14",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "6.8.0-139-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.1.0",
+        "releaseContainingFixes": "1.1.0",
+        "commit": "f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "ac4f437faae477d3d7b713edeb636e49e4459a95",
+            "src/bridge": "e47313404c0bf7ce9372014f501c071e6cb6338c",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+            "src/tools": "3b6297d9c25e1b8738f0c58e18bacf53c8f3d2dc",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.1.0",
+        "loaderReportedVersion": "1.1.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "d9e01181ceed32d8",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "Example_Quick Start",
+        "schematic": "Schematic",
+        "page": "P1",
+        "pcb": "PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-1-0-packaged-bridge-node24-live",
+          "name": "Packaged v1.1.0 bridge identity and repository read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec v1.1.0 candidate package was imported into an activated disposable EasyEDA Pro 3.2.149 Half Offline profile. With Node 24.18.0, the extension and loader reported 1.1.0, bridge contract 1.0.0, 69 capabilities, baked dispatcher dcdf3x26ebx11ee, and method registry hash d9e01181ceed32d8; the repository six-check read-only smoke passed with writes disabled.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/586",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/593"
+          ]
+        },
+        {
+          "id": "v1-1-0-schematic-scope-live",
+          "name": "v1.1.0 schematic read surface, wire shape, and fail-closed page selectors",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "With P1.Schematic focused, the candidate returned 16 nets and 34 components, native ERC passed, all ten sampled wires used the flat numeric runtime shape, requested-page metadata resolved P1, all_pages returned one page and 34 components, and unsupported/conflicting explicit page selectors failed closed with the expected typed codes.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/586"
+          ]
+        },
+        {
+          "id": "v1-1-0-pcb-read-outline-live",
+          "name": "v1.1.0 PCB read surface and outline regression validation",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "With the bundled example PCB focused, the exact candidate reported an 80 mm by 60 mm custom outline with hasOutline=true and 4,800 mm\u00b2 area, plus 33 components, 98 tracks, 0 vias, 4 fills, and 0 regions. The native DRC call completed and returned the fixture non-passing result rather than a bridge false-success.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/590",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/593"
+          ]
+        },
+        {
+          "id": "v1-1-0-disposable-profile-cleanup",
+          "name": "v1.1.0 disposable profile isolation and cleanup",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The extension import, bundled-example upgrade, and read-only checks ran in temporary HOME/XDG roots. After validation the EasyEDA process tree, local bridge listener, local-only DevTools endpoint, and disposable profile were removed; the real EasyEDA config/Documents/project metadata snapshot matched byte-for-byte before and after (SHA-256 c0171ef91b64cb1965bc94e00c020daf2386f408978d16ed5c9fd1875b6963d9).",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/586"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent v1.1.0 live EasyEDA desktop record.",
+        "This validation was read-only at the design API layer. No PCB or schematic design mutation was applied. In particular, the pcb_route_path_plan / pcb.addTrack write path changed by PR #593 was not live-applied; its native-mil waypoint and mm-to-mil width behavior remains covered by repository regression tests rather than this live record.",
+        "EasyEDA Pro 3.2.149 did not expose sys_Environment.getVersion to the extension handshake in this runtime, so the optional handshake easyedaVersion field was absent. The exact EasyEDA/Electron/Chromium identity was independently verified from a local-only desktop runtime endpoint that was removed during cleanup.",
+        "EasyEDA Pro 3.2.149 does not expose page-attributed component or page-aware net reads. The candidate intentionally fails those explicit page scopes closed while supporting requested-page metadata and all-pages component reads.",
+        "The bundled example produced a real non-passing DRC result while the DRC call itself completed successfully. This record validates the live DRC surface and does not reinterpret the fixture result as a clean board.",
+        "The package SHA-256 in the public evidence identifies the exact f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec candidate. Public npm provenance, GitHub Release assets, attestations, SBOM, GHCR identities, and MCP Registry publication remain publication-time/post-publication gates."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-28-v1-0-1-rc1-candidate",
       "status": "live-validated",
