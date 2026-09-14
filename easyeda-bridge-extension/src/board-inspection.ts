@@ -191,30 +191,15 @@ function addCircleSourceBounds(bounds: BoundingBox, source: readonly unknown[]):
 
 function addLinePolylineSourceBounds(bounds: BoundingBox, source: readonly unknown[]): boolean {
   const start = readFiniteSourceNumbers(source, 0, 2);
-  if (!start || source.length < 5) return false;
+  if (!start || source[2] !== 'L') return false;
 
-  const points: Array<[number, number]> = [[start[0], start[1]]];
-  let index = 2;
-  let lineMode = false;
+  const coordinates = readFiniteSourceNumbers(source, 3, source.length - 3);
+  if (!coordinates || coordinates.length < 2 || coordinates.length % 2 !== 0) return false;
 
-  while (index < source.length) {
-    const token = source[index];
-    if (typeof token === 'string') {
-      if (token !== 'L') return false;
-      lineMode = true;
-      index += 1;
-      continue;
-    }
-    if (!lineMode) return false;
-
-    const pair = readFiniteSourceNumbers(source, index, 2);
-    if (!pair) return false;
-    points.push([pair[0], pair[1]]);
-    index += 2;
+  updateBoundingBox(bounds, start[0], start[1]);
+  for (let index = 0; index < coordinates.length; index += 2) {
+    updateBoundingBox(bounds, coordinates[index], coordinates[index + 1]);
   }
-
-  if (points.length < 2) return false;
-  for (const [x, y] of points) updateBoundingBox(bounds, x, y);
   return true;
 }
 
