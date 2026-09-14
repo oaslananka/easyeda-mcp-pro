@@ -412,6 +412,62 @@ describe('board inspection operations', () => {
     });
   });
 
+  it('falls back to a raw EasyEDA line polyline source when discretization is unavailable', async () => {
+    const instanceFailure = new Error('Not implemented');
+    const staticFailure = new Error('Not implemented');
+    const source = [
+      4448.8189,
+      -2086.6141,
+      'L',
+      4448.8189,
+      -118.1102,
+      4881.8898,
+      -118.1102,
+      4881.8898,
+      -1886.2651,
+      7600.7493,
+      -1886.3425,
+      7600.7493,
+      -2086.6141,
+      4448.8189,
+      -2086.6141,
+    ];
+    const staticDiscretize = vi.fn(async () => {
+      throw staticFailure;
+    });
+    const { operations } = makeOperations(
+      {
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-live-polyline' }) },
+        PCB_MathPolygon: { discretize: staticDiscretize },
+      },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({
+                polygon: source,
+                discretize: async () => {
+                  throw instanceFailure;
+                },
+              }),
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toEqual({
+      widthMm: 80.059,
+      heightMm: 50,
+      shape: 'custom',
+      mountingHoleCount: 0,
+      areaMm2: 4002.95,
+      hasOutline: true,
+    });
+    expect(staticDiscretize).toHaveBeenCalledWith(source);
+  });
+
   it('fails closed for rotated or malformed raw polygon fallbacks', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { operations } = makeOperations(
