@@ -33,6 +33,29 @@ export interface RectMm {
   name?: string;
 }
 
+/** EasyEDA native PCB coordinate in mil. */
+export interface NativePcbPoint {
+  x: number;
+  y: number;
+}
+
+/** Bounding box in EasyEDA native PCB coordinates (mil). */
+export interface NativePcbBoardBox {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+/** Axis-aligned keepout rectangle in EasyEDA native PCB coordinates (mil). */
+export interface NativePcbRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  name?: string;
+}
+
 export interface LayoutIssue {
   code: LayoutIssueCode;
   severity: LayoutSeverity;
@@ -93,12 +116,12 @@ export interface ComponentGroupPlacementPlan {
 export interface RoutePathInput {
   projectId?: string;
   mode?: LayoutExecutionMode;
-  board?: BoardBox;
+  board?: NativePcbBoardBox;
   netName: string;
   layer: number;
   widthMm: number;
-  waypoints: PointMm[];
-  keepouts?: RectMm[];
+  waypoints: NativePcbPoint[];
+  keepouts?: NativePcbRect[];
   maxLengthMm?: number;
   minWidthMm?: number;
   confirmWrite?: boolean;
