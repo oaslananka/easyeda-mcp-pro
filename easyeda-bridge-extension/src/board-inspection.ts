@@ -189,9 +189,24 @@ function addCircleSourceBounds(bounds: BoundingBox, source: readonly unknown[]):
   return true;
 }
 
+function addLinePolylineSourceBounds(bounds: BoundingBox, source: readonly unknown[]): boolean {
+  const start = readFiniteSourceNumbers(source, 0, 2);
+  if (!start || source[2] !== 'L') return false;
+
+  const coordinates = readFiniteSourceNumbers(source, 3, source.length - 3);
+  if (!coordinates || coordinates.length < 2 || coordinates.length % 2 !== 0) return false;
+
+  updateBoundingBox(bounds, start[0], start[1]);
+  for (let index = 0; index < coordinates.length; index += 2) {
+    updateBoundingBox(bounds, coordinates[index], coordinates[index + 1]);
+  }
+  return true;
+}
+
 function addRawPolygonSourceBounds(bounds: BoundingBox, source: readonly unknown[]): boolean {
   if (source[0] === 'R') return addRectangleSourceBounds(bounds, source);
   if (source[0] === 'CIRCLE') return addCircleSourceBounds(bounds, source);
+  if (readFiniteNumber(source[0]) !== undefined) return addLinePolylineSourceBounds(bounds, source);
   return false;
 }
 

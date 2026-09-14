@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { planComponentGroupPlacement, planRoutePath } from '../../../src/pcb-layout/index.js';
 
+const mmToPcbMil = (millimetres: number): number => millimetres / 0.0254;
+
 describe('pcb layout planner', () => {
   it('creates a previewable component group plan without errors', () => {
     const plan = planComponentGroupPlacement({
@@ -73,11 +75,11 @@ describe('pcb layout planner', () => {
       netName: 'GND',
       layer: 1,
       widthMm: 0.4,
-      board: { widthMm: 60, heightMm: 40 },
+      board: { minX: 0, maxX: mmToPcbMil(60), minY: 0, maxY: mmToPcbMil(40) },
       waypoints: [
-        { x: 5, y: 5 },
-        { x: 15, y: 5 },
-        { x: 15, y: 15 },
+        { x: mmToPcbMil(5), y: mmToPcbMil(5) },
+        { x: mmToPcbMil(15), y: mmToPcbMil(5) },
+        { x: mmToPcbMil(15), y: mmToPcbMil(15) },
       ],
     });
 
@@ -86,17 +88,56 @@ describe('pcb layout planner', () => {
     expect(plan.operations[0]).toMatchObject({ method: 'pcb.addTrack' });
   });
 
+  it('plans native PCB mil waypoints while reporting physical route length and width in mm', () => {
+    const waypoints = [
+      { x: 4822.8, y: -2057.1 },
+      { x: 4908.2, y: -2059.1 },
+    ];
+    const plan = planRoutePath({
+      netName: 'U4-VSET2',
+      layer: 1,
+      widthMm: 0.2,
+      board: {
+        minX: 4448.8189,
+        maxX: 7600.7493,
+        minY: -2086.6141,
+        maxY: -118.1102,
+      },
+      waypoints,
+    });
+
+    expect(plan.blocked).toBe(false);
+    expect(plan.pathLengthMm).toBe(2.1698);
+    expect(plan.operations[0]).toEqual({
+      method: 'pcb.addTrack',
+      params: {
+        points: waypoints,
+        layer: 1,
+        width: mmToPcbMil(0.2),
+        netName: 'U4-VSET2',
+      },
+    });
+  });
+
   it('blocks route path that crosses keepout or leaves board', () => {
     const plan = planRoutePath({
       netName: '3V3',
       layer: 1,
       widthMm: 0.2,
       minWidthMm: 0.3,
-      board: { widthMm: 20, heightMm: 20 },
-      keepouts: [{ x: 8, y: 8, widthMm: 4, heightMm: 4, name: 'center' }],
+      board: { minX: 0, maxX: mmToPcbMil(20), minY: 0, maxY: mmToPcbMil(20) },
+      keepouts: [
+        {
+          x: mmToPcbMil(8),
+          y: mmToPcbMil(8),
+          width: mmToPcbMil(4),
+          height: mmToPcbMil(4),
+          name: 'center',
+        },
+      ],
       waypoints: [
-        { x: 0, y: 10 },
-        { x: 25, y: 10 },
+        { x: 0, y: mmToPcbMil(10) },
+        { x: mmToPcbMil(25), y: mmToPcbMil(10) },
       ],
     });
 

@@ -4,12 +4,24 @@ import type {
   ComponentGroupPlacementInput,
   ComponentGroupPlacementPlan,
   LayoutIssue,
+  NativePcbBoardBox,
+  NativePcbPoint,
+  NativePcbRect,
   PlannedComponentPlacement,
-  PointMm,
   RectMm,
   RoutePathInput,
   RoutePathPlan,
 } from './types.js';
+
+const PCB_MIL_TO_MM = 0.0254;
+
+function pcbMilToMm(value: number): number {
+  return value * PCB_MIL_TO_MM;
+}
+
+function mmToPcbMil(value: number): number {
+  return value / PCB_MIL_TO_MM;
+}
 
 function txId(prefix: string, payload: unknown): string {
   return `${prefix}_${createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 16)}`;
@@ -34,12 +46,12 @@ function rectsOverlap(a: RectMm, b: RectMm): boolean {
   );
 }
 
-function pointInsideRect(point: PointMm, rect: RectMm): boolean {
+function pointInsideRect(point: NativePcbPoint, rect: NativePcbRect): boolean {
   return (
     point.x >= rect.x &&
-    point.x <= rect.x + rect.widthMm &&
+    point.x <= rect.x + rect.width &&
     point.y >= rect.y &&
-    point.y <= rect.y + rect.heightMm
+    point.y <= rect.y + rect.height
   );
 }
 
@@ -52,8 +64,10 @@ function rectInsideBoard(rect: RectMm, board: BoardBox): boolean {
   );
 }
 
-function pointInsideBoard(point: PointMm, board: BoardBox): boolean {
-  return point.x >= 0 && point.y >= 0 && point.x <= board.widthMm && point.y <= board.heightMm;
+function pointInsideBoard(point: NativePcbPoint, board: NativePcbBoardBox): boolean {
+  return (
+    point.x >= board.minX && point.x <= board.maxX && point.y >= board.minY && point.y <= board.maxY
+  );
 }
 
 function inflate(rect: RectMm, amount: number): RectMm {
@@ -66,11 +80,11 @@ function inflate(rect: RectMm, amount: number): RectMm {
   };
 }
 
-function distance(a: PointMm, b: PointMm): number {
+function distance(a: NativePcbPoint, b: NativePcbPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function routeLength(points: PointMm[]): number {
+function routeLengthMil(points: NativePcbPoint[]): number {
   let total = 0;
   for (let index = 1; index < points.length; index += 1) {
     const previous = points[index - 1];
@@ -81,9 +95,9 @@ function routeLength(points: PointMm[]): number {
   return total;
 }
 
-function segmentIntersectsRect(a: PointMm, b: PointMm, rect: RectMm): boolean {
+function segmentIntersectsRect(a: NativePcbPoint, b: NativePcbPoint, rect: NativePcbRect): boolean {
   if (pointInsideRect(a, rect) || pointInsideRect(b, rect)) return true;
-  const steps = Math.max(2, Math.ceil(distance(a, b) / 0.5));
+  const steps = Math.max(2, Math.ceil(distance(a, b) / mmToPcbMil(0.5)));
   for (let i = 1; i < steps; i += 1) {
     const t = i / steps;
     const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
@@ -248,7 +262,7 @@ export function planComponentGroupPlacement(
 export function planRoutePath(input: RoutePathInput): RoutePathPlan {
   const mode = input.mode ?? 'preview';
   const issues: LayoutIssue[] = [];
-  const length = routeLength(input.waypoints);
+  const lengthMm = pcbMilToMm(routeLengthMil(input.waypoints));
 
   if (input.waypoints.length < 2) {
     issues.push(
@@ -284,14 +298,14 @@ export function planRoutePath(input: RoutePathInput): RoutePathPlan {
     );
   }
 
-  if (input.maxLengthMm !== undefined && length > input.maxLengthMm) {
+  if (input.maxLengthMm !== undefined && lengthMm > input.maxLengthMm) {
     issues.push(
       issue(
         'LAYOUT_PATH_TOO_LONG',
         'warning',
-        `Route length ${Number(length.toFixed(3))}mm exceeds maximum ${input.maxLengthMm}mm`,
+        `Route length ${Number(lengthMm.toFixed(3))}mm exceeds maximum ${input.maxLengthMm}mm`,
         'Shorten the route or relax the maximum length constraint if acceptable.',
-        { pathLengthMm: length, maxLengthMm: input.maxLengthMm },
+        { pathLengthMm: lengthMm, maxLengthMm: input.maxLengthMm },
       ),
     );
   }
@@ -337,7 +351,7 @@ export function planRoutePath(input: RoutePathInput): RoutePathPlan {
       params: {
         points: input.waypoints,
         layer: input.layer,
-        width: input.widthMm,
+        width: mmToPcbMil(input.widthMm),
         netName: input.netName,
       },
     },
@@ -345,7 +359,7 @@ export function planRoutePath(input: RoutePathInput): RoutePathPlan {
   const blocked = issues.some((i) => i.severity === 'error');
 
   return {
-    transactionId: txId('layout_route', { input, length }),
+    transactionId: txId('layout_route', { input, lengthMm }),
     projectId: input.projectId ?? '',
     mode,
     applied: false,
@@ -353,11 +367,11 @@ export function planRoutePath(input: RoutePathInput): RoutePathPlan {
     netName: input.netName,
     layer: input.layer,
     widthMm: input.widthMm,
-    pathLengthMm: Number(length.toFixed(4)),
+    pathLengthMm: Number(lengthMm.toFixed(4)),
     operations,
     issues,
     summary: blocked
       ? `Route plan blocked by ${issues.filter((i) => i.severity === 'error').length} error(s).`
-      : `Route plan ready for net ${input.netName}; length ${Number(length.toFixed(3))}mm.`,
+      : `Route plan ready for net ${input.netName}; length ${Number(lengthMm.toFixed(3))}mm.`,
   };
 }
