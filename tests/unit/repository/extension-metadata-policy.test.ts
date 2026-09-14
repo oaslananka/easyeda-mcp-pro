@@ -34,9 +34,11 @@ describe('extension metadata policy', () => {
     expect(resolveEasyedaManifestVersion('1.0.0')).toBe('1.0.0');
   });
 
-  it('preserves the explicitly reviewed v1.0.1 release-candidate SemVer package version', () => {
+  it('preserves explicitly reviewed release-candidate SemVer package versions', () => {
     expect(resolveEasyedaManifestVersion('1.0.1-rc.1')).toBe('1.0.1-rc.1');
     expect(resolveEasyedaManifestVersion('1.0.1-rc.12')).toBe('1.0.1-rc.12');
+    expect(resolveEasyedaManifestVersion('1.1.0-rc.1')).toBe('1.1.0-rc.1');
+    expect(resolveEasyedaManifestVersion('1.1.0-rc.12')).toBe('1.1.0-rc.12');
   });
 
   it('accepts a numeric EasyEDA package version while preserving the RC runtime version', () => {
@@ -55,7 +57,7 @@ describe('extension metadata policy', () => {
     expect(() => resolveEasyedaManifestVersion('1.0.2-rc.1')).toThrow(
       'Unsupported EasyEDA prerelease product version',
     );
-    expect(() => resolveEasyedaManifestVersion('1.1.0-rc.1')).toThrow(
+    expect(() => resolveEasyedaManifestVersion('1.2.0-rc.1')).toThrow(
       'Unsupported EasyEDA prerelease product version',
     );
     expect(() => resolveEasyedaManifestVersion('1.0.1-rc.0')).toThrow(
