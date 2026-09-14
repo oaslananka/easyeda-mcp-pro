@@ -3,6 +3,8 @@ import { ToolRegistry } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import { registerPcbWriteTools } from '../../../src/tools/L1_pcb_write.js';
 import { EnvSchema } from '../../../src/config/env.js';
+
+const mmToPcbMil = (millimetres: number): number => millimetres / 0.0254;
 import {
   getGlobalTransactionManager,
   resetGlobalTransactionManagerForTests,
@@ -127,13 +129,49 @@ describe('PCB Write Tools', () => {
       widthMm: 0.4,
       waypoints: [
         { x: 0, y: 0 },
-        { x: 10, y: 0 },
+        { x: mmToPcbMil(10), y: 0 },
       ],
     });
 
     expect(bridgeCall).not.toHaveBeenCalled();
     expect(result?.success).toBe(true);
     expect(result?.path_length_mm).toBe(10);
+  });
+
+  it('easyeda_pcb_route_path_plan should apply native PCB coordinates with mm width converted to mil', async () => {
+    const tool = registry.get('easyeda_pcb_route_path_plan');
+    bridgeCall.mockResolvedValue({ result: 'track-native' });
+    const waypoints = [
+      { x: 4822.8, y: -2057.1 },
+      { x: 4908.2, y: -2059.1 },
+    ];
+
+    expect(tool?.confirmationPolicy).toBe('apply-mode');
+
+    const result = await tool?.handler(context, {
+      mode: 'apply',
+      confirmWrite: true,
+      netName: 'U4-VSET2',
+      layer: 1,
+      widthMm: 0.2,
+      board: {
+        minX: 4448.8189,
+        maxX: 7600.7493,
+        minY: -2086.6141,
+        maxY: -118.1102,
+      },
+      waypoints,
+    });
+
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.addTrack', {
+      points: waypoints,
+      layer: 1,
+      width: mmToPcbMil(0.2),
+      netName: 'U4-VSET2',
+    });
+    expect(result?.path_length_mm).toBe(2.1698);
+    expect(result?.success).toBe(true);
+    expect(result?.applied).toBe(true);
   });
 
   it('easyeda_pcb_route_path_plan should block unsafe apply before bridge call', async () => {
@@ -170,17 +208,17 @@ describe('PCB Write Tools', () => {
       widthMm: 0.4,
       waypoints: [
         { x: 0, y: 0 },
-        { x: 10, y: 0 },
+        { x: mmToPcbMil(10), y: 0 },
       ],
     });
 
     expect(bridgeCall).toHaveBeenCalledWith('pcb.addTrack', {
       points: [
         { x: 0, y: 0 },
-        { x: 10, y: 0 },
+        { x: mmToPcbMil(10), y: 0 },
       ],
       layer: 1,
-      width: 0.4,
+      width: mmToPcbMil(0.4),
       netName: 'GND',
     });
     expect(result?.success).toBe(true);
