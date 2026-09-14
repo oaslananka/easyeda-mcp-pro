@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-08-28
+- **Last reviewed:** 2026-09-15
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0                | 1.1.0                | 1.1.0             | Live validated  | 2026-09-15 | 2026-12-14 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.1-rc.1           | 1.0.1-rc.1           | 1.0.1-rc.1        | Live validated  | 2026-08-28 | 2026-11-26 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.8           | 1.0.0-rc.8           | 0.99.8            | Live validated  | 2026-08-27 | 2026-11-25 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.7           | 1.0.0-rc.7           | 0.99.7            | Live validated  | 2026-08-27 | 2026-11-25 |
@@ -43,6 +44,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-15-v1-1-0-candidate`
+
+### Runtime identity
+
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.5 LTS                         |
+| Kernel                               | `6.8.0-139-generic`                        |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.18.0`                                  |
+| Validation package version           | `1.1.0`                                    |
+| Release containing validated fixes   | `1.1.0`                                    |
+| Compatibility-sensitive base commit  | `f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec` |
+| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
+| Installed extension package metadata | `1.1.0`                                    |
+| Loader-reported version              | `1.1.0`                                    |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `d9e01181ceed32d8`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
+
+The installed extension package and loader both reported version `1.1.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                                | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                                                                                                                   | Evidence                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Packaged v1.1.0 bridge identity and repository read-only smoke            | `live` | `passed` | The exact f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec v1.1.0 candidate package was imported into an activated disposable EasyEDA Pro 3.2.149 Half Offline profile. With Node 24.18.0, the extension and loader reported 1.1.0, bridge contract 1.0.0, 69 capabilities, baked dispatcher dcdf3x26ebx11ee, and method registry hash d9e01181ceed32d8; the repository six-check read-only smoke passed with writes disabled.   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json), [PR #586](https://github.com/oaslananka/easyeda-mcp-pro/pull/586), [PR #593](https://github.com/oaslananka/easyeda-mcp-pro/pull/593)      |
+| v1.1.0 schematic read surface, wire shape, and fail-closed page selectors | `live` | `passed` | With P1.Schematic focused, the candidate returned 16 nets and 34 components, native ERC passed, all ten sampled wires used the flat numeric runtime shape, requested-page metadata resolved P1, all_pages returned one page and 34 components, and unsupported/conflicting explicit page selectors failed closed with the expected typed codes.                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json), [PR #586](https://github.com/oaslananka/easyeda-mcp-pro/pull/586)                                                                         |
+| v1.1.0 PCB read surface and outline regression validation                 | `live` | `passed` | With the bundled example PCB focused, the exact candidate reported an 80 mm by 60 mm custom outline with hasOutline=true and 4,800 mm² area, plus 33 components, 98 tracks, 0 vias, 4 fills, and 0 regions. The native DRC call completed and returned the fixture non-passing result rather than a bridge false-success.                                                                                                | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json), [Issue #590](https://github.com/oaslananka/easyeda-mcp-pro/issues/590), [PR #593](https://github.com/oaslananka/easyeda-mcp-pro/pull/593) |
+| v1.1.0 disposable profile isolation and cleanup                           | `live` | `passed` | The extension import, bundled-example upgrade, and read-only checks ran in temporary HOME/XDG roots. After validation the EasyEDA process tree, local bridge listener, local-only DevTools endpoint, and disposable profile were removed; the real EasyEDA config/Documents/project metadata snapshot matched byte-for-byte before and after (SHA-256 c0171ef91b64cb1965bc94e00c020daf2386f408978d16ed5c9fd1875b6963d9). | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json), [PR #586](https://github.com/oaslananka/easyeda-mcp-pro/pull/586)                                                                         |
+
+### Known limitations
+
+- This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than an equivalent v1.1.0 live EasyEDA desktop record.
+- This validation was read-only at the design API layer. No PCB or schematic design mutation was applied. In particular, the pcb_route_path_plan / pcb.addTrack write path changed by PR #593 was not live-applied; its native-mil waypoint and mm-to-mil width behavior remains covered by repository regression tests rather than this live record.
+- EasyEDA Pro 3.2.149 did not expose sys_Environment.getVersion to the extension handshake in this runtime, so the optional handshake easyedaVersion field was absent. The exact EasyEDA/Electron/Chromium identity was independently verified from a local-only desktop runtime endpoint that was removed during cleanup.
+- EasyEDA Pro 3.2.149 does not expose page-attributed component or page-aware net reads. The candidate intentionally fails those explicit page scopes closed while supporting requested-page metadata and all-pages component reads.
+- The bundled example produced a real non-passing DRC result while the DRC call itself completed successfully. This record validates the live DRC surface and does not reinterpret the fixture result as a clean board.
+- The package SHA-256 in the public evidence identifies the exact f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec candidate. Public npm provenance, GitHub Release assets, attestations, SBOM, GHCR identities, and MCP Registry publication remain publication-time/post-publication gates.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
 
