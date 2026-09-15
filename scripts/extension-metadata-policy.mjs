@@ -2,13 +2,15 @@ export const PRIVATE_EXTENSION_WORKSPACE_VERSION = '0.0.0-private';
 
 const STABLE_PRODUCT_VERSION = /^\d+\.\d+\.\d+$/;
 const V1_0_0_RELEASE_CANDIDATE = /^1\.0\.0-rc\.(\d+)$/;
-const V1_0_1_RELEASE_CANDIDATE = /^1\.0\.1-rc\.([1-9]\d*)$/;
+const STANDARD_SEMVER_RELEASE_CANDIDATE = /^(?:1\.0\.1|1\.1\.0)-rc\.([1-9]\d*)$/;
 
 /**
  * Keep the legacy v1.0.0 RC package mapping because those published candidates
- * used the monotonic 0.99.N install identity. EasyEDA Pro 3.2.149 has also been
- * live-validated to accept standard 1.0.1-rc.N SemVer package versions and to
- * upgrade them to stable 1.0.1. Other prerelease families remain fail-closed.
+ * used the monotonic 0.99.N install identity. EasyEDA Pro 3.2.149 live validation
+ * confirmed standard SemVer package identities for the 1.0.1-rc.N family.
+ * The separately reviewed 1.1.0-rc.N family remains blocked from publication
+ * until its exact candidate package has fresh live compatibility evidence.
+ * Every other prerelease family stays fail-closed until separately reviewed.
  */
 export function resolveEasyedaManifestVersion(productVersion) {
   if (typeof productVersion !== 'string') {
@@ -22,9 +24,9 @@ export function resolveEasyedaManifestVersion(productVersion) {
     if (Number.isSafeInteger(sequence) && sequence > 0) return `0.99.${sequence}`;
   }
 
-  const patchCandidate = V1_0_1_RELEASE_CANDIDATE.exec(productVersion);
-  if (patchCandidate?.[1]) {
-    const sequence = Number(patchCandidate[1]);
+  const standardCandidate = STANDARD_SEMVER_RELEASE_CANDIDATE.exec(productVersion);
+  if (standardCandidate?.[1]) {
+    const sequence = Number(standardCandidate[1]);
     if (Number.isSafeInteger(sequence)) return productVersion;
   }
 
