@@ -6,10 +6,11 @@ const STANDARD_SEMVER_RELEASE_CANDIDATE = /^(?:1\.0\.1|1\.1\.0)-rc\.([1-9]\d*)$/
 
 /**
  * Keep the legacy v1.0.0 RC package mapping because those published candidates
- * used the monotonic 0.99.N install identity. EasyEDA Pro 3.2.149 has also been
- * live-validated to accept standard SemVer prerelease package identities. Keep
- * that behavior on an explicit RC-family allowlist; every other prerelease family
- * remains fail-closed until separately reviewed and live-validated.
+ * used the monotonic 0.99.N install identity. EasyEDA Pro 3.2.149 live validation
+ * confirmed standard SemVer package identities for the 1.0.1-rc.N family.
+ * The separately reviewed 1.1.0-rc.N family remains blocked from publication
+ * until its exact candidate package has fresh live compatibility evidence.
+ * Every other prerelease family stays fail-closed until separately reviewed.
  */
 export function resolveEasyedaManifestVersion(productVersion) {
   if (typeof productVersion !== 'string') {
