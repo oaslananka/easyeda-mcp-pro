@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0-rc.3] - 2026-09-29
+
+### Release candidate
+
+- Supersedes the unpublished RC.2 identity because runtime and dependency-maintenance changes landed after its live validation, including the Node 24.21.0 / pnpm 11.28.0 refresh and the Undici security remediation.
+- Removes the repository-wide dependency release-age delay and narrows Renovate automerge to low-risk devDependency minor/patch updates plus weekly lockfile maintenance; runtime dependencies and critical automation updates remain reviewed.
+- Preserves the RC.2 EasyEDA bridge behavior, polygon materialization fixes, fail-closed validation, and compatibility-sensitive runtime code; no new public MCP API or EasyEDA mutation contract is introduced by this candidate.
+- Requires fresh commit-bound EasyEDA Pro 3.2.149 live evidence for the exact RC.3 package identity before prerelease publication.
+- Leaves stable npm/GHCR `latest` and the MCP Registry on `1.0.1`; RC.3 uses prerelease channels only.
+
 ## [1.0.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.0.1-rc.1...easyeda-mcp-pro-v1.0.1) (2026-08-28)
 
 
