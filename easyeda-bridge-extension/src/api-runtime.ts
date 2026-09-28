@@ -77,15 +77,15 @@ export function createApiRuntime(
     return undefined;
   }
 
-  const NO_TAGGED_API_ARGUMENT = Symbol('no-tagged-api-argument');
+  type TaggedPolygonArgumentResult = { matched: false } | { matched: true; value: unknown };
 
   async function materializeTaggedPolygonArgument(
     value: Record<string, unknown>,
     argumentPath: string,
-  ): Promise<unknown | typeof NO_TAGGED_API_ARGUMENT> {
+  ): Promise<TaggedPolygonArgumentResult> {
     const hasPolygon = '$polygon' in value;
     const hasComplexPolygon = '$complexPolygon' in value;
-    if (!hasPolygon && !hasComplexPolygon) return NO_TAGGED_API_ARGUMENT;
+    if (!hasPolygon && !hasComplexPolygon) return { matched: false };
 
     if (hasPolygon && hasComplexPolygon) {
       throw createBridgeError(
@@ -120,7 +120,7 @@ export function createApiRuntime(
       tag === '$polygon'
         ? ['PCB_MathPolygon.createPolygon', 'pcb_MathPolygon.createPolygon']
         : ['PCB_MathPolygon.createComplexPolygon', 'pcb_MathPolygon.createComplexPolygon'];
-    return await callFirst(builder, source);
+    return { matched: true, value: await callFirst(builder, source) };
   }
 
   async function materializeApiArgument(value: unknown, argumentPath: string): Promise<unknown> {
@@ -143,7 +143,7 @@ export function createApiRuntime(
     }
 
     const taggedPolygon = await materializeTaggedPolygonArgument(value, argumentPath);
-    if (taggedPolygon !== NO_TAGGED_API_ARGUMENT) return taggedPolygon;
+    if (taggedPolygon.matched) return taggedPolygon.value;
 
     const output: Record<string, unknown> = {};
     for (const [key, nested] of Object.entries(value)) {
