@@ -4,6 +4,7 @@ packages:
 
 allowBuilds:
   esbuild: true
+
 minimumReleaseAge: 10080
 # Exact-version release-age exceptions for reviewed security overrides.
 minimumReleaseAgeExclude:

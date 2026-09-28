@@ -39,7 +39,10 @@ async function createCanonicalFixture() {
   });
   await write(join(root, '.node-version'), `${nodeVersion}\n`);
   await write(join(root, '.nvmrc'), `${nodeVersion}\n`);
-  await write(join(root, '.npmrc'), 'engine-strict=true\nmanage-package-manager-versions=false\n');
+  await write(
+    join(root, 'pnpm-workspace.yaml'),
+    'packages:\n  - easyeda-bridge-extension\n\nminimumReleaseAge: 10080\n',
+  );
   await writeJson(join(root, 'package.json'), {
     packageManager: `pnpm@${pnpmVersion}`,
     engines: {
@@ -130,6 +133,20 @@ describe('runtime pin parity', () => {
 
     expect(result.status, result.stderr).toBe(0);
   });
+
+  it.each(['engine-strict=true', 'min-release-age=7', 'manage-package-manager-versions=false'])(
+    'rejects pnpm 11 project config left in .npmrc: %s',
+    async (legacySetting) => {
+      const root = await createCanonicalFixture();
+      await write(join(root, '.npmrc'), `${legacySetting}\n`);
+
+      const result = runChecker(root);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('must not contain obsolete config');
+      expect(result.stderr).toContain(legacySetting.split('=')[0]);
+    },
+  );
 
   it('rejects package-manager metadata drift', async () => {
     const root = await createCanonicalFixture();
