@@ -163,7 +163,10 @@ export function skippedLiveSmokeReport(reason: string, config: LiveSmokeConfig):
 }
 
 export async function runLiveSmokeChecks(
-  bridge: Pick<BridgeManager, 'connect' | 'disconnect' | 'call' | 'hello' | 'methodRegistryHash'>,
+  bridge: Pick<
+    BridgeManager,
+    'connect' | 'disconnect' | 'call' | 'hello' | 'methodRegistryHash' | 'waitForConnection'
+  >,
   config: LiveSmokeConfig,
 ): Promise<LiveSmokeReport> {
   const errors = validateLiveSmokeConfig(config);
@@ -171,10 +174,12 @@ export async function runLiveSmokeChecks(
   if (errors.length > 0) throw new Error(errors.join(' '));
 
   await bridge.connect();
-  const hello = bridge.hello as BridgeHello | null;
   const results: LiveSmokeCheckResult[] = [];
+  let hello: BridgeHello | null;
 
   try {
+    await bridge.waitForConnection(config.timeoutMs);
+    hello = bridge.hello as BridgeHello | null;
     for (const check of buildLiveSmokeChecks(config)) {
       const startedAt = Date.now();
       try {

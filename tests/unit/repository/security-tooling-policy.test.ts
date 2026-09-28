@@ -114,7 +114,8 @@ describe('repository security tooling policy', () => {
     const lockfile = readText('pnpm-lock.yaml');
     expect(lockfile).toContain("'@hono/node-server@2.0.10':");
     expect(lockfile).not.toContain("'@hono/node-server@1.19.14':");
-    expect(readText('.npmrc')).toContain('min-release-age=7');
+    expect(readText('.npmrc')).toBe('');
+    expect(readText('pnpm-workspace.yaml')).toContain('minimumReleaseAge: 10080');
   });
 
   it('runs Semgrep, workflow hardening, and Trivy as separate CI concerns', () => {

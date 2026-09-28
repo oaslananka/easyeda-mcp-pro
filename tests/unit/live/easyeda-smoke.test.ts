@@ -70,6 +70,7 @@ describe('easyeda live smoke plan', () => {
     const bridge = {
       connect: vi.fn(),
       disconnect: vi.fn(),
+      waitForConnection: vi.fn(),
       call: vi.fn(),
       hello: null,
       methodRegistryHash: 'abc123',
@@ -83,20 +84,29 @@ describe('easyeda live smoke plan', () => {
   });
 
   it('should execute checks and report failures without throwing', async () => {
+    let connected = false;
+    const hello = {
+      type: 'hello' as const,
+      bridgeVersion: '0.5.3',
+      contractVersion: 1 as const,
+      supportedProtocolVersions: ['1.0.0' as const],
+      easyedaVersion: '2026.1',
+      capabilities: [],
+      methodRegistryHash: 'hash123',
+      devMode: false,
+    };
     const bridge = {
       connect: vi.fn(async () => undefined),
       disconnect: vi.fn(),
+      waitForConnection: vi.fn(async () => {
+        connected = true;
+      }),
       call: vi.fn(async (method: string) => {
         if (method === 'bom.generate') throw new Error('BOM unavailable');
         return { ok: true };
       }),
-      hello: {
-        type: 'hello' as const,
-        bridgeVersion: '0.5.3',
-        easyedaVersion: '2026.1',
-        capabilities: [],
-        methodRegistryHash: 'hash123',
-        devMode: false,
+      get hello() {
+        return connected ? hello : null;
       },
       methodRegistryHash: 'hash123',
     };
@@ -104,7 +114,9 @@ describe('easyeda live smoke plan', () => {
     const report = await runLiveSmokeChecks(bridge, baseConfig());
 
     expect(report.status).toBe('failed');
+    expect(bridge.waitForConnection).toHaveBeenCalledWith(30_000);
     expect(report.easyedaVersion).toBe('2026.1');
+    expect(report.bridgeVersion).toBe('0.5.3');
     expect(report.methodRegistryHash).toBe('hash123');
     expect(report.checks.find((check) => check.method === 'bom.generate')?.status).toBe('failed');
     expect(bridge.disconnect).toHaveBeenCalledWith('live smoke complete');

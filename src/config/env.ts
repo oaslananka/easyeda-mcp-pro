@@ -137,6 +137,29 @@ export const EnvSchema = EnvObjectSchema.transform((config) => deriveStoragePath
 
 export type EnvConfig = z.infer<typeof EnvSchema>;
 
+const KNOWN_NON_SCHEMA_ENV_VARS = new Set([
+  'EASYEDA_BRIDGE',
+  'EASYEDA_CDP_ALLOW_UNMAPPED_WRITES',
+  'EASYEDA_CDP_ALLOW_WRITES',
+  'EASYEDA_CDP_TARGET_ID',
+  'EASYEDA_CDP_URL',
+  'EASYEDA_EXPECTED_DISPATCHER_BUILD',
+  'EASYEDA_EXPECTED_PAGE',
+  'EASYEDA_EXPECTED_PROJECT',
+  'EASYEDA_EXPECTED_SCHEMATIC',
+  'EASYEDA_LIVE_REPORT_PATH',
+  'EASYEDA_LIVE_TESTS',
+  'EASYEDA_LIVE_TIMEOUT_MS',
+  'EASYEDA_LIVE_WRITE_TESTS',
+  'EASYEDA_MCP_RUNTIME_CHECK_ACTIVE',
+  'EASYEDA_RUNTIME_INVENTORY_CAPTURE',
+  'EASYEDA_RUNTIME_INVENTORY_FILTER',
+  'EASYEDA_RUNTIME_INVENTORY_PATH',
+  'EASYEDA_RUNTIME_INVENTORY_TIMEOUT_MS',
+  'EASYEDA_TEST_PROJECT_ID',
+  'EASYEDA_TRANSACTION_SMOKE_REPORT_PATH',
+]);
+
 const PROJECT_VAR_PREFIXES = [
   'NODE_ENV',
   'LOG_LEVEL',
@@ -168,7 +191,7 @@ const PROJECT_VAR_PREFIXES = [
 ];
 
 export function detectUnknownEnvVars(env: Record<string, string | undefined>): string[] {
-  const knownKeys = new Set(Object.keys(EnvObjectSchema.shape));
+  const knownKeys = new Set([...Object.keys(EnvObjectSchema.shape), ...KNOWN_NON_SCHEMA_ENV_VARS]);
   const warnings: string[] = [];
   for (const key of Object.keys(env)) {
     if (knownKeys.has(key)) continue;
