@@ -28,17 +28,17 @@ describe('repository runtime policy', () => {
 
     expect(policy).toEqual({
       schemaVersion: 2,
-      node: { supportedMajor: 24, pinnedVersion: '24.18.0' },
-      pnpm: { pinnedVersion: '11.5.1' },
+      node: { supportedMajor: 24, pinnedVersion: '24.21.0' },
+      pnpm: { pinnedVersion: '11.28.0' },
       docker: {
         nodeAlpineImage:
-          'node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd',
+          'node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1',
       },
     });
     expect(read('.nvmrc').trim()).toBe(policy.node.pinnedVersion);
     expect(read('.node-version').trim()).toBe(policy.node.pinnedVersion);
     expect(packageJson.packageManager).toBe(`pnpm@${policy.pnpm.pinnedVersion}`);
-    expect(packageJson.engines).toMatchObject({ node: '>=24 <25', pnpm: '11.5.1' });
+    expect(packageJson.engines).toMatchObject({ node: '>=24 <25', pnpm: '11.28.0' });
     expect(read('.npmrc')).toBe('');
     expect(read('pnpm-workspace.yaml')).not.toContain('engineStrict: true');
     expect(packageJson.scripts?.['runtime:check']).toBe(
@@ -71,12 +71,12 @@ describe('repository runtime policy', () => {
   });
 
   it('guards server startup against unsupported Node majors', () => {
-    expect(() => assertSupportedNodeRuntime('24.18.0')).not.toThrow();
+    expect(() => assertSupportedNodeRuntime('24.21.0')).not.toThrow();
     expect(() => assertSupportedNodeRuntime('26.0.0')).toThrow(
       'easyeda-mcp-pro requires Node.js 24.x',
     );
     expect(() => assertSupportedNodeRuntime('not-a-version')).toThrow(
-      'Install the pinned 24.18.0 runtime',
+      'Install the pinned 24.21.0 runtime',
     );
   });
 
@@ -90,7 +90,7 @@ describe('repository runtime policy', () => {
       });
 
     expect(
-      run(['--node-version', '24.18.0', '--pnpm-version', '11.5.1', '--require-pnpm']),
+      run(['--node-version', '24.21.0', '--pnpm-version', '11.28.0', '--require-pnpm']),
     ).toContain('Runtime preflight passed');
     expect(() => run(['--node-version', '26.0.0', '--node-only'])).toThrow(
       expect.objectContaining({
@@ -99,11 +99,11 @@ describe('repository runtime policy', () => {
       }),
     );
     expect(() =>
-      run(['--node-version', '24.18.0', '--pnpm-version', '11.5.2', '--require-pnpm']),
+      run(['--node-version', '24.21.0', '--pnpm-version', '11.5.2', '--require-pnpm']),
     ).toThrow(
       expect.objectContaining({
         status: 1,
-        stderr: expect.stringContaining('requires pnpm 11.5.1'),
+        stderr: expect.stringContaining('requires pnpm 11.28.0'),
       }),
     );
   });
@@ -121,7 +121,7 @@ describe('repository runtime policy', () => {
       .map(read)
       .join('\n');
 
-    expect(workflows.match(/24\.18\.0/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
+    expect(workflows.match(/24\.21\.0/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
     expect(workflows).not.toMatch(/node-version:\s*['"]?(?:24|26)['"]?\s*$/m);
     const ciWorkflow = read('.github/workflows/ci.yml');
     const qualityJob = ciWorkflow.slice(
@@ -129,9 +129,9 @@ describe('repository runtime policy', () => {
       ciWorkflow.indexOf('  test-matrix:'),
     );
     expect(qualityJob).toContain('name: quality (24)');
-    expect(qualityJob).toContain("node-version: '24.18.0'");
+    expect(qualityJob).toContain("node-version: '24.21.0'");
     expect(qualityJob).not.toContain('matrix:');
-    expect(ciWorkflow).toContain("node-version: '24.18.0'");
+    expect(ciWorkflow).toContain("node-version: '24.21.0'");
     expect(read('.github/workflows/ci.yml')).not.toContain("node-version: '26'");
     expect(workflows.match(/run: pnpm runtime:check/g)?.length ?? 0).toBeGreaterThanOrEqual(7);
   });
@@ -142,8 +142,8 @@ describe('repository runtime policy', () => {
     expect(dockerfile.match(new RegExp(`FROM ${policy.docker.nodeAlpineImage}`, 'g'))).toHaveLength(
       2,
     );
-    expect(dockerfile.match(/# node:24\.18\.0-alpine/g)).toHaveLength(2);
-    expect(dockerfile).toContain('corepack prepare pnpm@11.5.1 --activate');
+    expect(dockerfile.match(/# node:24\.21\.0-alpine/g)).toHaveLength(2);
+    expect(dockerfile).toContain('corepack prepare pnpm@11.28.0 --activate');
     expect(dockerfile).toContain('RUN node scripts/check-runtime.mjs --require-pnpm');
   });
 
@@ -166,9 +166,9 @@ describe('repository runtime policy', () => {
       .map(read)
       .join('\n');
 
-    expect(docs).toContain('24.18.0');
-    expect(docs).toContain('pnpm@11.5.1');
-    expect(docs).toContain('corepack prepare pnpm@11.5.1 --activate');
+    expect(docs).toContain('24.21.0');
+    expect(docs).toContain('pnpm@11.28.0');
+    expect(docs).toContain('corepack prepare pnpm@11.28.0 --activate');
     expect(docs).not.toContain('>=24 <27');
     expect(docs).not.toContain('>= 24 < 27');
     expect(docs).not.toContain('pnpm >= 11');

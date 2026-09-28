@@ -1,9 +1,9 @@
 # ── Multi-stage Build Stage ───────────────────────────────────
-# node:24.18.0-alpine
-FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS builder
+# node:24.21.0-alpine
+FROM node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS builder
 
 # Enable corepack for pnpm
-RUN corepack enable && corepack prepare pnpm@11.5.1 --activate
+RUN corepack enable && corepack prepare pnpm@11.28.0 --activate
 
 WORKDIR /app
 
@@ -35,8 +35,8 @@ RUN pnpm build:extension
 RUN pnpm --filter easyeda-mcp-pro deploy --legacy --prod --frozen-lockfile /prod
 
 # ── Production Runner Stage ────────────────────────────────────
-# node:24.18.0-alpine
-FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runner
+# node:24.21.0-alpine
+FROM node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runner
 
 WORKDIR /app
 
@@ -51,9 +51,9 @@ ENV ALLOWED_ORIGINS=
 # owned by the non-root "node" user baked into the official image (uid/gid 1000).
 COPY --from=builder --chown=node:node /prod ./
 
-# Keep the immutable Node base image while applying the reviewed Alpine OpenSSL
-# security patch published after that digest. Pin the patched runtime packages so
-# identical source cannot silently resolve to different versions on later builds.
+# Keep the immutable Node base image while retaining explicit reviewed Alpine
+# OpenSSL package versions. The 24.21.0 base already contains 3.5.8-r0; keeping
+# the package pins makes later rebuilds fail rather than silently drift.
 # The production process invokes Node directly and never needs npm, npx, or
 # corepack. Remove package-manager payloads from the runtime stage to reduce
 # image size and eliminate vulnerabilities in tooling that is not executed.

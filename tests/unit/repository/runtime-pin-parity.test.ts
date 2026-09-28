@@ -20,9 +20,9 @@ async function writeJson(path: string, value: unknown) {
 async function createCanonicalFixture() {
   const root = await mkdtemp(join(tmpdir(), 'runtime-pin-parity-'));
   temporaryRoots.push(root);
-  const nodeVersion = '24.18.0';
-  const pnpmVersion = '11.5.1';
-  const nodeImage = 'node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd';
+  const nodeVersion = '24.21.0';
+  const pnpmVersion = '11.28.0';
+  const nodeImage = 'node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1';
 
   await writeJson(join(root, 'config/runtime-policy.json'), {
     schemaVersion: 2,
@@ -121,7 +121,7 @@ describe('runtime pin parity', () => {
 
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain(
-      'Runtime pin parity check passed: Node.js 24.18.0; pnpm 11.5.1.',
+      'Runtime pin parity check passed: Node.js 24.21.0; pnpm 11.28.0.',
     );
   });
 
@@ -162,12 +162,12 @@ describe('runtime pin parity', () => {
     const root = await createCanonicalFixture();
     const workflowPath = join(root, '.github/workflows/ci.yml');
     const workflow = await readFile(workflowPath, 'utf8');
-    await writeFile(workflowPath, workflow.replace("      version: '11.5.1'\n", ''), 'utf8');
+    await writeFile(workflowPath, workflow.replace("      version: '11.28.0'\n", ''), 'utf8');
 
     const result = runChecker(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('every pnpm/setup step must pin version 11.5.1');
+    expect(result.stderr).toContain('every pnpm/setup step must pin version 11.28.0');
   });
 
   it('rejects Node, Docker, and documentation drift with file-specific diagnostics', async () => {
@@ -177,7 +177,7 @@ describe('runtime pin parity', () => {
     const dockerfile = await readFile(dockerPath, 'utf8');
     await writeFile(
       dockerPath,
-      dockerfile.replace('node:24.18.0-alpine', 'node:24.18.1-alpine'),
+      dockerfile.replace('node:24.21.0-alpine', 'node:24.18.1-alpine'),
       'utf8',
     );
     await writeFile(join(root, 'README.md'), 'runtime documentation without exact pins\n', 'utf8');
