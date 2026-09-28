@@ -11,7 +11,12 @@ import { fetchComponentPins } from './schematic-helpers.js';
 
 const apiCallInputSchema = z.object({
   path: z.string().regex(/^[A-Za-z]+_[A-Za-z0-9]+\.[A-Za-z][A-Za-z0-9_]*$/),
-  args: z.array(z.unknown()).default([]),
+  args: z
+    .array(z.unknown())
+    .default([])
+    .describe(
+      'Positional EasyEDA API arguments. For documented IPCB_Polygon parameters on PCB_PrimitiveRegion/Pour/Fill/Polyline create or modify and PCB_PrimitiveImage.create, pass {$polygon: [...]} or {$complexPolygon: [[...], ...]}; serialized __class/__methods descriptors are rejected.',
+    ),
   confirmWrite: z.boolean().default(false),
 });
 
@@ -294,7 +299,7 @@ function registerDiagnosticsApi(
     name: 'easyeda_api_call',
     title: 'Call EasyEDA API',
     description:
-      'Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. This is not raw JavaScript execution.',
+      'Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. Polygon-typed parameters use explicit $polygon/$complexPolygon tagged arguments. This is not raw JavaScript execution.',
     profile: 'full',
     evidence: ['runtime-probe', 'pro-api-types', 'official-docs'],
     risk: 'high',

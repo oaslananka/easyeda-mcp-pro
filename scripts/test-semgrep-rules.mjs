@@ -15,14 +15,23 @@ function runSemgrepRuleTests() {
       resolve(tempDirectory, 'security-rules.ts'),
     );
 
-    const result = spawnSync(process.env.SEMGREP_BIN ?? 'semgrep', ['--test', tempDirectory], {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        SEMGREP_SEND_METRICS: 'off',
+    const result = spawnSync(
+      process.env.SEMGREP_BIN ?? 'semgrep',
+      [
+        'test',
+        '--config',
+        join(tempDirectory, 'security-rules.yml'),
+        join(tempDirectory, 'security-rules.ts'),
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          SEMGREP_SEND_METRICS: 'off',
+        },
+        stdio: 'inherit',
       },
-      stdio: 'inherit',
-    });
+    );
 
     if (result.error) {
       throw result.error;

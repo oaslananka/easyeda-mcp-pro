@@ -20,7 +20,7 @@ jobs:
     name: quality (24)
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       # actions/checkout v6.0.3
@@ -85,7 +85,7 @@ jobs:
       - name: Upload server coverage to Codecov (trusted)
         id: server_coverage_upload_trusted
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -98,7 +98,7 @@ jobs:
       - name: Upload server coverage to Codecov (tokenless fork)
         id: server_coverage_upload_tokenless
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
           files: coverage/lcov.info
@@ -110,7 +110,7 @@ jobs:
       - name: Upload extension coverage to Codecov (trusted)
         id: extension_coverage_upload_trusted
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -123,7 +123,7 @@ jobs:
       - name: Upload extension coverage to Codecov (tokenless fork)
         id: extension_coverage_upload_tokenless
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
           files: easyeda-bridge-extension/coverage/lcov.info
@@ -135,7 +135,7 @@ jobs:
       - name: Upload server test results to Codecov
         id: server_test_results_upload
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -148,7 +148,7 @@ jobs:
       - name: Upload extension test results to Codecov
         id: extension_test_results_upload
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -260,9 +260,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             node-version: '24.18.0'
-          - os: windows-latest
+          - os: windows-2025
             node-version: '24.18.0'
           - os: macos-26
             node-version: '24.18.0'
@@ -297,7 +297,7 @@ jobs:
         run: node scripts/e2e/packed-install-doctor.mjs
 
   codeql:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       security-events: write
       actions: read

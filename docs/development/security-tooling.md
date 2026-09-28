@@ -12,7 +12,7 @@ Git hooks must remain quick and deterministic; cloud and CI scanners keep the br
 | Pull request | CI, CodeQL, Dependency Review, repository Semgrep rules, Trivy, Snyk App, and SonarQube Cloud  |
 | Release      | CycloneDX SBOM, npm provenance, GitHub artifact attestation, and SHA-pinned release automation |
 
-Static-security workflow tooling is content-addressed rather than version-only: Semgrep runs from an
+Static-security workflow tooling is content-addressed rather than version-only: Semgrep `1.178.0` runs from an
 OCI image pinned to its manifest SHA-256 digest, and pre-commit is installed from
 `.github/requirements/pre-commit.txt` with pip `--require-hashes`. Regenerate that lock from
 `.github/requirements/pre-commit.in` with Python 3.12 and `pip-tools==7.5.3` using
@@ -74,7 +74,7 @@ Snyk scans are explicit rather than Git-hook requirements. Authenticate when a m
 commercial AppSec view or wants to reproduce the GitHub App result locally:
 
 ```bash
-corepack pnpm dlx snyk@1.1306.1 auth
+corepack pnpm dlx snyk@1.1306.2 auth
 # Equivalent when Snyk is installed globally: snyk auth
 ```
 
@@ -91,7 +91,7 @@ push; the remote Snyk integration remains the organization-level source of truth
 
 ## Trivy container and configuration scans
 
-`.github/workflows/static-security-analysis.yml` uses the SHA-pinned Trivy Action with Trivy `v0.72.0` to scan:
+`.github/workflows/static-security-analysis.yml` uses the SHA-pinned Trivy Action with Trivy `v0.74.0` to scan:
 
 - Docker and repository configuration for high and critical misconfigurations,
 - the production Docker image for fixed high and critical vulnerabilities.
@@ -107,12 +107,12 @@ Install **SonarQube for IDE** in the editor and bind this workspace to the Sonar
 `oaslananka_easyeda-mcp-pro` using **Connected Mode**. Connected Mode applies the same rules and
 new-code settings used by the pull-request Quality Gate while code is being edited.
 
-Do not add a local Sonar scanner to Git hooks. SonarQube Cloud uses GitHub App automatic analysis; the provider-owned `SonarCloud Code Analysis` check depends on branch and pull-request context and remains authoritative in GitHub. The blocking check identity and failure runbook are documented in [Changed-code quality gates](../QUALITY_GATES.md).
+Do not add a local Sonar scanner to Git hooks. SonarQube Cloud uses GitHub App automatic analysis; the provider-owned `SonarCloud Code Analysis` check remains an advisory signal in GitHub and repository workflows do not consume `SONAR_TOKEN`. Codecov owns JavaScript/TypeScript coverage. The blocking check identity and failure runbook are documented in [Changed-code quality gates](../QUALITY_GATES.md).
 
 ## CI ownership
 
 - CodeQL provides the GitHub-native general SAST signal.
-- Semgrep blocks only on repository-owned custom rules.
+- Semgrep `semgrep` is a required merge check and blocks only on repository-owned custom rules; the separate Semgrep Cloud App check is advisory.
 - Dependency Review blocks high-severity dependency changes.
 - Trivy reports Docker/configuration and image findings.
 - Snyk and SonarQube Cloud remain external integrations rather than duplicate local gates.

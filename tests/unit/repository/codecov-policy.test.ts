@@ -81,7 +81,7 @@ describe('Codecov analytics policy', () => {
   it('uploads coverage and both test reports with pinned Codecov tooling', () => {
     const workflow = readText('.github/workflows/ci.yml');
     const gitignore = readText('.gitignore');
-    const action = 'codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16';
+    const action = 'codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5';
 
     expect(workflow.match(new RegExp(action, 'g'))).toHaveLength(6);
     expect(workflow).toContain('run: node scripts/install-codecov-cli.mjs');

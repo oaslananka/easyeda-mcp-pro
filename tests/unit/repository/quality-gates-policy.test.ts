@@ -25,6 +25,9 @@ interface QualityGatePolicy {
     trustedSecret: string;
     forkUploadMode: string;
     components: Record<string, { flag: string; path: string }>;
+    actionVersion: string;
+    actionCommit: string;
+    cliVersion: string;
   };
   sonarQubeCloud: {
     projectKey: string;
@@ -33,6 +36,25 @@ interface QualityGatePolicy {
     repositorySecretRequired: boolean;
     qualityGateName: string;
     newCodePeriodMode: string;
+    coverageAuthority: string;
+    automaticAnalysisCoverageSupported: boolean;
+    requiredCheck: boolean;
+    mergeRole: string;
+  };
+  semgrep: {
+    version: string;
+    imageDigest: string;
+    rulesFile: string;
+    requiredCheck: string;
+    cloudAppAdvisory: boolean;
+    ruleTestsCommand: string;
+  };
+  codacy: {
+    integration: string;
+    configFile: string;
+    requiredCheck: boolean;
+    generatedArtifactsExcluded: boolean;
+    sourceAndTestsAnalyzed: boolean;
   };
 }
 
@@ -40,23 +62,21 @@ const readPolicy = (): QualityGatePolicy =>
   JSON.parse(readText('config/quality-gates.json')) as QualityGatePolicy;
 
 describe('changed-code quality gate policy', () => {
-  it('records blocking Codecov and SonarQube Cloud check identities', () => {
+  it('records current Codecov, SonarQube, Semgrep, and Codacy policy', () => {
     const policy = readPolicy();
 
     expect(policy.schemaVersion).toBe(1);
     expect(policy.requiredPullRequestChecks).toEqual([
       { context: 'codecov/patch', appId: 254, provider: 'Codecov' },
-      {
-        context: 'SonarCloud Code Analysis',
-        appId: 12526,
-        provider: 'SonarQube Cloud',
-      },
     ]);
     expect(policy.codecov).toMatchObject({
       patchTargetPercent: 80,
       thresholdPercent: 2,
       trustedSecret: 'CODECOV_TOKEN',
       forkUploadMode: 'tokenless-public-repository',
+      actionVersion: '7.1.1',
+      actionCommit: '303a32d7a59b442fa8d48b6a1cc6825c09c847a5',
+      cliVersion: '11.3.1',
       components: {
         server: { flag: 'server', path: 'src/' },
         extension: { flag: 'extension', path: 'easyeda-bridge-extension/src/' },
@@ -69,8 +89,27 @@ describe('changed-code quality gate policy', () => {
       repositorySecretRequired: false,
       qualityGateName: 'Sonar way',
       newCodePeriodMode: 'previous_version',
+      coverageAuthority: 'codecov',
+      automaticAnalysisCoverageSupported: false,
+      requiredCheck: false,
+      mergeRole: 'advisory',
     });
-    expect(policy.lastVerifiedAt).toBe('2026-08-25');
+    expect(policy.semgrep).toEqual({
+      version: '1.178.0',
+      imageDigest: 'sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b',
+      rulesFile: '.semgrep.yml',
+      requiredCheck: 'semgrep',
+      cloudAppAdvisory: true,
+      ruleTestsCommand: 'semgrep test --config <rules> <fixture>',
+    });
+    expect(policy.codacy).toEqual({
+      integration: 'github-app',
+      configFile: '.codacy.yml',
+      requiredCheck: false,
+      generatedArtifactsExcluded: true,
+      sourceAndTestsAnalyzed: true,
+    });
+    expect(policy.lastVerifiedAt).toBe('2026-09-28');
   });
 
   it('enforces an explicit blocking patch target while retaining separate components', () => {
@@ -131,8 +170,8 @@ describe('changed-code quality gate policy', () => {
       workflow.indexOf('\n  codeql:'),
     );
 
-    expect(matrix).toContain('os: ubuntu-latest');
-    expect(matrix).toContain('os: windows-latest');
+    expect(matrix).toContain('os: ubuntu-24.04');
+    expect(matrix).toContain('os: windows-2025');
     expect(matrix).toContain('os: macos-26');
     expect(matrix).toContain('node scripts/e2e/packed-install-doctor.mjs');
     expect(matrix).not.toContain('node dist/index.js --doctor');
@@ -150,11 +189,11 @@ describe('changed-code quality gate policy', () => {
     expect(smoke).toContain("[installedEntry, '--doctor']");
   });
 
-  it('keeps SonarQube Cloud on the GitHub App path without repository workflow credentials', () => {
+  it('keeps SonarQube Cloud on provider-owned automatic analysis without repo credentials', () => {
     const workflowsDir = resolve(repoRoot, '.github/workflows');
     const workflows = readdirSync(workflowsDir)
       .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
-      .map((name) => readText(`.github/workflows/${name}`))
+      .map((name) => readText('.github/workflows/' + name))
       .join('\n');
     const runbook = readText('docs/QUALITY_GATES.md');
 
@@ -162,8 +201,8 @@ describe('changed-code quality gate policy', () => {
     expect(workflows).not.toContain('sonarqube-scan-action');
     expect(runbook).toContain('GitHub App automatic analysis');
     expect(runbook).toContain('SonarCloud Code Analysis');
-    expect(runbook).toContain('CODECOV_TOKEN');
-    expect(runbook).toContain('tokenless');
+    expect(runbook).toContain('advisory');
+    expect(runbook).toContain('Codecov is the coverage authority');
     expect(runbook).toContain('Failure triage');
     expect(runbook).toContain('negative probe');
   });

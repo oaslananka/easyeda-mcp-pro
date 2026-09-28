@@ -33,7 +33,7 @@ permissions:
 jobs:
   plan:
     name: Resolve publication plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       release_run: ${{ steps.plan.outputs.release_run }}
       release_tag: ${{ steps.plan.outputs.release_tag }}
@@ -100,7 +100,7 @@ jobs:
     name: Gate and publish immutable release
     if: needs.plan.outputs.release_run == 'true'
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: publish-${{ needs.plan.outputs.release_tag }}
       cancel-in-progress: false

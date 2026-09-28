@@ -1,0 +1,11 @@
+---
+exclude_paths:
+  - 'node_modules/**'
+  - 'dist/**'
+  - 'easyeda-bridge-extension/dist/**'
+  - 'coverage/**'
+  - 'easyeda-bridge-extension/coverage/**'
+  - 'docs/.vitepress/**'
+  - 'artifacts/**'
+  - '**/*.eext'
+  - '**/*.tgz'

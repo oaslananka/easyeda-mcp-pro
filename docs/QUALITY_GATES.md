@@ -1,13 +1,15 @@
 # Changed-code quality gates
 
-Pull requests are protected by two provider-owned changed-code checks:
+Pull requests use a layered changed-code quality model:
 
-| Check context              | Owner              | Blocking rule                                                                                                  |
-| -------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `codecov/patch`            | Codecov GitHub App | At least 80% patch coverage, with a two-percentage-point tolerance. Missing coverage or failed CI is an error. |
-| `SonarCloud Code Analysis` | SonarQube Cloud    | The configured new-code Quality Gate must pass.                                                                |
+| Check / gate               | Owner                      | Merge role                                                                                                      |
+| -------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `codecov/patch`            | Codecov GitHub App         | Required direct check: at least 80% patch coverage with a two-point tolerance.                                  |
+| `semgrep`                  | Repository GitHub Actions  | Required direct check: project-specific security rules must pass.                                               |
+| `SonarCloud Code Analysis` | SonarQube Cloud GitHub App | Advisory signal: automatic analysis remains enabled, but this provider check is not branch-protection-required. |
+| Codacy                     | Codacy GitHub App          | Advisory signal; generated/package outputs are excluded by `.codacy.yml`.                                       |
 
-The exact check identities, GitHub App IDs, and coverage policy are recorded in [`config/quality-gates.json`](../config/quality-gates.json). These names are branch-protection interfaces and must not be renamed without updating the live `main` protection and the repository policy tests in the same change.
+The exact provider/tool identities and coverage policy are recorded in [`config/quality-gates.json`](../config/quality-gates.json). Direct required-check names are branch-protection interfaces and must not be renamed without updating the live `main` ruleset and repository policy tests in the same change.
 
 ## Why the patch target is 80%
 
@@ -19,15 +21,15 @@ The umbrella patch status intentionally has no Codecov `flags` filter. Codecov c
 
 Trusted pushes and same-repository pull requests upload coverage and JUnit reports with the repository secret `CODECOV_TOKEN`. The secret appears only in the Ubuntu `quality (24)` job and is never passed to commands that execute untrusted fork code.
 
-Public fork and Dependabot pull requests use Codecov's tokenless public-repository coverage upload. They upload only the two LCOV reports; authenticated Test Analytics and bundle uploads remain trusted-event only. Both paths use the repository's SHA-256-verified Codecov CLI and SHA-pinned GitHub Action.
+Public fork and Dependabot pull requests use Codecov's tokenless public-repository coverage upload. They upload only the two LCOV reports; authenticated Test Analytics and bundle uploads remain trusted-event only. Both paths use the repository's SHA-256-verified Codecov CLI `11.3.1` and the Codecov Action `7.1.1` pinned to commit `303a32d7a59b442fa8d48b6a1cc6825c09c847a5`.
 
 ## SonarQube Cloud ownership
 
-SonarQube Cloud uses **GitHub App automatic analysis** for project `oaslananka_easyeda-mcp-pro`. The provider publishes `SonarCloud Code Analysis` directly on the default branch and pull requests. No repository workflow scanner and no `SONAR_TOKEN` are required, so untrusted pull requests cannot receive a Sonar credential.
+SonarQube Cloud uses **GitHub App automatic analysis** for project `oaslananka_easyeda-mcp-pro`. Repository workflows do not invoke SonarScanner and do not consume `SONAR_TOKEN`, so fork and Dependabot pull requests never require a Sonar credential. The provider may publish `SonarCloud Code Analysis` on pull requests, but that check is **advisory**, not a branch-protection requirement.
 
-Maintainers should use SonarQube for IDE Connected Mode for editor feedback. The provider-owned GitHub check remains authoritative for merge decisions.
+Codecov is the coverage authority for this repository. SonarQube Cloud's JavaScript/TypeScript coverage documentation requires CI-based analysis to import LCOV, while CI-based analysis cannot run concurrently with Automatic Analysis. The repository therefore keeps Sonar automatic analysis for maintainability, reliability, security, duplication, and hotspot feedback, and keeps changed-code coverage enforcement centralized in `codecov/patch`.
 
-Live provider state was re-verified on **2026-08-25**. The project uses the default **Sonar way** Quality Gate and a **previous version** new-code period. That gate is rating-based: it enforces new-code reliability, security, maintainability, duplication, and security-hotspot review conditions rather than requiring the raw issue count to be zero. Legacy findings must still be fixed or explicitly dispositioned; the six remaining legacy vulnerability records are the safe-by-context cases documented in #536/#537. Repository workflows do not consume `SONAR_TOKEN`; GitHub App automatic analysis remains the authoritative path.
+Live provider state was re-verified on **2026-09-28**. On PR #599, Sonar's public API recorded the prior head with Quality Gate `ERROR` because `new_coverage` was 64.6% against an 80% condition even though the repository's Codecov patch coverage was 87.09%; on the next head, the provider check was not reported at all while all repository-owned required checks were green. Requiring that provider check would therefore make branch protection depend on a signal that automatic analysis cannot populate with the repository's LCOV data and that may not be delivered for every head.
 
 ## Failure triage
 
@@ -38,13 +40,13 @@ When `codecov/patch` fails:
 3. Add behavior-focused tests, rerun CI, and verify the status belongs to the current head SHA.
 4. Treat a missing report or provider error as a gate failure; do not bypass it by making the status informational.
 
-When `SonarCloud Code Analysis` fails:
+When `SonarCloud Code Analysis` reports a failure:
 
 1. Open the provider check and inspect new issues, accepted issues, and security hotspots.
 2. Fix valid findings or record a technically justified disposition in the pull request.
 3. Re-run or wait for automatic analysis and verify the check belongs to the current head SHA.
-4. Escalate provider outages separately; do not add a repository token-based scanner as an unreviewed fallback.
+4. Treat provider outages or missing decoration as advisory-provider incidents; do not weaken repository-owned required checks or add a second Sonar analysis mode while Automatic Analysis is enabled.
 
 ## Negative-gate verification
 
-After policy or provider changes, maintainers create a temporary, explicitly non-mergeable **negative probe** pull request. It deliberately adds uncovered executable code and a Sonar new-code violation, records that both required checks fail and block merging, then closes the pull request and deletes the branch without merging. The probe evidence is linked from the tracking issue.
+After policy or provider changes, maintainers create a temporary, explicitly non-mergeable **negative probe** pull request. It deliberately adds uncovered executable code and, when relevant, a repository-owned Semgrep violation; records that the required Codecov/Semgrep gates block merging; separately confirms Sonar advisory findings are visible when the provider reports them; then closes the pull request and deletes the branch without merging.

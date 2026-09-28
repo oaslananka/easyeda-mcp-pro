@@ -32,13 +32,13 @@ jobs:
           persist-credentials: false
 
       - name: Verify Semgrep version
-        run: docker run --rm semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d semgrep --version
+        run: docker run --rm semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b semgrep --version
 
       - name: Validate repository rules
         run: >-
           docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp
           --volume "$GITHUB_WORKSPACE:/src" --workdir /src
-          semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d
+          semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b
           semgrep --validate --config .semgrep.yml
 
       - name: Test repository rules
@@ -50,8 +50,8 @@ jobs:
           cp tests/semgrep/security-rules.fixture "$rules_dir/security-rules.ts"
           docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp \
             --volume "$GITHUB_WORKSPACE:/src" --workdir /src \
-            semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d \
-            semgrep --test .tmp-semgrep-rules
+            semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b \
+            semgrep test --config .tmp-semgrep-rules/security-rules.yml .tmp-semgrep-rules/security-rules.ts
 
       - name: Scan repository
         id: semgrep-scan
@@ -59,7 +59,7 @@ jobs:
         run: >-
           docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp
           --volume "$GITHUB_WORKSPACE:/src" --workdir /src
-          semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d
+          semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b
           semgrep scan --config .semgrep.yml --error --metrics=off
           --sarif-output=semgrep.sarif .
 
@@ -124,7 +124,7 @@ jobs:
         with:
           scan-type: 'config'
           scan-ref: '.'
-          version: 'v0.72.0'
+          version: 'v0.74.0'
           format: 'sarif'
           output: 'trivy-config.sarif'
           severity: 'HIGH,CRITICAL'
