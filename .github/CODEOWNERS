@@ -14,7 +14,6 @@
 /docs/OPENSSF_BEST_PRACTICES.md @oaslananka
 /tests/unit/repository/governance-policy.test.ts @oaslananka
 /codecov.yml @oaslananka
-/sonar-project.properties @oaslananka
 /.codacy.yml @oaslananka
 /tests/unit/repository/codacy-policy.test.ts @oaslananka
 /config/quality-gates.json @oaslananka

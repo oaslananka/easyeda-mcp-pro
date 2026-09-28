@@ -6,6 +6,11 @@
       "context": "codecov/patch",
       "appId": 254,
       "provider": "Codecov"
+    },
+    {
+      "context": "SonarCloud Code Analysis",
+      "appId": 12526,
+      "provider": "SonarQube Cloud"
     }
   ],
   "codecov": {
@@ -29,21 +34,13 @@
   },
   "sonarQubeCloud": {
     "projectKey": "oaslananka_easyeda-mcp-pro",
-    "organization": "oaslananka",
-    "analysisMethod": "github-actions-ci",
-    "scannerActionVersion": "8.2.2",
-    "scannerActionCommit": "ba9859eae8dd6bd29e412f25ddbbef3d032000f4",
-    "repositorySecretRequired": true,
-    "repositorySecret": "SONAR_TOKEN",
-    "trustedEventGate": "quality (24)",
-    "directRequiredCheck": false,
+    "analysisMethod": "github-app-automatic-analysis",
+    "checkContext": "SonarCloud Code Analysis",
+    "repositorySecretRequired": false,
     "qualityGateName": "Sonar way",
     "newCodePeriodMode": "previous_version",
-    "coverageReportPaths": ["coverage/lcov.info", "reports/sonar-extension.lcov"],
-    "coverageGateAuthority": "codecov",
-    "automaticAnalysisMustBeDisabled": true,
-    "qualityGateWait": true,
-    "qualityGateTimeoutSeconds": 300
+    "coverageAuthority": "codecov",
+    "automaticAnalysisCoverageSupported": false
   },
   "semgrep": {
     "version": "1.178.0",

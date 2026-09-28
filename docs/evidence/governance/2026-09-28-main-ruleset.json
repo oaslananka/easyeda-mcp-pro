@@ -19,7 +19,7 @@
       "pull_request",
       "required_status_checks"
     ],
-    "updatedAt": "2026-09-28T02:31:12.504Z"
+    "updatedAt": "2026-09-28T03:46:00Z"
   },
   "branchProtection": {
     "requiredChecks": [
@@ -28,7 +28,8 @@
       "semgrep",
       "Socket Security: Project Report",
       "dependency-review",
-      "codecov/patch"
+      "codecov/patch",
+      "SonarCloud Code Analysis"
     ],
     "strictStatusChecks": true,
     "requiredApprovals": 0,
@@ -44,8 +45,8 @@
   "notes": [
     "The repository-level main-protection ruleset is the canonical enforcement mechanism for main.",
     "Mergify Merge Protections is not a required status check.",
-    "SonarQube Cloud is enforced inside the trusted-event quality (24) job rather than as a direct required provider check, so fork pull requests never receive SONAR_TOKEN.",
     "The repository-owned semgrep job is required so project-specific security rules are enforced before merge.",
+    "SonarQube Cloud automatic analysis remains the provider-owned required check; repository workflows do not consume SONAR_TOKEN.",
     "The ruleset has no bypass actors and required status checks use strict/up-to-date enforcement."
   ]
 }

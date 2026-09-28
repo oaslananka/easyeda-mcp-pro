@@ -37,7 +37,6 @@
       "/docs/evidence/governance/",
       "/.codacy.yml",
       "/tests/unit/repository/codacy-policy.test.ts",
-      "/sonar-project.properties",
       "/scripts/test-semgrep-rules.mjs"
     ],
     "release": [
@@ -78,7 +77,8 @@
       "semgrep",
       "Socket Security: Project Report",
       "dependency-review",
-      "codecov/patch"
+      "codecov/patch",
+      "SonarCloud Code Analysis"
     ],
     "strictStatusChecks": true,
     "requiredApprovals": 0,

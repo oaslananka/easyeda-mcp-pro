@@ -411,7 +411,7 @@ The required quality gate runs `pnpm check:architecture` against `.github/archit
 
 - `main` is protected by the active repository ruleset `main-protection`; there are no bypass actors.
 - The current solo-maintainer policy has required human approvals: `0`. Independent approval becomes mandatory when a second eligible human maintainer has review access, as defined in [Repository Governance](REPOSITORY_GOVERNANCE.md).
-- Required status checks must pass on an up-to-date head: `quality (24)`, `codeql`, `semgrep`, `Socket Security: Project Report`, `dependency-review`, and `codecov/patch`.
+- Required status checks must pass on an up-to-date head: `quality (24)`, `codeql`, `semgrep`, `Socket Security: Project Report`, `dependency-review`, `codecov/patch`, and `SonarCloud Code Analysis`.
 - Pull requests must resolve review conversations before merge.
 - Linear history is enforced and the allowed merge method is squash; force pushes and branch deletion are blocked.
 
