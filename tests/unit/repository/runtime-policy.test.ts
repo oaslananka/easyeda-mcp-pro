@@ -41,7 +41,6 @@ describe('repository runtime policy', () => {
     expect(packageJson.engines).toMatchObject({ node: '>=24 <25', pnpm: '11.5.1' });
     expect(read('.npmrc')).toBe('');
     expect(read('pnpm-workspace.yaml')).not.toContain('engineStrict: true');
-    expect(read('pnpm-workspace.yaml')).toContain('minimumReleaseAge: 10080');
     expect(packageJson.scripts?.['runtime:check']).toBe(
       'node scripts/check-runtime.mjs --require-pnpm',
     );

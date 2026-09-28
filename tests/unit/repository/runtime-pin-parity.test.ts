@@ -39,10 +39,7 @@ async function createCanonicalFixture() {
   });
   await write(join(root, '.node-version'), `${nodeVersion}\n`);
   await write(join(root, '.nvmrc'), `${nodeVersion}\n`);
-  await write(
-    join(root, 'pnpm-workspace.yaml'),
-    'packages:\n  - easyeda-bridge-extension\n\nminimumReleaseAge: 10080\n',
-  );
+  await write(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - easyeda-bridge-extension\n');
   await writeJson(join(root, 'package.json'), {
     packageManager: `pnpm@${pnpmVersion}`,
     engines: {

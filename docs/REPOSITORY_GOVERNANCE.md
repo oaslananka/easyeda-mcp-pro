@@ -130,8 +130,9 @@ Release-specific emergency publication additionally follows [`RELEASE_POLICY.md`
 Renovate is the configured sole automated dependency-update PR source for npm packages and GitHub Actions. Platform Dependabot alerts and security updates remain enabled for vulnerability detection. The hosted provider is an account-level prerequisite: the Mend Renovate App must have repository access and run the repository in Interactive mode. `.github/renovate.json` alone does not prove the provider is active; a Renovate-created Dependency Dashboard or Renovate-authored update activity is the operational evidence.
 
 - Patch/minor devDependency updates may auto-merge only after all required checks pass.
-- Runtime dependency and major-version updates require manual maintainer review.
-- npm updates observe the configured minimum release age and vulnerability prioritization.
+- Lockfile maintenance may auto-merge only after all required checks pass.
+- Runtime dependencies, GitHub Actions, pre-commit hooks, and major-version updates require manual maintainer review.
+- Vulnerability remediation is not delayed by a release-age timer.
 - Lockfile maintenance runs on the documented schedule.
 - Dependency exceptions require a repository-tracked allowlist entry with owner, review date, and expiry.
 

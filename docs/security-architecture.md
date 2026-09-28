@@ -404,7 +404,6 @@ The required quality gate runs `pnpm check:architecture` against `.github/archit
 - `pnpm security:audit` fails closed if a registry-backed `pnpm audit --json` attempt exceeds 300 seconds. A structured audit error payload is retried exactly once; a second error still fails closed and emits JSON/summary evidence. CI applies an 11-minute step timeout across both bounded attempts. `DEPENDENCY_AUDIT_TIMEOUT_MS` is available only as a bounded per-attempt operational override (1–900 seconds).
 - Runtime dependencies require manual review — never auto-merged.
 - Patch/minor devDependencies auto-merge if CI passes.
-- Minimum release age of 7 days before Renovate creates a PR (mitigates zero-day package poisoning).
 - Vulnerability alerts via OSV database.
 
 ### 9.3 Branch Protection
@@ -507,7 +506,7 @@ The required quality gate runs `pnpm check:architecture` against `.github/archit
 #### T8: Dependency supply chain attack
 
 - **Risk**: Compromised dependency introduces malicious code.
-- **Mitigation**: SHA-pinned actions, 7-day minimum release age, manual review of runtime dep upgrades, OSV vulnerability scanning, Socket.dev PR scanning.
+- **Mitigation**: SHA-pinned actions, manual review of runtime dependency and automation upgrades, OSV vulnerability scanning, Socket.dev PR scanning, and blocking dependency audit/Dependency Review gates.
 - **Residual risk**: Low-Medium. Zero-day in a widely-used dependency may not be detected immediately.
 
 #### T9: Bridge connection hijacking
