@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateReleasePleaseEligibility } from '../../../scripts/release-please-eligibility.mjs';
+import { evaluateReleasePleaseEligibility } from '../../../scripts/release-please-eligibility-lib.mjs';
 
 describe('Release Please eligibility', () => {
   it('runs normally while repository metadata is stable', () => {
