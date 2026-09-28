@@ -37,7 +37,7 @@ The release PR, or the public issue/PR supplied to a manual workflow dispatch, m
 
 1. the exact source commit and intended tag;
 2. channel, SemVer rationale, candidate identity, and promotion decision;
-3. passing CI, CodeQL, Semgrep, dependency audit/review, Sonar quality gate, and Codecov changed-code status;
+3. passing required CI, CodeQL, Semgrep, dependency audit/review, and Codecov changed-code status, plus disposition of any SonarQube Cloud advisory findings reported for the head;
 4. server and extension test totals, coverage summary, build results, and extension size-budget results;
 5. Docker startup smoke evidence;
 6. SBOM, npm provenance, artifact-attestation, portable Sigstore bundle and in-toto provenance asset, and extension checksum expectations;
