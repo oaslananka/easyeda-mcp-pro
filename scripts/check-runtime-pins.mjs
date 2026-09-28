@@ -207,7 +207,7 @@ export async function inspectRuntimePinParity(root = defaultRepoRoot) {
   expectEqual(errors, '.nvmrc', (await readRequired(root, '.nvmrc', errors)).trim(), nodeVersion);
 
   const workspace = await readRequired(root, 'pnpm-workspace.yaml', errors);
-  expectContains(errors, 'pnpm-workspace.yaml', workspace, 'engineStrict: true');
+  expectNotContains(errors, 'pnpm-workspace.yaml', workspace, 'engineStrict: true');
   expectContains(errors, 'pnpm-workspace.yaml', workspace, 'minimumReleaseAge: 10080');
 
   const npmrc = await readOptional(root, '.npmrc', errors);
