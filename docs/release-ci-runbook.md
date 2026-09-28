@@ -105,6 +105,18 @@ git rebase main
 git push --force-with-lease
 ```
 
+### Release candidate has stale live compatibility evidence
+
+**Symptoms**: a `release/` candidate PR fails `quality (24)` at **Verify release compatibility evidence**.
+
+**Action**: do not merge the candidate. Run the required disposable-project live EasyEDA validation for the exact candidate, record commit-bound evidence, regenerate the compatibility matrix, and rerun the PR checks. Do not bypass the gate by renaming the branch or relying on publication-time checks.
+
+### Stable Release Please PR appears while `main` is prerelease
+
+**Symptoms**: Release Please proposes a stable PR while `package.json` is still `X.Y.Z-rc.N` and no promotion commit has been reviewed.
+
+**Action**: close the unexpected release PR and inspect the **Resolve stable Release Please eligibility** step. Ordinary prerelease `main` pushes intentionally keep the manager dormant. Stable generation resumes only when the latest `main` commit contains a matching `Release-As: X.Y.Z`; a mismatched target fails closed.
+
 ## Dependency PRs: Dependabot vs Renovate
 
 This repository is configured to use **Renovate** as the sole dependency version-update provider. Dependabot version-update configuration is intentionally absent to avoid duplicate PRs; GitHub's Dependabot alert/security-update features remain independent.
