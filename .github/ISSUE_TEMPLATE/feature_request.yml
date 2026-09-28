@@ -1,4 +1,3 @@
----
 name: Feature Request 💡
 description: Suggest a new tool, API integration, or capability for easyeda-mcp-pro.
 labels: ['enhancement']
@@ -30,7 +29,7 @@ body:
     attributes:
       label: Risk Class
       options:
-        - none
+        - No special risk
         - risk:agent-safety
         - risk:supply-chain
         - security-sensitive
