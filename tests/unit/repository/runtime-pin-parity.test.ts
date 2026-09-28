@@ -67,9 +67,11 @@ async function createCanonicalFixture() {
   await write(
     join(root, '.github/workflows/ci.yml'),
     `steps:\n` +
-      `  - uses: pnpm/action-setup@0123456789012345678901234567890123456789\n` +
+      `  - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024\n` +
       `    with:\n` +
       `      version: '${pnpmVersion}'\n` +
+      `      install: false\n` +
+      `      node-version-file: false\n` +
       `  - uses: actions/setup-node@0123456789012345678901234567890123456789\n` +
       `    with:\n` +
       `      node-version: '${nodeVersion}'\n`,
@@ -151,7 +153,7 @@ describe('runtime pin parity', () => {
     const result = runChecker(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('every pnpm/action-setup step must pin version 11.5.1');
+    expect(result.stderr).toContain('every pnpm/setup step must pin version 11.5.1');
   });
 
   it('rejects Node, Docker, and documentation drift with file-specific diagnostics', async () => {
