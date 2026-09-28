@@ -6,11 +6,6 @@
       "context": "codecov/patch",
       "appId": 254,
       "provider": "Codecov"
-    },
-    {
-      "context": "SonarCloud Code Analysis",
-      "appId": 12526,
-      "provider": "SonarQube Cloud"
     }
   ],
   "codecov": {
@@ -40,7 +35,9 @@
     "qualityGateName": "Sonar way",
     "newCodePeriodMode": "previous_version",
     "coverageAuthority": "codecov",
-    "automaticAnalysisCoverageSupported": false
+    "automaticAnalysisCoverageSupported": false,
+    "requiredCheck": false,
+    "mergeRole": "advisory"
   },
   "semgrep": {
     "version": "1.178.0",

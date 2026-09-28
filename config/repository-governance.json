@@ -77,8 +77,7 @@
       "semgrep",
       "Socket Security: Project Report",
       "dependency-review",
-      "codecov/patch",
-      "SonarCloud Code Analysis"
+      "codecov/patch"
     ],
     "strictStatusChecks": true,
     "requiredApprovals": 0,

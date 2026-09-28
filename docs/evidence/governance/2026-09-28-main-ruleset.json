@@ -19,7 +19,7 @@
       "pull_request",
       "required_status_checks"
     ],
-    "updatedAt": "2026-09-28T03:46:00Z"
+    "updatedAt": "2026-09-28T04:07:00Z"
   },
   "branchProtection": {
     "requiredChecks": [
@@ -28,8 +28,7 @@
       "semgrep",
       "Socket Security: Project Report",
       "dependency-review",
-      "codecov/patch",
-      "SonarCloud Code Analysis"
+      "codecov/patch"
     ],
     "strictStatusChecks": true,
     "requiredApprovals": 0,
@@ -46,7 +45,8 @@
     "The repository-level main-protection ruleset is the canonical enforcement mechanism for main.",
     "Mergify Merge Protections is not a required status check.",
     "The repository-owned semgrep job is required so project-specific security rules are enforced before merge.",
-    "SonarQube Cloud automatic analysis remains the provider-owned required check; repository workflows do not consume SONAR_TOKEN.",
+    "SonarQube Cloud remains enabled with GitHub App automatic analysis but is advisory rather than required because JS/TS coverage reports are unavailable under automatic analysis and provider check delivery can otherwise deadlock the protected branch.",
+    "Codecov is the blocking changed-code coverage authority.",
     "The ruleset has no bypass actors and required status checks use strict/up-to-date enforcement."
   ]
 }

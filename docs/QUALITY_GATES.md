@@ -2,12 +2,12 @@
 
 Pull requests use a layered changed-code quality model:
 
-| Check / gate               | Owner                      | Merge role                                                                     |
-| -------------------------- | -------------------------- | ------------------------------------------------------------------------------ |
-| `codecov/patch`            | Codecov GitHub App         | Required direct check: at least 80% patch coverage with a two-point tolerance. |
-| `semgrep`                  | Repository GitHub Actions  | Required direct check: project-specific security rules must pass.              |
-| `SonarCloud Code Analysis` | SonarQube Cloud GitHub App | Required direct check: the configured new-code Quality Gate must pass.         |
-| Codacy                     | Codacy GitHub App          | Advisory signal; generated/package outputs are excluded by `.codacy.yml`.      |
+| Check / gate               | Owner                      | Merge role                                                                                                      |
+| -------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `codecov/patch`            | Codecov GitHub App         | Required direct check: at least 80% patch coverage with a two-point tolerance.                                  |
+| `semgrep`                  | Repository GitHub Actions  | Required direct check: project-specific security rules must pass.                                               |
+| `SonarCloud Code Analysis` | SonarQube Cloud GitHub App | Advisory signal: automatic analysis remains enabled, but this provider check is not branch-protection-required. |
+| Codacy                     | Codacy GitHub App          | Advisory signal; generated/package outputs are excluded by `.codacy.yml`.                                       |
 
 The exact provider/tool identities and coverage policy are recorded in [`config/quality-gates.json`](../config/quality-gates.json). Direct required-check names are branch-protection interfaces and must not be renamed without updating the live `main` ruleset and repository policy tests in the same change.
 
@@ -25,11 +25,11 @@ Public fork and Dependabot pull requests use Codecov's tokenless public-reposito
 
 ## SonarQube Cloud ownership
 
-SonarQube Cloud uses **GitHub App automatic analysis** for project `oaslananka_easyeda-mcp-pro`. The provider publishes `SonarCloud Code Analysis` directly on the default branch and pull requests. Repository workflows do not invoke SonarScanner and do not consume `SONAR_TOKEN`, so fork and Dependabot pull requests never require a Sonar credential.
+SonarQube Cloud uses **GitHub App automatic analysis** for project `oaslananka_easyeda-mcp-pro`. Repository workflows do not invoke SonarScanner and do not consume `SONAR_TOKEN`, so fork and Dependabot pull requests never require a Sonar credential. The provider may publish `SonarCloud Code Analysis` on pull requests, but that check is **advisory**, not a branch-protection requirement.
 
-Codecov is the coverage authority for this repository. SonarQube Cloud automatic analysis does not ingest the repository's JavaScript/TypeScript LCOV reports, so coverage enforcement remains centralized in `codecov/patch` rather than duplicated with conflicting thresholds.
+Codecov is the coverage authority for this repository. SonarQube Cloud's JavaScript/TypeScript coverage documentation requires CI-based analysis to import LCOV, while CI-based analysis cannot run concurrently with Automatic Analysis. The repository therefore keeps Sonar automatic analysis for maintainability, reliability, security, duplication, and hotspot feedback, and keeps changed-code coverage enforcement centralized in `codecov/patch`.
 
-Live provider state was re-verified on **2026-09-28**. The project uses the default **Sonar way** Quality Gate and a **previous version** new-code period. The provider check passed on PR #599 with zero annotations after repository findings were resolved.
+Live provider state was re-verified on **2026-09-28**. On PR #599, Sonar's public API recorded the prior head with Quality Gate `ERROR` because `new_coverage` was 64.6% against an 80% condition even though the repository's Codecov patch coverage was 87.09%; on the next head, the provider check was not reported at all while all repository-owned required checks were green. Requiring that provider check would therefore make branch protection depend on a signal that automatic analysis cannot populate with the repository's LCOV data and that may not be delivered for every head.
 
 ## Failure triage
 
@@ -40,13 +40,13 @@ When `codecov/patch` fails:
 3. Add behavior-focused tests, rerun CI, and verify the status belongs to the current head SHA.
 4. Treat a missing report or provider error as a gate failure; do not bypass it by making the status informational.
 
-When `SonarCloud Code Analysis` fails:
+When `SonarCloud Code Analysis` reports a failure:
 
 1. Open the provider check and inspect new issues, accepted issues, and security hotspots.
 2. Fix valid findings or record a technically justified disposition in the pull request.
 3. Re-run or wait for automatic analysis and verify the check belongs to the current head SHA.
-4. Escalate provider outages separately; do not add a repository token-based scanner as an unreviewed fallback.
+4. Treat provider outages or missing decoration as advisory-provider incidents; do not weaken repository-owned required checks or add a second Sonar analysis mode while Automatic Analysis is enabled.
 
 ## Negative-gate verification
 
-After policy or provider changes, maintainers create a temporary, explicitly non-mergeable **negative probe** pull request. It deliberately adds uncovered executable code, a Sonar new-code violation, and when relevant a repository-owned Semgrep violation; records that the corresponding required gates block merging; then closes the pull request and deletes the branch without merging.
+After policy or provider changes, maintainers create a temporary, explicitly non-mergeable **negative probe** pull request. It deliberately adds uncovered executable code and, when relevant, a repository-owned Semgrep violation; records that the required Codecov/Semgrep gates block merging; separately confirms Sonar advisory findings are visible when the provider reports them; then closes the pull request and deletes the branch without merging.

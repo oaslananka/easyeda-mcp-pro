@@ -38,6 +38,8 @@ interface QualityGatePolicy {
     newCodePeriodMode: string;
     coverageAuthority: string;
     automaticAnalysisCoverageSupported: boolean;
+    requiredCheck: boolean;
+    mergeRole: string;
   };
   semgrep: {
     version: string;
@@ -66,11 +68,6 @@ describe('changed-code quality gate policy', () => {
     expect(policy.schemaVersion).toBe(1);
     expect(policy.requiredPullRequestChecks).toEqual([
       { context: 'codecov/patch', appId: 254, provider: 'Codecov' },
-      {
-        context: 'SonarCloud Code Analysis',
-        appId: 12526,
-        provider: 'SonarQube Cloud',
-      },
     ]);
     expect(policy.codecov).toMatchObject({
       patchTargetPercent: 80,
@@ -94,6 +91,8 @@ describe('changed-code quality gate policy', () => {
       newCodePeriodMode: 'previous_version',
       coverageAuthority: 'codecov',
       automaticAnalysisCoverageSupported: false,
+      requiredCheck: false,
+      mergeRole: 'advisory',
     });
     expect(policy.semgrep).toEqual({
       version: '1.178.0',
@@ -202,6 +201,7 @@ describe('changed-code quality gate policy', () => {
     expect(workflows).not.toContain('sonarqube-scan-action');
     expect(runbook).toContain('GitHub App automatic analysis');
     expect(runbook).toContain('SonarCloud Code Analysis');
+    expect(runbook).toContain('advisory');
     expect(runbook).toContain('Codecov is the coverage authority');
     expect(runbook).toContain('Failure triage');
     expect(runbook).toContain('negative probe');
