@@ -189,6 +189,60 @@ describe('EasyEDA API runtime', () => {
     expect(modify).not.toHaveBeenCalled();
   });
 
+  it('rejects conflicting tagged polygon arguments before invoking native methods', async () => {
+    const roots = mutableRoots();
+    const modify = vi.fn(() => ({ ok: true }));
+    roots.setEda({
+      PCB_PrimitivePolyline: {
+        modify,
+      },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+
+    await expect(
+      runtime.callAllowedApi('PCB_PrimitivePolyline.modify', [
+        'outline-1',
+        {
+          polygon: {
+            $polygon: [0, 0, 'L', 10, 0, 10, 10],
+            $complexPolygon: [[0, 0, 'L', 1, 0, 1, 1]],
+          },
+        },
+      ]),
+    ).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+      message: 'Polygon argument has conflicting tags (args[1].polygon)',
+    });
+    expect(modify).not.toHaveBeenCalled();
+  });
+
+  it('rejects tagged polygon arguments with extra fields before invoking native methods', async () => {
+    const roots = mutableRoots();
+    const modify = vi.fn(() => ({ ok: true }));
+    roots.setEda({
+      PCB_PrimitivePolyline: {
+        modify,
+      },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+
+    await expect(
+      runtime.callAllowedApi('PCB_PrimitivePolyline.modify', [
+        'outline-1',
+        {
+          polygon: {
+            $polygon: [0, 0, 'L', 10, 0, 10, 10],
+            label: 'unexpected',
+          },
+        },
+      ]),
+    ).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+      message: 'Tagged polygon arguments cannot contain extra fields (args[1].polygon)',
+    });
+    expect(modify).not.toHaveBeenCalled();
+  });
+
   it('rejects malformed tagged polygon arguments before invoking native methods', async () => {
     const roots = mutableRoots();
     const modify = vi.fn(() => ({ ok: true }));
