@@ -23,6 +23,8 @@ Trusted pushes and same-repository pull requests upload coverage and JUnit repor
 
 Public fork and Dependabot pull requests use Codecov's tokenless public-repository coverage upload. They upload only the two LCOV reports; authenticated Test Analytics and bundle uploads remain trusted-event only. Both paths use the repository's SHA-256-verified Codecov CLI `11.3.1` and the Codecov Action `7.1.1` pinned to commit `303a32d7a59b442fa8d48b6a1cc6825c09c847a5`.
 
+All Codecov uploads provide their report files explicitly, disable filesystem report discovery, and set `plugins: noop`. This intentionally skips Codecov's default Xcode, gcov, and Python-coverage preparation probes because this JavaScript/TypeScript repository uploads pre-generated LCOV/JUnit artifacts; enabling those plugins would only add non-actionable tool-discovery warnings.
+
 ## SonarQube Cloud ownership
 
 SonarQube Cloud uses **GitHub App automatic analysis** for project `oaslananka_easyeda-mcp-pro`. Repository workflows do not invoke SonarScanner and do not consume `SONAR_TOKEN`, so fork and Dependabot pull requests never require a Sonar credential. The provider may publish `SonarCloud Code Analysis` on pull requests, but that check is **advisory**, not a branch-protection requirement.

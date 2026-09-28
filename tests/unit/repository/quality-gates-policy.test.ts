@@ -28,6 +28,7 @@ interface QualityGatePolicy {
     actionVersion: string;
     actionCommit: string;
     cliVersion: string;
+    preparationPlugins: string;
   };
   sonarQubeCloud: {
     projectKey: string;
@@ -77,6 +78,7 @@ describe('changed-code quality gate policy', () => {
       actionVersion: '7.1.1',
       actionCommit: '303a32d7a59b442fa8d48b6a1cc6825c09c847a5',
       cliVersion: '11.3.1',
+      preparationPlugins: 'noop',
       components: {
         server: { flag: 'server', path: 'src/' },
         extension: { flag: 'extension', path: 'easyeda-bridge-extension/src/' },

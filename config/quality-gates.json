@@ -25,7 +25,8 @@
     },
     "actionVersion": "7.1.1",
     "actionCommit": "303a32d7a59b442fa8d48b6a1cc6825c09c847a5",
-    "cliVersion": "11.3.1"
+    "cliVersion": "11.3.1",
+    "preparationPlugins": "noop"
   },
   "sonarQubeCloud": {
     "projectKey": "oaslananka_easyeda-mcp-pro",

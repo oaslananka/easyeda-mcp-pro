@@ -96,6 +96,7 @@ jobs:
           name: server-coverage
           report_type: coverage
           disable_search: true
+          plugins: noop
           fail_ci_if_error: true
       - name: Upload server coverage to Codecov (tokenless fork)
         id: server_coverage_upload_tokenless
@@ -108,6 +109,7 @@ jobs:
           name: server-coverage-tokenless
           report_type: coverage
           disable_search: true
+          plugins: noop
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (trusted)
         id: extension_coverage_upload_trusted
@@ -121,6 +123,7 @@ jobs:
           name: extension-coverage
           report_type: coverage
           disable_search: true
+          plugins: noop
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (tokenless fork)
         id: extension_coverage_upload_tokenless
@@ -133,6 +136,7 @@ jobs:
           name: extension-coverage-tokenless
           report_type: coverage
           disable_search: true
+          plugins: noop
           fail_ci_if_error: true
       - name: Upload server test results to Codecov
         id: server_test_results_upload
@@ -146,6 +150,7 @@ jobs:
           name: server-test-results
           report_type: test_results
           disable_search: true
+          plugins: noop
           fail_ci_if_error: true
       - name: Upload extension test results to Codecov
         id: extension_test_results_upload
@@ -159,6 +164,7 @@ jobs:
           name: extension-test-results
           report_type: test_results
           disable_search: true
+          plugins: noop
           fail_ci_if_error: true
       - name: Summarize quality report pipeline
         if: ${{ always() }}
