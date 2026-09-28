@@ -24,7 +24,13 @@ export const RuntimeInventorySnapshotSchema = z.object({
 });
 
 export type RuntimeInventoryClass = z.infer<typeof RuntimeInventoryClassSchema>;
-export type RuntimeInventorySnapshot = z.infer<typeof RuntimeInventorySnapshotSchema>;
+export type RuntimeInventorySnapshot = z.infer<typeof RuntimeInventorySnapshotSchema> & {
+  /**
+   * Internal compatibility marker used when a legacy snapshot did not record runtime paths.
+   * It is intentionally not part of the persisted v1 schema.
+   */
+  runtimePathsComplete?: boolean;
+};
 
 export interface RuntimeInventoryCaptureConfig {
   enabled: boolean;
@@ -56,6 +62,25 @@ export interface RuntimeInventoryDiff {
     removedMethods: number;
   };
 }
+
+const LegacyRuntimeInventoryClassSchema = z.object({
+  className: z.string().min(1),
+  runtimePaths: z.array(z.string()).optional(),
+  methods: z.array(z.string()).default([]),
+});
+
+const LegacyRuntimeInventorySnapshotSchema = z
+  .object({
+    generatedAt: z.string().optional(),
+    filter: z.string().optional(),
+    easyedaVersion: z.string().optional(),
+    easyedaShellVersion: z.string().optional(),
+    bridgeVersion: z.string().optional(),
+    methodRegistryHash: z.string().optional(),
+    total: z.number().int().nonnegative(),
+    classes: z.array(LegacyRuntimeInventoryClassSchema),
+  })
+  .passthrough();
 
 interface InventoryBridgeResponse {
   classes: RuntimeInventoryClass[];
@@ -172,16 +197,19 @@ export function diffRuntimeInventorySnapshots(
   base: RuntimeInventorySnapshot,
   current: RuntimeInventorySnapshot,
 ): RuntimeInventoryDiff {
-  const normalizedBase = createRuntimeInventorySnapshot({
-    classes: base.classes,
-    filter: base.filter,
-    generatedAt: base.generatedAt,
-  });
-  const normalizedCurrent = createRuntimeInventorySnapshot({
-    classes: current.classes,
-    filter: current.filter,
-    generatedAt: current.generatedAt,
-  });
+  const normalizedBase = {
+    ...base,
+    total: normalizeRuntimeInventoryClasses(base.classes).length,
+    classes: normalizeRuntimeInventoryClasses(base.classes),
+  };
+  const normalizedCurrent = {
+    ...current,
+    total: normalizeRuntimeInventoryClasses(current.classes).length,
+    classes: normalizeRuntimeInventoryClasses(current.classes),
+  };
+  const compareRuntimePaths =
+    normalizedBase.runtimePathsComplete !== false &&
+    normalizedCurrent.runtimePathsComplete !== false;
   const baseMap = mapByClassName(normalizedBase);
   const currentMap = mapByClassName(normalizedCurrent);
 
@@ -194,8 +222,12 @@ export function diffRuntimeInventorySnapshots(
     if (!baseEntry) continue;
     const classDiff = {
       className,
-      addedRuntimePaths: difference(currentEntry.runtimePaths, baseEntry.runtimePaths),
-      removedRuntimePaths: difference(baseEntry.runtimePaths, currentEntry.runtimePaths),
+      addedRuntimePaths: compareRuntimePaths
+        ? difference(currentEntry.runtimePaths, baseEntry.runtimePaths)
+        : [],
+      removedRuntimePaths: compareRuntimePaths
+        ? difference(baseEntry.runtimePaths, currentEntry.runtimePaths)
+        : [],
       addedMethods: difference(currentEntry.methods, baseEntry.methods),
       removedMethods: difference(baseEntry.methods, currentEntry.methods),
     };
@@ -240,7 +272,38 @@ export function diffRuntimeInventorySnapshots(
 export async function readRuntimeInventorySnapshot(
   path: string,
 ): Promise<RuntimeInventorySnapshot> {
-  return RuntimeInventorySnapshotSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+  const raw: unknown = JSON.parse(await readFile(path, 'utf8'));
+  const current = RuntimeInventorySnapshotSchema.safeParse(raw);
+  if (current.success) return current.data;
+
+  if (
+    raw === null ||
+    typeof raw !== 'object' ||
+    Array.isArray(raw) ||
+    Object.prototype.hasOwnProperty.call(raw, 'schemaVersion')
+  ) {
+    return RuntimeInventorySnapshotSchema.parse(raw);
+  }
+
+  const legacy = LegacyRuntimeInventorySnapshotSchema.parse(raw);
+  const runtimePathsComplete = legacy.classes.every((entry) => entry.runtimePaths !== undefined);
+  const classes = legacy.classes.map((entry) => ({
+    className: entry.className,
+    runtimePaths: entry.runtimePaths ?? [],
+    methods: entry.methods,
+  }));
+
+  return {
+    schemaVersion: RUNTIME_INVENTORY_SCHEMA_VERSION,
+    generatedAt: legacy.generatedAt ?? 'legacy-unspecified',
+    filter: legacy.filter,
+    easyedaVersion: legacy.easyedaVersion ?? legacy.easyedaShellVersion,
+    bridgeVersion: legacy.bridgeVersion,
+    methodRegistryHash: legacy.methodRegistryHash,
+    total: classes.length,
+    classes: normalizeRuntimeInventoryClasses(classes),
+    runtimePathsComplete,
+  };
 }
 
 export async function writeRuntimeInventorySnapshot(

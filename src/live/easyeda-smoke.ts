@@ -171,8 +171,8 @@ export async function runLiveSmokeChecks(
   if (errors.length > 0) throw new Error(errors.join(' '));
 
   await bridge.connect();
-  const hello = bridge.hello as BridgeHello | null;
   const results: LiveSmokeCheckResult[] = [];
+  let hello: BridgeHello | null;
 
   try {
     for (const check of buildLiveSmokeChecks(config)) {
@@ -201,6 +201,7 @@ export async function runLiveSmokeChecks(
         });
       }
     }
+    hello = bridge.hello as BridgeHello | null;
   } finally {
     bridge.disconnect('live smoke complete');
   }

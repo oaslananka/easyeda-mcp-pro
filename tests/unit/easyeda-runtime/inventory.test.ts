@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
   captureRuntimeInventorySnapshot,
@@ -152,6 +153,86 @@ describe('runtime inventory snapshots', () => {
       removedMethods: [],
       addedRuntimePaths: ['EDA.SCH_Document'],
     });
+  });
+
+  it('should read legacy snapshots and ignore runtime-path drift they could not record', async () => {
+    const dir = await mkdir(join(tmpdir(), `easyeda-inventory-legacy-${Date.now()}`), {
+      recursive: true,
+    });
+    const path = join(dir ?? tmpdir(), 'legacy.json');
+    await writeFile(
+      path,
+      `${JSON.stringify({
+        bridgeVersion: '0.19.0',
+        easyedaShellVersion: '3.2.149',
+        methodRegistryHash: 'legacy-hash',
+        total: 1,
+        classes: [{ className: 'SCH_Document', methods: ['save'] }],
+      })}
+`,
+      'utf8',
+    );
+
+    const legacy = await readRuntimeInventorySnapshot(path);
+    const current = createRuntimeInventorySnapshot({
+      generatedAt: '2026-09-28T00:00:00.000Z',
+      classes: [
+        {
+          className: 'SCH_Document',
+          runtimePaths: ['eda.SCH_Document'],
+          methods: ['save'],
+        },
+      ],
+    });
+
+    expect(legacy.easyedaVersion).toBe('3.2.149');
+    expect(legacy.runtimePathsComplete).toBe(false);
+    expect(diffRuntimeInventorySnapshots(legacy, current)).toMatchObject({
+      status: 'same',
+      summary: {
+        addedClasses: 0,
+        removedClasses: 0,
+        changedClasses: 0,
+        addedMethods: 0,
+        removedMethods: 0,
+      },
+    });
+  });
+
+  it('should read the checked-in EasyEDA 3.2.149 legacy baseline', async () => {
+    const path = fileURLToPath(
+      new URL('../../fixtures/runtime-inventory/easyeda-3.2.149-baseline.json', import.meta.url),
+    );
+
+    const snapshot = await readRuntimeInventorySnapshot(path);
+
+    expect(snapshot).toMatchObject({
+      schemaVersion: 1,
+      easyedaVersion: '3.2.149.88089769',
+      bridgeVersion: '0.19.0',
+      total: 67,
+      runtimePathsComplete: false,
+    });
+    expect(snapshot.classes).toHaveLength(67);
+  });
+
+  it('should reject malformed versioned snapshots instead of treating them as legacy', async () => {
+    const dir = await mkdir(join(tmpdir(), `easyeda-inventory-invalid-${Date.now()}`), {
+      recursive: true,
+    });
+    const path = join(dir ?? tmpdir(), 'invalid.json');
+    await writeFile(
+      path,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        total: 1,
+        classes: [{ className: 'SCH_Document', runtimePaths: [], methods: ['save'] }],
+      })}
+`,
+      'utf8',
+    );
+
+    await expect(readRuntimeInventorySnapshot(path)).rejects.toThrow();
   });
 
   it('should read and write snapshot files', async () => {

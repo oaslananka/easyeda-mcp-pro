@@ -82,6 +82,40 @@ describe('easyeda live smoke plan', () => {
     expect(bridge.call).not.toHaveBeenCalled();
   });
 
+  it('should capture hello metadata after the first bridge call completes the handshake', async () => {
+    const bridge = {
+      connect: vi.fn(async () => undefined),
+      disconnect: vi.fn(),
+      call: vi.fn(async () => {
+        bridge.hello = {
+          type: 'hello' as const,
+          bridgeVersion: '1.0.0',
+          easyedaVersion: '3.2.149.88089769',
+          capabilities: [],
+          methodRegistryHash: 'live-hash',
+          devMode: false,
+        };
+        return { ok: true };
+      }),
+      hello: null as {
+        type: 'hello';
+        bridgeVersion: string;
+        easyedaVersion: string;
+        capabilities: string[];
+        methodRegistryHash: string;
+        devMode: boolean;
+      } | null,
+      methodRegistryHash: 'live-hash',
+    };
+
+    const report = await runLiveSmokeChecks(bridge, baseConfig());
+
+    expect(report.status).toBe('passed');
+    expect(report.easyedaVersion).toBe('3.2.149.88089769');
+    expect(report.bridgeVersion).toBe('1.0.0');
+    expect(report.methodRegistryHash).toBe('live-hash');
+  });
+
   it('should execute checks and report failures without throwing', async () => {
     const bridge = {
       connect: vi.fn(async () => undefined),

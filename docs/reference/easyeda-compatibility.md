@@ -87,11 +87,11 @@ The installed extension package and loader both reported version `1.1.0-rc.2` du
 ### Known limitations
 
 - This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than equivalent 1.1.0-rc.2 live desktop records.
-- The current live-smoke reporter reads bridge.hello before connecting, so its optional easyedaVersion/bridgeVersion output fields are absent. Candidate identity was verified independently after the handshake.
-- The checked-in 3.2.149 runtime-inventory baseline predates the current schemaVersion/generatedAt fields, so inventory:diff cannot parse it directly. The release record uses a bounded class/method comparison and reports this tooling mismatch rather than hiding it.
+- The 2026-09-28 validation run used a live-smoke reporter that captured bridge.hello before post-connect bridge calls completed the handshake, so its optional easyedaVersion/bridgeVersion report fields were absent. This tooling maintenance fixes future reports; the archived evidence retains the original fields, and candidate identity was independently verified after the handshake.
+- The 2026-09-28 validation run used a bounded class/method comparison because the checked-in 3.2.149 runtime-inventory baseline predates schemaVersion/generatedAt and runtimePaths. This tooling maintenance now normalizes that legacy snapshot for inventory:diff without inventing missing runtime paths; the archived evidence remains unchanged.
 - PCB_PrimitivePolyline.modify is beta and replaced the disposable primitive with a new id while returning the original id. The validation detected and cleaned the replacement by comparing against the pre-mutation id inventory; this behavior must not be assumed to be in-place.
 - Concurrent host EasyEDA cache/WAL and warning-log activity changed aggregate config/Documents digests during the validation window. The bubblewrap namespace could not access those host paths; the host project-data digest and installed app database stayed unchanged and no host design project file was observed changed.
-- The exact package came from 4be3b8c23bff0a9929566966b0bc74bd428556f1. Current main 82bbf12bb6b00964d64f8a5f51a1317d65220f3e has identical Git tree objects under all six release-sensitive paths.
+- The exact package came from 4be3b8c23bff0a9929566966b0bc74bd428556f1. The validation compatibility-sensitive base was 82bbf12bb6b00964d64f8a5f51a1317d65220f3e with identical Git tree objects under all six release-sensitive paths; the subsequent evidence merge and this tooling maintenance do not touch those paths.
 - Public npm provenance, GitHub Release assets, attestations, SBOM, GHCR identities, and MCP Registry publication remain publication-time/post-publication gates.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
