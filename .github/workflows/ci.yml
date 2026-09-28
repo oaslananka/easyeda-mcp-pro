@@ -20,7 +20,7 @@ jobs:
     name: quality (24)
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       # actions/checkout v6.0.3
@@ -282,9 +282,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             node-version: '24.18.0'
-          - os: windows-latest
+          - os: windows-2025
             node-version: '24.18.0'
           - os: macos-26
             node-version: '24.18.0'
@@ -319,7 +319,7 @@ jobs:
         run: node scripts/e2e/packed-install-doctor.mjs
 
   codeql:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       security-events: write
       actions: read

@@ -40,7 +40,8 @@ const output = input
     }
 
     sourceFiles += 1;
-    return `SF:${source.startsWith(prefix) ? source : `${prefix}${source}`}`;
+    const normalizedSource = source.startsWith(prefix) ? source : prefix + source;
+    return `SF:${normalizedSource}`;
   })
   .join('\n');
 

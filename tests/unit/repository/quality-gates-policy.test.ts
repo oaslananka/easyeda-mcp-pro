@@ -182,8 +182,8 @@ describe('changed-code quality gate policy', () => {
       workflow.indexOf('\n  codeql:'),
     );
 
-    expect(matrix).toContain('os: ubuntu-latest');
-    expect(matrix).toContain('os: windows-latest');
+    expect(matrix).toContain('os: ubuntu-24.04');
+    expect(matrix).toContain('os: windows-2025');
     expect(matrix).toContain('os: macos-26');
     expect(matrix).toContain('node scripts/e2e/packed-install-doctor.mjs');
     expect(matrix).not.toContain('node dist/index.js --doctor');

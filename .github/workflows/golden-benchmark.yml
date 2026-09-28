@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   benchmark:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       # actions/checkout v6.0.3
