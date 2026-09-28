@@ -77,6 +77,52 @@ export function createApiRuntime(
     return undefined;
   }
 
+  const NO_TAGGED_API_ARGUMENT = Symbol('no-tagged-api-argument');
+
+  async function materializeTaggedPolygonArgument(
+    value: Record<string, unknown>,
+    argumentPath: string,
+  ): Promise<unknown | typeof NO_TAGGED_API_ARGUMENT> {
+    const hasPolygon = '$polygon' in value;
+    const hasComplexPolygon = '$complexPolygon' in value;
+    if (!hasPolygon && !hasComplexPolygon) return NO_TAGGED_API_ARGUMENT;
+
+    if (hasPolygon && hasComplexPolygon) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        `Polygon argument has conflicting tags (${argumentPath})`,
+        'Use exactly one of {$polygon: [...]} or {$complexPolygon: [...]}.',
+        { argumentPath },
+      );
+    }
+
+    if (Object.keys(value).length !== 1) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        `Tagged polygon arguments cannot contain extra fields (${argumentPath})`,
+        'Use exactly one tagged polygon field with no additional properties.',
+        { argumentPath },
+      );
+    }
+
+    const tag = hasPolygon ? '$polygon' : '$complexPolygon';
+    const source = value[tag];
+    if (!Array.isArray(source)) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        `${tag} must contain an array (${argumentPath})`,
+        `Provide ${tag} as an EasyEDA polygon source array.`,
+        { argumentPath },
+      );
+    }
+
+    const builder =
+      tag === '$polygon'
+        ? ['PCB_MathPolygon.createPolygon', 'pcb_MathPolygon.createPolygon']
+        : ['PCB_MathPolygon.createComplexPolygon', 'pcb_MathPolygon.createComplexPolygon'];
+    return await callFirst(builder, source);
+  }
+
   async function materializeApiArgument(value: unknown, argumentPath: string): Promise<unknown> {
     if (Array.isArray(value)) {
       const output: unknown[] = [];
@@ -96,42 +142,8 @@ export function createApiRuntime(
       );
     }
 
-    const hasPolygon = '$polygon' in value;
-    const hasComplexPolygon = '$complexPolygon' in value;
-    if (hasPolygon || hasComplexPolygon) {
-      const tag = hasPolygon ? '$polygon' : '$complexPolygon';
-      if (hasPolygon && hasComplexPolygon) {
-        throw createBridgeError(
-          'INVALID_PARAMS',
-          `Polygon argument has conflicting tags (${argumentPath})`,
-          'Use exactly one of {$polygon: [...]} or {$complexPolygon: [...]}.',
-          { argumentPath },
-        );
-      }
-      const keys = Object.keys(value);
-      if (keys.length !== 1) {
-        throw createBridgeError(
-          'INVALID_PARAMS',
-          `Tagged polygon arguments cannot contain extra fields (${argumentPath})`,
-          'Use exactly one tagged polygon field with no additional properties.',
-          { argumentPath },
-        );
-      }
-      const source = value[tag];
-      if (!Array.isArray(source)) {
-        throw createBridgeError(
-          'INVALID_PARAMS',
-          `${tag} must contain an array (${argumentPath})`,
-          `Provide ${tag} as an EasyEDA polygon source array.`,
-          { argumentPath },
-        );
-      }
-      const builder =
-        tag === '$polygon'
-          ? ['PCB_MathPolygon.createPolygon', 'pcb_MathPolygon.createPolygon']
-          : ['PCB_MathPolygon.createComplexPolygon', 'pcb_MathPolygon.createComplexPolygon'];
-      return await callFirst(builder, source);
-    }
+    const taggedPolygon = await materializeTaggedPolygonArgument(value, argumentPath);
+    if (taggedPolygon !== NO_TAGGED_API_ARGUMENT) return taggedPolygon;
 
     const output: Record<string, unknown> = {};
     for (const [key, nested] of Object.entries(value)) {
