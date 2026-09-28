@@ -24,6 +24,23 @@ const ZIZMOR_VERSION = '1.22.0';
 const TRIVY_ACTION_SHA = 'ed142fd0673e97e23eac54620cfb913e5ce36c25';
 
 describe('repository security tooling policy', () => {
+  it('keeps auto-assignment least-privilege without masking permission failures', () => {
+    const workflow = readText('.github/workflows/auto-assign.yml');
+
+    expect(workflow).toContain('permissions: {}');
+    expect(workflow).toContain('assign-issue:');
+    expect(workflow).toContain('issues: write');
+    expect(workflow).toContain('assign-pull-request:');
+    expect(workflow).toContain('pull-requests: write');
+    expect(workflow).toContain(
+      'github.event.pull_request.head.repo.full_name == github.repository',
+    );
+    expect(workflow).toContain("github.event.pull_request.user.login != 'dependabot[bot]'");
+    expect(workflow).not.toContain('continue-on-error: true');
+    expect(workflow).not.toContain('pull_request_target');
+    expect(workflow).not.toContain('actions/checkout@');
+  });
+
   it('keeps local hooks fast, deterministic, and focused on changed files', () => {
     const config = readText('.pre-commit-config.yaml');
 
