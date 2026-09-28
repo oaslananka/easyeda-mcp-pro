@@ -37,7 +37,7 @@ jobs:
         # pnpm/setup v3.0.0
         uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: '11.5.1'
+          version: '11.28.0'
           install: false
           node-version-file: false
 
@@ -45,7 +45,7 @@ jobs:
         # actions/setup-node v4.0.2
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
-          node-version: '24.18.0'
+          node-version: '24.21.0'
           cache: pnpm
 
       - name: Verify runtime pin parity
