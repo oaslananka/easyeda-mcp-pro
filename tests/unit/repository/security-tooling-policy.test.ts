@@ -15,10 +15,10 @@ const packageJson = JSON.parse(readText('package.json')) as {
   scripts?: Record<string, string>;
 };
 
-const SEMGREP_VERSION = '1.170.0';
+const SEMGREP_VERSION = '1.178.0';
 const SEMGREP_IMAGE_DIGEST =
-  'sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d';
-const SNYK_VERSION = '1.1306.1';
+  'sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b';
+const SNYK_VERSION = '1.1306.2';
 const ACTIONLINT_VERSION = '1.7.12';
 const ZIZMOR_VERSION = '1.22.0';
 const TRIVY_ACTION_SHA = 'ed142fd0673e97e23eac54620cfb913e5ce36c25';
@@ -107,7 +107,9 @@ describe('repository security tooling policy', () => {
     expect(workflow.split(semgrepImage)).toHaveLength(5);
     expect(workflow).not.toContain('pip install --disable-pip-version-check semgrep');
     expect(workflow).toContain('semgrep --validate --config .semgrep.yml');
-    expect(workflow).toContain('semgrep --test .tmp-semgrep-rules');
+    expect(workflow).toContain(
+      'semgrep test --config .tmp-semgrep-rules/security-rules.yml .tmp-semgrep-rules/security-rules.ts',
+    );
     expect(workflow).toContain('semgrep scan --config .semgrep.yml');
     expect(workflow).toContain('workflow-security:');
     expect(workflow).toContain(
@@ -130,7 +132,7 @@ describe('repository security tooling policy', () => {
     expect(workflow).toContain('container-security:');
     expect(workflow).toContain(`aquasecurity/trivy-action@${TRIVY_ACTION_SHA}`);
     expect(workflow).toContain("scan-type: 'config'");
-    expect(workflow).toContain("version: 'v0.72.0'");
+    expect(workflow).toContain("version: 'v0.74.0'");
     expect(workflow).toContain('docker build -t easyeda-mcp-pro:security .');
     expect(workflow).toContain("image-ref: 'easyeda-mcp-pro:security'");
     expect(workflow.match(/exit-code: '1'/g)).toHaveLength(2);

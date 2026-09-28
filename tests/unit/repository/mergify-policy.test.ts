@@ -35,19 +35,16 @@ describe('Mergify repository policy', () => {
     expect(mergify).not.toMatch(/^\s+auto_merge_conditions:/m);
   });
 
-  it('reports merge protections as a required check without auto-merge', () => {
+  it('keeps Mergify merge protections out of the required-check path', () => {
     const mergify = readText('.mergify.yml');
     const governance = JSON.parse(readText('config/repository-governance.json')) as {
       branchProtection: { requiredChecks: string[] };
     };
 
-    expect(mergify).toContain('merge_protections_settings:');
-    expect(mergify).toContain('reporting_method: check-runs');
-    expect(mergify).toContain('post_comment: false');
-    expect(mergify).toContain('merge_protections:');
-    expect(mergify).toContain('name: Main pull request readiness');
+    expect(mergify).not.toContain('merge_protections_settings:');
+    expect(mergify).not.toMatch(/^merge_protections:/m);
     expect(mergify).not.toMatch(/^pull_request_rules:/m);
-    expect(governance.branchProtection.requiredChecks).toContain('Mergify Merge Protections');
+    expect(governance.branchProtection.requiredChecks).not.toContain('Mergify Merge Protections');
   });
 
   it('treats the Mergify configuration as critical automation', () => {

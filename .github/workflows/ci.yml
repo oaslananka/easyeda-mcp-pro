@@ -85,7 +85,7 @@ jobs:
       - name: Upload server coverage to Codecov (trusted)
         id: server_coverage_upload_trusted
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -98,7 +98,7 @@ jobs:
       - name: Upload server coverage to Codecov (tokenless fork)
         id: server_coverage_upload_tokenless
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
           files: coverage/lcov.info
@@ -110,7 +110,7 @@ jobs:
       - name: Upload extension coverage to Codecov (trusted)
         id: extension_coverage_upload_trusted
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -123,7 +123,7 @@ jobs:
       - name: Upload extension coverage to Codecov (tokenless fork)
         id: extension_coverage_upload_tokenless
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
           files: easyeda-bridge-extension/coverage/lcov.info
@@ -135,7 +135,7 @@ jobs:
       - name: Upload server test results to Codecov
         id: server_test_results_upload
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -148,7 +148,7 @@ jobs:
       - name: Upload extension test results to Codecov
         id: extension_test_results_upload
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
-        uses: codecov/codecov-action@cddd853df119a48c5be31a973f8cd97e12e35e16
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           binary: ${{ runner.temp }}/codecov-cli/codecovcli
@@ -224,6 +224,28 @@ jobs:
         run: pnpm security:secrets
       - run: pnpm check:extension-size
       - run: pnpm verify:extension
+      - name: Prepare extension LCOV paths for SonarQube
+        if: ${{ github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
+        run: >-
+          node scripts/prepare-sonar-coverage.mjs
+          easyeda-bridge-extension/coverage/lcov.info
+          reports/sonar-extension.lcov
+          easyeda-bridge-extension/
+      - name: Resolve SonarQube project version
+        id: sonar_version
+        if: ${{ github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
+        run: node -e "console.log('version=' + require('./package.json').version)" >> "$GITHUB_OUTPUT"
+      - name: Run SonarQube Cloud analysis
+        if: ${{ github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
+        # SonarSource/sonarqube-scan-action v8.2.2
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4
+        with:
+          args: >-
+            -Dsonar.projectVersion=${{ steps.sonar_version.outputs.version }}
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=300
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: Pack PR test package
         if: github.event_name == 'pull_request'
         run: |

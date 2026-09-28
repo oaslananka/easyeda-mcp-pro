@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-28",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "branch": "main",
+  "source": "GitHub repository ruleset API",
+  "repositoryRuleset": {
+    "id": 20020112,
+    "name": "main-protection",
+    "target": "branch",
+    "enforcement": "active",
+    "include": ["~DEFAULT_BRANCH"],
+    "exclude": [],
+    "bypassActors": [],
+    "ruleTypes": [
+      "deletion",
+      "non_fast_forward",
+      "required_linear_history",
+      "pull_request",
+      "required_status_checks"
+    ],
+    "updatedAt": "2026-09-28T02:31:12.504Z"
+  },
+  "branchProtection": {
+    "requiredChecks": [
+      "quality (24)",
+      "codeql",
+      "semgrep",
+      "Socket Security: Project Report",
+      "dependency-review",
+      "codecov/patch"
+    ],
+    "strictStatusChecks": true,
+    "requiredApprovals": 0,
+    "requireCodeOwnerReviews": false,
+    "dismissStaleReviews": false,
+    "requireLastPushApproval": false,
+    "requireConversationResolution": true,
+    "enforceAdmins": true,
+    "requireLinearHistory": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  },
+  "notes": [
+    "The repository-level main-protection ruleset is the canonical enforcement mechanism for main.",
+    "Mergify Merge Protections is not a required status check.",
+    "SonarQube Cloud is enforced inside the trusted-event quality (24) job rather than as a direct required provider check, so fork pull requests never receive SONAR_TOKEN.",
+    "The repository-owned semgrep job is required so project-specific security rules are enforced before merge.",
+    "The ruleset has no bypass actors and required status checks use strict/up-to-date enforcement."
+  ]
+}

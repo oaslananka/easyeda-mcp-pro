@@ -14,6 +14,9 @@
 /docs/OPENSSF_BEST_PRACTICES.md @oaslananka
 /tests/unit/repository/governance-policy.test.ts @oaslananka
 /codecov.yml @oaslananka
+/sonar-project.properties @oaslananka
+/.codacy.yml @oaslananka
+/tests/unit/repository/codacy-policy.test.ts @oaslananka
 /config/quality-gates.json @oaslananka
 /docs/QUALITY_GATES.md @oaslananka
 /docs/CODECOV_ANALYTICS.md @oaslananka
@@ -31,6 +34,7 @@
 /.gitleaksignore @oaslananka
 /.semgrep.yml @oaslananka
 /.semgrepignore @oaslananka
+/scripts/test-semgrep-rules.mjs @oaslananka
 /SECURITY.md @oaslananka
 /docs/REPOSITORY_GOVERNANCE.md @oaslananka
 /docs/MAINTAINER_CONTINUITY.md @oaslananka

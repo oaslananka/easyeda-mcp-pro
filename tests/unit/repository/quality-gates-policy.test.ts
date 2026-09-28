@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -25,14 +25,42 @@ interface QualityGatePolicy {
     trustedSecret: string;
     forkUploadMode: string;
     components: Record<string, { flag: string; path: string }>;
+    actionVersion: string;
+    actionCommit: string;
+    cliVersion: string;
   };
   sonarQubeCloud: {
     projectKey: string;
+    organization: string;
     analysisMethod: string;
-    checkContext: string;
+    scannerActionVersion: string;
+    scannerActionCommit: string;
     repositorySecretRequired: boolean;
+    repositorySecret: string;
+    trustedEventGate: string;
+    directRequiredCheck: boolean;
     qualityGateName: string;
     newCodePeriodMode: string;
+    coverageReportPaths: string[];
+    coverageGateAuthority: string;
+    automaticAnalysisMustBeDisabled: boolean;
+    qualityGateWait: boolean;
+    qualityGateTimeoutSeconds: number;
+  };
+  semgrep: {
+    version: string;
+    imageDigest: string;
+    rulesFile: string;
+    requiredCheck: string;
+    cloudAppAdvisory: boolean;
+    ruleTestsCommand: string;
+  };
+  codacy: {
+    integration: string;
+    configFile: string;
+    requiredCheck: boolean;
+    generatedArtifactsExcluded: boolean;
+    sourceAndTestsAnalyzed: boolean;
   };
 }
 
@@ -40,23 +68,21 @@ const readPolicy = (): QualityGatePolicy =>
   JSON.parse(readText('config/quality-gates.json')) as QualityGatePolicy;
 
 describe('changed-code quality gate policy', () => {
-  it('records blocking Codecov and SonarQube Cloud check identities', () => {
+  it('records current Codecov, SonarQube, Semgrep, and Codacy policy', () => {
     const policy = readPolicy();
 
     expect(policy.schemaVersion).toBe(1);
     expect(policy.requiredPullRequestChecks).toEqual([
       { context: 'codecov/patch', appId: 254, provider: 'Codecov' },
-      {
-        context: 'SonarCloud Code Analysis',
-        appId: 12526,
-        provider: 'SonarQube Cloud',
-      },
     ]);
     expect(policy.codecov).toMatchObject({
       patchTargetPercent: 80,
       thresholdPercent: 2,
       trustedSecret: 'CODECOV_TOKEN',
       forkUploadMode: 'tokenless-public-repository',
+      actionVersion: '7.1.1',
+      actionCommit: '303a32d7a59b442fa8d48b6a1cc6825c09c847a5',
+      cliVersion: '11.3.1',
       components: {
         server: { flag: 'server', path: 'src/' },
         extension: { flag: 'extension', path: 'easyeda-bridge-extension/src/' },
@@ -64,13 +90,38 @@ describe('changed-code quality gate policy', () => {
     });
     expect(policy.sonarQubeCloud).toEqual({
       projectKey: 'oaslananka_easyeda-mcp-pro',
-      analysisMethod: 'github-app-automatic-analysis',
-      checkContext: 'SonarCloud Code Analysis',
-      repositorySecretRequired: false,
+      organization: 'oaslananka',
+      analysisMethod: 'github-actions-ci',
+      scannerActionVersion: '8.2.2',
+      scannerActionCommit: 'ba9859eae8dd6bd29e412f25ddbbef3d032000f4',
+      repositorySecretRequired: true,
+      repositorySecret: 'SONAR_TOKEN',
+      trustedEventGate: 'quality (24)',
+      directRequiredCheck: false,
       qualityGateName: 'Sonar way',
       newCodePeriodMode: 'previous_version',
+      coverageReportPaths: ['coverage/lcov.info', 'reports/sonar-extension.lcov'],
+      coverageGateAuthority: 'codecov',
+      automaticAnalysisMustBeDisabled: true,
+      qualityGateWait: true,
+      qualityGateTimeoutSeconds: 300,
     });
-    expect(policy.lastVerifiedAt).toBe('2026-08-25');
+    expect(policy.semgrep).toEqual({
+      version: '1.178.0',
+      imageDigest: 'sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b',
+      rulesFile: '.semgrep.yml',
+      requiredCheck: 'semgrep',
+      cloudAppAdvisory: true,
+      ruleTestsCommand: 'semgrep test --config <rules> <fixture>',
+    });
+    expect(policy.codacy).toEqual({
+      integration: 'github-app',
+      configFile: '.codacy.yml',
+      requiredCheck: false,
+      generatedArtifactsExcluded: true,
+      sourceAndTestsAnalyzed: true,
+    });
+    expect(policy.lastVerifiedAt).toBe('2026-09-28');
   });
 
   it('enforces an explicit blocking patch target while retaining separate components', () => {
@@ -150,21 +201,31 @@ describe('changed-code quality gate policy', () => {
     expect(smoke).toContain("[installedEntry, '--doctor']");
   });
 
-  it('keeps SonarQube Cloud on the GitHub App path without repository workflow credentials', () => {
-    const workflowsDir = resolve(repoRoot, '.github/workflows');
-    const workflows = readdirSync(workflowsDir)
-      .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
-      .map((name) => readText(`.github/workflows/${name}`))
-      .join('\n');
+  it('runs SonarQube Cloud in trusted CI with LCOV and keeps fork secrets isolated', () => {
+    const workflow = readText('.github/workflows/ci.yml');
     const runbook = readText('docs/QUALITY_GATES.md');
+    const sonarProperties = readText('sonar-project.properties');
 
-    expect(workflows).not.toContain('SONAR_TOKEN');
-    expect(workflows).not.toContain('sonarqube-scan-action');
-    expect(runbook).toContain('GitHub App automatic analysis');
-    expect(runbook).toContain('SonarCloud Code Analysis');
-    expect(runbook).toContain('CODECOV_TOKEN');
-    expect(runbook).toContain('tokenless');
-    expect(runbook).toContain('Failure triage');
-    expect(runbook).toContain('negative probe');
+    expect(workflow).toContain(
+      'SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4',
+    );
+    expect(workflow).toContain('secrets.SONAR_TOKEN');
+    expect(workflow).toContain('scripts/prepare-sonar-coverage.mjs');
+    expect(workflow).toContain('-Dsonar.qualitygate.wait=true');
+    expect(workflow).toContain('-Dsonar.qualitygate.timeout=300');
+    expect(workflow).toContain(
+      'github.event.pull_request.head.repo.full_name == github.repository',
+    );
+    expect(workflow).toContain("github.ref == 'refs/heads/main'");
+    expect(workflow).toContain("github.event.pull_request.user.login != 'dependabot[bot]'");
+    expect(workflow).not.toContain('pull_request_target');
+    expect(sonarProperties).toContain('sonar.organization=oaslananka');
+    expect(sonarProperties).toContain('sonar.projectKey=oaslananka_easyeda-mcp-pro');
+    expect(sonarProperties).toContain(
+      'sonar.javascript.lcov.reportPaths=coverage/lcov.info,reports/sonar-extension.lcov',
+    );
+    expect(runbook).toContain('CI-based analysis');
+    expect(runbook).toContain('automatic analysis must be disabled');
+    expect(runbook).toContain('Codecov remains the blocking coverage gate');
   });
 });

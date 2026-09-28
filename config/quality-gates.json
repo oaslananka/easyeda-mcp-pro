@@ -1,16 +1,11 @@
 {
   "schemaVersion": 1,
-  "lastVerifiedAt": "2026-08-25",
+  "lastVerifiedAt": "2026-09-28",
   "requiredPullRequestChecks": [
     {
       "context": "codecov/patch",
       "appId": 254,
       "provider": "Codecov"
-    },
-    {
-      "context": "SonarCloud Code Analysis",
-      "appId": 12526,
-      "provider": "SonarQube Cloud"
     }
   ],
   "codecov": {
@@ -27,14 +22,42 @@
         "flag": "extension",
         "path": "easyeda-bridge-extension/src/"
       }
-    }
+    },
+    "actionVersion": "7.1.1",
+    "actionCommit": "303a32d7a59b442fa8d48b6a1cc6825c09c847a5",
+    "cliVersion": "11.3.1"
   },
   "sonarQubeCloud": {
     "projectKey": "oaslananka_easyeda-mcp-pro",
-    "analysisMethod": "github-app-automatic-analysis",
-    "checkContext": "SonarCloud Code Analysis",
-    "repositorySecretRequired": false,
+    "organization": "oaslananka",
+    "analysisMethod": "github-actions-ci",
+    "scannerActionVersion": "8.2.2",
+    "scannerActionCommit": "ba9859eae8dd6bd29e412f25ddbbef3d032000f4",
+    "repositorySecretRequired": true,
+    "repositorySecret": "SONAR_TOKEN",
+    "trustedEventGate": "quality (24)",
+    "directRequiredCheck": false,
     "qualityGateName": "Sonar way",
-    "newCodePeriodMode": "previous_version"
+    "newCodePeriodMode": "previous_version",
+    "coverageReportPaths": ["coverage/lcov.info", "reports/sonar-extension.lcov"],
+    "coverageGateAuthority": "codecov",
+    "automaticAnalysisMustBeDisabled": true,
+    "qualityGateWait": true,
+    "qualityGateTimeoutSeconds": 300
+  },
+  "semgrep": {
+    "version": "1.178.0",
+    "imageDigest": "sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b",
+    "rulesFile": ".semgrep.yml",
+    "requiredCheck": "semgrep",
+    "cloudAppAdvisory": true,
+    "ruleTestsCommand": "semgrep test --config <rules> <fixture>"
+  },
+  "codacy": {
+    "integration": "github-app",
+    "configFile": ".codacy.yml",
+    "requiredCheck": false,
+    "generatedArtifactsExcluded": true,
+    "sourceAndTestsAnalyzed": true
   }
 }

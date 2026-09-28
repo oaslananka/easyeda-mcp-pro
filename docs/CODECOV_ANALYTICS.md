@@ -54,6 +54,8 @@ pnpm check:extension-size
 
 The current limits live in `config/extension-size-budget.json`. Missing artifacts, malformed budgets, or files above their configured limit fail CI.
 
+On 2026-09-28, the polygon argument materialization required by `easyeda_api_call` increased the deterministic extension builds from 260,002 to 262,811 bytes for `index.js` and from 185,386 to 188,040 bytes for `dispatcher.js`. The corresponding byte ratchets are 262,815 and 188,045 bytes; the packaged `.eext` remains under its unchanged 200,000-byte ceiling. Future growth still fails closed and requires another measured ratchet review.
+
 A local, non-uploading bundle report can be generated with:
 
 ```bash
