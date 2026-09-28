@@ -93,6 +93,7 @@ describe('Codecov analytics policy', () => {
     expect(workflow).not.toContain('use_pypi: true');
     expect(workflow.match(/report_type: coverage/g)).toHaveLength(4);
     expect(workflow.match(/report_type: test_results/g)).toHaveLength(2);
+    expect(workflow.match(/plugins: noop/g)).toHaveLength(6);
     expect(workflow.match(/token: \$\{\{ secrets\.CODECOV_TOKEN \}\}/g)).toHaveLength(4);
     expect(workflow).toContain('files: coverage/lcov.info');
     expect(workflow).toContain('files: easyeda-bridge-extension/coverage/lcov.info');
