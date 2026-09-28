@@ -1,12 +1,14 @@
 {
-  "note": "Runtime API surface captured live from EasyEDA Pro (schematic+PCB context). Ground truth for the extension method-path compatibility test. Refresh via: EASYEDA_RUNTIME_INVENTORY_CAPTURE=true pnpm inventory:capture, then copy the JSON here.",
-  "easyedaShellVersion": "3.2.149.88089769",
-  "bridgeVersion": "0.19.0",
-  "methodRegistryHash": "b9f712215583b4b5",
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-28T15:27:17.454Z",
+  "easyedaVersion": "3.2.149.88089769",
+  "bridgeVersion": "1.1.0-rc.2",
+  "methodRegistryHash": "d9e01181ceed32d8",
   "total": 67,
   "classes": [
     {
       "className": "DMT_Board",
+      "runtimePaths": ["eda.dmt_Board"],
       "methods": [
         "copyBoard",
         "createBoard",
@@ -19,6 +21,7 @@
     },
     {
       "className": "DMT_EditorControl",
+      "runtimePaths": ["eda.dmt_EditorControl"],
       "methods": [
         "activateDocument",
         "activateSplitScreen",
@@ -43,10 +46,12 @@
     },
     {
       "className": "DMT_Event",
+      "runtimePaths": ["eda.dmt_Event"],
       "methods": ["addEditorTabEventListener", "isEventListenerAlreadyExist", "removeEventListener"]
     },
     {
       "className": "DMT_Folder",
+      "runtimePaths": ["eda.dmt_Folder"],
       "methods": [
         "createFolder",
         "deleteFolder",
@@ -59,6 +64,7 @@
     },
     {
       "className": "DMT_Panel",
+      "runtimePaths": ["eda.dmt_Panel"],
       "methods": [
         "copyPanel",
         "createPanel",
@@ -71,6 +77,7 @@
     },
     {
       "className": "DMT_Pcb",
+      "runtimePaths": ["eda.dmt_Pcb"],
       "methods": [
         "copyPcb",
         "createPcb",
@@ -83,6 +90,7 @@
     },
     {
       "className": "DMT_Project",
+      "runtimePaths": ["eda.dmt_Project"],
       "methods": [
         "copyProject",
         "createProject",
@@ -100,6 +108,7 @@
     },
     {
       "className": "DMT_Schematic",
+      "runtimePaths": ["eda.dmt_Schematic"],
       "methods": [
         "copySchematic",
         "copySchematicPage",
@@ -122,22 +131,27 @@
     },
     {
       "className": "DMT_SelectControl",
+      "runtimePaths": ["eda.dmt_SelectControl"],
       "methods": ["getCurrentDocumentInfo"]
     },
     {
       "className": "DMT_Team",
+      "runtimePaths": ["eda.dmt_Team"],
       "methods": ["getAllInvolvedTeamInfo", "getAllTeamsInfo", "getCurrentTeamInfo"]
     },
     {
       "className": "DMT_Workspace",
+      "runtimePaths": ["eda.dmt_Workspace"],
       "methods": ["getAllWorkspacesInfo", "getCurrentWorkspaceInfo", "toggleToWorkspace"]
     },
     {
       "className": "LIB_3DModel",
+      "runtimePaths": ["eda.lib_3DModel"],
       "methods": ["copy", "create", "delete", "get", "modify", "search"]
     },
     {
       "className": "LIB_Cbb",
+      "runtimePaths": ["eda.lib_Cbb"],
       "methods": [
         "copy",
         "create",
@@ -151,6 +165,7 @@
     },
     {
       "className": "LIB_Classification",
+      "runtimePaths": ["eda.lib_Classification"],
       "methods": [
         "createPrimary",
         "createSecondary",
@@ -164,6 +179,7 @@
     },
     {
       "className": "LIB_Device",
+      "runtimePaths": ["eda.lib_Device"],
       "methods": [
         "copy",
         "create",
@@ -177,6 +193,7 @@
     },
     {
       "className": "LIB_Footprint",
+      "runtimePaths": ["eda.lib_Footprint"],
       "methods": [
         "copy",
         "create",
@@ -192,6 +209,7 @@
     },
     {
       "className": "LIB_LibrariesList",
+      "runtimePaths": ["eda.lib_LibrariesList"],
       "methods": [
         "getAllLibrariesList",
         "getFavoriteLibraryUuid",
@@ -203,14 +221,17 @@
     },
     {
       "className": "LIB_PanelLibrary",
+      "runtimePaths": ["eda.lib_PanelLibrary"],
       "methods": ["copy", "create", "delete", "get", "modify", "openInEditor", "search"]
     },
     {
       "className": "LIB_SelectControl",
+      "runtimePaths": ["eda.lib_SelectControl"],
       "methods": ["getSelectedLibraryRowInfo"]
     },
     {
       "className": "LIB_Symbol",
+      "runtimePaths": ["eda.lib_Symbol"],
       "methods": [
         "copy",
         "create",
@@ -226,6 +247,7 @@
     },
     {
       "className": "PCB_COMPARISON_MSG_BUS_",
+      "runtimePaths": ["globalThis.PCB_COMPARISON_MSG_BUS_"],
       "methods": [
         "publish",
         "pull",
@@ -240,6 +262,7 @@
     },
     {
       "className": "PCB_Document",
+      "runtimePaths": ["eda.pcb_Document"],
       "methods": [
         "clearRouting",
         "convertCanvasOriginToDataOrigin",
@@ -264,6 +287,7 @@
     },
     {
       "className": "PCB_Drc",
+      "runtimePaths": ["eda.pcb_Drc"],
       "methods": [
         "addNetToEqualLengthNetGroup",
         "addNetToNetClass",
@@ -314,6 +338,7 @@
     },
     {
       "className": "PCB_Event",
+      "runtimePaths": ["eda.pcb_Event"],
       "methods": [
         "addCrossProbeSelectEventListener",
         "addMouseEventListener",
@@ -326,6 +351,7 @@
     },
     {
       "className": "PCB_Layer",
+      "runtimePaths": ["eda.pcb_Layer"],
       "methods": [
         "addCustomLayer",
         "deletePhysicalStackingConfiguration",
@@ -357,6 +383,7 @@
     },
     {
       "className": "PCB_ManufactureData",
+      "runtimePaths": ["eda.pcb_ManufactureData"],
       "methods": [
         "deleteBomTemplate",
         "get3DFile",
@@ -393,6 +420,7 @@
     },
     {
       "className": "PCB_MathPolygon",
+      "runtimePaths": ["eda.pcb_MathPolygon"],
       "methods": [
         "calculateBBoxHeight",
         "calculateBBoxWidth",
@@ -407,6 +435,7 @@
     },
     {
       "className": "PCB_Net",
+      "runtimePaths": ["eda.pcb_Net"],
       "methods": [
         "getAllNetName",
         "getAllNets",
@@ -428,24 +457,28 @@
     },
     {
       "className": "PCB_Primitive",
+      "runtimePaths": ["eda.pcb_Primitive"],
       "methods": [
         "getPrimitiveBoardLine",
         "getPrimitiveByPrimitiveId",
-        "getPrimitiveTypeByPrimitiveId",
         "getPrimitivesBBox",
-        "getPrimitivesByPrimitiveId"
+        "getPrimitivesByPrimitiveId",
+        "getPrimitiveTypeByPrimitiveId"
       ]
     },
     {
       "className": "PCB_PrimitiveArc",
+      "runtimePaths": ["eda.pcb_PrimitiveArc"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveAttribute",
+      "runtimePaths": ["eda.pcb_PrimitiveAttribute"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveComponent",
+      "runtimePaths": ["eda.pcb_PrimitiveComponent"],
       "methods": [
         "create",
         "delete",
@@ -461,58 +494,72 @@
     },
     {
       "className": "PCB_PrimitiveDimension",
+      "runtimePaths": ["eda.pcb_PrimitiveDimension"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveFill",
+      "runtimePaths": ["eda.pcb_PrimitiveFill"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveImage",
+      "runtimePaths": ["eda.pcb_PrimitiveImage"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveLine",
+      "runtimePaths": ["eda.pcb_PrimitiveLine"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveObject",
+      "runtimePaths": ["eda.pcb_PrimitiveObject"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitivePad",
+      "runtimePaths": ["eda.pcb_PrimitivePad"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitivePolyline",
+      "runtimePaths": ["eda.pcb_PrimitivePolyline"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitivePour",
+      "runtimePaths": ["eda.pcb_PrimitivePour"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitivePoured",
+      "runtimePaths": ["eda.pcb_PrimitivePoured"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveRegion",
+      "runtimePaths": ["eda.pcb_PrimitiveRegion"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveString",
+      "runtimePaths": ["eda.pcb_PrimitiveString"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_PrimitiveVia",
+      "runtimePaths": ["eda.pcb_PrimitiveVia"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "PCB_RayTracerEngine",
+      "runtimePaths": ["eda.pcb_RayTracerEngine"],
       "methods": ["dispose", "init", "setRenderConfigurations"]
     },
     {
       "className": "PCB_SelectControl",
+      "runtimePaths": ["eda.pcb_SelectControl"],
       "methods": [
         "clearSelected",
         "doCrossProbeSelect",
@@ -526,6 +573,7 @@
     },
     {
       "className": "SCH_Document",
+      "runtimePaths": ["eda.sch_Document"],
       "methods": [
         "autoLayout",
         "autoRouting",
@@ -540,10 +588,12 @@
     },
     {
       "className": "SCH_Drc",
+      "runtimePaths": ["eda.sch_Drc"],
       "methods": ["check"]
     },
     {
       "className": "SCH_Event",
+      "runtimePaths": ["eda.sch_Event"],
       "methods": [
         "addMouseEventListener",
         "addPrimitiveEventListener",
@@ -554,6 +604,7 @@
     },
     {
       "className": "SCH_ManufactureData",
+      "runtimePaths": ["eda.sch_ManufactureData"],
       "methods": [
         "deleteBomTemplate",
         "getAssemblyVariantsConfigs",
@@ -570,27 +621,32 @@
     },
     {
       "className": "SCH_Net",
+      "runtimePaths": ["eda.sch_Net"],
       "methods": ["getAllNets", "getAllNetsName", "getCurrentProjectAllNets", "getNet"]
     },
     {
       "className": "SCH_Netlist",
+      "runtimePaths": ["eda.sch_Netlist"],
       "methods": ["getNetlist", "setNetlist"]
     },
     {
       "className": "SCH_Primitive",
+      "runtimePaths": ["eda.sch_Primitive"],
       "methods": [
         "getPrimitiveByPrimitiveId",
-        "getPrimitiveTypeByPrimitiveId",
         "getPrimitivesBBox",
-        "getPrimitivesByPrimitiveId"
+        "getPrimitivesByPrimitiveId",
+        "getPrimitiveTypeByPrimitiveId"
       ]
     },
     {
       "className": "SCH_PrimitiveArc",
+      "runtimePaths": ["eda.sch_PrimitiveArc"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_PrimitiveAttribute",
+      "runtimePaths": ["eda.sch_PrimitiveAttribute"],
       "methods": [
         "create",
         "createNetLabel",
@@ -603,14 +659,17 @@
     },
     {
       "className": "SCH_PrimitiveBus",
+      "runtimePaths": ["eda.sch_PrimitiveBus"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_PrimitiveCircle",
+      "runtimePaths": ["eda.sch_PrimitiveCircle"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_PrimitiveComponent",
+      "runtimePaths": ["eda.sch_PrimitiveComponent"],
       "methods": [
         "checkComponentType",
         "create",
@@ -641,37 +700,44 @@
     },
     {
       "className": "SCH_PrimitiveObject",
+      "runtimePaths": ["eda.sch_PrimitiveObject"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_PrimitivePin",
+      "runtimePaths": ["eda.sch_PrimitivePin"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_PrimitivePolygon",
+      "runtimePaths": ["eda.sch_PrimitivePolygon"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_PrimitiveRectangle",
+      "runtimePaths": ["eda.sch_PrimitiveRectangle"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_PrimitiveText",
+      "runtimePaths": ["eda.sch_PrimitiveText"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_PrimitiveWire",
+      "runtimePaths": ["eda.sch_PrimitiveWire"],
       "methods": ["create", "delete", "get", "getAll", "getAllPrimitiveId", "modify"]
     },
     {
       "className": "SCH_SelectControl",
+      "runtimePaths": ["eda.sch_SelectControl"],
       "methods": [
         "clearSelected",
         "doCrossProbeSelect",
         "doSelectPrimitives",
         "getAllSelectedPrimitives",
-        "getAllSelectedPrimitives3",
         "getAllSelectedPrimitives_PrimitiveId",
+        "getAllSelectedPrimitives3",
         "getCurrentMousePosition",
         "getSelectedPrimitives",
         "getSelectedPrimitives_PrimitiveId"
@@ -679,10 +745,12 @@
     },
     {
       "className": "SCH_SimulationEngine",
+      "runtimePaths": ["eda.sch_SimulationEngine"],
       "methods": ["pushData"]
     },
     {
       "className": "SCH_Utils",
+      "runtimePaths": ["eda.sch_Utils"],
       "methods": ["splitLines"]
     }
   ]
