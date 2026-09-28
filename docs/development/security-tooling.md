@@ -5,12 +5,12 @@ Git hooks must remain quick and deterministic; cloud and CI scanners keep the br
 
 ## Check placement
 
-| Stage        | Checks                                                                                         |
-| ------------ | ---------------------------------------------------------------------------------------------- |
-| Editor       | SonarQube for IDE in Connected Mode                                                            |
-| Pre-commit   | file hygiene, private-key detection, actionlint, and zizmor                                    |
-| Pull request | CI, CodeQL, Dependency Review, repository Semgrep rules, Trivy, Snyk App, and SonarQube Cloud  |
-| Release      | CycloneDX SBOM, npm provenance, GitHub artifact attestation, and SHA-pinned release automation |
+| Stage        | Checks                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Editor       | SonarQube for IDE in Connected Mode                                                                                         |
+| Pre-commit   | file hygiene, private-key detection, actionlint, and zizmor                                                                 |
+| Pull request | CI, CodeQL, Dependency Review, repository Semgrep rules, Trivy, Snyk App, and SonarQube Cloud (advisory automatic analysis) |
+| Release      | CycloneDX SBOM, npm provenance, GitHub artifact attestation, and SHA-pinned release automation                              |
 
 Static-security workflow tooling is content-addressed rather than version-only: Semgrep `1.178.0` runs from an
 OCI image pinned to its manifest SHA-256 digest, and pre-commit is installed from
@@ -105,7 +105,7 @@ Docker configuration and built-image surface.
 
 Install **SonarQube for IDE** in the editor and bind this workspace to the SonarQube Cloud project
 `oaslananka_easyeda-mcp-pro` using **Connected Mode**. Connected Mode applies the same rules and
-new-code settings used by the pull-request Quality Gate while code is being edited.
+new-code settings used by SonarQube Cloud automatic analysis while code is being edited.
 
 Do not add a local Sonar scanner to Git hooks. SonarQube Cloud uses GitHub App automatic analysis; the provider-owned `SonarCloud Code Analysis` check remains an advisory signal in GitHub and repository workflows do not consume `SONAR_TOKEN`. Codecov owns JavaScript/TypeScript coverage. The blocking check identity and failure runbook are documented in [Changed-code quality gates](../QUALITY_GATES.md).
 

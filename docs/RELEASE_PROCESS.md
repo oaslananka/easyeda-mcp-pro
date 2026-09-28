@@ -86,7 +86,7 @@ Both channels must pass:
 - server tests and coverage plus extension tests and coverage;
 - generated tool-reference drift check and documentation build;
 - server build, extension build, extension distribution verification, and extension size budgets;
-- Docker loopback, fail-closed, and published-host-port smoke; CodeQL; Semgrep; Sonar; Codecov; dependency review; workflow/container security; and required platform CI checks;
+- Docker loopback, fail-closed, and published-host-port smoke; CodeQL; Semgrep; Codecov; dependency review; workflow/container security; required platform CI checks; and review of SonarQube Cloud advisory findings when the provider reports them;
 - SBOM generation, npm provenance, GitHub artifact attestation, and a portable Sigstore bundle and in-toto provenance asset named `<tag>.provenance.sigstore.json` and `<tag>.intoto.jsonl`. The npm path uses npm Trusted Publishing. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.
 
 The evidence record must also satisfy the live EasyEDA validation rules in the Release Policy. Automation success alone does not waive those requirements. The full local convenience command is `pnpm release:readiness`; it intentionally fails before the expensive quality sequence when the compatibility evidence is stale.
