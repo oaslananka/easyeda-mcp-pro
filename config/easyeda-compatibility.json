@@ -4,6 +4,124 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-28-v1-1-0-rc-2",
+      "status": "live-validated",
+      "validatedAt": "2026-09-28T18:42:56+03:00",
+      "reviewBy": "2026-12-27",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-34-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.1.0-rc.2",
+        "releaseContainingFixes": "1.1.0-rc.2",
+        "commit": "4be3b8c23bff0a9929566966b0bc74bd428556f1",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "c768ef41345e70adb53d9a975efdb15bcaf69bdd",
+            "src/bridge": "e47313404c0bf7ce9372014f501c071e6cb6338c",
+            "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+            "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+            "src/tools": "80a05ffbdce0dcbc75ffb59ac4fa54cc19be60fb",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.1.0-rc.2",
+        "loaderReportedVersion": "1.1.0-rc.2",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "d9e01181ceed32d8",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false
+      },
+      "fixture": {
+        "project": "Example_Quick Start",
+        "schematic": "Schematic",
+        "page": "P1",
+        "pcb": "PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-1-0-rc2-packaged-bridge-live",
+          "name": "Packaged 1.1.0-rc.2 bridge identity and read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact 1.1.0-rc.2 extension package was imported into an isolated EasyEDA Pro 3.2.149 Half Offline profile. Extension and loader both reported 1.1.0-rc.2, registry hashes matched at d9e01181ceed32d8, and all six repository read-only smoke checks passed with writes disabled.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-28-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.2-polygon-compatibility.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/604"
+          ]
+        },
+        {
+          "id": "v1-1-0-rc2-runtime-inventory-live",
+          "name": "EasyEDA 3.2.149 runtime class and method inventory",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The live runtime exposed 67 API classes. A class/method comparison against the checked-in 3.2.149 baseline found zero added, removed, or changed classes or methods, and the live method registry hash remained d9e01181ceed32d8.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-28-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.2-polygon-compatibility.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/604"
+          ]
+        },
+        {
+          "id": "v1-1-0-rc2-tagged-polygon-live",
+          "name": "Tagged polygon bridge materialization and fail-closed validation",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Both $polygon and $complexPolygon JSON tags materialized inside the extension into native PCB_MathPolygon values: 10-by-10 test geometry returned width=10 and height=10. Conflicting tags, malformed payloads, extra tagged fields, and serialized __class/__methods descriptors all failed closed with INVALID_PARAMS before the native modify call.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-28-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.2-polygon-compatibility.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/604",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/599"
+          ]
+        },
+        {
+          "id": "v1-1-0-rc2-pcb-polyline-mutation-live",
+          "name": "Disposable polygon-typed PCB polyline create, modify, read-back, and cleanup",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "On Document Layer 13 of the disposable Quick Start PCB, the live bridge created and read back a polyline from a tagged $polygon, applied a second tagged polygon through PCB_PrimitivePolyline.modify, detected EasyEDA beta replacement-id behavior, and reconciled cleanup against the pre-mutation primitive-id inventory. The final set matched all 24 baseline ids exactly with no added or missing primitive.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-28-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.2-polygon-compatibility.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/604",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/599"
+          ]
+        },
+        {
+          "id": "v1-1-0-rc2-isolation-cleanup-live",
+          "name": "Bubblewrap/Xvfb isolation, app-database overlay, and cleanup",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Validation replaced the user home directory mount inside a bubblewrap namespace with a disposable profile, exposed only Xvfb :98, and redirected EasyEDA packaged app-database writes to a disposable overlay. The host ~/EasyEDA-Pro project-data digest and installed easyeda-std.elib SHA-256 remained unchanged; all validation processes/listeners, the disposable profile, and the overlay were removed afterward. Concurrent host cache/WAL and warning-log changes were observed and are explicitly not claimed as validation writes.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-28-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.2-polygon-compatibility.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/604",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/603"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than equivalent 1.1.0-rc.2 live desktop records.",
+        "The current live-smoke reporter reads bridge.hello before connecting, so its optional easyedaVersion/bridgeVersion output fields are absent. Candidate identity was verified independently after the handshake.",
+        "The checked-in 3.2.149 runtime-inventory baseline predates the current schemaVersion/generatedAt fields, so inventory:diff cannot parse it directly. The release record uses a bounded class/method comparison and reports this tooling mismatch rather than hiding it.",
+        "PCB_PrimitivePolyline.modify is beta and replaced the disposable primitive with a new id while returning the original id. The validation detected and cleaned the replacement by comparing against the pre-mutation id inventory; this behavior must not be assumed to be in-place.",
+        "Concurrent host EasyEDA cache/WAL and warning-log activity changed aggregate config/Documents digests during the validation window. The bubblewrap namespace could not access those host paths; the host project-data digest and installed app database stayed unchanged and no host design project file was observed changed.",
+        "The exact package came from 4be3b8c23bff0a9929566966b0bc74bd428556f1. Current main 82bbf12bb6b00964d64f8a5f51a1317d65220f3e has identical Git tree objects under all six release-sensitive paths.",
+        "Public npm provenance, GitHub Release assets, attestations, SBOM, GHCR identities, and MCP Registry publication remain publication-time/post-publication gates."
+      ]
+    },
+    {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-15-v1-1-0-candidate",
       "status": "live-validated",
       "validatedAt": "2026-09-15T01:21:35+03:00",
