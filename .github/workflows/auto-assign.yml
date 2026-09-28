@@ -6,25 +6,59 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review]
 
-permissions:
-  issues: write
-  pull-requests: read
+permissions: {}
+
+concurrency:
+  group: auto-assign-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
-  assign:
+  assign-issue:
+    name: Assign incoming issue
+    if: github.event_name == 'issues' && github.actor != 'oaslananka'
     runs-on: ubuntu-24.04
-    if: github.actor != 'oaslananka'
+    permissions:
+      issues: write # Required by addAssignees for issue events.
 
     steps:
-      - name: Assign to oaslananka
+      - name: Assign issue to oaslananka
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        continue-on-error: true
         with:
           script: |
-            const number = context.payload.issue?.number ?? context.payload.pull_request?.number;
+            const number = context.payload.issue?.number;
 
             if (!Number.isInteger(number)) {
-              core.notice('No issue or pull request number was found in this event payload.');
+              core.setFailed('No issue number was found in the issues event payload.');
+              return;
+            }
+
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              assignees: ['oaslananka'],
+            });
+
+  assign-pull-request:
+    name: Assign same-repository pull request
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.actor != 'oaslananka' &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: write # Required by addAssignees for pull-request events.
+
+    steps:
+      - name: Assign pull request to oaslananka
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const number = context.payload.pull_request?.number;
+
+            if (!Number.isInteger(number)) {
+              core.setFailed('No pull request number was found in the pull_request event payload.');
               return;
             }
 

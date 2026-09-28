@@ -191,6 +191,37 @@ describe('changed-code quality gate policy', () => {
     expect(smoke).toContain("[installedEntry, '--doctor']");
   });
 
+  it('keeps normative governance docs aligned with the advisory SonarQube role', () => {
+    const policy = readPolicy();
+    const releasePolicy = readText('docs/RELEASE_POLICY.md');
+    const releaseProcess = readText('docs/RELEASE_PROCESS.md');
+    const continuity = readText('docs/MAINTAINER_CONTINUITY.md');
+    const openssf = readText('docs/OPENSSF_BEST_PRACTICES.md');
+    const securityArchitecture = readText('docs/security-architecture.md');
+    const securityTooling = readText('docs/development/security-tooling.md');
+
+    expect(policy.sonarQubeCloud).toMatchObject({
+      requiredCheck: false,
+      mergeRole: 'advisory',
+      coverageAuthority: 'codecov',
+    });
+
+    expect(releasePolicy).toContain('SonarQube Cloud advisory findings');
+    expect(releasePolicy).not.toContain('Sonar quality gate');
+    expect(releaseProcess).toContain('SonarQube Cloud advisory findings');
+
+    expect(continuity).toContain('SonarQube Cloud remains advisory');
+    expect(continuity).toContain('2026-09-28-main-ruleset.json');
+    expect(continuity).not.toContain('and SonarQube checks');
+
+    expect(openssf).toContain('SonarQube Cloud automatic analysis is advisory');
+    expect(securityArchitecture).toContain(
+      'SonarQube Cloud remains advisory pull-request analysis',
+    );
+    expect(securityTooling).toContain('SonarQube Cloud (advisory automatic analysis)');
+    expect(securityTooling).not.toContain('pull-request Quality Gate');
+  });
+
   it('keeps SonarQube Cloud on provider-owned automatic analysis without repo credentials', () => {
     const workflowsDir = resolve(repoRoot, '.github/workflows');
     const workflows = readdirSync(workflowsDir)

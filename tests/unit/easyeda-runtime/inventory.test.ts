@@ -154,6 +154,18 @@ describe('runtime inventory snapshots', () => {
     });
   });
 
+  it('should parse the committed EasyEDA 3.2.149 baseline with the current schema', async () => {
+    const baseline = await readRuntimeInventorySnapshot(
+      'tests/fixtures/runtime-inventory/easyeda-3.2.149-baseline.json',
+    );
+
+    expect(baseline.schemaVersion).toBe(1);
+    expect(baseline.easyedaVersion).toBe('3.2.149.88089769');
+    expect(baseline.total).toBe(67);
+    expect(baseline.classes).toHaveLength(67);
+    expect(baseline.classes.some((entry) => entry.runtimePaths.length > 0)).toBe(true);
+  });
+
   it('should read and write snapshot files', async () => {
     const dir = await mkdir(join(tmpdir(), `easyeda-inventory-${Date.now()}`), { recursive: true });
     const path = join(dir ?? tmpdir(), 'snapshot.json');

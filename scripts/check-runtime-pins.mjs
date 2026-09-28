@@ -48,6 +48,17 @@ async function readRequired(root, path, errors) {
   }
 }
 
+async function readOptional(root, path, errors) {
+  try {
+    return normalizeText(await readFile(resolve(root, path), 'utf8'));
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
+      return null;
+    errors.push(`${path}: optional runtime pin surface is unreadable.`);
+    return null;
+  }
+}
+
 function expectEqual(errors, label, actual, expected) {
   if (actual !== expected) {
     errors.push(`${label}: expected ${JSON.stringify(expected)}, found ${JSON.stringify(actual)}.`);
@@ -57,6 +68,12 @@ function expectEqual(errors, label, actual, expected) {
 function expectContains(errors, path, text, expected) {
   if (!text.includes(expected)) {
     errors.push(`${path}: expected to contain ${JSON.stringify(expected)}.`);
+  }
+}
+
+function expectNotContains(errors, path, text, unexpected) {
+  if (text.includes(unexpected)) {
+    errors.push(`${path}: must not contain obsolete config ${JSON.stringify(unexpected)}.`);
   }
 }
 
@@ -189,9 +206,20 @@ export async function inspectRuntimePinParity(root = defaultRepoRoot) {
   );
   expectEqual(errors, '.nvmrc', (await readRequired(root, '.nvmrc', errors)).trim(), nodeVersion);
 
-  const npmrc = await readRequired(root, '.npmrc', errors);
-  expectContains(errors, '.npmrc', npmrc, 'engine-strict=true');
-  expectContains(errors, '.npmrc', npmrc, 'manage-package-manager-versions=false');
+  const workspace = await readRequired(root, 'pnpm-workspace.yaml', errors);
+  expectNotContains(errors, 'pnpm-workspace.yaml', workspace, 'engineStrict: true');
+  expectContains(errors, 'pnpm-workspace.yaml', workspace, 'minimumReleaseAge: 10080');
+
+  const npmrc = await readOptional(root, '.npmrc', errors);
+  if (npmrc !== null) {
+    for (const obsolete of [
+      'engine-strict',
+      'min-release-age',
+      'manage-package-manager-versions',
+    ]) {
+      expectNotContains(errors, '.npmrc', npmrc, obsolete);
+    }
+  }
 
   const packageText = await readRequired(root, 'package.json', errors);
   let packageJson = {};
