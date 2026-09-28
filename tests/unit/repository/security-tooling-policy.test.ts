@@ -99,14 +99,10 @@ describe('repository security tooling policy', () => {
     );
     expect(packageJson.scripts?.['security:audit']).toBe('node scripts/check-dependency-audit.mjs');
     const workspace = readText('pnpm-workspace.yaml');
-    expect(workspace).toContain('minimumReleaseAge: 10080');
-    expect(workspace).toContain('minimumReleaseAgeExclude:');
-    expect(workspace).toContain('fast-uri@3.1.5');
     expect(workspace).not.toContain('hono@4.12.34');
     expect(workspace).toMatch(/\r?\n {2}hono: 4\.13\.7\r?\n/);
     expect(workspace).toContain("'@hono/node-server': 2.0.10");
-    expect(workspace).toContain('minimumReleaseAgeStrict: true');
-    expect(workspace).toContain('minimumReleaseAgeIgnoreMissingTime: false');
+    expect(workspace).not.toContain('minimumReleaseAge');
     expect(workspace).toContain('trustPolicy: no-downgrade');
     expect(workspace).toContain('trustLockfile: false');
     expect(workspace).toContain('blockExoticSubdeps: true');
@@ -115,7 +111,6 @@ describe('repository security tooling policy', () => {
     expect(lockfile).toContain("'@hono/node-server@2.0.10':");
     expect(lockfile).not.toContain("'@hono/node-server@1.19.14':");
     expect(readText('.npmrc')).toBe('');
-    expect(readText('pnpm-workspace.yaml')).toContain('minimumReleaseAge: 10080');
   });
 
   it('runs Semgrep, workflow hardening, and Trivy as separate CI concerns', () => {

@@ -171,31 +171,46 @@ describe('dependency audit policy', () => {
     expect(lockfile).not.toMatch(/nanoid@3\.3\.(?:1[0-7]|[0-9])(?:\D|$)/);
   });
 
-  it('pins brace-expansion to the patched release and records the reviewed age exception', () => {
+  it('pins brace-expansion to the patched release without a release-age exception', () => {
     const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8').replace(
       /\r\n/g,
       '\n',
     );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).toContain('  - brace-expansion@5.0.9\n');
+    expect(workspacePolicy).not.toContain('minimumReleaseAge');
     expect(workspacePolicy).toMatch(/\n {2}brace-expansion: 5\.0\.9\n/);
     expect(lockfile).toContain('brace-expansion: 5.0.9');
     expect(lockfile).not.toMatch(/brace-expansion@5\.0\.[0-8](?:\D|$)/);
   });
 
-  it('pins qs to the patched security release and records the reviewed age exception', () => {
+  it('pins qs to the patched security release without a release-age exception', () => {
     const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8').replace(
       /\r\n/g,
       '\n',
     );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).toContain('  - qs@6.16.0\n');
+    expect(workspacePolicy).not.toContain('minimumReleaseAge');
     expect(workspacePolicy).toMatch(/\n {2}qs: 6\.16\.0\n/);
     expect(lockfile).toContain('qs: 6.16.0');
     expect(lockfile).toContain('qs@6.16.0:');
     expect(lockfile).not.toMatch(/qs@6\.15\.3(?:\D|$)/);
+  });
+
+  it('pins undici to releases patched for GHSA-3wwx-pv8p-q78v', () => {
+    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+    };
+    const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
+    const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
+
+    expect(packageJson.dependencies?.undici).toBe('8.10.2');
+    expect(workspacePolicy).toContain("'undici@6.27.0': 6.28.1");
+    expect(lockfile).toContain('undici@8.10.2:');
+    expect(lockfile).toContain('undici@6.28.1:');
+    expect(lockfile).not.toContain('undici@8.9.0:');
+    expect(lockfile).not.toContain('undici@6.28.0:');
   });
 
   it('fails closed when pnpm audit exceeds the bounded execution timeout', () => {

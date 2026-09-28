@@ -125,12 +125,13 @@ The repository config does not activate the hosted service by itself. For Mend-h
 
 ### Renovate Behavior
 
-| Update Type          | Auto-merge? | Notes                                                |
-| -------------------- | ----------- | ---------------------------------------------------- |
-| Patch deps           | ✅ Yes      | Low risk                                             |
-| Minor devDeps        | ✅ Yes      | Low risk                                             |
-| Major updates        | ❌ No       | Requires manual approval on the Dependency Dashboard |
-| Lockfile maintenance | ✅ Yes      | Runs weekly                                          |
+| Update Type               | Auto-merge? | Notes                                                |
+| ------------------------- | ----------- | ---------------------------------------------------- |
+| devDependency patch/minor | ✅ Yes      | Required CI must pass                                |
+| Runtime dependencies      | ❌ No       | Maintainer review required                           |
+| GitHub Actions / hooks    | ❌ No       | Critical automation path; maintainer review required |
+| Major updates             | ❌ No       | Requires manual approval on the Dependency Dashboard |
+| Lockfile maintenance      | ✅ Yes      | Runs weekly; required CI must pass                   |
 
 ### Dependency Dashboard
 

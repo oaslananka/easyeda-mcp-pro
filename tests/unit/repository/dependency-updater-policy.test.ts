@@ -11,11 +11,12 @@ const releaseCiRunbookPath = resolve(repoRoot, 'docs/release-ci-runbook.md');
 
 interface RenovatePackageRule {
   matchManagers?: string[];
-  minimumReleaseAge?: string;
+  matchDepTypes?: string[];
+  matchUpdateTypes?: string[];
+  automerge?: boolean;
 }
 
 interface RenovateConfig {
-  minimumReleaseAge?: string;
   dependencyDashboard?: boolean;
   osvVulnerabilityAlerts?: boolean;
   packageRules?: RenovatePackageRule[];
@@ -27,13 +28,42 @@ describe('dependency updater ownership', () => {
     expect(existsSync(dependabotConfigPath)).toBe(false);
   });
 
-  it('delays fresh releases and keeps the dependency dashboard plus vulnerability alerts enabled', () => {
-    const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig;
+  it('keeps the dependency dashboard and vulnerability alerts enabled without a release-age delay', () => {
+    const raw = readFileSync(renovateConfigPath, 'utf8');
+    const config = JSON.parse(raw) as RenovateConfig;
 
-    expect(config.minimumReleaseAge).toBe('7 days');
-    expect(config.packageRules?.every((rule) => rule.minimumReleaseAge === '7 days')).toBe(true);
+    expect(raw).not.toContain('minimumReleaseAge');
     expect(config.dependencyDashboard).toBe(true);
     expect(config.osvVulnerabilityAlerts).toBe(true);
+  });
+
+  it('automerge is limited to low-risk dev updates and lockfile maintenance', () => {
+    const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig & {
+      lockFileMaintenance?: { automerge?: boolean };
+    };
+    const devRule = config.packageRules?.find((rule) =>
+      rule.matchDepTypes?.includes('devDependencies'),
+    );
+    const runtimeRule = config.packageRules?.find((rule) =>
+      rule.matchDepTypes?.includes('dependencies'),
+    );
+    const actionsRule = config.packageRules?.find((rule) =>
+      rule.matchManagers?.includes('github-actions'),
+    );
+
+    expect(devRule).toMatchObject({ matchUpdateTypes: ['minor', 'patch'], automerge: true });
+    expect(runtimeRule?.automerge).toBe(false);
+    expect(actionsRule?.automerge).toBe(false);
+    expect(config.lockFileMaintenance?.automerge).toBe(true);
+    expect(
+      config.packageRules?.some(
+        (rule) =>
+          rule.matchUpdateTypes?.length === 1 &&
+          rule.matchUpdateTypes[0] === 'patch' &&
+          rule.automerge === true &&
+          !rule.matchDepTypes,
+      ),
+    ).toBe(false);
   });
 
   it('documents hosted Renovate activation without hard-coding a dashboard issue number', () => {

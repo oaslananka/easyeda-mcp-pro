@@ -7,7 +7,6 @@
   "schedule": ["before 6am on monday"],
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
-  "internalChecksFilter": "strict",
   "osvVulnerabilityAlerts": true,
   "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
@@ -18,47 +17,41 @@
   },
   "packageRules": [
     {
-      "matchUpdateTypes": ["patch"],
-      "automerge": true,
-      "minimumReleaseAge": "7 days"
-    },
-    {
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch"],
-      "automerge": true,
-      "minimumReleaseAge": "7 days"
+      "automerge": true
+    },
+    {
+      "matchDepTypes": ["dependencies"],
+      "automerge": false
     },
     {
       "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true,
-      "minimumReleaseAge": "7 days"
+      "dependencyDashboardApproval": true
     },
     {
       "matchPackageNames": ["eslint", "@eslint/js", "/^typescript-eslint/"],
       "groupName": "eslint toolchain",
-      "commitMessageTopic": "eslint-toolchain",
-      "minimumReleaseAge": "7 days"
+      "commitMessageTopic": "eslint-toolchain"
     },
     {
       "matchPackageNames": ["typescript", "tsx", "vitest", "vitepress"],
       "groupName": "toolchain dependencies",
-      "commitMessageTopic": "toolchain",
-      "minimumReleaseAge": "7 days"
+      "commitMessageTopic": "toolchain"
     },
     {
       "matchManagers": ["github-actions"],
       "groupName": "github-actions dependencies",
       "commitMessageTopic": "github-actions",
       "commitMessagePrefix": "ci(deps):",
-      "minimumReleaseAge": "7 days"
+      "automerge": false
     },
     {
       "matchManagers": ["pre-commit"],
       "groupName": "pre-commit hook dependencies",
       "commitMessageTopic": "pre-commit-hooks",
       "commitMessagePrefix": "chore(deps):",
-      "minimumReleaseAge": "7 days"
+      "automerge": false
     }
-  ],
-  "minimumReleaseAge": "7 days"
+  ]
 }
