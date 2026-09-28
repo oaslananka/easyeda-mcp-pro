@@ -155,7 +155,7 @@ describe('release channel policy', () => {
     expect(manager).toContain(
       'googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
     );
-    expect(publisher).toContain('pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271');
+    expect(publisher).toContain('pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024');
     expect(publisher).toContain('actions/setup-node@820762786026740c76f36085b0efc47a31fe5020');
     expect(publisher).toContain('docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7');
     expect(manager).not.toContain('contents: write');
