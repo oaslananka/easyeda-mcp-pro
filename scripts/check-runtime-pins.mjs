@@ -108,21 +108,29 @@ function inspectWorkflow(path, text, policy, errors) {
   }
 
   for (let index = 0; index < lines.length; index += 1) {
-    if (!/uses:\s*pnpm\/action-setup@/.test(lines[index])) continue;
+    if (!/uses:\s*pnpm\/setup@/.test(lines[index])) continue;
     const block = stepBlock(lines, index).join('\n');
     const versionMatch = /^\s*version:\s*(.+?)\s*$/m.exec(block);
     if (!versionMatch) {
-      errors.push(
-        `${path}: every pnpm/action-setup step must pin version ${policy.pnpm.pinnedVersion}.`,
-      );
+      errors.push(`${path}: every pnpm/setup step must pin version ${policy.pnpm.pinnedVersion}.`);
       continue;
     }
     expectEqual(
       errors,
-      `${path} pnpm/action-setup version`,
+      `${path} pnpm/setup version`,
       unquote(versionMatch[1]),
       policy.pnpm.pinnedVersion,
     );
+    if (!/^\s*install:\s*false\s*$/m.test(block)) {
+      errors.push(
+        `${path}: pnpm/setup must set install: false; installs stay in explicit workflow steps.`,
+      );
+    }
+    if (!/^\s*node-version-file:\s*false\s*$/m.test(block)) {
+      errors.push(
+        `${path}: pnpm/setup must set node-version-file: false; actions/setup-node owns the runtime pin.`,
+      );
+    }
   }
 
   if (/actions\/setup-node@/.test(text) && literalNodePins === 0) {
