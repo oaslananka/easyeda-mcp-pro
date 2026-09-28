@@ -64,7 +64,7 @@ The release PR and release workflow must pass the required GitHub status checks 
 The CI `quality` job is the source of truth for Docker release readiness. It verifies three distinct
 behaviors: the default loopback listener works inside the container, an unauthenticated non-loopback
 bind fails closed, and a correctly configured OAuth/JWKS deployment is reachable through the
-published host port and returns a Bearer challenge.
+published host port and returns a Bearer [REDACTED]
 
 Maintainers with Docker installed can repeat the same smoke locally:
 
@@ -154,3 +154,7 @@ Stable release tags are created by Release Please. Numbered prerelease tags are 
 - [`CHANGELOG.md`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CHANGELOG.md)
 - [GitHub Releases](https://github.com/oaslananka/easyeda-mcp-pro/releases)
 - [npm package](https://www.npmjs.com/package/easyeda-mcp-pro)
+
+## Candidate compatibility gate
+
+Numbered `release/` candidate pull requests run `pnpm release:readiness:compatibility` before merge. Stale or unavailable live EasyEDA evidence blocks the candidate.

@@ -27,7 +27,9 @@ Stable promotion has **no time-based waiting period**. Once the exact source com
 - A narrow, reversible patch may publish without a separate release candidate when it does not touch a compatibility-sensitive path.
 - A release that changes the EasyEDA bridge, transport, authentication, transaction/rollback behavior, installer/setup path, save/export behavior, or any confirmed write path requires an `rc.N` and live validation even when the SemVer bump would otherwise be a patch.
 - Any code or runtime-dependency change after the final candidate requires a new `rc.N` so release evidence remains bound to the code that will actually ship.
+- Numbered `release/` candidate pull requests must pass the commit-bound live EasyEDA compatibility gate before merge; stale or unavailable evidence is merge-blocking.
 - Stable promotion may change only version, changelog, release notes, and promotion metadata after the final candidate. Behavioral changes require another candidate.
+- While repository metadata is prerelease, ordinary `main` pushes must not generate a stable Release Please PR. Stable PR generation resumes only from an explicit matching `Release-As: X.Y.Z` promotion commit.
 
 ## Required release evidence
 

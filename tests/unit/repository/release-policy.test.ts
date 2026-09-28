@@ -36,6 +36,11 @@ describe('release channel policy', () => {
 
     expect(config.packages?.['.']?.prerelease).toBe(false);
     expect(manager).toContain('skip-github-release: true');
+    expect(manager).toContain('Resolve stable Release Please eligibility');
+    expect(manager).toContain('run: node scripts/release-please-eligibility.mjs');
+    expect(manager).toContain(
+      "if: ${{ steps.release_eligibility.outputs.run_release_please == 'true' }}",
+    );
     expect(manager).not.toContain('workflow_dispatch:');
     expect(manager).not.toContain('npm publish');
     expect(manager).not.toContain('mcp-publisher');

@@ -35,12 +35,12 @@ describe('release readiness policy', () => {
     );
   });
 
-  it('fails Release Please pull requests closed when compatibility evidence is stale', () => {
+  it('fails release and Release Please pull requests closed when compatibility evidence is stale', () => {
     const workflow = read('.github/workflows/ci.yml');
 
-    expect(workflow).toContain('name: Verify Release Please compatibility evidence');
+    expect(workflow).toContain('name: Verify release compatibility evidence');
     expect(workflow).toContain(
-      "if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--') }}",
+      "if: ${{ github.event_name == 'pull_request' && (startsWith(github.head_ref, 'release-please--') || startsWith(github.head_ref, 'release/')) }}",
     );
     expect(workflow).toContain('run: pnpm release:readiness:compatibility');
   });

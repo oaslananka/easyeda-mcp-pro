@@ -20,7 +20,7 @@ We enforce the [Conventional Commits specification](https://www.conventionalcomm
 | Stable     | `X.Y.Z` / `easyeda-mcp-pro-vX.Y.Z`           | `latest` | non-prerelease | exact, `X.Y`, and `latest` | publish      |
 | Prerelease | `X.Y.Z-rc.N` / `easyeda-mcp-pro-vX.Y.Z-rc.N` | `next`   | prerelease     | exact and `next`           | skip         |
 
-Release Please remains stable-only (`prerelease: false`). The PR manager uses `skip-github-release: true`, so merging a release PR does not create a tag or GitHub Release until the Publish Release workflow has completed its pre-publication gates. Manual workflow dispatch validates that the supplied tag, requested channel, `package.json` version, public evidence URL, and GitHub Release classification all agree before publication.
+Release Please remains stable-only (`prerelease: false`). The PR manager uses `skip-github-release: true`, so merging a release PR does not create a tag or GitHub Release until the Publish Release workflow has completed its pre-publication gates. Manual workflow dispatch validates that the supplied tag, requested channel, `package.json` version, public evidence URL, and GitHub Release classification all agree before publication. While `package.json` carries a prerelease identity such as `X.Y.Z-rc.N`, the stable Release Please manager stays dormant on ordinary `main` pushes. It runs again only when the latest `main` commit carries a matching `Release-As: X.Y.Z` promotion marker; a mismatched marker fails closed.
 
 ## 3. Stable automation
 
@@ -43,7 +43,7 @@ When the final `rc.N` already contains all user-facing changes, Release Please c
 
 ## 4. Prerelease automation
 
-A prerelease is prepared in an ordinary reviewed candidate PR. The PR sets all release-managed versions to `X.Y.Z-rc.N`, updates release notes, and links the public evidence record. After merge:
+A prerelease is prepared in an ordinary reviewed candidate PR. The PR sets all release-managed versions to `X.Y.Z-rc.N`, updates release notes, and links the public evidence record. Candidate branches under `release/` run `pnpm release:readiness:compatibility` inside the required `quality (24)` PR gate, so stale live EasyEDA evidence blocks merge rather than waiting until publication. After merge:
 
 ```bash
 TAG=easyeda-mcp-pro-vX.Y.Z-rc.N
