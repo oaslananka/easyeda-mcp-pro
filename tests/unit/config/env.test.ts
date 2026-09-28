@@ -347,6 +347,39 @@ describe('detectUnknownEnvVars', () => {
     warnSpy.mockRestore();
   });
 
+  it('should not warn on known non-schema EasyEDA runtime and validation vars', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = detectUnknownEnvVars({
+      EASYEDA_BRIDGE: 'cdp',
+      EASYEDA_CDP_URL: 'http://127.0.0.1:9222',
+      EASYEDA_CDP_ALLOW_WRITES: 'true',
+      EASYEDA_LIVE_TESTS: 'true',
+      EASYEDA_TEST_PROJECT_ID: 'disposable-project',
+      EASYEDA_LIVE_WRITE_TESTS: 'false',
+      EASYEDA_LIVE_REPORT_PATH: '/tmp/live-smoke.json',
+      EASYEDA_RUNTIME_INVENTORY_CAPTURE: 'true',
+      EASYEDA_RUNTIME_INVENTORY_PATH: '/tmp/runtime-inventory.json',
+      EASYEDA_EXPECTED_DISPATCHER_BUILD: 'build-id',
+      EASYEDA_TRANSACTION_SMOKE_REPORT_PATH: '/tmp/transaction-smoke.json',
+    });
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(result).toEqual([]);
+    warnSpy.mockRestore();
+  });
+
+  it('should still warn on unknown EasyEDA-prefixed env vars', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = detectUnknownEnvVars({
+      EASYEDA_LIVE_TSET: 'true',
+    });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toContain('EASYEDA_LIVE_TSET');
+    warnSpy.mockRestore();
+  });
+
   it('should warn on unknown project-prefixed env var', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = detectUnknownEnvVars({
