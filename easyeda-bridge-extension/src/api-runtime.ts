@@ -77,6 +77,69 @@ export function createApiRuntime(
     return undefined;
   }
 
+  async function materializeApiArgument(value: unknown, argumentPath: string): Promise<unknown> {
+    if (Array.isArray(value)) {
+      const output: unknown[] = [];
+      for (const [index, item] of value.entries()) {
+        output.push(await materializeApiArgument(item, `${argumentPath}[${index}]`));
+      }
+      return output;
+    }
+    if (!isRecord(value)) return value;
+
+    if ('__class' in value || '__methods' in value) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        `Serialized EasyEDA API descriptors cannot be used as call arguments (${argumentPath})`,
+        'Pass plain JSON values or an explicit {$polygon: [...]} / {$complexPolygon: [...]} tagged argument.',
+        { argumentPath },
+      );
+    }
+
+    const hasPolygon = '$polygon' in value;
+    const hasComplexPolygon = '$complexPolygon' in value;
+    if (hasPolygon || hasComplexPolygon) {
+      const tag = hasPolygon ? '$polygon' : '$complexPolygon';
+      if (hasPolygon && hasComplexPolygon) {
+        throw createBridgeError(
+          'INVALID_PARAMS',
+          `Polygon argument has conflicting tags (${argumentPath})`,
+          'Use exactly one of {$polygon: [...]} or {$complexPolygon: [...]}.',
+          { argumentPath },
+        );
+      }
+      const keys = Object.keys(value);
+      if (keys.length !== 1) {
+        throw createBridgeError(
+          'INVALID_PARAMS',
+          `Tagged polygon arguments cannot contain extra fields (${argumentPath})`,
+          'Use exactly one tagged polygon field with no additional properties.',
+          { argumentPath },
+        );
+      }
+      const source = value[tag];
+      if (!Array.isArray(source)) {
+        throw createBridgeError(
+          'INVALID_PARAMS',
+          `${tag} must contain an array (${argumentPath})`,
+          `Provide ${tag} as an EasyEDA polygon source array.`,
+          { argumentPath },
+        );
+      }
+      const builder =
+        tag === '$polygon'
+          ? ['PCB_MathPolygon.createPolygon', 'pcb_MathPolygon.createPolygon']
+          : ['PCB_MathPolygon.createComplexPolygon', 'pcb_MathPolygon.createComplexPolygon'];
+      return await callFirst(builder, source);
+    }
+
+    const output: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value)) {
+      output[key] = await materializeApiArgument(nested, `${argumentPath}.${key}`);
+    }
+    return output;
+  }
+
   function inspectApiInventory(filter?: string): JsonValue {
     const normalizedFilter = filter?.toLowerCase().trim();
     const classMap = new Map<
@@ -135,7 +198,11 @@ export function createApiRuntime(
         const fn = readPath<unknown>(candidate.root, candidatePath);
         if (typeof fn !== 'function') continue;
         const parent = readPathParent(candidate.root, candidatePath);
-        const result = await fn.apply(parent, args);
+        const materializedArgs: unknown[] = [];
+        for (const [index, argument] of args.entries()) {
+          materializedArgs.push(await materializeApiArgument(argument, `args[${index}]`));
+        }
+        const result = await fn.apply(parent, materializedArgs);
         return {
           path,
           resolvedPath: `${candidate.name}.${candidatePath}`,

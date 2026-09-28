@@ -7,7 +7,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 
 | Tool Name                                          | Profile | Risk     | Description                                                                                                                                                                                                                                                                                                                      |
 | -------------------------------------------------- | ------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `easyeda_api_call`                                 | `full`  | `high`   | Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. This is not raw JavaScript execution.                                                                                                                                                                                        |
+| `easyeda_api_call`                                 | `full`  | `high`   | Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. Polygon-typed parameters use explicit $polygon/$complexPolygon tagged arguments. This is not raw JavaScript execution.                                                                                                       |
 | `easyeda_api_inventory`                            | `core`  | `low`    | Inspect the live EasyEDA extension runtime and list available documented API classes, runtime paths, and methods.                                                                                                                                                                                                                |
 | `easyeda_board_dimensions`                         | `core`  | `low`    | Get the PCB board outline dimensions, shape, and mounting hole information.                                                                                                                                                                                                                                                      |
 | `easyeda_board_features`                           | `core`  | `low`    | Get counts of board features. zones counts copper Pour boundaries only; native Fill and Region primitives are reported separately as fills and regions.                                                                                                                                                                          |
@@ -131,15 +131,15 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. This is not raw JavaScript execution.
+> Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. Polygon-typed parameters use explicit $polygon/$complexPolygon tagged arguments. This is not raw JavaScript execution.
 
 ### Input Parameters
 
-| Parameter      | Type      | Required | Description |
-| -------------- | --------- | -------- | ----------- |
-| `path`         | `string`  | Yes      |             |
-| `args`         | `any[]`   | Yes      |             |
-| `confirmWrite` | `boolean` | Yes      |             |
+| Parameter      | Type      | Required | Description                                                                                                                                                                                                                                                                          |
+| -------------- | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`         | `string`  | Yes      |                                                                                                                                                                                                                                                                                      |
+| `args`         | `any[]`   | Yes      | Positional EasyEDA API arguments. For documented IPCB_Polygon parameters on PCB_PrimitiveRegion/Pour/Fill/Polyline create or modify and PCB_PrimitiveImage.create, pass {$polygon: [...]} or {$complexPolygon: [[...], ...]}; serialized __class/__methods descriptors are rejected. |
+| `confirmWrite` | `boolean` | Yes      |                                                                                                                                                                                                                                                                                      |
 
 ### Output Format
 

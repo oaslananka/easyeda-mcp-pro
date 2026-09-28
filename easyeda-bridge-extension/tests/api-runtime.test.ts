@@ -126,6 +126,91 @@ describe('EasyEDA API runtime', () => {
     });
   });
 
+  it('materializes tagged polygon arguments inside the bridge before native calls', async () => {
+    const roots = mutableRoots();
+    const polygon = { kind: 'live-polygon' };
+    const complexPolygon = { kind: 'live-complex-polygon' };
+    const modify = vi.fn(() => ({ ok: true }));
+    const createPolygon = vi.fn(() => polygon);
+    const createComplexPolygon = vi.fn(() => complexPolygon);
+    roots.setEda({
+      PCB_MathPolygon: {
+        createPolygon,
+        createComplexPolygon,
+      },
+      PCB_PrimitivePolyline: {
+        modify,
+      },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+
+    await runtime.callAllowedApi('PCB_PrimitivePolyline.modify', [
+      'outline-1',
+      {
+        polygon: { $polygon: [0, 0, 'L', 10, 0, 10, 10] },
+        holes: [{ $complexPolygon: [[0, 0, 'L', 1, 0, 1, 1]] }],
+      },
+    ]);
+
+    expect(createPolygon).toHaveBeenCalledWith([0, 0, 'L', 10, 0, 10, 10]);
+    expect(createComplexPolygon).toHaveBeenCalledWith([[0, 0, 'L', 1, 0, 1, 1]]);
+    expect(modify).toHaveBeenCalledWith('outline-1', {
+      polygon,
+      holes: [complexPolygon],
+    });
+  });
+
+  it('rejects serialized EasyEDA descriptors instead of forwarding them', async () => {
+    const roots = mutableRoots();
+    const modify = vi.fn(() => ({ ok: true }));
+    roots.setEda({
+      PCB_PrimitivePolyline: {
+        modify,
+      },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+
+    await expect(
+      runtime.callAllowedApi('PCB_PrimitivePolyline.modify', [
+        'outline-1',
+        {
+          polygon: {
+            __class: 'Et',
+            __methods: ['getSource'],
+            polygon: [0, 0, 'L', 10, 0, 10, 10],
+          },
+        },
+      ]),
+    ).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+      message:
+        'Serialized EasyEDA API descriptors cannot be used as call arguments (args[1].polygon)',
+    });
+    expect(modify).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed tagged polygon arguments before invoking native methods', async () => {
+    const roots = mutableRoots();
+    const modify = vi.fn(() => ({ ok: true }));
+    roots.setEda({
+      PCB_PrimitivePolyline: {
+        modify,
+      },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+
+    await expect(
+      runtime.callAllowedApi('PCB_PrimitivePolyline.modify', [
+        'outline-1',
+        { polygon: { $polygon: 'not-an-array' } },
+      ]),
+    ).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+      message: '$polygon must contain an array (args[1].polygon)',
+    });
+    expect(modify).not.toHaveBeenCalled();
+  });
+
   it('returns bounded bridge errors for denied and missing methods', async () => {
     const roots = mutableRoots();
     const errorFactory = vi.fn<BridgeErrorFactory>(bridgeError);
