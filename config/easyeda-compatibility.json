@@ -116,7 +116,7 @@
         "The live-smoke report from this validation omitted bridgeVersion because BridgeManager.connect() starts the listener before the extension handshake; current smoke code now waits for waitForConnection(). EasyEDA application version is still verified independently because the extension handshake did not report it.",
         "PCB_PrimitivePolyline.modify is beta and replaced the disposable primitive with a new id while returning the original id. The validation detected and cleaned the replacement by comparing against the pre-mutation id inventory; this behavior must not be assumed to be in-place.",
         "Concurrent host EasyEDA cache/WAL and warning-log activity changed aggregate config/Documents digests during the validation window. The bubblewrap namespace could not access those host paths; the host project-data digest and installed app database stayed unchanged and no host design project file was observed changed.",
-        "The exact package came from 4be3b8c23bff0a9929566966b0bc74bd428556f1. Current main 82bbf12bb6b00964d64f8a5f51a1317d65220f3e has identical Git tree objects under all six release-sensitive paths.",
+        "The exact package came from 4be3b8c23bff0a9929566966b0bc74bd428556f1. At validation time, main 82bbf12bb6b00964d64f8a5f51a1317d65220f3e had identical Git tree objects under all six release-sensitive paths.",
         "Public npm provenance, GitHub Release assets, attestations, SBOM, GHCR identities, and MCP Registry publication remain publication-time/post-publication gates."
       ]
     },
