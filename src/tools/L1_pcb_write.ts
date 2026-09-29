@@ -170,10 +170,8 @@ const pcbAddRegionOutputSchema = z.object({
 
 type PcbRegionListItem = z.infer<typeof pcbRegionReadBackSchema>;
 
-function normalizedRuleTypes(value: unknown): number[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is number => Number.isInteger(item)).sort((a, b) => a - b)
-    : [];
+function normalizedRuleTypes(value: number[]): number[] {
+  return [...value].sort((a, b) => a - b);
 }
 
 function regionReadBackMatches(
@@ -191,17 +189,18 @@ function regionReadBackMatches(
   if (expected.name !== undefined && item.regionName !== expected.name) return false;
   if (expected.lineWidth !== undefined && item.lineWidth !== expected.lineWidth) return false;
   if (item.locked !== expected.locked) return false;
-  return item.polygonSource !== undefined;
+  return JSON.stringify(item.polygonSource) === JSON.stringify(expected.polygon);
 }
 
+const pcbRegionCreateResultSchema = z.object({
+  result: z.object({
+    state: z.object({ PrimitiveId: z.string().min(1) }),
+  }),
+});
+
 function primitiveIdFromApiCall(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const result = (value as { result?: unknown }).result;
-  if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
-  const state = (result as { state?: unknown }).state;
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return undefined;
-  const primitiveId = (state as { PrimitiveId?: unknown }).PrimitiveId;
-  return typeof primitiveId === 'string' && primitiveId.length > 0 ? primitiveId : undefined;
+  const parsed = pcbRegionCreateResultSchema.safeParse(value);
+  return parsed.success ? parsed.data.result.state.PrimitiveId : undefined;
 }
 
 async function listRegionsForWrite(ctx: ToolContext): Promise<PcbRegionListItem[]> {
@@ -209,7 +208,7 @@ async function listRegionsForWrite(ctx: ToolContext): Promise<PcbRegionListItem[
     'pcb.listRegions',
     { limit: 200, offset: 0 },
   );
-  const parsed = z.array(pcbRegionReadBackSchema).safeParse(result?.items ?? []);
+  const parsed = z.array(pcbRegionReadBackSchema).safeParse(result.items ?? []);
   if (!parsed.success) {
     throw new Error('PCB region read-back returned an unexpected shape.');
   }
@@ -221,7 +220,7 @@ async function rollbackCreatedRegion(ctx: ToolContext, primitiveId: string): Pro
     Record<string, unknown>,
     { deleted?: string[]; notFound?: string[] }
   >('pcb.deleteComponent', { primitiveIds: [primitiveId] });
-  if (!deletion?.deleted?.includes(primitiveId)) return false;
+  if (!deletion.deleted?.includes(primitiveId)) return false;
   const remaining = await listRegionsForWrite(ctx);
   return !remaining.some((item) => item.primitiveId === primitiveId);
 }
