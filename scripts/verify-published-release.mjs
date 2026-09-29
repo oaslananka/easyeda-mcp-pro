@@ -88,7 +88,7 @@ async function fetchJson(url) {
   return await response.json();
 }
 
-async function collectLiveRaw({ repository, tag, version, packageName, mcpName }) {
+async function collectLiveRaw({ repository, tag, version, packageName, mcpName, channel }) {
   const [owner, repositoryName] = repository.split('/');
   const npmPackage = runJson('npm', [
     'view',
@@ -128,10 +128,13 @@ async function collectLiveRaw({ repository, tag, version, packageName, mcpName }
     '--format',
     '{{json .Image}}',
   ]);
-  const registryUrl = new URL('https://registry.modelcontextprotocol.io/v0.1/servers');
-  registryUrl.searchParams.set('search', mcpName);
-  registryUrl.searchParams.set('version', version);
-  const mcpRegistry = await fetchJson(registryUrl);
+  let mcpRegistry = { servers: [] };
+  if (channel === 'stable') {
+    const registryUrl = new URL('https://registry.modelcontextprotocol.io/v0.1/servers');
+    registryUrl.searchParams.set('search', mcpName);
+    registryUrl.searchParams.set('version', version);
+    mcpRegistry = await fetchJson(registryUrl);
+  }
   return {
     npmPackage,
     npmDistTags,
@@ -289,6 +292,7 @@ async function main() {
           version: expectation.version,
           packageName: expectation.packageName,
           mcpName: expectation.mcpName,
+          channel: expectation.channel,
         });
 
     const sourcePackageVersion = fixturePath ? raw.sourcePackageVersion : packageJson.version;

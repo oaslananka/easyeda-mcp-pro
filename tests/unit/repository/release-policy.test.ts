@@ -30,6 +30,8 @@ describe('release channel policy', () => {
   it('separates release PR maintenance from fail-closed publication', () => {
     const manager = readText('.github/workflows/release-please.yml');
     const publisher = readText('.github/workflows/publish-release.yml');
+    const verifier = readText('.github/workflows/verify-published-release.yml');
+    const verificationScript = readText('scripts/verify-published-release.mjs');
     const config = JSON.parse(readText('release-please-config.json')) as {
       packages?: Record<string, { prerelease?: boolean }>;
     };
@@ -120,6 +122,22 @@ describe('release channel policy', () => {
     expect(publisher).toContain('type=raw,value=next');
     expect(publisher).toContain('type=raw,value=latest');
     expect(publisher).not.toContain('continue-on-error: true');
+
+    expect(verifier).toContain('name: Verify Published Release');
+    expect(verifier).toContain('workflow_dispatch:');
+    expect(verifier).toContain('contents: read');
+    expect(verifier).toContain('packages: read');
+    expect(verifier).toContain('verify-published-release.mjs');
+    expect(verifier).toContain('check-release-extension-identity.mjs');
+    expect(verifier).toContain('published-release-verification-${{ inputs.tag_name }}');
+    expect(verifier).not.toContain('npm publish');
+    expect(verifier).not.toContain('gh release upload');
+    expect(verifier).not.toContain('docker/build-push-action');
+    expect(verifier).not.toContain('mcp-publisher publish');
+    expect(verifier).not.toContain('contents: write');
+    expect(verifier).not.toContain('packages: write');
+    expect(verificationScript).toContain("if (channel === 'stable')");
+    expect(verificationScript).toContain('mcpRegistry = { servers: [] }');
   });
 
   it('does not enforce a time-based stable promotion wait in CI or publication', () => {

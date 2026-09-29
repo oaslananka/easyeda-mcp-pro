@@ -1,0 +1,125 @@
+---
+name: Verify Published Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Immutable release tag to verify'
+        required: true
+        type: string
+      release_channel:
+        description: 'Release channel; must match the tag format'
+        required: true
+        type: choice
+        options:
+          - stable
+          - prerelease
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  verify:
+    name: Verify immutable published release
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ inputs.tag_name }}
+      RELEASE_CHANNEL: ${{ inputs.release_channel }}
+    steps:
+      - name: Checkout current verification policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Stage current verification policy
+        run: |
+          set -euo pipefail
+          RELEASE_VERIFIER_ROOT="$RUNNER_TEMP/easyeda-release-verifier"
+          echo "RELEASE_VERIFIER_ROOT=$RELEASE_VERIFIER_ROOT" >> "$GITHUB_ENV"
+          mkdir -p \
+            "$RELEASE_VERIFIER_ROOT/config" \
+            "$RELEASE_VERIFIER_ROOT/scripts" \
+            "$RELEASE_VERIFIER_ROOT/src/release"
+          cp scripts/verify-published-release.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/check-release-extension-identity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/release-readiness.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp src/release/published-release-verifier.ts "$RELEASE_VERIFIER_ROOT/src/release/"
+
+      - name: Resolve immutable release identity
+        run: |
+          set -euo pipefail
+          STABLE_RE='^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+$'
+          PRERELEASE_RE='^easyeda-mcp-pro-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$'
+          if [[ "$RELEASE_CHANNEL" == "stable" && ! "$RELEASE_TAG" =~ $STABLE_RE ]]; then exit 1; fi
+          if [[ "$RELEASE_CHANNEL" == "prerelease" && ! "$RELEASE_TAG" =~ $PRERELEASE_RE ]]; then exit 1; fi
+          git fetch --force --tags origin
+          git show-ref --verify "refs/tags/${RELEASE_TAG}"
+          RELEASE_COMMIT_SHA="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+          git merge-base --is-ancestor "$RELEASE_COMMIT_SHA" HEAD
+          echo "RELEASE_COMMIT_SHA=$RELEASE_COMMIT_SHA" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+
+      - name: Checkout immutable release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve approved extension identity
+        id: extension_identity
+        run: |
+          set -euo pipefail
+          cp package.json "$RELEASE_VERIFIER_ROOT/package.json"
+          node "$RELEASE_VERIFIER_ROOT/scripts/check-release-extension-identity.mjs" \
+            --root "$GITHUB_WORKSPACE" \
+            --target-ref "$RELEASE_TAG" \
+            --channel "$RELEASE_CHANNEL" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry for read-only verification
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Verify published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERIFY_WORKFLOW_PROVENANCE: 'true'
+          EXTENSION_ASSET_DIGEST: ${{ steps.extension_identity.outputs.extension_asset_digest }}
+          EXTENSION_ASSET_SIZE: ${{ steps.extension_identity.outputs.extension_asset_size }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          node "$RELEASE_VERIFIER_ROOT/scripts/verify-published-release.mjs" \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "$RELEASE_TAG" \
+            --channel "$RELEASE_CHANNEL" \
+            --commit "$RELEASE_COMMIT_SHA" \
+            --extension-asset-digest "$EXTENSION_ASSET_DIGEST" \
+            --extension-asset-size "$EXTENSION_ASSET_SIZE" \
+            --report-json reports/published-release.json \
+            --summary-file reports/published-release-summary.md
+          cat reports/published-release-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload published release verification
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: published-release-verification-${{ inputs.tag_name }}
+          path: reports/published-release.json
+          if-no-files-found: error
+          retention-days: 30
