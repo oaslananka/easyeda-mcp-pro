@@ -383,6 +383,357 @@ describe('PCB Write Tools', () => {
     expect(result?.error).toContain('rolled back');
   });
 
+  it('easyeda_pcb_add_region should identify a created region by baseline diff when create returns no id', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [
+          { primitiveId: 'existing', layer: 13, ruleTypes: [2], regionName: 'old', locked: false },
+        ],
+      })
+      .mockResolvedValueOnce({ result: null })
+      .mockResolvedValueOnce({
+        total: 2,
+        items: [
+          { primitiveId: 'existing', layer: 13, ruleTypes: [2], regionName: 'old', locked: false },
+          {
+            primitiveId: 'region-fallback',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: 'fallback',
+            locked: false,
+            polygonSource: ['R', 0, 0, 100, 100, 0, 0],
+          },
+        ],
+      });
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['NO_COMPONENTS'],
+      name: 'fallback',
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({ success: true, primitiveId: 'region-fallback' });
+  });
+
+  it('easyeda_pcb_add_region should fail closed on ambiguous read-back when create returns no id', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({ result: null })
+      .mockResolvedValueOnce({
+        total: 2,
+        items: [
+          {
+            primitiveId: 'region-a',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: 'a',
+            locked: false,
+            polygonSource: ['R', 0, 0, 100, 100, 0, 0],
+          },
+          {
+            primitiveId: 'region-b',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: 'b',
+            locked: false,
+            polygonSource: ['R', 200, 0, 100, 100, 0, 0],
+          },
+        ],
+      });
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['NO_COMPONENTS'],
+      confirmWrite: true,
+    });
+
+    expect(result?.success).toBe(false);
+    expect(result?.error).toContain('without a unique matching');
+    expect(bridgeCall).toHaveBeenCalledTimes(3);
+  });
+
+  it('easyeda_pcb_add_region should report rollback verification failure', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({ result: { state: { PrimitiveId: 'region-stuck' } } })
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [
+          {
+            primitiveId: 'region-stuck',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: 'wrong',
+            locked: false,
+            polygonSource: ['R', 0, 0, 100, 100, 0, 0],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ deleted: [] });
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['NO_COMPONENTS'],
+      name: 'expected',
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      primitiveId: 'region-stuck',
+      rolledBack: false,
+    });
+    expect(result?.error).toContain('rollback could not be verified');
+  });
+
+  it('easyeda_pcb_add_region should fail closed when rollback throws', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({ result: { state: { PrimitiveId: 'region-throw' } } })
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [
+          {
+            primitiveId: 'region-throw',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: 'wrong',
+            locked: false,
+            polygonSource: ['R', 0, 0, 100, 100, 0, 0],
+          },
+        ],
+      })
+      .mockRejectedValueOnce(new Error('delete failed'));
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['NO_COMPONENTS'],
+      name: 'expected',
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      primitiveId: 'region-throw',
+      rolledBack: false,
+    });
+    expect(result?.error).toContain('rollback could not be verified');
+  });
+
+  it('easyeda_pcb_add_region should fall back from a stale returned id to the unique newly added region', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    const polygon = ['R', 0, 0, 100, 100, 0, 0];
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({ result: { state: { PrimitiveId: 'stale-id' } } })
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [
+          {
+            primitiveId: 'actual-id',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: '',
+            locked: false,
+            polygonSource: polygon,
+          },
+        ],
+      });
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon,
+      ruleType: ['NO_COMPONENTS'],
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({ success: true, primitiveId: 'actual-id' });
+  });
+
+  it('easyeda_pcb_add_region should treat missing list items as an empty baseline', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    const polygon = ['R', 0, 0, 100, 100, 0, 0];
+    bridgeCall
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ result: { state: { PrimitiveId: 'region-empty-baseline' } } })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            primitiveId: 'region-empty-baseline',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: '',
+            locked: false,
+            polygonSource: polygon,
+          },
+        ],
+      });
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon,
+      ruleType: ['NO_COMPONENTS'],
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({ success: true, primitiveId: 'region-empty-baseline' });
+  });
+
+  it('easyeda_pcb_add_region should reject polygon read-back that differs from the requested source', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    const polygon = ['R', 0, 0, 100, 100, 0, 0];
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({ result: { state: { PrimitiveId: 'region-polygon-mismatch' } } })
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [
+          {
+            primitiveId: 'region-polygon-mismatch',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: '',
+            locked: false,
+            polygonSource: ['R', 0, 0, 200, 100, 0, 0],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ deleted: ['region-polygon-mismatch'] })
+      .mockResolvedValueOnce({ total: 0, items: [] });
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon,
+      ruleType: ['NO_COMPONENTS'],
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      primitiveId: 'region-polygon-mismatch',
+      rolledBack: true,
+    });
+    expect(result?.error).toContain('read-back did not match');
+  });
+
+  it('easyeda_pcb_add_region should fail closed on malformed region read-back', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall.mockResolvedValueOnce({ total: 1, items: [{ primitiveId: 123 }] });
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['NO_COMPONENTS'],
+      confirmWrite: true,
+    });
+
+    expect(result?.success).toBe(false);
+    expect(result?.error).toContain('unexpected shape');
+    expect(bridgeCall).toHaveBeenCalledTimes(1);
+  });
+
+  it('easyeda_pcb_add_region should fail closed when the native create call throws', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockRejectedValueOnce(new Error('native create failed'));
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['NO_COMPONENTS'],
+      confirmWrite: true,
+    });
+
+    expect(result).toEqual({ success: false, error: 'native create failed' });
+  });
+
+  it('easyeda_pcb_add_region should stringify non-Error native failures safely', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall.mockResolvedValueOnce({ total: 0, items: [] }).mockRejectedValueOnce('native failure');
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['NO_COMPONENTS'],
+      confirmWrite: true,
+    });
+
+    expect(result).toEqual({ success: false, error: 'native failure' });
+  });
+
+  it('easyeda_pcb_add_region should validate every read-back field before success', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    const polygon = ['R', 0, 0, 100, 100, 0, 0];
+    const mismatches = [
+      {
+        layer: 1,
+        ruleTypes: [2],
+        regionName: 'expected',
+        lineWidth: 10,
+        locked: false,
+        polygonSource: polygon,
+      },
+      {
+        layer: 13,
+        ruleTypes: [5],
+        regionName: 'expected',
+        lineWidth: 10,
+        locked: false,
+        polygonSource: polygon,
+      },
+      {
+        layer: 13,
+        ruleTypes: [2],
+        regionName: 'expected',
+        lineWidth: 11,
+        locked: false,
+        polygonSource: polygon,
+      },
+      {
+        layer: 13,
+        ruleTypes: [2],
+        regionName: 'expected',
+        lineWidth: 10,
+        locked: true,
+        polygonSource: polygon,
+      },
+    ];
+
+    for (const [index, mismatch] of mismatches.entries()) {
+      bridgeCall.mockReset();
+      bridgeCall
+        .mockResolvedValueOnce({ total: 0, items: [] })
+        .mockResolvedValueOnce({ result: { state: { PrimitiveId: `region-${index}` } } })
+        .mockResolvedValueOnce({
+          total: 1,
+          items: [{ primitiveId: `region-${index}`, ...mismatch }],
+        })
+        .mockResolvedValueOnce({ deleted: [`region-${index}`] })
+        .mockResolvedValueOnce({ total: 0, items: [] });
+
+      const result = await tool?.handler(context, {
+        layer: 13,
+        polygon,
+        ruleType: ['NO_COMPONENTS'],
+        name: 'expected',
+        lineWidth: 10,
+        confirmWrite: true,
+      });
+      expect(result).toMatchObject({ success: false, rolledBack: true });
+    }
+  });
+
   it('easyeda_pcb_add_region rejects unsupported region rules before any bridge call', async () => {
     const tool = registry.get('easyeda_pcb_add_region');
     const parsed = tool?.inputSchema.safeParse({
