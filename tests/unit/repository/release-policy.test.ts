@@ -129,6 +129,17 @@ describe('release channel policy', () => {
     expect(verifier).toContain('packages: read');
     expect(verifier).toContain('verify-published-release.mjs');
     expect(verifier).toContain('check-release-extension-identity.mjs');
+    expect(verifier).toContain('pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024');
+    expect(verifier).toContain('pnpm install --frozen-lockfile --ignore-scripts');
+    expect(verifier).toContain('pnpm package:prepare');
+    expect(verifier).toContain('pnpm verify:extension');
+    expect(verifier).toContain('pnpm check:extension-size');
+    expect(verifier.indexOf('Checkout immutable release source')).toBeLessThan(
+      verifier.indexOf('name: Setup pnpm'),
+    );
+    expect(verifier.indexOf('name: Setup pnpm')).toBeLessThan(
+      verifier.indexOf('Rebuild deterministic release package locally'),
+    );
     expect(verifier).toContain('published-release-verification-${{ inputs.tag_name }}');
     expect(verifier).not.toContain('npm publish');
     expect(verifier).not.toContain('gh release upload');

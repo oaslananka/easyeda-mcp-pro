@@ -25,7 +25,7 @@ GitHub Actions keeps bounded operational copies after publication: SBOM workflow
 
 Stable promotion has no time-based waiting gate. The release can proceed as soon as the exact source commit has passed required review and CI/security checks and its required release evidence is current. Publication still fails closed before immutable release or registry mutation if source identity, channel/version metadata, or commit-bound EasyEDA compatibility evidence is invalid.
 
-A rerun must use the same audited source and evidence. When publication already completed and only the final verifier failed, use the read-only **Verify Published Release** workflow from current `main`; do not replay registry mutations merely to retry observation. Prerelease verification skips MCP Registry lookup by design, while stable verification still requires the exact registry record. If a mandatory gate was added after an earlier failed attempt, use the current workflow policy rather than replaying an older workflow definition.
+A rerun must use the same audited source and evidence. When publication already completed and only the final verifier failed, use the read-only **Verify Published Release** workflow from current `main`; do not replay registry mutations merely to retry observation. The workflow locally rebuilds the deterministic package in its disposable runner before rechecking the approved extension identity. Prerelease verification skips MCP Registry lookup by design, while stable verification still requires the exact registry record. If a mandatory gate was added after an earlier failed attempt, use the current workflow policy rather than replaying an older workflow definition.
 
 For each release, maintainers should start with the commit-bound compatibility check:
 
