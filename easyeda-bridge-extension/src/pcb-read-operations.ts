@@ -48,11 +48,28 @@ function paginationEnd(limit: number | undefined, start: number): number | undef
   return typeof limit === 'number' ? start + Math.max(1, limit) : undefined;
 }
 
+function readPolygonPrimitiveState(
+  readState: PrimitiveStateReader,
+  value: unknown,
+  key: string,
+): unknown {
+  if (value && typeof value === 'object') {
+    const state = (value as { state?: unknown }).state;
+    if (state && typeof state === 'object') {
+      const record = state as Record<string, unknown>;
+      const lowerCamelKey = key.length > 0 ? key.charAt(0).toLowerCase() + key.slice(1) : key;
+      if (key in record) return record[key];
+      if (lowerCamelKey in record) return record[lowerCamelKey];
+    }
+  }
+  return readState(value, key);
+}
+
 async function polygonSource(
   readState: PrimitiveStateReader,
   value: unknown,
 ): Promise<unknown[] | undefined> {
-  const polygon = readState(value, 'ComplexPolygon');
+  const polygon = readPolygonPrimitiveState(readState, value, 'ComplexPolygon');
   if (Array.isArray(polygon)) return polygon;
   if (!polygon || typeof polygon !== 'object') return undefined;
   try {
@@ -117,19 +134,19 @@ export function createPcbReadOperations({
     const fill = kind === 'Fill';
     const items = await Promise.all(
       all.slice(start, paginationEnd(limit, start)).map(async (value: any) => ({
-        primitiveId: readState(value, 'PrimitiveId'),
-        layer: readState(value, 'Layer'),
+        primitiveId: readPolygonPrimitiveState(readState, value, 'PrimitiveId'),
+        layer: readPolygonPrimitiveState(readState, value, 'Layer'),
         ...(fill
           ? {
-              net: readState(value, 'Net'),
-              fillMode: readState(value, 'FillMode'),
+              net: readPolygonPrimitiveState(readState, value, 'Net'),
+              fillMode: readPolygonPrimitiveState(readState, value, 'FillMode'),
             }
           : {
-              ruleTypes: readState(value, 'RuleType'),
-              regionName: readState(value, 'RegionName'),
+              ruleTypes: readPolygonPrimitiveState(readState, value, 'RuleType'),
+              regionName: readPolygonPrimitiveState(readState, value, 'RegionName'),
             }),
-        lineWidth: readState(value, 'LineWidth'),
-        locked: readState(value, 'PrimitiveLock'),
+        lineWidth: readPolygonPrimitiveState(readState, value, 'LineWidth'),
+        locked: readPolygonPrimitiveState(readState, value, 'PrimitiveLock'),
         polygonSource: await polygonSource(readState, value),
       })),
     );

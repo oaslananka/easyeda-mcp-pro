@@ -259,6 +259,86 @@ describe('PCB read operations', () => {
     });
   });
 
+  it('prefers the native polygon primitive state bag over disagreeing getters', async () => {
+    const regionSource = ['R', 5000, 3000, 200, 100, 0, 0];
+    const fillSource = ['R', 6000, 3000, 200, 100, 0, 0];
+    const { operations } = makeOperations({
+      PCB_PrimitiveRegion: {
+        getAll: async () => [
+          {
+            state: {
+              PrimitiveId: 'region-raw',
+              Layer: 1,
+              RuleType: [2],
+              RegionName: 'raw region',
+              LineWidth: 5,
+              PrimitiveLock: false,
+              ComplexPolygon: { polygon: regionSource },
+            },
+            getState_PrimitiveId: () => 'region-getter',
+            getState_Layer: () => 12,
+            getState_RuleType: () => [7],
+            getState_RegionName: () => undefined,
+            getState_LineWidth: () => 0.2,
+            getState_PrimitiveLock: () => true,
+            getState_ComplexPolygon: () => null,
+          },
+        ],
+      },
+      PCB_PrimitiveFill: {
+        getAll: async () => [
+          {
+            state: {
+              PrimitiveId: 'fill-raw',
+              Layer: 13,
+              Net: '',
+              FillMode: 0,
+              LineWidth: 5,
+              PrimitiveLock: false,
+              ComplexPolygon: { polygon: fillSource },
+            },
+            getState_PrimitiveId: () => 'fill-getter',
+            getState_Layer: () => 12,
+            getState_Net: () => 'WRONG',
+            getState_FillMode: () => 2,
+            getState_LineWidth: () => 0.2,
+            getState_PrimitiveLock: () => true,
+            getState_ComplexPolygon: () => null,
+          },
+        ],
+      },
+    });
+
+    await expect(operations.listRegions()).resolves.toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'region-raw',
+          layer: 1,
+          ruleTypes: [2],
+          regionName: 'raw region',
+          lineWidth: 5,
+          locked: false,
+          polygonSource: regionSource,
+        },
+      ],
+    });
+    await expect(operations.listFills()).resolves.toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'fill-raw',
+          layer: 13,
+          net: '',
+          fillMode: 0,
+          lineWidth: 5,
+          locked: false,
+          polygonSource: fillSource,
+        },
+      ],
+    });
+  });
+
   it('maps Region state and accepts the runtime polygon property fallback', async () => {
     const source = ['R', 10, 20, 30, 40, 0, 0];
     const { operations } = makeOperations({
