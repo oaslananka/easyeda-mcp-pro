@@ -339,6 +339,42 @@ describe('PCB read operations', () => {
     });
   });
 
+  it('reads lower-camel polygon primitive fields from the native state bag', async () => {
+    const source = ['R', 7000, 3000, 100, 80, 0, 0];
+    const { operations } = makeOperations({
+      PCB_PrimitiveRegion: {
+        getAll: async () => [
+          {
+            state: {
+              primitiveId: 'region-lower-camel',
+              layer: 1,
+              ruleType: [2, 7],
+              regionName: 'lower-camel',
+              lineWidth: 0.2,
+              primitiveLock: false,
+              complexPolygon: { polygon: source },
+            },
+          },
+        ],
+      },
+    });
+
+    await expect(operations.listRegions()).resolves.toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'region-lower-camel',
+          layer: 1,
+          ruleTypes: [2, 7],
+          regionName: 'lower-camel',
+          lineWidth: 0.2,
+          locked: false,
+          polygonSource: source,
+        },
+      ],
+    });
+  });
+
   it('maps Region state and accepts the runtime polygon property fallback', async () => {
     const source = ['R', 10, 20, 30, 40, 0, 0];
     const { operations } = makeOperations({
