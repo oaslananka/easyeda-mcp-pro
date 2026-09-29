@@ -183,6 +183,19 @@ Normal stable releases are prepared by merging the Release Please PR and publish
 
 4. Verify npm `next`, GHCR `next`, exact-version assets, SBOM, provenance, and attestations. Confirm npm/GHCR `latest` did not move and the MCP Registry was skipped.
 
+### Post-publication verification-only recovery
+
+Use this path when npm, GitHub Release assets, and GHCR publication succeeded but the final **Verify published release** step failed because observation did not converge or an external read timed out. Do not rerun `publish-release.yml`, because that can overwrite release assets or rebuild exact container tags. Dispatch the read-only verifier instead:
+
+```bash
+TAG=easyeda-mcp-pro-vX.Y.Z-rc.N
+gh workflow run verify-published-release.yml --ref main \
+  -f tag_name="$TAG" \
+  -f release_channel=prerelease
+```
+
+For stable releases use `release_channel=stable`. The verification-only workflow has `contents: read` and `packages: read` permissions, checks the immutable tag/source and approved extension identity, performs no npm/GitHub Release/GHCR/MCP Registry mutations, and uploads a 30-day `published-release-verification-*` report. Prerelease verification intentionally does not query MCP Registry; stable verification does.
+
 ### Missing stable release identity recovery
 
 Use this path only when a stable release commit passed review but the first publication attempt failed before creating both the immutable Git tag and GitHub Release. The recovery must use the exact audited release commit; it must not rebuild the same version from a later source state.

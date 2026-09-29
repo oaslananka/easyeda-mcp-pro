@@ -17,7 +17,7 @@ Both channels publish the npm package, GitHub Release assets, SBOM, provenance/a
 3. The release pull request updates version metadata and `CHANGELOG.md`.
 4. After merge, CI re-runs the quality gates.
 5. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; the workflow then uploads release artifacts and publishes the remaining registries.
-6. The final **Verify published release** step compares npm, GitHub Release, GHCR, MCP Registry, assets, and Git commit identity and stores `published-release.json`.
+6. The final **Verify published release** step compares npm, GitHub Release, GHCR, assets, Git commit identity, and the MCP Registry only for stable releases, then stores `published-release.json`.
 
 GitHub Actions keeps bounded operational copies after publication: SBOM workflow artifact: `14 days`; published-release verification artifact: `30 days`. Long-lived verification must use the immutable GitHub Release assets, provenance/attestation evidence, checksums, and public release record rather than depending on expiring workflow artifacts.
 
@@ -25,7 +25,7 @@ GitHub Actions keeps bounded operational copies after publication: SBOM workflow
 
 Stable promotion has no time-based waiting gate. The release can proceed as soon as the exact source commit has passed required review and CI/security checks and its required release evidence is current. Publication still fails closed before immutable release or registry mutation if source identity, channel/version metadata, or commit-bound EasyEDA compatibility evidence is invalid.
 
-A rerun must use the same audited source and evidence. If a mandatory gate was added after an earlier failed attempt, use the current **Publish Release** workflow from `main` through the documented missing stable release identity recovery path rather than replaying an older workflow definition.
+A rerun must use the same audited source and evidence. When publication already completed and only the final verifier failed, use the read-only **Verify Published Release** workflow from current `main`; do not replay registry mutations merely to retry observation. Prerelease verification skips MCP Registry lookup by design, while stable verification still requires the exact registry record. If a mandatory gate was added after an earlier failed attempt, use the current workflow policy rather than replaying an older workflow definition.
 
 For each release, maintainers should start with the commit-bound compatibility check:
 

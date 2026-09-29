@@ -165,6 +165,7 @@ describe('repository governance policy', () => {
   it('bounds disposable GitHub Actions artifacts with explicit retention windows', () => {
     const ci = readText('.github/workflows/ci.yml');
     const release = readText('.github/workflows/publish-release.yml');
+    const releaseVerification = readText('.github/workflows/verify-published-release.yml');
 
     const prArtifact = ci.slice(
       ci.indexOf('- name: Upload PR test artifact'),
@@ -182,6 +183,8 @@ describe('repository governance policy', () => {
       release.indexOf('- name: Upload published release verification'),
     );
     expect(publishedReleaseArtifact).toContain('retention-days: 30');
+    expect(releaseVerification).toContain('retention-days: 30');
+    expect(releaseVerification).toContain('published-release-verification-${{ inputs.tag_name }}');
 
     for (const path of [
       'docs/RELEASE_PROCESS.md',

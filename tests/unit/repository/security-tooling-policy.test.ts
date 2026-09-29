@@ -164,6 +164,7 @@ describe('repository security tooling policy', () => {
       readText('.github/workflows/golden-benchmark.yml') +
       readText('.github/workflows/release-please.yml') +
       readText('.github/workflows/publish-release.yml') +
+      readText('.github/workflows/verify-published-release.yml') +
       readText('.github/workflows/scorecard.yml') +
       workflow;
     expect(allWorkflows.match(/uses: actions\/checkout@/g)).toHaveLength(
