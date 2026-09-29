@@ -132,6 +132,8 @@ jobs:
             "$RELEASE_VERIFIER_ROOT/scripts" \
             "$RELEASE_VERIFIER_ROOT/src/release"
           cp scripts/verify-published-release.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/check-release-extension-identity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/release-readiness.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/install-mcp-publisher.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/mcp-publisher-integrity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp config/mcp-publisher-integrity.json "$RELEASE_VERIFIER_ROOT/config/"
@@ -217,6 +219,15 @@ jobs:
           pnpm package:prepare
           pnpm verify:extension
           pnpm check:extension-size
+
+      - name: Verify release extension identity
+        id: extension_identity
+        run: |
+          node "$RELEASE_VERIFIER_ROOT/scripts/check-release-extension-identity.mjs" \
+            --root "$GITHUB_WORKSPACE" \
+            --target-ref "$TARGET_REF" \
+            --channel "$RELEASE_CHANNEL" \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Generate CycloneDX SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -418,6 +429,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERIFY_WORKFLOW_PROVENANCE: 'true'
+          EXTENSION_ASSET_DIGEST: ${{ steps.extension_identity.outputs.extension_asset_digest }}
+          EXTENSION_ASSET_SIZE: ${{ steps.extension_identity.outputs.extension_asset_size }}
         run: |
           set -euo pipefail
           mkdir -p reports
@@ -429,6 +442,8 @@ jobs:
               --tag "$RELEASE_TAG" \
               --channel "$RELEASE_CHANNEL" \
               --commit "$RELEASE_COMMIT_SHA" \
+              --extension-asset-digest "$EXTENSION_ASSET_DIGEST" \
+              --extension-asset-size "$EXTENSION_ASSET_SIZE" \
               --report-json reports/published-release.json \
               --summary-file reports/published-release-summary.md; then
               VERIFICATION_STATUS=0

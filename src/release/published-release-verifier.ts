@@ -12,12 +12,14 @@ export interface ReleaseVerificationExpectation {
   npmDistTag: string;
   commitSha: string;
   requiredAssets: string[];
+  extensionAsset: { digest: string; size: number };
   requiredGhcrTags: string[];
 }
 
 export interface ReleaseAssetObservation {
   name: string;
   digest?: string;
+  size?: number;
 }
 
 export interface ReleaseVerificationObservation {
@@ -53,6 +55,7 @@ export type ReleaseVerificationCheckId =
   | 'github-tag-commit'
   | 'github-classification'
   | 'github-assets'
+  | 'github-extension-identity'
   | 'ghcr-tags'
   | 'ghcr-revision'
   | 'mcp-registry';
@@ -100,17 +103,45 @@ function sameStringSet(expected: readonly string[], actual: readonly string[]): 
   );
 }
 
+function githubAssetChecks(
+  expectation: ReleaseVerificationExpectation,
+  assets: ReleaseAssetObservation[],
+): ReleaseVerificationCheck[] {
+  const assetByName = new Map(assets.map((asset) => [asset.name, asset]));
+  const missingOrUndigestedAssets = expectation.requiredAssets.filter((name) => {
+    const asset = assetByName.get(name);
+    return !asset || typeof asset.digest !== 'string' || asset.digest.trim().length === 0;
+  });
+  const extensionAsset = assetByName.get('easyeda-bridge-extension.eext');
+  const extensionIdentityMatches =
+    extensionAsset?.digest?.toLowerCase() === expectation.extensionAsset.digest.toLowerCase() &&
+    extensionAsset?.size === expectation.extensionAsset.size;
+
+  return [
+    check(
+      'github-assets',
+      missingOrUndigestedAssets.length === 0,
+      expectation.requiredAssets,
+      assets,
+      missingOrUndigestedAssets.length > 0
+        ? `Missing or undigested assets: ${missingOrUndigestedAssets.join(', ')}`
+        : undefined,
+    ),
+    check(
+      'github-extension-identity',
+      extensionIdentityMatches,
+      expectation.extensionAsset,
+      extensionAsset ?? null,
+      'The published EasyEDA extension asset must match the exact SHA-256 and size approved by the release identity gate.',
+    ),
+  ];
+}
+
 export function verifyPublishedReleaseObservation(
   expectation: ReleaseVerificationExpectation,
   observation: ReleaseVerificationObservation,
 ): ReleaseVerificationReport {
   const expectedPrerelease = expectation.channel === 'prerelease';
-  const assetByName = new Map(observation.github.assets.map((asset) => [asset.name, asset]));
-  const missingOrUndigestedAssets = expectation.requiredAssets.filter((name) => {
-    const asset = assetByName.get(name);
-    return !asset || typeof asset.digest !== 'string' || asset.digest.trim().length === 0;
-  });
-
   const provenancePassed =
     observation.npm.provenance === 'passed' || observation.npm.workflowContextProof === true;
   const provenanceActual = {
@@ -175,15 +206,7 @@ export function verifyPublishedReleaseObservation(
       },
       'The GitHub Release draft/prerelease classification must match the channel.',
     ),
-    check(
-      'github-assets',
-      missingOrUndigestedAssets.length === 0,
-      expectation.requiredAssets,
-      observation.github.assets,
-      missingOrUndigestedAssets.length > 0
-        ? `Missing or undigested assets: ${missingOrUndigestedAssets.join(', ')}`
-        : undefined,
-    ),
+    ...githubAssetChecks(expectation, observation.github.assets),
     check(
       'ghcr-tags',
       ghcrDigestPresent && ghcrTagsMatch,

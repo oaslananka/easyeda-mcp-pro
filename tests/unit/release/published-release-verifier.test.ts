@@ -20,6 +20,7 @@ const expectation: ReleaseVerificationExpectation = {
     'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json',
     'easyeda-mcp-pro-v0.35.4.intoto.jsonl',
   ],
+  extensionAsset: { digest: `sha256:${'e'.repeat(64)}`, size: 177765 },
   requiredGhcrTags: ['0.35.4', '0.35', 'latest'],
 };
 
@@ -35,7 +36,7 @@ const observation: ReleaseVerificationObservation = {
     isDraft: false,
     isPrerelease: false,
     assets: [
-      { name: 'easyeda-bridge-extension.eext', digest: 'sha256:extension' },
+      { name: 'easyeda-bridge-extension.eext', digest: `sha256:${'e'.repeat(64)}`, size: 177765 },
       { name: 'sbom.json', digest: 'sha256:sbom' },
       {
         name: 'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json',
@@ -67,7 +68,7 @@ describe('published release verifier', () => {
     const report = verifyPublishedReleaseObservation(expectation, cloneObservation());
 
     expect(report.ok).toBe(true);
-    expect(report.checks).toHaveLength(10);
+    expect(report.checks).toHaveLength(11);
     expect(report.checks.every((check) => check.status === 'passed')).toBe(true);
     expect(report.checks.map((check) => check.id)).toEqual([
       'npm-version',
@@ -77,6 +78,7 @@ describe('published release verifier', () => {
       'github-tag-commit',
       'github-classification',
       'github-assets',
+      'github-extension-identity',
       'ghcr-tags',
       'ghcr-revision',
       'mcp-registry',
@@ -131,6 +133,23 @@ describe('published release verifier', () => {
 
     expect(report.ok).toBe(false);
     expect(report.checks.find((check) => check.id === 'github-assets')?.status).toBe('failed');
+  });
+
+  it('fails when the published extension digest or size differs from the approved identity', () => {
+    const current = cloneObservation();
+    const extension = current.github.assets.find(
+      (asset) => asset.name === 'easyeda-bridge-extension.eext',
+    );
+    expect(extension).toBeDefined();
+    extension!.digest = `sha256:${'f'.repeat(64)}`;
+    extension!.size = 177764;
+
+    const report = verifyPublishedReleaseObservation(expectation, current);
+
+    expect(report.ok).toBe(false);
+    expect(report.checks.find((check) => check.id === 'github-extension-identity')?.status).toBe(
+      'failed',
+    );
   });
 
   it('fails when the portable Sigstore provenance sidecar is missing', () => {

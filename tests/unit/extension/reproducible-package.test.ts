@@ -7,6 +7,7 @@ import {
   collectExtensionPackageFiles,
   writeExtensionArchive,
 } from '../../../easyeda-bridge-extension/scripts/archive.mjs';
+import { resolveReproducibleEpochSeconds } from '../../../easyeda-bridge-extension/scripts/reproducible-time.mjs';
 
 const temporaryRoots: string[] = [];
 
@@ -58,6 +59,33 @@ describe('reproducible extension archive', () => {
 
     await writeExtensionArchive({ root, packagePath: first, date });
     await writeExtensionArchive({ root, packagePath: second, date });
+
+    expect(await sha256(first)).toBe(await sha256(second));
+  });
+
+  it('keeps archive bytes stable across different squash-equivalent Git commit timestamps', async () => {
+    const root = await createFixture();
+    const outputRoot = join(root, 'commit-independent-output');
+    await mkdir(outputRoot, { recursive: true });
+    const first = join(outputRoot, 'first.eext');
+    const second = join(outputRoot, 'second.eext');
+
+    const buildArchive = async (gitCommitEpoch: string, output: string) => {
+      const epoch = resolveReproducibleEpochSeconds({
+        sourceDateEpoch: undefined,
+        gitCommitEpoch,
+      });
+      const date = new Date(epoch * 1000);
+      await writeFile(
+        join(root, 'dist/dispatcher.meta.json'),
+        `${JSON.stringify({ buildId: 'dtest', builtAt: date.toISOString() }, null, 2)}
+`,
+      );
+      await writeExtensionArchive({ root, packagePath: output, date });
+    };
+
+    await buildArchive('1600000000', first);
+    await buildArchive('1700000000', second);
 
     expect(await sha256(first)).toBe(await sha256(second));
   });

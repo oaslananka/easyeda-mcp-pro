@@ -63,12 +63,19 @@ describe('release channel policy', () => {
     expect(publisher).toContain('password: ${{ secrets.GITHUB_TOKEN }}');
     expect(publisher).toContain('Verify commit-bound EasyEDA compatibility evidence');
     expect(publisher).toContain('Verify Quality Gates');
+    expect(publisher).toContain('name: Verify release extension identity');
+    expect(publisher).toContain('check-release-extension-identity.mjs');
+    expect(publisher).toContain('--extension-asset-digest');
+    expect(publisher).toContain('--extension-asset-size');
     expect(publisher).toContain('Create commit-bound GitHub Release');
     expect(publisher).toContain('TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"');
     expect(publisher).toContain('gh release create "$RELEASE_TAG"');
     expect(publisher).toContain('--target "$TARGET_COMMIT"');
     expect(publisher).not.toContain('skip-github-pull-request: true');
     expect(publisher.indexOf('Verify Quality Gates')).toBeLessThan(
+      publisher.indexOf('Verify release extension identity'),
+    );
+    expect(publisher.indexOf('Verify release extension identity')).toBeLessThan(
       publisher.indexOf('Create commit-bound GitHub Release'),
     );
     expect(publisher).toContain('npm publish --provenance --tag "$NPM_DIST_TAG"');

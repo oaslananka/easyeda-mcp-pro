@@ -21,7 +21,15 @@ function parseArgs(argv) {
     values[key] = value;
     index += 1;
   }
-  for (const key of ['repository', 'tag', 'channel', 'commit', 'report-json']) {
+  for (const key of [
+    'repository',
+    'tag',
+    'channel',
+    'commit',
+    'report-json',
+    'extension-asset-digest',
+    'extension-asset-size',
+  ]) {
     if (!values[key]) throw new Error(`--${key} is required.`);
   }
   if (!['stable', 'prerelease'].includes(values.channel)) {
@@ -33,6 +41,14 @@ function parseArgs(argv) {
   if (!/^[0-9a-f]{40}$/i.test(values.commit)) {
     throw new Error('--commit must be a full 40-character Git SHA.');
   }
+  if (!/^sha256:[0-9a-f]{64}$/i.test(values['extension-asset-digest'])) {
+    throw new Error('--extension-asset-digest must use sha256:<64 hex> format.');
+  }
+  const extensionAssetSize = Number(values['extension-asset-size']);
+  if (!Number.isSafeInteger(extensionAssetSize) || extensionAssetSize <= 0) {
+    throw new Error('--extension-asset-size must be a positive integer.');
+  }
+  values['extension-asset-size'] = extensionAssetSize;
   return values;
 }
 
@@ -158,6 +174,7 @@ function normalizeObservation(raw, expectation) {
       assets: (raw.githubRelease?.assets ?? []).map((asset) => ({
         name: asset.name,
         digest: asset.digest,
+        size: asset.size,
       })),
     },
     ghcr: {
@@ -191,6 +208,10 @@ function buildExpectation(args, packageJson) {
       `${args.tag}.provenance.sigstore.json`,
       `${args.tag}.intoto.jsonl`,
     ],
+    extensionAsset: {
+      digest: args['extension-asset-digest'].toLowerCase(),
+      size: args['extension-asset-size'],
+    },
     requiredGhcrTags:
       args.channel === 'stable'
         ? [details.version, details.majorMinor, 'latest']
