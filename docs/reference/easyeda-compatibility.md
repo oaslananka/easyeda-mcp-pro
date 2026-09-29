@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.3           | 1.1.0-rc.3           | 1.1.0-rc.3        | Live validated  | 2026-09-29 | 2026-12-28 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.2           | 1.1.0-rc.2           | 1.1.0-rc.2        | Live validated  | 2026-09-28 | 2026-12-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0                | 1.1.0                | 1.1.0             | Live validated  | 2026-09-15 | 2026-12-14 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.1-rc.1           | 1.0.1-rc.1           | 1.0.1-rc.1        | Live validated  | 2026-08-28 | 2026-11-26 |
@@ -45,6 +46,53 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-3`
+
+### Runtime identity
+
+| Field                                | Exact value                                |
+| ------------------------------------ | ------------------------------------------ |
+| EasyEDA Pro                          | `3.2.149.88089769`                         |
+| Electron                             | `36.3.1`                                   |
+| Chromium                             | `136.0.7103.113`                           |
+| Operating system                     | Ubuntu 24.04.5 LTS                         |
+| Kernel                               | `7.0.0-34-generic`                         |
+| Architecture                         | `x86_64`                                   |
+| Node.js used by validation server    | `24.21.0`                                  |
+| Validation package version           | `1.1.0-rc.3`                               |
+| Release containing validated fixes   | `1.1.0-rc.3`                               |
+| Compatibility-sensitive base commit  | `0ff7dfa17d7a74e23167fbbbff6544282b227d4d` |
+| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
+| Installed extension package metadata | `1.1.0-rc.3`                               |
+| Loader-reported version              | `1.1.0-rc.3`                               |
+| Bridge contract                      | `1.0.0`                                    |
+| Dispatcher                           | `baked`                                    |
+| Method registry hash                 | `d9e01181ceed32d8`                         |
+| Hot-swap compiled / enabled          | `false` / `false`                          |
+
+The installed extension package and loader both reported version `1.1.0-rc.3` during this validation.
+
+### Capability evidence
+
+| Capability                                                                   | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                                                                                 | Evidence                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Packaged 1.1.0-rc.3 bridge identity and read-only smoke                      | `live` | `passed` | The exact 1.1.0-rc.3 extension package was imported into a bubblewrap/Xvfb-isolated EasyEDA Pro 3.2.149 Half Offline profile. Extension and loader both reported 1.1.0-rc.3, registry hashes matched at d9e01181ceed32d8, and all six repository read-only smoke checks passed with writes disabled on Node 24.21.0.                                                                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.3-polygon-compatibility.json), [PR #619](https://github.com/oaslananka/easyeda-mcp-pro/pull/619)                                                                         |
+| EasyEDA 3.2.149 runtime class and method inventory                           | `live` | `passed` | The live runtime exposed 67 API classes. inventory:diff against the checked-in 3.2.149 schemaVersion 1 baseline reported status=same with zero added, removed, or changed classes or methods; the method registry hash remained d9e01181ceed32d8.                                                                                                                                      | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.3-polygon-compatibility.json), [PR #619](https://github.com/oaslananka/easyeda-mcp-pro/pull/619)                                                                         |
+| Tagged polygon bridge materialization and fail-closed validation             | `live` | `passed` | Both $polygon and $complexPolygon tags materialized into native PCB_MathPolygon values with 10-by-10 geometry. Conflicting tags, malformed payloads, extra tagged fields, and serialized __class/__methods descriptors all failed closed with INVALID_PARAMS.                                                                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.3-polygon-compatibility.json), [PR #619](https://github.com/oaslananka/easyeda-mcp-pro/pull/619), [PR #599](https://github.com/oaslananka/easyeda-mcp-pro/pull/599)      |
+| Disposable polygon-typed PCB polyline create, modify, read-back, and cleanup | `live` | `passed` | On Document Layer 13 of the disposable Quick Start PCB, RC.3 created and read back a tagged-polygon polyline, modified it to line width 7 with a second tagged polygon, detected EasyEDA beta replacement-id behavior, and cleaned the exact replacement. The final primitive-id set matched the 24-item baseline exactly.                                                             | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.3-polygon-compatibility.json), [PR #619](https://github.com/oaslananka/easyeda-mcp-pro/pull/619), [Issue #598](https://github.com/oaslananka/easyeda-mcp-pro/issues/598) |
+| Bubblewrap/Xvfb isolation and exact host-state cleanup                       | `live` | `passed` | The validation replaced /home/msi inside a bubblewrap mount namespace with a disposable profile, exposed only Xvfb :98, and overlaid the EasyEDA packaged database. Before/after aggregate snapshots for the real EasyEDA config, project-data, and Documents trees were identical, the installed easyeda-std.elib SHA-256 was unchanged, and no validation listener/process remained. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.3-polygon-compatibility.json), [PR #619](https://github.com/oaslananka/easyeda-mcp-pro/pull/619)                                                                         |
+
+### Known limitations
+
+- This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than equivalent 1.1.0-rc.3 live desktop records.
+- EasyEDA Pro 3.2.149 did not report its application version in the bridge handshake used for this run; the exact desktop runtime identity was independently verified through the loopback-only DevTools endpoint that was removed during cleanup.
+- PCB_PrimitivePolyline.modify is beta and returned the original id while replacing the disposable primitive with a new id. Cleanup reconciled against the pre-mutation id inventory before accepting restoration.
+- This record revalidates tagged polygon materialization and the PCB_PrimitivePolyline path; Region/Fill typed-tool acceptance remains tracked by issue #598.
+- The exact package came from 0ff7dfa17d7a74e23167fbbbff6544282b227d4d; the subsequent evidence-only commit must preserve the recorded six-path compatibility snapshot.
+- Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates. The prerelease channel does not publish the MCP Registry.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
 
