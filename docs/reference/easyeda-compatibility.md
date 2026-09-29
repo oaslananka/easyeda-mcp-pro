@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.4           | 1.1.0-rc.4           | 1.1.0-rc.4        | Live validated  | 2026-09-29 | 2026-12-28 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.3           | 1.1.0-rc.3           | 1.1.0-rc.3        | Live validated  | 2026-09-29 | 2026-12-28 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.2           | 1.1.0-rc.2           | 1.1.0-rc.2        | Live validated  | 2026-09-28 | 2026-12-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0                | 1.1.0                | 1.1.0             | Live validated  | 2026-09-15 | 2026-12-14 |
@@ -46,6 +47,56 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-4`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.149.88089769`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-34-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.21.0`                                                          |
+| Validation package version               | `1.1.0-rc.4`                                                       |
+| Release containing validated fixes       | `1.1.0-rc.4`                                                       |
+| Compatibility-sensitive base commit      | `cf3aa09a4067a020543bb8678be266e8460ecc1d`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.1.0-rc.4`                                                       |
+| Live-validated extension package SHA-256 | `c75bd793dda7d453681fc6230f4241bb01ee8eceb809889e2ecce2fb6255d566` |
+| Live-validated extension package size    | `177765 bytes`                                                     |
+| Loader-reported version                  | `1.1.0-rc.4`                                                       |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `d9e01181ceed32d8`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.1.0-rc.4` during this validation.
+
+### Capability evidence
+
+| Capability                                                                   | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                                                                                                     | Evidence                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Packaged 1.1.0-rc.4 bridge identity and read-only smoke                      | `live` | `passed` | The exact 1.1.0-rc.4 extension package was imported into a bubblewrap/Xvfb-isolated EasyEDA Pro 3.2.149 Full Offline profile. Extension and loader both reported 1.1.0-rc.4, registry hashes matched at d9e01181ceed32d8, and the repository read-only smoke passed 6/6 with writes disabled on Node 24.21.0 after explicitly restoring Schematic/P1 focus.                                                | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.4-polygon-compatibility.json), [PR #624](https://github.com/oaslananka/easyeda-mcp-pro/pull/624)                                                                         |
+| EasyEDA 3.2.149 runtime class and method inventory                           | `live` | `passed` | The live runtime exposed 67 API classes. inventory:diff against the checked-in 3.2.149 schemaVersion 1 baseline reported status=same with zero added, removed, or changed classes or methods; the method registry hash remained d9e01181ceed32d8.                                                                                                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.4-polygon-compatibility.json), [PR #624](https://github.com/oaslananka/easyeda-mcp-pro/pull/624)                                                                         |
+| Tagged polygon bridge materialization and fail-closed validation             | `live` | `passed` | Both $polygon and $complexPolygon tags materialized into native PCB_MathPolygon values with 10-by-10 geometry. Conflicting tags, malformed payloads, extra tagged fields, and serialized __class/__methods descriptors all failed closed with INVALID_PARAMS.                                                                                                                                              | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.4-polygon-compatibility.json), [PR #624](https://github.com/oaslananka/easyeda-mcp-pro/pull/624), [PR #599](https://github.com/oaslananka/easyeda-mcp-pro/pull/599)      |
+| Disposable polygon-typed PCB polyline create, modify, read-back, and cleanup | `live` | `passed` | On Document Layer 13 of the disposable Quick Start PCB, RC.4 created and read back a tagged-polygon polyline, modified it to line width 7 with a second tagged polygon, detected EasyEDA beta replacement-id behavior, and cleaned the exact replacement. The final primitive-id set matched the 24-item baseline exactly.                                                                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.4-polygon-compatibility.json), [PR #624](https://github.com/oaslananka/easyeda-mcp-pro/pull/624), [Issue #598](https://github.com/oaslananka/easyeda-mcp-pro/issues/598) |
+| Bubblewrap/Xvfb isolation and exact host-state cleanup                       | `live` | `passed` | The validation replaced /home/msi inside a bubblewrap mount namespace with a disposable profile, exposed only Xvfb :98, and overlaid the EasyEDA packaged database. Before/after aggregate snapshots for the real EasyEDA config, project-data, Documents trees, and installed easyeda-std.elib matched exactly when recomputed with the same snapshot algorithm; no validation listener/process remained. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-29-ubuntu-24-04-easyeda-3.2.149-v1.1.0-rc.4-polygon-compatibility.json), [PR #624](https://github.com/oaslananka/easyeda-mcp-pro/pull/624)                                                                         |
+
+### Known limitations
+
+- This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than equivalent 1.1.0-rc.4 live desktop records.
+- EasyEDA Pro 3.2.149 did not report its application version in the bridge handshake used for this run; the exact EasyEDA/Electron/Chromium identity was independently verified through the loopback-only DevTools runtime endpoint, which was closed during cleanup.
+- The first repository read-only smoke attempt passed 5/6 checks and failed only design.erc because Extensions Manager still owned UI focus. After closing the manager and explicitly focusing Schematic/P1, the unchanged six-check smoke suite passed 6/6.
+- EasyEDA Pro 3.2.149 PCB_PrimitivePolyline.modify is beta and, in this live run, returned the original id while replacing the disposable primitive with a new id. Cleanup reconciled against the pre-mutation primitive-id inventory and removed the exact added replacement before accepting restoration.
+- This RC.4 live mutation pass covers the tagged polygon boundary and PCB_PrimitivePolyline create/modify/read-back path. It does not by itself complete the broader Region/Fill typed-tool acceptance still tracked by issue #598.
+- The exact extension package was built from cf3aa09a4067a020543bb8678be266e8460ecc1d. The compatibility evidence commit adds only docs/config evidence; the six release-sensitive Git tree objects remain the snapshot recorded here.
+- Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates. The prerelease channel does not publish the MCP Registry.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
 
