@@ -194,7 +194,7 @@ gh workflow run verify-published-release.yml --ref main \
   -f release_channel=prerelease
 ```
 
-For stable releases use `release_channel=stable`. The verification-only workflow has `contents: read` and `packages: read` permissions, checks the immutable tag/source and approved extension identity, performs no npm/GitHub Release/GHCR/MCP Registry mutations, and uploads a 30-day `published-release-verification-*` report. Prerelease verification intentionally does not query MCP Registry; stable verification does.
+For stable releases use `release_channel=stable`. The verification-only workflow has `contents: read` and `packages: read` permissions, rebuilds the deterministic package only inside its disposable runner to recover the expected extension identity, checks the immutable tag/source and published state, performs no npm/GitHub Release/GHCR/MCP Registry mutations, and uploads a 30-day `published-release-verification-*` report. Prerelease verification intentionally does not query MCP Registry; stable verification does.
 
 ### Missing stable release identity recovery
 
