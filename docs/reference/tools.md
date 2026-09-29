@@ -42,6 +42,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_live_smoke_report`                        | `dev`   | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                                                  |
 | `easyeda_live_write_regression`                    | `dev`   | `medium` | Exercise real schematic (and optionally PCB) write paths against the bridge — place, connect, wire, delete — reporting pass/fail per step, then clean up its own scratch primitives. Needs a test device from schematic_search_device and the matching tab focused.                                                              |
 | `easyeda_observability_report`                     | `core`  | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                                                 |
+| `easyeda_pcb_add_region`                           | `full`  | `high`   | Create a native EasyEDA PCB Region/keepout from a typed polygon and documented rule values. This is not a copper pour/zone. Success requires getAll-backed read-back; unconfirmed optional name/lineWidth values cause rollback.                                                                                                 |
 | `easyeda_pcb_add_silkscreen_line`                  | `full`  | `medium` | Draw a non-electrical line on the PCB (e.g. Top/Bottom Silkscreen) for section dividers or board art — reuses the same PCB_PrimitiveLine primitive as add_track but with an empty net name, so it never appears in the netlist or ratsnest.                                                                                      |
 | `easyeda_pcb_add_text`                             | `full`  | `medium` | Place a text primitive on a PCB layer (typically Top/Bottom Silkscreen) — reference labels, section titles, assembly notes. Signature recovered from PCB_PrimitiveString: fontFamily must be a name the runtime's font list actually contains — "NotoSansMonoCJKsc-Regular" (the default) is live-verified to work.              |
 | `easyeda_pcb_add_track`                            | `full`  | `high`   | Draw a copper track/trace on the PCB board. A multi-point path is written as one line segment per consecutive point pair (all sharing netName, so they form one electrical track — same coordinate/name merge model as schematic wires).                                                                                         |
@@ -1250,6 +1251,42 @@ Returns a JSON object matching the schema:
   metrics: object;
   retention: object;
   timeout_policy: object;
+}
+```
+
+---
+
+## `easyeda_pcb_add_region`
+
+**Profile:** `full` | **Risk Level:** `high`
+
+> Create a native EasyEDA PCB Region/keepout from a typed polygon and documented rule values. This is not a copper pour/zone. Success requires getAll-backed read-back; unconfirmed optional name/lineWidth values cause rollback.
+
+### Input Parameters
+
+| Parameter      | Type                                                                                                  | Required | Description                                                                                                                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layer`        | `'1'` \| `'2'` \| `'12'` \| `number`                                                                  | Yes      | EasyEDA TPCB_LayersOfRegion layer: TOP=1, BOTTOM=2, MULTI=12, or INNER_1..INNER_30=15..44.                                                                                                      |
+| `polygon`      | `number` \| `string[]` \| `number` \| `string[][]`                                                    | Yes      | One EasyEDA polygon source array, or an array of source arrays for a complex polygon with multiple contours.                                                                                    |
+| `ruleType`     | `'NO_COMPONENTS'` \| `'NO_WIRES'` \| `'NO_FILLS'` \| `'NO_POURS'` \| `'NO_INNER_ELECTRICAL_LAYERS'[]` | Yes      | EPCB_PrimitiveRegionRuleType values to enforce in this region.                                                                                                                                  |
+| `name`         | `string (optional)`                                                                                   | No       | Optional native Region name. EasyEDA Pro 3.2.149 may omit this field on persisted read-back; when requested but not confirmed, the tool fails closed and rolls the Region back.                 |
+| `lineWidth`    | `number (optional)`                                                                                   | No       | Optional native EasyEDA PCB line width. EasyEDA Pro 3.2.149 may normalize this field on persisted read-back; when requested but not confirmed, the tool fails closed and rolls the Region back. |
+| `locked`       | `boolean`                                                                                             | Yes      |                                                                                                                                                                                                 |
+| `confirmWrite` | `'true'`                                                                                              | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                                                                                                   |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  primitiveId: string (optional);
+  ruleType: 'NO_COMPONENTS' | 'NO_WIRES' | 'NO_FILLS' | 'NO_POURS' | 'NO_INNER_ELECTRICAL_LAYERS'[] (optional);
+  ruleTypeValues: number[] (optional);
+  readBack: object (optional);
+  rolledBack: boolean (optional);
+  error: string (optional);
 }
 ```
 

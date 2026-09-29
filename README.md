@@ -594,9 +594,9 @@ The server registers profile-gated tools according to the active `TOOL_PROFILE`.
 | -------------- | ---------------: |
 | `core`         |               73 |
 | `pro`          |              100 |
-| `full`         |              112 |
-| `dev`          |              117 |
-| `experimental` |              117 |
+| `full`         |              113 |
+| `dev`          |              118 |
+| `experimental` |              118 |
 
 <!-- capability-counts:end -->
 

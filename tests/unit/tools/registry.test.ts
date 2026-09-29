@@ -772,6 +772,7 @@ describe('ToolRegistry', () => {
 
       expect(highRiskTools.map((tool) => tool.name)).toEqual([
         'easyeda_api_call',
+        'easyeda_pcb_add_region',
         'easyeda_pcb_add_track',
         'easyeda_pcb_add_via',
         'easyeda_pcb_add_zone',
