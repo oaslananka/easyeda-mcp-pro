@@ -122,13 +122,20 @@ const pcbRegionRuleTypeSchema = z.enum([
   'NO_POURS',
   'NO_INNER_ELECTRICAL_LAYERS',
 ]);
-const PCB_REGION_RULE_TYPE_VALUES = {
-  NO_COMPONENTS: 2,
-  NO_WIRES: 5,
-  NO_FILLS: 6,
-  NO_POURS: 7,
-  NO_INNER_ELECTRICAL_LAYERS: 8,
-} as const satisfies Record<z.infer<typeof pcbRegionRuleTypeSchema>, number>;
+function pcbRegionRuleTypeValue(rule: z.infer<typeof pcbRegionRuleTypeSchema>): number {
+  switch (rule) {
+    case 'NO_COMPONENTS':
+      return 2;
+    case 'NO_WIRES':
+      return 5;
+    case 'NO_FILLS':
+      return 6;
+    case 'NO_POURS':
+      return 7;
+    case 'NO_INNER_ELECTRICAL_LAYERS':
+      return 8;
+  }
+}
 
 const pcbAddRegionInputSchema = z
   .object({
@@ -280,7 +287,7 @@ async function handlePcbAddRegion(ctx: ToolContext, params: unknown) {
   const result = pcbAddRegionInputSchema.safeParse(params);
   if (!result.success) return { success: false as const, error: result.error.message };
   const parsed = result.data;
-  const ruleTypeValues = parsed.ruleType.map((rule) => PCB_REGION_RULE_TYPE_VALUES[rule]);
+  const ruleTypeValues = parsed.ruleType.map(pcbRegionRuleTypeValue);
 
   try {
     const before = await listRegionsForWrite(ctx);
