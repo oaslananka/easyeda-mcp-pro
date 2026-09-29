@@ -152,8 +152,21 @@ const pcbAddRegionInputSchema = z
       .min(1)
       .max(5)
       .describe('EPCB_PrimitiveRegionRuleType values to enforce in this region.'),
-    name: z.string().min(1).max(200).optional(),
-    lineWidth: z.number().positive().optional().describe('Native EasyEDA PCB line width.'),
+    name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe(
+        'Optional native Region name. EasyEDA Pro 3.2.149 may omit this field on persisted read-back; when requested but not confirmed, the tool fails closed and rolls the Region back.',
+      ),
+    lineWidth: z
+      .number()
+      .positive()
+      .optional()
+      .describe(
+        'Optional native EasyEDA PCB line width. EasyEDA Pro 3.2.149 may normalize this field on persisted read-back; when requested but not confirmed, the tool fails closed and rolls the Region back.',
+      ),
     locked: z.boolean().default(false),
     confirmWrite: z
       .literal(true)
@@ -165,7 +178,7 @@ const pcbRegionReadBackSchema = z.object({
   primitiveId: z.string(),
   layer: z.number().optional(),
   ruleTypes: z.array(z.number().int()),
-  regionName: z.string(),
+  regionName: z.string().optional(),
   lineWidth: z.number().optional(),
   locked: z.boolean(),
   polygonSource: z.unknown().optional(),
@@ -310,7 +323,20 @@ async function handlePcbAddRegion(ctx: ToolContext, params: unknown) {
       ],
     });
     const returnedPrimitiveId = primitiveIdFromApiCall(created);
-    const after = await listRegionsForWrite(ctx);
+    let after: PcbRegionListItem[];
+    try {
+      after = await listRegionsForWrite(ctx);
+    } catch (error) {
+      return failedRegionWrite(
+        ctx,
+        parsed,
+        ruleTypeValues,
+        `PCB_PrimitiveRegion.create returned but persisted read-back failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        returnedPrimitiveId,
+      );
+    }
     const readBack = findCreatedRegion(after, beforeIds, returnedPrimitiveId);
     if (!readBack) {
       return failedRegionWrite(
@@ -909,9 +935,9 @@ function registerPcbWriteTools(
     name: 'easyeda_pcb_add_region',
     title: 'Add PCB constraint region',
     description:
-      'Create a native EasyEDA PCB Region/keepout using a typed polygon and official ' +
-      'EPCB_PrimitiveRegionRuleType values. This is not a copper pour/zone. The write is accepted ' +
-      'only after PCB_PrimitiveRegion.getAll-backed read-back confirms the created primitive.',
+      'Create a native EasyEDA PCB Region/keepout from a typed polygon and documented rule values. ' +
+      'This is not a copper pour/zone. Success requires getAll-backed read-back; unconfirmed ' +
+      'optional name/lineWidth values cause rollback.',
     profile: 'full',
     evidence: ['official-docs', 'runtime-probe'],
     risk: 'high',

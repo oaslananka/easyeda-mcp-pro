@@ -1262,6 +1262,8 @@ Returns a JSON object matching the schema:
 
 > Create a native EasyEDA PCB Region/keepout using a typed polygon and official EPCB_PrimitiveRegionRuleType values. This is not a copper pour/zone. The write is accepted only after PCB_PrimitiveRegion.getAll-backed read-back confirms the created primitive.
 
+Runtime note: EasyEDA Pro 3.2.149 can omit a requested Region name and normalize a requested Region line width on persisted `getAll` read-back. When an optional name or line width is requested but cannot be confirmed, the tool fails closed and rolls the newly created Region back.
+
 ### Input Parameters
 
 | Parameter      | Type                                                                                                  | Required | Description                                                                                                  |
