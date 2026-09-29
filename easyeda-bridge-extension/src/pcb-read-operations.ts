@@ -57,7 +57,7 @@ function readPolygonPrimitiveState(
     const state = (value as { state?: unknown }).state;
     if (state && typeof state === 'object') {
       const record = state as Record<string, unknown>;
-      const lowerCamelKey = key.length > 0 ? key.charAt(0).toLowerCase() + key.slice(1) : key;
+      const lowerCamelKey = key.charAt(0).toLowerCase() + key.slice(1);
       if (key in record) return record[key];
       if (lowerCamelKey in record) return record[lowerCamelKey];
     }
