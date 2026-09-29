@@ -41,6 +41,8 @@ interface CompatibilitySource {
       activeDispatcher: string;
       hotSwapCompiled: boolean;
       hotSwapEnabled: boolean;
+      packageSha256?: string;
+      packageSizeBytes?: number;
     };
     capabilities: Array<{
       id: string;
@@ -65,6 +67,9 @@ describe('EasyEDA compatibility evidence policy', () => {
     expect(source.releaseGate.requiredFreshLiveRecords).toBe(1);
     expect(source.releaseGate.sensitivePaths.length).toBeGreaterThan(0);
     expect(source.records.length).toBeGreaterThan(0);
+
+    expect(source.records[0]?.extension.packageSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(source.records[0]?.extension.packageSizeBytes).toBeGreaterThan(0);
 
     for (const record of source.records) {
       expect(record.id).toMatch(/^[a-z0-9-]+$/);
@@ -111,6 +116,13 @@ describe('EasyEDA compatibility evidence policy', () => {
       expect(record.extension.activeDispatcher).toBe('baked');
       expect(record.extension.hotSwapCompiled).toBe(false);
       expect(record.extension.hotSwapEnabled).toBe(false);
+      if (
+        record.extension.packageSha256 !== undefined ||
+        record.extension.packageSizeBytes !== undefined
+      ) {
+        expect(record.extension.packageSha256).toMatch(/^[0-9a-f]{64}$/);
+        expect(record.extension.packageSizeBytes).toBeGreaterThan(0);
+      }
       expect(record.knownLimitations.length).toBeGreaterThan(0);
 
       const levels = new Set(record.capabilities.map((capability) => capability.evidenceLevel));

@@ -78,7 +78,7 @@ If the maintainer workstation or VPS does not have Docker installed, record that
 ## Recording fresh live EasyEDA evidence
 
 When `pnpm release:readiness:compatibility` reports `stale`, run the documented smoke workflow on a
-disposable EasyEDA project and record the exact server commit, package version, extension package,
+disposable EasyEDA project and record the exact server commit, package version, live-validated extension package SHA-256 and byte size,
 loader version, EasyEDA Pro build, operating system, bridge contract, method registry hash, and
 capability results in `config/easyeda-compatibility.json`. Generate and check the public matrix:
 
@@ -89,7 +89,7 @@ pnpm release:readiness:compatibility
 ```
 
 The evidence commit must be the full 40-character Git commit of the tested candidate. Do not update
-that field to a newer commit unless the live run actually used that commit. If no disposable live
+that field to a newer commit unless the live run actually used that commit. The prerelease publisher rebuilds the extension with commit-independent reproducibility metadata and fails closed unless its generated SHA-256 and byte size equal a current live record for the exact prerelease version. If no disposable live
 runtime is available, the correct status is blocked; do not replace the evidence with CI output.
 
 ## Live create/modify/delete rollback evidence
@@ -104,7 +104,7 @@ Users can verify a release by checking:
 2. the GitHub Release notes match `CHANGELOG.md`,
 3. the package was built by the expected GitHub Actions release workflow,
 4. npm provenance is present for the published package when available,
-5. the bridge extension artifact checksum, if published in the release notes or workflow logs, matches the downloaded artifact.
+5. the bridge extension GitHub asset SHA-256 and byte size match the release identity approved before publication; for prereleases that identity must also match the current live EasyEDA evidence.
 
 ## Signed and attested release status
 

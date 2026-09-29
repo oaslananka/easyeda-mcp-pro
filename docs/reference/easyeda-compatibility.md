@@ -53,25 +53,27 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-3`
 
 ### Runtime identity
 
-| Field                                | Exact value                                |
-| ------------------------------------ | ------------------------------------------ |
-| EasyEDA Pro                          | `3.2.149.88089769`                         |
-| Electron                             | `36.3.1`                                   |
-| Chromium                             | `136.0.7103.113`                           |
-| Operating system                     | Ubuntu 24.04.5 LTS                         |
-| Kernel                               | `7.0.0-34-generic`                         |
-| Architecture                         | `x86_64`                                   |
-| Node.js used by validation server    | `24.21.0`                                  |
-| Validation package version           | `1.1.0-rc.3`                               |
-| Release containing validated fixes   | `1.1.0-rc.3`                               |
-| Compatibility-sensitive base commit  | `0ff7dfa17d7a74e23167fbbbff6544282b227d4d` |
-| Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
-| Installed extension package metadata | `1.1.0-rc.3`                               |
-| Loader-reported version              | `1.1.0-rc.3`                               |
-| Bridge contract                      | `1.0.0`                                    |
-| Dispatcher                           | `baked`                                    |
-| Method registry hash                 | `d9e01181ceed32d8`                         |
-| Hot-swap compiled / enabled          | `false` / `false`                          |
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.149.88089769`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-34-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.21.0`                                                          |
+| Validation package version               | `1.1.0-rc.3`                                                       |
+| Release containing validated fixes       | `1.1.0-rc.3`                                                       |
+| Compatibility-sensitive base commit      | `0ff7dfa17d7a74e23167fbbbff6544282b227d4d`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.1.0-rc.3`                                                       |
+| Live-validated extension package SHA-256 | `622c1899e42f72deb7b8f48fb49bebd96b03fe78c7f50d1e9979c82c6b13e07d` |
+| Live-validated extension package size    | `177765 bytes`                                                     |
+| Loader-reported version                  | `1.1.0-rc.3`                                                       |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `d9e01181ceed32d8`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
 
 The installed extension package and loader both reported version `1.1.0-rc.3` during this validation.
 

@@ -26,7 +26,7 @@ function stableFixture() {
       isDraft: false,
       isPrerelease: false,
       assets: [
-        { name: 'easyeda-bridge-extension.eext', digest: 'sha256:extension' },
+        { name: 'easyeda-bridge-extension.eext', digest: `sha256:${'e'.repeat(64)}`, size: 177765 },
         { name: 'sbom.json', digest: 'sha256:sbom' },
         {
           name: 'easyeda-mcp-pro-v0.35.4.provenance.sigstore.json',
@@ -81,6 +81,10 @@ function runCli(
       overrides.channel ?? 'stable',
       '--commit',
       overrides.commit ?? commit,
+      '--extension-asset-digest',
+      `sha256:${'e'.repeat(64)}`,
+      '--extension-asset-size',
+      '177765',
       '--report-json',
       reportPath,
       '--summary-file',
@@ -110,7 +114,7 @@ describe('published release verification CLI', () => {
 
     expect(result.status).toBe(0);
     expect(result.report.ok).toBe(true);
-    expect(result.report.checks).toHaveLength(10);
+    expect(result.report.checks).toHaveLength(11);
     expect(result.summary).toContain('# Published release verification');
     expect(result.summary).toContain('Status: **passed**');
     expect(result.stdout).not.toContain('token');
@@ -126,6 +130,22 @@ describe('published release verification CLI', () => {
 
     expect(result.status).toBe(1);
     expect(result.report.failures.map((failure) => failure.id)).toContain('github-assets');
+  });
+
+  it('fails when the published extension asset differs from the approved digest', () => {
+    const fixture = stableFixture();
+    const extension = fixture.githubRelease.assets.find(
+      (asset) => asset.name === 'easyeda-bridge-extension.eext',
+    );
+    expect(extension).toBeDefined();
+    extension!.digest = `sha256:${'f'.repeat(64)}`;
+
+    const result = runCli(fixture);
+
+    expect(result.status).toBe(1);
+    expect(result.report.failures.map((failure) => failure.id)).toContain(
+      'github-extension-identity',
+    );
   });
 
   it('fails when the portable Sigstore provenance release asset is missing', () => {

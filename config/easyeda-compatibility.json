@@ -42,7 +42,9 @@
         "methodRegistryHash": "d9e01181ceed32d8",
         "activeDispatcher": "baked",
         "hotSwapCompiled": false,
-        "hotSwapEnabled": false
+        "hotSwapEnabled": false,
+        "packageSha256": "622c1899e42f72deb7b8f48fb49bebd96b03fe78c7f50d1e9979c82c6b13e07d",
+        "packageSizeBytes": 177765
       },
       "fixture": {
         "project": "Example_Quick Start",

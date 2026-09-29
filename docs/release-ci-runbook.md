@@ -299,7 +299,7 @@ gh release view easyeda-mcp-pro-vX.Y.Z-rc.N --json tagName,isDraft,isPrerelease,
 
 Expected release assets:
 
-- `easyeda-bridge-extension.eext` — EasyEDA extension package
+- `easyeda-bridge-extension.eext` — EasyEDA extension package; its GitHub asset SHA-256 and byte size must match the identity approved by the pre-publication release-extension gate
 - `sbom.json` — CycloneDX SBOM attached to the release
 - `<tag>.provenance.sigstore.json` — portable Sigstore provenance bundle emitted by `actions/attest-build-provenance`
 - `<tag>.intoto.jsonl` — the same signed bundle serialized as the conventional one-line in-toto provenance asset
@@ -310,8 +310,9 @@ Expected workflow evidence:
 - GitHub release includes build provenance attestation plus matching `.provenance.sigstore.json` and `.intoto.jsonl` assets
 - stable GHCR images include the exact version, minor tag, and `latest`; prereleases include the exact version and `next` only
 - `pnpm verify:extension` reports marketplace metadata, documentation, logo, checksum, and phone-like-content checks
+- prerelease publication proves the rebuilt `.eext` SHA-256 and size equal current live EasyEDA evidence; final published-release verification compares the uploaded GitHub asset to the same approved identity
 
-If any asset is missing, do not promote the release as marketplace-ready. Re-run or fix the release workflow before announcing the version.
+If any asset is missing or the extension identity differs, do not promote the release as marketplace-ready. Preserve immutable evidence, record the incident, fix the reproducibility or verification defect, and cut a new numbered candidate rather than replacing an existing release artifact.
 
 ## Live schematic transaction rollback evidence
 

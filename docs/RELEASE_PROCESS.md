@@ -57,7 +57,7 @@ gh workflow run publish-release.yml --ref main \
   -f evidence_url=https://github.com/oaslananka/easyeda-mcp-pro/issues/NUMBER
 ```
 
-The Publish Release workflow checks out the exact tag, verifies that the GitHub Release is non-draft and marked prerelease, reruns all gates, publishes npm with `--provenance --tag next`, publishes exact and `next` GHCR tags, uploads the extension, SBOM, and tag-bound portable Sigstore bundle and in-toto provenance asset, and skips the MCP Registry.
+The Publish Release workflow checks out the exact tag, verifies that the GitHub Release is non-draft and marked prerelease, reruns all gates, rebuilds the extension byte-reproducibly, and requires its SHA-256 and byte size to match a current live EasyEDA record for that exact prerelease version before publication. It then publishes npm with `--provenance --tag next`, publishes exact and `next` GHCR tags, uploads the extension, SBOM, and tag-bound portable Sigstore bundle and in-toto provenance asset, and skips the MCP Registry.
 
 Published `1.0.0-rc.N` candidates retain the legacy EasyEDA install manifest mapping `0.99.N`, so their immutable package identities and monotonic upgrade to stable `1.0.0` do not change. Standard SemVer package identities are explicitly allowlisted only for reviewed candidate families: `1.0.1-rc.N` and `1.1.0-rc.N`. Every newly allowlisted family, including `1.1.0-rc.N`, remains blocked from prerelease publication until its exact candidate package has fresh EasyEDA Pro 3.2.149 live compatibility evidence. Other prerelease families fail closed until an explicit mapping is reviewed and live-validated.
 
@@ -85,7 +85,7 @@ Both channels must pass:
 - Prettier, TypeScript server/extension typechecks, ESLint, tool metadata, and tool coverage checks;
 - server tests and coverage plus extension tests and coverage;
 - generated tool-reference drift check and documentation build;
-- server build, extension build, extension distribution verification, and extension size budgets;
+- server build, extension build, extension distribution verification, extension size budgets, and release-extension SHA-256/size identity verification;
 - Docker loopback, fail-closed, and published-host-port smoke; CodeQL; Semgrep; Codecov; dependency review; workflow/container security; required platform CI checks; and review of SonarQube Cloud advisory findings when the provider reports them;
 - SBOM generation, npm provenance, GitHub artifact attestation, and a portable Sigstore bundle and in-toto provenance asset named `<tag>.provenance.sigstore.json` and `<tag>.intoto.jsonl`. The npm path uses npm Trusted Publishing. For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.
 
@@ -97,7 +97,7 @@ After a successful workflow:
 
 1. verify the npm version and channel dist-tag;
 2. verify GitHub Release draft/prerelease state and required assets;
-3. verify extension checksums, artifact attestations, and the portable Sigstore bundle and in-toto provenance asset;
+3. verify the published extension asset SHA-256 and byte size match the pre-publication approved identity, then verify artifact attestations and the portable Sigstore bundle and in-toto provenance asset;
 4. verify exact and moving GHCR tags point to the expected digest;
 5. verify the MCP Registry only for stable releases;
 6. verify deployed documentation describes the released version and support claims;

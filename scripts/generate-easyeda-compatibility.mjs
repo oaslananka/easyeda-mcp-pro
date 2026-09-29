@@ -211,6 +211,12 @@ export async function renderCompatibilityMarkdown(source) {
           ]
         : []),
       `| Installed extension package metadata | \`${record.extension.installedPackageVersion}\` |`,
+      ...(record.extension.packageSha256
+        ? [
+            `| Live-validated extension package SHA-256 | \`${record.extension.packageSha256}\` |`,
+            `| Live-validated extension package size | \`${record.extension.packageSizeBytes} bytes\` |`,
+          ]
+        : []),
       `| Loader-reported version | \`${record.extension.loaderReportedVersion}\` |`,
       `| Bridge contract | \`${record.extension.bridgeContractVersion}\` |`,
       `| Dispatcher | \`${record.extension.activeDispatcher}\` |`,

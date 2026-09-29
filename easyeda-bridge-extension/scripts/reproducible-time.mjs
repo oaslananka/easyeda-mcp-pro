@@ -1,5 +1,3 @@
-import { execFileSync } from 'node:child_process';
-
 export const MINIMUM_ZIP_EPOCH_SECONDS = 315532800;
 
 function parseEpochSeconds(value, sourceName) {
@@ -14,36 +12,20 @@ function parseEpochSeconds(value, sourceName) {
   return Math.max(parsed, MINIMUM_ZIP_EPOCH_SECONDS);
 }
 
-export function resolveReproducibleEpochSeconds({ sourceDateEpoch, gitCommitEpoch }) {
+export function resolveReproducibleEpochSeconds({ sourceDateEpoch }) {
   const sourceEpoch = parseEpochSeconds(sourceDateEpoch, 'SOURCE_DATE_EPOCH');
   if (sourceEpoch !== undefined) return sourceEpoch;
 
-  try {
-    const gitEpoch = parseEpochSeconds(gitCommitEpoch, 'Git commit timestamp');
-    if (gitEpoch !== undefined) return gitEpoch;
-  } catch {
-    // An unavailable or malformed Git timestamp must not reintroduce wall-clock time.
-  }
-
+  // The fallback must be independent of Git identity. A reviewed candidate can
+  // be squash-merged onto main without changing its source tree, and the
+  // resulting release artifact must remain byte-identical to the artifact that
+  // passed live EasyEDA validation.
   return MINIMUM_ZIP_EPOCH_SECONDS;
 }
 
-export function getReproducibleDate({ root, env = process.env, execute = execFileSync }) {
-  let gitCommitEpoch;
-  if (env.SOURCE_DATE_EPOCH === undefined) {
-    try {
-      gitCommitEpoch = execute('git', ['-C', root, 'log', '-1', '--format=%ct'], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim();
-    } catch {
-      gitCommitEpoch = undefined;
-    }
-  }
-
+export function getReproducibleDate({ env = process.env } = {}) {
   const epochSeconds = resolveReproducibleEpochSeconds({
     sourceDateEpoch: env.SOURCE_DATE_EPOCH,
-    gitCommitEpoch,
   });
   return new Date(epochSeconds * 1000);
 }

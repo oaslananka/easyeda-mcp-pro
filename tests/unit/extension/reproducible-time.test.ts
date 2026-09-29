@@ -14,13 +14,19 @@ describe('extension reproducible time policy', () => {
     ).toBe(1700000000);
   });
 
-  it('uses the Git commit timestamp when SOURCE_DATE_EPOCH is absent', () => {
+  it('uses a commit-independent fallback when SOURCE_DATE_EPOCH is absent', () => {
     expect(
       resolveReproducibleEpochSeconds({
         sourceDateEpoch: undefined,
         gitCommitEpoch: '1600000000',
       }),
-    ).toBe(1600000000);
+    ).toBe(MINIMUM_ZIP_EPOCH_SECONDS);
+    expect(
+      resolveReproducibleEpochSeconds({
+        sourceDateEpoch: undefined,
+        gitCommitEpoch: '1700000000',
+      }),
+    ).toBe(MINIMUM_ZIP_EPOCH_SECONDS);
   });
 
   it('uses the minimum ZIP epoch when neither source is available', () => {
