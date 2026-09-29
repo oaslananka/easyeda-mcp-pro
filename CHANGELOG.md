@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0-rc.5] - 2026-09-29
+
+### Release candidate
+
+- Supersedes RC.4 for stable-promotion purposes because release-verification code changed on `main` after the RC.4 candidate.
+- Keeps the RC.4 runtime/bridge behavior intact while carrying the read-only post-publication verification recovery fixes from #626 and #627.
+- Prerelease verification now skips MCP Registry network lookup by policy, rebuilds deterministic generated release artifacts only inside the disposable verification runner, and never replays npm/GitHub Release/GHCR publication mutations merely to retry observation.
+- Requires fresh EasyEDA Pro 3.2.149 live validation of the exact RC.5 extension package before publication.
+- Keeps stable npm/GHCR `latest` and the MCP Registry on `1.0.1`; RC.5 uses prerelease channels only.
+
 ## [1.1.0-rc.4] - 2026-09-29
 
 ### Release candidate
