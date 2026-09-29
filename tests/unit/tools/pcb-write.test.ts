@@ -253,7 +253,7 @@ describe('PCB Write Tools', () => {
       .mockResolvedValueOnce({
         total: 1,
         items: [
-          { primitiveId: 'existing', layer: 13, ruleTypes: [2], regionName: 'old', locked: false },
+          { primitiveId: 'existing', layer: 1, ruleTypes: [2], regionName: 'old', locked: false },
         ],
       })
       .mockResolvedValueOnce({
@@ -264,10 +264,10 @@ describe('PCB Write Tools', () => {
       .mockResolvedValueOnce({
         total: 2,
         items: [
-          { primitiveId: 'existing', layer: 13, ruleTypes: [2], regionName: 'old', locked: false },
+          { primitiveId: 'existing', layer: 1, ruleTypes: [2], regionName: 'old', locked: false },
           {
             primitiveId: 'region-1',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2, 5],
             regionName: 'keepout-a',
             lineWidth: 10,
@@ -279,7 +279,7 @@ describe('PCB Write Tools', () => {
 
     const polygon = ['R', 5000, 3000, 500, 300, 0, 0];
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon,
       ruleType: ['NO_COMPONENTS', 'NO_WIRES'],
       name: 'keepout-a',
@@ -290,7 +290,7 @@ describe('PCB Write Tools', () => {
     expect(bridgeCall).toHaveBeenNthCalledWith(1, 'pcb.listRegions', { limit: 200, offset: 0 });
     expect(bridgeCall).toHaveBeenNthCalledWith(2, 'api.call', {
       path: 'PCB_PrimitiveRegion.create',
-      args: [13, { $polygon: polygon }, [2, 5], 'keepout-a', 10, false],
+      args: [1, { $polygon: polygon }, [2, 5], 'keepout-a', 10, false],
     });
     expect(bridgeCall).toHaveBeenNthCalledWith(3, 'pcb.listRegions', { limit: 200, offset: 0 });
     expect(result).toMatchObject({
@@ -353,7 +353,7 @@ describe('PCB Write Tools', () => {
         items: [
           {
             primitiveId: 'region-bad',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: 'wrong-name',
             lineWidth: 10,
@@ -366,7 +366,7 @@ describe('PCB Write Tools', () => {
       .mockResolvedValueOnce({ total: 0, items: [] });
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon: ['R', 5000, 3000, 500, 300, 0, 0],
       ruleType: ['NO_COMPONENTS'],
       name: 'expected-name',
@@ -389,17 +389,17 @@ describe('PCB Write Tools', () => {
       .mockResolvedValueOnce({
         total: 1,
         items: [
-          { primitiveId: 'existing', layer: 13, ruleTypes: [2], regionName: 'old', locked: false },
+          { primitiveId: 'existing', layer: 1, ruleTypes: [2], regionName: 'old', locked: false },
         ],
       })
       .mockResolvedValueOnce({ result: null })
       .mockResolvedValueOnce({
         total: 2,
         items: [
-          { primitiveId: 'existing', layer: 13, ruleTypes: [2], regionName: 'old', locked: false },
+          { primitiveId: 'existing', layer: 1, ruleTypes: [2], regionName: 'old', locked: false },
           {
             primitiveId: 'region-fallback',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: 'fallback',
             locked: false,
@@ -409,7 +409,7 @@ describe('PCB Write Tools', () => {
       });
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon: ['R', 0, 0, 100, 100, 0, 0],
       ruleType: ['NO_COMPONENTS'],
       name: 'fallback',
@@ -429,7 +429,7 @@ describe('PCB Write Tools', () => {
         items: [
           {
             primitiveId: 'region-a',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: 'a',
             locked: false,
@@ -437,7 +437,7 @@ describe('PCB Write Tools', () => {
           },
           {
             primitiveId: 'region-b',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: 'b',
             locked: false,
@@ -447,7 +447,7 @@ describe('PCB Write Tools', () => {
       });
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon: ['R', 0, 0, 100, 100, 0, 0],
       ruleType: ['NO_COMPONENTS'],
       confirmWrite: true,
@@ -468,7 +468,7 @@ describe('PCB Write Tools', () => {
         items: [
           {
             primitiveId: 'region-stuck',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: 'wrong',
             locked: false,
@@ -479,7 +479,7 @@ describe('PCB Write Tools', () => {
       .mockResolvedValueOnce({ deleted: [] });
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon: ['R', 0, 0, 100, 100, 0, 0],
       ruleType: ['NO_COMPONENTS'],
       name: 'expected',
@@ -504,7 +504,7 @@ describe('PCB Write Tools', () => {
         items: [
           {
             primitiveId: 'region-throw',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: 'wrong',
             locked: false,
@@ -515,7 +515,7 @@ describe('PCB Write Tools', () => {
       .mockRejectedValueOnce(new Error('delete failed'));
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon: ['R', 0, 0, 100, 100, 0, 0],
       ruleType: ['NO_COMPONENTS'],
       name: 'expected',
@@ -541,7 +541,7 @@ describe('PCB Write Tools', () => {
         items: [
           {
             primitiveId: 'actual-id',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: '',
             locked: false,
@@ -551,7 +551,7 @@ describe('PCB Write Tools', () => {
       });
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon,
       ruleType: ['NO_COMPONENTS'],
       confirmWrite: true,
@@ -570,7 +570,7 @@ describe('PCB Write Tools', () => {
         items: [
           {
             primitiveId: 'region-empty-baseline',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: '',
             locked: false,
@@ -580,7 +580,7 @@ describe('PCB Write Tools', () => {
       });
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon,
       ruleType: ['NO_COMPONENTS'],
       confirmWrite: true,
@@ -600,7 +600,7 @@ describe('PCB Write Tools', () => {
         items: [
           {
             primitiveId: 'region-polygon-mismatch',
-            layer: 13,
+            layer: 1,
             ruleTypes: [2],
             regionName: '',
             locked: false,
@@ -612,7 +612,7 @@ describe('PCB Write Tools', () => {
       .mockResolvedValueOnce({ total: 0, items: [] });
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon,
       ruleType: ['NO_COMPONENTS'],
       confirmWrite: true,
@@ -631,7 +631,7 @@ describe('PCB Write Tools', () => {
     bridgeCall.mockResolvedValueOnce({ total: 1, items: [{ primitiveId: 123 }] });
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon: ['R', 0, 0, 100, 100, 0, 0],
       ruleType: ['NO_COMPONENTS'],
       confirmWrite: true,
@@ -649,7 +649,7 @@ describe('PCB Write Tools', () => {
       .mockRejectedValueOnce(new Error('native create failed'));
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon: ['R', 0, 0, 100, 100, 0, 0],
       ruleType: ['NO_COMPONENTS'],
       confirmWrite: true,
@@ -665,7 +665,7 @@ describe('PCB Write Tools', () => {
       .mockRejectedValueOnce('native failure');
 
     const result = await tool?.handler(context, {
-      layer: 13,
+      layer: 1,
       polygon: ['R', 0, 0, 100, 100, 0, 0],
       ruleType: ['NO_COMPONENTS'],
       confirmWrite: true,
@@ -679,7 +679,7 @@ describe('PCB Write Tools', () => {
     const polygon = ['R', 0, 0, 100, 100, 0, 0];
     const mismatches = [
       {
-        layer: 1,
+        layer: 2,
         ruleTypes: [2],
         regionName: 'expected',
         lineWidth: 10,
@@ -687,7 +687,7 @@ describe('PCB Write Tools', () => {
         polygonSource: polygon,
       },
       {
-        layer: 13,
+        layer: 1,
         ruleTypes: [5],
         regionName: 'expected',
         lineWidth: 10,
@@ -695,7 +695,7 @@ describe('PCB Write Tools', () => {
         polygonSource: polygon,
       },
       {
-        layer: 13,
+        layer: 1,
         ruleTypes: [2],
         regionName: 'expected',
         lineWidth: 11,
@@ -703,7 +703,7 @@ describe('PCB Write Tools', () => {
         polygonSource: polygon,
       },
       {
-        layer: 13,
+        layer: 1,
         ruleTypes: [2],
         regionName: 'expected',
         lineWidth: 10,
@@ -725,7 +725,7 @@ describe('PCB Write Tools', () => {
         .mockResolvedValueOnce({ total: 0, items: [] });
 
       const result = await tool?.handler(context, {
-        layer: 13,
+        layer: 1,
         polygon,
         ruleType: ['NO_COMPONENTS'],
         name: 'expected',
@@ -734,6 +734,29 @@ describe('PCB Write Tools', () => {
       });
       expect(result).toMatchObject({ success: false, rolledBack: true });
     }
+  });
+
+  it('easyeda_pcb_add_region rejects layers outside TPCB_LayersOfRegion before any bridge call', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    for (const layer of [3, 13, 14, 45]) {
+      const parsed = tool?.inputSchema.safeParse({
+        layer,
+        polygon: ['R', 0, 0, 100, 100, 0, 0],
+        ruleType: ['NO_COMPONENTS'],
+        confirmWrite: true,
+      });
+      expect(parsed?.success).toBe(false);
+    }
+    for (const layer of [1, 2, 12, 15, 44]) {
+      const parsed = tool?.inputSchema.safeParse({
+        layer,
+        polygon: ['R', 0, 0, 100, 100, 0, 0],
+        ruleType: ['NO_COMPONENTS'],
+        confirmWrite: true,
+      });
+      expect(parsed?.success).toBe(true);
+    }
+    expect(bridgeCall).not.toHaveBeenCalled();
   });
 
   it('easyeda_pcb_add_region rejects unsupported region rules before any bridge call', async () => {

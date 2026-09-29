@@ -137,9 +137,15 @@ function pcbRegionRuleTypeValue(rule: z.infer<typeof pcbRegionRuleTypeSchema>): 
   }
 }
 
+const pcbRegionLayerSchema = z
+  .union([z.literal(1), z.literal(2), z.literal(12), z.number().int().min(15).max(44)])
+  .describe(
+    'EasyEDA TPCB_LayersOfRegion layer: TOP=1, BOTTOM=2, MULTI=12, or INNER_1..INNER_30=15..44.',
+  );
+
 const pcbAddRegionInputSchema = z
   .object({
-    layer: z.number().int().describe('EasyEDA EPCB_LayerId value accepted by TPCB_LayersOfRegion.'),
+    layer: pcbRegionLayerSchema,
     polygon: pcbRegionPolygonSchema,
     ruleType: z
       .array(pcbRegionRuleTypeSchema)
