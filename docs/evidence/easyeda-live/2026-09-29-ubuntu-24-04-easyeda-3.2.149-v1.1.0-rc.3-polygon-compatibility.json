@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-09-29T03:20:07+03:00",
+  "candidateCommit": "0ff7dfa17d7a74e23167fbbbff6544282b227d4d",
+  "compatibilitySensitiveBaseCommit": "0ff7dfa17d7a74e23167fbbbff6544282b227d4d",
+  "server": {
+    "packageVersion": "1.1.0-rc.3",
+    "nodeVersion": "24.21.0",
+    "pnpmVersion": "11.28.0",
+    "compatibilitySnapshot": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "b4334684828a5e6bfe996c1f1cd9502c6e2cafd1",
+        "src/bridge": "e47313404c0bf7ce9372014f501c071e6cb6338c",
+        "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+        "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+        "src/tools": "80a05ffbdce0dcbc75ffb59ac4fa54cc19be60fb",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "extension": {
+    "packageVersion": "1.1.0-rc.3",
+    "loaderReportedVersion": "1.1.0-rc.3",
+    "packageSha256": "622c1899e42f72deb7b8f48fb49bebd96b03fe78c7f50d1e9979c82c6b13e07d",
+    "packageSizeBytes": 177765,
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "d9e01181ceed32d8",
+    "dispatcherBuildId": "d7bf0x6d9dx8a6c",
+    "dispatcherSha256": "c94ae7c92f427db9b08aeb6e2fdebb2373cb0b60ac0ccfefc5169a778b329427",
+    "dispatcherByteLength": 188040,
+    "loaderSha256": "db6f2be891ff8684999a5be23497aae964788ba376b2eb09a4da3f742439d1dd",
+    "loaderByteLength": 262811,
+    "manifestSha256": "989b71794c4fe835da2349fb908567ba02098b8b9c7ba975ac0875ef6e70cb02",
+    "activeDispatcher": "baked",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "externalInteractionEnabled": true,
+    "install": {
+      "mechanism": "EasyEDA Extensions Manager import",
+      "persistedPackageVersion": "1.1.0-rc.3",
+      "runtimeVersion": "1.1.0-rc.3",
+      "packageSourceCommit": "0ff7dfa17d7a74e23167fbbbff6544282b227d4d"
+    }
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "mode": "Half Offline",
+    "runtimeIdentitySource": "loopback-only DevTools Browser/User-Agent identity inside the disposable bubblewrap/Xvfb validation namespace; endpoint removed during cleanup"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-34-generic",
+    "nodeVersion": "24.21.0",
+    "pnpmVersion": "11.28.0"
+  },
+  "fixture": {
+    "project": "Example_Quick Start",
+    "schematic": "Schematic",
+    "page": "P1",
+    "pcb": "PCB",
+    "disposable": true,
+    "projectUpgrade": {
+      "from": "bundled .eprj",
+      "to": "V3 .eprj2",
+      "upgradedProjectSha256BeforePolygonProbe": "4676c48f37ff761185ca796be62252b425a9e505de36b181a1e7688fa20a0922",
+      "upgradedProjectSizeBytes": 7380992
+    },
+    "profileIsolation": "bubblewrap mount namespace replaced the user home directory mount with a disposable profile, exposed only Xvfb :98, and redirected EasyEDA packaged app-database access to a disposable overlay"
+  },
+  "liveChecks": {
+    "candidateIdentity": {
+      "status": "passed",
+      "serverVersion": "1.1.0-rc.3",
+      "extensionVersion": "1.1.0-rc.3",
+      "loaderVersion": "1.1.0-rc.3",
+      "bridgeContractVersion": "1.0.0",
+      "dispatcherBuildId": "d7bf0x6d9dx8a6c",
+      "methodRegistryHash": "d9e01181ceed32d8",
+      "extensionMethodListHash": "d9e01181ceed32d8",
+      "registryMismatch": false,
+      "extensionVersionMismatch": false,
+      "activePort": 49620,
+      "runtimeEasyedaVersion": "3.2.149.88089769",
+      "runtimeVersionVerifiedIndependently": true
+    },
+    "readOnlySmoke": {
+      "status": "passed",
+      "nodeVersion": "24.21.0",
+      "checkCount": 6,
+      "checks": [
+        "system.getStatus",
+        "system.apiInventory",
+        "schematic.listNets",
+        "schematic.listComponents",
+        "bom.generate",
+        "design.erc"
+      ],
+      "writeEnabled": false,
+      "methodRegistryHash": "d9e01181ceed32d8"
+    },
+    "runtimeInventory": {
+      "status": "passed",
+      "classCount": 67,
+      "baselineClassCount": 67,
+      "addedClasses": 0,
+      "removedClasses": 0,
+      "changedClasses": 0,
+      "addedMethods": 0,
+      "removedMethods": 0,
+      "methodRegistryHash": "d9e01181ceed32d8",
+      "comparisonScope": "schemaVersion 1 class and method inventory against the checked-in EasyEDA 3.2.149 baseline"
+    },
+    "taggedPolygonBoundary": {
+      "status": "passed",
+      "singlePolygon": {
+        "nativeResolvedPath": "eda.pcb_MathPolygon.calculateWidth / calculateHeight",
+        "width": 10,
+        "height": 10
+      },
+      "complexPolygon": {
+        "nativeResolvedPath": "eda.pcb_MathPolygon.calculateWidth / calculateHeight",
+        "width": 10,
+        "height": 10
+      },
+      "failClosed": [
+        {
+          "case": "conflicting polygon tags",
+          "code": "INVALID_PARAMS"
+        },
+        {
+          "case": "malformed polygon tag payload",
+          "code": "INVALID_PARAMS"
+        },
+        {
+          "case": "tagged polygon with extra fields",
+          "code": "INVALID_PARAMS"
+        },
+        {
+          "case": "serialized __class/__methods descriptor",
+          "code": "INVALID_PARAMS"
+        }
+      ]
+    },
+    "pcbPolylineMutation": {
+      "status": "passed-with-observed-beta-runtime-behavior",
+      "layer": {
+        "id": 13,
+        "name": "Document Layer"
+      },
+      "baselinePrimitiveCount": 24,
+      "create": {
+        "resolvedPath": "eda.pcb_PrimitivePolyline.create",
+        "readBackLayer": 13,
+        "readBackLineWidth": 5,
+        "taggedPolygonMaterialized": true
+      },
+      "modify": {
+        "resolvedPath": "eda.pcb_PrimitivePolyline.modify",
+        "readBackLayer": 13,
+        "readBackLineWidth": 7,
+        "taggedPolygonMaterialized": true,
+        "observedBehavior": "EasyEDA returned the original primitive id but replaced the created primitive with a new primitive id carrying the modified polygon and line width."
+      },
+      "cleanup": {
+        "strategy": "diff live primitive-id inventory against the pre-mutation baseline and delete the exact added replacement primitive",
+        "finalPrimitiveCount": 24,
+        "addedIdsAfterCleanup": 0,
+        "missingBaselineIdsAfterCleanup": 0,
+        "exactSetMatch": true
+      }
+    },
+    "isolation": {
+      "status": "passed",
+      "hostConfigAggregateDigestUnchanged": true,
+      "hostProjectDataTreeDigestUnchanged": true,
+      "hostDocumentsAggregateDigestUnchanged": true,
+      "hostInstalledAppDbSha256Unchanged": true,
+      "hostInstalledAppDbSha256": "24a9d48807b3b6d2eeb540925783d386a68ec7c0dfab594224b65b29f67a9cb5",
+      "hostDesignProjectFilesObservedChanged": false,
+      "appDatabaseOverlayUsed": true
+    }
+  },
+  "compatibilitySnapshot": {
+    "algorithm": "git-tree-sha1",
+    "paths": {
+      "easyeda-bridge-extension/src": "b4334684828a5e6bfe996c1f1cd9502c6e2cafd1",
+      "src/bridge": "e47313404c0bf7ce9372014f501c071e6cb6338c",
+      "src/remote": "d105abbd360b3405aa4fb1057e37f2277e27c4c2",
+      "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+      "src/tools": "80a05ffbdce0dcbc75ffb59ac4fa54cc19be60fb",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "cleanup": {
+    "designMutationApplied": true,
+    "designMutationRestored": true,
+    "disposableProjectOnly": true,
+    "disposableProfileRemoved": true,
+    "appDatabaseOverlayRemoved": true,
+    "easyedaProcessTreeStopped": true,
+    "bridgeListenerClosed": true,
+    "localDebugEndpointClosed": true,
+    "cleanupFinishedAt": "2026-09-29T03:20:07+03:00",
+    "hostProjectDataTreeDiffClean": true,
+    "hostInstalledAppDbDiffClean": true,
+    "hostConfigAndLogAggregateDiffClean": true,
+    "cleanupErrors": []
+  },
+  "knownLimitations": [
+    "This exact-version desktop record applies only to Ubuntu x86_64. Windows and macOS remain protected by packed-install and platform CI rather than equivalent 1.1.0-rc.3 live desktop records.",
+    "EasyEDA Pro 3.2.149 did not report its application version in the bridge handshake used for this run; the exact EasyEDA/Electron/Chromium identity was independently verified through the loopback-only DevTools runtime endpoint, which was closed during cleanup.",
+    "EasyEDA Pro 3.2.149 PCB_PrimitivePolyline.modify is beta and, in this live run, returned the original id while replacing the disposable primitive with a new id. Cleanup reconciled against the pre-mutation primitive-id inventory and removed the exact added replacement before accepting restoration.",
+    "This RC.3 live mutation pass covers the tagged polygon boundary and PCB_PrimitivePolyline create/modify/read-back path. It does not by itself complete the broader Region/Fill typed-tool acceptance still tracked by issue #598.",
+    "The exact extension package was built from 0ff7dfa17d7a74e23167fbbbff6544282b227d4d. The compatibility evidence commit adds only docs/config evidence; the six release-sensitive Git tree objects remain the snapshot recorded here.",
+    "Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates. The prerelease channel does not publish the MCP Registry."
+  ],
+  "redaction": {
+    "localAbsolutePathsOmitted": true,
+    "ephemeralProjectUuidOmitted": true,
+    "credentialsOmitted": true,
+    "activationMaterialOmitted": true,
+    "rawApiInventoryOmitted": true,
+    "temporaryPrimitiveIdsOmitted": true
+  }
+}
