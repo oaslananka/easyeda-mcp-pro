@@ -402,6 +402,34 @@ describe('PCB Write Tools', () => {
     expect(result?.error).toContain('rolled back');
   });
 
+  it('easyeda_pcb_add_region should stringify non-Error post-create read-back failures', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    const polygon = ['R', 5000, 3000, 500, 300, 0, 0];
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({
+        result: { state: { PrimitiveId: 'region-readback-non-error' } },
+      })
+      .mockRejectedValueOnce('read-back unavailable')
+      .mockResolvedValueOnce({ deleted: ['region-readback-non-error'], notFound: [] })
+      .mockResolvedValueOnce({ total: 0, items: [] });
+
+    const result = await tool?.handler(context, {
+      layer: 1,
+      polygon,
+      ruleType: ['NO_COMPONENTS'],
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      primitiveId: 'region-readback-non-error',
+      rolledBack: true,
+    });
+    expect(result?.error).toContain('read-back unavailable');
+    expect(result?.error).toContain('rolled back');
+  });
+
   it('easyeda_pcb_add_region should use the complex-polygon tag for multiple contours', async () => {
     const tool = registry.get('easyeda_pcb_add_region');
     const contours = [

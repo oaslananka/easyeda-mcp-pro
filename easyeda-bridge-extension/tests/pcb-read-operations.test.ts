@@ -425,6 +425,52 @@ describe('PCB read operations', () => {
     expect(result.items.map((item) => item.polygonSource)).toEqual([source, undefined, undefined]);
   });
 
+  it('falls back to legacy state readers when polygon primitive state is absent or non-object', async () => {
+    const source = ['R', 7200, 3000, 100, 80, 0, 0];
+    const { operations, readState } = makeOperations({
+      PCB_PrimitiveRegion: {
+        getAll: async () => [
+          null,
+          {
+            state: {},
+            getState_PrimitiveId: () => 'region-legacy-fallback',
+            getState_Layer: () => 1,
+            getState_RuleType: () => [2],
+            getState_RegionName: () => 'legacy fallback',
+            getState_LineWidth: () => 0.2,
+            getState_PrimitiveLock: () => false,
+            getState_ComplexPolygon: () => ({ polygon: source }),
+          },
+        ],
+      },
+    });
+
+    await expect(operations.listRegions()).resolves.toEqual({
+      total: 2,
+      items: [
+        {
+          primitiveId: undefined,
+          layer: undefined,
+          ruleTypes: undefined,
+          regionName: undefined,
+          lineWidth: undefined,
+          locked: undefined,
+          polygonSource: undefined,
+        },
+        {
+          primitiveId: 'region-legacy-fallback',
+          layer: 1,
+          ruleTypes: [2],
+          regionName: 'legacy fallback',
+          lineWidth: 0.2,
+          locked: false,
+          polygonSource: source,
+        },
+      ],
+    });
+    expect(readState).toHaveBeenCalled();
+  });
+
   it('contains polygon source read failures and non-array getter results', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { operations } = makeOperations({
