@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.0-rc.4] - 2026-09-29
+
+### Release candidate
+
+- Supersedes RC.3 after release-integrity incident #621; RC.3 remains immutable and must not be promoted.
+- Makes the EasyEDA extension archive byte-reproducible across squash-equivalent Git commit identities by removing Git commit time from the default package timestamp.
+- Adds a prerelease publication gate that requires the rebuilt `.eext` SHA-256 and byte size to match current live EasyEDA evidence for the exact candidate version.
+- Extends final published-release verification to compare the uploaded GitHub `.eext` asset SHA-256 and byte size with the pre-publication approved identity.
+- Requires fresh EasyEDA Pro 3.2.149 live validation of the exact RC.4 artifact before prerelease publication.
+- Keeps stable npm/GHCR `latest` and the MCP Registry on `1.0.1`; RC.4 uses prerelease channels only.
+
 ## [1.1.0-rc.3] - 2026-09-29
 
 ### Release candidate
