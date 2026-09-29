@@ -115,9 +115,9 @@ Tools are organized into hierarchical profiles: `core` < `pro` < `full` < `dev` 
 | -------------- | ---------------: |
 | `core`         |               73 |
 | `pro`          |              100 |
-| `full`         |              112 |
-| `dev`          |              117 |
-| `experimental` |              117 |
+| `full`         |              113 |
+| `dev`          |              118 |
+| `experimental` |              118 |
 
 <!-- capability-counts:end -->
 

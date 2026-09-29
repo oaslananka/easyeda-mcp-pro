@@ -30,7 +30,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Full',
     description:
       'Adds controlled documented EasyEDA API method calls and CircuitIR-driven floorplanning for full runtime control without raw JavaScript execution',
-    approxToolCount: '112',
+    approxToolCount: '113',
     isDefault: false,
   },
   dev: {
@@ -38,14 +38,14 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Dev',
     description:
       'Adds diagnostics probes for bridge methods and live component runtime shape inspection',
-    approxToolCount: '117',
+    approxToolCount: '118',
     isDefault: false,
   },
   experimental: {
     name: 'experimental',
     label: 'Experimental',
     description: 'MCP Apps, Tasks, AI action plans',
-    approxToolCount: '117',
+    approxToolCount: '118',
     isDefault: false,
   },
 };

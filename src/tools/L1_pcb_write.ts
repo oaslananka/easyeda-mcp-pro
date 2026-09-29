@@ -103,6 +103,237 @@ const failClosedPcbZoneOutputSchema = z.object({
   remediation: z.string().optional(),
 });
 
+const pcbPolygonTokenSchema = z.union([z.number().finite(), z.string().min(1)]);
+const pcbPolygonSourceSchema = z
+  .array(pcbPolygonTokenSchema)
+  .min(3)
+  .describe(
+    'EasyEDA TPCB_PolygonSourceArray, for example ["R", x, y, width, height, 0, 0] or a coordinate/L source array.',
+  );
+const pcbRegionPolygonSchema = z
+  .union([pcbPolygonSourceSchema, z.array(pcbPolygonSourceSchema).min(1)])
+  .describe(
+    'One EasyEDA polygon source array, or an array of source arrays for a complex polygon with multiple contours.',
+  );
+const pcbRegionRuleTypeSchema = z.enum([
+  'NO_COMPONENTS',
+  'NO_WIRES',
+  'NO_FILLS',
+  'NO_POURS',
+  'NO_INNER_ELECTRICAL_LAYERS',
+]);
+const PCB_REGION_RULE_TYPE_VALUES = {
+  NO_COMPONENTS: 2,
+  NO_WIRES: 5,
+  NO_FILLS: 6,
+  NO_POURS: 7,
+  NO_INNER_ELECTRICAL_LAYERS: 8,
+} as const satisfies Record<z.infer<typeof pcbRegionRuleTypeSchema>, number>;
+
+const pcbAddRegionInputSchema = z
+  .object({
+    layer: z.number().int().describe('EasyEDA EPCB_LayerId value accepted by TPCB_LayersOfRegion.'),
+    polygon: pcbRegionPolygonSchema,
+    ruleType: z
+      .array(pcbRegionRuleTypeSchema)
+      .min(1)
+      .max(5)
+      .describe('EPCB_PrimitiveRegionRuleType values to enforce in this region.'),
+    name: z.string().min(1).max(200).optional(),
+    lineWidth: z.number().positive().optional().describe('Native EasyEDA PCB line width.'),
+    locked: z.boolean().default(false),
+    confirmWrite: z
+      .literal(true)
+      .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  })
+  .strict();
+
+const pcbRegionReadBackSchema = z.object({
+  primitiveId: z.string(),
+  layer: z.number().optional(),
+  ruleTypes: z.array(z.number().int()),
+  regionName: z.string(),
+  lineWidth: z.number().optional(),
+  locked: z.boolean(),
+  polygon: z.unknown().optional(),
+});
+
+const pcbAddRegionOutputSchema = z.object({
+  success: z.boolean(),
+  primitiveId: z.string().optional(),
+  ruleType: z.array(pcbRegionRuleTypeSchema).optional(),
+  ruleTypeValues: z.array(z.number().int()).optional(),
+  readBack: pcbRegionReadBackSchema.optional(),
+  rolledBack: z.boolean().optional(),
+  error: z.string().optional(),
+});
+
+type PcbRegionListItem = z.infer<typeof pcbRegionReadBackSchema>;
+
+function normalizedRuleTypes(value: unknown): number[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is number => Number.isInteger(item)).sort((a, b) => a - b)
+    : [];
+}
+
+function regionReadBackMatches(
+  item: PcbRegionListItem,
+  expected: z.infer<typeof pcbAddRegionInputSchema>,
+  ruleTypeValues: number[],
+): boolean {
+  if (item.layer !== expected.layer) return false;
+  if (
+    JSON.stringify(normalizedRuleTypes(item.ruleTypes)) !==
+    JSON.stringify([...ruleTypeValues].sort((a, b) => a - b))
+  ) {
+    return false;
+  }
+  if (expected.name !== undefined && item.regionName !== expected.name) return false;
+  if (expected.lineWidth !== undefined && item.lineWidth !== expected.lineWidth) return false;
+  if (item.locked !== expected.locked) return false;
+  return item.polygon !== undefined;
+}
+
+function primitiveIdFromApiCall(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const result = (value as { result?: unknown }).result;
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
+  const state = (result as { state?: unknown }).state;
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return undefined;
+  const primitiveId = (state as { PrimitiveId?: unknown }).PrimitiveId;
+  return typeof primitiveId === 'string' && primitiveId.length > 0 ? primitiveId : undefined;
+}
+
+async function listRegionsForWrite(ctx: ToolContext): Promise<PcbRegionListItem[]> {
+  const result = await ctx.bridge.call<Record<string, unknown>, { items?: unknown[] }>(
+    'pcb.listRegions',
+    { limit: 200, offset: 0 },
+  );
+  const parsed = z.array(pcbRegionReadBackSchema).safeParse(result?.items ?? []);
+  if (!parsed.success) {
+    throw new Error('PCB region read-back returned an unexpected shape.');
+  }
+  return parsed.data;
+}
+
+async function rollbackCreatedRegion(ctx: ToolContext, primitiveId: string): Promise<boolean> {
+  const deletion = await ctx.bridge.call<
+    Record<string, unknown>,
+    { deleted?: string[]; notFound?: string[] }
+  >('pcb.deleteComponent', { primitiveIds: [primitiveId] });
+  if (!deletion?.deleted?.includes(primitiveId)) return false;
+  const remaining = await listRegionsForWrite(ctx);
+  return !remaining.some((item) => item.primitiveId === primitiveId);
+}
+
+type PcbAddRegionInput = z.infer<typeof pcbAddRegionInputSchema>;
+
+function taggedRegionPolygon(polygon: PcbAddRegionInput['polygon']) {
+  return Array.isArray(polygon[0]) ? { $complexPolygon: polygon } : { $polygon: polygon };
+}
+
+function findCreatedRegion(
+  after: PcbRegionListItem[],
+  beforeIds: Set<string>,
+  returnedPrimitiveId: string | undefined,
+): PcbRegionListItem | undefined {
+  if (returnedPrimitiveId) {
+    const exact = after.find((item) => item.primitiveId === returnedPrimitiveId);
+    if (exact) return exact;
+  }
+  const added = after.filter((item) => !beforeIds.has(item.primitiveId));
+  return added.length === 1 ? added[0] : undefined;
+}
+
+async function failedRegionWrite(
+  ctx: ToolContext,
+  parsed: PcbAddRegionInput,
+  ruleTypeValues: number[],
+  message: string,
+  primitiveId?: string,
+  readBack?: PcbRegionListItem,
+) {
+  let rolledBack: boolean | undefined;
+  if (primitiveId) {
+    try {
+      rolledBack = await rollbackCreatedRegion(ctx, primitiveId);
+    } catch {
+      rolledBack = false;
+    }
+  }
+  return {
+    success: false as const,
+    ...(primitiveId ? { primitiveId } : {}),
+    ruleType: parsed.ruleType,
+    ruleTypeValues,
+    ...(readBack ? { readBack } : {}),
+    ...(rolledBack !== undefined ? { rolledBack } : {}),
+    error:
+      rolledBack === false
+        ? `${message}; rollback could not be verified.`
+        : rolledBack === true
+          ? `${message}; the created region was rolled back.`
+          : message,
+  };
+}
+
+async function handlePcbAddRegion(ctx: ToolContext, params: unknown) {
+  const result = pcbAddRegionInputSchema.safeParse(params);
+  if (!result.success) return { success: false as const, error: result.error.message };
+  const parsed = result.data;
+  const ruleTypeValues = parsed.ruleType.map((rule) => PCB_REGION_RULE_TYPE_VALUES[rule]);
+
+  try {
+    const before = await listRegionsForWrite(ctx);
+    const beforeIds = new Set(before.map((item) => item.primitiveId));
+    const created = await ctx.bridge.call<Record<string, unknown>, unknown>('api.call', {
+      path: 'PCB_PrimitiveRegion.create',
+      args: [
+        parsed.layer,
+        taggedRegionPolygon(parsed.polygon),
+        ruleTypeValues,
+        parsed.name,
+        parsed.lineWidth,
+        parsed.locked,
+      ],
+    });
+    const returnedPrimitiveId = primitiveIdFromApiCall(created);
+    const after = await listRegionsForWrite(ctx);
+    const readBack = findCreatedRegion(after, beforeIds, returnedPrimitiveId);
+    if (!readBack) {
+      return failedRegionWrite(
+        ctx,
+        parsed,
+        ruleTypeValues,
+        'PCB_PrimitiveRegion.create returned without a unique matching PCB_PrimitiveRegion.getAll read-back',
+        returnedPrimitiveId,
+      );
+    }
+    if (!regionReadBackMatches(readBack, parsed, ruleTypeValues)) {
+      return failedRegionWrite(
+        ctx,
+        parsed,
+        ruleTypeValues,
+        'PCB region read-back did not match the requested layer/rules/name/width/lock state',
+        readBack.primitiveId,
+        readBack,
+      );
+    }
+    return {
+      success: true as const,
+      primitiveId: readBack.primitiveId,
+      ruleType: parsed.ruleType,
+      ruleTypeValues,
+      readBack,
+    };
+  } catch (error) {
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 const failClosedPcbZoneTool = {
   name: 'easyeda_pcb_add_zone',
   title: 'Add PCB copper zone/pour (unavailable)',
@@ -660,6 +891,29 @@ function registerPcbWriteTools(
         'easyeda_schematic_sync_to_pcb, confirm the native import dialog, then reposition it with ' +
         'easyeda_pcb_modify_component.',
     }),
+  });
+
+  registry.register({
+    name: 'easyeda_pcb_add_region',
+    title: 'Add PCB constraint region',
+    description:
+      'Create a native EasyEDA PCB Region/keepout using a typed polygon and official ' +
+      'EPCB_PrimitiveRegionRuleType values. This is not a copper pour/zone. The write is accepted ' +
+      'only after PCB_PrimitiveRegion.getAll-backed read-back confirms the created primitive.',
+    profile: 'full',
+    evidence: ['official-docs', 'runtime-probe'],
+    risk: 'high',
+    confirmWrite: true,
+    group: 'pcb-write',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: pcbAddRegionInputSchema,
+    outputSchema: pcbAddRegionOutputSchema,
+    handler: async (ctx: ToolContext, params: unknown) => handlePcbAddRegion(ctx, params),
   });
 
   registry.register({

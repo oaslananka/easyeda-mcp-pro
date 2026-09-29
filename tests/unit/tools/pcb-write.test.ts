@@ -42,9 +42,10 @@ describe('PCB Write Tools', () => {
     };
   });
 
-  it('should register all 10 PCB write tools', () => {
+  it('should register all 11 PCB write tools', () => {
     expect(registry.get('easyeda_pcb_place_component')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_track')).toBeDefined();
+    expect(registry.get('easyeda_pcb_add_region')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_via')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_zone')).toBeDefined();
     expect(registry.get('easyeda_pcb_delete_component')).toBeDefined();
@@ -244,6 +245,159 @@ describe('PCB Write Tools', () => {
     });
     expect(result?.error).toContain('not supported');
     expect(result?.remediation).toContain('easyeda_schematic_sync_to_pcb');
+  });
+
+  it('easyeda_pcb_add_region should create a typed region and require matching read-back', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [
+          { primitiveId: 'existing', layer: 13, ruleTypes: [2], regionName: 'old', locked: false },
+        ],
+      })
+      .mockResolvedValueOnce({
+        path: 'PCB_PrimitiveRegion.create',
+        resolvedPath: 'eda.pcb_PrimitiveRegion.create',
+        result: { state: { PrimitiveId: 'region-1' } },
+      })
+      .mockResolvedValueOnce({
+        total: 2,
+        items: [
+          { primitiveId: 'existing', layer: 13, ruleTypes: [2], regionName: 'old', locked: false },
+          {
+            primitiveId: 'region-1',
+            layer: 13,
+            ruleTypes: [2, 5],
+            regionName: 'keepout-a',
+            lineWidth: 10,
+            locked: false,
+            polygon: { contourCount: 1 },
+          },
+        ],
+      });
+
+    const polygon = ['R', 5000, 3000, 500, 300, 0, 0];
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon,
+      ruleType: ['NO_COMPONENTS', 'NO_WIRES'],
+      name: 'keepout-a',
+      lineWidth: 10,
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).toHaveBeenNthCalledWith(1, 'pcb.listRegions', { limit: 200, offset: 0 });
+    expect(bridgeCall).toHaveBeenNthCalledWith(2, 'api.call', {
+      path: 'PCB_PrimitiveRegion.create',
+      args: [13, { $polygon: polygon }, [2, 5], 'keepout-a', 10, false],
+    });
+    expect(bridgeCall).toHaveBeenNthCalledWith(3, 'pcb.listRegions', { limit: 200, offset: 0 });
+    expect(result).toMatchObject({
+      success: true,
+      primitiveId: 'region-1',
+      ruleType: ['NO_COMPONENTS', 'NO_WIRES'],
+      ruleTypeValues: [2, 5],
+      readBack: { primitiveId: 'region-1', regionName: 'keepout-a' },
+    });
+  });
+
+  it('easyeda_pcb_add_region should use the complex-polygon tag for multiple contours', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    const contours = [
+      ['R', 5000, 3000, 500, 300, 0, 0],
+      ['R', 5100, 3100, 100, 100, 0, 0],
+    ];
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({ result: { state: { PrimitiveId: 'region-complex' } } })
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [
+          {
+            primitiveId: 'region-complex',
+            layer: 1,
+            ruleTypes: [6, 7, 8],
+            regionName: '',
+            locked: true,
+            polygon: { contourCount: 2 },
+          },
+        ],
+      });
+
+    const result = await tool?.handler(context, {
+      layer: 1,
+      polygon: contours,
+      ruleType: ['NO_FILLS', 'NO_POURS', 'NO_INNER_ELECTRICAL_LAYERS'],
+      locked: true,
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).toHaveBeenNthCalledWith(2, 'api.call', {
+      path: 'PCB_PrimitiveRegion.create',
+      args: [1, { $complexPolygon: contours }, [6, 7, 8], undefined, undefined, true],
+    });
+    expect(result?.success).toBe(true);
+  });
+
+  it('easyeda_pcb_add_region fails closed when read-back does not match', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({ result: { state: { PrimitiveId: 'region-bad' } } })
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [
+          {
+            primitiveId: 'region-bad',
+            layer: 13,
+            ruleTypes: [2],
+            regionName: 'wrong-name',
+            lineWidth: 10,
+            locked: false,
+            polygon: { contourCount: 1 },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ deleted: ['region-bad'], notFound: [] })
+      .mockResolvedValueOnce({ total: 0, items: [] });
+
+    const result = await tool?.handler(context, {
+      layer: 13,
+      polygon: ['R', 5000, 3000, 500, 300, 0, 0],
+      ruleType: ['NO_COMPONENTS'],
+      name: 'expected-name',
+      lineWidth: 10,
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).toHaveBeenNthCalledWith(4, 'pcb.deleteComponent', {
+      primitiveIds: ['region-bad'],
+    });
+    expect(bridgeCall).toHaveBeenNthCalledWith(5, 'pcb.listRegions', { limit: 200, offset: 0 });
+    expect(result).toMatchObject({ success: false, primitiveId: 'region-bad', rolledBack: true });
+    expect(result?.error).toContain('read-back did not match');
+    expect(result?.error).toContain('rolled back');
+  });
+
+  it('easyeda_pcb_add_region rejects unsupported region rules before any bridge call', async () => {
+    const tool = registry.get('easyeda_pcb_add_region');
+    const parsed = tool?.inputSchema.safeParse({
+      layer: 1,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['FOLLOW_REGION_RULE'],
+      confirmWrite: true,
+    });
+    expect(parsed?.success).toBe(false);
+
+    const result = await tool?.handler(context, {
+      layer: 1,
+      polygon: ['R', 0, 0, 100, 100, 0, 0],
+      ruleType: ['FOLLOW_REGION_RULE'],
+      confirmWrite: true,
+    });
+    expect(result?.success).toBe(false);
+    expect(bridgeCall).not.toHaveBeenCalled();
   });
 
   it('easyeda_pcb_add_track should pass structured points and call bridge', async () => {
