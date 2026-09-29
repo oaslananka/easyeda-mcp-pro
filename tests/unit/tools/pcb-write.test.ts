@@ -660,7 +660,9 @@ describe('PCB Write Tools', () => {
 
   it('easyeda_pcb_add_region should stringify non-Error native failures safely', async () => {
     const tool = registry.get('easyeda_pcb_add_region');
-    bridgeCall.mockResolvedValueOnce({ total: 0, items: [] }).mockRejectedValueOnce('native failure');
+    bridgeCall
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockRejectedValueOnce('native failure');
 
     const result = await tool?.handler(context, {
       layer: 13,
