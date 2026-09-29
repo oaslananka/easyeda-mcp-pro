@@ -272,7 +272,7 @@ describe('PCB Write Tools', () => {
             regionName: 'keepout-a',
             lineWidth: 10,
             locked: false,
-            polygon: { contourCount: 1 },
+            polygonSource: ['R', 5000, 3000, 500, 300, 0, 0],
           },
         ],
       });
@@ -320,7 +320,10 @@ describe('PCB Write Tools', () => {
             ruleTypes: [6, 7, 8],
             regionName: '',
             locked: true,
-            polygon: { contourCount: 2 },
+            polygonSource: [
+              ['R', 5000, 3000, 500, 300, 0, 0],
+              ['R', 5100, 3100, 100, 100, 0, 0],
+            ],
           },
         ],
       });
@@ -355,7 +358,7 @@ describe('PCB Write Tools', () => {
             regionName: 'wrong-name',
             lineWidth: 10,
             locked: false,
-            polygon: { contourCount: 1 },
+            polygonSource: ['R', 5000, 3000, 500, 300, 0, 0],
           },
         ],
       })

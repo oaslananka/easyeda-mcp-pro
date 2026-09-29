@@ -155,7 +155,7 @@ const pcbRegionReadBackSchema = z.object({
   regionName: z.string(),
   lineWidth: z.number().optional(),
   locked: z.boolean(),
-  polygon: z.unknown().optional(),
+  polygonSource: z.unknown().optional(),
 });
 
 const pcbAddRegionOutputSchema = z.object({
@@ -191,7 +191,7 @@ function regionReadBackMatches(
   if (expected.name !== undefined && item.regionName !== expected.name) return false;
   if (expected.lineWidth !== undefined && item.lineWidth !== expected.lineWidth) return false;
   if (item.locked !== expected.locked) return false;
-  return item.polygon !== undefined;
+  return item.polygonSource !== undefined;
 }
 
 function primitiveIdFromApiCall(value: unknown): string | undefined {
