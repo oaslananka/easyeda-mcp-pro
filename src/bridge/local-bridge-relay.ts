@@ -57,6 +57,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function rawMessageToString(raw: Buffer | ArrayBuffer | Buffer[]): string {
+  const buffers = Array.isArray(raw) ? raw : [Buffer.from(raw)];
+  return Buffer.concat(buffers).toString('utf8');
+}
+
 function errorPayload(error: unknown): RelayErrorPayload {
   const record = isRecord(error) ? error : {};
   return {
@@ -156,7 +161,7 @@ export class LocalBridgeRelayServer {
     socket.on('message', (raw) => {
       let data: Record<string, unknown>;
       try {
-        const parsed = JSON.parse(raw.toString()) as unknown;
+        const parsed = JSON.parse(rawMessageToString(raw)) as unknown;
         if (!isRecord(parsed)) throw new Error('relay message must be an object');
         data = parsed;
       } catch {
@@ -284,7 +289,7 @@ export class LocalBridgeRelayClient extends EventEmitter {
       socket.on('message', (raw) => {
         let message: Record<string, unknown>;
         try {
-          const parsed = JSON.parse(raw.toString()) as unknown;
+          const parsed = JSON.parse(rawMessageToString(raw)) as unknown;
           if (!isRecord(parsed)) return;
           message = parsed;
         } catch {
