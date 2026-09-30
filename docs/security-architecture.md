@@ -248,6 +248,7 @@ The `ToolRegistry` enforces unique tool names at registration time — duplicate
 **Payload size enforcement:**
 
 - Messages exceeding `BRIDGE_MAX_PAYLOAD_SIZE` (default 1 MiB) are rejected and the connection is closed with code `4009`.
+- The internal local follower relay uses the same aggregate payload ceiling as the owner bridge path and only accepts registered EasyEDA bridge method names.
 
 **Schema validation:**
 

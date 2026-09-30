@@ -66,6 +66,8 @@ If you prefer to configure your client manually, append the following configurat
 }
 ```
 
+Claude Desktop may start independent stdio MCP processes for different conversations. Current `easyeda-mcp-pro` builds automatically share a single EasyEDA Pro bridge owner between those local processes through an authenticated, loopback-only follower relay. You should not need to kill the process serving another Claude conversation. Keep all concurrently running clients on the same current package version; mixed old/new processes can fall back to the explicit `blocked_by_other_instance` diagnostic.
+
 ### 🔵 Cursor IDE
 
 **Config Path**: Project-specific `.cursor/mcp.json` or global settings.

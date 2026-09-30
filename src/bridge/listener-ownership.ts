@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { type LocalBridgeRelayEndpoint } from './local-bridge-relay.js';
 
 const LOCK_SCHEMA_VERSION = 1;
 const LOCK_DIRECTORY_NAME = 'bridge-listener.lock';
@@ -23,6 +24,7 @@ interface BridgeListenerOwnerRecord {
   startedAt: string;
   host: string;
   port?: number;
+  relayPort?: number;
 }
 
 export interface BridgeOwnershipConflict {
@@ -34,7 +36,10 @@ export interface BridgeOwnershipConflict {
 }
 
 export class BridgeOwnershipConflictError extends Error {
-  constructor(public readonly conflict: BridgeOwnershipConflict) {
+  constructor(
+    public readonly conflict: BridgeOwnershipConflict,
+    public readonly relayEndpoint?: LocalBridgeRelayEndpoint,
+  ) {
     super(conflict.message);
     this.name = 'BridgeOwnershipConflictError';
   }
@@ -78,7 +83,8 @@ function parseOwnerRecord(raw: string): BridgeListenerOwnerRecord | undefined {
       Number(value.pid) <= 0 ||
       typeof value.startedAt !== 'string' ||
       typeof value.host !== 'string' ||
-      (value.port !== undefined && !isValidPort(value.port))
+      (value.port !== undefined && !isValidPort(value.port)) ||
+      (value.relayPort !== undefined && !isValidPort(value.relayPort))
     ) {
       return undefined;
     }
@@ -90,6 +96,7 @@ function parseOwnerRecord(raw: string): BridgeListenerOwnerRecord | undefined {
       startedAt: value.startedAt,
       host: value.host,
       port: value.port === undefined ? undefined : Number(value.port),
+      relayPort: value.relayPort === undefined ? undefined : Number(value.relayPort),
     };
   } catch {
     return undefined;
@@ -103,6 +110,7 @@ export class BridgeListenerOwnership {
   private readonly startedAt = new Date().toISOString();
   private held = false;
   private port: number | undefined;
+  private relayPort: number | undefined;
 
   constructor(
     private readonly dataDirectory: string,
@@ -120,7 +128,10 @@ export class BridgeListenerOwnership {
 
       const snapshot = this.readLockSnapshot();
       if (snapshot.owner && isProcessAlive(snapshot.owner.pid)) {
-        throw new BridgeOwnershipConflictError(this.buildConflict(snapshot.owner));
+        throw new BridgeOwnershipConflictError(
+          this.buildConflict(snapshot.owner),
+          this.buildRelayEndpoint(snapshot.owner),
+        );
       }
 
       const staleOwnerToken = snapshot.owner?.token;
@@ -163,6 +174,16 @@ export class BridgeListenerOwnership {
     this.writeOwnerRecord();
   }
 
+  updateRelayPort(port: number): void {
+    if (!this.held) return;
+    this.relayPort = port;
+    this.writeOwnerRecord();
+  }
+
+  get relayAuthToken(): string {
+    return this.token;
+  }
+
   release(): void {
     if (!this.held) return;
 
@@ -193,6 +214,7 @@ export class BridgeListenerOwnership {
       startedAt: this.startedAt,
       host: this.host,
       port: this.port,
+      relayPort: this.relayPort,
     };
     const temporaryFile = join(this.lockDirectory, `.owner-${this.token}.tmp`);
     writeFileSync(temporaryFile, `${JSON.stringify(record)}\n`, {
@@ -291,6 +313,13 @@ export class BridgeListenerOwnership {
     }
   }
 
+  private buildRelayEndpoint(
+    owner: BridgeListenerOwnerRecord,
+  ): LocalBridgeRelayEndpoint | undefined {
+    if (owner.relayPort === undefined) return undefined;
+    return { host: '127.0.0.1', port: owner.relayPort, token: owner.token };
+  }
+
   private buildConflict(owner: BridgeListenerOwnerRecord): BridgeOwnershipConflict {
     const portText = owner.port === undefined ? '' : `, port ${owner.port}`;
     return {
@@ -299,8 +328,9 @@ export class BridgeListenerOwnership {
       ownerPort: owner.port,
       ownerHost: owner.host,
       message:
-        `Local EasyEDA bridge listener is owned by another easyeda-mcp-pro process (PID ${owner.pid}${portText}). ` +
-        `Close the other MCP client or terminate PID ${owner.pid}, then restart this MCP client.`,
+        `Local EasyEDA bridge listener is owned by another easyeda-mcp-pro process (PID ${owner.pid}${portText}) ` +
+        'that does not expose a compatible local follower relay. Ensure every local MCP client uses the current easyeda-mcp-pro version; ' +
+        `if the owner is stale, terminate PID ${owner.pid} and restart this MCP client.`,
     };
   }
 }

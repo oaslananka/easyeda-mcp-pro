@@ -130,6 +130,39 @@ describe('BridgeListenerOwnership', () => {
     ownership.release();
   });
 
+  it('publishes authenticated follower relay coordinates without exposing the token in diagnostics', () => {
+    const dataDirectory = createDataDirectory();
+    const owner = new BridgeListenerOwnership(dataDirectory, '127.0.0.1');
+    const follower = new BridgeListenerOwnership(dataDirectory, '127.0.0.1');
+
+    owner.acquire();
+    owner.updatePort(49620);
+    owner.updateRelayPort(54321);
+
+    try {
+      follower.acquire();
+      throw new Error('expected ownership conflict');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BridgeOwnershipConflictError);
+      const conflict = error as BridgeOwnershipConflictError;
+      expect(conflict.conflict).toEqual({
+        blockedByOtherInstance: true,
+        ownerPid: process.pid,
+        ownerPort: 49620,
+        ownerHost: '127.0.0.1',
+        message: expect.stringMatching(/owned by another easyeda-mcp-pro process/i),
+      });
+      expect(conflict.conflict).not.toHaveProperty('token');
+      expect(conflict.relayEndpoint).toEqual({
+        host: '127.0.0.1',
+        port: 54321,
+        token: owner.relayAuthToken,
+      });
+    } finally {
+      owner.release();
+    }
+  });
+
   it('reports a live owner even when its port has not been recorded yet', () => {
     const dataDirectory = createDataDirectory();
     mkdirSync(lockDirectory(dataDirectory));

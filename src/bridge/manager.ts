@@ -20,6 +20,12 @@ import {
   BridgeOwnershipConflictError,
   type BridgeOwnershipConflict,
 } from './listener-ownership.js';
+import {
+  LocalBridgeRelayClient,
+  LocalBridgeRelayServer,
+  type LocalBridgeRelayEndpoint,
+  type SharedBridgeSnapshot,
+} from './local-bridge-relay.js';
 
 const PAIRING_TIMEOUT_MS = 10_000;
 const STALE_SWEEP_MS = 30_000;
@@ -32,6 +38,9 @@ const HEARTBEAT_LIVENESS_MULTIPLIER = 3;
 const CHUNK_AGGREGATE_MULTIPLIER = 8;
 // Drop a partial chunk assembly that has not completed within this window.
 const CHUNK_ASSEMBLY_TTL_MS = 60_000;
+const FOLLOWER_ATTACH_ATTEMPTS = 20;
+const FOLLOWER_ATTACH_RETRY_MS = 50;
+const FOLLOWER_RESPONSE_TIMEOUT_GRACE_MS = 1_000;
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -71,6 +80,8 @@ export class BridgeManager extends EventEmitter {
   private _extensionMethodListHash: string | undefined;
   private _loaderVersion: string | undefined;
   private listenerOwnership: BridgeListenerOwnership | undefined;
+  private followerRelayServer: LocalBridgeRelayServer | null = null;
+  private followerRelayClient: LocalBridgeRelayClient | null = null;
   private _ownershipConflict: BridgeOwnershipConflict | undefined;
 
   constructor(config: EnvConfig) {
@@ -182,18 +193,10 @@ export class BridgeManager extends EventEmitter {
     const logger = getLogger();
     this._ownershipConflict = undefined;
     const ownership = new BridgeListenerOwnership(this.config.DATA_DIR, this.config.BRIDGE_HOST);
+    const ownershipMode = await this.acquireOwnershipOrFollow(ownership);
+    if (ownershipMode === 'follower') return;
 
-    try {
-      ownership.acquire();
-      this.listenerOwnership = ownership;
-    } catch (err) {
-      if (err instanceof BridgeOwnershipConflictError) {
-        this._ownershipConflict = err.conflict;
-      }
-      this.state = 'error';
-      this.emit('stateChanged', 'error', 'connecting');
-      throw err;
-    }
+    await this.startFollowerRelay(ownership);
 
     const ports = parsePortScanSpec(this.config.BRIDGE_PORT_SCAN);
     let lastErr: Error | null = null;
@@ -202,6 +205,7 @@ export class BridgeManager extends EventEmitter {
       try {
         ownership.updatePort(port);
         await this.tryListen(port);
+        this.broadcastFollowerSnapshot();
         logger.info({ port }, 'bridge websocket server listening');
         return;
       } catch (err) {
@@ -210,6 +214,8 @@ export class BridgeManager extends EventEmitter {
       }
     }
 
+    this.followerRelayServer?.close();
+    this.followerRelayServer = null;
     ownership.release();
     this.listenerOwnership = undefined;
     logger.error({ ports, err: lastErr?.message }, 'failed to start bridge server on any port');
@@ -219,6 +225,145 @@ export class BridgeManager extends EventEmitter {
     throw lastErr ?? new Error('No available bridge port');
   }
 
+  private async acquireOwnershipOrFollow(
+    ownership: BridgeListenerOwnership,
+  ): Promise<'owner' | 'follower'> {
+    let lastConflict: BridgeOwnershipConflictError | undefined;
+
+    for (let attempt = 0; attempt < FOLLOWER_ATTACH_ATTEMPTS; attempt += 1) {
+      try {
+        ownership.acquire();
+        this.listenerOwnership = ownership;
+        this._ownershipConflict = undefined;
+        return 'owner';
+      } catch (error) {
+        if (!(error instanceof BridgeOwnershipConflictError)) throw error;
+        lastConflict = error;
+        this._ownershipConflict = error.conflict;
+        if (await this.tryAttachFollowerConflict(error)) return 'follower';
+        if (attempt + 1 < FOLLOWER_ATTACH_ATTEMPTS) {
+          await new Promise((resolve) => setTimeout(resolve, FOLLOWER_ATTACH_RETRY_MS));
+        }
+      }
+    }
+
+    this.state = 'error';
+    this.emit('stateChanged', 'error', 'connecting');
+    throw lastConflict ?? new Error('Unable to acquire or follow local bridge owner.');
+  }
+
+  private async tryAttachFollowerConflict(error: BridgeOwnershipConflictError): Promise<boolean> {
+    if (!error.relayEndpoint) return false;
+    try {
+      await this.attachFollowerRelay(error.relayEndpoint, error.conflict);
+      return true;
+    } catch (relayError) {
+      getLogger().debug(
+        {
+          ownerPid: error.conflict.ownerPid,
+          ownerPort: error.conflict.ownerPort,
+          relayPort: error.relayEndpoint.port,
+          err: relayError instanceof Error ? relayError.message : String(relayError),
+        },
+        'local bridge owner relay was not ready; retrying ownership/follower attach',
+      );
+      return false;
+    }
+  }
+
+  private createFollowerSnapshot(): SharedBridgeSnapshot {
+    return {
+      state: this.state,
+      hello: this.hello,
+      activePort: this._activePort,
+      connectedAtMs: this._connectedAtMs,
+      lastHeartbeatMs: this._lastHeartbeatMs,
+      extensionVersion: this._extensionVersion,
+      extensionMethodListHash: this._extensionMethodListHash,
+      loaderVersion: this._loaderVersion,
+    };
+  }
+
+  private broadcastFollowerSnapshot(): void {
+    this.followerRelayServer?.broadcast(this.createFollowerSnapshot());
+  }
+
+  private async startFollowerRelay(ownership: BridgeListenerOwnership): Promise<void> {
+    const logger = getLogger();
+    const server = new LocalBridgeRelayServer({
+      token: ownership.relayAuthToken,
+      maxPayloadBytes: this.config.BRIDGE_MAX_PAYLOAD_SIZE * CHUNK_AGGREGATE_MULTIPLIER,
+      snapshot: () => this.createFollowerSnapshot(),
+      call: (method, params, options) => this.call(method, params, options),
+    });
+
+    try {
+      const relayPort = await server.start();
+      this.followerRelayServer = server;
+      ownership.updateRelayPort(relayPort);
+      logger.info({ relayPort }, 'local bridge follower relay listening');
+    } catch (error) {
+      server.close();
+      logger.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        'local bridge follower relay unavailable; continuing with single-process ownership',
+      );
+    }
+  }
+
+  private async attachFollowerRelay(
+    endpoint: LocalBridgeRelayEndpoint,
+    conflict: BridgeOwnershipConflict,
+  ): Promise<void> {
+    const client = new LocalBridgeRelayClient(endpoint);
+    const snapshot = await client.connect();
+    this.followerRelayClient = client;
+    this._ownershipConflict = undefined;
+    client.on('status', (next: SharedBridgeSnapshot) => this.applyFollowerSnapshot(next));
+    client.once('close', (error: Error) => this.handleFollowerRelayClose(client, error));
+    this.applyFollowerSnapshot(snapshot);
+    getLogger().info(
+      { ownerPid: conflict.ownerPid, ownerPort: conflict.ownerPort, relayPort: endpoint.port },
+      'attached to existing local EasyEDA bridge owner',
+    );
+  }
+
+  private applyFollowerSnapshot(snapshot: SharedBridgeSnapshot): void {
+    const prevState = this.state;
+    this.state = snapshot.state;
+    this.hello = snapshot.hello;
+    this._activePort = snapshot.activePort;
+    this._connectedAtMs = snapshot.connectedAtMs;
+    this._lastHeartbeatMs = snapshot.lastHeartbeatMs;
+    this._extensionVersion = snapshot.extensionVersion;
+    this._extensionMethodListHash = snapshot.extensionMethodListHash;
+    this._loaderVersion = snapshot.loaderVersion;
+
+    if (prevState !== this.state) this.emit('stateChanged', this.state, prevState);
+    if (this.state === 'connected' && prevState !== 'connected' && this.hello) {
+      this.emit('connected', this.hello);
+    } else if (prevState === 'connected' && this.state !== 'connected') {
+      this.emit('disconnected', 'shared bridge owner lost EasyEDA connection');
+    }
+  }
+
+  private handleFollowerRelayClose(client: LocalBridgeRelayClient, error: Error): void {
+    if (this.followerRelayClient !== client) return;
+    this.followerRelayClient = null;
+    const prevState = this.state;
+    this.state = 'error';
+    this.hello = null;
+    this._activePort = 0;
+    this._connectedAtMs = 0;
+    this._lastHeartbeatMs = 0;
+    this._extensionVersion = undefined;
+    this._extensionMethodListHash = undefined;
+    this._loaderVersion = undefined;
+    this.emit('stateChanged', 'error', prevState);
+    this.emit('disconnected', error.message);
+    this.scheduleReconnect();
+  }
+
   private tryListen(port: number): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const wss = new WebSocketServer({
@@ -226,9 +371,9 @@ export class BridgeManager extends EventEmitter {
         port,
       });
       this.wss = wss;
-      this._activePort = port;
 
       wss.once('listening', () => {
+        this._activePort = port;
         wss.on('error', (err) => {
           getLogger().error({ err }, 'bridge server error');
           this.emit('error', err);
@@ -296,6 +441,7 @@ export class BridgeManager extends EventEmitter {
       } else if (data.type === 'heartbeat') {
         this._lastHeartbeatMs = Date.now();
         this.emit('heartbeat', data.timestamp);
+        this.broadcastFollowerSnapshot();
       }
     };
 
@@ -435,6 +581,7 @@ export class BridgeManager extends EventEmitter {
       );
       this.emit('stateChanged', this.state, prevState);
       this.emit('disconnected', reason.toString() || 'connection closed');
+      this.broadcastFollowerSnapshot();
       this.scheduleReconnect();
       // The WSS is still listening; no reconnect needed — wait for the next client.
     });
@@ -540,6 +687,7 @@ export class BridgeManager extends EventEmitter {
       this.emit('stateChanged', 'connected', prevState);
     }
     this.emit('connected', this.hello);
+    this.broadcastFollowerSnapshot();
     this.startHeartbeat();
     this.startStaleSweep();
   }
@@ -608,6 +756,47 @@ export class BridgeManager extends EventEmitter {
     );
   }
 
+  private bridgeMetricCategory(method: string): 'export' | 'bridge-read' {
+    return method.startsWith('export.') || method.startsWith('board.export')
+      ? 'export'
+      : 'bridge-read';
+  }
+
+  private async callThroughFollower<TResult>(
+    client: LocalBridgeRelayClient,
+    method: string,
+    params: unknown,
+    opts: { timeoutMs?: number; traceparent?: string } | undefined,
+    timeoutMs: number,
+  ): Promise<TResult> {
+    const startedAt = Date.now();
+    const responseTimeoutMs =
+      timeoutMs + this.config.BRIDGE_WAIT_FOR_EDA_MS + FOLLOWER_RESPONSE_TIMEOUT_GRACE_MS;
+    try {
+      const result = await client.call<TResult>(
+        method,
+        params,
+        { timeoutMs, traceparent: opts?.traceparent },
+        responseTimeoutMs,
+      );
+      getGlobalMetricsCollector().recordTimed({
+        category: this.bridgeMetricCategory(method),
+        name: method,
+        durationMs: Date.now() - startedAt,
+        ok: true,
+      });
+      return result;
+    } catch (error) {
+      getGlobalMetricsCollector().recordTimed({
+        category: this.bridgeMetricCategory(method),
+        name: method,
+        durationMs: Date.now() - startedAt,
+        ok: false,
+      });
+      throw error;
+    }
+  }
+
   async call<TParams, TResult>(
     method: string,
     params?: TParams,
@@ -620,6 +809,18 @@ export class BridgeManager extends EventEmitter {
       }
     }
 
+    const timeoutMs = opts?.timeoutMs ?? this.config.BRIDGE_TIMEOUT_MS;
+    const followerRelayClient = this.followerRelayClient;
+    if (followerRelayClient) {
+      return this.callThroughFollower<TResult>(
+        followerRelayClient,
+        method,
+        params,
+        opts,
+        timeoutMs,
+      );
+    }
+
     const ws = this.ws;
     if (this.state !== 'connected' || !ws) {
       if (this._ownershipConflict) throw new Error(this._ownershipConflict.message);
@@ -627,7 +828,6 @@ export class BridgeManager extends EventEmitter {
     }
 
     const id = `req_${++this.requestIdCounter}`;
-    const timeoutMs = opts?.timeoutMs ?? this.config.BRIDGE_TIMEOUT_MS;
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -672,6 +872,13 @@ export class BridgeManager extends EventEmitter {
     this.stopHeartbeat();
     this.stopStaleSweep();
     this.clearReconnectTimer();
+
+    const followerRelayClient = this.followerRelayClient;
+    this.followerRelayClient = null;
+    followerRelayClient?.disconnect();
+    this.broadcastFollowerSnapshot();
+    this.followerRelayServer?.close();
+    this.followerRelayServer = null;
 
     // Clean up pending pairing challenges
     for (const [, entry] of this.pairingChallenges) {
@@ -819,6 +1026,7 @@ export class BridgeManager extends EventEmitter {
     this.emit('reconnecting', { attempt: this.reconnectAttempts, delay });
 
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       this.connect().catch((err) => {
         getLogger().error({ err }, 'bridge reconnect failed');
         this.scheduleReconnect();
