@@ -58,8 +58,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function rawMessageToString(raw: Buffer | ArrayBuffer | Buffer[]): string {
-  const buffers = Array.isArray(raw) ? raw : [Buffer.from(raw)];
-  return Buffer.concat(buffers).toString('utf8');
+  if (Array.isArray(raw)) return Buffer.concat(raw).toString('utf8');
+  if (Buffer.isBuffer(raw)) return raw.toString('utf8');
+  return Buffer.from(raw).toString('utf8');
 }
 
 function errorPayload(error: unknown): RelayErrorPayload {

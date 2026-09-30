@@ -150,4 +150,167 @@ describe('local bridge follower relay', () => {
       server.close();
     }
   });
+  it('preserves structured bridge errors across the follower relay', async () => {
+    const bridgeError = Object.assign(new Error('bridge exploded'), {
+      code: 'BRIDGE_EXPLODED',
+      suggestion: 'Retry after refreshing EasyEDA.',
+      data: { stage: 'dispatch' },
+    });
+    const server = new LocalBridgeRelayServer({
+      token: 'relay-secret',
+      maxPayloadBytes: 1024 * 1024,
+      snapshot: () => snapshot(),
+      call: async () => {
+        throw bridgeError;
+      },
+    });
+    const port = await server.start();
+    const client = new LocalBridgeRelayClient({ host: '127.0.0.1', port, token: 'relay-secret' });
+
+    try {
+      await client.connect();
+      await expect(client.call('system.getStatus', {}, {}, 1_000)).rejects.toMatchObject({
+        message: 'bridge exploded',
+        code: 'BRIDGE_EXPLODED',
+        suggestion: 'Retry after refreshing EasyEDA.',
+        data: { stage: 'dispatch' },
+      });
+    } finally {
+      client.disconnect();
+      server.close();
+    }
+  });
+
+  it('rejects malformed and invalid authenticated relay messages', async () => {
+    const server = new LocalBridgeRelayServer({
+      token: 'relay-secret',
+      maxPayloadBytes: 1024 * 1024,
+      snapshot: () => snapshot(),
+      call: async () => ({}),
+    });
+    const port = await server.start();
+    const { WebSocket } = await import('ws');
+
+    const malformed = new WebSocket(`ws://127.0.0.1:${port}`);
+    const malformedClose = new Promise<{ code: number; reason: string }>((resolve, reject) => {
+      malformed.once('error', reject);
+      malformed.once('open', () => malformed.send('{'));
+      malformed.once('close', (code, reason) => resolve({ code, reason: reason.toString() }));
+    });
+    await expect(malformedClose).resolves.toEqual({ code: 4001, reason: 'invalid_message' });
+
+    const invalid = new WebSocket(`ws://127.0.0.1:${port}`);
+    const invalidClose = new Promise<{ code: number; reason: string }>((resolve, reject) => {
+      invalid.once('error', reject);
+      invalid.once('open', () => {
+        invalid.send(
+          JSON.stringify({
+            type: 'attach',
+            protocolVersion: 1,
+            token: 'relay-secret',
+          }),
+        );
+      });
+      invalid.once('message', () => {
+        invalid.send(JSON.stringify({ type: 'not-a-call' }));
+      });
+      invalid.once('close', (code, reason) => resolve({ code, reason: reason.toString() }));
+    });
+
+    try {
+      await expect(invalidClose).resolves.toEqual({
+        code: 4001,
+        reason: 'invalid_relay_message',
+      });
+    } finally {
+      malformed.close();
+      invalid.close();
+      server.close();
+    }
+  });
+
+  it('bounds follower attach and response waits', async () => {
+    const { WebSocketServer } = await import('ws');
+    const silentServer = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    await new Promise<void>((resolve) => silentServer.once('listening', resolve));
+    const address = silentServer.address();
+    if (!address || typeof address === 'string')
+      throw new Error('silent relay did not expose a port');
+
+    const silentClient = new LocalBridgeRelayClient({
+      host: '127.0.0.1',
+      port: address.port,
+      token: 'relay-secret',
+    });
+    try {
+      await expect(silentClient.connect(30)).rejects.toThrow(
+        'Timed out attaching to the local EasyEDA bridge owner.',
+      );
+    } finally {
+      silentClient.disconnect();
+      silentServer.close();
+    }
+
+    const server = new LocalBridgeRelayServer({
+      token: 'relay-secret',
+      maxPayloadBytes: 1024 * 1024,
+      snapshot: () => snapshot(),
+      call: async () => await new Promise<never>(() => {}),
+    });
+    const port = await server.start();
+    const client = new LocalBridgeRelayClient({ host: '127.0.0.1', port, token: 'relay-secret' });
+
+    try {
+      await client.connect();
+      await expect(client.call('system.getStatus', {}, {}, 30)).rejects.toThrow(
+        'Shared bridge method "system.getStatus" timed out after 30ms',
+      );
+    } finally {
+      client.disconnect();
+      server.close();
+    }
+  });
+
+  it('rejects pending calls when the follower disconnects', async () => {
+    const server = new LocalBridgeRelayServer({
+      token: 'relay-secret',
+      maxPayloadBytes: 1024 * 1024,
+      snapshot: () => snapshot(),
+      call: async () => await new Promise<never>(() => {}),
+    });
+    const port = await server.start();
+    const client = new LocalBridgeRelayClient({ host: '127.0.0.1', port, token: 'relay-secret' });
+
+    try {
+      await client.connect();
+      const pending = client.call('system.getStatus', {}, {}, 5_000);
+      client.disconnect();
+      await expect(pending).rejects.toThrow('Local EasyEDA bridge follower disconnected.');
+    } finally {
+      client.disconnect();
+      server.close();
+    }
+  });
+
+  it('rejects duplicate starts and calls before attachment', async () => {
+    const server = new LocalBridgeRelayServer({
+      token: 'relay-secret',
+      maxPayloadBytes: 1024 * 1024,
+      snapshot: () => snapshot(),
+      call: async () => ({}),
+    });
+    const port = await server.start();
+    await expect(server.start()).rejects.toThrow('already running');
+
+    const client = new LocalBridgeRelayClient({ host: '127.0.0.1', port, token: 'relay-secret' });
+    await expect(client.call('system.getStatus', {}, {}, 50)).rejects.toThrow('not connected');
+
+    try {
+      await client.connect();
+      await expect(client.connect()).rejects.toThrow('already connected');
+    } finally {
+      client.disconnect();
+      server.close();
+    }
+  });
 });
