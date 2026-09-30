@@ -242,7 +242,9 @@ export class BridgeManager extends EventEmitter {
         this._ownershipConflict = error.conflict;
         if (await this.tryAttachFollowerConflict(error)) return 'follower';
         if (attempt + 1 < FOLLOWER_ATTACH_ATTEMPTS) {
-          await new Promise((resolve) => setTimeout(resolve, FOLLOWER_ATTACH_RETRY_MS));
+          await new Promise((resolve) => {
+            setTimeout(resolve, FOLLOWER_ATTACH_RETRY_MS);
+          });
         }
       }
     }
@@ -319,8 +321,12 @@ export class BridgeManager extends EventEmitter {
     const snapshot = await client.connect();
     this.followerRelayClient = client;
     this._ownershipConflict = undefined;
-    client.on('status', (next: SharedBridgeSnapshot) => this.applyFollowerSnapshot(next));
-    client.once('close', (error: Error) => this.handleFollowerRelayClose(client, error));
+    client.on('status', (next: SharedBridgeSnapshot) => {
+      this.applyFollowerSnapshot(next);
+    });
+    client.once('close', (error: Error) => {
+      this.handleFollowerRelayClose(client, error);
+    });
     this.applyFollowerSnapshot(snapshot);
     getLogger().info(
       { ownerPid: conflict.ownerPid, ownerPort: conflict.ownerPort, relayPort: endpoint.port },

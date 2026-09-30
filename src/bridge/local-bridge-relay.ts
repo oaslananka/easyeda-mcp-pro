@@ -92,7 +92,9 @@ export class LocalBridgeRelayServer {
       maxPayload: this.options.maxPayloadBytes,
     });
     this.wss = wss;
-    wss.on('connection', (socket) => this.handleConnection(socket));
+    wss.on('connection', (socket) => {
+      this.handleConnection(socket);
+    });
 
     await new Promise<void>((resolve, reject) => {
       const onError = (error: Error): void => {
@@ -276,7 +278,9 @@ export class LocalBridgeRelayClient extends EventEmitter {
           }),
         );
       });
-      socket.once('error', (error) => fail(error));
+      socket.once('error', (error) => {
+        fail(error);
+      });
       socket.on('message', (raw) => {
         let message: Record<string, unknown>;
         try {
