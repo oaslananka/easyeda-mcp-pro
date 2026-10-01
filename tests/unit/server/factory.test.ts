@@ -135,7 +135,7 @@ describe('createServer', () => {
     expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the MCP server available when another process owns the local bridge listener', async () => {
+  it('keeps the MCP server available when a legacy owner exposes no follower relay', async () => {
     const ownershipConflict = {
       blockedByOtherInstance: true as const,
       ownerPid: 4321,
