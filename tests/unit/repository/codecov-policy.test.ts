@@ -61,7 +61,7 @@ describe('Codecov analytics policy', () => {
     expect(extensionVitestConfig).not.toContain("'src/index.ts'");
     expect(extensionVitestConfig).not.toContain("'src/dispatcher-entry.ts'");
     expect(packageJson.scripts?.['validate:codecov']).toContain('codecov.io/validate');
-    expect(packageJson.devDependencies?.['@codecov/bundle-analyzer']).toBe('2.0.1');
+    expect(packageJson.devDependencies?.['@codecov/bundle-analyzer']).toBeUndefined();
     expect(packageJson.scripts?.['analyze:extension-bundle:ci']).toBeUndefined();
     const ratchet = readText('docs/coverage-ratchet.md');
     expect(ratchet).toContain('2026-07-23 extension baseline');

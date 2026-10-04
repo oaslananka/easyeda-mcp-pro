@@ -143,7 +143,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@codecov/bundle-analyzer": "2.0.1",
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/client": "^2.0.0",
     "@types/express": "^5.0.6",

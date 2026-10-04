@@ -179,9 +179,9 @@ describe('dependency audit policy', () => {
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
     expect(workspacePolicy).not.toContain('minimumReleaseAge');
-    expect(workspacePolicy).toMatch(/\n {2}brace-expansion: 5\.0\.9\n/);
-    expect(lockfile).toContain('brace-expansion: 5.0.9');
-    expect(lockfile).not.toMatch(/brace-expansion@5\.0\.[0-8](?:\D|$)/);
+    expect(workspacePolicy).toMatch(/\n {2}brace-expansion: 5\.0\.12\n/);
+    expect(lockfile).toContain('brace-expansion: 5.0.12');
+    expect(lockfile).not.toMatch(/brace-expansion@5\.0\.(?:[0-9]|1[01])(?:\D|$)/);
   });
 
   it('pins qs to the patched security release without a release-age exception', () => {
