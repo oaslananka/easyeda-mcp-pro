@@ -138,7 +138,9 @@ We use [Conventional Commits](https://www.conventionalcommits.org/) to track cha
 
 ## 4. Renovate PR Review Policy
 
-- **DevDependency Auto-merging**: Patch/minor updates to `devDependencies` are automatically merged by Renovate once CI checks pass.
+These rules apply when the hosted Renovate provider is active; `.github/renovate.json` alone does not prove account-level activation. See [Repository Governance](docs/REPOSITORY_GOVERNANCE.md#dependency-management) for the operational verification requirement.
+
+- **DevDependency Auto-merging**: Patch/minor updates to `devDependencies` may be automatically merged by Renovate only after CI checks pass.
 - **Runtime Dependencies**: Upgrades to runtime dependencies (`@modelcontextprotocol/sdk`, `zod`, `jose`, `ws`, `undici`) must be reviewed and merged manually by maintainers.
 - **Major Updates**: All major version upgrades require explicit approval on the **Dependency Dashboard** or manual pull request review.
 

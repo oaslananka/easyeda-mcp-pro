@@ -28,8 +28,9 @@ describe('repository roadmap and CDP documentation policy', () => {
     expect(existsSync(resolve(repoRoot, path))).toBe(true);
     const roadmap = read(path);
 
-    expect(roadmap).toContain('v1.1.0 — Stable promotion and PCB follow-up');
-    expect(roadmap).toContain('v1.2.0 — MCP 2026-07-28 compatibility');
+    expect(roadmap).toContain('PCB capability follow-up');
+    expect(roadmap).not.toContain('v1.1.0 — Stable promotion and PCB follow-up');
+    expect(roadmap).not.toContain('v1.2.0 — MCP 2026-07-28 compatibility');
     expect(roadmap).not.toContain('v0.37.0 — Maintainability and operational consistency');
     expect(roadmap).not.toContain(
       'v1.0 readiness — Governance, release quality, and ecosystem confidence',
@@ -37,10 +38,11 @@ describe('repository roadmap and CDP documentation policy', () => {
     expect(roadmap).not.toContain('/issues/349');
     expect(roadmap).not.toContain('/issues/350');
     expect(roadmap).not.toContain('/issues/561');
-    expect(roadmap).toContain('/issues/620');
+    expect(roadmap).not.toContain('/issues/620');
+    expect(roadmap).not.toContain('/issues/476');
+    expect(roadmap).toContain('/issues/596');
     expect(roadmap).toContain('/issues/470');
     expect(roadmap).toContain('/issues/480');
-    expect(roadmap).toContain('/issues/476');
     expect(roadmap).toContain('Not scheduled');
     expect(roadmap).toMatch(/epic.*directly scoped issues/i);
     expect(roadmap).toContain('`v<target> — <outcome>`');

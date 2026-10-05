@@ -147,7 +147,7 @@ node scripts/check-runtime.mjs --require-pnpm
 
 ## Installation & Client Configuration
 
-> Testing the v1 release candidate? Follow [Migrating to v1](docs/MIGRATING_TO_V1.md). Stable npm and container channels remain on `0.35.4` during the candidate soak.
+> Stable v1 is published. If you are upgrading from a pre-v1 release, follow [Migrating to v1](docs/MIGRATING_TO_V1.md).
 
 You can configure `easyeda-mcp-pro` automatically or manually.
 
@@ -920,7 +920,7 @@ See [Security Architecture & Threat Model](docs/security-architecture.md) for th
 - **Secret redaction**: API keys, tokens, passwords are redacted from logs and diagnostic output
 - **Branch protection**: Governance policy requires code reviews and status checks on the `main` branch (see [Repository Governance](docs/REPOSITORY_GOVERNANCE.md))
 - **Code scanning**: CodeQL analysis runs on every push and PR (security-extended + security-and-quality queries)
-- **Dependency management**: Renovate automatically updates dependencies with security patches
+- **Dependency management**: Renovate policy is configured in-repository; hosted-provider activity is verified through a Renovate Dependency Dashboard or Renovate-authored update activity. Dependency Audit, Dependency Review, Socket, and CodeQL provide independent security signals.
 - **Supply-chain hygiene**: pnpm workspace build, pinned GitHub Actions, and no native SQLite addon dependency
 - **Reporting**: See [SECURITY.md](SECURITY.md) for vulnerability disclosure
 
@@ -930,7 +930,7 @@ See [Security Architecture & Threat Model](docs/security-architecture.md) for th
 
 This repository uses automated workflows to manage dependencies and releases:
 
-- **Renovate**: Automatically scans and updates dependencies based on rules configured in [.github/renovate.json](.github/renovate.json). For details on PR policies and automerging, see [Repository Governance](docs/REPOSITORY_GOVERNANCE.md).
+- **Renovate**: [.github/renovate.json](.github/renovate.json) defines the repository's dependency-update policy. Hosted Renovate is an account-level prerequisite; treat a Dependency Dashboard or Renovate-authored update activity as proof that the provider is active. See [Repository Governance](docs/REPOSITORY_GOVERNANCE.md).
 - **Release Please**: Automates stable version bumps, release metadata, and `CHANGELOG.md`. Numbered `rc.N` candidates use the isolated prerelease path. See the [Release Policy](docs/RELEASE_POLICY.md) and [Release Process](docs/RELEASE_PROCESS.md).
 - **Secure Publishing**: The release workflow rebuilds and verifies all assets, publishes npm with provenance to channel-safe `latest` or `next` dist-tags, uploads the extension and SBOM to the matching GitHub Release, and keeps GHCR/MCP Registry promotion aligned with the selected channel.
 

@@ -4,12 +4,9 @@ This roadmap describes the intended direction for `easyeda-mcp-pro` for the next
 
 ## Active delivery milestones
 
-| Milestone                                       | Target date   | Public tracker                                                                                                                                                                                                                                              | Outcome                                                                                                               |
-| ----------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **v1.1.0 — Stable promotion and PCB follow-up** | Not scheduled | [Release gate #620](https://github.com/oaslananka/easyeda-mcp-pro/issues/620) · [Side-aware capture #470](https://github.com/oaslananka/easyeda-mcp-pro/issues/470) · [Copper-zone contract #480](https://github.com/oaslananka/easyeda-mcp-pro/issues/480) | Promote the verified RC.5 to stable 1.1.0 without runtime changes, then continue deferred PCB capability restoration. |
-| **v1.2.0 — MCP 2026-07-28 compatibility**       | Not scheduled | [Compatibility program #476](https://github.com/oaslananka/easyeda-mcp-pro/issues/476)                                                                                                                                                                      | Add explicit dual-era MCP compatibility without weakening transport or authorization controls.                        |
+- **PCB capability follow-up** — Target date: Not scheduled. Public trackers: [Copper rebuild #596](https://github.com/oaslananka/easyeda-mcp-pro/issues/596), [side-aware capture #470](https://github.com/oaslananka/easyeda-mcp-pro/issues/470), and [copper-zone contract #480](https://github.com/oaslananka/easyeda-mcp-pro/issues/480). Outcome: restore executable PCB workflows where the supported EasyEDA contract is verifiable while keeping unsupported paths fail-closed.
 
-The live GitHub milestones currently have no due dates. A target date belongs here only when it is an explicit planning commitment; absence of a date must not be replaced with an inferred deadline.
+No target date is currently committed for this active work. A target date belongs here only when it is an explicit planning commitment; absence of a date must not be replaced with an inferred deadline.
 
 ## Milestone and branch lifecycle
 
