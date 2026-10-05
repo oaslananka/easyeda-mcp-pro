@@ -42,12 +42,13 @@ describe('PCB Write Tools', () => {
     };
   });
 
-  it('should register all 11 PCB write tools', () => {
+  it('should register all 12 PCB write tools', () => {
     expect(registry.get('easyeda_pcb_place_component')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_track')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_region')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_via')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_zone')).toBeDefined();
+    expect(registry.get('easyeda_pcb_rebuild_copper')).toBeDefined();
     expect(registry.get('easyeda_pcb_delete_component')).toBeDefined();
     expect(registry.get('easyeda_pcb_modify_component')).toBeDefined();
     expect(registry.get('easyeda_pcb_place_component_group')).toBeDefined();
@@ -962,6 +963,100 @@ describe('PCB Write Tools', () => {
       success: true,
       primitiveId: 'via-999',
     });
+  });
+
+  it('easyeda_pcb_rebuild_copper requires literal confirmation and copper-layer selectors', () => {
+    const tool = registry.get('easyeda_pcb_rebuild_copper');
+
+    expect(
+      tool?.inputSchema.safeParse({
+        pourIds: ['pour-1'],
+        confirmWrite: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      tool?.inputSchema.safeParse({
+        layer: 12,
+        confirmWrite: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      tool?.inputSchema.safeParse({
+        pourIds: ['pour-1', 'pour-1'],
+        confirmWrite: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      tool?.inputSchema.safeParse({
+        net: 'GND',
+        layer: 15,
+        confirmWrite: true,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('easyeda_pcb_rebuild_copper omits confirmation from the bridge call and returns verified results', async () => {
+    const tool = registry.get('easyeda_pcb_rebuild_copper');
+    bridgeCall.mockResolvedValue({
+      success: true,
+      matchedCount: 1,
+      attemptedCount: 1,
+      rebuiltCount: 1,
+      noCopperCount: 0,
+      transactionCovered: false,
+      planeZonesSupported: false,
+      results: [
+        {
+          pourId: 'pour-1',
+          pouredId: 'poured-1',
+          status: 'rebuilt',
+          verified: true,
+        },
+      ],
+    });
+
+    const result = await tool?.handler(context, {
+      pourIds: ['pour-1'],
+      net: 'GND',
+      layer: 1,
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.rebuildCopper', {
+      pourIds: ['pour-1'],
+      net: 'GND',
+      layer: 1,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      rebuiltCount: 1,
+      transactionCovered: false,
+      planeZonesSupported: false,
+    });
+  });
+
+  it('easyeda_pcb_rebuild_copper warns that timeout outcomes must be inspected before retry', async () => {
+    const tool = registry.get('easyeda_pcb_rebuild_copper');
+    bridgeCall.mockRejectedValue(
+      new Error('Bridge method "pcb.rebuildCopper" timed out after 1000ms'),
+    );
+
+    const result = await tool?.handler(context, {
+      net: 'GND',
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      matchedCount: 0,
+      attemptedCount: 0,
+      rebuiltCount: 0,
+      transactionCovered: false,
+      planeZonesSupported: false,
+      results: [],
+    });
+    expect(result?.error).toContain('write outcome is unknown');
+    expect(result?.error).toContain('Inspect the active PCB before retrying');
   });
 
   it('easyeda_pcb_add_zone should fail closed without calling the bridge', async () => {

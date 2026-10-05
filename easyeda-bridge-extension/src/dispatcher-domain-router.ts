@@ -130,6 +130,10 @@ export function createDispatcherDomainRouter(
       handle: (params) => dependencies.pcbMutationOperations.modifyComponent(params),
     },
     {
+      method: 'pcb.rebuildCopper',
+      handle: (params) => dependencies.pcbMutationOperations.rebuildCopper(params),
+    },
+    {
       method: 'project.export',
       handle: (params) => dependencies.projectOperations.export(params),
     },

@@ -108,7 +108,7 @@ For advanced configurations, manual instructions, and specific clients, see [Ins
 
 ## Overview
 
-easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes up to 115 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
+easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes up to 119 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
 
 The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling real-time access to open project data. It integrates with JLCPCB, LCSC, Mouser, and DigiKey for BOM sourcing and pricing.
 
@@ -594,9 +594,9 @@ The server registers profile-gated tools according to the active `TOOL_PROFILE`.
 | -------------- | ---------------: |
 | `core`         |               73 |
 | `pro`          |              100 |
-| `full`         |              113 |
-| `dev`          |              118 |
-| `experimental` |              118 |
+| `full`         |              114 |
+| `dev`          |              119 |
+| `experimental` |              119 |
 
 <!-- capability-counts:end -->
 
@@ -700,7 +700,7 @@ The schematic write APIs use EasyEDA Pro extension APIs that EasyEDA currently m
 │  (via Plugin)    │     Protocol      │  └───────────────┘  │
 └─────────────────┘                    │  ┌───────────────┐  │
                                        │  │  ToolRegistry  │  │
-                                       │  │ (up to 115 tools) │ │
+                                       │  │ (up to 119 tools) │ │
                                        │  └───────────────┘  │
                                        │  ┌───────────────┐  │
                                        │  │    Storage     │──┼──► SQLite
