@@ -1081,7 +1081,7 @@ describe('PCB Write Tools', () => {
       not_available: true,
       error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
       remediation:
-        'Create or edit the copper zone in EasyEDA Pro manually until the complete native zone-creation contract is live-verified.',
+        'Create or edit the copper zone in EasyEDA Pro manually until a supported runtime has a live-verified deterministic create/rebuild/associated-Poured read-back contract.',
     });
   });
 

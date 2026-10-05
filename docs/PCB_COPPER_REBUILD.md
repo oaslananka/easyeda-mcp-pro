@@ -16,7 +16,7 @@
 
 ## Compatibility boundary
 
-The repository's current live desktop compatibility baseline is EasyEDA Pro `3.2.149.88089769`. The rebuild implementation is contract-backed by the current `@jlceda/pro-api-types` `0.4.25` surface and the official EasyEDA API skill/docs, but this new mutation path is **not newly live-validated by this change**.
+The repository's current live desktop compatibility baseline is EasyEDA Pro `3.2.149.88089769`. The rebuild implementation was validated against the `@jlceda/pro-api-types` `0.4.25` instance-rebuild surface and the official EasyEDA API skill/docs. Upstream `0.4.26` retains that instance contract and also declares an `@alpha` class-level `PCB_PrimitivePour.rebuildCopperRegions()` method, but that class-level method is absent from the verified 3.2.149 runtime and is not used by this tool.
 
 At runtime the tool fails closed unless the focused PCB exposes all of these capabilities:
 
@@ -33,4 +33,4 @@ Other EasyEDA Pro versions are therefore capability-gated rather than assumed co
 
 This tool intentionally excludes EasyEDA inner `PlaneZone` objects. The verified public API surface exposes normal `PCB_PrimitivePour` rebuilds but no equivalent writable PlaneZone class contract. Plane-zone creation/rebuild remains tracked separately by issue #480 and the [upstream EasyEDA API request #43](https://github.com/easyeda/pro-api-sdk/issues/43) referenced from issue #596.
 
-Do not substitute `easyeda_pcb_add_zone`: native `PCB_PrimitivePour.create()` remains fail-closed in this repository until its complete creation contract is live-verified.
+Do not substitute `easyeda_pcb_add_zone`: the nine-argument native `PCB_PrimitivePour.create()` signature is known, but creation remains fail-closed until a supported EasyEDA runtime has a live-verified deterministic create → rebuild → associated `PCB_PrimitivePoured` read-back and recovery contract.
