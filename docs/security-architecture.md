@@ -401,10 +401,10 @@ The required quality gate runs `pnpm check:architecture` against `.github/archit
 
 ### 9.2 Dependency Management
 
-- Renovate automates dependency updates.
+- Renovate policy is defined in `.github/renovate.json`; hosted-provider activation must be verified independently through a Renovate Dependency Dashboard or Renovate-authored update activity.
 - `pnpm security:audit` fails closed if a registry-backed `pnpm audit --json` attempt exceeds 300 seconds. A structured audit error payload is retried exactly once; a second error still fails closed and emits JSON/summary evidence. CI applies an 11-minute step timeout across both bounded attempts. `DEPENDENCY_AUDIT_TIMEOUT_MS` is available only as a bounded per-attempt operational override (1–900 seconds).
 - Runtime dependencies require manual review — never auto-merged.
-- Patch/minor devDependencies auto-merge if CI passes.
+- When the hosted Renovate provider is active, patch/minor devDependencies may auto-merge only if CI passes.
 - Vulnerability alerts via OSV database.
 
 ### 9.3 Branch Protection

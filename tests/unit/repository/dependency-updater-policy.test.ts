@@ -8,6 +8,8 @@ const repoRoot = resolve(__dirname, '../../..');
 const renovateConfigPath = resolve(repoRoot, '.github/renovate.json');
 const dependabotConfigPath = resolve(repoRoot, '.github/dependabot.yml');
 const releaseCiRunbookPath = resolve(repoRoot, 'docs/release-ci-runbook.md');
+const readmePath = resolve(repoRoot, 'README.md');
+const securityArchitecturePath = resolve(repoRoot, 'docs/security-architecture.md');
 
 interface RenovatePackageRule {
   matchManagers?: string[];
@@ -73,6 +75,17 @@ describe('dependency updater ownership', () => {
     expect(runbook).toContain('Mend Renovate App');
     expect(runbook).toContain('Interactive mode');
     expect(runbook).toContain('Dependency Dashboard');
+  });
+
+  it('does not treat checked-in Renovate configuration as proof of hosted activation', () => {
+    const readme = readFileSync(readmePath, 'utf8');
+    const securityArchitecture = readFileSync(securityArchitecturePath, 'utf8');
+
+    expect(readme).not.toContain('Renovate automatically updates dependencies');
+    expect(readme).toContain('Hosted Renovate is an account-level prerequisite');
+    expect(securityArchitecture).toContain(
+      'hosted-provider activation must be verified independently',
+    );
   });
 
   it('keeps the security assurance evidence aligned with Renovate-only ownership', () => {
