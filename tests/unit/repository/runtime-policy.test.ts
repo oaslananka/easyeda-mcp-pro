@@ -124,14 +124,25 @@ describe('repository runtime policy', () => {
     expect(workflows.match(/24\.21\.0/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
     expect(workflows).not.toMatch(/node-version:\s*['"]?(?:24|26)['"]?\s*$/m);
     const ciWorkflow = read('.github/workflows/ci.yml');
+    const staticQualityJob = ciWorkflow.slice(
+      ciWorkflow.indexOf('  static_quality:'),
+      ciWorkflow.indexOf('  tests:'),
+    );
     const qualityJob = ciWorkflow.slice(
       ciWorkflow.indexOf('  quality:'),
-      ciWorkflow.indexOf('  test-matrix:'),
+      ciWorkflow.indexOf('  codeql:'),
     );
+    expect(staticQualityJob).toContain('name: static-quality');
+    expect(staticQualityJob).toContain('node-version: 24.21.0');
     expect(qualityJob).toContain('name: quality (24)');
-    expect(qualityJob).toContain("node-version: '24.21.0'");
+    expect(qualityJob).toContain('- static_quality');
+    expect(qualityJob).toContain('- tests');
+    expect(qualityJob).toContain('- extension_integrity');
+    expect(qualityJob).toContain('- package_docs');
+    expect(qualityJob).toContain('- test-matrix');
+    expect(qualityJob).not.toContain('actions/setup-node@');
     expect(qualityJob).not.toContain('matrix:');
-    expect(ciWorkflow).toContain("node-version: '24.21.0'");
+    expect(ciWorkflow).toContain('node-version: 24.21.0');
     expect(read('.github/workflows/ci.yml')).not.toContain("node-version: '26'");
     expect(workflows.match(/run: pnpm runtime:check/g)?.length ?? 0).toBeGreaterThanOrEqual(7);
   });

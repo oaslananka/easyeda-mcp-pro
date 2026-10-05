@@ -89,7 +89,7 @@ describe('architecture dependency boundaries', () => {
       'node scripts/check-architecture-boundaries.mjs',
     );
     expect(packageJson.scripts['verify:fast']).toContain('pnpm check:architecture');
-    expect(workflow).toContain('Run pnpm check:architecture');
+    expect(workflow).toContain('run: pnpm verify:fast');
     expect(architecture).toContain('`.github/architecture-boundaries.json`');
     expect(architecture).toContain('`pnpm check:architecture`');
   });

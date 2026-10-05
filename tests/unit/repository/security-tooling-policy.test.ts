@@ -200,16 +200,21 @@ describe('repository security tooling policy', () => {
 
   it('runs the non-live golden benchmark inside the required quality PR gate', () => {
     const ciWorkflow = readText('.github/workflows/ci.yml');
+    const staticQualityJob = ciWorkflow.slice(
+      ciWorkflow.indexOf('  static_quality:'),
+      ciWorkflow.indexOf('  tests:'),
+    );
     const qualityJob = ciWorkflow.slice(
       ciWorkflow.indexOf('  quality:'),
-      ciWorkflow.indexOf('  test-matrix:'),
+      ciWorkflow.indexOf('  codeql:'),
     );
 
-    expect(qualityJob).toContain('Run golden eval benchmark (non-live, mocked-fixture tier)');
-    expect(qualityJob).toContain('run: pnpm eval:golden');
+    expect(staticQualityJob).toContain('Run golden eval benchmark (non-live, mocked-fixture tier)');
+    expect(staticQualityJob).toContain('run: pnpm eval:golden');
+    expect(qualityJob).toContain('- static_quality');
 
     const guide = readText('docs/benchmark-suite.md');
-    expect(guide).toContain('required `quality (24)` pull-request gate');
+    expect(guide).toContain('required `quality (24)` pull-request aggregator');
   });
 
   it('runs a least-privilege scheduled dependency advisory monitor', () => {
@@ -271,7 +276,7 @@ describe('repository security tooling policy', () => {
     const scorecardWorkflow = readText('.github/workflows/scorecard.yml');
     const dockerfile = readText('Dockerfile');
 
-    expect(ciWorkflow.match(/pnpm install --frozen-lockfile --ignore-scripts/g)).toHaveLength(3);
+    expect(ciWorkflow.match(/pnpm install --frozen-lockfile --ignore-scripts/g)).toHaveLength(6);
     expect(docsWorkflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
     expect(releaseWorkflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
     expect(dockerfile).toContain('RUN pnpm install --frozen-lockfile --ignore-scripts');

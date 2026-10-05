@@ -78,7 +78,7 @@ bom_fully_sourced     — every BOM line has an LCSC-shaped id and quantity > 0
 
 ## CI
 
-The mocked-fixture benchmark is part of the required `quality (24)` pull-request gate, where `pnpm eval:golden` blocks merge on any scenario, score, or safety regression. `.github/workflows/golden-benchmark.yml` also runs the same non-live benchmark on push to `main`, on a weekly schedule, and on manual dispatch so the Actions tab retains a dedicated report artifact. The live tier (an agent actually driving a connected EasyEDA Pro instance) remains manual, per the existing live-test opt-in policy — never run in CI.
+The mocked-fixture benchmark runs in `static-quality`, which feeds the required `quality (24)` pull-request aggregator; `pnpm eval:golden` therefore still blocks merge on any scenario, score, or safety regression. `.github/workflows/golden-benchmark.yml` also runs the same non-live benchmark on push to `main`, on a weekly schedule, and on manual dispatch so the Actions tab retains a dedicated report artifact. The live tier (an agent actually driving a connected EasyEDA Pro instance) remains manual, per the existing live-test opt-in policy — never run in CI.
 
 ## Scoring rubric
 

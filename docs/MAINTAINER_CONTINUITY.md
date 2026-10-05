@@ -21,7 +21,7 @@ If the current maintainer becomes unavailable, the project should still be able 
 
 ## Current solo-maintainer controls
 
-The project does not require an unavailable reviewer. `main` instead enforces `quality (24)`, `codeql`, `semgrep`, `Socket Security: Project Report`, `dependency-review`, and `codecov/patch`; SonarQube Cloud remains advisory. The active ruleset also requires resolved conversations and linear history and blocks force-pushes and branch deletion. The current protection snapshot is recorded in [`2026-09-28-main-ruleset.json`](evidence/governance/2026-09-28-main-ruleset.json).
+The project does not require an unavailable reviewer. `main` instead enforces `quality (24)`, `codeql`, `semgrep`, `Socket Security: Project Report`, and `dependency-review`; Codecov and SonarQube Cloud remain advisory analytics. The active ruleset also requires resolved conversations and linear history and blocks force-pushes and branch deletion. The current protection snapshot is recorded in [`2026-10-05-main-ruleset.json`](evidence/governance/2026-10-05-main-ruleset.json).
 
 Recovery procedures are maintained in [`SOLO_MAINTAINER_RECOVERY.md`](SOLO_MAINTAINER_RECOVERY.md). Never store plaintext credentials, recovery codes, private keys, or successor contact details in the repository. Those values belong in the required offline encrypted continuity record.
 

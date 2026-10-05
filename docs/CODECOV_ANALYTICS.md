@@ -1,10 +1,10 @@
 # Codecov analytics
 
-The repository publishes three complementary quality signals from the Ubuntu and Node.js 24 `quality` job:
+The repository publishes complementary quality signals from dedicated Node.js 24 CI jobs:
 
 - server and EasyEDA bridge-extension code coverage,
 - server and extension JUnit test results for Codecov Test Analytics,
-- deterministic extension JavaScript bundle-size budgets.
+- deterministic extension JavaScript bundle-size budgets enforced by `extension-integrity`.
 
 The workflow follows Codecov's guidance for [coverage uploads](https://docs.codecov.com/docs/quick-start), [Test Analytics](https://docs.codecov.com/docs/test-analytics), [repository configuration](https://docs.codecov.com/docs/codecov-yaml), and [JavaScript bundle analysis](https://docs.codecov.com/docs/javascript-bundle-analysis).
 
@@ -17,7 +17,7 @@ Vitest produces separate LCOV files so Codecov can show independent histories fo
 | MCP server               | `server`    | `coverage/lcov.info`                          |
 | EasyEDA bridge extension | `extension` | `easyeda-bridge-extension/coverage/lcov.info` |
 
-`codecov.yml` also defines matching Codecov components. Project coverage remains informational at the current baseline (`target: auto`) with 1% tolerance. The umbrella `codecov/patch` status is blocking at 80% with a two-percentage-point tolerance, fails when coverage is missing or CI fails, and applies only to pull requests. Separate `server` and `extension` flags and components preserve independent histories without filtering the umbrella patch status or hiding changed-line annotations. The rationale and triage process are in [Changed-code quality gates](QUALITY_GATES.md).
+`codecov.yml` also defines matching Codecov components. Project coverage remains informational at the current baseline (`target: auto`) with 1% tolerance. The umbrella `codecov/patch` status retains an 80% target with a two-percentage-point tolerance for advisory changed-line analytics, but it is not branch-protection-required. Separate `server` and `extension` flags and components preserve independent histories without filtering the umbrella patch status or hiding changed-line annotations. The rationale and triage process are in [Changed-code quality gates](QUALITY_GATES.md).
 
 Generate the reports locally with:
 
@@ -33,9 +33,9 @@ Both suites write JUnit XML:
 - `reports/server.junit.xml`
 - `reports/extension.junit.xml`
 
-Coverage producers have explicit step IDs and their LCOV/JUnit outputs are validated before any Codecov upload. Server and extension producers remain independently diagnosable: an executed server coverage failure does not prevent the extension producer from running, but an upstream pre-coverage failure skips both producers. Codecov CLI installation runs only when at least one validated report exists, and each coverage or test-results upload requires both its matching report validation and the verified CLI installation to have succeeded.
+The required `tests-and-coverage` job validates both LCOV/JUnit report sets before staging them for telemetry. Missing, empty, malformed, or below-threshold reports fail the required local job. Artifact staging is best-effort because provider telemetry is not part of the merge boundary.
 
-An always-run quality summary records the dependency-audit, coverage, validation, Codecov CLI, and upload outcomes so the primary failure remains visible while dependent stages are reported as skipped. Missing, empty, or malformed reports therefore fail closed instead of creating secondary Codecov noise.
+The separate `coverage-telemetry` job downloads validated reports, installs the verified Codecov CLI, and records configuration/upload outcomes in its own summary. Provider or artifact-service failures remain diagnosable without masking the local test result.
 
 Generated reports are ignored by Git and must not be committed.
 
@@ -43,7 +43,7 @@ Generated reports are ignored by Git and must not be committed.
 
 The extension uses a custom esbuild script rather than Vite, Rollup, or Webpack. Repository-owned byte budgets remain the blocking bundle-size control for `index.js`, `dispatcher.js`, and the packaged extension.
 
-Remote Codecov Bundle Analysis is disabled. The previous `@codecov/bundle-analyzer@2.0.1` integration repeatedly received `404 Not Found` from Codecov's pre-signed URL endpoint in trusted CI and was no longer invoked by repository scripts. In October 2026 its dependency chain also became the repository's only path to the unresolved high-severity `braces@3.0.3` advisory. The unused analyzer dependency was therefore removed instead of weakening dependency-audit policy. Primary LCOV coverage, Test Analytics, the blocking `codecov/patch` status, and deterministic extension byte budgets remain unchanged.
+Remote Codecov Bundle Analysis is disabled. The previous `@codecov/bundle-analyzer@2.0.1` integration repeatedly received `404 Not Found` from Codecov's pre-signed URL endpoint in trusted CI and was no longer invoked by repository scripts. In October 2026 its dependency chain also became the repository's only path to the unresolved high-severity `braces@3.0.3` advisory. The unused analyzer dependency was therefore removed instead of weakening dependency-audit policy. Primary LCOV coverage and Test Analytics remain available as advisory telemetry, while deterministic local coverage thresholds and extension byte budgets remain blocking repository-owned controls.
 
 Reintroduce remote bundle analysis only after a separately verified Codecov service/tooling path both works in trusted GitHub Actions and has a dependency graph that passes the repository security policy.
 
@@ -60,7 +60,7 @@ On 2026-10-05, the existing-copper rebuild path added explicit runtime capabilit
 
 ## Configuration validation
 
-Every quality run validates `codecov.yml` through Codecov's validator before tests begin:
+The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:
 
 ```bash
 pnpm validate:codecov

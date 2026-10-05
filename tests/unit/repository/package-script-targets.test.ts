@@ -185,6 +185,6 @@ describe('package script target policy', () => {
     );
     expect(packageJson.scripts['verify:fast']).toContain('pnpm check:package-scripts');
     expect(packageJson.scripts.verify).toContain('pnpm verify:fast');
-    expect(workflow).toContain('pnpm verify:tool-coverage');
+    expect(workflow).toContain('run: pnpm verify:fast');
   });
 });

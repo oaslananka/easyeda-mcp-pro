@@ -29,6 +29,8 @@ interface QualityGatePolicy {
     actionCommit: string;
     cliVersion: string;
     preparationPlugins: string;
+    requiredCheck: boolean;
+    mergeRole: string;
   };
   sonarQubeCloud: {
     projectKey: string;
@@ -67,9 +69,7 @@ describe('changed-code quality gate policy', () => {
     const policy = readPolicy();
 
     expect(policy.schemaVersion).toBe(1);
-    expect(policy.requiredPullRequestChecks).toEqual([
-      { context: 'codecov/patch', appId: 254, provider: 'Codecov' },
-    ]);
+    expect(policy.requiredPullRequestChecks).toEqual([]);
     expect(policy.codecov).toMatchObject({
       patchTargetPercent: 80,
       thresholdPercent: 2,
@@ -79,6 +79,8 @@ describe('changed-code quality gate policy', () => {
       actionCommit: '303a32d7a59b442fa8d48b6a1cc6825c09c847a5',
       cliVersion: '11.3.1',
       preparationPlugins: 'noop',
+      requiredCheck: false,
+      mergeRole: 'advisory-telemetry',
       components: {
         server: { flag: 'server', path: 'src/' },
         extension: { flag: 'extension', path: 'easyeda-bridge-extension/src/' },
@@ -91,7 +93,7 @@ describe('changed-code quality gate policy', () => {
       repositorySecretRequired: false,
       qualityGateName: 'Sonar way',
       newCodePeriodMode: 'previous_version',
-      coverageAuthority: 'codecov',
+      coverageAuthority: 'local-vitest-ci',
       automaticAnalysisCoverageSupported: false,
       requiredCheck: false,
       mergeRole: 'advisory',
@@ -111,10 +113,10 @@ describe('changed-code quality gate policy', () => {
       generatedArtifactsExcluded: true,
       sourceAndTestsAnalyzed: true,
     });
-    expect(policy.lastVerifiedAt).toBe('2026-09-28');
+    expect(policy.lastVerifiedAt).toBe('2026-10-05');
   });
 
-  it('enforces an explicit blocking patch target while retaining separate components', () => {
+  it('retains explicit Codecov patch analytics while local coverage remains blocking', () => {
     const config = readText('codecov.yml');
     const patchSection = config.slice(config.indexOf('    patch:'), config.indexOf('\ncomment:'));
 
@@ -203,15 +205,15 @@ describe('changed-code quality gate policy', () => {
     expect(policy.sonarQubeCloud).toMatchObject({
       requiredCheck: false,
       mergeRole: 'advisory',
-      coverageAuthority: 'codecov',
+      coverageAuthority: 'local-vitest-ci',
     });
 
     expect(releasePolicy).toContain('SonarQube Cloud advisory findings');
     expect(releasePolicy).not.toContain('Sonar quality gate');
     expect(releaseProcess).toContain('SonarQube Cloud advisory findings');
 
-    expect(continuity).toContain('SonarQube Cloud remains advisory');
-    expect(continuity).toContain('2026-09-28-main-ruleset.json');
+    expect(continuity).toContain('Codecov and SonarQube Cloud remain advisory analytics');
+    expect(continuity).toContain('2026-10-05-main-ruleset.json');
     expect(continuity).not.toContain('and SonarQube checks');
 
     expect(openssf).toContain('SonarQube Cloud automatic analysis is advisory');
@@ -235,7 +237,7 @@ describe('changed-code quality gate policy', () => {
     expect(runbook).toContain('GitHub App automatic analysis');
     expect(runbook).toContain('SonarCloud Code Analysis');
     expect(runbook).toContain('advisory');
-    expect(runbook).toContain('Codecov is the coverage authority');
+    expect(runbook).toContain('Local Vitest coverage is the blocking coverage authority');
     expect(runbook).toContain('Failure triage');
     expect(runbook).toContain('negative probe');
   });

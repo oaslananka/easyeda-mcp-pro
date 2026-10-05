@@ -1,13 +1,7 @@
 {
   "schemaVersion": 1,
-  "lastVerifiedAt": "2026-09-28",
-  "requiredPullRequestChecks": [
-    {
-      "context": "codecov/patch",
-      "appId": 254,
-      "provider": "Codecov"
-    }
-  ],
+  "lastVerifiedAt": "2026-10-05",
+  "requiredPullRequestChecks": [],
   "codecov": {
     "patchTargetPercent": 80,
     "thresholdPercent": 2,
@@ -26,7 +20,9 @@
     "actionVersion": "7.1.1",
     "actionCommit": "303a32d7a59b442fa8d48b6a1cc6825c09c847a5",
     "cliVersion": "11.3.1",
-    "preparationPlugins": "noop"
+    "preparationPlugins": "noop",
+    "requiredCheck": false,
+    "mergeRole": "advisory-telemetry"
   },
   "sonarQubeCloud": {
     "projectKey": "oaslananka_easyeda-mcp-pro",
@@ -35,7 +31,7 @@
     "repositorySecretRequired": false,
     "qualityGateName": "Sonar way",
     "newCodePeriodMode": "previous_version",
-    "coverageAuthority": "codecov",
+    "coverageAuthority": "local-vitest-ci",
     "automaticAnalysisCoverageSupported": false,
     "requiredCheck": false,
     "mergeRole": "advisory"
