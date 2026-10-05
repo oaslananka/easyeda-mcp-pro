@@ -32,11 +32,13 @@ function fakePoured(id: string, pourId: string) {
   };
 }
 
-function createOperations(options: {
-  pourClass?: Record<string, unknown>;
-  pouredClass?: Record<string, unknown>;
-  activeError?: Error;
-} = {}) {
+function createOperations(
+  options: {
+    pourClass?: Record<string, unknown>;
+    pouredClass?: Record<string, unknown>;
+    activeError?: Error;
+  } = {},
+) {
   const callFirst = vi.fn(async (_paths: readonly string[], ...args: unknown[]) => ({ args }));
   const deletePrimitives = vi.fn(
     async (ids: string[]): Promise<{ deleted: string[]; notFound: string[] }> => ({
@@ -151,9 +153,9 @@ describe('createPcbMutationOperations', () => {
       pouredClass: { getAll: vi.fn(async () => []) },
     });
 
-    await expect(
-      operations.rebuildCopper({ pourIds: ['pour-1', 'missing-pour'] }),
-    ).rejects.toThrow('missing-pour');
+    await expect(operations.rebuildCopper({ pourIds: ['pour-1', 'missing-pour'] })).rejects.toThrow(
+      'missing-pour',
+    );
     expect(get).toHaveBeenCalledTimes(2);
     expect(pour1.rebuildCopperRegion).not.toHaveBeenCalled();
   });

@@ -42,11 +42,7 @@ function validatedComponentTransformProperty(value: unknown): Record<string, num
 
 type NativeMethod = (...args: unknown[]) => unknown;
 type CopperRebuildStatus =
-  | 'rebuilt'
-  | 'no-copper'
-  | 'error'
-  | 'readback-missing'
-  | 'readback-mismatch';
+  'rebuilt' | 'no-copper' | 'error' | 'readback-missing' | 'readback-mismatch';
 
 interface CopperRebuildItem {
   pourId: string;
@@ -69,21 +65,14 @@ interface CopperRebuildResult {
 }
 
 function nativeMethod(target: unknown, name: string): NativeMethod | undefined {
-  if (
-    target === null ||
-    (typeof target !== 'object' && typeof target !== 'function')
-  ) {
+  if (target === null || (typeof target !== 'object' && typeof target !== 'function')) {
     return undefined;
   }
   const candidate = (target as Record<string, unknown>)[name];
   return typeof candidate === 'function' ? (candidate as NativeMethod) : undefined;
 }
 
-async function invokeNative(
-  target: unknown,
-  name: string,
-  ...args: unknown[]
-): Promise<unknown> {
+async function invokeNative(target: unknown, name: string, ...args: unknown[]): Promise<unknown> {
   const method = nativeMethod(target, name);
   if (!method) {
     throw new Error(`EasyEDA runtime does not expose ${name}().`);
@@ -115,11 +104,7 @@ function copperLayer(value: unknown): number | undefined {
   if (
     typeof value !== 'number' ||
     !Number.isInteger(value) ||
-    !(
-      value === 1 ||
-      value === 2 ||
-      (value >= 15 && value <= 44)
-    )
+    !(value === 1 || value === 2 || (value >= 15 && value <= 44))
   ) {
     throw new TypeError(
       'PCB copper rebuild layer must be TOP=1, BOTTOM=2, or INNER_1..INNER_30=15..44.',

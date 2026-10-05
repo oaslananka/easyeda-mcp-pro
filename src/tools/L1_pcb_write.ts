@@ -116,13 +116,7 @@ const pcbRebuildCopperInputSchema = z
 const pcbRebuildCopperItemSchema = z.object({
   pourId: z.string(),
   pouredId: z.string().nullable(),
-  status: z.enum([
-    'rebuilt',
-    'no-copper',
-    'error',
-    'readback-missing',
-    'readback-mismatch',
-  ]),
+  status: z.enum(['rebuilt', 'no-copper', 'error', 'readback-missing', 'readback-mismatch']),
   verified: z.boolean(),
   error: z.string().optional(),
 });

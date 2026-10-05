@@ -965,7 +965,6 @@ describe('PCB Write Tools', () => {
     });
   });
 
-
   it('easyeda_pcb_rebuild_copper requires literal confirmation and copper-layer selectors', () => {
     const tool = registry.get('easyeda_pcb_rebuild_copper');
 

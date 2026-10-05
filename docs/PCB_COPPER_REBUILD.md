@@ -31,6 +31,6 @@ Other EasyEDA Pro versions are therefore capability-gated rather than assumed co
 
 ## Plane-zone boundary
 
-This tool intentionally excludes EasyEDA inner `PlaneZone` objects. The verified public API surface exposes normal `PCB_PrimitivePour` rebuilds but no equivalent writable PlaneZone class contract. Plane-zone creation/rebuild remains tracked separately by issue #480 and the upstream EasyEDA API request referenced from issue #596.
+This tool intentionally excludes EasyEDA inner `PlaneZone` objects. The verified public API surface exposes normal `PCB_PrimitivePour` rebuilds but no equivalent writable PlaneZone class contract. Plane-zone creation/rebuild remains tracked separately by issue #480 and the [upstream EasyEDA API request #43](https://github.com/easyeda/pro-api-sdk/issues/43) referenced from issue #596.
 
 Do not substitute `easyeda_pcb_add_zone`: native `PCB_PrimitivePour.create()` remains fail-closed in this repository until its complete creation contract is live-verified.

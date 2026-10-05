@@ -1922,12 +1922,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                                 | Required | Description                                                                         |
-| -------------- | ------------------------------------ | -------- | ----------------------------------------------------------------------------------- |
-| `pourIds`      | `string[] (optional)`                | No       | Optional existing PCB_PrimitivePour primitive ids to rebuild.                       |
-| `net`          | `string (optional)`                  | No       | Optional exact net-name filter. Combined with pourIds/layer when provided.          |
-| `layer`        | `'1'` \| `'2'` \| `number (optional)` | No       | Optional copper-layer filter: TOP=1, BOTTOM=2, INNER_1..INNER_30=15..44.            |
-| `confirmWrite` | `'true'`                             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.       |
+| Parameter      | Type                                  | Required | Description                                                                   |
+| -------------- | ------------------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `pourIds`      | `string[] (optional)`                 | No       | Optional existing PCB_PrimitivePour primitive ids to rebuild.                 |
+| `net`          | `string (optional)`                   | No       | Optional exact net-name filter. Combined with pourIds/layer when provided.    |
+| `layer`        | `'1'` \| `'2'` \| `number (optional)` | No       | Optional copper-layer filter: TOP=1, BOTTOM=2, INNER_1..INNER_30=15..44.      |
+| `confirmWrite` | `'true'`                              | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
 
 ### Output Format
 
