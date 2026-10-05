@@ -135,80 +135,93 @@ function requestedPourIds(value: unknown): string[] | undefined {
   return ids;
 }
 
-async function resolvePours(
-  pourClass: unknown,
-  params: Record<string, unknown>,
-): Promise<Array<{ pourId: string; primitive: unknown }>> {
-  const ids = requestedPourIds(params.pourIds);
-  const net =
-    params.net === undefined
-      ? undefined
-      : typeof params.net === 'string' && params.net.trim().length > 0
-        ? params.net.trim()
-        : (() => {
-            throw new TypeError('PCB copper rebuild net must be a non-empty string.');
-          })();
-  const layer = copperLayer(params.layer);
+interface CopperRebuildTarget {
+  pourId: string;
+  primitive: unknown;
+}
 
-  let pours: unknown[];
-  if (ids) {
-    const resolved: unknown[] = [];
-    const missing: string[] = [];
-    for (const id of ids) {
-      const value = await invokeNative(pourClass, 'get', id);
-      const candidates = nativeItems(value);
-      const exact = candidates.find(
-        (candidate) => nativeStateString(candidate, 'getState_PrimitiveId') === id,
-      );
-      const selected = exact ?? (candidates.length === 1 ? candidates[0] : undefined);
-      if (!selected) missing.push(id);
-      else resolved.push(selected);
-    }
-    if (missing.length > 0) {
-      throw new Error(
-        `PCB pour primitive id(s) not found on the active PCB: ${missing.join(', ')}. No copper was rebuilt.`,
-      );
-    }
-    pours = resolved;
-  } else {
-    const value = await invokeNative(pourClass, 'getAll', net, layer);
-    pours = nativeItems(value);
+function requestedNet(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  throw new TypeError('PCB copper rebuild net must be a non-empty string.');
+}
+
+function selectPourCandidate(candidates: unknown[], id: string): unknown | undefined {
+  const exact = candidates.find(
+    (candidate) => nativeStateString(candidate, 'getState_PrimitiveId') === id,
+  );
+  if (exact !== undefined) return exact;
+  if (candidates.length === 1) return candidates[0];
+  return undefined;
+}
+
+async function resolvePoursByIds(pourClass: unknown, ids: string[]): Promise<unknown[]> {
+  const resolved: unknown[] = [];
+  const missing: string[] = [];
+  for (const id of ids) {
+    const candidates = nativeItems(await invokeNative(pourClass, 'get', id));
+    const selected = selectPourCandidate(candidates, id);
+    if (selected === undefined) missing.push(id);
+    else resolved.push(selected);
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `PCB pour primitive id(s) not found on the active PCB: ${missing.join(', ')}. No copper was rebuilt.`,
+    );
+  }
+  return resolved;
+}
+
+function validatedPourTarget(
+  primitive: unknown,
+  net: string | undefined,
+  layer: number | undefined,
+): CopperRebuildTarget | undefined {
+  const pourId = nativeStateString(primitive, 'getState_PrimitiveId');
+  if (!pourId) {
+    throw new Error(
+      'EasyEDA PCB_PrimitivePour returned an item without getState_PrimitiveId(). No copper was rebuilt.',
+    );
   }
 
-  const selected: Array<{ pourId: string; primitive: unknown }> = [];
+  if (net !== undefined) {
+    const actualNet = nativeStateString(primitive, 'getState_Net');
+    if (actualNet === undefined) {
+      throw new Error(
+        `PCB pour ${pourId} does not expose getState_Net(); the requested net filter cannot be verified. No copper was rebuilt.`,
+      );
+    }
+    if (actualNet !== net) return undefined;
+  }
+
+  if (layer !== undefined) {
+    const actualLayer = nativeStateNumber(primitive, 'getState_Layer');
+    if (actualLayer === undefined) {
+      throw new Error(
+        `PCB pour ${pourId} does not expose getState_Layer(); the requested layer filter cannot be verified. No copper was rebuilt.`,
+      );
+    }
+    if (actualLayer !== layer) return undefined;
+  }
+
+  if (!nativeMethod(primitive, 'rebuildCopperRegion')) {
+    throw new Error(
+      `PCB pour ${pourId} does not expose rebuildCopperRegion(); no copper was rebuilt.`,
+    );
+  }
+  return { pourId, primitive };
+}
+
+function selectValidatedPours(
+  pours: unknown[],
+  net: string | undefined,
+  layer: number | undefined,
+): CopperRebuildTarget[] {
+  const selected: CopperRebuildTarget[] = [];
   for (const primitive of pours) {
-    const pourId = nativeStateString(primitive, 'getState_PrimitiveId');
-    if (!pourId) {
-      throw new Error(
-        'EasyEDA PCB_PrimitivePour returned an item without getState_PrimitiveId(). No copper was rebuilt.',
-      );
-    }
-    if (net !== undefined) {
-      const actualNet = nativeStateString(primitive, 'getState_Net');
-      if (actualNet === undefined) {
-        throw new Error(
-          `PCB pour ${pourId} does not expose getState_Net(); the requested net filter cannot be verified. No copper was rebuilt.`,
-        );
-      }
-      if (actualNet !== net) continue;
-    }
-    if (layer !== undefined) {
-      const actualLayer = nativeStateNumber(primitive, 'getState_Layer');
-      if (actualLayer === undefined) {
-        throw new Error(
-          `PCB pour ${pourId} does not expose getState_Layer(); the requested layer filter cannot be verified. No copper was rebuilt.`,
-        );
-      }
-      if (actualLayer !== layer) continue;
-    }
-    if (!nativeMethod(primitive, 'rebuildCopperRegion')) {
-      throw new Error(
-        `PCB pour ${pourId} does not expose rebuildCopperRegion(); no copper was rebuilt.`,
-      );
-    }
-    selected.push({ pourId, primitive });
+    const target = validatedPourTarget(primitive, net, layer);
+    if (target) selected.push(target);
   }
-
   if (selected.length === 0) {
     throw new Error('No existing PCB pours matched the requested filters. No copper was rebuilt.');
   }
@@ -216,6 +229,19 @@ async function resolvePours(
     throw new Error('EasyEDA returned duplicate PCB pour primitive ids. No copper was rebuilt.');
   }
   return selected;
+}
+
+async function resolvePours(
+  pourClass: unknown,
+  params: Record<string, unknown>,
+): Promise<CopperRebuildTarget[]> {
+  const ids = requestedPourIds(params.pourIds);
+  const net = requestedNet(params.net);
+  const layer = copperLayer(params.layer);
+  const pours = ids
+    ? await resolvePoursByIds(pourClass, ids)
+    : nativeItems(await invokeNative(pourClass, 'getAll', net, layer));
+  return selectValidatedPours(pours, net, layer);
 }
 
 function pouredReadbackMap(items: unknown[]): Map<string, string[]> {
@@ -340,6 +366,106 @@ function mapRebuildResults(
   });
 }
 
+function requireCopperRebuildRuntime(readFirstPath: ApiRuntime['readFirstPath']): {
+  pourClass: unknown;
+  pouredClass: unknown;
+} {
+  const pourClass = readFirstPath<unknown>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
+  const pouredClass = readFirstPath<unknown>(['PCB_PrimitivePoured', 'pcb_PrimitivePoured']);
+  if (!pourClass || !nativeMethod(pourClass, 'getAll') || !nativeMethod(pourClass, 'get')) {
+    throw new Error(
+      'EasyEDA runtime does not expose PCB_PrimitivePour.get()/getAll(); no copper was rebuilt.',
+    );
+  }
+  if (!pouredClass || !nativeMethod(pouredClass, 'getAll')) {
+    throw new Error(
+      'EasyEDA runtime does not expose PCB_PrimitivePoured.getAll(); read-back cannot be verified, so no copper was rebuilt.',
+    );
+  }
+  return { pourClass, pouredClass };
+}
+
+async function readPouredItems(pouredClass: unknown): Promise<unknown[]> {
+  const value = await invokeNative(pouredClass, 'getAll');
+  if (!Array.isArray(value)) {
+    throw new Error('PCB_PrimitivePoured.getAll() did not return an array.');
+  }
+  return value;
+}
+
+async function executeCopperRebuilds(
+  targets: CopperRebuildTarget[],
+): Promise<CopperRebuildAttempt[]> {
+  const attempts: CopperRebuildAttempt[] = [];
+  for (const target of targets) {
+    try {
+      attempts.push({
+        pourId: target.pourId,
+        nativeResult: await invokeNative(target.primitive, 'rebuildCopperRegion'),
+      });
+    } catch (error) {
+      attempts.push({
+        pourId: target.pourId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      break;
+    }
+  }
+  return attempts;
+}
+
+function readbackFailureResult(
+  matchedCount: number,
+  attempts: CopperRebuildAttempt[],
+  error: unknown,
+): CopperRebuildResult {
+  const message = error instanceof Error ? error.message : String(error);
+  const results = mapReadbackFailureResults(attempts, message);
+  return {
+    success: false,
+    matchedCount,
+    attemptedCount: attempts.length,
+    rebuiltCount: 0,
+    noCopperCount: results.filter((item) => item.status === 'no-copper').length,
+    transactionCovered: false,
+    planeZonesSupported: false,
+    results,
+    error:
+      'PCB copper rebuild completed or partially completed, but persisted read-back could not be verified.',
+  };
+}
+
+function finalRebuildResult(
+  matchedCount: number,
+  attempts: CopperRebuildAttempt[],
+  results: CopperRebuildItem[],
+): CopperRebuildResult {
+  const rebuiltCount = results.filter((item) => item.status === 'rebuilt').length;
+  const noCopperCount = results.filter((item) => item.status === 'no-copper').length;
+  const success =
+    attempts.length === matchedCount &&
+    results.length === matchedCount &&
+    rebuiltCount === matchedCount;
+  const firstFailure = results.find((item) => item.status !== 'rebuilt');
+  const error =
+    firstFailure?.error ??
+    (noCopperCount > 0
+      ? 'One or more pours produced no copper and were not counted as successful rebuilds.'
+      : 'One or more pours could not be rebuilt and verified.');
+
+  return {
+    success,
+    matchedCount,
+    attemptedCount: attempts.length,
+    rebuiltCount,
+    noCopperCount,
+    transactionCovered: false,
+    planeZonesSupported: false,
+    results,
+    ...(success ? {} : { error }),
+  };
+}
+
 export interface PcbMutationOperations {
   addZone(params: Record<string, unknown>): Promise<unknown>;
   rebuildCopper(params: Record<string, unknown>): Promise<CopperRebuildResult>;
@@ -367,96 +493,29 @@ export function createPcbMutationOperations({
   async function rebuildCopper(params: Record<string, unknown>): Promise<CopperRebuildResult> {
     await requireActivePcbContext();
 
-    const pourClass = readFirstPath<unknown>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
-    const pouredClass = readFirstPath<unknown>(['PCB_PrimitivePoured', 'pcb_PrimitivePoured']);
-    if (!pourClass || !nativeMethod(pourClass, 'getAll') || !nativeMethod(pourClass, 'get')) {
-      throw new Error(
-        'EasyEDA runtime does not expose PCB_PrimitivePour.get()/getAll(); no copper was rebuilt.',
-      );
-    }
-    if (!pouredClass || !nativeMethod(pouredClass, 'getAll')) {
-      throw new Error(
-        'EasyEDA runtime does not expose PCB_PrimitivePoured.getAll(); read-back cannot be verified, so no copper was rebuilt.',
-      );
-    }
-
+    const { pourClass, pouredClass } = requireCopperRebuildRuntime(readFirstPath);
     const targets = await resolvePours(pourClass, params);
 
     // Prove that the read-back surface is callable before any mutation begins.
-    const preflightReadback = await invokeNative(pouredClass, 'getAll');
-    if (!Array.isArray(preflightReadback)) {
+    try {
+      await readPouredItems(pouredClass);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       throw new Error(
-        'PCB_PrimitivePoured.getAll() did not return an array; read-back cannot be verified, so no copper was rebuilt.',
+        `PCB_PrimitivePoured.getAll() preflight failed; read-back cannot be verified, so no copper was rebuilt. ${message}`,
       );
     }
 
-    const attempts: CopperRebuildAttempt[] = [];
-    for (const target of targets) {
-      try {
-        attempts.push({
-          pourId: target.pourId,
-          nativeResult: await invokeNative(target.primitive, 'rebuildCopperRegion'),
-        });
-      } catch (error) {
-        attempts.push({
-          pourId: target.pourId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        break;
-      }
-    }
+    const attempts = await executeCopperRebuilds(targets);
 
     let postReadback: unknown[];
     try {
-      const value = await invokeNative(pouredClass, 'getAll');
-      if (!Array.isArray(value)) throw new Error('getAll() did not return an array');
-      postReadback = value;
+      postReadback = await readPouredItems(pouredClass);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const results = mapReadbackFailureResults(attempts, message);
-      return {
-        success: false,
-        matchedCount: targets.length,
-        attemptedCount: attempts.length,
-        rebuiltCount: 0,
-        noCopperCount: results.filter((item) => item.status === 'no-copper').length,
-        transactionCovered: false,
-        planeZonesSupported: false,
-        results,
-        error:
-          'PCB copper rebuild completed or partially completed, but persisted read-back could not be verified.',
-      };
+      return readbackFailureResult(targets.length, attempts, error);
     }
 
-    const results = mapRebuildResults(attempts, postReadback);
-
-    const rebuiltCount = results.filter((item) => item.status === 'rebuilt').length;
-    const noCopperCount = results.filter((item) => item.status === 'no-copper').length;
-    const success =
-      attempts.length === targets.length &&
-      results.length === targets.length &&
-      rebuiltCount === targets.length;
-    const firstFailure = results.find((item) => item.status !== 'rebuilt');
-
-    return {
-      success,
-      matchedCount: targets.length,
-      attemptedCount: attempts.length,
-      rebuiltCount,
-      noCopperCount,
-      transactionCovered: false,
-      planeZonesSupported: false,
-      results,
-      ...(success
-        ? {}
-        : {
-            error:
-              firstFailure?.error ??
-              (noCopperCount > 0
-                ? 'One or more pours produced no copper and were not counted as successful rebuilds.'
-                : 'One or more pours could not be rebuilt and verified.'),
-          }),
-    };
+    return finalRebuildResult(targets.length, attempts, mapRebuildResults(attempts, postReadback));
   }
 
   async function modifyComponent(params: Record<string, unknown>): Promise<unknown> {
