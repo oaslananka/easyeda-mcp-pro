@@ -197,6 +197,19 @@ describe('Codecov analytics policy', () => {
     expect(installer).toContain("steps.server_reports.outcome == 'success'");
     expect(installer).toContain("steps.extension_reports.outcome == 'success'");
 
+    const trustedMetadata = [
+      'slug: ${{ github.repository }}',
+      'override_branch: ${{ github.head_ref || github.ref_name }}',
+      'override_commit: ${{ github.event.pull_request.head.sha || github.sha }}',
+      'override_pr: ${{ github.event.pull_request.number }}',
+    ];
+    const tokenlessMetadata = [
+      'slug: ${{ github.repository }}',
+      'override_branch: ${{ github.event.pull_request.head.label }}',
+      'override_commit: ${{ github.event.pull_request.head.sha }}',
+      'override_pr: ${{ github.event.pull_request.number }}',
+    ];
+
     for (const name of [
       'Upload server coverage to Codecov (trusted)',
       'Upload server coverage to Codecov (tokenless fork)',
@@ -205,15 +218,9 @@ describe('Codecov analytics policy', () => {
       const step = workflowStep(workflow, name);
       expect(step).toContain("steps.server_reports.outcome == 'success'");
       expect(step).toContain("steps.codecov_cli.outcome == 'success'");
-      if (name.includes('tokenless')) {
-        expect(step).toContain('slug: ${{ github.repository }}');
-        expect(step).toContain(
-          'override_branch: ${{ github.event.pull_request.head.label }}',
-        );
-        expect(step).toContain(
-          'override_commit: ${{ github.event.pull_request.head.sha }}',
-        );
-        expect(step).toContain('override_pr: ${{ github.event.pull_request.number }}');
+      const metadata = name.includes('tokenless') ? tokenlessMetadata : trustedMetadata;
+      for (const line of metadata) {
+        expect(step).toContain(line);
       }
     }
     for (const name of [
@@ -224,15 +231,9 @@ describe('Codecov analytics policy', () => {
       const step = workflowStep(workflow, name);
       expect(step).toContain("steps.extension_reports.outcome == 'success'");
       expect(step).toContain("steps.codecov_cli.outcome == 'success'");
-      if (name.includes('tokenless')) {
-        expect(step).toContain('slug: ${{ github.repository }}');
-        expect(step).toContain(
-          'override_branch: ${{ github.event.pull_request.head.label }}',
-        );
-        expect(step).toContain(
-          'override_commit: ${{ github.event.pull_request.head.sha }}',
-        );
-        expect(step).toContain('override_pr: ${{ github.event.pull_request.number }}');
+      const metadata = name.includes('tokenless') ? tokenlessMetadata : trustedMetadata;
+      for (const line of metadata) {
+        expect(step).toContain(line);
       }
     }
   });

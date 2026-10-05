@@ -97,6 +97,10 @@ jobs:
           report_type: coverage
           disable_search: true
           plugins: noop
+          slug: ${{ github.repository }}
+          override_branch: ${{ github.head_ref || github.ref_name }}
+          override_commit: ${{ github.event.pull_request.head.sha || github.sha }}
+          override_pr: ${{ github.event.pull_request.number }}
           fail_ci_if_error: true
       - name: Upload server coverage to Codecov (tokenless fork)
         id: server_coverage_upload_tokenless
@@ -128,6 +132,10 @@ jobs:
           report_type: coverage
           disable_search: true
           plugins: noop
+          slug: ${{ github.repository }}
+          override_branch: ${{ github.head_ref || github.ref_name }}
+          override_commit: ${{ github.event.pull_request.head.sha || github.sha }}
+          override_pr: ${{ github.event.pull_request.number }}
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (tokenless fork)
         id: extension_coverage_upload_tokenless
@@ -159,6 +167,10 @@ jobs:
           report_type: test_results
           disable_search: true
           plugins: noop
+          slug: ${{ github.repository }}
+          override_branch: ${{ github.head_ref || github.ref_name }}
+          override_commit: ${{ github.event.pull_request.head.sha || github.sha }}
+          override_pr: ${{ github.event.pull_request.number }}
           fail_ci_if_error: true
       - name: Upload extension test results to Codecov
         id: extension_test_results_upload
@@ -173,6 +185,10 @@ jobs:
           report_type: test_results
           disable_search: true
           plugins: noop
+          slug: ${{ github.repository }}
+          override_branch: ${{ github.head_ref || github.ref_name }}
+          override_commit: ${{ github.event.pull_request.head.sha || github.sha }}
+          override_pr: ${{ github.event.pull_request.number }}
           fail_ci_if_error: true
       - name: Summarize quality report pipeline
         if: ${{ always() }}
