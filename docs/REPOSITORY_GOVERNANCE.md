@@ -166,4 +166,4 @@ OpenSSF evidence is tracked in [`OPENSSF_BEST_PRACTICES.md`](OPENSSF_BEST_PRACTI
 
 ## Release workflow separation
 
-The `Release Please PR` workflow may maintain release pull requests but cannot publish packages or immutable releases. The `Publish Release` workflow owns pre-tag compatibility and quality gates, immutable release creation, attestations, npm, MCP Registry, and GHCR publication. Publication concurrency never cancels an active release.
+The `Release Please PR` workflow may maintain release pull requests but cannot publish packages or immutable releases. The `Publish Release` workflow owns pre-tag compatibility and quality gates, immutable release creation, attestations, npm, MCP Registry, and GHCR publication. Publication concurrency is serialized per release channel (`stable` and `prerelease`) and never cancels an active release, preventing races on moving channel state such as npm/GHCR `latest` or `next`.

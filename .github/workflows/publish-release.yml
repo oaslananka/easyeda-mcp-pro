@@ -102,7 +102,7 @@ jobs:
     needs: plan
     runs-on: ubuntu-24.04
     concurrency:
-      group: publish-${{ needs.plan.outputs.release_tag }}
+      group: publish-channel-${{ needs.plan.outputs.release_channel }}
       cancel-in-progress: false
     permissions:
       contents: read # GitHub Release mutations use the dedicated release token.

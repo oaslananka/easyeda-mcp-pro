@@ -61,7 +61,7 @@ describe('release channel policy', () => {
     expect(publisher).toContain('TAG_COMMIT="$(git rev-parse "${RELEASE_TAG}^{commit}")"');
     expect(publisher).toContain('TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"');
     expect(publisher).toContain('cancel-in-progress: false');
-    expect(publisher).toContain('group: publish-${{ needs.plan.outputs.release_tag }}');
+    expect(publisher).toContain('group: publish-channel-${{ needs.plan.outputs.release_channel }}');
     expect(publisher).toContain('password: ${{ secrets.GITHUB_TOKEN }}');
     expect(publisher).toContain('Verify commit-bound EasyEDA compatibility evidence');
     expect(publisher).toContain('Verify Quality Gates');
