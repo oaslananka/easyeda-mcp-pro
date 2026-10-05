@@ -58,32 +58,38 @@ describe('hierarchical agent instructions', () => {
     }
   });
 
-  it('keeps extension instructions explicit about transport and live mutation boundaries', async () => {
-    const extension = await read('easyeda-bridge-extension/AGENTS.md');
+  it(
+    'keeps extension instructions explicit about transport and live mutation boundaries',
+    async () => {
+      const extension = await read('easyeda-bridge-extension/AGENTS.md');
 
-    for (const marker of [
-      '`src/index.ts`',
-      'Local `ws://` connectivity',
-      'Do not broaden local `ws://`',
-      'outcome unknown until read back',
-      'pnpm verify:extension',
-    ]) {
-      expect(extension).toContain(marker);
-    }
-  });
+      for (const marker of [
+        '`src/index.ts`',
+        'Local `ws://` connectivity',
+        'Do not broaden local `ws://`',
+        'outcome unknown until read back',
+        'pnpm verify:extension',
+      ]) {
+        expect(extension).toContain(marker);
+      }
+    },
+  );
 
-  it('keeps CI instructions explicit about required checks and supply-chain assurance', async () => {
-    const github = await read('.github/AGENTS.md');
+  it(
+    'keeps CI instructions explicit about required checks and supply-chain assurance',
+    async () => {
+      const github = await read('.github/AGENTS.md');
 
-    for (const marker of [
-      '`quality (24)`',
-      'least-privilege',
-      'SHA-pinned',
-      'Codecov upload telemetry is non-blocking',
-      'SBOM generation and retention',
-      'stable MCP Registry promotion rules',
-    ]) {
-      expect(github).toContain(marker);
-    }
-  });
+      for (const marker of [
+        '`quality (24)`',
+        'least-privilege',
+        'SHA-pinned',
+        'Codecov upload telemetry is non-blocking',
+        'SBOM generation and retention',
+        'stable MCP Registry promotion rules',
+      ]) {
+        expect(github).toContain(marker);
+      }
+    },
+  );
 });
