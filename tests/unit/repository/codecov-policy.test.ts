@@ -105,16 +105,6 @@ describe('Codecov analytics policy', () => {
     expect(workflow).not.toContain('@codecov/vite-plugin');
     expect(workflow).toContain("github.event.pull_request.user.login != 'dependabot[bot]'");
     expect(workflow).not.toContain("github.actor == 'dependabot[bot]'");
-    expect(workflow.match(/slug: \$\{\{ github\.repository \}\}/g)).toHaveLength(2);
-    expect(
-      workflow.match(/override_branch: \$\{\{ github\.event\.pull_request\.head\.label \}\}/g),
-    ).toHaveLength(2);
-    expect(
-      workflow.match(/override_commit: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/g),
-    ).toHaveLength(2);
-    expect(
-      workflow.match(/override_pr: \$\{\{ github\.event\.pull_request\.number \}\}/g),
-    ).toHaveLength(2);
     expect(workflow).toContain('fetch-depth: 0');
     expect(workflow).toContain('run: pnpm validate:codecov');
     expect(workflow).not.toContain('Upload extension bundle analysis to Codecov');
@@ -215,6 +205,16 @@ describe('Codecov analytics policy', () => {
       const step = workflowStep(workflow, name);
       expect(step).toContain("steps.server_reports.outcome == 'success'");
       expect(step).toContain("steps.codecov_cli.outcome == 'success'");
+      if (name.includes('tokenless')) {
+        expect(step).toContain('slug: ${{ github.repository }}');
+        expect(step).toContain(
+          'override_branch: ${{ github.event.pull_request.head.label }}',
+        );
+        expect(step).toContain(
+          'override_commit: ${{ github.event.pull_request.head.sha }}',
+        );
+        expect(step).toContain('override_pr: ${{ github.event.pull_request.number }}');
+      }
     }
     for (const name of [
       'Upload extension coverage to Codecov (trusted)',
