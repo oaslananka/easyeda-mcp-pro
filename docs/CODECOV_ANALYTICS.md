@@ -56,6 +56,8 @@ The current limits live in `config/extension-size-budget.json`. Missing artifact
 
 On 2026-09-28, the polygon argument materialization required by `easyeda_api_call` increased the deterministic extension builds from 260,002 to 262,811 bytes for `index.js` and from 185,386 to 188,040 bytes for `dispatcher.js`. The corresponding byte ratchets are 262,815 and 188,045 bytes; the packaged `.eext` remains under its unchanged 200,000-byte ceiling. Future growth still fails closed and requires another measured ratchet review.
 
+On 2026-10-05, the existing-copper rebuild path added explicit runtime capability checks, pre-mutation target validation, sequential native execution, and source-pour-keyed persisted read-back verification. Against current `main`, the deterministic build increased from 263,531 to 275,827 bytes for `index.js` and from 188,745 to 200,200 bytes for `dispatcher.js`; the packaged `.eext` increased from 177,983 to 182,694 bytes and remains below the unchanged 200,000-byte package ceiling. The reviewed ratchets are therefore 275,831 and 200,205 bytes, preserving the existing 4/5-byte deterministic margin. Any further growth still fails closed and requires another measured ratchet review.
+
 ## Configuration validation
 
 Every quality run validates `codecov.yml` through Codecov's validator before tests begin:
