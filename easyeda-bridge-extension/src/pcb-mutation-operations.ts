@@ -501,10 +501,11 @@ export function createPcbMutationOperations({
       await readPouredItems(pouredClass);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
+      const wrapped = new Error(
         `PCB_PrimitivePoured.getAll() preflight failed; read-back cannot be verified, so no copper was rebuilt. ${message}`,
-        { cause: error },
-      );
+      ) as Error & { cause?: unknown };
+      wrapped.cause = error;
+      throw wrapped;
     }
 
     const attempts = await executeCopperRebuilds(targets);
