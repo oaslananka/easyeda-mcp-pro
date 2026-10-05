@@ -64,6 +64,12 @@ interface CopperRebuildResult {
   error?: string;
 }
 
+interface CopperRebuildAttempt {
+  pourId: string;
+  nativeResult?: unknown;
+  error?: string;
+}
+
 function nativeMethod(target: unknown, name: string): NativeMethod | undefined {
   if (target === null || (typeof target !== 'object' && typeof target !== 'function')) {
     return undefined;
@@ -225,6 +231,115 @@ function pouredReadbackMap(items: unknown[]): Map<string, string[]> {
   return byPourId;
 }
 
+function mapReadbackFailureResults(
+  attempts: CopperRebuildAttempt[],
+  message: string,
+): CopperRebuildItem[] {
+  return attempts.map((attempt) => {
+    if (attempt.error) {
+      return {
+        pourId: attempt.pourId,
+        pouredId: null,
+        status: 'error',
+        verified: false,
+        error: attempt.error,
+      };
+    }
+    if (attempt.nativeResult === undefined) {
+      return {
+        pourId: attempt.pourId,
+        pouredId: null,
+        status: 'no-copper',
+        verified: false,
+        error: `Native rebuild returned no copper, but PCB_PrimitivePoured read-back failed: ${message}`,
+      };
+    }
+    return {
+      pourId: attempt.pourId,
+      pouredId: null,
+      status: 'readback-missing',
+      verified: false,
+      error: `Copper rebuild returned, but PCB_PrimitivePoured read-back failed: ${message}`,
+    };
+  });
+}
+
+function mapRebuildResults(
+  attempts: CopperRebuildAttempt[],
+  postReadback: unknown[],
+): CopperRebuildItem[] {
+  const byPourId = pouredReadbackMap(postReadback);
+  return attempts.map((attempt) => {
+    if (attempt.error) {
+      return {
+        pourId: attempt.pourId,
+        pouredId: null,
+        status: 'error',
+        verified: false,
+        error: attempt.error,
+      };
+    }
+
+    const readbackIds = byPourId.get(attempt.pourId) ?? [];
+    if (attempt.nativeResult === undefined) {
+      if (readbackIds.length === 0) {
+        return {
+          pourId: attempt.pourId,
+          pouredId: null,
+          status: 'no-copper',
+          verified: true,
+        };
+      }
+      return {
+        pourId: attempt.pourId,
+        pouredId: readbackIds[0] ?? null,
+        status: 'readback-mismatch',
+        verified: false,
+        error:
+          'Native rebuild returned undefined (no copper), but PCB_PrimitivePoured still reports derived copper for this pour.',
+      };
+    }
+
+    if (readbackIds.length === 0) {
+      return {
+        pourId: attempt.pourId,
+        pouredId: null,
+        status: 'readback-missing',
+        verified: false,
+        error:
+          'Native rebuild returned a poured result, but PCB_PrimitivePoured.getAll() did not confirm it.',
+      };
+    }
+    if (readbackIds.length !== 1) {
+      return {
+        pourId: attempt.pourId,
+        pouredId: readbackIds[0] ?? null,
+        status: 'readback-mismatch',
+        verified: false,
+        error: `PCB_PrimitivePoured read-back is ambiguous for this pour (found ${readbackIds.length} derived primitives).`,
+      };
+    }
+
+    const nativePouredId = nativeStateString(attempt.nativeResult, 'getState_PrimitiveId');
+    if (nativePouredId !== undefined && nativePouredId !== readbackIds[0]) {
+      return {
+        pourId: attempt.pourId,
+        pouredId: readbackIds[0],
+        status: 'readback-mismatch',
+        verified: false,
+        error: `Native rebuild returned poured id ${nativePouredId}, but persisted read-back reported ${readbackIds[0]}.`,
+      };
+    }
+
+    return {
+      pourId: attempt.pourId,
+      pouredId: readbackIds[0],
+      status: 'rebuilt',
+      verified: true,
+    };
+  });
+}
+
 export interface PcbMutationOperations {
   addZone(params: Record<string, unknown>): Promise<unknown>;
   rebuildCopper(params: Record<string, unknown>): Promise<CopperRebuildResult>;
@@ -275,11 +390,7 @@ export function createPcbMutationOperations({
       );
     }
 
-    const attempts: Array<{
-      pourId: string;
-      nativeResult?: unknown;
-      error?: string;
-    }> = [];
+    const attempts: CopperRebuildAttempt[] = [];
     for (const target of targets) {
       try {
         attempts.push({
@@ -302,33 +413,7 @@ export function createPcbMutationOperations({
       postReadback = value;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const results = attempts.map<CopperRebuildItem>((attempt) => {
-        if (attempt.error) {
-          return {
-            pourId: attempt.pourId,
-            pouredId: null,
-            status: 'error',
-            verified: false,
-            error: attempt.error,
-          };
-        }
-        if (attempt.nativeResult === undefined) {
-          return {
-            pourId: attempt.pourId,
-            pouredId: null,
-            status: 'no-copper',
-            verified: false,
-            error: `Native rebuild returned no copper, but PCB_PrimitivePoured read-back failed: ${message}`,
-          };
-        }
-        return {
-          pourId: attempt.pourId,
-          pouredId: null,
-          status: 'readback-missing',
-          verified: false,
-          error: `Copper rebuild returned, but PCB_PrimitivePoured read-back failed: ${message}`,
-        };
-      });
+      const results = mapReadbackFailureResults(attempts, message);
       return {
         success: false,
         matchedCount: targets.length,
@@ -343,76 +428,7 @@ export function createPcbMutationOperations({
       };
     }
 
-    const byPourId = pouredReadbackMap(postReadback);
-    const results = attempts.map<CopperRebuildItem>((attempt) => {
-      if (attempt.error) {
-        return {
-          pourId: attempt.pourId,
-          pouredId: null,
-          status: 'error',
-          verified: false,
-          error: attempt.error,
-        };
-      }
-
-      const readbackIds = byPourId.get(attempt.pourId) ?? [];
-      if (attempt.nativeResult === undefined) {
-        if (readbackIds.length === 0) {
-          return {
-            pourId: attempt.pourId,
-            pouredId: null,
-            status: 'no-copper',
-            verified: true,
-          };
-        }
-        return {
-          pourId: attempt.pourId,
-          pouredId: readbackIds[0] ?? null,
-          status: 'readback-mismatch',
-          verified: false,
-          error:
-            'Native rebuild returned undefined (no copper), but PCB_PrimitivePoured still reports derived copper for this pour.',
-        };
-      }
-
-      if (readbackIds.length === 0) {
-        return {
-          pourId: attempt.pourId,
-          pouredId: null,
-          status: 'readback-missing',
-          verified: false,
-          error:
-            'Native rebuild returned a poured result, but PCB_PrimitivePoured.getAll() did not confirm it.',
-        };
-      }
-      if (readbackIds.length !== 1) {
-        return {
-          pourId: attempt.pourId,
-          pouredId: readbackIds[0] ?? null,
-          status: 'readback-mismatch',
-          verified: false,
-          error: `PCB_PrimitivePoured read-back is ambiguous for this pour (found ${readbackIds.length} derived primitives).`,
-        };
-      }
-
-      const nativePouredId = nativeStateString(attempt.nativeResult, 'getState_PrimitiveId');
-      if (nativePouredId !== undefined && nativePouredId !== readbackIds[0]) {
-        return {
-          pourId: attempt.pourId,
-          pouredId: readbackIds[0],
-          status: 'readback-mismatch',
-          verified: false,
-          error: `Native rebuild returned poured id ${nativePouredId}, but persisted read-back reported ${readbackIds[0]}.`,
-        };
-      }
-
-      return {
-        pourId: attempt.pourId,
-        pouredId: readbackIds[0],
-        status: 'rebuilt',
-        verified: true,
-      };
-    });
+    const results = mapRebuildResults(attempts, postReadback);
 
     const rebuiltCount = results.filter((item) => item.status === 'rebuilt').length;
     const noCopperCount = results.filter((item) => item.status === 'no-copper').length;
