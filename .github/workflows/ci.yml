@@ -85,6 +85,9 @@ jobs:
         if: ${{ !cancelled() && (steps.server_reports.outcome == 'success' || steps.extension_reports.outcome == 'success') }}
         run: node scripts/install-codecov-cli.mjs --output "${RUNNER_TEMP}/codecov-cli/codecovcli"
       - name: Upload server coverage to Codecov (trusted)
+        # External coverage telemetry must not veto the repository's local quality gate.
+        # Keep fail_ci_if_error=true so the raw step outcome remains diagnosable in the summary.
+        continue-on-error: true
         id: server_coverage_upload_trusted
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
@@ -99,6 +102,9 @@ jobs:
           plugins: noop
           fail_ci_if_error: true
       - name: Upload server coverage to Codecov (tokenless fork)
+        # External coverage telemetry must not veto the repository's local quality gate.
+        # Keep fail_ci_if_error=true so the raw step outcome remains diagnosable in the summary.
+        continue-on-error: true
         id: server_coverage_upload_tokenless
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
@@ -112,6 +118,9 @@ jobs:
           plugins: noop
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (trusted)
+        # External coverage telemetry must not veto the repository's local quality gate.
+        # Keep fail_ci_if_error=true so the raw step outcome remains diagnosable in the summary.
+        continue-on-error: true
         id: extension_coverage_upload_trusted
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
@@ -126,6 +135,9 @@ jobs:
           plugins: noop
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (tokenless fork)
+        # External coverage telemetry must not veto the repository's local quality gate.
+        # Keep fail_ci_if_error=true so the raw step outcome remains diagnosable in the summary.
+        continue-on-error: true
         id: extension_coverage_upload_tokenless
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
@@ -139,6 +151,9 @@ jobs:
           plugins: noop
           fail_ci_if_error: true
       - name: Upload server test results to Codecov
+        # External coverage telemetry must not veto the repository's local quality gate.
+        # Keep fail_ci_if_error=true so the raw step outcome remains diagnosable in the summary.
+        continue-on-error: true
         id: server_test_results_upload
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.server_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
@@ -153,6 +168,9 @@ jobs:
           plugins: noop
           fail_ci_if_error: true
       - name: Upload extension test results to Codecov
+        # External coverage telemetry must not veto the repository's local quality gate.
+        # Keep fail_ci_if_error=true so the raw step outcome remains diagnosable in the summary.
+        continue-on-error: true
         id: extension_test_results_upload
         if: ${{ !cancelled() && steps.codecov_cli.outcome == 'success' && steps.extension_reports.outcome == 'success' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
