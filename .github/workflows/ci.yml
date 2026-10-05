@@ -110,6 +110,10 @@ jobs:
           report_type: coverage
           disable_search: true
           plugins: noop
+          slug: ${{ github.repository }}
+          override_branch: ${{ github.event.pull_request.head.label }}
+          override_commit: ${{ github.event.pull_request.head.sha }}
+          override_pr: ${{ github.event.pull_request.number }}
           fail_ci_if_error: true
       - name: Upload extension coverage to Codecov (trusted)
         id: extension_coverage_upload_trusted
@@ -137,6 +141,10 @@ jobs:
           report_type: coverage
           disable_search: true
           plugins: noop
+          slug: ${{ github.repository }}
+          override_branch: ${{ github.event.pull_request.head.label }}
+          override_commit: ${{ github.event.pull_request.head.sha }}
+          override_pr: ${{ github.event.pull_request.number }}
           fail_ci_if_error: true
       - name: Upload server test results to Codecov
         id: server_test_results_upload
