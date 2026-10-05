@@ -98,6 +98,7 @@ const METHOD_LIST: readonly string[] = [
   'pcb.listTracks',
   'pcb.listVias',
   'pcb.modifyComponent',
+  'pcb.rebuildCopper',
   'project.export',
   'project.open',
   'project.save',
@@ -1912,6 +1913,8 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
   });
   pcbMutationOperations = createPcbMutationOperations({
     callFirst,
+    readFirstPath,
+    requireActivePcbContext: () => boardInspection.requireActivePcbContext(),
     deletePrimitives: (ids) => pcbReadOperations.deletePrimitives(ids),
   });
   pcbWriteOperations = createPcbWriteOperations({

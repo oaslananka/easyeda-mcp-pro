@@ -68,6 +68,10 @@ function createDependencies() {
     },
     pcbMutationOperations: {
       addZone: vi.fn(async (params: Record<string, unknown>) => ({ method: 'zone', params })),
+      rebuildCopper: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'rebuild-copper',
+        params,
+      })),
       deleteComponents: vi.fn(async (params: Record<string, unknown>) => ({ deleted: params })),
       modifyComponent: vi.fn(async (params: Record<string, unknown>) => ({
         method: 'modify',
@@ -226,6 +230,7 @@ const expectedMethods = [
   'pcb.listTracks',
   'pcb.listVias',
   'pcb.modifyComponent',
+  'pcb.rebuildCopper',
   'project.export',
   'project.open',
   'project.save',
@@ -366,6 +371,10 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('pcb.modifyComponent', params)).resolves.toMatchObject({
       handled: true,
       value: { method: 'modify', params },
+    });
+    await expect(router.tryDispatch('pcb.rebuildCopper', params)).resolves.toMatchObject({
+      handled: true,
+      value: { method: 'rebuild-copper', params },
     });
 
     await expect(router.tryDispatch('api.call', params)).resolves.toEqual({

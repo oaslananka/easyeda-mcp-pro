@@ -59,6 +59,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'pcb.addSilkscreenLine',
   'pcb.deleteComponent',
   'pcb.modifyComponent',
+  'pcb.rebuildCopper',
   'pcb.exportRouteContext',
   'pcb.listComponents',
   'pcb.listFills',
