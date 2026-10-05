@@ -423,9 +423,10 @@ const failClosedPcbZoneTool = {
   name: 'easyeda_pcb_add_zone',
   title: 'Add PCB copper zone/pour (unavailable)',
   description:
-    'PCB copper-zone creation is unavailable because the verified EasyEDA Pro runtime requires ' +
-    'a complete native argument contract that this integration has not yet recovered. This tool ' +
-    'fails closed and does not call the bridge.',
+    'PCB copper-zone creation is unavailable because the verified EasyEDA Pro 3.2.149 runtime ' +
+    'does not provide a trustworthy create/rebuild/associated-Poured read-back contract. The ' +
+    'native create signature is known, but rebuild association and persistence remain unsafe. ' +
+    'This tool fails closed and does not call the bridge.',
   ...failClosedPcbWriteMetadata,
   version: '2.0.0',
   inputSchema: failClosedPcbZoneInputSchema,
@@ -435,7 +436,7 @@ const failClosedPcbZoneTool = {
     not_available: true,
     error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
     remediation:
-      'Create or edit the copper zone in EasyEDA Pro manually until the complete native zone-creation contract is live-verified.',
+      'Create or edit the copper zone in EasyEDA Pro manually until a supported runtime has a live-verified deterministic create/rebuild/associated-Poured read-back contract.',
   }),
 } satisfies ToolDefinition<
   typeof failClosedPcbZoneInputSchema,
