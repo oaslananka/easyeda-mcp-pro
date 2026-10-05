@@ -60,8 +60,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_place_component`                      | `full`  | `high`   | Direct PCB component creation is unavailable because the verified EasyEDA runtime does not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in the schematic, sync to PCB, confirm the native dialog, then reposition it with easyeda_pcb_modify_component.                                      |
 | `easyeda_pcb_place_component_group`                | `full`  | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
 | `easyeda_pcb_production_review`                    | `core`  | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                   |
-| `easyeda_pcb_regions`                              | `core`  | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                                |
 | `easyeda_pcb_rebuild_copper`                       | `full`  | `high`   | Rebuild existing PCB_PrimitivePour copper via the beta rebuildCopperRegion() API and verify each result through PCB_PrimitivePoured read-back. Requires confirmWrite. PCB rebuilds are not transaction-covered; after timeout inspect before retry. PlaneZone objects are unsupported.                                           |
+| `easyeda_pcb_regions`                              | `core`  | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                                |
 | `easyeda_pcb_route_path_plan`                      | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                         |
 | `easyeda_pcb_tracks`                               | `core`  | `low`    | List copper track segments on the active PCB layout: primitiveId, net, layer, start/end coordinates, width. A multi-point track drawn by add_track appears as several consecutive segments sharing one net. Returns an empty list (not an error) if no PCB tab is focused.                                                       |
 | `easyeda_pcb_vias`                                 | `core`  | `low`    | List vias on the active PCB layout: primitiveId, net, position, hole/outer diameter (native unit, same scale as x/y — not independently verified against a known physical dimension). Requires a focused PCB tab — returns an empty list (not an error) if none is active.                                                       |
@@ -1884,36 +1884,6 @@ Returns a JSON object matching the schema:
 
 ---
 
-## `easyeda_pcb_regions`
-
-**Profile:** `core` | **Risk Level:** `low`
-
-> List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.
-
-### Input Parameters
-
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `limit`     | `number` | Yes      |             |
-| `offset`    | `number` | Yes      |             |
-
-### Output Format
-
-Returns a JSON object matching the schema:
-
-```ts
-{
-  project_id: string;
-  regions: object[];
-  total: number;
-  not_available: boolean (optional);
-  error: string (optional);
-}
-```
-
----
-
 ## `easyeda_pcb_rebuild_copper`
 
 **Profile:** `full` | **Risk Level:** `high`
@@ -1943,6 +1913,36 @@ Returns a JSON object matching the schema:
   transactionCovered: 'false';
   planeZonesSupported: 'false';
   results: object[];
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_regions`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+| `limit`     | `number` | Yes      |             |
+| `offset`    | `number` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  regions: object[];
+  total: number;
+  not_available: boolean (optional);
   error: string (optional);
 }
 ```
