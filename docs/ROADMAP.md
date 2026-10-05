@@ -4,7 +4,7 @@ This roadmap describes the intended direction for `easyeda-mcp-pro` for the next
 
 ## Active delivery milestones
 
-- **PCB capability follow-up** — Target date: not scheduled. Public trackers: [Copper rebuild #596](https://github.com/oaslananka/easyeda-mcp-pro/issues/596), [side-aware capture #470](https://github.com/oaslananka/easyeda-mcp-pro/issues/470), and [copper-zone contract #480](https://github.com/oaslananka/easyeda-mcp-pro/issues/480). Outcome: restore executable PCB workflows where the supported EasyEDA contract is verifiable while keeping unsupported paths fail-closed.
+- **PCB capability follow-up** — Target date: Not scheduled. Public trackers: [Copper rebuild #596](https://github.com/oaslananka/easyeda-mcp-pro/issues/596), [side-aware capture #470](https://github.com/oaslananka/easyeda-mcp-pro/issues/470), and [copper-zone contract #480](https://github.com/oaslananka/easyeda-mcp-pro/issues/480). Outcome: restore executable PCB workflows where the supported EasyEDA contract is verifiable while keeping unsupported paths fail-closed.
 
 No target date is currently committed for this active work. A target date belongs here only when it is an explicit planning commitment; absence of a date must not be replaced with an inferred deadline.
 
