@@ -4,7 +4,7 @@ The repository publishes three complementary quality signals from the Ubuntu and
 
 - server and EasyEDA bridge-extension code coverage,
 - server and extension JUnit test results for Codecov Test Analytics,
-- extension JavaScript bundle-size trends.
+- deterministic extension JavaScript bundle-size budgets.
 
 The workflow follows Codecov's guidance for [coverage uploads](https://docs.codecov.com/docs/quick-start), [Test Analytics](https://docs.codecov.com/docs/test-analytics), [repository configuration](https://docs.codecov.com/docs/codecov-yaml), and [JavaScript bundle analysis](https://docs.codecov.com/docs/javascript-bundle-analysis).
 
@@ -39,13 +39,13 @@ An always-run quality summary records the dependency-audit, coverage, validation
 
 Generated reports are ignored by Git and must not be committed.
 
-## Bundle analysis and deterministic budgets
+## Bundle-size budgets and remote analysis status
 
-The extension uses a custom esbuild script rather than Vite, Rollup, or Webpack. The CI job therefore uses Codecov's general `@codecov/bundle-analyzer` CLI against `easyeda-bridge-extension/dist`.
+The extension uses a custom esbuild script rather than Vite, Rollup, or Webpack. Repository-owned byte budgets remain the blocking bundle-size control for `index.js`, `dispatcher.js`, and the packaged extension.
 
-Bundle Analysis is informational and tracks raw and gzip-size changes for `index.js` and `dispatcher.js`. The upload step is best-effort: Codecov onboarding, repository feature availability, or a transient API error must not fail the repository quality job. It complements, but does not replace, the repository-owned blocking byte budgets:
+Remote Codecov Bundle Analysis is disabled. The previous `@codecov/bundle-analyzer@2.0.1` integration repeatedly received `404 Not Found` from Codecov's pre-signed URL endpoint in trusted CI and was no longer invoked by repository scripts. In October 2026 its dependency chain also became the repository's only path to the unresolved high-severity `braces@3.0.3` advisory. The unused analyzer dependency was therefore removed instead of weakening dependency-audit policy. Primary LCOV coverage, Test Analytics, the blocking `codecov/patch` status, and deterministic extension byte budgets remain unchanged.
 
-Remote Bundle Analysis upload is temporarily disabled in CI because `@codecov/bundle-analyzer@2.0.1` repeatedly receives `404 Not Found` from Codecov's pre-signed URL endpoint in the real trusted workflow, including after forcing the analyzer's Local provider path; see [codecov/codecov-action#1946](https://github.com/codecov/codecov-action/issues/1946) and repository issue #534. This removes only the noisy best-effort remote signal. Primary LCOV coverage, Test Analytics, the blocking `codecov/patch` status, and the deterministic extension byte budgets remain unchanged. Keep the exact-pinned analyzer for local non-uploading reports, and restore remote upload only after a separately verified upstream/service fix succeeds in a trusted GitHub Actions run.
+Reintroduce remote bundle analysis only after a separately verified Codecov service/tooling path both works in trusted GitHub Actions and has a dependency graph that passes the repository security policy.
 
 ```bash
 pnpm build:extension
@@ -55,16 +55,6 @@ pnpm check:extension-size
 The current limits live in `config/extension-size-budget.json`. Missing artifacts, malformed budgets, or files above their configured limit fail CI.
 
 On 2026-09-28, the polygon argument materialization required by `easyeda_api_call` increased the deterministic extension builds from 260,002 to 262,811 bytes for `index.js` and from 185,386 to 188,040 bytes for `dispatcher.js`. The corresponding byte ratchets are 262,815 and 188,045 bytes; the packaged `.eext` remains under its unchanged 200,000-byte ceiling. Future growth still fails closed and requires another measured ratchet review.
-
-A local, non-uploading bundle report can be generated with:
-
-```bash
-pnpm exec bundle-analyzer easyeda-bridge-extension/dist \
-  --bundle-name=easyeda-bridge-extension \
-  --dry-run \
-  --ignore-patterns='*.map' \
-  --ignore-patterns='*.json'
-```
 
 ## Configuration validation
 
