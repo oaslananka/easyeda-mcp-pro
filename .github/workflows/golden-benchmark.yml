@@ -2,8 +2,6 @@
 name: Golden Benchmark
 
 'on':
-  push:
-    branches: [main]
   schedule:
     - cron: '0 6 * * 1'
   workflow_dispatch: {}

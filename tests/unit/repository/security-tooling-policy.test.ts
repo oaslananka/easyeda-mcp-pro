@@ -198,6 +198,30 @@ describe('repository security tooling policy', () => {
     expect(dependencyAuditAllowlist.exceptions).toEqual([]);
   });
 
+  it('cancels superseded PR CI runs without cancelling main or tag validation', () => {
+    const ciWorkflow = readText('.github/workflows/ci.yml');
+
+    expect(ciWorkflow).toContain(
+      'group: ci-${{ github.event.pull_request.number || github.run_id }}',
+    );
+    expect(ciWorkflow).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
+  });
+
+  it('keeps advisory workflows scheduled or PR-scoped without duplicate main-push runs', () => {
+    const dependencyReview = readText('.github/workflows/dependency-review.yml');
+    const benchmarkWorkflow = readText('.github/workflows/golden-benchmark.yml');
+    const scorecardWorkflow = readText('.github/workflows/scorecard.yml');
+
+    expect(dependencyReview).toContain('pull_request:');
+    expect(dependencyReview).not.toContain('workflow_dispatch:');
+
+    for (const workflow of [benchmarkWorkflow, scorecardWorkflow]) {
+      expect(workflow).toContain('schedule:');
+      expect(workflow).toContain('workflow_dispatch: {}');
+      expect(workflow).not.toContain('\n  push:\n');
+    }
+  });
+
   it('runs the non-live golden benchmark inside the required quality PR gate', () => {
     const ciWorkflow = readText('.github/workflows/ci.yml');
     const staticQualityJob = ciWorkflow.slice(
