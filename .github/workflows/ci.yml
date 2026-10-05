@@ -95,15 +95,11 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: quality-reports-${{ github.run_id }}
-          path: 'coverage/lcov.info
-
+          path: |
+            coverage/lcov.info
             easyeda-bridge-extension/coverage/lcov.info
-
             reports/server.junit.xml
-
             reports/extension.junit.xml
-
-            '
           if-no-files-found: error
           overwrite: true
           retention-days: 3
@@ -138,25 +134,19 @@ jobs:
       - run: pnpm verify:extension
       - name: Pack PR test package
         if: github.event_name == 'pull_request'
-        run: 'mkdir -p artifacts
-
-          npm pack --pack-destination artifacts
-
-          '
+        run: |
+          mkdir -p artifacts
+          pnpm pack --pack-destination artifacts
       - name: Upload PR test artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: easyeda-mcp-pro-pr-${{ github.event.pull_request.number }}
-          path: 'artifacts/*.tgz
-
+          path: |
+            artifacts/*.tgz
             easyeda-bridge-extension.eext
-
             easyeda-bridge-extension.checksums.json
-
             easyeda-bridge-extension/dist/index.js
-
-            '
           if-no-files-found: error
           retention-days: 14
         continue-on-error: true
@@ -330,7 +320,25 @@ jobs:
           EXTENSION_COVERAGE_UPLOAD_TOKENLESS_OUTCOME: ${{ steps.extension_coverage_upload_tokenless.outcome }}
           SERVER_TEST_RESULTS_UPLOAD_OUTCOME: ${{ steps.server_test_results_upload.outcome }}
           EXTENSION_TEST_RESULTS_UPLOAD_OUTCOME: ${{ steps.extension_test_results_upload.outcome }}
-        run: "{\n  echo '### Coverage telemetry'\n  echo\n  echo 'This job is diagnostic and is not part of the required quality aggregator.'\n  echo\n  echo '| Stage | Outcome |'\n  echo '| --- | --- |'\n  echo \"| required tests job | ${TESTS_RESULT:-unknown} |\"\n  echo \"| Codecov configuration validator | ${CODECOV_CONFIG_OUTCOME:-skipped} |\"\n  echo \"| report artifact download | ${REPORT_DOWNLOAD_OUTCOME:-skipped} |\"\n  echo \"| Codecov CLI | ${CODECOV_CLI_OUTCOME:-skipped} |\"\n  echo \"| server Codecov coverage upload (trusted) | ${SERVER_COVERAGE_UPLOAD_TRUSTED_OUTCOME:-skipped} |\"\n  echo \"| server Codecov coverage upload (tokenless) | ${SERVER_COVERAGE_UPLOAD_TOKENLESS_OUTCOME:-skipped} |\"\n  echo \"| extension Codecov coverage upload (trusted) | ${EXTENSION_COVERAGE_UPLOAD_TRUSTED_OUTCOME:-skipped} |\"\n  echo \"| extension Codecov coverage upload (tokenless) | ${EXTENSION_COVERAGE_UPLOAD_TOKENLESS_OUTCOME:-skipped} |\"\n  echo \"| server Codecov test-results upload | ${SERVER_TEST_RESULTS_UPLOAD_OUTCOME:-skipped} |\"\n  echo \"| extension Codecov test-results upload | ${EXTENSION_TEST_RESULTS_UPLOAD_OUTCOME:-skipped} |\"\n} >> \"$GITHUB_STEP_SUMMARY\"\n"
+        run: |
+          {
+            echo '### Coverage telemetry'
+            echo
+            echo 'This job is diagnostic and is not part of the required quality aggregator.'
+            echo
+            echo '| Stage | Outcome |'
+            echo '| --- | --- |'
+            echo "| required tests job | ${TESTS_RESULT:-unknown} |"
+            echo "| Codecov configuration validator | ${CODECOV_CONFIG_OUTCOME:-skipped} |"
+            echo "| report artifact download | ${REPORT_DOWNLOAD_OUTCOME:-skipped} |"
+            echo "| Codecov CLI | ${CODECOV_CLI_OUTCOME:-skipped} |"
+            echo "| server Codecov coverage upload (trusted) | ${SERVER_COVERAGE_UPLOAD_TRUSTED_OUTCOME:-skipped} |"
+            echo "| server Codecov coverage upload (tokenless) | ${SERVER_COVERAGE_UPLOAD_TOKENLESS_OUTCOME:-skipped} |"
+            echo "| extension Codecov coverage upload (trusted) | ${EXTENSION_COVERAGE_UPLOAD_TRUSTED_OUTCOME:-skipped} |"
+            echo "| extension Codecov coverage upload (tokenless) | ${EXTENSION_COVERAGE_UPLOAD_TOKENLESS_OUTCOME:-skipped} |"
+            echo "| server Codecov test-results upload | ${SERVER_TEST_RESULTS_UPLOAD_OUTCOME:-skipped} |"
+            echo "| extension Codecov test-results upload | ${EXTENSION_TEST_RESULTS_UPLOAD_OUTCOME:-skipped} |"
+          } >> "$GITHUB_STEP_SUMMARY"
   test-matrix:
     strategy:
       fail-fast: false
@@ -388,7 +396,30 @@ jobs:
           EXTENSION_INTEGRITY_RESULT: ${{ needs.extension_integrity.result }}
           PACKAGE_DOCS_RESULT: ${{ needs.package_docs.result }}
           TEST_MATRIX_RESULT: ${{ needs['test-matrix'].result }}
-        run: "{\n  echo '### Required quality aggregator'\n  echo\n  echo '| Deterministic gate | Result |'\n  echo '| --- | --- |'\n  echo \"| static-quality | $STATIC_QUALITY_RESULT |\"\n  echo \"| tests-and-coverage | $TESTS_RESULT |\"\n  echo \"| extension-integrity | $EXTENSION_INTEGRITY_RESULT |\"\n  echo \"| package-docs-docker | $PACKAGE_DOCS_RESULT |\"\n  echo \"| test-matrix | $TEST_MATRIX_RESULT |\"\n} >> \"$GITHUB_STEP_SUMMARY\"\n\nfailed=0\nfor result in \"$STATIC_QUALITY_RESULT\" \"$TESTS_RESULT\" \"$EXTENSION_INTEGRITY_RESULT\" \"$PACKAGE_DOCS_RESULT\" \"$TEST_MATRIX_RESULT\"; do\n  if [[ \"$result\" != 'success' ]]; then\n    failed=1\n  fi\ndone\n\nif [[ \"$failed\" -ne 0 ]]; then\n  echo 'One or more required deterministic quality jobs failed or were skipped.' >&2\n  exit 1\nfi\n"
+        run: |
+          {
+            echo '### Required quality aggregator'
+            echo
+            echo '| Deterministic gate | Result |'
+            echo '| --- | --- |'
+            echo "| static-quality | $STATIC_QUALITY_RESULT |"
+            echo "| tests-and-coverage | $TESTS_RESULT |"
+            echo "| extension-integrity | $EXTENSION_INTEGRITY_RESULT |"
+            echo "| package-docs-docker | $PACKAGE_DOCS_RESULT |"
+            echo "| test-matrix | $TEST_MATRIX_RESULT |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          for result in "$STATIC_QUALITY_RESULT" "$TESTS_RESULT" "$EXTENSION_INTEGRITY_RESULT" "$PACKAGE_DOCS_RESULT" "$TEST_MATRIX_RESULT"; do
+            if [[ "$result" != 'success' ]]; then
+              failed=1
+            fi
+          done
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo 'One or more required deterministic quality jobs failed or were skipped.' >&2
+            exit 1
+          fi
   codeql:
     runs-on: ubuntu-24.04
     permissions:
