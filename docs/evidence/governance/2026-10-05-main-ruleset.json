@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-05",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "branch": "main",
+  "source": "GitHub repository ruleset API",
+  "repositoryRuleset": {
+    "id": 20020112,
+    "name": "main-protection",
+    "target": "branch",
+    "enforcement": "active",
+    "include": ["~DEFAULT_BRANCH"],
+    "exclude": [],
+    "bypassActors": [],
+    "ruleTypes": [
+      "deletion",
+      "non_fast_forward",
+      "required_linear_history",
+      "pull_request",
+      "required_status_checks"
+    ],
+    "updatedAt": "2026-10-05T03:41:18.715+03:00"
+  },
+  "branchProtection": {
+    "requiredChecks": [
+      "quality (24)",
+      "codeql",
+      "semgrep",
+      "Socket Security: Project Report",
+      "dependency-review"
+    ],
+    "strictStatusChecks": true,
+    "requiredApprovals": 0,
+    "requireCodeOwnerReviews": false,
+    "dismissStaleReviews": false,
+    "requireLastPushApproval": false,
+    "requireConversationResolution": true,
+    "enforceAdmins": true,
+    "requireLinearHistory": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  },
+  "notes": [
+    "The repository-level main-protection ruleset is the canonical enforcement mechanism for main.",
+    "The required quality (24) context is a deterministic aggregator over repository-owned quality, tests/coverage, extension integrity, package/docs/Docker, and supported-OS matrix jobs.",
+    "Codecov remains advisory coverage telemetry; local Vitest thresholds and report validation are the blocking coverage authority.",
+    "The repository-owned semgrep job is required so project-specific security rules are enforced before merge.",
+    "SonarQube Cloud remains enabled with GitHub App automatic analysis but is advisory rather than required.",
+    "The ruleset has no bypass actors and required status checks use strict/up-to-date enforcement."
+  ]
+}

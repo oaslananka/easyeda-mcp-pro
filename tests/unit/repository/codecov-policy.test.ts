@@ -178,76 +178,73 @@ describe('Codecov analytics policy', () => {
     );
   });
 
-  it('uploads Codecov reports only after their producer succeeded and report validation passed', () => {
+  it('stages validated reports before best-effort Codecov telemetry uploads', () => {
     const workflow = readText('.github/workflows/ci.yml');
     const serverValidation = workflowStep(workflow, 'Validate server CI reports');
     const extensionValidation = workflowStep(workflow, 'Validate extension CI reports');
+    const artifact = workflowStep(workflow, 'Stage coverage telemetry reports');
+    const download = workflowStep(workflow, 'Download coverage telemetry reports');
     const installer = workflowStep(workflow, 'Install SHA-256 verified Codecov CLI');
 
     expect(serverValidation).toContain('id: server_reports');
     expect(serverValidation).toContain("steps.server_coverage.outcome == 'success'");
-    expect(serverValidation).toContain(
-      'node scripts/validate-ci-reports.mjs --coverage coverage/lcov.info --junit reports/server.junit.xml',
-    );
     expect(extensionValidation).toContain('id: extension_reports');
     expect(extensionValidation).toContain("steps.extension_coverage.outcome == 'success'");
-    expect(extensionValidation).toContain(
-      'node scripts/validate-ci-reports.mjs --coverage easyeda-bridge-extension/coverage/lcov.info --junit reports/extension.junit.xml',
-    );
-    expect(installer).toContain("steps.server_reports.outcome == 'success'");
-    expect(installer).toContain("steps.extension_reports.outcome == 'success'");
+
+    expect(artifact).toContain("steps.server_reports.outcome == 'success'");
+    expect(artifact).toContain("steps.extension_reports.outcome == 'success'");
+    expect(artifact).toContain('continue-on-error: true');
+    expect(download).toContain('id: reports');
+    expect(download).toContain('continue-on-error: true');
+    expect(installer).toContain("steps.reports.outcome == 'success'");
+    expect(installer).toContain('continue-on-error: true');
 
     for (const name of [
       'Upload server coverage to Codecov (trusted)',
       'Upload server coverage to Codecov (tokenless fork)',
-      'Upload server test results to Codecov',
-    ]) {
-      const step = workflowStep(workflow, name);
-      expect(step).toContain("steps.server_reports.outcome == 'success'");
-      expect(step).toContain("steps.codecov_cli.outcome == 'success'");
-    }
-    for (const name of [
       'Upload extension coverage to Codecov (trusted)',
       'Upload extension coverage to Codecov (tokenless fork)',
+      'Upload server test results to Codecov',
       'Upload extension test results to Codecov',
     ]) {
       const step = workflowStep(workflow, name);
-      expect(step).toContain("steps.extension_reports.outcome == 'success'");
+      expect(step).toContain("steps.reports.outcome == 'success'");
       expect(step).toContain("steps.codecov_cli.outcome == 'success'");
+      expect(step).toContain('continue-on-error: true');
     }
   });
 
-  it('tracks Codecov installation and upload failures in the quality summary', () => {
+  it('keeps Codecov diagnostics in non-blocking coverage telemetry', () => {
     const workflow = readText('.github/workflows/ci.yml');
-    const installer = workflowStep(workflow, 'Install SHA-256 verified Codecov CLI');
-    const serverUpload = workflowStep(workflow, 'Upload server coverage to Codecov (trusted)');
-    const extensionUpload = workflowStep(
-      workflow,
-      'Upload extension coverage to Codecov (trusted)',
-    );
-    const summary = workflowStep(workflow, 'Summarize quality report pipeline');
+    const telemetryStart = workflow.indexOf('  coverage_telemetry:');
+    const matrixStart = workflow.indexOf('  test-matrix:');
+    const telemetry = workflow.slice(telemetryStart, matrixStart);
+    const summary = workflowStep(workflow, 'Summarize coverage telemetry');
 
-    expect(installer).toContain('id: codecov_cli');
-    expect(serverUpload).toContain('id: server_coverage_upload_trusted');
-    expect(extensionUpload).toContain('id: extension_coverage_upload_trusted');
+    expect(telemetry).toContain('name: coverage-telemetry');
+    expect(telemetry).toContain('continue-on-error: true');
+    expect(summary).toContain('if: ${{ always() }}');
+    expect(summary).toContain('GITHUB_STEP_SUMMARY');
     expect(summary).toContain('CODECOV_CLI_OUTCOME');
     expect(summary).toContain('SERVER_COVERAGE_UPLOAD_TRUSTED_OUTCOME');
     expect(summary).toContain('EXTENSION_COVERAGE_UPLOAD_TRUSTED_OUTCOME');
-    expect(summary).toContain('Codecov CLI installation failed');
-    expect(summary).toContain('server Codecov upload failed');
-    expect(summary).toContain('extension Codecov upload failed');
+    expect(summary).toContain('not part of the required quality aggregator');
   });
 
-  it('always summarizes the primary quality failure and dependent skipped report steps', () => {
+  it('keeps the required quality aggregator independent from Codecov provider availability', () => {
     const workflow = readText('.github/workflows/ci.yml');
-    const summary = workflowStep(workflow, 'Summarize quality report pipeline');
+    const quality = workflow.slice(workflow.indexOf('  quality:'), workflow.indexOf('  codeql:'));
 
-    expect(summary).toContain('if: ${{ always() }}');
-    expect(summary).toContain('GITHUB_STEP_SUMMARY');
-    expect(summary).toContain('Primary failure');
-    expect(summary).toContain('dependency audit');
-    expect(summary).toContain('server coverage');
-    expect(summary).toContain('extension coverage');
-    expect(summary).toContain('skipped');
+    expect(quality).toContain('name: quality (24)');
+    expect(quality).toContain('- static_quality');
+    expect(quality).toContain('- tests');
+    expect(quality).toContain('- extension_integrity');
+    expect(quality).toContain('- package_docs');
+    expect(quality).toContain('- test-matrix');
+    expect(quality).not.toContain('coverage_telemetry');
+    expect(quality).not.toContain('Codecov');
+    expect(quality).toContain(
+      'One or more required deterministic quality jobs failed or were skipped.',
+    );
   });
 });

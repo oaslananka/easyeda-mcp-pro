@@ -99,7 +99,7 @@ describe('repository governance policy', () => {
   it('records the enforceable main-branch protection baseline', () => {
     const policy = readPolicy();
 
-    expect(policy.liveStateVerifiedAt).toBe('2026-09-28');
+    expect(policy.liveStateVerifiedAt).toBe('2026-10-05');
     expect(policy.branchProtection).toEqual({
       requiredChecks: [
         'quality (24)',
@@ -107,7 +107,6 @@ describe('repository governance policy', () => {
         'semgrep',
         'Socket Security: Project Report',
         'dependency-review',
-        'codecov/patch',
       ],
       strictStatusChecks: true,
       requiredApprovals: 0,
