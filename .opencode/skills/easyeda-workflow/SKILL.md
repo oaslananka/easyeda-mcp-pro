@@ -107,6 +107,7 @@ Use only after explicit permission and bridge capability confirmation.
 - `easyeda_pcb_add_track`
 - `easyeda_pcb_add_via`
 - `easyeda_pcb_add_zone` — **confirmed broken**: the native `PCB_PrimitivePour.create()` call never resolves. No working alternative exists (unlike component placement, copper pours are not a schematic concept, so there is no sync-based workaround). Report this as an unsupported capability rather than attempting it.
+- `easyeda_pcb_rebuild_copper` — rebuild **existing** positive copper pours after routing/via changes. Requires `confirmWrite: true`, verifies derived copper through `PCB_PrimitivePoured`, and is not transaction-covered. If the call times out, inspect the PCB before retrying because the write outcome is unknown. This does not create pours and does not support inner `PlaneZone` objects.
 - `easyeda_pcb_add_text` — silkscreen/label text on a PCB layer (typically Top/Bottom Silkscreen, layer id 3/4); fontFamily must be a name the runtime's font list contains — the default `NotoSansMonoCJKsc-Regular` is live-verified to work
 - `easyeda_pcb_add_silkscreen_line` — non-electrical decorative line (section dividers, board art); reuses the same primitive as add_track but with an empty net name so it never appears in the netlist/ratsnest
 - `easyeda_pcb_modify_component`

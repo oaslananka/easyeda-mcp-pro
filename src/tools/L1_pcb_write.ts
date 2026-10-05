@@ -86,6 +86,53 @@ const failClosedPcbWriteMetadata = {
   'profile' | 'evidence' | 'risk' | 'confirmWrite' | 'group' | 'annotations'
 >;
 
+const pcbRebuildCopperInputSchema = z
+  .object({
+    pourIds: z
+      .array(z.string().trim().min(1))
+      .min(1)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: 'pourIds must not contain duplicates.',
+      })
+      .optional()
+      .describe('Optional existing PCB_PrimitivePour primitive ids to rebuild.'),
+    net: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('Optional exact net-name filter. Combined with pourIds/layer when provided.'),
+    layer: z
+      .union([z.literal(1), z.literal(2), z.number().int().min(15).max(44)])
+      .optional()
+      .describe('Optional copper-layer filter: TOP=1, BOTTOM=2, INNER_1..INNER_30=15..44.'),
+    confirmWrite: z
+      .literal(true)
+      .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+  })
+  .strict();
+
+const pcbRebuildCopperItemSchema = z.object({
+  pourId: z.string(),
+  pouredId: z.string().nullable(),
+  status: z.enum(['rebuilt', 'no-copper', 'error', 'readback-missing', 'readback-mismatch']),
+  verified: z.boolean(),
+  error: z.string().optional(),
+});
+
+const pcbRebuildCopperOutputSchema = z.object({
+  success: z.boolean(),
+  matchedCount: z.number().int().nonnegative(),
+  attemptedCount: z.number().int().nonnegative(),
+  rebuiltCount: z.number().int().nonnegative(),
+  noCopperCount: z.number().int().nonnegative(),
+  transactionCovered: z.literal(false),
+  planeZonesSupported: z.literal(false),
+  results: z.array(pcbRebuildCopperItemSchema),
+  error: z.string().optional(),
+});
+
 const failClosedPcbZoneInputSchema = z.object({
   points: z.array(z.object({ x: z.number(), y: z.number() })),
   layer: z.number(),
@@ -1079,6 +1126,68 @@ function registerPcbWriteTools(
         return {
           success: false,
           error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_pcb_rebuild_copper',
+    title: 'Rebuild existing PCB copper pours',
+    description:
+      'Rebuild existing PCB_PrimitivePour copper via the beta rebuildCopperRegion() API and verify each ' +
+      'result through PCB_PrimitivePoured read-back. Requires confirmWrite. PCB rebuilds are not ' +
+      'transaction-covered; after timeout inspect before retry. PlaneZone objects are unsupported.',
+    profile: 'full',
+    evidence: ['official-docs', 'pro-api-types', 'official-skill'],
+    risk: 'high',
+    confirmWrite: true,
+    sideEffect: 'design-mutation',
+    group: 'pcb-write',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+    inputSchema: pcbRebuildCopperInputSchema,
+    outputSchema: pcbRebuildCopperOutputSchema,
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const parsed = pcbRebuildCopperInputSchema.safeParse(params);
+      if (!parsed.success) {
+        return {
+          success: false,
+          matchedCount: 0,
+          attemptedCount: 0,
+          rebuiltCount: 0,
+          noCopperCount: 0,
+          transactionCovered: false,
+          planeZonesSupported: false,
+          results: [],
+          error: parsed.error.message,
+        };
+      }
+      const { confirmWrite: _confirmWrite, ...bridgeParams } = parsed.data;
+      try {
+        return await ctx.bridge.call<
+          Record<string, unknown>,
+          z.infer<typeof pcbRebuildCopperOutputSchema>
+        >('pcb.rebuildCopper', bridgeParams);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const timedOut = /timed?\s*out|timeout/i.test(message);
+        return {
+          success: false,
+          matchedCount: 0,
+          attemptedCount: 0,
+          rebuiltCount: 0,
+          noCopperCount: 0,
+          transactionCovered: false,
+          planeZonesSupported: false,
+          results: [],
+          error: timedOut
+            ? `${message}. PCB copper rebuilds are not transaction-covered; the write outcome is unknown. Inspect the active PCB before retrying.`
+            : message,
         };
       }
     },

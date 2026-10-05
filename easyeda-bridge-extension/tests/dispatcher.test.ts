@@ -184,6 +184,7 @@ describe('createDispatcher', () => {
     expect(dispatcher.methodList).toContain('schematic.addWire');
     expect(dispatcher.methodList).toContain('schematic.getPrimitiveSnapshot');
     expect(dispatcher.methodList).toContain('schematic.restorePrimitiveSnapshot');
+    expect(dispatcher.methodList).toContain('pcb.rebuildCopper');
     expect(dispatcher.methodList).toContain('system.inspectWires');
   });
 
