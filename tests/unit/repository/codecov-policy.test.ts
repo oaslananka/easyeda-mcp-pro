@@ -107,14 +107,10 @@ describe('Codecov analytics policy', () => {
     expect(workflow).not.toContain("github.actor == 'dependabot[bot]'");
     expect(workflow.match(/slug: \$\{\{ github\.repository \}\}/g)).toHaveLength(2);
     expect(
-      workflow.match(
-        /override_branch: \$\{\{ github\.event\.pull_request\.head\.label \}\}/g,
-      ),
+      workflow.match(/override_branch: \$\{\{ github\.event\.pull_request\.head\.label \}\}/g),
     ).toHaveLength(2);
     expect(
-      workflow.match(
-        /override_commit: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/g,
-      ),
+      workflow.match(/override_commit: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/g),
     ).toHaveLength(2);
     expect(
       workflow.match(/override_pr: \$\{\{ github\.event\.pull_request\.number \}\}/g),
@@ -230,8 +226,12 @@ describe('Codecov analytics policy', () => {
       expect(step).toContain("steps.codecov_cli.outcome == 'success'");
       if (name.includes('tokenless')) {
         expect(step).toContain('slug: ${{ github.repository }}');
-        expect(step).toContain('override_branch: ${{ github.event.pull_request.head.label }}');
-        expect(step).toContain('override_commit: ${{ github.event.pull_request.head.sha }}');
+        expect(step).toContain(
+          'override_branch: ${{ github.event.pull_request.head.label }}',
+        );
+        expect(step).toContain(
+          'override_commit: ${{ github.event.pull_request.head.sha }}',
+        );
         expect(step).toContain('override_pr: ${{ github.event.pull_request.number }}');
       }
     }
