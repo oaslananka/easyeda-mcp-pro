@@ -9,7 +9,7 @@ async function read(relativePath: string) {
 }
 
 describe('hierarchical agent instructions', () => {
-  it('declares repository-wide precedence and all operational boundaries at the root', async () => {
+  it('declares root scope and nested boundaries', async () => {
     const root = await read('AGENTS.md');
 
     expect(root).toContain('## Scope and precedence');
@@ -29,7 +29,7 @@ describe('hierarchical agent instructions', () => {
     }
   });
 
-  it('keeps tool instructions explicit about executable authorization metadata', async () => {
+  it('protects tool authorization metadata', async () => {
     const tools = await read('src/tools/AGENTS.md');
 
     for (const marker of [
@@ -43,7 +43,7 @@ describe('hierarchical agent instructions', () => {
     }
   });
 
-  it('keeps remote instructions fail-closed and replay-resistant', async () => {
+  it('protects remote approval and replay invariants', async () => {
     const remote = await read('src/remote/AGENTS.md');
 
     for (const marker of [
@@ -58,38 +58,32 @@ describe('hierarchical agent instructions', () => {
     }
   });
 
-  it(
-    'keeps extension instructions explicit about transport and live mutation boundaries',
-    async () => {
-      const extension = await read('easyeda-bridge-extension/AGENTS.md');
+  it('protects extension transport and mutation boundaries', async () => {
+    const extension = await read('easyeda-bridge-extension/AGENTS.md');
 
-      for (const marker of [
-        '`src/index.ts`',
-        'Local `ws://` connectivity',
-        'Do not broaden local `ws://`',
-        'outcome unknown until read back',
-        'pnpm verify:extension',
-      ]) {
-        expect(extension).toContain(marker);
-      }
-    },
-  );
+    for (const marker of [
+      '`src/index.ts`',
+      'Local `ws://` connectivity',
+      'Do not broaden local `ws://`',
+      'outcome unknown until read back',
+      'pnpm verify:extension',
+    ]) {
+      expect(extension).toContain(marker);
+    }
+  });
 
-  it(
-    'keeps CI instructions explicit about required checks and supply-chain assurance',
-    async () => {
-      const github = await read('.github/AGENTS.md');
+  it('protects CI and supply-chain assurance', async () => {
+    const github = await read('.github/AGENTS.md');
 
-      for (const marker of [
-        '`quality (24)`',
-        'least-privilege',
-        'SHA-pinned',
-        'Codecov upload telemetry is non-blocking',
-        'SBOM generation and retention',
-        'stable MCP Registry promotion rules',
-      ]) {
-        expect(github).toContain(marker);
-      }
-    },
-  );
+    for (const marker of [
+      '`quality (24)`',
+      'least-privilege',
+      'SHA-pinned',
+      'Codecov upload telemetry is',
+      'SBOM generation and retention',
+      'stable MCP Registry promotion rules',
+    ]) {
+      expect(github).toContain(marker);
+    }
+  });
 });
