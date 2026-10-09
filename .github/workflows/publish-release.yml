@@ -373,9 +373,14 @@ jobs:
             echo 'Existing immutable extension identity mismatch.' >&2
             exit 1
           }
-          diff -u \
-            <(jq -c . "$REMOTE_ASSETS/$PROVENANCE_ASSET") \
-            "$REMOTE_ASSETS/$PROVENANCE_STATEMENT_ASSET"
+          # The .intoto.jsonl asset is the exact one-line JSON serialization of
+          # the Sigstore bundle (not a raw SLSA statement). Compare without
+          # printing certificate/signature contents into workflow logs.
+          cmp -s "$REMOTE_ASSETS/$PROVENANCE_STATEMENT_ASSET" \
+            <(jq -c . "$REMOTE_ASSETS/$PROVENANCE_ASSET") || {
+            echo 'Existing in-toto JSONL does not match the immutable Sigstore bundle.' >&2
+            exit 1
+          }
           for asset in easyeda-bridge-extension.eext sbom.json; do
             gh attestation verify "$REMOTE_ASSETS/$asset" \
               --repo "$GITHUB_REPOSITORY" \

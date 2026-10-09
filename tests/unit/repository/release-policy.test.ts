@@ -104,6 +104,11 @@ describe('release channel policy', () => {
     expect(publisher).toContain('Preserving existing immutable signed asset');
     expect(publisher).toContain('gh attestation verify "$REMOTE_ASSETS/$asset"');
     expect(publisher).toContain(
+      'Existing in-toto JSONL does not match the immutable Sigstore bundle.',
+    );
+    expect(publisher).toContain('cmp -s "$REMOTE_ASSETS/$PROVENANCE_STATEMENT_ASSET"');
+    expect(publisher).not.toContain('diff -u');
+    expect(publisher).toContain(
       '--signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-release.yml"',
     );
     expect(publisher).toContain('--source-digest "$RELEASE_COMMIT_SHA"');
