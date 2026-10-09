@@ -41,9 +41,11 @@ After successful publication, the Publish Release workflow reconciles the stable
 
 The Release Please PR updates `package.json`, `.release-please-manifest.json`, `server.json`, `easyeda-bridge-extension/extension.json`, release-managed TypeScript version constants, plugin metadata, and `CHANGELOG.md`. Do not manually create the normal stable tag. The automated gates finish **before the immutable tag and GitHub Release are created**.
 
-When the final `rc.N` already contains all user-facing changes, Release Please can legitimately report `No user facing commits found` and skip opening the stable PR. In that case, create a reviewed promotion-only PR whose squash-merge commit body contains `Release-As: X.Y.Z` for the intended stable version. The promotion PR must not change runtime code, runtime dependencies, generated executable artifacts, or compatibility-sensitive behavior; it only seeds the stable Release Please PR after the final candidate has otherwise satisfied release policy. Never use `Release-As` to waive a failed release gate.
+When an optional final `rc.N` already contains all user-facing changes, Release Please can legitimately report `No user facing commits found` and skip opening the stable PR. In that case, create a reviewed promotion-only PR (using `git commit --allow-empty` on a fresh promotion branch if no file changes exist) whose squash-merge commit body contains `Release-As: X.Y.Z` for the intended stable version. The promotion PR must not change runtime code, runtime dependencies, generated executable artifacts, or compatibility-sensitive behavior; it only seeds the stable Release Please PR after the final candidate has otherwise satisfied release policy. Never use `Release-As` to waive a failed release gate.
 
-## 4. Prerelease automation
+A stable release does not require publishing `rc.N`: validate the exact Release Please PR source and reproducible extension package, capture current live EasyEDA proof whenever compatibility-sensitive behavior changed, then use the normal protected merge and publisher. The CI and publication compatibility checks remain blocking even on this direct-stable path. An optional prerelease is useful for staged external testing, not a substitute for live evidence.
+
+## 4. Optional prerelease automation
 
 A prerelease is prepared in an ordinary reviewed candidate PR. The PR sets all release-managed versions to `X.Y.Z-rc.N`, updates release notes, and links the public evidence record. Candidate branches under `release/` run `pnpm release:readiness:compatibility` inside the required `quality (24)` PR gate, so stale live EasyEDA evidence blocks merge rather than waiting until publication. After merge:
 

@@ -156,7 +156,7 @@ If that search returns no dashboard, verify the Mend Renovate App installation/r
 
 Stable publication does not use a time-based promotion delay. If a release gate fails, keep the exact audited source unchanged, fix the underlying policy/evidence problem, and rerun only when the current workflow still targets that same source. Do not create a substitute tag or move the release to a later commit to bypass a failed check.
 
-If a compatibility-sensitive change landed after the validated candidate, prepare a new numbered candidate and record fresh commit-bound live evidence. If an older workflow attempt predates a newly mandatory gate, use the current workflow definition from `main` and the documented missing stable release identity recovery path rather than replaying the older definition.
+If a compatibility-sensitive change landed after the validated candidate, record fresh commit-bound live evidence for the new exact source. Prepare another numbered prerelease only when following the optional prerelease channel. If an older workflow attempt predates a newly mandatory gate, use the current workflow definition from `main` and the documented missing stable release identity recovery path rather than replaying the older definition.
 
 ## Manual Release Procedure
 

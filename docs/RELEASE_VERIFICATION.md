@@ -6,7 +6,7 @@ Channel selection, live-validation requirements, and rollback ownership are defi
 
 ## Release channels
 
-Stable releases use `easyeda-mcp-pro-vX.Y.Z`, a non-prerelease GitHub Release, npm `latest`, stable GHCR moving tags, and the MCP Registry. Numbered candidates use `easyeda-mcp-pro-vX.Y.Z-rc.N`, a GitHub prerelease, npm `next`, and GHCR `next`; they do not publish to the MCP Registry or move stable tags.
+Stable releases use `easyeda-mcp-pro-vX.Y.Z`, a non-prerelease GitHub Release, npm `latest`, stable GHCR moving tags, and the MCP Registry. Optional numbered prereleases use `easyeda-mcp-pro-vX.Y.Z-rc.N`, a GitHub prerelease, npm `next`, and GHCR `next`; they do not publish to the MCP Registry or move stable tags.
 
 Both channels publish the npm package, GitHub Release assets, SBOM, provenance/attestation evidence, and bundled EasyEDA bridge extension.
 

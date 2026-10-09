@@ -20,6 +20,10 @@ describe('release channel policy', () => {
     expect(policy).toContain('npm dist-tag `latest`');
     expect(policy).toContain('npm dist-tag `next`');
     expect(policy).toContain('Live EasyEDA Pro validation is mandatory');
+    expect(policy).toContain('A numbered `rc.N` is optional for all SemVer levels');
+    expect(policy).toContain('live EasyEDA validation bound to the exact candidate');
+    expect(policy).not.toContain('Minor and major stable releases require at least one numbered');
+    expect(policy).not.toContain('Major releases require a numbered candidate');
     expect(policy).toContain('Emergency patch');
     expect(policy).toContain('Rollback and yanking');
     expect(policy).toContain('Deprecation and breaking changes');
@@ -71,6 +75,8 @@ describe('release channel policy', () => {
     expect(publisher).toContain('group: publish-channel-${{ needs.plan.outputs.release_channel }}');
     expect(publisher).toContain('password: ${{ secrets.GITHUB_TOKEN }}');
     expect(publisher).toContain('Verify commit-bound EasyEDA compatibility evidence');
+    expect(readText('.github/workflows/ci.yml')).toContain('pnpm release:readiness:compatibility');
+    expect(publisher).toContain('check-release-readiness.mjs --compatibility-only');
     expect(publisher).toContain('Verify Quality Gates');
     expect(publisher).toContain('name: Verify release extension identity');
     expect(publisher).toContain('check-release-extension-identity.mjs');

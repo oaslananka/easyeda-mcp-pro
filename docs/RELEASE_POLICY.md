@@ -25,12 +25,12 @@ Other prerelease identifiers such as `alpha`, `beta`, or an unnumbered `rc` are 
 
 Stable promotion has **no time-based waiting period**. Once the exact source commit has the required review, CI/security results, release evidence, and applicable live EasyEDA validation, publication may proceed immediately.
 
-- Minor and major stable releases require at least one numbered `rc.N` prerelease so the exact candidate can be validated before promotion.
-- A narrow, reversible patch may publish without a separate release candidate when it does not touch a compatibility-sensitive path.
-- A release that changes the EasyEDA bridge, transport, authentication, transaction/rollback behavior, installer/setup path, save/export behavior, or any confirmed write path requires an `rc.N` and live validation even when the SemVer bump would otherwise be a patch.
-- Any code or runtime-dependency change after the final candidate requires a new `rc.N` so release evidence remains bound to the code that will actually ship.
+- A numbered `rc.N` is optional for all SemVer levels. Use it for staged adoption or additional external testing when justified by release risk; a stable candidate can be validated directly against its exact audited source and generated package without publishing a prerelease.
+- A narrow, reversible patch without compatibility-sensitive changes may publish directly after the standard required gates; release risk, not SemVer classification, determines whether a prerelease is useful.
+- A release that changes the EasyEDA bridge, transport, authentication, transaction/rollback behavior, installer/setup path, save/export behavior, or any confirmed write path requires live EasyEDA validation bound to the exact candidate, even if no `rc.N` is published.
+- Any code or runtime-dependency change after candidate validation invalidates affected evidence. Revalidate the new exact candidate; if an optional `rc.N` was published, a new versioned prerelease is needed before further prerelease publication.
 - Numbered `release/` candidate pull requests must pass the commit-bound live EasyEDA compatibility gate before merge; stale or unavailable evidence is merge-blocking.
-- Stable promotion may change only version, changelog, release notes, and promotion metadata after the final candidate. Behavioral changes require another candidate.
+- After the final verified candidate, changes may only affect version, changelog, release notes, and promotion metadata. Behavioral changes require new evidence tied to the changed source, whether or not a prerelease exists.
 - While repository metadata is prerelease, ordinary `main` pushes must not generate a stable Release Please PR. Stable PR generation resumes only from an explicit matching `Release-As: X.Y.Z` promotion commit.
 
 ## Required release evidence
@@ -53,7 +53,7 @@ A manual workflow dispatch must provide an `evidence_url` pointing to a public i
 
 **Live EasyEDA Pro validation is mandatory** for bridge-loader changes, dispatcher or native API changes, write/mutation paths, transaction and rollback behavior, save/export behavior, connection lifecycle, installer/setup changes, and support-matrix changes.
 
-Evidence must identify the exact EasyEDA Pro version and operating system, the live-validated extension package SHA-256 and byte size, the exercised smoke scenarios, read-back/cleanup results, and any restored project state. Use a disposable project unless the validation plan explicitly proves restoration. For prereleases, publication must rebuild the extension byte-reproducibly and match that generated SHA-256 and size to a current live record before any registry or release-asset mutation. The versioned compatibility matrix in `docs/reference/easyeda-compatibility.md` must be current before stable promotion.
+Evidence must identify the exact EasyEDA Pro version and operating system, the live-validated extension package SHA-256 and byte size, the exercised smoke scenarios, read-back/cleanup results, and any restored project state. Use a disposable project unless the validation plan explicitly proves restoration. For both stable and prerelease publications with live-required changes, the extension must be reproducibly built and its SHA-256 and byte size matched to current exact-source live evidence before registry or release-asset mutation. The versioned compatibility matrix in `docs/reference/easyeda-compatibility.md` must be current before stable promotion.
 
 ## Release-blocking automation
 
@@ -110,7 +110,7 @@ Public MCP tool names, schemas, bridge protocol fields, environment variables, c
 - Announce deprecation in the changelog, release notes, migration documentation, and runtime warning where feasible.
 - Keep the deprecated path for at least one minor release and **30 days** before removal.
 - Security or correctness risks may shorten the notice period, but the release evidence must explain the risk, migration, and accelerated timeline.
-- Major releases require a numbered candidate, migration guide, rollback plan, and live validation for every affected EasyEDA path.
+- Major releases require a reviewed exact-source candidate, migration guide, rollback plan, and live validation for every affected EasyEDA path; publishing a numbered prerelease is optional.
 
 ## Documentation consistency
 
