@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-09T09:20:19+03:00",
+  "candidateCommit": "575a6b331235b1b829243f75146ac66a0fed61cf",
+  "compatibilitySensitiveBaseCommit": "575a6b331235b1b829243f75146ac66a0fed61cf",
+  "server": {
+    "packageVersion": "1.2.0",
+    "nodeVersion": "24.21.0",
+    "pnpmVersion": "11.28.0",
+    "compatibilitySnapshot": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "6f4f92e112109e5822b69189b2c2649b1a10ea7b",
+        "src/bridge": "e64725d6c23c92a06907bba72343c35c0914e09f",
+        "src/remote": "f8795be36d8ed36c432919e06e69f6824402c12e",
+        "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+        "src/tools": "f0e781358428a6531ed7c0ba77ed4a23c5f14b34",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "extension": {
+    "packageVersion": "1.2.0",
+    "loaderReportedVersion": "1.2.0",
+    "packageSha256": "0b9932e7616ddd3f8e09d927ba33fb1181df842fe6d30e6065583b45a87cfaa1",
+    "packageSizeBytes": 183089,
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "56f403634463f69f",
+    "dispatcherBuildId": "dce89x353cx43ac",
+    "externalInteractionEnabled": true,
+    "autoUpdateEnabled": false
+  },
+  "easyedaPro": {
+    "version": "3.2.149.88089769",
+    "versionScope": "Exact installed application version independently verified from the vendor application package metadata; live GUI displayed the matching 3.2.149 release family."
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-38-generic",
+    "nodeVersion": "24.21.0",
+    "pnpmVersion": "11.28.0",
+    "networkIsolation": "separate bubblewrap network namespace with loopback-only bridge; host network socket inaccessible",
+    "filesystemIsolation": "disposable home/profile and separate vendor database copy"
+  },
+  "fixture": {
+    "project": "Validation_Quick_Start",
+    "source": "disposable copy of bundled Example_Quick Start",
+    "schematic": "Schematic / P1",
+    "pcb": "PCB",
+    "disposable": true,
+    "sourceCopySha256": "54088b32d0c1804ce6e423b281a5f930ad3469140ae5044e2d6355071230b06f",
+    "v3ConversionApproved": true,
+    "convertedProjectFileFormat": ".eprj2 (V3)",
+    "originalExampleSourceUnmodified": true
+  },
+  "liveChecks": {
+    "readOnlySmoke": {
+      "status": "passed",
+      "checks": [
+        {
+          "method": "system.getStatus",
+          "status": "passed"
+        },
+        {
+          "method": "system.apiInventory",
+          "status": "passed"
+        },
+        {
+          "method": "schematic.listNets",
+          "status": "passed"
+        },
+        {
+          "method": "schematic.listComponents",
+          "status": "passed"
+        },
+        {
+          "method": "bom.generate",
+          "status": "passed"
+        },
+        {
+          "method": "design.erc",
+          "status": "passed"
+        }
+      ],
+      "writeEnabled": false,
+      "ercWarnings": 2,
+      "ercErrors": 0
+    },
+    "runtimeInventory": {
+      "status": "passed",
+      "classCount": 67,
+      "baselineClassCount": 67,
+      "addedClasses": 0,
+      "removedClasses": 0,
+      "changedClasses": 0,
+      "methodRegistryHash": "56f403634463f69f"
+    },
+    "taggedPolygonBoundary": {
+      "status": "passed",
+      "cases": [
+        {
+          "label": "valid-polygon",
+          "expectedSuccess": true,
+          "actualSuccess": true,
+          "passed": true,
+          "error": ""
+        },
+        {
+          "label": "valid-complex",
+          "expectedSuccess": true,
+          "actualSuccess": true,
+          "passed": true,
+          "error": ""
+        },
+        {
+          "label": "conflicting-tags",
+          "expectedSuccess": false,
+          "actualSuccess": false,
+          "passed": true,
+          "error": "Polygon argument has conflicting tags (args[0])"
+        },
+        {
+          "label": "malformed-tag",
+          "expectedSuccess": false,
+          "actualSuccess": false,
+          "passed": true,
+          "error": "$polygon must contain an array (args[0])"
+        },
+        {
+          "label": "extra-tag-fields",
+          "expectedSuccess": false,
+          "actualSuccess": false,
+          "passed": true,
+          "error": "Tagged polygon arguments cannot contain extra fields (args[0])"
+        }
+      ]
+    },
+    "pcbTrackMutation": {
+      "status": "passed",
+      "steps": [
+        {
+          "step": "preview",
+          "baselineCount": 98,
+          "plannedLayer": 13,
+          "plannedPointCount": 2,
+          "confirmedDisposableFixture": true
+        },
+        {
+          "step": "create-returned",
+          "response": {
+            "primitiveId": "1ec96f9ab9c2f023",
+            "primitiveIds": ["1ec96f9ab9c2f023"]
+          }
+        },
+        {
+          "step": "readback",
+          "addedIDs": ["1ec96f9ab9c2f023"],
+          "afterCount": 99,
+          "expectedDelta": 1,
+          "added": [
+            {
+              "primitiveId": "1ec96f9ab9c2f023",
+              "net": "",
+              "layer": 13,
+              "startX": 7000,
+              "startY": 5000,
+              "endX": 7010,
+              "endY": 5000,
+              "width": 1,
+              "locked": false
+            }
+          ]
+        },
+        {
+          "step": "save-requested",
+          "saveReturnType": "bool"
+        },
+        {
+          "step": "saved-readback-verified",
+          "afterSaveCount": 99
+        },
+        {
+          "step": "rollback-requested",
+          "deltaIDs": ["1ec96f9ab9c2f023"],
+          "deletion": {
+            "success": true,
+            "deletedCount": 1,
+            "deleted": ["1ec96f9ab9c2f023"],
+            "notFound": []
+          }
+        },
+        {
+          "step": "rollback-verified",
+          "finalCount": 98,
+          "exactSetMatch": true
+        }
+      ]
+    },
+    "pcbRegionMutation": {
+      "status": "passed",
+      "steps": [
+        {
+          "step": "preview",
+          "baselineCount": 0,
+          "intent": "temporary off-board NO_COMPONENTS region",
+          "layer": 1,
+          "ruleCodes": [2],
+          "polygon": ["R", 8000, 6000, 50, 30, 0, 0],
+          "confirmWrite": true
+        },
+        {
+          "step": "native-create",
+          "responseSummary": {
+            "path": "PCB_PrimitiveRegion.create",
+            "resolvedPath": "eda.pcb_PrimitiveRegion.create"
+          }
+        },
+        {
+          "step": "readback",
+          "baseline": 0,
+          "after": 1,
+          "addedIds": ["33e5acc155363370"],
+          "data": [
+            {
+              "primitiveId": "33e5acc155363370",
+              "layer": 1,
+              "ruleTypes": [2],
+              "lineWidth": 0.2,
+              "locked": false,
+              "polygonSource": ["R", 8000, 6000, 50, 30, 0, 0]
+            }
+          ]
+        },
+        {
+          "step": "save",
+          "nativeSaveResponseType": "bool"
+        },
+        {
+          "step": "persisted-readback",
+          "count": 1
+        },
+        {
+          "step": "rollback-deletion",
+          "ids": ["33e5acc155363370"],
+          "nativeResponse": {
+            "success": true,
+            "deletedCount": 1,
+            "deleted": ["33e5acc155363370"],
+            "notFound": []
+          }
+        },
+        {
+          "step": "rollback-verified",
+          "exactSetMatch": true,
+          "finalCount": 0
+        }
+      ]
+    },
+    "failClosedUnavailableCopperOperations": {
+      "status": "passed",
+      "details": {
+        "zone": {
+          "failedClosed": true,
+          "reason": "PCB copper-zone creation is unavailable until the complete native contract is verified."
+        },
+        "rebuild": {
+          "failedClosed": true,
+          "reason": "PCB pour primitive id(s) not found on the active PCB: __no_such_pour_for_safe_validation__. No copper was rebuilt."
+        },
+        "unchangedSets": {
+          "pcb.listTracks": true,
+          "pcb.listRegions": true,
+          "pcb.listFills": true
+        },
+        "count": {
+          "pcb.listTracks": 98,
+          "pcb.listRegions": 0,
+          "pcb.listFills": 4
+        }
+      }
+    },
+    "persistedRollbackAfterReopen": {
+      "status": "passed",
+      "primitives": {
+        "pcb.listTracks": {
+          "passed": true,
+          "beforeCount": 98,
+          "afterReloadCount": 98,
+          "extra": [],
+          "missing": []
+        },
+        "pcb.listRegions": {
+          "passed": true,
+          "beforeCount": 0,
+          "afterReloadCount": 0,
+          "extra": [],
+          "missing": []
+        },
+        "pcb.listFills": {
+          "passed": true,
+          "beforeCount": 4,
+          "afterReloadCount": 4,
+          "extra": [],
+          "missing": []
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": "passed",
+    "disposableProfileRemoved": true,
+    "candidateSourceWorktreeRemoved": true,
+    "testProcessStopped": true,
+    "networkNamespaceDestroyed": true,
+    "hostInstalledAppDbUnchanged": true,
+    "hostInstalledAppDbSha256": "9fcc53048e54468bbab10a90141c99ba90e41c810fff0ae4dc61584277428872",
+    "hostMainTreeClean": true,
+    "hostEasyedaSessionRetained": true
+  },
+  "knownLimitations": [
+    "The live session verifies local EasyEDA bridge, six read-only smoke operations, native PCB track and constraint-region mutation plus rollback; it does not independently exercise experimental Remote Relay/HTTP production deployment.",
+    "The new PCB Region test invokes the allowlisted native API path through the bridge, not the MCP high-level tool's confirmWrite validation. High-level safety validation remains covered by repository unit/CI contracts.",
+    "No new copper zone or existing copper pour was rebuilt; these operations were tested for fail-closed behavior with unchanged primitive sets.",
+    "The EasyEDA 3.2.149 live desktop record applies to Ubuntu x86_64 only; Windows and macOS are supported by separate CI, not identical desktop runtime evidence."
+  ]
+}

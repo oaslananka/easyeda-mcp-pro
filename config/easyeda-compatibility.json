@@ -1,8 +1,114 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-09-15",
+  "lastReviewed": "2026-10-09",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-10-09-v1-2-0",
+      "status": "live-validated",
+      "validatedAt": "2026-10-09T09:20:19+03:00",
+      "reviewBy": "2027-01-07",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-38-generic",
+        "nodeVersion": "24.21.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.149.88089769"
+      },
+      "server": {
+        "validationPackageVersion": "1.2.0",
+        "releaseContainingFixes": "1.2.0",
+        "commit": "575a6b331235b1b829243f75146ac66a0fed61cf",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "6f4f92e112109e5822b69189b2c2649b1a10ea7b",
+            "src/bridge": "e64725d6c23c92a06907bba72343c35c0914e09f",
+            "src/remote": "f8795be36d8ed36c432919e06e69f6824402c12e",
+            "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+            "src/tools": "f0e781358428a6531ed7c0ba77ed4a23c5f14b34",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.2.0",
+        "loaderReportedVersion": "1.2.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "56f403634463f69f",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "0b9932e7616ddd3f8e09d927ba33fb1181df842fe6d30e6065583b45a87cfaa1",
+        "packageSizeBytes": 183089
+      },
+      "fixture": {
+        "project": "Validation_Quick_Start",
+        "schematic": "Schematic / P1",
+        "pcb": "PCB",
+        "disposable": true
+      },
+      "capabilities": [
+        {
+          "id": "v1-2-0-native-bridge-readonly-live",
+          "name": "Packaged 1.2.0 bridge identity, live API inventory and six read-only checks",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact-source extension was imported into a disposable EasyEDA 3.2.149 profile with loopback-only network isolation. Bridge handshake matched package 1.2.0 and registry hash, runtime inventory had 67 unchanged classes, and status, inventory, schematic nets/components, BOM and ERC returned through the live bridge.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json"
+          ]
+        },
+        {
+          "id": "v1-2-0-track-mutation-rollback-live",
+          "name": "Disposable document-layer PCB line create, save, read-back and exact rollback",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Native PCB_PrimitiveLine creation on Document Layer 13 changed the primitive set from 98 to 99. After save/read-back it was removed by its new id; a fresh project reopen confirmed the baseline 98 exact primitive ids, with no extra or missing ids.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json"
+          ]
+        },
+        {
+          "id": "v1-2-0-region-mutation-rollback-live",
+          "name": "Typed polygon native PCB constraint region create, save, read-back and rollback",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Native PCB_PrimitiveRegion.create with a tagged rectangle polygon, TOP layer and NO_COMPONENTS rule yielded a persisted getAll-backed Region with expected layer/rules/polygon. Save, exact-id deletion and reopen confirmed 0 Regions and restored initial Fill and Track identities.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json"
+          ]
+        },
+        {
+          "id": "v1-2-0-validation-failclosed-live",
+          "name": "Native tagged polygon fail-closed validation and unavailable copper operations",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Valid single and complex polygon tags executed; conflicting, malformed and extra-field tags were rejected. Unverified copper zone creation and a nonexistent pour rebuild failed closed, preserving Track, Region and Fill ids.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json"
+          ]
+        },
+        {
+          "id": "v1-2-0-profile-network-isolation-live",
+          "name": "Disposable native GUI session, unique network namespace and cleanup",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The extension and bridge shared an isolated loopback namespace different from the user's existing EasyEDA. Test sample conversion was limited to a disposable profile. After tests, the private guest app and bridge were stopped, profile and build outputs removed, original installed vendor database hash unchanged.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "The live session verifies local EasyEDA bridge, six read-only smoke operations, native PCB track and constraint-region mutation plus rollback; it does not independently exercise experimental Remote Relay/HTTP production deployment.",
+        "The new PCB Region test invokes the allowlisted native API path through the bridge, not the MCP high-level tool's confirmWrite validation. High-level safety validation remains covered by repository unit/CI contracts.",
+        "No new copper zone or existing copper pour was rebuilt; these operations were tested for fail-closed behavior with unchanged primitive sets.",
+        "The EasyEDA 3.2.149 live desktop record applies to Ubuntu x86_64 only; Windows and macOS are supported by separate CI, not identical desktop runtime evidence."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-5",
       "status": "live-validated",
@@ -553,7 +659,7 @@
           "name": "v1.1.0 PCB read surface and outline regression validation",
           "evidenceLevel": "live",
           "status": "passed",
-          "summary": "With the bundled example PCB focused, the exact candidate reported an 80 mm by 60 mm custom outline with hasOutline=true and 4,800 mm\u00b2 area, plus 33 components, 98 tracks, 0 vias, 4 fills, and 0 regions. The native DRC call completed and returned the fixture non-passing result rather than a bridge false-success.",
+          "summary": "With the bundled example PCB focused, the exact candidate reported an 80 mm by 60 mm custom outline with hasOutline=true and 4,800 mm² area, plus 33 components, 98 tracks, 0 vias, 4 fills, and 0 regions. The native DRC call completed and returned the fixture non-passing result rather than a bridge false-success.",
           "evidence": [
             "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json",
             "https://github.com/oaslananka/easyeda-mcp-pro/issues/590",
@@ -1484,7 +1590,7 @@
           "name": "RC.2 PCB read-only smoke",
           "evidenceLevel": "live",
           "status": "passed",
-          "summary": "On the disposable Quick Start PCB, the exact candidate returned an 80 mm by 60 mm outline, 4,800 mm\u00b2 area, has_outline=true, 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.",
+          "summary": "On the disposable Quick Start PCB, the exact candidate returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.",
           "evidence": [
             "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-09-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-read-only.json",
             "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
@@ -1572,7 +1678,7 @@
           "name": "Release-candidate PCB read-only smoke",
           "evidenceLevel": "live",
           "status": "passed",
-          "summary": "On the disposable Quick Start PCB, the public MCP tools returned an 80 mm by 60 mm outline, 4,800 mm\u00b2 area, has_outline=true, 57 layers, and the expected board feature inventory.",
+          "summary": "On the disposable Quick Start PCB, the public MCP tools returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, and the expected board feature inventory.",
           "evidence": [
             "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-29-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.1-read-only.json",
             "https://github.com/oaslananka/easyeda-mcp-pro/issues/389"
