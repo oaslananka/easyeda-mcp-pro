@@ -317,11 +317,16 @@ jobs:
           PKG_NAME="$(node -p "require('./package.json').name")"
           PKG_VERSION="$(node -p "require('./package.json').version")"
           if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
-            if [[ -z "$NPM_TOKEN" ]]; then
-              echo "NPM_TOKEN is required only to repair an existing version dist-tag." >&2
-              exit 1
+            EXISTING_DIST_TAG="$(npm view "$PKG_NAME" dist-tags --json | jq -r --arg tag "$NPM_DIST_TAG" '.[$tag] // empty')"
+            if [[ "$EXISTING_DIST_TAG" == "$PKG_VERSION" ]]; then
+              echo "Existing npm ${PKG_NAME}@${PKG_VERSION} already has the correct $NPM_DIST_TAG dist-tag."
+            else
+              if [[ -z "$NPM_TOKEN" ]]; then
+                echo "NPM_TOKEN is required only to repair an existing version dist-tag." >&2
+                exit 1
+              fi
+              NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add "${PKG_NAME}@${PKG_VERSION}" "$NPM_DIST_TAG"
             fi
-            NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add "${PKG_NAME}@${PKG_VERSION}" "$NPM_DIST_TAG"
           else
             npm publish --provenance --tag "$NPM_DIST_TAG"
           fi
@@ -337,12 +342,15 @@ jobs:
             remote_dir="$(mktemp -d)"
             if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fxq -- "$asset"; then
               gh release download "$RELEASE_TAG" --pattern "$asset" --dir "$remote_dir"
-              if ! cmp -s -- "$asset" "$remote_dir/$asset"; then
-                echo "Existing immutable asset $asset differs; refusing overwrite." >&2
+              if cmp -s -- "$asset" "$remote_dir/$asset"; then
+                echo "Existing immutable asset $asset matches expected bytes."
+              elif [[ "$asset" == "easyeda-bridge-extension.eext" ]]; then
+                echo "Existing immutable extension differs; refusing overwrite." >&2
                 rm -rf "$remote_dir"
                 return 1
+              else
+                echo "Preserving existing immutable signed asset $asset; verifying its source-bound signature below."
               fi
-              echo "Existing immutable asset $asset matches expected bytes."
             else
               gh release upload "$RELEASE_TAG" "$asset"
             fi
@@ -352,6 +360,35 @@ jobs:
           upload_or_verify sbom.json
           upload_or_verify "$PROVENANCE_ASSET"
           upload_or_verify "$PROVENANCE_STATEMENT_ASSET"
+
+          # Recovery may produce different (valid) attestations and SBOM metadata.
+          # Existing assets must remain immutable, and the original signed assets
+          # must belong to this exact source commit before registry mutations.
+          REMOTE_ASSETS="$(mktemp -d)"
+          trap 'rm -rf "$REMOTE_ASSETS"' EXIT
+          for asset in easyeda-bridge-extension.eext sbom.json "$PROVENANCE_ASSET" "$PROVENANCE_STATEMENT_ASSET"; do
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$asset" --dir "$REMOTE_ASSETS"
+          done
+          cmp -s easyeda-bridge-extension.eext "$REMOTE_ASSETS/easyeda-bridge-extension.eext" || {
+            echo 'Existing immutable extension identity mismatch.' >&2
+            exit 1
+          }
+          # The .intoto.jsonl asset is the exact one-line JSON serialization of
+          # the Sigstore bundle (not a raw SLSA statement). Compare without
+          # printing certificate/signature contents into workflow logs.
+          cmp -s "$REMOTE_ASSETS/$PROVENANCE_STATEMENT_ASSET" \
+            <(jq -c . "$REMOTE_ASSETS/$PROVENANCE_ASSET") || {
+            echo 'Existing in-toto JSONL does not match the immutable Sigstore bundle.' >&2
+            exit 1
+          }
+          for asset in easyeda-bridge-extension.eext sbom.json; do
+            gh attestation verify "$REMOTE_ASSETS/$asset" \
+              --repo "$GITHUB_REPOSITORY" \
+              --bundle "$REMOTE_ASSETS/$PROVENANCE_ASSET" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-release.yml" \
+              --source-digest "$RELEASE_COMMIT_SHA" \
+              --format json >/dev/null
+          done
 
       - name: Resolve pinned mcp-publisher artifact
         if: env.RELEASE_CHANNEL == 'stable'
@@ -385,18 +422,30 @@ jobs:
           ./mcp-publisher login github-oidc
           PUBLISH_OUTPUT="$(mktemp)"
           trap 'rm -f "$PUBLISH_OUTPUT"' EXIT
-          set +e
-          ./mcp-publisher publish >"$PUBLISH_OUTPUT" 2>&1
-          PUBLISH_STATUS=$?
-          set -e
-          cat "$PUBLISH_OUTPUT"
-          if [[ "$PUBLISH_STATUS" -ne 0 ]]; then
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          PUBLISH_STATUS=1
+          for attempt in $(seq 1 8); do
+            set +e
+            ./mcp-publisher publish >"$PUBLISH_OUTPUT" 2>&1
+            PUBLISH_STATUS=$?
+            set -e
+            cat "$PUBLISH_OUTPUT"
+            if [[ "$PUBLISH_STATUS" -eq 0 ]]; then break; fi
             if grep -Fq 'invalid version: cannot publish duplicate version' "$PUBLISH_OUTPUT"; then
               echo 'MCP Registry version already exists. The final published-release verifier will validate the existing registry record.'
-            else
-              exit "$PUBLISH_STATUS"
+              PUBLISH_STATUS=0
+              break
             fi
-          fi
+            # npm has accepted the release, but the MCP Registry may still see
+            # an older package index. Retry ONLY that specific transient 404.
+            if grep -Fq "version '$PKG_VERSION' was not found (status: 404)" "$PUBLISH_OUTPUT" && [[ "$attempt" -lt 8 ]]; then
+              echo "Waiting 15s for npm version visibility in MCP Registry ($attempt/8)."
+              sleep 15
+              continue
+            fi
+            exit "$PUBLISH_STATUS"
+          done
+          exit "$PUBLISH_STATUS"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
