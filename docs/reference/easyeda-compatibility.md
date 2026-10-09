@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-09-15
+- **Last reviewed:** 2026-10-09
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.2.0                | 1.2.0                | 1.2.0             | Live validated  | 2026-10-09 | 2027-01-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.5           | 1.1.0-rc.5           | 1.1.0-rc.5        | Live validated  | 2026-09-29 | 2026-12-28 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.4           | 1.1.0-rc.4           | 1.1.0-rc.4        | Live validated  | 2026-09-29 | 2026-12-28 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.3           | 1.1.0-rc.3           | 1.1.0-rc.3        | Live validated  | 2026-09-29 | 2026-12-28 |
@@ -48,6 +49,53 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-10-09-v1-2-0`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.149.88089769`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-38-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.21.0`                                                          |
+| Validation package version               | `1.2.0`                                                            |
+| Release containing validated fixes       | `1.2.0`                                                            |
+| Compatibility-sensitive base commit      | `575a6b331235b1b829243f75146ac66a0fed61cf`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.2.0`                                                            |
+| Live-validated extension package SHA-256 | `0b9932e7616ddd3f8e09d927ba33fb1181df842fe6d30e6065583b45a87cfaa1` |
+| Live-validated extension package size    | `183089 bytes`                                                     |
+| Loader-reported version                  | `1.2.0`                                                            |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `56f403634463f69f`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.2.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                                      | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                    | Evidence                                                                                                                                                              |
+| ------------------------------------------------------------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Packaged 1.2.0 bridge identity, live API inventory and six read-only checks     | `live` | `passed` | Exact-source extension was imported into a disposable EasyEDA 3.2.149 profile with loopback-only network isolation. Bridge handshake matched package 1.2.0 and registry hash, runtime inventory had 67 unchanged classes, and status, inventory, schematic nets/components, BOM and ERC returned through the live bridge. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json) |
+| Disposable document-layer PCB line create, save, read-back and exact rollback   | `live` | `passed` | Native PCB_PrimitiveLine creation on Document Layer 13 changed the primitive set from 98 to 99. After save/read-back it was removed by its new id; a fresh project reopen confirmed the baseline 98 exact primitive ids, with no extra or missing ids.                                                                    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json) |
+| Typed polygon native PCB constraint region create, save, read-back and rollback | `live` | `passed` | Native PCB_PrimitiveRegion.create with a tagged rectangle polygon, TOP layer and NO_COMPONENTS rule yielded a persisted getAll-backed Region with expected layer/rules/polygon. Save, exact-id deletion and reopen confirmed 0 Regions and restored initial Fill and Track identities.                                    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json) |
+| Native tagged polygon fail-closed validation and unavailable copper operations  | `live` | `passed` | Valid single and complex polygon tags executed; conflicting, malformed and extra-field tags were rejected. Unverified copper zone creation and a nonexistent pour rebuild failed closed, preserving Track, Region and Fill ids.                                                                                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json) |
+| Disposable native GUI session, unique network namespace and cleanup             | `live` | `passed` | The extension and bridge shared an isolated loopback namespace different from the user's existing EasyEDA. Test sample conversion was limited to a disposable profile. After tests, the private guest app and bridge were stopped, profile and build outputs removed, original installed vendor database hash unchanged.  | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-09-ubuntu-24-04-easyeda-3.2.149-v1.2.0-live-compatibility.json) |
+
+### Known limitations
+
+- The live session verifies local EasyEDA bridge, six read-only smoke operations, native PCB track and constraint-region mutation plus rollback; it does not independently exercise experimental Remote Relay/HTTP production deployment.
+- The new PCB Region test invokes the allowlisted native API path through the bridge, not the MCP high-level tool's confirmWrite validation. High-level safety validation remains covered by repository unit/CI contracts.
+- No new copper zone or existing copper pour was rebuilt; these operations were tested for fail-closed behavior with unchanged primitive sets.
+- The EasyEDA 3.2.149 live desktop record applies to Ubuntu x86_64 only; Windows and macOS are supported by separate CI, not identical desktop runtime evidence.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
 
