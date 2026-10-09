@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.1.0...easyeda-mcp-pro-v1.2.0) (2026-10-09)
+
+
+### Features
+
+* **pcb:** add typed region creation tool ([#633](https://github.com/oaslananka/easyeda-mcp-pro/issues/633)) ([de661b3](https://github.com/oaslananka/easyeda-mcp-pro/commit/de661b392f7a3de06211ebc3ff4c9a28d112fee2))
+* **pcb:** rebuild existing copper pours ([#642](https://github.com/oaslananka/easyeda-mcp-pro/issues/642)) ([01f2f48](https://github.com/oaslananka/easyeda-mcp-pro/commit/01f2f48a47f7ba76f1742af48817a678487a8cbc))
+
+
+### Bug Fixes
+
+* **bridge:** share local owner across MCP processes ([#635](https://github.com/oaslananka/easyeda-mcp-pro/issues/635)) ([42cd9bc](https://github.com/oaslananka/easyeda-mcp-pro/commit/42cd9bcb5c758264a2c6d3f836feddaa14b4f001))
+* **release:** reconcile published Release Please lifecycle ([#653](https://github.com/oaslananka/easyeda-mcp-pro/issues/653)) ([49c40a3](https://github.com/oaslananka/easyeda-mcp-pro/commit/49c40a3ae9f10ac7b49c515fe654b7dc6c3e0fe2))
+* **security:** patch dependency advisories ([#652](https://github.com/oaslananka/easyeda-mcp-pro/issues/652)) ([69720ce](https://github.com/oaslananka/easyeda-mcp-pro/commit/69720ce6050ae2ff38fb93b4366241b5883dd9b3))
+* **security:** remediate dependency audit advisories ([#636](https://github.com/oaslananka/easyeda-mcp-pro/issues/636)) ([a24a570](https://github.com/oaslananka/easyeda-mcp-pro/commit/a24a570ff4e484d947a9506c596a35481c14f725))
+
 ## [1.1.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.1.0-rc.5...easyeda-mcp-pro-v1.1.0) (2026-09-29)
 
 
