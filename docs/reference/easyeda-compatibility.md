@@ -59,8 +59,8 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-10-09-v1-2-0`
 | Field                                    | Exact value                                                        |
 | ---------------------------------------- | ------------------------------------------------------------------ |
 | EasyEDA Pro                              | `3.2.149.88089769`                                                 |
-| Electron                                 | `undefined`                                                        |
-| Chromium                                 | `undefined`                                                        |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
 | Operating system                         | Ubuntu 24.04.5 LTS                                                 |
 | Kernel                                   | `7.0.0-38-generic`                                                 |
 | Architecture                             | `x86_64`                                                           |

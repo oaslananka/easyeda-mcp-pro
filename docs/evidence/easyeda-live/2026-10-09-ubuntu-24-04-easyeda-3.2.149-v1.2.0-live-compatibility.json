@@ -32,7 +32,9 @@
   },
   "easyedaPro": {
     "version": "3.2.149.88089769",
-    "versionScope": "Exact installed application version independently verified from the vendor application package metadata; live GUI displayed the matching 3.2.149 release family."
+    "versionScope": "Exact installed application version independently verified from the vendor application package metadata; live GUI displayed the matching 3.2.149 release family. Electron and Chromium versions were verified from the installed desktop application executable.",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
   },
   "environment": {
     "operatingSystem": "Ubuntu 24.04.5 LTS",
