@@ -183,6 +183,23 @@ Normal stable releases are prepared by merging the Release Please PR and publish
 
 4. Verify npm `next`, GHCR `next`, exact-version assets, SBOM, provenance, and attestations. Confirm npm/GHCR `latest` did not move and the MCP Registry was skipped.
 
+### Incomplete stable publication recovery
+
+If npm and the immutable GitHub Release were successfully published but the MCP Registry rejects the just-published npm version with `status: 404`, use the **current** `Publish Release` workflow on `main` to recover the existing immutable tag. The publisher retries only the exact missing-version registry error (8 attempts, 15 seconds apart); authentication, package-ownership and other errors still fail immediately.
+
+The recovery verifies that the rebuilt extension is byte-identical to the immutable GitHub Release extension and cryptographically verifies the **already published** extension and SBOM against the existing portable Sigstore bundle, the audited source commit and the release workflow signer. It does not clobber signed assets when newly generated provenance differs. It skips an already-correct npm dist-tag and resumes MCP Registry then GHCR and final published-release verification.
+
+This is **not** the verification-only recovery below: the registry and/or GHCR must still be published. Confirm the stable tag, GitHub Release, npm identity and release source SHA first. Dispatch with an existing stable release evidence PR:
+
+```bash
+gh workflow run publish-release.yml --ref main \
+  -f tag_name=easyeda-mcp-pro-vX.Y.Z \
+  -f release_channel=stable \
+  -f evidence_url=https://github.com/oaslananka/easyeda-mcp-pro/pull/NUMBER
+```
+
+Never create or move a tag to work around an incomplete publication, and never retry without confirming its signed assets and source identity.
+
 ### Post-publication verification-only recovery
 
 Use this path when npm, GitHub Release assets, and GHCR publication succeeded but the final **Verify published release** step failed because observation did not converge or an external read timed out. Do not rerun `publish-release.yml`, because that can overwrite release assets or rebuild exact container tags. Dispatch the read-only verifier instead:

@@ -100,6 +100,25 @@ describe('release channel policy', () => {
     expect(publisher).toContain('PROVENANCE_STATEMENT_ASSET="${RELEASE_TAG}.intoto.jsonl"');
     expect(publisher).toContain('upload_or_verify "$PROVENANCE_ASSET"');
     expect(publisher).toContain('upload_or_verify "$PROVENANCE_STATEMENT_ASSET"');
+    expect(publisher).toContain('Existing immutable extension differs; refusing overwrite.');
+    expect(publisher).toContain('Preserving existing immutable signed asset');
+    expect(publisher).toContain('gh attestation verify "$REMOTE_ASSETS/$asset"');
+    expect(publisher).toContain(
+      '--signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-release.yml"',
+    );
+    expect(publisher).toContain('--source-digest "$RELEASE_COMMIT_SHA"');
+    expect(publisher).toContain(
+      'cmp -s easyeda-bridge-extension.eext "$REMOTE_ASSETS/easyeda-bridge-extension.eext"',
+    );
+    expect(publisher.indexOf('gh attestation verify "$REMOTE_ASSETS/$asset"')).toBeLessThan(
+      publisher.indexOf('name: Publish to MCP Registry'),
+    );
+    expect(publisher).toContain('EXISTING_DIST_TAG');
+    expect(publisher).toContain('if [[ "$EXISTING_DIST_TAG" == "$PKG_VERSION" ]]');
+    expect(publisher).toContain('for attempt in $(seq 1 8)');
+    expect(publisher).toContain("version '$PKG_VERSION' was not found (status: 404)");
+    expect(publisher).toContain('sleep 15');
+    expect(publisher).not.toContain('gh release upload --clobber');
     expect(publisher).not.toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish');
     expect(publisher).toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add');
     expect(publisher).toContain('name: Verify published release');
