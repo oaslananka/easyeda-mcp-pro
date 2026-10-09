@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.2.0...easyeda-mcp-pro-v1.2.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **release:** recover immutable v1.2.0 and retry transient MCP visibility ([#657](https://github.com/oaslananka/easyeda-mcp-pro/issues/657)) ([77db476](https://github.com/oaslananka/easyeda-mcp-pro/commit/77db47654f409106eb62aa8da75b1e1b441f6f4b))
+
 ## [1.2.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.1.0...easyeda-mcp-pro-v1.2.0) (2026-10-09)
 
 
