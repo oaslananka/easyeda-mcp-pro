@@ -41,6 +41,30 @@ describe('release channel policy', () => {
     };
 
     expect(config.packages?.['.']?.prerelease).toBe(false);
+    // release-please excludes a commit only when every changed file is under
+    // one of these paths. Release infrastructure-only fixes must not cause a
+    // new npm release, while runtime/product source changes remain in scope.
+    const excludedPaths = ['.github', 'docs', 'tests'];
+    const releaseConfig = JSON.parse(readText('release-please-config.json')) as {
+      packages: Record<string, { 'exclude-paths'?: string[] }>;
+    };
+    expect(releaseConfig.packages['.']?.['exclude-paths']).toEqual(excludedPaths);
+    const shouldExcludeCommit = (files: string[]) =>
+      files.length > 0 &&
+      files.every((file) => excludedPaths.some((path) => file.startsWith(`${path}/`)));
+    expect(
+      shouldExcludeCommit([
+        '.github/workflows/publish-release.yml',
+        'docs/release-ci-runbook.md',
+        'tests/unit/repository/release-policy.test.ts',
+      ]),
+    ).toBe(true);
+    expect(
+      shouldExcludeCommit(['.github/workflows/publish-release.yml', 'src/bridge/manager.ts']),
+    ).toBe(false);
+    expect(shouldExcludeCommit(['easyeda-bridge-extension/src/index.ts'])).toBe(false);
+    expect(shouldExcludeCommit(['scripts/generate-server-environment.mts'])).toBe(false);
+
     expect(manager).toContain('skip-github-release: true');
     expect(manager).toContain('Reconcile verified published release PR labels');
     expect(manager).toContain('reconcile-release-please.mjs');
