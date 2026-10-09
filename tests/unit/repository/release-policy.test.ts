@@ -38,6 +38,13 @@ describe('release channel policy', () => {
 
     expect(config.packages?.['.']?.prerelease).toBe(false);
     expect(manager).toContain('skip-github-release: true');
+    expect(manager).toContain('Reconcile verified published release PR labels');
+    expect(manager).toContain('reconcile-release-please.mjs');
+    expect(manager).toContain('manager_gate.outputs.enabled');
+    expect(manager).not.toContain('workflow_run:');
+    expect(publisher).toContain('Reconcile stable Release Please PR lifecycle');
+    expect(publisher).toContain('upload_or_verify');
+    expect(publisher).not.toContain('--clobber');
     expect(manager).toContain('Resolve stable Release Please eligibility');
     expect(manager).toContain('run: node scripts/release-please-eligibility.mjs');
     expect(manager).toContain(
@@ -85,8 +92,8 @@ describe('release channel policy', () => {
     expect(publisher).toContain('${{ steps.build_provenance.outputs.bundle-path }}');
     expect(publisher).toContain('PROVENANCE_ASSET="${RELEASE_TAG}.provenance.sigstore.json"');
     expect(publisher).toContain('PROVENANCE_STATEMENT_ASSET="${RELEASE_TAG}.intoto.jsonl"');
-    expect(publisher).toContain('gh release upload "$RELEASE_TAG" "$PROVENANCE_ASSET"');
-    expect(publisher).toContain('gh release upload "$RELEASE_TAG" "$PROVENANCE_STATEMENT_ASSET"');
+    expect(publisher).toContain('upload_or_verify "$PROVENANCE_ASSET"');
+    expect(publisher).toContain('upload_or_verify "$PROVENANCE_STATEMENT_ASSET"');
     expect(publisher).not.toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish');
     expect(publisher).toContain('NODE_AUTH_TOKEN="$NPM_TOKEN" npm dist-tag add');
     expect(publisher).toContain('name: Verify published release');
@@ -211,8 +218,8 @@ describe('release channel policy', () => {
     expect(publisher).not.toContain('token: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
     expect(publisher).toContain('GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
     expect(publisher).not.toContain('token: ${{ secrets.GITHUB_TOKEN }}');
-    expect(manager.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(1);
-    expect(publisher.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(2);
+    expect(manager.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(2);
+    expect(publisher.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(3);
     expect(publisher).not.toContain('contents: write');
     expect(publisher).toContain('contents: read');
     expect(publisher).toContain('id-token: write');

@@ -145,7 +145,7 @@ test "$(wc -l < easyeda-mcp-pro-vX.Y.Z.intoto.jsonl)" -eq 1
 
 ## Signed tag policy
 
-Stable release tags are created by Release Please. Numbered prerelease tags are annotated tags created by the release manager for the exact reviewed candidate commit. GPG-signed tags are not the primary signing mechanism; npm provenance and GitHub artifact attestations are. If the project later adds GPG-signed tags, document the public key and verification process in this file.
+Stable release PRs are prepared by Release Please; the separate Publish Release workflow creates stable tags and GitHub Releases only after publication gates pass. Numbered prerelease tags are annotated tags created by the release manager for the exact reviewed candidate commit. GPG-signed tags are not the primary signing mechanism; npm provenance and GitHub artifact attestations are. If the project later adds GPG-signed tags, document the public key and verification process in this file.
 
 ## Related files
 

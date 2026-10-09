@@ -135,6 +135,8 @@ jobs:
           cp scripts/check-release-extension-identity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/release-readiness.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/install-mcp-publisher.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/reconcile-release-please.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/reconcile-release-please-lib.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/mcp-publisher-integrity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp config/mcp-publisher-integrity.json "$RELEASE_VERIFIER_ROOT/config/"
           cp src/release/published-release-verifier.ts "$RELEASE_VERIFIER_ROOT/src/release/"
@@ -328,10 +330,28 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         run: |
-          gh release upload "$RELEASE_TAG" easyeda-bridge-extension.eext --clobber
-          gh release upload "$RELEASE_TAG" sbom.json --clobber
-          gh release upload "$RELEASE_TAG" "$PROVENANCE_ASSET" --clobber
-          gh release upload "$RELEASE_TAG" "$PROVENANCE_STATEMENT_ASSET" --clobber
+          set -euo pipefail
+          upload_or_verify() {
+            local asset="$1"
+            local remote_dir
+            remote_dir="$(mktemp -d)"
+            if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fxq -- "$asset"; then
+              gh release download "$RELEASE_TAG" --pattern "$asset" --dir "$remote_dir"
+              if ! cmp -s -- "$asset" "$remote_dir/$asset"; then
+                echo "Existing immutable asset $asset differs; refusing overwrite." >&2
+                rm -rf "$remote_dir"
+                return 1
+              fi
+              echo "Existing immutable asset $asset matches expected bytes."
+            else
+              gh release upload "$RELEASE_TAG" "$asset"
+            fi
+            rm -rf "$remote_dir"
+          }
+          upload_or_verify easyeda-bridge-extension.eext
+          upload_or_verify sbom.json
+          upload_or_verify "$PROVENANCE_ASSET"
+          upload_or_verify "$PROVENANCE_STATEMENT_ASSET"
 
       - name: Resolve pinned mcp-publisher artifact
         if: env.RELEASE_CHANNEL == 'stable'
@@ -456,6 +476,15 @@ jobs:
             cat reports/published-release-summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$VERIFICATION_STATUS"
+
+      - name: Reconcile stable Release Please PR lifecycle
+        if: env.RELEASE_CHANNEL == 'stable'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin
+          node "$RELEASE_VERIFIER_ROOT/scripts/reconcile-release-please.mjs"
 
       - name: Upload published release verification
         if: ${{ always() }}

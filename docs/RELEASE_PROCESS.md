@@ -37,6 +37,8 @@ graph TD
     I --> J[Verify registries, docs, and evidence]
 ```
 
+After successful publication, the Publish Release workflow reconciles the stable Release Please PR lifecycle after final registry and artifact verification. The manager will then prepare the next release PR on the next releasable main push. It verifies the merged release PR SHA against its Git tag, the non-draft GitHub Release, npm version, and required assets before changing `autorelease: pending` to `autorelease: tagged`. The initial release-PR merge push defers this manager until the publisher has finished. Skipped or failed publisher jobs never mark a PR tagged; a stale published identity fails visibly on other main pushes.
+
 The Release Please PR updates `package.json`, `.release-please-manifest.json`, `server.json`, `easyeda-bridge-extension/extension.json`, release-managed TypeScript version constants, plugin metadata, and `CHANGELOG.md`. Do not manually create the normal stable tag. The automated gates finish **before the immutable tag and GitHub Release are created**.
 
 When the final `rc.N` already contains all user-facing changes, Release Please can legitimately report `No user facing commits found` and skip opening the stable PR. In that case, create a reviewed promotion-only PR whose squash-merge commit body contains `Release-As: X.Y.Z` for the intended stable version. The promotion PR must not change runtime code, runtime dependencies, generated executable artifacts, or compatibility-sensitive behavior; it only seeds the stable Release Please PR after the final candidate has otherwise satisfied release policy. Never use `Release-As` to waive a failed release gate.

@@ -15,6 +15,8 @@ No release is approved only because a version tag exists. The evidence and chann
 | Stable     | `X.Y.Z`                   | `easyeda-mcp-pro-vX.Y.Z`      | non-prerelease | npm dist-tag `latest` | exact version, `X.Y`, and `latest`  | publish        |
 | Prerelease | `X.Y.Z-rc.N`, where N ≥ 1 | `easyeda-mcp-pro-vX.Y.Z-rc.N` | prerelease     | npm dist-tag `next`   | exact version and moving tag `next` | do not publish |
 
+The release-PR lifecycle advances from `autorelease: pending` to `autorelease: tagged` only after the separate publication succeeds and the exact release identity is verified. Unreconciled merged release PRs must fail visibly rather than stop future releases silently. Existing release assets must be byte-identical before reuse; overwriting immutable version assets is forbidden.
+
 Release Please is stable-only. `release-please-config.json` keeps `prerelease: false`; merging its release PR creates the reviewed stable release commit, while the separate **Publish Release** workflow creates the immutable tag and GitHub Release only after publication gates pass. Prereleases use the manual workflow path and must never move npm `latest`, GHCR `latest`, or the stable MCP Registry entry.
 
 Other prerelease identifiers such as `alpha`, `beta`, or an unnumbered `rc` are not supported. Increment `N` whenever candidate code, dependencies, generated artifacts, or release metadata changes.
