@@ -208,9 +208,15 @@ describe('dependency audit policy', () => {
     expect(packageJson.dependencies?.undici).toBe('8.10.2');
     expect(workspacePolicy).toContain("'undici@6.27.0': 6.28.1");
     expect(lockfile).toContain('undici@8.10.2:');
-    // Only resolved versions are required; an optional transitive 6.x edge may disappear.
-    for (const match of lockfile.matchAll(/^ {2}undici@(\d+)\.(\d+)\.(\d+):[ \t]*$/gm)) {
-      const [, major, minor, patch] = match.map(Number);
+    // Parse resolved lockfile entries, not inline overrides; the optional 6.x edge may disappear.
+    const resolvedUndici = [
+      ...lockfile.matchAll(
+        /^ {2}['"]?\/?undici@(\d+)\.(\d+)\.(\d+)(?:\([^\r\n]*\))?['"]?:[ \t]*(?:\{\})?[ \t]*$/gm,
+      ),
+    ];
+    expect(resolvedUndici.length).toBeGreaterThan(0);
+    for (const [, majorText, minorText, patchText] of resolvedUndici) {
+      const [major, minor, patch] = [majorText, minorText, patchText].map(Number);
       if (major === 6) expect(minor > 28 || (minor === 28 && patch >= 1)).toBe(true);
       if (major === 7) expect(minor > 29 || (minor === 29 && patch >= 1)).toBe(true);
       if (major === 8) expect(minor > 10 || (minor === 10 && patch >= 2)).toBe(true);
