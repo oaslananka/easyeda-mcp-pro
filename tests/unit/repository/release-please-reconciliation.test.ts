@@ -41,8 +41,8 @@ describe('Release Please published identity reconciliation', () => {
     expect(parsePendingRelease({ ...issue, pull_request: null }, pull)).toBeNull();
   });
 
-  it('rejects malformed identity rather than guessing a tag', () => {
-    expect(() => parsePendingRelease({ ...issue, title: 'some other release' }, pull)).toThrow();
+  it('ignores unrelated merged PRs but rejects malformed release identity', () => {
+    expect(parsePendingRelease({ ...issue, title: 'some other release' }, pull)).toBeNull();
     expect(() => parsePendingRelease(issue, { ...pull, merge_commit_sha: 'main' })).toThrow();
   });
 

@@ -2,7 +2,7 @@ const RELEASE_TITLE = /^chore\(main\): release easyeda-mcp-pro (\d+\.\d+\.\d+)$/
 export function parsePendingRelease(issue, pull) {
   if (!issue?.pull_request || !pull?.merged_at) return null;
   const match = RELEASE_TITLE.exec(issue.title ?? '');
-  if (!match) throw new Error('merged pending release PR has unexpected title');
+  if (!match) return null;
   if (pull.number !== issue.number || !/^[0-9a-f]{40}$/.test(pull.merge_commit_sha ?? '')) {
     throw new Error('merged release PR has mismatched identity');
   }
