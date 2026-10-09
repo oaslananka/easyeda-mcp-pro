@@ -345,3 +345,9 @@ The final publication job runs **Verify published release** after GHCR publicati
 Workflow-artifact retention is intentionally bounded: SBOM workflow artifact: `14 days`; published-release verification artifact: `30 days`. For investigation beyond those windows, use the immutable GitHub Release SBOM/provenance assets and the public release evidence instead of extending Actions storage indefinitely.
 
 For first publication, new npm versions use Trusted Publishing without `NPM_TOKEN`; `NPM_TOKEN` is restricted to existing-version dist-tag recovery.
+
+### Untagged merged Release Please PR
+
+Check whether the merged release PR is still marked as pending even though its immutable tag and published artifacts exist. The release manager reconciles the lifecycle only after proving the exact merged commit, stable GitHub Release, published npm version and required assets. Successful publication triggers the manager via a workflow-run completion; skipped or failed publication never clears pending state.
+
+If reconciliation fails, inspect identity and publication evidence instead of manually relabeling or repeating a publication mutation. The read-only Verify Published Release workflow is the recovery path when publication mutations all succeeded but final registry verification failed.

@@ -4,13 +4,17 @@ name: Release Please PR
 on:
   push:
     branches: [main]
+  workflow_run:
+    workflows: [Publish Release]
+    types: [completed]
 
 concurrency:
-  group: release-please-pr-${{ github.ref }}
+  group: release-please-pr-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  actions: read # Observe exact upstream publication job result.
 
 jobs:
   release-please:
@@ -23,9 +27,50 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Determine release manager execution
+        id: manager_gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISH_RUN_ID: ${{ github.event.workflow_run.id }}
+          PUBLISH_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          PUBLISH_EVENT: ${{ github.event.workflow_run.event }}
+          PUBLISH_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          PUBLISH_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ENABLED=true
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            ENABLED=false
+            if [[ "$PUBLISH_CONCLUSION" == "success" &&
+                  "$PUBLISH_BRANCH" == "main" &&
+                  "$PUBLISH_REPO" == "$GITHUB_REPOSITORY" &&
+                  ( "$PUBLISH_EVENT" == "push" || "$PUBLISH_EVENT" == "workflow_dispatch" ) ]]; then
+              PUBLISH_JOBS="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID/jobs?per_page=100")"
+              if jq -e '.jobs | any(.name == "Gate and publish immutable release" and .conclusion == "success")' <<<"$PUBLISH_JOBS" >/dev/null; then
+                ENABLED=true
+              fi
+            fi
+          elif [[ "$EVENT_NAME" == "push" ]] &&
+               [[ "$(git log -1 --format=%s)" =~ ^chore\(main\):\ release\ easyeda-mcp-pro\ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            # Wait for the separate publisher's successful workflow_run callback.
+            ENABLED=false
+          fi
+          echo "enabled=$ENABLED" >> "$GITHUB_OUTPUT"
+          echo "Release Please manager enabled: $ENABLED"
+
       - name: Resolve stable Release Please eligibility
+        if: ${{ steps.manager_gate.outputs.enabled == 'true' }}
         id: release_eligibility
         run: node scripts/release-please-eligibility.mjs
+
+      - name: Reconcile verified published release PR labels
+        if: ${{ steps.release_eligibility.outputs.run_release_please == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          git fetch --tags --force origin
+          node scripts/reconcile-release-please.mjs
 
       - name: Run Release Please PR manager
         if: ${{ steps.release_eligibility.outputs.run_release_please == 'true' }}
