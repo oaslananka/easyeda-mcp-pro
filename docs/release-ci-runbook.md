@@ -348,6 +348,6 @@ For first publication, new npm versions use Trusted Publishing without `NPM_TOKE
 
 ### Untagged merged Release Please PR
 
-Check whether the merged release PR is still marked as pending even though its immutable tag and published artifacts exist. The release manager reconciles the lifecycle only after proving the exact merged commit, stable GitHub Release, published npm version and required assets. Successful publication triggers the manager via a workflow-run completion; skipped or failed publication never clears pending state.
+Check whether the merged release PR is still marked as pending even though its immutable tag and published artifacts exist. The release manager reconciles the lifecycle only after proving the exact merged commit, stable GitHub Release, published npm version and required assets. The successful stable publisher reconciles pending release labels after final published-release verification; skipped or failed publication never clears pending state. The manager also retries reconciliation on the next ordinary main push.
 
 If reconciliation fails, inspect identity and publication evidence instead of manually relabeling or repeating a publication mutation. The read-only Verify Published Release workflow is the recovery path when publication mutations all succeeded but final registry verification failed.

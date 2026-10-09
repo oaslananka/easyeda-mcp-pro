@@ -38,10 +38,11 @@ describe('release channel policy', () => {
 
     expect(config.packages?.['.']?.prerelease).toBe(false);
     expect(manager).toContain('skip-github-release: true');
-    expect(manager).toContain('workflows: [Publish Release]');
     expect(manager).toContain('Reconcile verified published release PR labels');
     expect(manager).toContain('reconcile-release-please.mjs');
     expect(manager).toContain('manager_gate.outputs.enabled');
+    expect(manager).not.toContain('workflow_run:');
+    expect(publisher).toContain('Reconcile stable Release Please PR lifecycle');
     expect(publisher).toContain('upload_or_verify');
     expect(publisher).not.toContain('--clobber');
     expect(manager).toContain('Resolve stable Release Please eligibility');
@@ -218,7 +219,7 @@ describe('release channel policy', () => {
     expect(publisher).toContain('GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}');
     expect(publisher).not.toContain('token: ${{ secrets.GITHUB_TOKEN }}');
     expect(manager.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(2);
-    expect(publisher.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(2);
+    expect(publisher.match(/RELEASE_PLEASE_TOKEN/g)).toHaveLength(3);
     expect(publisher).not.toContain('contents: write');
     expect(publisher).toContain('contents: read');
     expect(publisher).toContain('id-token: write');

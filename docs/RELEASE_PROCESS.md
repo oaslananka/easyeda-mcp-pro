@@ -37,7 +37,7 @@ graph TD
     I --> J[Verify registries, docs, and evidence]
 ```
 
-After successful publication, the `workflow_run` callback for **Publish Release** reactivates the stable Release Please manager. It verifies the merged release PR SHA against its Git tag, the non-draft GitHub Release, npm version, and required assets before changing `autorelease: pending` to `autorelease: tagged`. The initial release-PR merge push defers this manager until the publisher has finished. Skipped or failed publisher jobs never mark a PR tagged; a stale published identity fails visibly on other main pushes.
+After successful publication, the Publish Release workflow reconciles the stable Release Please PR lifecycle after final registry and artifact verification. The manager will then prepare the next release PR on the next releasable main push. It verifies the merged release PR SHA against its Git tag, the non-draft GitHub Release, npm version, and required assets before changing `autorelease: pending` to `autorelease: tagged`. The initial release-PR merge push defers this manager until the publisher has finished. Skipped or failed publisher jobs never mark a PR tagged; a stale published identity fails visibly on other main pushes.
 
 The Release Please PR updates `package.json`, `.release-please-manifest.json`, `server.json`, `easyeda-bridge-extension/extension.json`, release-managed TypeScript version constants, plugin metadata, and `CHANGELOG.md`. Do not manually create the normal stable tag. The automated gates finish **before the immutable tag and GitHub Release are created**.
 

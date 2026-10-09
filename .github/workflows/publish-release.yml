@@ -135,6 +135,8 @@ jobs:
           cp scripts/check-release-extension-identity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/release-readiness.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/install-mcp-publisher.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/reconcile-release-please.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/reconcile-release-please-lib.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/mcp-publisher-integrity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp config/mcp-publisher-integrity.json "$RELEASE_VERIFIER_ROOT/config/"
           cp src/release/published-release-verifier.ts "$RELEASE_VERIFIER_ROOT/src/release/"
@@ -474,6 +476,15 @@ jobs:
             cat reports/published-release-summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$VERIFICATION_STATUS"
+
+      - name: Reconcile stable Release Please PR lifecycle
+        if: env.RELEASE_CHANNEL == 'stable'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin
+          node "$RELEASE_VERIFIER_ROOT/scripts/reconcile-release-please.mjs"
 
       - name: Upload published release verification
         if: ${{ always() }}
