@@ -149,7 +149,7 @@ describe('repository security tooling policy', () => {
     expect(workflow).toContain('container-security:');
     expect(workflow).toContain(`aquasecurity/trivy-action@${TRIVY_ACTION_SHA}`);
     expect(workflow).toContain("scan-type: 'config'");
-    expect(workflow).toContain("version: 'v0.74.0'");
+    expect(workflow).toContain("version: 'v0.76.0'");
     expect(workflow).toContain('docker build -t easyeda-mcp-pro:security .');
     expect(workflow).toContain("image-ref: 'easyeda-mcp-pro:security'");
     expect(workflow.match(/exit-code: '1'/g)).toHaveLength(2);
@@ -373,7 +373,7 @@ describe('repository security tooling policy', () => {
     expect(e2eWaiter).not.toContain("console.log('%s: %s', method, r.slice(0, 300));");
 
     expect(releaseWorkflow).toContain(
-      'uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610',
+      'uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c',
     );
     expect(releaseWorkflow).toContain('format: cyclonedx-json');
     expect(releaseWorkflow).toContain('output-file: sbom.json');
