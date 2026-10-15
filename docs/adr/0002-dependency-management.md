@@ -86,3 +86,15 @@ GitHub's strict up-to-date requirement remains enabled. Mergify's conservative m
 queue is unchanged until a single verified merge authority, merge protections, and
 ruleset compatibility have been demonstrated in a live PR. Do not remove required
 checks merely to save CI minutes.
+
+## Addendum: bounded rebase pressure (2026-10)
+
+Review-gated runtime dependencies, overrides, major updates, GitHub Actions, pre-commit
+hooks, and runtime toolchain pins use `rebaseWhen: conflicted`. This prevents
+non-automerge PRs from all rebasing just because an unrelated dependency update merged.
+For these review-gated PRs, select one PR at a time and request an explicit refresh
+against current `main` **before** its final protected CI and squash merge.
+Development patch/minor PRs approved for automerge and lockfile maintenance keep
+Renovate's default behind-base validation to avoid automatically merging untested
+combined versions. GitHub's strict required-checks ruleset remains unchanged;
+never merge a behind-base PR by bypassing the ruleset.

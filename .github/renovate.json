@@ -23,12 +23,20 @@
       "automerge": true
     },
     {
-      "matchDepTypes": ["dependencies"],
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["overrides"],
+      "rebaseWhen": "conflicted",
       "automerge": false
     },
     {
+      "matchDepTypes": ["dependencies"],
+      "automerge": false,
+      "rebaseWhen": "conflicted"
+    },
+    {
       "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
+      "dependencyDashboardApproval": true,
+      "rebaseWhen": "conflicted"
     },
     {
       "matchPackageNames": ["eslint", "@eslint/js", "/^typescript-eslint/"],
@@ -51,21 +59,24 @@
     {
       "matchPackageNames": ["node", "pnpm"],
       "dependencyDashboardApproval": true,
-      "automerge": false
+      "automerge": false,
+      "rebaseWhen": "conflicted"
     },
     {
       "matchManagers": ["github-actions"],
       "groupName": "github-actions dependencies",
       "commitMessageTopic": "github-actions",
       "commitMessagePrefix": "ci(deps):",
-      "automerge": false
+      "automerge": false,
+      "rebaseWhen": "conflicted"
     },
     {
       "matchManagers": ["pre-commit"],
       "groupName": "pre-commit hook dependencies",
       "commitMessageTopic": "pre-commit-hooks",
       "commitMessagePrefix": "chore(deps):",
-      "automerge": false
+      "automerge": false,
+      "rebaseWhen": "conflicted"
     }
   ]
 }
