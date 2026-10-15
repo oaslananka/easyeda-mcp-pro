@@ -154,9 +154,9 @@
     "globals": "^17.7.0",
     "prettier": "^3.9.4",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.0",
     "typescript-eslint": "^8.62.1",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   }
 }
