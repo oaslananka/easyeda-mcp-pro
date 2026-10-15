@@ -34,11 +34,6 @@
       "rebaseWhen": "conflicted"
     },
     {
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true,
-      "rebaseWhen": "conflicted"
-    },
-    {
       "matchPackageNames": ["eslint", "@eslint/js", "/^typescript-eslint/"],
       "groupName": "eslint toolchain",
       "commitMessageTopic": "eslint-toolchain"
@@ -57,12 +52,6 @@
       "automerge": true
     },
     {
-      "matchPackageNames": ["node", "pnpm"],
-      "dependencyDashboardApproval": true,
-      "automerge": false,
-      "rebaseWhen": "conflicted"
-    },
-    {
       "matchManagers": ["github-actions"],
       "groupName": "github-actions dependencies",
       "commitMessageTopic": "github-actions",
@@ -77,6 +66,20 @@
       "commitMessagePrefix": "chore(deps):",
       "automerge": false,
       "rebaseWhen": "conflicted"
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "rebaseWhen": "never",
+      "recreateWhen": "never",
+      "automerge": false
+    },
+    {
+      "matchPackageNames": ["node", "pnpm"],
+      "dependencyDashboardApproval": true,
+      "automerge": false,
+      "rebaseWhen": "never",
+      "recreateWhen": "never"
     }
   ]
 }
