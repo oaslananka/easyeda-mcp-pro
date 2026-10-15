@@ -9,7 +9,7 @@ overrides:
   hono: 4.13.7
   '@hono/node-server': 2.0.10
   body-parser: 2.3.0
-  vite: 7.3.5
+  vite: 7.3.7
   '@vitejs/plugin-vue': 6.0.10
   esbuild: 0.28.2
   postcss: 8.5.23
@@ -99,7 +99,7 @@ importers:
         version: 1.6.4(@algolia/client-search@5.55.1)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.23)(search-insights@2.17.3)(tsx@4.22.4)(typescript@6.0.3)
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@24.13.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
+        version: 4.1.11(@types/node@24.13.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
 
   easyeda-bridge-extension:
     devDependencies:
@@ -114,7 +114,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@24.13.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
+        version: 4.1.11(@types/node@24.13.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
 
 packages:
 
@@ -816,7 +816,7 @@ packages:
     resolution: {integrity: sha512-b80aUQh3n+qEzzZm5oQp3rT2QImeCx58K6eFl/RkJ3d65KW0kTuv5lNsLRVAjbW9YRUpo/wzmvzMgV34bTAItA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
-      vite: 7.3.5
+      vite: 7.3.7
       vue: 3.5.43
 
   '@vitest/coverage-v8@4.1.11':
@@ -835,7 +835,7 @@ packages:
     resolution: {integrity: sha512-2XJVD55d1o5AZous5CCGKS74g/riOj9odEt2bQpCVZeblHyHdnMeFl4jl0XjU21stf4mbjUkew2eXQZt65g5CQ==}
     peerDependencies:
       msw: ^2.4.9
-      vite: 7.3.5
+      vite: 7.3.7
     peerDependenciesMeta:
       msw:
         optional: true
@@ -2052,8 +2052,8 @@ packages:
   vfile@6.0.3:
     resolution: {integrity: sha512-KzIbH/9tXat2u30jf+smMwFCsno4wHVdNmzFyL+T/L3UGqqk6JKfVqOFOZEpZSHADH1k40ab6NUIXZq422ov3Q==}
 
-  vite@7.3.5:
-    resolution: {integrity: sha512-KuOaNhcnGFN2zIPGA7wRmzF+lJA1sea7rHq17aiJ++9lzY1WWG6Jpwqwe1KNbRVPIqHmr8GLYx7jbrQcN/7/ww==}
+  vite@7.3.7:
+    resolution: {integrity: sha512-AHEzTORMbi7/7aXp7w7KZ5+DCUdSeLsJz0grY8xHpc9DHdYb0vQu6DqJfm2tOw3gDExNgPgnJTXxM6syYFHaCA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -2120,7 +2120,7 @@ packages:
       '@vitest/ui': 4.1.11
       happy-dom: '*'
       jsdom: '*'
-      vite: 7.3.5
+      vite: 7.3.7
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -2828,10 +2828,10 @@ snapshots:
 
   '@ungap/structured-clone@1.3.2': {}
 
-  '@vitejs/plugin-vue@6.0.10(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))(vue@3.5.43(typescript@6.0.3))':
+  '@vitejs/plugin-vue@6.0.10(vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))(vue@3.5.43(typescript@6.0.3))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
+      vite: 7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
       vue: 3.5.43(typescript@6.0.3)
 
   '@vitest/coverage-v8@4.1.11(vitest@4.1.11)':
@@ -2846,7 +2846,7 @@ snapshots:
       obug: 2.1.3
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.11(@types/node@24.13.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
+      vitest: 4.1.11(@types/node@24.13.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
 
   '@vitest/expect@4.1.11':
     dependencies:
@@ -2857,13 +2857,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.11(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))':
+  '@vitest/mocker@4.1.11(vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
+      vite: 7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -4165,7 +4165,7 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
-  vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4):
+  vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4):
     dependencies:
       esbuild: 0.28.2
       fdir: 6.5.0(picomatch@4.0.4)
@@ -4188,7 +4188,7 @@ snapshots:
       '@shikijs/transformers': 2.5.0
       '@shikijs/types': 2.5.0
       '@types/markdown-it': 14.1.2
-      '@vitejs/plugin-vue': 6.0.10(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))(vue@3.5.43(typescript@6.0.3))
+      '@vitejs/plugin-vue': 6.0.10(vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))(vue@3.5.43(typescript@6.0.3))
       '@vue/devtools-api': 7.7.10
       '@vue/shared': 3.5.39
       '@vueuse/core': 12.8.2(typescript@6.0.3)
@@ -4197,7 +4197,7 @@ snapshots:
       mark.js: 8.11.1
       minisearch: 7.2.0
       shiki: 2.5.0
-      vite: 7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
+      vite: 7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
       vue: 3.5.43(typescript@6.0.3)
     optionalDependencies:
       postcss: 8.5.23
@@ -4231,10 +4231,10 @@ snapshots:
       - universal-cookie
       - yaml
 
-  vitest@4.1.11(@types/node@24.13.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)):
+  vitest@4.1.11(@types/node@24.13.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
+      '@vitest/mocker': 4.1.11(vite@7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -4251,7 +4251,7 @@ snapshots:
       tinyexec: 1.2.4
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.0
-      vite: 7.3.5(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
+      vite: 7.3.7(@types/node@24.13.2)(lightningcss@1.32.0)(tsx@4.22.4)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.13.2
