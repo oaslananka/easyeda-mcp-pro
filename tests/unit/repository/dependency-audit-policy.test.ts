@@ -153,9 +153,9 @@ function expectPatchedOverride(
   requireResolved = true,
 ) {
   const prefixes = [packageName + ': ', "'" + packageName + "': ", '"' + packageName + '": '];
-  const line = workspacePolicy.split(/\r?\n/).find((entry) =>
-    prefixes.some((prefix) => entry.trimStart().startsWith(prefix)),
-  );
+  const line = workspacePolicy
+    .split(/\r?\n/)
+    .find((entry) => prefixes.some((prefix) => entry.trimStart().startsWith(prefix)));
   const pinnedVersion = line?.split(': ').at(-1)?.trim();
   expect(pinnedVersion).toMatch(/^\d+\.\d+\.\d+$/);
   if (!pinnedVersion) return;
@@ -226,9 +226,7 @@ describe('dependency audit policy', () => {
     expect(directUndici).toMatch(/^\d+\.\d+\.\d+$/);
     if (!directUndici) return;
     const [major, minor, patch] = directUndici.split('.').map(Number);
-    expect(major > 8 || (major === 8 && (minor > 10 || (minor === 10 && patch >= 2)))).toBe(
-      true,
-    );
+    expect(major > 8 || (major === 8 && (minor > 10 || (minor === 10 && patch >= 2)))).toBe(true);
     // This optional 6.x edge may not be present in the lockfile.
     expectPatchedOverride(workspacePolicy, lockfile, 'undici@6.27.0', '6.28.1', false);
     expect(lockfile).toContain('undici@' + directUndici + ':');
