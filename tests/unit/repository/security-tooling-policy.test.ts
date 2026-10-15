@@ -198,6 +198,23 @@ describe('repository security tooling policy', () => {
     expect(dependencyAuditAllowlist.exceptions).toEqual([]);
   });
 
+  it('limits concurrent cross-platform runners without removing supported OS coverage', () => {
+    const ciWorkflow = readText('.github/workflows/ci.yml');
+    expect(ciWorkflow).toMatch(/test-matrix:\\n    strategy:\\n      fail-fast: false\\n      max-parallel: 1/);
+    expect(ciWorkflow).toContain('os: ubuntu-24.04');
+    expect(ciWorkflow).toContain('os: windows-2025');
+    expect(ciWorkflow).toContain('os: macos-26');
+  });
+
+  it('avoids running duplicate dependency audits on every manifest-only PR', () => {
+    const auditMonitor = readText('.github/workflows/dependency-advisory-monitor.yml');
+    const prTriggers = auditMonitor.split('  pull_request:')[1]?.split('\\npermissions:')[0] ?? '';
+    expect(prTriggers).not.toContain("'pnpm-lock.yaml'");
+    expect(prTriggers).not.toContain("'package.json'");
+    const ciWorkflow = readText('.github/workflows/ci.yml');
+    expect(ciWorkflow).toContain('run: pnpm security:audit');
+  });
+
   it('cancels superseded PR CI runs without cancelling main or tag validation', () => {
     const ciWorkflow = readText('.github/workflows/ci.yml');
 

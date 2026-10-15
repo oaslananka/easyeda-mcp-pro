@@ -347,6 +347,7 @@ jobs:
   test-matrix:
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - os: ubuntu-24.04

@@ -62,3 +62,27 @@ repository used only the package-root `getRequestListener` path through
 `@modelcontextprotocol/sdk@1.29.0`. Issue #382 removed that exception after pinning the transitive
 adapter to patched `@hono/node-server@2.0.10` and proving MCP HTTP and Remote Relay compatibility.
 There are currently no active dependency-audit exceptions.
+
+## Addendum: CI throughput and atomic runtime updates (2026-10)
+
+Renovate PR creation is bounded to three concurrent update PRs and one new PR per hour.
+These limits regulate **new** PR creation; they do not automatically close older PRs.
+Related, low-risk npm development utilities are grouped, while release/production,
+Actions, and major changes continue to require review. Pre-1.0 development packages
+do not auto-merge solely on a minor/patch version label.
+
+Node.js and pnpm patch updates require Dependency Dashboard approval because the
+repository pins these versions across runtime policy, Docker digests, documentation,
+workflows, and package metadata. Do not approve an isolated runtime update PR without
+preparing all required atomic changes described in CONTRIBUTING.md.
+
+The scheduled advisory monitor no longer re-runs on dependency-only manifest changes:
+the PR's required quality pipeline already runs the blocking audit, and dependency
+review remains a required check. The full Linux/Windows/macOS matrix remains required,
+but its OS jobs run sequentially to reduce peak shared GitHub Actions runner pressure.
+Superseded PR CI is cancelled; main and tag validation are deliberately not cancelled.
+
+GitHub's strict up-to-date requirement remains enabled. Mergify's conservative manual
+queue is unchanged until a single verified merge authority, merge protections, and
+ruleset compatibility have been demonstrated in a live PR. Do not remove required
+checks merely to save CI minutes.

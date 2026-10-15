@@ -11,9 +11,6 @@ on:
       - 'scripts/check-dependency-audit.mjs'
       - 'tests/unit/repository/dependency-audit-policy.test.ts'
       - 'tests/unit/repository/security-tooling-policy.test.ts'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
 
 permissions:
   contents: read

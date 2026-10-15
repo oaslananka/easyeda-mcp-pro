@@ -1,53 +1,111 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": [
+    "config:recommended"
+  ],
   "dependencyDashboard": true,
   "timezone": "Europe/Istanbul",
   "semanticCommits": "enabled",
-  "schedule": ["before 6am on monday"],
-  "prConcurrentLimit": 5,
-  "prHourlyLimit": 2,
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 1,
   "osvVulnerabilityAlerts": true,
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "commitMessagePrefix": "chore(deps):",
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
-    "schedule": ["before 5am on monday"]
+    "schedule": [
+      "before 5am on monday"
+    ]
   },
   "packageRules": [
     {
-      "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "automerge": true
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true,
+      "matchCurrentVersion": "!/^0/"
     },
     {
-      "matchDepTypes": ["dependencies"],
+      "matchDepTypes": [
+        "dependencies"
+      ],
       "automerge": false
     },
     {
-      "matchUpdateTypes": ["major"],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "dependencyDashboardApproval": true
     },
     {
-      "matchPackageNames": ["eslint", "@eslint/js", "/^typescript-eslint/"],
+      "matchPackageNames": [
+        "eslint",
+        "@eslint/js",
+        "/^typescript-eslint/"
+      ],
       "groupName": "eslint toolchain",
       "commitMessageTopic": "eslint-toolchain"
     },
     {
-      "matchPackageNames": ["typescript", "tsx", "vitest", "vitepress"],
+      "matchPackageNames": [
+        "typescript",
+        "tsx",
+        "vitest",
+        "vitepress"
+      ],
       "groupName": "toolchain dependencies",
       "commitMessageTopic": "toolchain"
     },
     {
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchPackageNames": [
+        "fast-check",
+        "prettier",
+        "globals"
+      ],
+      "groupName": "development utility dependencies",
+      "automerge": true
+    },
+    {
+      "matchPackageNames": [
+        "node",
+        "pnpm"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "github-actions dependencies",
       "commitMessageTopic": "github-actions",
       "commitMessagePrefix": "ci(deps):",
       "automerge": false
     },
     {
-      "matchManagers": ["pre-commit"],
+      "matchManagers": [
+        "pre-commit"
+      ],
       "groupName": "pre-commit hook dependencies",
       "commitMessageTopic": "pre-commit-hooks",
       "commitMessagePrefix": "chore(deps):",

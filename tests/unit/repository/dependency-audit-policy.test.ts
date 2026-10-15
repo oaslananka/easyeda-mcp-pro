@@ -144,6 +144,177 @@ afterEach(() => {
   }
 });
 
+// The locked override must stay on a patched release, but safe newer patches should
+// not require manual test updates or fail automated dependency PRs.
+function expectPatchedOverride(
+  workspacePolicy: string,
+  lockfile: string,
+  packageName: string,
+  minimumVersion: string,
+) {
+  const escapedName = packageName.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\describe('dependency audit policy', () => {');
+  const pinnedVersion = workspacePolicy.match(
+    new RegExp(`^  ['"]?${escapedName}['"]?: (\\d+\\.\\d+\\.\\d+)\\s*import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, dirname, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { afterEach, describe, expect, it } from 'vitest';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, '../../..');
+const scriptPath = resolve(repoRoot, 'scripts/check-dependency-audit.mjs');
+const temporaryDirectories: string[] = [];
+
+interface AdvisoryOptions {
+  advisory?: string;
+  packageName?: string;
+  version?: string;
+  severity?: string;
+}
+
+const makeAudit = ({
+  advisory = 'GHSA-frvp-7c67-39w9',
+  packageName = '@hono/node-server',
+  version = '1.19.14',
+  severity = 'moderate',
+}: AdvisoryOptions = {}) => ({
+  advisories: {
+    '1124006': {
+      findings: [
+        {
+          version,
+          paths: ['.>@modelcontextprotocol/sdk>@hono/node-server'],
+          dev: false,
+          optional: false,
+          bundled: false,
+        },
+      ],
+      id: 1124006,
+      title: 'Test advisory',
+      module_name: packageName,
+      vulnerable_versions: '<2.0.5',
+      patched_versions: '>=2.0.5',
+      severity,
+      github_advisory_id: advisory,
+      url: `https://github.com/advisories/${advisory}`,
+    },
+  },
+  metadata: {
+    vulnerabilities: {
+      info: 0,
+      low: 0,
+      moderate: severity === 'moderate' ? 1 : 0,
+      high: severity === 'high' ? 1 : 0,
+      critical: severity === 'critical' ? 1 : 0,
+    },
+    dependencies: 1,
+    devDependencies: 0,
+    optionalDependencies: 0,
+    totalDependencies: 1,
+  },
+});
+
+const makeAllowlist = (overrides: Record<string, unknown> = {}) => ({
+  schemaVersion: 1,
+  exceptions: [
+    {
+      advisory: 'GHSA-frvp-7c67-39w9',
+      package: '@hono/node-server',
+      versions: ['1.19.14'],
+      severity: 'moderate',
+      owner: '@oaslananka',
+      reason: 'The affected serve-static subpath is not imported by this package.',
+      reachability:
+        'The MCP SDK imports getRequestListener from the package root; serve-static is a separate export.',
+      trackingIssue: 334,
+      reviewBy: '2026-08-10',
+      expiresOn: '2026-08-15',
+      ...overrides,
+    },
+  ],
+});
+
+const createPolicyFixture = (audit: unknown, allowlist: unknown) => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'dependency-audit-policy-'));
+  temporaryDirectories.push(directory);
+  const auditPath = resolve(directory, 'audit.json');
+  const allowlistPath = resolve(directory, 'allowlist.json');
+  writeFileSync(auditPath, `${JSON.stringify(audit, null, 2)}\n`);
+  writeFileSync(allowlistPath, `${JSON.stringify(allowlist, null, 2)}\n`);
+  return { directory, auditPath, allowlistPath };
+};
+
+const runPolicy = (audit: unknown, allowlist: unknown) => {
+  const { auditPath, allowlistPath } = createPolicyFixture(audit, allowlist);
+
+  return spawnSync(
+    process.execPath,
+    [scriptPath, '--audit-json', auditPath, '--allowlist', allowlistPath],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DEPENDENCY_AUDIT_TODAY: '2026-07-22',
+      },
+    },
+  );
+};
+
+const runPolicyWithReports = (audit: unknown, allowlist: unknown) => {
+  const { directory, auditPath, allowlistPath } = createPolicyFixture(audit, allowlist);
+  const reportPath = resolve(directory, 'dependency-audit-report.json');
+  const summaryPath = resolve(directory, 'dependency-audit-summary.md');
+  const result = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      '--audit-json',
+      auditPath,
+      '--allowlist',
+      allowlistPath,
+      '--',
+      '--report-json',
+      reportPath,
+      '--summary-file',
+      summaryPath,
+    ],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DEPENDENCY_AUDIT_TODAY: '2026-07-22',
+        DEPENDENCY_AUDIT_GENERATED_AT: '2026-07-22T18:00:00.000Z',
+      },
+    },
+  );
+
+  return { result, reportPath, summaryPath };
+};
+
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+, 'm'),
+  )?.[1];
+  expect(pinnedVersion).toBeDefined();
+  if (!pinnedVersion) return;
+  const [major, minor, patch] = pinnedVersion.split('.').map(Number);
+  const [minMajor, minMinor, minPatch] = minimumVersion.split('.').map(Number);
+  const cmp = major - minMajor || minor - minMinor || patch - minPatch;
+  expect(cmp).toBeGreaterThanOrEqual(0);
+  // Requiring the lockfile to resolve the selected override avoids a policy-only fix.
+  const escapedVersion = pinnedVersion.replace(/\\./g, '\\\\.');
+  expect(lockfile).toMatch(
+    new RegExp(`^ {2}['"]?/?${escapedName}@${escapedVersion}(?:\\([^\\r\\n]*\\))?['"]?:`, 'm'),
+  );
+}
+
 describe('dependency audit policy', () => {
   it('pins PostCSS to a patched release across the workspace and lockfile', () => {
     const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8').replace(
@@ -152,8 +323,7 @@ describe('dependency audit policy', () => {
     );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).toMatch(/\n {2}postcss: 8\.5\.23\n/);
-    expect(lockfile).toContain('postcss: 8.5.23');
+    expectPatchedOverride(workspacePolicy, lockfile, 'postcss', '8.5.23');
     expect(lockfile).not.toMatch(/postcss@8\.5\.(?:[0-9]|1[0-9]|2[0-2])(?:\D|$)/);
   });
 
@@ -165,9 +335,7 @@ describe('dependency audit policy', () => {
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
     expect(workspacePolicy).not.toContain('  - nanoid@3.3.17\n');
-    expect(workspacePolicy).toMatch(/\n {2}nanoid: 3\.3\.18\n/);
-    expect(lockfile).toContain('nanoid: 3.3.18');
-    expect(lockfile).toContain('nanoid@3.3.18:');
+    expectPatchedOverride(workspacePolicy, lockfile, 'nanoid', '3.3.18');
     expect(lockfile).not.toMatch(/nanoid@3\.3\.(?:1[0-7]|[0-9])(?:\D|$)/);
   });
 
@@ -179,8 +347,7 @@ describe('dependency audit policy', () => {
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
     expect(workspacePolicy).not.toContain('minimumReleaseAge');
-    expect(workspacePolicy).toMatch(/\n {2}brace-expansion: 5\.0\.12\n/);
-    expect(lockfile).toContain('brace-expansion: 5.0.12');
+    expectPatchedOverride(workspacePolicy, lockfile, 'brace-expansion', '5.0.12');
     expect(lockfile).not.toMatch(/brace-expansion@5\.0\.(?:[0-9]|1[01])(?:\D|$)/);
   });
 
@@ -192,9 +359,7 @@ describe('dependency audit policy', () => {
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
     expect(workspacePolicy).not.toContain('minimumReleaseAge');
-    expect(workspacePolicy).toMatch(/\n {2}qs: 6\.16\.0\n/);
-    expect(lockfile).toContain('qs: 6.16.0');
-    expect(lockfile).toContain('qs@6.16.0:');
+    expectPatchedOverride(workspacePolicy, lockfile, 'qs', '6.16.0');
     expect(lockfile).not.toMatch(/qs@6\.15\.3(?:\D|$)/);
   });
 
@@ -205,9 +370,15 @@ describe('dependency audit policy', () => {
     const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(packageJson.dependencies?.undici).toBe('8.10.2');
-    expect(workspacePolicy).toContain("'undici@6.27.0': 6.28.1");
-    expect(lockfile).toContain('undici@8.10.2:');
+    const directUndici = packageJson.dependencies?.undici;
+    expect(directUndici).toMatch(/^\\d+\\.\\d+\\.\\d+$/);
+    if (!directUndici) return;
+    const [major, minor, patch] = directUndici.split('.').map(Number);
+    expect(major > 8 || (major === 8 && (minor > 10 || (minor === 10 && patch >= 2)))).toBe(
+      true,
+    );
+    expectPatchedOverride(workspacePolicy, lockfile, 'undici@6.27.0', '6.28.1');
+    expect(lockfile).toContain(`undici@${directUndici}:`);
     // Parse resolved lockfile entries, not inline overrides; the optional 6.x edge may disappear.
     const resolvedUndici = [
       ...lockfile.matchAll(
