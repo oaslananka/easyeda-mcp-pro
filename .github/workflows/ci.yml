@@ -22,7 +22,7 @@ jobs:
     name: static-quality
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.0
+          version: 12.11.2
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -58,7 +58,7 @@ jobs:
     name: tests-and-coverage
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -66,7 +66,7 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.0
+          version: 12.11.2
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -112,7 +112,7 @@ jobs:
     name: extension-integrity
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -120,7 +120,7 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.0
+          version: 12.11.2
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -159,7 +159,7 @@ jobs:
     name: package-docs-docker
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -167,7 +167,7 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.0
+          version: 12.11.2
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -193,7 +193,7 @@ jobs:
     continue-on-error: true
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -201,7 +201,7 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.0
+          version: 12.11.2
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -363,7 +363,7 @@ jobs:
           persist-credentials: false
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.0
+          version: 12.11.2
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -393,7 +393,7 @@ jobs:
       - test-matrix
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Summarize deterministic quality gates
         env:
@@ -427,7 +427,7 @@ jobs:
             exit 1
           fi
   codeql:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       security-events: write
       actions: read
@@ -437,7 +437,7 @@ jobs:
           persist-credentials: false
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.0
+          version: 12.11.2
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020

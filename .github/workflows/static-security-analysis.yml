@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   semgrep:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       actions: read
@@ -79,7 +79,7 @@ jobs:
         run: exit 1
 
   workflow-security:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -103,7 +103,7 @@ jobs:
         run: pre-commit run zizmor --all-files
 
   container-security:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     permissions:
       actions: read

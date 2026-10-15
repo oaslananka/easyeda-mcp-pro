@@ -22,7 +22,7 @@ concurrency:
 jobs:
   dependency-audit:
     name: dependency-audit
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       # actions/checkout v7.0.1
@@ -35,7 +35,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: '11.28.0'
+          version: '12.11.2'
           install: false
           node-version-file: false
 

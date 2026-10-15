@@ -23,7 +23,7 @@ permissions:
 jobs:
   verify:
     name: Verify immutable published release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       RELEASE_TAG: ${{ inputs.tag_name }}
       RELEASE_CHANNEL: ${{ inputs.release_channel }}
@@ -71,7 +71,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          version: '11.28.0'
+          version: '12.11.2'
           install: false
           node-version-file: false
 

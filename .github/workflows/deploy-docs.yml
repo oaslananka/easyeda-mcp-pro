@@ -25,7 +25,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         # actions/checkout v7.0.1
@@ -37,7 +37,7 @@ jobs:
         # pnpm/setup v3.0.0
         uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: '11.28.0'
+          version: '12.11.2'
           install: false
           node-version-file: false
 

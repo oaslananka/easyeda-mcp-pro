@@ -16,7 +16,7 @@ jobs:
   assign-issue:
     name: Assign incoming issue
     if: github.event_name == 'issues' && github.actor != 'oaslananka'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       issues: write # Required by addAssignees for issue events.
 
@@ -46,7 +46,7 @@ jobs:
       github.actor != 'oaslananka' &&
       github.event.pull_request.user.login != 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       pull-requests: write # Required by addAssignees for pull-request events.
 
