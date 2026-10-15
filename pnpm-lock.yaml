@@ -29,10 +29,10 @@ importers:
     dependencies:
       '@modelcontextprotocol/node':
         specifier: ^2.0.0
-        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.7)
+        version: 2.0.0(@modelcontextprotocol/server@2.3.1)(hono@4.13.7)
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
-        version: 2.0.0
+        version: 2.3.1
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -488,10 +488,6 @@ packages:
     resolution: {integrity: sha512-mIGZXpHsjnZ6lD+gD/WCMpR5k8yVQQ8nNFH1N0Srf7AvnwTUMYD6pvTY8ng2+He5FfV7YMZLmrjL7cLa/cc3dQ==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/core@2.0.0':
-    resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
-    engines: {node: '>=20'}
-
   '@modelcontextprotocol/core@2.3.1':
     resolution: {integrity: sha512-laVmIhPGpWi7rG9q+0UigblRN0Hws/Yjlb6qLFtVqryXVLkc4h+yN8z731POD2LnAGQlFe7/tXhUm7Bi0YB91g==}
     engines: {node: '>=20'}
@@ -506,8 +502,8 @@ packages:
       hono:
         optional: true
 
-  '@modelcontextprotocol/server@2.0.0':
-    resolution: {integrity: sha512-YhHWdHfpFMQfd0prsEnxKeS3Qz3ytIGmsS0sth4KDjnacIT7hxk6hXHkJ9KysxlkvTM+WZAtQbbcUhdoP4Hvtw==}
+  '@modelcontextprotocol/server@2.3.1':
+    resolution: {integrity: sha512-e59MfWuSssj6DoQ96JCTqdW1AXT5/XtnTl0WWd6MU1Ka434fFUGGosCLJbGNySDhHGvxQWoRWK137FXYFkYNWw==}
     engines: {node: '>=20'}
 
   '@pinojs/redact@0.4.0':
@@ -2515,24 +2511,20 @@ snapshots:
       pkce-challenge: 5.0.1
       zod: 4.4.3
 
-  '@modelcontextprotocol/core@2.0.0':
-    dependencies:
-      zod: 4.4.3
-
   '@modelcontextprotocol/core@2.3.1':
     dependencies:
       zod: 4.4.3
 
-  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.7)':
+  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.3.1)(hono@4.13.7)':
     dependencies:
       '@hono/node-server': 2.0.10(hono@4.13.7)
-      '@modelcontextprotocol/server': 2.0.0
+      '@modelcontextprotocol/server': 2.3.1
     optionalDependencies:
       hono: 4.13.7
 
-  '@modelcontextprotocol/server@2.0.0':
+  '@modelcontextprotocol/server@2.3.1':
     dependencies:
-      '@modelcontextprotocol/core': 2.0.0
+      '@modelcontextprotocol/core': 2.3.1
       zod: 4.4.3
 
   '@pinojs/redact@0.4.0': {}
