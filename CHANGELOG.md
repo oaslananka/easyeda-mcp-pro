@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.3.0...easyeda-mcp-pro-v1.4.0) (2026-10-16)
+
+
+### Features
+
+* **skills:** add datasheet, footprint and model review workflow ([#713](https://github.com/oaslananka/easyeda-mcp-pro/issues/713)) ([ffbe93d](https://github.com/oaslananka/easyeda-mcp-pro/commit/ffbe93d2e46ba01a277839fe437afad89855728c))
+
 ## [1.3.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.2.1...easyeda-mcp-pro-v1.3.0) (2026-10-16)
 
 
