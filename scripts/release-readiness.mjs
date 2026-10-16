@@ -220,17 +220,29 @@ function normalizeReleaseManagedExtensionVersion(source) {
   return source.replace(/(extensionVersion:\s*')[^']+(',)/, '$1<release-managed-version>$2');
 }
 
-function isStablePromotionVersionPair({ evidenceVersion, targetVersion }) {
+// A previously live-validated source stays valid across a strictly release-managed
+// stable patch/minor bump when the only sensitive change is this version literal.
+// Major bumps, prerelease churn, and any runtime source changes still fail closed.
+function isReleaseManagedVersionOnlyPair({ evidenceVersion, targetVersion }) {
   if (!/^\d+\.\d+\.\d+$/.test(targetVersion ?? '')) return false;
-  if (!evidenceVersion?.startsWith(`${targetVersion}-`)) return false;
-  const prerelease = evidenceVersion.slice(targetVersion.length + 1);
-  return /^[0-9A-Za-z][0-9A-Za-z.-]*$/.test(prerelease);
+  if (evidenceVersion?.startsWith(`${targetVersion}-`)) {
+    const prerelease = evidenceVersion.slice(targetVersion.length + 1);
+    return /^[0-9A-Za-z][0-9A-Za-z.-]*$/.test(prerelease);
+  }
+  if (!/^\d+\.\d+\.\d+$/.test(evidenceVersion ?? '')) return false;
+  const [oldMajor, oldMinor, oldPatch] = evidenceVersion.split('.').map(Number);
+  const [newMajor, newMinor, newPatch] = targetVersion.split('.').map(Number);
+  if (newMajor !== oldMajor) return false;
+  return (
+    (newMinor === oldMinor && newPatch === oldPatch + 1) ||
+    (newMinor === oldMinor + 1 && newPatch === 0)
+  );
 }
 
-function isStablePromotionSourceOnly({ evidenceSource, targetSource }) {
+function isReleaseManagedVersionOnlySource({ evidenceSource, targetSource }) {
   const evidenceVersion = parseSingleExtensionVersion(evidenceSource);
   const targetVersion = parseSingleExtensionVersion(targetSource);
-  if (!isStablePromotionVersionPair({ evidenceVersion, targetVersion })) return false;
+  if (!isReleaseManagedVersionOnlyPair({ evidenceVersion, targetVersion })) return false;
 
   return (
     normalizeReleaseManagedExtensionVersion(evidenceSource) ===
@@ -238,18 +250,18 @@ function isStablePromotionSourceOnly({ evidenceSource, targetSource }) {
   );
 }
 
-function isReleaseManagedStablePromotionOnly({ gitBinary, root, base, head, path }) {
+function isReleaseManagedVersionOnly({ gitBinary, root, base, head, path }) {
   if (path !== RELEASE_MANAGED_EXTENSION_VERSION_PATH) return false;
   const evidenceSource = readFileAtCommit({ gitBinary, root, commit: base, path });
   const targetSource = readFileAtCommit({ gitBinary, root, commit: head, path });
   if (evidenceSource === undefined || targetSource === undefined) return false;
 
-  return isStablePromotionSourceOnly({ evidenceSource, targetSource });
+  return isReleaseManagedVersionOnlySource({ evidenceSource, targetSource });
 }
 
-function filterReleaseManagedStablePromotion({ gitBinary, root, base, head, changedFiles }) {
+function filterReleaseManagedVersionOnly({ gitBinary, root, base, head, changedFiles }) {
   return changedFiles.filter(
-    (path) => !isReleaseManagedStablePromotionOnly({ gitBinary, root, base, head, path }),
+    (path) => !isReleaseManagedVersionOnly({ gitBinary, root, base, head, path }),
   );
 }
 
@@ -337,7 +349,7 @@ function isSnapshotStablePromotionOnly({
   });
   if (evidenceSource === undefined || targetSource === undefined) return false;
 
-  return isStablePromotionSourceOnly({ evidenceSource, targetSource });
+  return isReleaseManagedVersionOnlySource({ evidenceSource, targetSource });
 }
 
 function snapshotResult({ record, gitBinary, root, headTrees, paths, dirtyFiles }) {
@@ -435,7 +447,7 @@ function compareAvailableEvidence({
       reason: 'Compatibility-sensitive changes could not be compared.',
     });
   }
-  const changedFiles = filterReleaseManagedStablePromotion({
+  const changedFiles = filterReleaseManagedVersionOnly({
     gitBinary,
     root,
     base: evidenceCommit,

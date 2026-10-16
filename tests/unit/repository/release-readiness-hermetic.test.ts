@@ -104,13 +104,13 @@ async function writeCompatibilitySnapshot({
   await writeJson(sourcePath, source);
 }
 
-async function createExtensionVersionPromotionFixture() {
+async function createExtensionVersionPromotionFixture(version = '1.0.0-rc.6') {
   const root = await mkdtemp(join(tmpdir(), 'release-readiness-version-promotion-'));
   temporaryRoots.push(root);
   await mkdir(join(root, 'easyeda-bridge-extension/src'), { recursive: true });
   await writeFile(
     join(root, 'easyeda-bridge-extension/src/index.ts'),
-    "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.0.0-rc.6', behavior: 'unchanged' };\n",
+    `// first \`extensionVersion: '...'\` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '${version}', behavior: 'unchanged' };\n`,
   );
   initializeFixtureRepository(root);
   const evidenceCommit = commitFixture(root, 'fixture: add prerelease extension source');
@@ -274,6 +274,53 @@ describe('hermetic release readiness', { timeout: GIT_FIXTURE_TEST_TIMEOUT_MS },
 
     await expectCurrentCompatibilityFreshness(fixture.root);
   });
+
+  it('reuses live evidence for a pure stable minor version bump', async () => {
+    const fixture = await createExtensionVersionPromotionFixture('1.3.0');
+    await commitExtensionSource(
+      fixture.root,
+      "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.4.0', behavior: 'unchanged' };\n",
+      'chore: release next stable minor without changing runtime behavior',
+    );
+    await expectCurrentCompatibilityFreshness(fixture.root);
+  });
+
+  it('reuses a snapshot for a stable patch bump when Git evidence commit is missing', async () => {
+    const fixture = await createExtensionVersionPromotionFixture('1.3.0');
+    await bindUnavailableExtensionSnapshot(fixture.root, fixture.evidenceCommit);
+    await commitExtensionSource(
+      fixture.root,
+      "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.3.1', behavior: 'unchanged' };\n",
+      'chore: version-only patch release with preserved source trees',
+    );
+    await expectCurrentCompatibilityFreshness(fixture.root);
+  });
+
+  it('rejects a stable minor bump that also changes extension behavior', async () => {
+    const fixture = await createExtensionVersionPromotionFixture('1.3.0');
+    await commitExtensionSource(
+      fixture.root,
+      "// first `extensionVersion: '...'` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '1.4.0', behavior: 'modified' };\n",
+      'feat: runtime behavior changed with minor bump',
+    );
+    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
+    expect(report.status).toBe('stale');
+    expect(report.records[0]?.changedFiles).toEqual(['easyeda-bridge-extension/src/index.ts']);
+  });
+
+  it.each(['1.2.9', '2.0.0', '1.3.2', '1.5.0', '1.4.0-rc.1'])(
+    'rejects non-sequential or non-stable version-only promotion to %s',
+    async (version) => {
+      const fixture = await createExtensionVersionPromotionFixture('1.3.0');
+      await commitExtensionSource(
+        fixture.root,
+        `// first \`extensionVersion: '...'\` property is release managed\nconst EXTENSION_INFO = { extensionVersion: '${version}', behavior: 'unchanged' };\n`,
+        'chore: unsupported version promotion',
+      );
+      const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
+      expect(report.status).toBe('stale');
+    },
+  );
 
   it('rejects a snapshot-backed stable promotion when extension behavior also changes', async () => {
     const fixture = await createExtensionVersionPromotionFixture();

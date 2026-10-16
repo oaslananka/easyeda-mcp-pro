@@ -32,6 +32,7 @@ Stable promotion has **no time-based waiting period**. Once the exact source com
 - Any code or runtime-dependency change after candidate validation invalidates affected evidence. Revalidate the new exact candidate; if an optional `rc.N` was published, a new versioned prerelease is needed before further prerelease publication.
 - Numbered `release/` candidate pull requests must pass the commit-bound live EasyEDA compatibility gate before merge; stale or unavailable evidence is merge-blocking.
 - After the final verified candidate, changes may only affect version, changelog, release notes, and promotion metadata. Behavioral changes require new evidence tied to the changed source, whether or not a prerelease exists.
+- An immediately preceding live-validated build may supply the compatibility evidence for a **release-managed stable minor or patch bump** only when the protected source changes consist solely of the literal `extensionVersion` in `easyeda-bridge-extension/src/index.ts`, with every other source byte unchanged. The executable gate verifies both the exact source normalization and sequential SemVer promotion. A major bump, nonsequential bump, or any behavior change still requires fresh native evidence.
 - While repository metadata is prerelease, ordinary `main` pushes must not generate a stable Release Please PR. Stable PR generation resumes only from an explicit matching `Release-As: X.Y.Z` promotion commit.
 
 ## Required release evidence
