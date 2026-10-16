@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-16T17:06:06+03:00",
+  "candidateCommit": "0896f183f6f92e94ad0470702b6cd1fe2e775566",
+  "evidenceScope": "Exact-source bridge auto-connect + read-only schematic/PCB on EasyEDA Pro Desktop 3.2.206; no design mutation.",
+  "server": {
+    "packageVersion": "1.2.1",
+    "nodeVersion": "24.18.0",
+    "pnpmVersion": "11.28.0",
+    "compatibilitySnapshot": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "807e2270729bf8965768972e7767f5e3226bfb4a",
+        "src/bridge": "e64725d6c23c92a06907bba72343c35c0914e09f",
+        "src/remote": "f8795be36d8ed36c432919e06e69f6824402c12e",
+        "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+        "src/tools": "f0e781358428a6531ed7c0ba77ed4a23c5f14b34",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "extension": {
+    "packageVersion": "1.2.1",
+    "loaderReportedVersion": "1.2.1",
+    "bridgeVersion": "1.2.1",
+    "bridgeContractVersion": "1.0.0",
+    "packageSha256": "77675bdc6fd0d59253d7fb2c4c82b974453a358e1caae6f838d9344d1be5bee7",
+    "packageSizeBytes": 183049,
+    "methodRegistryHash": "56f403634463f69f",
+    "capabilityCount": 70,
+    "registryMismatch": false,
+    "extensionVersionMismatch": false,
+    "activeDispatcher": "baked",
+    "hotSwapEnabled": false,
+    "install": "Official release candidate .eext built from the release PR head and imported with the native Extension Manager; External Interaction enabled"
+  },
+  "easyedaPro": {
+    "version": "3.2.206.715d940d",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "runtimePlatform": "Linux desktop",
+    "versionIdentitySource": "Official installed Linux vendor application resources/app/package.json, desktop process identity and GUI title"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-38-generic",
+    "nodeVersion": "24.18.0",
+    "pnpmVersion": "11.28.0",
+    "bridgeHost": "127.0.0.1",
+    "bridgePort": 49620,
+    "mode": "EasyEDA Pro Full Online"
+  },
+  "fixture": {
+    "project": "LCSC-Examples/Example_Quick Start",
+    "projectId": "faa2eebf8ba0418b926682d6e14dcd88",
+    "schematic": "Schematic / P1",
+    "pcb": "PCB",
+    "isPublicReadOnlySample": true,
+    "disposableLocalProjectImported": false,
+    "readOnlyValidationOnly": true,
+    "sourceExampleFileSha256BeforeAndAfter": "54088b32d0c1804ce6e423b281a5f930ad3469140ae5044e2d6355071230b06f",
+    "localCopySha256": "54088b32d0c1804ce6e423b281a5f930ad3469140ae5044e2d6355071230b06f",
+    "localCopyLoadedInEasyeda": false,
+    "sourceRestoration": "No project writes were executed. The vendor public-domain example was explicitly read-only in the desktop GUI; the bundled local example SHA-256 remained unchanged before/after. The independent local file copy was not loaded, so it is not used to claim disposable-project validation."
+  },
+  "liveChecks": {
+    "connectionLifecycle": {
+      "status": "passed",
+      "sourceCommit": "0896f183f6f92e94ad0470702b6cd1fe2e775566",
+      "scenario": "Imported matching extension into EasyEDA Pro 3.2.206, fully quit and restarted desktop application, bridge listener on loopback was available before launch, handshake arrived automatically with extension/loader/server 1.2.1 and matching registry hash",
+      "socketOpen": true,
+      "helloReceived": true,
+      "connected": true,
+      "fullApplicationRestart": true,
+      "connectedPort": 49620
+    },
+    "readOnlySmoke": {
+      "status": "passed",
+      "writeEnabled": false,
+      "reportGeneratedAt": "2026-10-16T13:58:23.720Z",
+      "projectId": "faa2eebf8ba0418b926682d6e14dcd88",
+      "methodRegistryHash": "56f403634463f69f",
+      "checks": [
+        {
+          "method": "system.getStatus",
+          "status": "passed"
+        },
+        {
+          "method": "system.apiInventory",
+          "status": "passed"
+        },
+        {
+          "method": "schematic.listNets",
+          "status": "passed"
+        },
+        {
+          "method": "schematic.listComponents",
+          "status": "passed"
+        },
+        {
+          "method": "bom.generate",
+          "status": "passed"
+        },
+        {
+          "method": "design.erc",
+          "status": "passed"
+        }
+      ],
+      "scenarios": 6
+    },
+    "pcbReadOnlySmoke": {
+      "status": "passed",
+      "writeEnabled": false,
+      "reportGeneratedAt": "2026-10-16T14:06:05.950Z",
+      "checks": [
+        {
+          "method": "board.listLayers",
+          "status": "passed",
+          "durationMs": 14,
+          "resultType": "array",
+          "arrayCount": 57
+        },
+        {
+          "method": "board.getDimensions",
+          "status": "passed",
+          "durationMs": 22,
+          "resultType": "object",
+          "keys": ["widthMm", "heightMm", "shape", "mountingHoleCount", "areaMm2", "hasOutline"]
+        },
+        {
+          "method": "pcb.listTracks",
+          "status": "passed",
+          "durationMs": 5,
+          "resultType": "object",
+          "keys": ["total", "items"]
+        },
+        {
+          "method": "pcb.listRegions",
+          "status": "passed",
+          "durationMs": 3,
+          "resultType": "object",
+          "keys": ["total", "items"]
+        }
+      ],
+      "scenarios": 4
+    },
+    "cleanupAndReadBack": {
+      "status": "passed",
+      "methodRegistryHashMatched": true,
+      "noDesignMutations": true,
+      "originalBundledExampleFileSha256Unchanged": true,
+      "localCopyImported": false,
+      "userMcpServiceReplaced": false,
+      "existingEasyeda3149Replaced": false
+    }
+  },
+  "knownLimitations": [
+    "Exact-version runtime proof is Ubuntu/Linux x86_64, not Windows 10; independent Windows reporters validated equivalent local patches, not this exact candidate.",
+    "The public LCSC-Examples project was read-only; no disposable local design was imported and no write/save/rollback scenario was exercised. A separate on-disk test copy was prepared but was never loaded.",
+    "No assertion about Windows-only SYS_WebSocket behavior is made; the missing-URL VM regression covers this as CI simulation.",
+    "This evidence qualifies the tested connection lifecycle and read-only APIs only; it must not be reused to claim new mutable CAD workflows or Remote Relay compatibility."
+  ],
+  "issue": "https://github.com/oaslananka/easyeda-mcp-pro/issues/704",
+  "releasePR": "https://github.com/oaslananka/easyeda-mcp-pro/pull/707"
+}
