@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.2.1...easyeda-mcp-pro-v1.3.0) (2026-10-16)
+
+
+### Features
+
+* **library:** update Device metadata with thumbnail reinsertion ([#709](https://github.com/oaslananka/easyeda-mcp-pro/issues/709)) ([4520214](https://github.com/oaslananka/easyeda-mcp-pro/commit/45202147aeaf61b38816086ce7675d72cbef5d87))
+
 ## [1.2.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.2.0...easyeda-mcp-pro-v1.2.1) (2026-10-16)
 
 
