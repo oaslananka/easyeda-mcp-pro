@@ -1,21 +1,54 @@
-# Contributor Licensing Policy
+# Contributing and licensing
 
-Forks, issues, and pull requests are welcome.
+Contributions are welcome. **You can open an issue or pull request immediately.**
+There is no registration, external signing service, PDF, or per-commit DCO
+sign-off.
 
-Because the project is source-available for noncommercial use and may also be
-licensed commercially, non-trivial external code contributions must not be
-merged until the maintainer has a reviewed Contributor License Agreement (CLA)
-on record that preserves the project's ability to offer both community and
-commercial licenses.
+The project uses [PolyForm Noncommercial 1.0.0](LICENSE) and also offers
+[separate commercial licenses](COMMERCIAL-LICENSING.md). To keep those options
+available, substantial contributions from outside maintainers need **one
+one-time permission**, described below. Typos, minor documentation changes,
+bot updates, and other trivial contributions do not need it.
 
-Where this repository also requires Developer Certificate of Origin (DCO)
-sign-off, the DCO documents contribution provenance and the right to submit the
-work under the project license. It does not replace the separate CLA policy for
-non-trivial external code contributions.
+## One-time contributor permission — version 1
 
-Contributors retain copyright in their contributions unless a separate written
-agreement explicitly says otherwise.
+When you agree, you confirm that:
 
-Documentation-only typo fixes and similarly trivial contributions may be handled
-without a CLA at the maintainer's discretion, subject to applicable law and the
-repository contribution rules.
+1. You have the right to contribute the code, documentation, or other work,
+   including any necessary authorization from your employer. Any third-party
+   material is clearly identified with its applicable license.
+2. **You keep ownership of your contribution.** You grant the project owner, Osman Aslan
+   (GitHub @oaslananka), a perpetual, worldwide, non-exclusive, royalty-free,
+   irrevocable copyright license to use, copy, modify, create derivative works
+   from, distribute, publicly display or perform, and sublicense your
+   contribution under this project's current or future noncommercial **and
+   commercial** licensing terms.
+3. This permission covers substantial contributions you submit through the
+   same GitHub account to this repository while this version of the
+   permission is in effect. A materially changed version requires a new
+   agreement; already granted rights remain in force.
+
+This does **not** transfer your copyright and does not make your contribution
+exclusive to the project. It does not grant rights you do not own.
+
+## How to accept (once)
+
+Only when a maintainer asks on your first substantial pull request, leave this
+exact comment **from your own GitHub account** on that PR:
+
+> I agree to the Contributor Permission v1 in CONTRIBUTOR-LICENSING.md.
+
+That's all. The public comment is the acceptance record, linked by the
+maintainer in the PR. Later PRs from that account need no repeat. You do not
+need to share your legal name, email address, employer details, or a separate
+signature with the project.
+
+Maintainers should check the account, the exact permission version, and that
+the contributor is entitled to grant the rights. Do not demand a new sign-off
+for every commit or retroactively rewrite the contributor's commit history.
+Requests involving known third-party code, employment restrictions, or an
+unresolved ownership dispute need individual review.
+
+This is a contributor-friendly licensing workflow, not a substitute for legal
+review of the permission terms before the project relies on them for commercial
+relicensing.

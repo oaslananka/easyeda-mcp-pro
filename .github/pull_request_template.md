@@ -16,6 +16,14 @@
 - Independent human reviewer: <!-- reviewer, or explain the documented solo-maintainer enforcement limitation -->
 - Author self-review evidence: <!-- permissions, secrets, fork behavior, mutation/release impact, rollback -->
 
+## External contributions
+
+No paperwork or per-commit DCO sign-off. For your first **substantial** code
+contribution, a maintainer will ask you to accept the short
+[one-time contributor permission](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CONTRIBUTOR-LICENSING.md) in a PR comment.
+Trivial changes and automated dependency PRs are exempt; returning contributors
+do not repeat acceptance.
+
 ## Validation
 
 <!-- Check only what was actually run. Add commands or CI links where useful. -->

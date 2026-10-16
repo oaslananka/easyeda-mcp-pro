@@ -157,25 +157,17 @@ The authoritative channel, soak, live-validation, emergency, and rollback requir
 
 ---
 
-## 6. Developer Certificate of Origin (DCO)
+## 6. Contribution rights
 
-By contributing to this project, you certify that you have the right to submit the contribution under the project license and that you agree to the [Developer Certificate of Origin](https://developercertificate.org/).
+Open an issue or pull request directly; no separate registration or per-commit
+DCO `Signed-off-by` trailer is required.
 
-For non-trivial external code contributions, also review [CONTRIBUTOR-LICENSING.md](CONTRIBUTOR-LICENSING.md). A CLA must be reviewed and accepted before such code is merged so the project can preserve both community and commercial licensing options.
-
-Every non-trivial commit should include a `Signed-off-by` trailer:
-
-```text
-Signed-off-by: Your Name <you@example.com>
-```
-
-You can add this automatically with:
-
-```bash
-git commit -s
-```
-
-Pull requests with substantial code, documentation, CI, or release-process changes may be asked to add missing sign-off trailers before merge.
+Because the project also offers commercial licensing, the first substantial
+external contribution requires only a **one-time GitHub PR comment** granting
+the necessary rights. See [Contributing and Licensing](CONTRIBUTOR-LICENSING.md)
+for the short permission and exact comment. Maintainers skip this step for
+trivial changes and bots, and never ask for a fresh agreement on each PR
+under the same permission version.
 
 ---
 
