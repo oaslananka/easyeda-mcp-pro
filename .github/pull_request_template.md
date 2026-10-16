@@ -1,3 +1,8 @@
+> **First-time contributor?** Please fill in **Summary** and **Validation**
+> below, and mention any risks you know about. The maintainer handles the
+> critical-path, security, bot-review, and release checklists. No forms,
+> external sign-up, or per-commit DCO sign-off are required.
+
 ## Summary
 
 <!-- What changed and why? Keep the scope focused. -->
