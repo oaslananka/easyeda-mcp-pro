@@ -28,9 +28,10 @@ export function buildLocalBridgeWebSocketUrl(port: number): string {
     throw new RangeError(`Invalid local bridge port: ${port}`);
   }
 
-  const url = new URL(`http://${LOCAL_BRIDGE_HOST}:${port}/`);
-  url.protocol = 'ws:';
-  return `${url.protocol}//${url.host}`;
+  // EasyEDA Pro 3.2.206 exposes a WebSocket runtime without a constructible
+  // global URL. The hostname is fixed and the numeric port is already bounded,
+  // so a URL parser would add no validation while breaking auto-connect.
+  return `ws://${LOCAL_BRIDGE_HOST}:${port}`;
 }
 
 /**

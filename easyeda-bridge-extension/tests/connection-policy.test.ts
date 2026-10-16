@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   BRIDGE_PORT,
   buildLocalBridgeWebSocketUrl,
@@ -39,6 +39,19 @@ describe('local bridge connection policy', () => {
     expect(() => buildLocalBridgeWebSocketUrl(BRIDGE_PORT - 1)).toThrow(/bridge port/i);
     expect(() => buildLocalBridgeWebSocketUrl(BRIDGE_PORT + 10)).toThrow(/bridge port/i);
     expect(() => buildLocalBridgeWebSocketUrl(BRIDGE_PORT + 0.5)).toThrow(/bridge port/i);
+  });
+
+  it('works without a constructible URL global in EasyEDA Pro 3.2.206', () => {
+    // A WebSocket runtime can exist even when the global URL is not a constructor.
+    vi.stubGlobal('URL', undefined);
+    try {
+      expect(buildLocalBridgeWebSocketUrl(BRIDGE_PORT)).toBe('ws://127.0.0.1:49620');
+      expect(buildLocalBridgeWebSocketUrl(BRIDGE_PORT + 9)).toBe('ws://127.0.0.1:49629');
+      expect(() => buildLocalBridgeWebSocketUrl(BRIDGE_PORT - 1)).toThrow(RangeError);
+      expect(() => buildLocalBridgeWebSocketUrl(BRIDGE_PORT + 10)).toThrow(RangeError);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('caps reconnect backoff at five seconds', () => {

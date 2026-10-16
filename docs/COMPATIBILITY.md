@@ -37,6 +37,8 @@ node scripts/check-runtime.mjs --require-pnpm
 | **v2.0.x**                  | **Needs Validation**          | Underlying extension APIs might not expose required methods.                                                                                                                                                               |
 | **v1.x** (Standard Edition) | **Unsupported**               | Standard edition does not support the Pro extension platform.                                                                                                                                                              |
 
+The EasyEDA Pro **3.2.206** Windows desktop `URL is not a constructor` auto-connect failure was reported in [issue #704](https://github.com/oaslananka/easyeda-mcp-pro/issues/704). The fixed-loopback URL construction regression is covered by automated extension tests without a global `URL` constructor. The reporter confirmed an equivalent workaround in a custom diagnostic build, but an official release installed and independently exercised on that exact Windows/EasyEDA version is **not yet live-verified**. Install the matched extension build containing the fix and fully restart EasyEDA before checking bridge status.
+
 ---
 
 ## 3. MCP Clients
