@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-10-09
+- **Last reviewed:** 2026-10-16
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64 | 1.2.1                | 1.2.1                | 1.2.1             | Live validated  | 2026-10-16 | 2027-01-14 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.2.0                | 1.2.0                | 1.2.0             | Live validated  | 2026-10-09 | 2027-01-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.5           | 1.1.0-rc.5           | 1.1.0-rc.5        | Live validated  | 2026-09-29 | 2026-12-28 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.4           | 1.1.0-rc.4           | 1.1.0-rc.4        | Live validated  | 2026-09-29 | 2026-12-28 |
@@ -49,6 +50,50 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.206.715d940d on Ubuntu 24.04.5 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-2-1`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.206.715d940d`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-38-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.18.0`                                                          |
+| Validation package version               | `1.2.1`                                                            |
+| Release containing validated fixes       | `1.2.1`                                                            |
+| Compatibility-sensitive base commit      | `0896f183f6f92e94ad0470702b6cd1fe2e775566`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.2.1`                                                            |
+| Live-validated extension package SHA-256 | `77675bdc6fd0d59253d7fb2c4c82b974453a358e1caae6f838d9344d1be5bee7` |
+| Live-validated extension package size    | `183049 bytes`                                                     |
+| Loader-reported version                  | `1.2.1`                                                            |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `56f403634463f69f`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.2.1` during this validation.
+
+### Capability evidence
+
+| Capability                                                                              | Level  | Status   | Result                                                                                                                                                                                                                                        | Evidence                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 3.2.206 native extension import, automatic local WebSocket hello after full app restart | `live` | `passed` | Exact #707 source candidate built and imported, all extension/loader/bridge versions 1.2.1, loopback port 49620 connected on full restart and method registry matched. Linux desktop only; does not establish Windows-specific compatibility. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.2.1-bridge-readonly.json), [Issue #704](https://github.com/oaslananka/easyeda-mcp-pro/issues/704) |
+| 3.2.206 read-only schematic status, inventory, nets, components, BOM and ERC            | `live` | `passed` | Repository official six-check read-only EasyEDA smoke passed on public immutable Example_Quick Start, with P1.Schematic focused; no design write or save.                                                                                     | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.2.1-bridge-readonly.json)                                                                         |
+| 3.2.206 read-only PCB layers, dimensions, tracks and regions                            | `live` | `passed` | Native PCB document focused; four bridge read methods passed. The public example project remained read-only; no mutation/rollback claim.                                                                                                      | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.2.1-bridge-readonly.json)                                                                         |
+
+### Known limitations
+
+- Validation was run on Ubuntu 24.04.5 Linux x86_64 with EasyEDA Pro 3.2.206.715d940d; exact Windows 10 candidate behavior is not directly validated.
+- The public sample project was read-only; no local disposable project was actually imported, and no save/write/reopen/rollback mutation scenario was exercised. No design mutation occurred and restoration is established by the absence of writes and unchanged original local example SHA-256.
+- Connection and read-only operation proof does not validate Remote Relay, unrelated installer paths, mutation semantics, or any unrelated platform GUI behavior.
 
 ## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
 

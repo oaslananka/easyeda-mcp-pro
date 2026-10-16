@@ -107,3 +107,19 @@ A regression is any failed scenario, overall score below the policy threshold, o
 3. Extend `scripts/run-evals.mts` if the scenario uses a new local module/tool family.
 4. Run `pnpm eval:golden`. To intentionally refresh the tracked baseline, run `pnpm eval:golden:update`.
 5. Commit the updated benchmark result when the suite intentionally changes.
+
+## CodSpeed micro-benchmarks
+
+The golden eval suite above scores behaviour. CPU performance of the deterministic analysis code is
+tracked separately with [CodSpeed](https://app.codspeed.io/oaslananka/easyeda-mcp-pro) using Vitest
+benchmarks in `tests/benchmarks/**/*.bench.ts`. They cover net validation, power-tree analysis,
+schematic layout planning/graph building, and SPICE deck generation/output parsing, all on synthetic
+in-memory inputs with no live EasyEDA, vendor, or ngspice access.
+
+```bash
+pnpm bench
+```
+
+The `.github/workflows/codspeed.yml` workflow runs the same command under the CodSpeed CPU
+simulation instrument on pull requests and pushes to `main`, and reports per-benchmark changes on
+pull requests. It is advisory telemetry and is not a required status check.

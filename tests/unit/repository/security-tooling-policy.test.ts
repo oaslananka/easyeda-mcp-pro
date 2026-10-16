@@ -101,14 +101,18 @@ describe('repository security tooling policy', () => {
     const workspace = readText('pnpm-workspace.yaml');
     expect(workspace).not.toContain('hono@4.12.34');
     expect(workspace).toMatch(/\r?\n {2}hono: 4\.13\.7\r?\n/);
-    expect(workspace).toContain("'@hono/node-server': 2.0.10");
+    const honoVersion = workspace.match(/'@hono\/node-server': (\d+)\.(\d+)\.(\d+)/);
+    expect(honoVersion).not.toBeNull();
+    const [, major, minor, patch] = honoVersion ?? [];
+    expect(Number(major)).toBe(2);
+    expect(Number(minor) > 0 || (Number(minor) === 0 && Number(patch) >= 10)).toBe(true);
     expect(workspace).not.toContain('minimumReleaseAge');
     expect(workspace).toContain('trustPolicy: no-downgrade');
     expect(workspace).toContain('trustLockfile: false');
     expect(workspace).toContain('blockExoticSubdeps: true');
     expect(workspace).toContain('body-parser: 2.3.0');
     const lockfile = readText('pnpm-lock.yaml');
-    expect(lockfile).toContain("'@hono/node-server@2.0.10':");
+    expect(lockfile).toContain(`'@hono/node-server@${major}.${minor}.${patch}':`);
     expect(lockfile).not.toContain("'@hono/node-server@1.19.14':");
     expect(readText('.npmrc')).toBe('');
   });
@@ -145,7 +149,7 @@ describe('repository security tooling policy', () => {
     expect(workflow).toContain('container-security:');
     expect(workflow).toContain(`aquasecurity/trivy-action@${TRIVY_ACTION_SHA}`);
     expect(workflow).toContain("scan-type: 'config'");
-    expect(workflow).toContain("version: 'v0.74.0'");
+    expect(workflow).toContain("version: 'v0.76.0'");
     expect(workflow).toContain('docker build -t easyeda-mcp-pro:security .');
     expect(workflow).toContain("image-ref: 'easyeda-mcp-pro:security'");
     expect(workflow.match(/exit-code: '1'/g)).toHaveLength(2);
@@ -162,6 +166,7 @@ describe('repository security tooling policy', () => {
       readText('.github/workflows/dependency-advisory-monitor.yml') +
       readText('.github/workflows/deploy-docs.yml') +
       readText('.github/workflows/golden-benchmark.yml') +
+      readText('.github/workflows/codspeed.yml') +
       readText('.github/workflows/release-please.yml') +
       readText('.github/workflows/publish-release.yml') +
       readText('.github/workflows/verify-published-release.yml') +
@@ -369,7 +374,7 @@ describe('repository security tooling policy', () => {
     expect(e2eWaiter).not.toContain("console.log('%s: %s', method, r.slice(0, 300));");
 
     expect(releaseWorkflow).toContain(
-      'uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610',
+      'uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c',
     );
     expect(releaseWorkflow).toContain('format: cyclonedx-json');
     expect(releaseWorkflow).toContain('output-file: sbom.json');

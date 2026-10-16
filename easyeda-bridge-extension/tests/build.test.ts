@@ -57,7 +57,7 @@ describe('build.mjs hot-swap define', () => {
     expect(manifest.activationEvents?.onStartupFinished).toBe(true);
   });
 
-  it('reuses one persistent runtime across repeated EasyEDA menu evaluations', async () => {
+  it('reuses one persistent runtime and connects without the URL constructor', async () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ext-build-persistent-runtime-'));
     outDirs.push(outDir);
     const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: '' });
@@ -71,7 +71,8 @@ describe('build.mjs hot-swap define', () => {
       crypto: webcrypto,
       TextEncoder,
       TextDecoder,
-      URL,
+      // EasyEDA Pro 3.2.206 may expose SYS_WebSocket.register without global URL.
+      URL: undefined,
       Promise,
       setTimeout,
       clearTimeout,
@@ -126,6 +127,7 @@ describe('build.mjs hot-swap define', () => {
     });
 
     vm.runInContext(bundle, context);
+    expect((context as any).URL).toBeUndefined();
     const firstRuntime = (context as any).__easyedaMcpProBridgeRuntime_v8__;
     await (context as any).edaEsbuildExportName.enableAutoConnect();
     await (context as any).edaEsbuildExportName.enableAutoConnect();

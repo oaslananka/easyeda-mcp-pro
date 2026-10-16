@@ -1,8 +1,98 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-10-09",
+  "lastReviewed": "2026-10-16",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-2-1",
+      "status": "live-validated",
+      "validatedAt": "2026-10-16T17:06:06+03:00",
+      "reviewBy": "2027-01-14",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-38-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.206.715d940d",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.2.1",
+        "releaseContainingFixes": "1.2.1",
+        "commit": "0896f183f6f92e94ad0470702b6cd1fe2e775566",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "807e2270729bf8965768972e7767f5e3226bfb4a",
+            "src/bridge": "e64725d6c23c92a06907bba72343c35c0914e09f",
+            "src/remote": "f8795be36d8ed36c432919e06e69f6824402c12e",
+            "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+            "src/tools": "f0e781358428a6531ed7c0ba77ed4a23c5f14b34",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.2.1",
+        "loaderReportedVersion": "1.2.1",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "56f403634463f69f",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "77675bdc6fd0d59253d7fb2c4c82b974453a358e1caae6f838d9344d1be5bee7",
+        "packageSizeBytes": 183049
+      },
+      "fixture": {
+        "project": "LCSC-Examples / Example_Quick Start (public read-only design)",
+        "schematic": "Schematic / P1",
+        "pcb": "PCB",
+        "disposable": false,
+        "readOnly": true,
+        "restorationVerified": "No write-capable methods invoked; original bundled example file SHA-256 unchanged. A local copy was prepared but not imported."
+      },
+      "capabilities": [
+        {
+          "id": "v1-2-1-easyeda-3-2-206-autoconnect-live",
+          "name": "3.2.206 native extension import, automatic local WebSocket hello after full app restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact #707 source candidate built and imported, all extension/loader/bridge versions 1.2.1, loopback port 49620 connected on full restart and method registry matched. Linux desktop only; does not establish Windows-specific compatibility.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.2.1-bridge-readonly.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/704"
+          ]
+        },
+        {
+          "id": "v1-2-1-easyeda-3-2-206-schematic-readonly-live",
+          "name": "3.2.206 read-only schematic status, inventory, nets, components, BOM and ERC",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Repository official six-check read-only EasyEDA smoke passed on public immutable Example_Quick Start, with P1.Schematic focused; no design write or save.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.2.1-bridge-readonly.json"
+          ]
+        },
+        {
+          "id": "v1-2-1-easyeda-3-2-206-pcb-readonly-live",
+          "name": "3.2.206 read-only PCB layers, dimensions, tracks and regions",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Native PCB document focused; four bridge read methods passed. The public example project remained read-only; no mutation/rollback claim.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.2.1-bridge-readonly.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Validation was run on Ubuntu 24.04.5 Linux x86_64 with EasyEDA Pro 3.2.206.715d940d; exact Windows 10 candidate behavior is not directly validated.",
+        "The public sample project was read-only; no local disposable project was actually imported, and no save/write/reopen/rollback mutation scenario was exercised. No design mutation occurred and restoration is established by the absence of writes and unchanged original local example SHA-256.",
+        "Connection and read-only operation proof does not validate Remote Relay, unrelated installer paths, mutation semantics, or any unrelated platform GUI behavior."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-10-09-v1-2-0",
       "status": "live-validated",

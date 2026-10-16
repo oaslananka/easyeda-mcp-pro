@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.2.0...easyeda-mcp-pro-v1.2.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **bridge:** support EasyEDA 3.2.206 auto-connect without URL constructor ([#706](https://github.com/oaslananka/easyeda-mcp-pro/issues/706)) ([dc3d2d6](https://github.com/oaslananka/easyeda-mcp-pro/commit/dc3d2d69a49a8a606d6c3499b24506913bba217b))
+
 ## [1.2.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.1.0...easyeda-mcp-pro-v1.2.0) (2026-10-09)
 
 

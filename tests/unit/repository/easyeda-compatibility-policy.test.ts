@@ -88,7 +88,7 @@ describe('EasyEDA compatibility evidence policy', () => {
       expect(record.environment.architecture).not.toMatch(/TBD|unknown/i);
       expect(record.environment.kernel).not.toMatch(/TBD|unknown/i);
       expect(record.environment.nodeVersion).toMatch(/^24\./);
-      expect(record.easyedaPro.version).toMatch(/^3\.2\.149\./);
+      expect(record.easyedaPro.version).toMatch(/^3\.2\.\d+\.[0-9a-f]{8}$/);
       expect(record.easyedaPro.electronVersion).toMatch(/^36\./);
       expect(record.easyedaPro.chromiumVersion).toMatch(/^136\./);
       expect(record.server.validationPackageVersion).toMatch(

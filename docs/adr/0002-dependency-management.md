@@ -86,3 +86,36 @@ GitHub's strict up-to-date requirement remains enabled. Mergify's conservative m
 queue is unchanged until a single verified merge authority, merge protections, and
 ruleset compatibility have been demonstrated in a live PR. Do not remove required
 checks merely to save CI minutes.
+
+## Addendum: bounded rebase pressure (2026-10)
+
+Review-gated runtime dependencies, overrides, major updates, GitHub Actions, pre-commit
+hooks, and runtime toolchain pins use `rebaseWhen: conflicted`. This prevents
+non-automerge PRs from all rebasing just because an unrelated dependency update merged.
+For these review-gated PRs, select one PR at a time and request an explicit refresh
+against current `main` **before** its final protected CI and squash merge.
+Development patch/minor PRs approved for automerge and lockfile maintenance keep
+Renovate's default behind-base validation to avoid automatically merging untested
+combined versions. GitHub's strict required-checks ruleset remains unchanged;
+never merge a behind-base PR by bypassing the ruleset.
+
+## Addendum: postpone major/runtime PR creation instead of rerunning CI (2026-10)
+
+Multiple long-lived major update PRs share the same pnpm lockfile. Even with
+`rebaseWhen: conflicted`, a single patch merge can cause lockfile conflicts
+and force many expensive PR reruns. Existing major PRs are therefore deferred
+rather than kept continuously up-to-date.
+
+Major dependency updates and Node/pnpm runtime version pins require Dashboard
+approval, never auto-merge, and use `rebaseWhen: never` plus
+`recreateWhen: never`. Their PRs can be closed with a recorded reason and
+later explicitly recreated through the Dependency Dashboard when a deliberate
+migration is scheduled. These are intentional exceptions to Renovate's usual
+recommendation to automatically rebase; they are **never** eligible for
+automatic merge or bypass of required checks.
+
+When an approved update is recreated, regenerate it against current `main`,
+synchronize all runtime pin files and lockfiles atomically if applicable,
+run every required security and CI check, and only then use protected squash
+merge. Low-risk development dependencies and urgent advisory remediation
+remain on their existing automated paths.
