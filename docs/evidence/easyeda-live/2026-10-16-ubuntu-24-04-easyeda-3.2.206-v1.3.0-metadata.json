@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-16T21:11:28+03:00",
+  "candidateCommit": "79a32b243d663659594f9061917cc3b272d94057",
+  "releasePrHeadAtEvidenceRecording": "27dab5a4a6ebbc6f93d1577c8bb47583c2fe298b",
+  "candidateVersion": "1.3.0",
+  "sourceIdentity": "The release PR head changed documentation only after the tested commit; six compatibility-sensitive Git trees are identical. The candidate extension byte hash is identical.",
+  "evidenceScope": "Real EasyEDA Pro 3.2.206.715d940d on Ubuntu 24.04.5 x86_64; exact v1.3.0 extension native import, reconnect after complete app restart, read-only schematic and PCB checks, one controlled Personal Device preview/apply with thumbnail reinsertion, independent post-restart readback and verified cleanup.",
+  "server": {
+    "packageVersion": "1.3.0",
+    "sourceCommit": "79a32b243d663659594f9061917cc3b272d94057",
+    "recordingHead": "27dab5a4a6ebbc6f93d1577c8bb47583c2fe298b",
+    "compatibilitySnapshot": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "743f8cbb0ee5e684aec2a6d7026e2bae18d79b5a",
+        "src/bridge": "0f608a98f63294ce1f7387dd3ea21a8734aa5e9d",
+        "src/remote": "f8795be36d8ed36c432919e06e69f6824402c12e",
+        "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+        "src/tools": "4517c2326a50ab45672fac3b667cff8e45927f8d",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    },
+    "nodeVersion": "24.18.0",
+    "pnpmVersion": "11.28.0"
+  },
+  "extension": {
+    "installedPackageVersion": "1.3.0",
+    "loaderReportedVersion": "1.3.0",
+    "bridgeVersion": "1.3.0",
+    "bridgeContractVersion": "1.0.0",
+    "packageSha256": "ae4eee61b3edf588628b6f0a0acfb0c28deeb41e394fb6b44549765bde1d79db",
+    "packageSizeBytes": 194983,
+    "methodRegistryHash": "91daa8031e026f85",
+    "capabilityCount": 71,
+    "registryMismatch": false,
+    "extensionVersionMismatch": false,
+    "activeDispatcher": "baked",
+    "hotSwapEnabled": false,
+    "install": "Native Extension Manager import; external interaction enabled; full application restart"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "easyedaPro": "3.2.206.715d940d",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "transport": "Local loopback WebSocket 127.0.0.1:49620",
+    "nodeVersion": "24.18.0",
+    "pnpmVersion": "11.28.0"
+  },
+  "fixture": {
+    "project": "LCSC-Examples/Example_Quick Start",
+    "projectReadOnly": true,
+    "disposablePersonalDevice": "MCP_V130_TEST_DEVICE_20261016",
+    "createdExclusivelyForValidation": true,
+    "thumbnailGeneratedLocally": true,
+    "thumbnailBytes": 430,
+    "assetSha256": "5534ec1360c8b8451506145e7e318d9978c2e587fca8bc875348646eac614ccc",
+    "cleanupConfirmed": true,
+    "cleanupChecks": {
+      "searchMatches": 0,
+      "nativeExists": false
+    },
+    "privacy": "Private library UUID, Device UUID, uploaded-image URL and raw Device records are omitted; raw reports remain on MSI, not committed"
+  },
+  "liveChecks": {
+    "nativeImportAndRestart": {
+      "status": "passed",
+      "extension": "1.3.0",
+      "loader": "1.3.0",
+      "server": "1.3.0",
+      "capabilities": 71,
+      "registryMismatch": false
+    },
+    "schematicSmoke": {
+      "status": "passed",
+      "writeEnabled": false,
+      "checks": [
+        {
+          "method": "system.getStatus",
+          "status": "passed"
+        },
+        {
+          "method": "system.apiInventory",
+          "status": "passed"
+        },
+        {
+          "method": "schematic.listNets",
+          "status": "passed"
+        },
+        {
+          "method": "schematic.listComponents",
+          "status": "passed"
+        },
+        {
+          "method": "bom.generate",
+          "status": "passed"
+        },
+        {
+          "method": "design.erc",
+          "status": "passed"
+        }
+      ]
+    },
+    "pcbReadOnly": {
+      "status": "passed",
+      "writeEnabled": false,
+      "checks": [
+        {
+          "method": "board.listLayers",
+          "status": "passed"
+        },
+        {
+          "method": "board.getDimensions",
+          "status": "passed"
+        },
+        {
+          "method": "pcb.listTracks",
+          "status": "passed"
+        },
+        {
+          "method": "pcb.listRegions",
+          "status": "passed"
+        }
+      ]
+    },
+    "devicePreview": {
+      "status": "passed",
+      "result": "preview",
+      "writeOutcome": "not_attempted",
+      "fingerprintCaptured": true,
+      "thumbnailShaCaptured": true,
+      "thumbnailBytes": 430,
+      "mimeType": "image/png"
+    },
+    "deviceApply": {
+      "status": "passed",
+      "result": "verified",
+      "writeOutcome": "acknowledged",
+      "requestedField": "MCP Test Marker",
+      "thumbnailPolicy": "reinsert-existing",
+      "thumbnailBytesIdentical": true,
+      "sha256Before": "5534ec1360c8b8451506145e7e318d9978c2e587fca8bc875348646eac614ccc",
+      "sha256After": "5534ec1360c8b8451506145e7e318d9978c2e587fca8bc875348646eac614ccc",
+      "observedPreservationChecks": [
+        {
+          "field": "all_unrequested_native_fields",
+          "preserved": true,
+          "scope": "Entire fresh native record, excluding requested metadata and, only for explicit reinsertion, association.images URLs. Thumbnail bytes are checked separately."
+        },
+        {
+          "field": "thumbnail",
+          "preserved": true,
+          "scope": "Existing image bytes reinserted and SHA-256 checked at the saved native URL; URL may change. Other image fields remain covered by the whole-record comparison."
+        },
+        {
+          "field": "symbol_association",
+          "preserved": true,
+          "scope": "All matching fields exposed by native LIB_Device.get; referenced asset contents are not read or certified."
+        },
+        {
+          "field": "footprint_association",
+          "preserved": true,
+          "scope": "All matching fields exposed by native LIB_Device.get; referenced asset contents are not read or certified."
+        },
+        {
+          "field": "model_reference",
+          "preserved": true,
+          "scope": "No matching fields exposed by LIB_Device.get; only absence in that record is checked. Referenced asset contents are unverified."
+        },
+        {
+          "field": "model_transform",
+          "preserved": true,
+          "scope": "No matching fields exposed by LIB_Device.get; only absence in that record is checked. Referenced asset contents are unverified."
+        }
+      ]
+    },
+    "restartReadback": {
+      "status": "passed",
+      "metadataPersisted": true,
+      "thumbnailHashPersisted": true,
+      "changedFields": [],
+      "fullApplicationRestart": true,
+      "reconnected": true
+    },
+    "cleanup": {
+      "status": "passed",
+      "deletedViaNativeGUI": true,
+      "readOnlySearchMatches": 0,
+      "nativeGetPresent": false
+    }
+  },
+  "knownLimitations": [
+    "Live validation took place on Ubuntu desktop, not Windows or macOS. Existing separate Windows evidence concerns a different source/package identity.",
+    "The disposable Device had no bound production symbol/footprint/model. Native preservation checks passed for the record fields exposed by EasyEDA; they do not certify geometry, referenced asset contents, or absent model fields.",
+    "The public example project was accessed read-only. No schematic or PCB design write, save/export/rollback or remote relay behavior was validated in this run.",
+    "Only one generated PNG thumbnail and one Personal Device metadata write were exercised. Other file formats, production libraries and non-reinsertion writes were not validated.",
+    "No publication or Docker startup smoke, npm provenance, SBOM or registry verification is claimed in this live record."
+  ]
+}

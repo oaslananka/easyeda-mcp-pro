@@ -4,6 +4,99 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-3-0-metadata",
+      "status": "live-validated",
+      "validatedAt": "2026-10-16T21:11:28+03:00",
+      "reviewBy": "2027-01-14",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-38-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.206.715d940d",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113"
+      },
+      "server": {
+        "validationPackageVersion": "1.3.0",
+        "releaseContainingFixes": "1.3.0",
+        "commit": "79a32b243d663659594f9061917cc3b272d94057",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "743f8cbb0ee5e684aec2a6d7026e2bae18d79b5a",
+            "src/bridge": "0f608a98f63294ce1f7387dd3ea21a8734aa5e9d",
+            "src/remote": "f8795be36d8ed36c432919e06e69f6824402c12e",
+            "src/server/transports": "db8356de357e57f9d2f77b27ccf1196dce84a077",
+            "src/tools": "4517c2326a50ab45672fac3b667cff8e45927f8d",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.3.0",
+        "loaderReportedVersion": "1.3.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "91daa8031e026f85",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "ae4eee61b3edf588628b6f0a0acfb0c28deeb41e394fb6b44549765bde1d79db",
+        "packageSizeBytes": 194983
+      },
+      "fixture": {
+        "project": "LCSC-Examples / Example_Quick Start (read-only)",
+        "disposable": true,
+        "personalDevice": "MCP_V130_TEST_DEVICE_20261016",
+        "cleanupVerified": true
+      },
+      "capabilities": [
+        {
+          "id": "v130-native-extension-connection",
+          "name": "v1.3.0 native import, version/registry-aligned connection and restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Native import on EasyEDA 3.2.206; full process restart; matching 1.3.0 extension/loader/bridge, 71 methods and registry hash 91daa8031e026f85.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.3.0-metadata.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/711"
+          ]
+        },
+        {
+          "id": "v130-schematic-and-pcb-readonly",
+          "name": "v1.3.0 schematic and PCB read-only smoke",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Six official schematic checks and four PCB reads passed on the public read-only example, without design writes.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.3.0-metadata.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/711"
+          ]
+        },
+        {
+          "id": "v130-personal-device-metadata-thumbnail",
+          "name": "v1.3.0 Personal Device metadata write and PNG reinsertion",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Only a named disposable Personal Device was changed. Preview no-write; one acknowledged, verified metadata apply; 430-byte PNG SHA-256 identical; all exposed unrelated native fields preserved; values and bytes remained identical after full app restart; test Device deleted and native absence confirmed.",
+          "limitation": "No symbol/footprint/model assets bound on this disposable Device; geometry and referenced files were not inspected.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.3.0-metadata.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/711"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Live validation took place on Ubuntu desktop, not Windows or macOS. Existing separate Windows evidence concerns a different source/package identity.",
+        "The disposable Device had no bound production symbol/footprint/model. Native preservation checks passed for the record fields exposed by EasyEDA; they do not certify geometry, referenced asset contents, or absent model fields.",
+        "The public example project was accessed read-only. No schematic or PCB design write, save/export/rollback or remote relay behavior was validated in this run.",
+        "Only one generated PNG thumbnail and one Personal Device metadata write were exercised. Other file formats, production libraries and non-reinsertion writes were not validated.",
+        "No publication or Docker startup smoke, npm provenance, SBOM or registry verification is claimed in this live record."
+      ]
+    },
+    {
       "id": "easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-2-1",
       "status": "live-validated",
       "validatedAt": "2026-10-16T17:06:06+03:00",
@@ -751,7 +844,7 @@
           "name": "v1.1.0 PCB read surface and outline regression validation",
           "evidenceLevel": "live",
           "status": "passed",
-          "summary": "With the bundled example PCB focused, the exact candidate reported an 80 mm by 60 mm custom outline with hasOutline=true and 4,800 mm\u00b2 area, plus 33 components, 98 tracks, 0 vias, 4 fills, and 0 regions. The native DRC call completed and returned the fixture non-passing result rather than a bridge false-success.",
+          "summary": "With the bundled example PCB focused, the exact candidate reported an 80 mm by 60 mm custom outline with hasOutline=true and 4,800 mm² area, plus 33 components, 98 tracks, 0 vias, 4 fills, and 0 regions. The native DRC call completed and returned the fixture non-passing result rather than a bridge false-success.",
           "evidence": [
             "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-09-15-ubuntu-24-04-easyeda-3.2.149-v1.1.0-read-scope-pcb.json",
             "https://github.com/oaslananka/easyeda-mcp-pro/issues/590",
@@ -1682,7 +1775,7 @@
           "name": "RC.2 PCB read-only smoke",
           "evidenceLevel": "live",
           "status": "passed",
-          "summary": "On the disposable Quick Start PCB, the exact candidate returned an 80 mm by 60 mm outline, 4,800 mm\u00b2 area, has_outline=true, 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.",
+          "summary": "On the disposable Quick Start PCB, the exact candidate returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, 98 tracks, 1 zone, 83 pads, 33 components, and 0 vias.",
           "evidence": [
             "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-08-09-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.2-read-only.json",
             "https://github.com/oaslananka/easyeda-mcp-pro/issues/437"
@@ -1770,7 +1863,7 @@
           "name": "Release-candidate PCB read-only smoke",
           "evidenceLevel": "live",
           "status": "passed",
-          "summary": "On the disposable Quick Start PCB, the public MCP tools returned an 80 mm by 60 mm outline, 4,800 mm\u00b2 area, has_outline=true, 57 layers, and the expected board feature inventory.",
+          "summary": "On the disposable Quick Start PCB, the public MCP tools returned an 80 mm by 60 mm outline, 4,800 mm² area, has_outline=true, 57 layers, and the expected board feature inventory.",
           "evidence": [
             "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-07-29-ubuntu-24-04-easyeda-3.2.149-v1.0.0-rc.1-read-only.json",
             "https://github.com/oaslananka/easyeda-mcp-pro/issues/389"

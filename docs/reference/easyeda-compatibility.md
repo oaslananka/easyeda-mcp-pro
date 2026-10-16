@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64 | 1.3.0                | 1.3.0                | 1.3.0             | Live validated  | 2026-10-16 | 2027-01-14 |
 | 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64 | 1.2.1                | 1.2.1                | 1.2.1             | Live validated  | 2026-10-16 | 2027-01-14 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.2.0                | 1.2.0                | 1.2.0             | Live validated  | 2026-10-09 | 2027-01-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.5           | 1.1.0-rc.5           | 1.1.0-rc.5        | Live validated  | 2026-09-29 | 2026-12-28 |
@@ -50,6 +51,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.206.715d940d on Ubuntu 24.04.5 LTS (x86_64)
+
+Record ID: `easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-3-0-metadata`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.206.715d940d`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-38-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.18.0`                                                          |
+| Validation package version               | `1.3.0`                                                            |
+| Release containing validated fixes       | `1.3.0`                                                            |
+| Compatibility-sensitive base commit      | `79a32b243d663659594f9061917cc3b272d94057`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.3.0`                                                            |
+| Live-validated extension package SHA-256 | `ae4eee61b3edf588628b6f0a0acfb0c28deeb41e394fb6b44549765bde1d79db` |
+| Live-validated extension package size    | `194983 bytes`                                                     |
+| Loader-reported version                  | `1.3.0`                                                            |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `91daa8031e026f85`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.3.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                            | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                                                                                                                                           | Evidence                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| v1.3.0 native import, version/registry-aligned connection and restart | `live` | `passed` | Native import on EasyEDA 3.2.206; full process restart; matching 1.3.0 extension/loader/bridge, 71 methods and registry hash 91daa8031e026f85.                                                                                                                                                                                                                                                                                                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.3.0-metadata.json), [PR #711](https://github.com/oaslananka/easyeda-mcp-pro/pull/711) |
+| v1.3.0 schematic and PCB read-only smoke                              | `live` | `passed` | Six official schematic checks and four PCB reads passed on the public read-only example, without design writes.                                                                                                                                                                                                                                                                                                                                  | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.3.0-metadata.json), [PR #711](https://github.com/oaslananka/easyeda-mcp-pro/pull/711) |
+| v1.3.0 Personal Device metadata write and PNG reinsertion             | `live` | `passed` | Only a named disposable Personal Device was changed. Preview no-write; one acknowledged, verified metadata apply; 430-byte PNG SHA-256 identical; all exposed unrelated native fields preserved; values and bytes remained identical after full app restart; test Device deleted and native absence confirmed. **Boundary:** No symbol/footprint/model assets bound on this disposable Device; geometry and referenced files were not inspected. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-16-ubuntu-24-04-easyeda-3.2.206-v1.3.0-metadata.json), [PR #711](https://github.com/oaslananka/easyeda-mcp-pro/pull/711) |
+
+### Known limitations
+
+- Live validation took place on Ubuntu desktop, not Windows or macOS. Existing separate Windows evidence concerns a different source/package identity.
+- The disposable Device had no bound production symbol/footprint/model. Native preservation checks passed for the record fields exposed by EasyEDA; they do not certify geometry, referenced asset contents, or absent model fields.
+- The public example project was accessed read-only. No schematic or PCB design write, save/export/rollback or remote relay behavior was validated in this run.
+- Only one generated PNG thumbnail and one Personal Device metadata write were exercised. Other file formats, production libraries and non-reinsertion writes were not validated.
+- No publication or Docker startup smoke, npm provenance, SBOM or registry verification is claimed in this live record.
 
 ## 3.2.206.715d940d on Ubuntu 24.04.5 LTS (x86_64)
 
