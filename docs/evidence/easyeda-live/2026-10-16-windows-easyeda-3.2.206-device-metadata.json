@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-16T17:47:22.304Z",
+  "candidateCommit": "0492fe30f8499bfbe06d19eb205f5eaf7602fb09",
+  "mergedImplementationCommit": "45202147aeaf61b38816086ce7675d72cbef5d87",
+  "candidateAndMergedGitTreeSha1": "3575cbc40ab9f2368b9af9876b5024b4e3929377",
+  "pullRequest": "https://github.com/oaslananka/easyeda-mcp-pro/pull/709",
+  "evidenceScope": "Loaded production extension: Personal Device metadata preview/apply, thumbnail reinsertion, independent readback, no-write repeat and full application restart/readback on one disposable clone. No footprint/model geometry or engineering approval is certified by this metadata test.",
+  "environment": {
+    "operatingSystem": "Windows",
+    "easyedaProSemanticVersion": "3.2.206",
+    "versionIdentitySource": "Native sys_Environment.getEditorCurrentVersion(true), checked by the typed workflow",
+    "serverPackageVersion": "1.2.1",
+    "nodeVersion": "24.19.0",
+    "pnpmVersion": "11.28.0",
+    "toolProfile": "dev",
+    "transport": "Local loopback WebSocket bridge with a controlled MCP stdio client",
+    "remoteRelayTested": false
+  },
+  "extension": {
+    "packageVersion": "1.2.1",
+    "loaderReportedVersion": "1.2.1",
+    "packageSizeBytes": 194983,
+    "packageSha256": "d3b862931ca071dbc16f79ecab818cc9cf78927d02bd2700c3100c4e6a465efc",
+    "dispatcherBuildId": "d1851xbb01xae90",
+    "dispatcherSizeBytes": 222674,
+    "dispatcherSha256": "2276fbc8c8f186243e6c18a007e14ea1c37b1a5de5e84c64ab5d9ced0ee88c53",
+    "registryMismatch": false,
+    "extensionVersionMismatch": false,
+    "productionBuild": true,
+    "hotSwapCompiledInBuild": false,
+    "hotSwapUsed": false,
+    "install": "Native Extensions Manager import with external interaction enabled, followed by full application exit and relaunch",
+    "sameDispatcherAfterRestart": true
+  },
+  "fixture": {
+    "description": "Previously created disposable Personal Device clone derived from LCSC C164170, Molex 47219-2001",
+    "personalLibraryIdentityAndDisposableNameVerified": true,
+    "existingThumbnailCount": 1,
+    "hasPersonalSymbolAndFootprintAssociations": true,
+    "hasModelReferenceAndTransform": true,
+    "originalDeviceWrittenByTheseTests": false,
+    "requestedProperties": {
+      "MCP Reusable Metadata Test": "PR709 typed preview/apply thumbnail retention"
+    },
+    "retainedAfterValidation": true,
+    "privacy": "Private library/Device/asset identifiers, image URLs, full native records and local paths are omitted. Raw before/after reports and image bytes are retained locally."
+  },
+  "liveChecks": {
+    "preview": {
+      "status": "passed",
+      "toolStatus": "preview",
+      "writeOutcome": "not_attempted",
+      "independentNativeRecordUnchanged": true,
+      "independentThumbnailHashMatchedPreview": true,
+      "fingerprintAndImageHashObtained": true
+    },
+    "confirmedApply": {
+      "status": "passed",
+      "confirmWrite": true,
+      "thumbnailPolicy": "reinsert-existing",
+      "expectedFingerprintAndThumbnailHashFromPreview": true,
+      "toolStatus": "verified",
+      "writeOutcome": "acknowledged",
+      "nativeModifyAcknowledged": true,
+      "metadataMatchedIndependentNativeReadback": true,
+      "allUnrequestedNativeFieldsUnchanged": true,
+      "symbolAssociationPreserved": true,
+      "footprintAssociationPreserved": true,
+      "modelReferencePreserved": true,
+      "modelTransformPreserved": true,
+      "imageUrlChanged": true
+    },
+    "thumbnail": {
+      "status": "passed",
+      "mimeType": "image/jpeg",
+      "byteLength": 12287,
+      "sha256Before": "cd126196ce3596b46051d5412df7280b1935759c2169d81b66c83d4e9c756ac0",
+      "sha256After": "cd126196ce3596b46051d5412df7280b1935759c2169d81b66c83d4e9c756ac0",
+      "sha256AfterRestart": "cd126196ce3596b46051d5412df7280b1935759c2169d81b66c83d4e9c756ac0",
+      "independentByteComparisonsPassed": true,
+      "independentReadbackMethod": "Fresh LIB_Device.get calls and separate Node HTTPS downloads from the before/after saved native image URLs, followed by SHA-256 and complete byte comparisons"
+    },
+    "repeatApply": {
+      "status": "passed",
+      "toolStatus": "unchanged",
+      "writeOutcome": "not_attempted",
+      "reinsertionAttempted": false,
+      "independentFullNativeRecordUnchanged": true
+    },
+    "fullApplicationRestart": {
+      "status": "passed",
+      "allEasyedaProcessesExitedBeforeRelaunch": true,
+      "newMainProcessObserved": true,
+      "automaticBridgeReconnect": true,
+      "freshNativeReadbackMatchedEntireSavedRecord": true,
+      "freshPreviewStatus": "preview",
+      "freshPreviewWriteOutcome": "not_attempted",
+      "freshPreviewChangedFieldsEmpty": true,
+      "freshFingerprintMatchedSavedFingerprint": true,
+      "thumbnailBytesPersisted": true
+    }
+  },
+  "runtimeAndFailureHandling": {
+    "initialCandidate": {
+      "sourceCommit": "3443235ec12344ec167fee6ed812d215d5fe5ebe",
+      "packageSha256": "9ac22f698000c6d120de7053bcbc91b47aae5d539032a4e02e723d64cb932147",
+      "previewStatus": "rejected",
+      "writeOutcome": "not_attempted",
+      "error": "AbortController is not a constructor",
+      "independentFullNativeRecordUnchanged": true,
+      "fix": "Resolve AbortController through globalThis; retain the bounded timeout and reject before fetch when unavailable. Regression tests reproduce lexical shadowing and missing global capability."
+    },
+    "cors": "Automatic browser fetch succeeded in the loaded Windows extension for this image-pro.easyeda.com fixture before/after upload and after restart. No general CORS claim is made for other origins or hosts.",
+    "redirects": "Production fetch uses redirect:error, credentials:omit, no-referrer and no-store; redirect rejection is covered by automated tests, not a deliberately redirected live fixture.",
+    "timeoutAndSize": "The 3.5-second abort and 512-KiB streamed-byte ceiling remain enabled. Stalls and oversize responses are automated tests, not induced during live apply.",
+    "unknownOutcomes": "The live write was acknowledged and verified. Unknown native acknowledgements and readback failures have automated contract tests; no live ambiguous write was induced. No write retry or rollback was performed.",
+    "disconnectedPreview": "A preview during an application restart returned BRIDGE_READ_FAILED with writeOutcome:not_attempted. Testing resumed only after connection and exact dispatcher identity were established."
+  },
+  "knownLimitations": [
+    "One disposable Personal Device with one existing JPEG was tested. PNG thumbnails and supported LCSC image paths have automated coverage, not live evidence in this run.",
+    "The live test used the local dev tool profile. Default-profile availability and remote scopes/approval contracts are covered separately by repository tests; remote relay was not exercised.",
+    "Observable references and transforms were preserved; referenced symbol/footprint/model geometry and hidden native asset data were not independently revalidated by this metadata test.",
+    "Native preflight and modify are not an atomic compare-and-swap. This test does not certify behavior under all external concurrent edits.",
+    "This evidence does not establish manufacturing, electrical, supplier or design-level approval. Caller-supplied review statements require separate engineering evidence."
+  ]
+}

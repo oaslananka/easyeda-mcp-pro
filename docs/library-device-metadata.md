@@ -6,10 +6,12 @@ profiles and requires the existing library write scope, local confirmation and
 remote approvals. It never infers review approval, invents review dates or performs
 the engineering review itself.
 
-**The reusable orchestration is implemented and tested. Its combined native
-metadata/image operation has live evidence on EasyEDA Pro 3.2.206 from C164170.
-The new automatic image-download path still needs live validation after loading
-this extension build.** Network/CORS failures are surfaced, not treated as success.
+**The reusable workflow has loaded-build live evidence on EasyEDA Pro 3.2.206
+for Windows**, using a disposable Personal Device cloned from C164170. Preview,
+confirmed apply, independent metadata/image readback, a no-write repeat and full
+application restart/readback passed. This evidence covers one existing JPEG;
+it does not certify other images, runtimes or engineering review results.
+Network/CORS failures are surfaced, not treated as success.
 
 ## Preview, then apply
 
@@ -121,9 +123,24 @@ Review Source and Review Notes. Record remaining hinge/service, shell-ground or
 design-specific checks. The tool does not establish manufacturing/electrical
 approval from a metadata save.
 
-C164170's native workflow was tested on a disposable copy before the Personal
-Device. Fresh native readbacks preserved unrelated fields and the reuploaded JPEG
-was byte-identical. Private UUIDs/vendor payloads remain in ignored local reports.
-Automated tests cover the reusable contract, stale tokens, URL/size/time limits,
-unknown outcomes and preservation checks; they do not replace live loaded-build
-evidence for the new automatic download path.
+For AI-assisted review of devices used in a design, first compare the actual
+footprint and bound model with the manufacturer datasheet. Keep unresolved
+findings and exclusions in the review record; only mark the covered checks as
+reviewed when their evidence passes. This tool supplies the verified metadata
+save step, rather than the footprint or model analysis.
+
+The [redacted Windows live evidence](./evidence/easyeda-live/2026-10-16-windows-easyeda-3.2.206-device-metadata.json)
+identifies the exact source commit, production package hash/size and loaded
+dispatcher. All reusable-tool writes were confined to the disposable copy.
+Fresh native readbacks preserved all unrequested fields, including symbol and
+footprint associations, the model reference and transform. Independent downloads
+confirmed identical 12,287-byte JPEG content before/after apply and after restart;
+the image URL changed as permitted. Repeating apply performed no second write or
+image reinsertion. Private UUIDs, image URLs and native payloads remain local.
+
+The initial live preview exposed EasyEDA shadowing the bare `AbortController`
+constructor and failed before any write. Downloads now resolve the constructor
+through `globalThis`, retaining the timeout and failing closed if unavailable.
+Regression tests reproduce the shadowed-constructor failure. Network redirects,
+stalls and unknown native outcomes have automated contract coverage; they were
+not deliberately induced during the successful live save.
