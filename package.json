@@ -70,6 +70,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "vitest bench --run",
     "test:coverage": "vitest run --coverage",
     "test:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension test",
     "smoke:easyeda": "tsx scripts/live-easyeda-smoke.mts",
@@ -143,6 +144,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@codspeed/vitest-plugin": "^6.0.1",
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/client": "^2.2.0",
     "@types/express": "^5.0.6",

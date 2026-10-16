@@ -166,6 +166,7 @@ describe('repository security tooling policy', () => {
       readText('.github/workflows/dependency-advisory-monitor.yml') +
       readText('.github/workflows/deploy-docs.yml') +
       readText('.github/workflows/golden-benchmark.yml') +
+      readText('.github/workflows/codspeed.yml') +
       readText('.github/workflows/release-please.yml') +
       readText('.github/workflows/publish-release.yml') +
       readText('.github/workflows/verify-published-release.yml') +
