@@ -1059,6 +1059,77 @@ describe('PCB Write Tools', () => {
     expect(result?.error).toContain('Inspect the active PCB before retrying');
   });
 
+  it('easyeda_pcb_add_zone previews a strictly typed rectangle without a bridge call or confirmation', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const request = {
+      mode: 'preview',
+      rectangle: { x: 140, y: 140, width: 2780, height: 2000 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_PREVIEW',
+      pourPriority: 2,
+      lineWidth: 0.2,
+      locked: false,
+    };
+    expect(tool?.confirmationPolicy).toBe('apply-mode');
+    expect(tool?.confirmWrite).toBe(true);
+    expect(tool?.inputSchema.safeParse(request).success).toBe(true);
+    const first = await tool?.handler(context, request);
+    const second = await tool?.handler(context, request);
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(first).toEqual(second);
+    expect(first).toMatchObject({
+      success: true,
+      mode: 'preview',
+      applied: false,
+      preview: {
+        target: 'PCB_PrimitivePour.create',
+        nativeArguments: { net: 'GND', layer: 2, polygonSource: ['R', 140, 140, 2780, 2000, 0, 0] },
+      },
+    });
+    expect(tool?.outputSchema.safeParse(first).success).toBe(true);
+  });
+
+  it('easyeda_pcb_add_zone preview rejects legacy points and missing native inputs', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const partial = {
+      mode: 'preview',
+      layer: 2,
+      netName: 'GND',
+    };
+    const incomplete = await tool?.handler(context, partial);
+    expect(incomplete).toMatchObject({ success: false, applied: false });
+    expect(incomplete?.error).toContain('Invalid zone preview input');
+    const legacy = await tool?.handler(context, {
+      ...partial,
+      points: [{ x: 0, y: 0 }],
+    });
+    expect(legacy).toMatchObject({ success: false, applied: false });
+    expect(legacy?.error).toContain('Legacy points');
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
+  it('easyeda_pcb_add_zone rejects explicit apply even with complete input and confirmation', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const result = await tool?.handler(context, {
+      mode: 'apply',
+      rectangle: { x: 140, y: 140, width: 2780, height: 2000 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_APPLY',
+      pourPriority: 2,
+      lineWidth: 0.2,
+      locked: false,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({ success: false, not_available: true });
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_pcb_add_zone should fail closed without calling the bridge', async () => {
     const tool = registry.get('easyeda_pcb_add_zone');
 

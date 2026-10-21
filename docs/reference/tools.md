@@ -48,7 +48,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_add_text`                             | `full`  | `medium` | Place a text primitive on a PCB layer (typically Top/Bottom Silkscreen) — reference labels, section titles, assembly notes. Signature recovered from PCB_PrimitiveString: fontFamily must be a name the runtime's font list actually contains — "NotoSansMonoCJKsc-Regular" (the default) is live-verified to work.              |
 | `easyeda_pcb_add_track`                            | `full`  | `high`   | Draw a copper track/trace on the PCB board. A multi-point path is written as one line segment per consecutive point pair (all sharing netName, so they form one electrical track — same coordinate/name merge model as schematic wires).                                                                                         |
 | `easyeda_pcb_add_via`                              | `full`  | `high`   | Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.    |
-| `easyeda_pcb_add_zone`                             | `full`  | `high`   | PCB copper-zone creation is unavailable because the verified EasyEDA Pro 3.2.149 runtime does not provide a trustworthy create/rebuild/associated-Poured read-back contract. The native create signature is known, but rebuild association and persistence remain unsafe. This tool fails closed and does not call the bridge.   |
+| `easyeda_pcb_add_zone`                             | `full`  | `high`   | Preview a strictly typed rectangular native copper-zone create plan without any bridge writes. Apply remains unavailable pending complete capability, approval, read-back and recovery gates. Existing zone write requests continue to fail closed.                                                                              |
 | `easyeda_pcb_autoroute`                            | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
 | `easyeda_pcb_components`                           | `core`  | `low`    | List components placed on the active PCB layout: primitiveId, designator, footprint identity, position/rotation/layer. Requires a focused PCB tab in EasyEDA Pro — returns an empty list (not an error) if none is active.                                                                                                       |
 | `easyeda_pcb_constraint_check`                     | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
@@ -1476,17 +1476,25 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `high`
 
-> PCB copper-zone creation is unavailable because the verified EasyEDA Pro 3.2.149 runtime does not provide a trustworthy create/rebuild/associated-Poured read-back contract. The native create signature is known, but rebuild association and persistence remain unsafe. This tool fails closed and does not call the bridge.
+> Preview a strictly typed rectangular native copper-zone create plan without any bridge writes. Apply remains unavailable pending complete capability, approval, read-back and recovery gates. Existing zone write requests continue to fail closed.
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `points`       | `object[]`          | Yes      |                                                                               |
-| `layer`        | `number`            | Yes      |                                                                               |
-| `netName`      | `string (optional)` | No       |                                                                               |
-| `clearance`    | `number (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter       | Type                     | Required | Description                                     |
+| --------------- | ------------------------ | -------- | ----------------------------------------------- |
+| `mode`          | `'preview'` \| `'apply'` | Yes      |                                                 |
+| `rectangle`     | `object (optional)`      | No       | Native PCB rectangle. Required in preview mode. |
+| `points`        | `object[] (optional)`    | No       |                                                 |
+| `layer`         | `number`                 | Yes      |                                                 |
+| `netName`       | `string (optional)`      | No       |                                                 |
+| `clearance`     | `number (optional)`      | No       |                                                 |
+| `fillMethod`    | `'solid' (optional)`     | No       |                                                 |
+| `preserveSilos` | `boolean (optional)`     | No       |                                                 |
+| `pourName`      | `string (optional)`      | No       |                                                 |
+| `pourPriority`  | `number (optional)`      | No       |                                                 |
+| `lineWidth`     | `number (optional)`      | No       |                                                 |
+| `locked`        | `boolean (optional)`     | No       |                                                 |
+| `confirmWrite`  | `'true' (optional)`      | No       |                                                 |
 
 ### Output Format
 
@@ -1496,6 +1504,9 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   not_available: boolean(optional);
+  mode: 'preview' | 'apply'(optional);
+  applied: boolean(optional);
+  preview: object(optional);
   error: string(optional);
   remediation: string(optional);
 }

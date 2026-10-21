@@ -13,6 +13,11 @@ import {
   type PcbComponentTransformState,
 } from '../pcb-layout/index.js';
 import { getGlobalTransactionManager, type TransactionManager } from '../transactions/manager.js';
+import {
+  pcbZonePreviewSchema,
+  pcbZoneRectangleSchema,
+  previewPcbZone,
+} from './pcb-zone-preview.js';
 
 const layoutPointSchema = z.object({
   x: z.number().describe('X coordinate in millimetres in the layout-planning coordinate space.'),
@@ -133,19 +138,57 @@ const pcbRebuildCopperOutputSchema = z.object({
   error: z.string().optional(),
 });
 
-const failClosedPcbZoneInputSchema = z.object({
-  points: z.array(z.object({ x: z.number(), y: z.number() })),
-  layer: z.number(),
-  netName: z.string().optional(),
-  clearance: z.number().optional(),
-  confirmWrite: z
-    .literal(true)
-    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
-});
+const failClosedPcbZoneInputSchema = z
+  .object({
+    mode: z.enum(['preview', 'apply']).default('apply'),
+    rectangle: pcbZoneRectangleSchema
+      .optional()
+      .describe('Native PCB rectangle. Required in preview mode.'),
+    points: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
+    layer: z.number(),
+    netName: z.string().optional(),
+    clearance: z.number().optional(),
+    fillMethod: z.literal('solid').optional(),
+    preserveSilos: z.boolean().optional(),
+    pourName: z.string().optional(),
+    pourPriority: z.number().optional(),
+    lineWidth: z.number().optional(),
+    locked: z.boolean().optional(),
+    confirmWrite: z.literal(true).optional(),
+  })
+  .strict();
 
 const failClosedPcbZoneOutputSchema = z.object({
   success: z.boolean(),
   not_available: z.boolean().optional(),
+  mode: z.enum(['preview', 'apply']).optional(),
+  applied: z.boolean().optional(),
+  preview: z
+    .object({
+      target: z.literal('PCB_PrimitivePour.create'),
+      nativeArguments: z.object({
+        net: z.string(),
+        layer: z.number(),
+        polygonSource: z.tuple([
+          z.string(),
+          z.number(),
+          z.number(),
+          z.number(),
+          z.number(),
+          z.number(),
+          z.number(),
+        ]),
+        fillMethod: z.literal('solid'),
+        preserveSilos: z.boolean(),
+        pourName: z.string(),
+        pourPriority: z.number(),
+        lineWidth: z.number(),
+        locked: z.boolean(),
+      }),
+      planHash: z.string().length(64),
+      requiredApplyChecks: z.array(z.string()),
+    })
+    .optional(),
   error: z.string().optional(),
   remediation: z.string().optional(),
 });
@@ -421,23 +464,70 @@ async function handlePcbAddRegion(ctx: ToolContext, params: unknown) {
 
 const failClosedPcbZoneTool = {
   name: 'easyeda_pcb_add_zone',
-  title: 'Add PCB copper zone/pour (unavailable)',
+  title: 'Preview PCB copper zone/pour (apply unavailable)',
   description:
-    'PCB copper-zone creation is unavailable because the verified EasyEDA Pro 3.2.149 runtime ' +
-    'does not provide a trustworthy create/rebuild/associated-Poured read-back contract. The ' +
-    'native create signature is known, but rebuild association and persistence remain unsafe. ' +
-    'This tool fails closed and does not call the bridge.',
+    'Preview a strictly typed rectangular native copper-zone create plan without any bridge writes. ' +
+    'Apply remains unavailable pending complete capability, approval, read-back and recovery gates. ' +
+    'Existing zone write requests continue to fail closed.',
   ...failClosedPcbWriteMetadata,
-  version: '2.0.0',
+  confirmationPolicy: 'apply-mode',
+  version: '2.1.0',
   inputSchema: failClosedPcbZoneInputSchema,
   outputSchema: failClosedPcbZoneOutputSchema,
-  handler: async () => ({
-    success: false,
-    not_available: true,
-    error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
-    remediation:
-      'Create or edit the copper zone in EasyEDA Pro manually until a supported runtime has a live-verified deterministic create/rebuild/associated-Poured read-back contract.',
-  }),
+  handler: async (_ctx: ToolContext, raw: unknown) => {
+    const validated = failClosedPcbZoneInputSchema.safeParse(raw);
+    if (!validated.success) {
+      return {
+        success: false,
+        error: `Invalid zone request: ${validated.error.issues.map((issue) => issue.message).join('; ')}`,
+      };
+    }
+    const input = validated.data;
+    if (input.mode === 'preview') {
+      // The legacy points/clearance shape was never a validated create contract.
+      // Never silently reinterpret it as a native nine-argument Pour request.
+      if (input.points !== undefined || input.clearance !== undefined) {
+        return {
+          success: false,
+          mode: 'preview' as const,
+          applied: false,
+          error: 'Legacy points/clearance parameters cannot be used for native zone preview.',
+        };
+      }
+      const parsed = pcbZonePreviewSchema.safeParse({
+        rectangle: input.rectangle,
+        layer: input.layer,
+        netName: input.netName,
+        fillMethod: input.fillMethod,
+        preserveSilos: input.preserveSilos,
+        pourName: input.pourName,
+        pourPriority: input.pourPriority,
+        lineWidth: input.lineWidth,
+        locked: input.locked,
+      });
+      if (!parsed.success) {
+        return {
+          success: false,
+          mode: 'preview' as const,
+          applied: false,
+          error: `Invalid zone preview input: ${parsed.error.issues.map((issue) => issue.message).join('; ')}`,
+        };
+      }
+      return {
+        success: true,
+        mode: 'preview' as const,
+        applied: false,
+        preview: previewPcbZone(parsed.data),
+      };
+    }
+    return {
+      success: false,
+      not_available: true,
+      error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
+      remediation:
+        'Create or edit the copper zone in EasyEDA Pro manually until a supported runtime has a live-verified deterministic create/rebuild/associated-Poured read-back contract.',
+    };
+  },
 } satisfies ToolDefinition<
   typeof failClosedPcbZoneInputSchema,
   typeof failClosedPcbZoneOutputSchema
