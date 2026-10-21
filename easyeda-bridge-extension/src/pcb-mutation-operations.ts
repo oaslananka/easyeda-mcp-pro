@@ -758,11 +758,17 @@ async function preRebuildEvidence(
     throw wrapped;
   }
   // Freeze now: EasyEDA can mutate previous native object references in place.
+  // With an unreadable baseline, a later success cannot exclude collateral writes.
+  let evidence: Map<string, PouredEvidence> | undefined;
   try {
-    return snapshotPoured(items);
+    evidence = snapshotPoured(items);
   } catch {
-    return undefined;
+    // A failing native getter must not make an unverified write possible.
   }
+  if (!evidence) {
+    throw new Error('Existing Poured geometry cannot be snapshotted; no copper was rebuilt.');
+  }
+  return evidence;
 }
 
 export interface PcbMutationOperations {

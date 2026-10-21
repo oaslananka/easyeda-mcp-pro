@@ -334,12 +334,72 @@ describe('createPcbMutationOperations', () => {
           .mockResolvedValueOnce([fakePouredWithFills('e336', 'e336'), target]),
       },
     });
+    await expect(operations.rebuildCopper({ pourIds: ['target-id'] })).rejects.toThrow(
+      'Existing Poured geometry cannot be snapshotted; no copper was rebuilt.',
+    );
+    expect(pour.rebuildCopperRegion).not.toHaveBeenCalled();
+  });
+
+  it('does not write if a pre-existing native fill getter throws', async () => {
+    const prior = {
+      ...fakePoured('e336', 'e336'),
+      getState_PourFills: () => {
+        throw new Error('unreadable polygon');
+      },
+    };
+    const target = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: target });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: { getAll: vi.fn(async () => [prior]) },
+    });
+    await expect(operations.rebuildCopper({ pourIds: ['target-id'] })).rejects.toThrow(
+      'Existing Poured geometry cannot be snapshotted; no copper was rebuilt.',
+    );
+    expect(pour.rebuildCopperRegion).not.toHaveBeenCalled();
+  });
+
+  it('rejects mutation of the same unrelated native object instance on a direct return', async () => {
+    let coordinate = 12;
+    const original = {
+      ...fakePoured('e336', 'e336'),
+      getState_PourFills: () => [
+        {
+          id: 'fill-1',
+          lineWidth: 0.2,
+          fill: true,
+          path: { getSource: () => ['R', coordinate, -90, 32, 20, 0, 0] },
+        },
+      ],
+    };
+    const target = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: target });
+    pour.rebuildCopperRegion.mockImplementation(async () => {
+      coordinate = 99;
+      return target;
+    });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([original])
+          .mockResolvedValueOnce([original, target]),
+      },
+    });
     const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
     expect(result).toMatchObject({
       success: false,
       rebuiltCount: 0,
       results: [{ status: 'readback-mismatch', verified: false }],
     });
+    expect(pour.rebuildCopperRegion).toHaveBeenCalledOnce();
   });
 
   it('permits unchanged geometry when rebuilding an existing exact target', async () => {
@@ -406,7 +466,7 @@ describe('createPcbMutationOperations', () => {
     'rejects a rebuild result associated with another pour $caseName',
     async ({ includeStaleTarget }) => {
       const wrongNativeResult = fakePoured('poured-original', 'pour-original');
-      const existingPoured = fakePoured('poured-original', 'pour-original');
+      const existingPoured = fakePouredWithFills('poured-original', 'pour-original');
       const targetPoured = fakePoured('poured-target-old', 'pour-target');
       const target = fakePour('pour-target', { rebuildResult: wrongNativeResult });
       const getAllPoured = vi
