@@ -9,7 +9,11 @@ import {
 } from '../workflows/schematic-post-write-qa.js';
 import { buildNe555AstableTemplate } from '../workflows/ne555-astable-template.js';
 import { buildRp2040ServoModuleScaffold } from '../workflows/rp2040-servo-module-scaffold.js';
-import { buildLedBlinkerTemplate } from '../workflows/led-blinker-template.js';
+import {
+  buildLedBlinkerTemplate,
+  type LedBlinkerTemplateInput,
+  type LedBlinkerTemplatePlan,
+} from '../workflows/led-blinker-template.js';
 import {
   collectSchematicLayoutQa,
   layoutQaOutputSchema,
@@ -867,6 +871,55 @@ async function runWorkflow(
   };
 }
 
+function addTemplateSafeRegionIssues(
+  plan: WorkflowPlan,
+  safeRegion: LedBlinkerTemplatePlan['safeRegion'],
+): void {
+  for (const warning of safeRegion.warnings) {
+    pushIssue(plan, {
+      code: 'WORKFLOW_SAFE_REGION',
+      severity: 'warning',
+      message: warning,
+      remediationHint:
+        'Review the returned safe_region bounds and use its anchor before applying the template.',
+    });
+  }
+  for (const issue of safeRegion.issues) {
+    pushIssue(plan, {
+      code: 'WORKFLOW_SAFE_REGION',
+      severity: 'error',
+      message: `${issue.code}: ${issue.message}`,
+      remediationHint:
+        'Reduce content size, choose another preferredRegion, increase the sheet size manually, or provide a safe anchor.',
+    });
+  }
+}
+
+function workflowSafeRegion(
+  template: Pick<LedBlinkerTemplatePlan, 'safeRegion' | 'workflowInput'>,
+) {
+  const { safeRegion, workflowInput } = template;
+  return {
+    blocked: safeRegion.blocked,
+    preferred_region: safeRegion.preferredRegion,
+    sheet: safeRegion.sheet,
+    bounds: safeRegion.bounds,
+    anchor: workflowInput.anchor,
+    warnings: safeRegion.warnings,
+    issues: safeRegion.issues,
+  };
+}
+
+function expectedPinMappings(input: WorkflowBlockInput) {
+  return (input.components ?? []).flatMap((component) =>
+    (component.pinConnections ?? []).map((connection) => ({
+      componentRef: component.ref,
+      pin: connection.pin,
+      netName: connection.netName,
+    })),
+  );
+}
+
 function registerWorkflowTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -946,15 +999,7 @@ function registerWorkflowTools(
           warnings: scaffold.warnings,
           notes: scaffold.notes,
         },
-        safe_region: {
-          blocked: scaffold.safeRegion.blocked,
-          preferred_region: scaffold.safeRegion.preferredRegion,
-          sheet: scaffold.safeRegion.sheet,
-          bounds: scaffold.safeRegion.bounds,
-          anchor: scaffold.workflowInput.anchor,
-          warnings: scaffold.safeRegion.warnings,
-          issues: scaffold.safeRegion.issues,
-        },
+        safe_region: workflowSafeRegion(scaffold),
       };
     },
   });
@@ -994,26 +1039,7 @@ function registerWorkflowTools(
         template.workflowInput,
         'wf_ne555_astable',
         p.confirmWrite,
-        (plan) => {
-          for (const warning of template.safeRegion.warnings) {
-            pushIssue(plan, {
-              code: 'WORKFLOW_SAFE_REGION',
-              severity: 'warning',
-              message: warning,
-              remediationHint:
-                'Review the returned safe_region bounds and use its anchor before applying the template.',
-            });
-          }
-          for (const issue of template.safeRegion.issues) {
-            pushIssue(plan, {
-              code: 'WORKFLOW_SAFE_REGION',
-              severity: 'error',
-              message: `${issue.code}: ${issue.message}`,
-              remediationHint:
-                'Reduce content size, choose another preferredRegion, increase the sheet size manually, or provide a safe anchor.',
-            });
-          }
-        },
+        (plan) => addTemplateSafeRegionIssues(plan, template.safeRegion),
       )) as Record<string, unknown>;
 
       let postWriteQa;
@@ -1021,13 +1047,7 @@ function registerWorkflowTools(
         postWriteQa = await runPostWriteQa(ctx, p.projectId, {
           expectedComponentRefs: Object.values(template.refs),
           expectedNetNames: Object.values(template.nets),
-          expectedPinMappings: (template.workflowInput.components ?? []).flatMap((component) =>
-            (component.pinConnections ?? []).map((connection) => ({
-              componentRef: component.ref,
-              pin: connection.pin,
-              netName: connection.netName,
-            })),
-          ),
+          expectedPinMappings: expectedPinMappings(template.workflowInput),
           relationships: [
             {
               sourceId: template.refs.cCtrl,
@@ -1058,15 +1078,7 @@ function registerWorkflowTools(
         summary: qaFailed
           ? `${String(result.summary)} Post-write QA ${postWriteQa?.status}: ${postWriteQa?.summary}`
           : result.summary,
-        safe_region: {
-          blocked: template.safeRegion.blocked,
-          preferred_region: template.safeRegion.preferredRegion,
-          sheet: template.safeRegion.sheet,
-          bounds: template.safeRegion.bounds,
-          anchor: template.workflowInput.anchor,
-          warnings: template.safeRegion.warnings,
-          issues: template.safeRegion.issues,
-        },
+        safe_region: workflowSafeRegion(template),
         design: {
           refs: template.refs,
           nets: template.nets,
@@ -1485,41 +1497,7 @@ function registerWorkflowTools(
       post_write_qa: postWriteQaOutputSchema.optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const p = (params ?? {}) as {
-        projectId: string;
-        mode?: 'preview' | 'apply';
-        devices: {
-          resistor: { libraryUuid: string; uuid: string };
-          led: { libraryUuid: string; uuid: string };
-          switch: { libraryUuid: string; uuid: string };
-        };
-        anchor?: { x: number; y: number };
-        preferredRegion?:
-          | 'upper-left'
-          | 'upper-center'
-          | 'upper-right'
-          | 'center-left'
-          | 'center'
-          | 'center-right'
-          | 'lower-left'
-          | 'lower-center'
-          | 'lower-right';
-        margin?: number;
-        createNetPorts?: boolean;
-        createWireStubs?: boolean;
-        refs?: Partial<{ switch: string; resistor: string; led: string }>;
-        nets?: Partial<{ vcc: string; gnd: string; switched: string; ledAnode: string }>;
-        values?: Partial<{
-          supplyVoltage: number;
-          ledForwardVoltage: number;
-          ledForwardCurrentMa: number;
-          resistorOhms: number;
-        }>;
-        pinMaps?: Partial<{
-          switch: Partial<{ p1: string; p2: string; p3: string; p4: string }>;
-          resistor: Partial<{ p1: string; p2: string }>;
-          led: Partial<{ anode: string; cathode: string }>;
-        }>;
+      const p = (params ?? {}) as LedBlinkerTemplateInput & {
         runPostWriteQa?: boolean;
         confirmWrite?: boolean;
       };
@@ -1536,26 +1514,7 @@ function registerWorkflowTools(
         template.workflowInput,
         'wf_led_blinker',
         p.confirmWrite,
-        (plan) => {
-          for (const warning of template.safeRegion.warnings) {
-            pushIssue(plan, {
-              code: 'WORKFLOW_SAFE_REGION',
-              severity: 'warning',
-              message: warning,
-              remediationHint:
-                'Review the returned safe_region bounds and use its anchor before applying the template.',
-            });
-          }
-          for (const issue of template.safeRegion.issues) {
-            pushIssue(plan, {
-              code: 'WORKFLOW_SAFE_REGION',
-              severity: 'error',
-              message: `${issue.code}: ${issue.message}`,
-              remediationHint:
-                'Reduce content size, choose another preferredRegion, increase the sheet size manually, or provide a safe anchor.',
-            });
-          }
-        },
+        (plan) => addTemplateSafeRegionIssues(plan, template.safeRegion),
       )) as Record<string, unknown>;
 
       let postWriteQa;
@@ -1563,13 +1522,7 @@ function registerWorkflowTools(
         postWriteQa = await runPostWriteQa(ctx, p.projectId, {
           expectedComponentRefs: Object.values(template.refs),
           expectedNetNames: Object.values(template.nets),
-          expectedPinMappings: (template.workflowInput.components ?? []).flatMap((component) =>
-            (component.pinConnections ?? []).map((connection) => ({
-              componentRef: component.ref,
-              pin: connection.pin,
-              netName: connection.netName,
-            })),
-          ),
+          expectedPinMappings: expectedPinMappings(template.workflowInput),
         });
       }
 
@@ -1580,15 +1533,7 @@ function registerWorkflowTools(
         summary: qaFailed
           ? `${String(result.summary)} Post-write QA ${postWriteQa?.status}: ${postWriteQa?.summary}`
           : result.summary,
-        safe_region: {
-          blocked: template.safeRegion.blocked,
-          preferred_region: template.safeRegion.preferredRegion,
-          sheet: template.safeRegion.sheet,
-          bounds: template.safeRegion.bounds,
-          anchor: template.workflowInput.anchor,
-          warnings: template.safeRegion.warnings,
-          issues: template.safeRegion.issues,
-        },
+        safe_region: workflowSafeRegion(template),
         design: {
           refs: template.refs,
           nets: template.nets,

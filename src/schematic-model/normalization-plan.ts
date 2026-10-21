@@ -63,6 +63,23 @@ export const NormalizationComponentOverrideSchema = z
   .strict();
 export type NormalizationComponentOverride = z.infer<typeof NormalizationComponentOverrideSchema>;
 
+export function validateUniqueComponentOverrides(
+  value: { componentOverrides: Array<{ componentId: string }> },
+  ctx: z.RefinementCtx,
+): void {
+  const seen = new Set<string>();
+  value.componentOverrides.forEach((override, index) => {
+    if (seen.has(override.componentId)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Duplicate component override for ${override.componentId}`,
+        path: ['componentOverrides', index, 'componentId'],
+      });
+    }
+    seen.add(override.componentId);
+  });
+}
+
 export const NormalizationPlanOptionsSchema = z
   .object({
     normalizeNetNames: z.boolean().default(true),
@@ -72,19 +89,7 @@ export const NormalizationPlanOptionsSchema = z
     componentOverrides: z.array(NormalizationComponentOverrideSchema).max(500).default([]),
   })
   .strict()
-  .superRefine((value, ctx) => {
-    const seen = new Set<string>();
-    value.componentOverrides.forEach((override, index) => {
-      if (seen.has(override.componentId)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Duplicate component override for ${override.componentId}`,
-          path: ['componentOverrides', index, 'componentId'],
-        });
-      }
-      seen.add(override.componentId);
-    });
-  });
+  .superRefine(validateUniqueComponentOverrides);
 export type NormalizationPlanOptions = z.input<typeof NormalizationPlanOptionsSchema>;
 export type ParsedNormalizationPlanOptions = z.output<typeof NormalizationPlanOptionsSchema>;
 

@@ -1,3 +1,4 @@
+import { issue } from './schematic-layout-qa-issue.js';
 import { collectSchematicLayoutGeometryIssues } from './schematic-layout-qa-geometry-rules.js';
 import { collectSchematicLayoutTopologyIssues } from './schematic-layout-qa-topology-rules.js';
 
@@ -244,18 +245,6 @@ const SEVERITY_PENALTY: Record<LayoutQaSeverity, number> = {
   warning: 7,
   info: 2,
 };
-
-function issue(
-  value: Omit<LayoutQaIssue, 'affectedPrimitiveIds' | 'affectedNets' | 'affectedPins'> &
-    Partial<Pick<LayoutQaIssue, 'affectedPrimitiveIds' | 'affectedNets' | 'affectedPins'>>,
-): LayoutQaIssue {
-  return {
-    ...value,
-    affectedPrimitiveIds: value.affectedPrimitiveIds ?? [],
-    affectedNets: value.affectedNets ?? [],
-    affectedPins: value.affectedPins ?? [],
-  };
-}
 
 function blockingSeverity(severity: LayoutQaSeverity): boolean {
   return severity === 'critical' || severity === 'error';

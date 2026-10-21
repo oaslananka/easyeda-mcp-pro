@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import { Storage } from '../../../src/storage/database.js';
-import {
-  getGlobalMetricsCollector,
-  resetGlobalMetricsCollector,
-} from '../../../src/observability/index.js';
 
 function createTestConfig() {
   return EnvSchema.parse({
@@ -20,133 +20,62 @@ describe('Storage', () => {
   let storage: Storage;
 
   beforeEach(() => {
-    resetGlobalMetricsCollector();
     const config = createTestConfig();
     storage = new Storage(config);
     storage.initialize();
   });
 
+  afterEach(() => storage.close());
+
   it('should initialize database and create tables', () => {
     expect(() => storage.initialize()).not.toThrow();
   });
 
-  it('should set and get cache entries', () => {
-    storage.cacheSet('test-key', 'test-value');
-    const value = storage.cacheGet('test-key');
-    expect(value).toBe('test-value');
-  });
-
-  it('should return null for missing cache keys', () => {
-    const value = storage.cacheGet('non-existent');
-    expect(value).toBeNull();
-  });
-
-  it('should allow zero TTL (no expiry)', () => {
-    storage.cacheSet('no-expiry', 'value', 0);
-    expect(storage.cacheGet('no-expiry')).toBe('value');
-  });
-
-  it('should return cached values within TTL', () => {
-    storage.cacheSet('stays', 'value', 60);
-    expect(storage.cacheGet('stays')).toBe('value');
-  });
-
-  it('should delete cache entries', () => {
-    storage.cacheSet('delete-me', 'value');
-    storage.cacheDelete('delete-me');
-    const value = storage.cacheGet('delete-me');
-    expect(value).toBeNull();
-  });
-
-  it('should clear all cache entries', () => {
-    storage.cacheSet('key1', 'val1');
-    storage.cacheSet('key2', 'val2');
-    storage.cacheClear();
-    expect(storage.cacheGet('key1')).toBeNull();
-    expect(storage.cacheGet('key2')).toBeNull();
-  });
-
-  it('should record cache observability counters', () => {
-    storage.cacheSet('observed', 'value');
-    expect(storage.cacheGet('observed')).toBe('value');
-    expect(storage.cacheGet('missing')).toBeNull();
-    storage.cacheDelete('observed');
-
-    const snapshot = getGlobalMetricsCollector().snapshot();
-    expect(snapshot.cache).toMatchObject({ hits: 1, misses: 1, writes: 1, deletes: 1 });
-    expect(snapshot.cache.hitRate).toBe(0.5);
-  });
-
-  it('should upsert and retrieve project cache', () => {
-    storage.upsertProjectCache({
-      projectHash: 'abc123',
-      projectName: 'test-project',
-      schematicSnapshot: 'snap1',
-      boardSnapshot: null,
-      bomSnapshot: null,
-      lastSyncedAt: new Date().toISOString(),
-      easyedaVersion: '1.0',
-    });
-
-    const retrieved = storage.getProjectCache('abc123');
-    expect(retrieved).toMatchObject({
-      projectHash: 'abc123',
-      projectName: 'test-project',
-      schematicSnapshot: 'snap1',
-      easyedaVersion: '1.0',
-    });
-  });
-
-  it('should handle missing project cache gracefully', () => {
-    const retrieved = storage.getProjectCache('non-existent');
-    expect(retrieved).toBeNull();
-  });
-
-  it('should insert and query artifacts', () => {
-    storage.insertArtifact({
-      id: 'art-1',
-      projectHash: 'proj-1',
-      type: 'gerber',
-      filePath: '/tmp/gerbers.zip',
-      createdAt: new Date().toISOString(),
-      metadata: '{}',
-    });
-
-    const artifacts = storage.getArtifacts('proj-1');
-    expect(artifacts).toMatchObject([{ id: 'art-1', type: 'gerber' }]);
-  });
-
-  it('should filter artifacts by type', () => {
-    storage.insertArtifact({
-      id: 'a1',
-      projectHash: 'p1',
-      type: 'gerber',
-      filePath: '/g.zip',
-      createdAt: new Date().toISOString(),
-      metadata: null,
-    });
-    storage.insertArtifact({
-      id: 'a2',
-      projectHash: 'p1',
-      type: 'bom',
-      filePath: '/b.csv',
-      createdAt: new Date().toISOString(),
-      metadata: null,
-    });
-    storage.insertArtifact({
-      id: 'a3',
-      projectHash: 'p1',
-      type: 'pdf',
-      filePath: '/d.pdf',
-      createdAt: new Date().toISOString(),
-      metadata: null,
-    });
-
-    const gerbers = storage.getArtifacts('p1', 'gerber');
-    expect(gerbers).toMatchObject([{ id: 'a1' }]);
-
-    const all = storage.getArtifacts('p1');
-    expect(all).toHaveLength(3);
+  it('preserves legacy cache, project and artifact rows when reopening a database', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'easyeda-storage-'));
+    const config = { ...createTestConfig(), SQLITE_PATH: join(directory, 'existing.sqlite') };
+    try {
+      const original = new Storage(config);
+      original.initialize();
+      original.close();
+      const database = new DatabaseSync(config.SQLITE_PATH);
+      try {
+        database.exec(`
+          INSERT INTO cache (key, value) VALUES ('legacy-cache', 'cached value');
+          INSERT INTO project_cache (project_hash, project_name)
+            VALUES ('legacy-project', 'Existing project');
+          INSERT INTO artifacts (id, project_hash, type, file_path)
+            VALUES ('legacy-artifact', 'legacy-project', 'pdf', '/exports/existing.pdf');
+        `);
+        const reopened = new Storage(config);
+        try {
+          reopened.initialize();
+          reopened.upsertVerifiedDevice({
+            lcscId: 'C1',
+            entryJson: '{}',
+            status: 'resolved',
+            errorCount: 0,
+            warningCount: 0,
+          });
+          expect(reopened.getVerifiedDevice('C1')?.status).toBe('resolved');
+          expect(database.prepare('SELECT value FROM cache').get()).toMatchObject({
+            value: 'cached value',
+          });
+          expect(database.prepare('SELECT project_name FROM project_cache').get()).toMatchObject({
+            project_name: 'Existing project',
+          });
+          expect(database.prepare('SELECT file_path FROM artifacts').get()).toMatchObject({
+            file_path: '/exports/existing.pdf',
+          });
+        } finally {
+          reopened.close();
+        }
+      } finally {
+        database.close();
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   describe('verified devices', () => {
@@ -222,18 +151,6 @@ describe('Storage', () => {
       const resolvedOnly = storage.listVerifiedDevices('resolved');
       expect(resolvedOnly).toHaveLength(1);
       expect(resolvedOnly[0]?.lcscId).toBe('C1');
-    });
-
-    it('deletes a verified device', () => {
-      storage.upsertVerifiedDevice({
-        lcscId: 'C3',
-        entryJson: '{}',
-        status: 'resolved',
-        errorCount: 0,
-        warningCount: 0,
-      });
-      storage.deleteVerifiedDevice('C3');
-      expect(storage.getVerifiedDevice('C3')).toBeNull();
     });
   });
 });

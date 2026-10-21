@@ -1,4 +1,3 @@
-import { Readable } from 'node:stream';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   httpRequestWithRetry,
@@ -24,7 +23,10 @@ const logger = {
 } as any;
 
 function okResponse() {
-  return { statusCode: 200, body: Readable.from(['{}']) };
+  return {
+    statusCode: 200,
+    body: { arrayBuffer: async () => new TextEncoder().encode('{}').buffer },
+  };
 }
 
 describe('base http client observability', () => {

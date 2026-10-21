@@ -1,3 +1,4 @@
+import { nativeScalarString } from './utils.js';
 // The hot-swappable dispatcher module: every EasyEDA Pro API interaction lives
 // here, behind createDispatcher(toolkit). The loader (index.ts) bakes this
 // module in as the fallback dispatcher; in dev mode the MCP server can push a
@@ -163,15 +164,6 @@ function newBridgeError(code: string, message: string, suggestion: string, data?
   const error = new Error(message);
   Object.assign(error, { code, suggestion, data });
   return error;
-}
-
-function nativeScalarString(value: unknown): string {
-  return typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    typeof value === 'bigint'
-    ? String(value)
-    : '';
 }
 
 async function needDevice(v: unknown): Promise<void> {

@@ -1,6 +1,6 @@
 import type { ApiRuntime } from './api-runtime.js';
 import { normalizeValue } from './api-introspection.js';
-import { isRecord, logRecoverableError } from './utils.js';
+import { isRecord, logRecoverableError, nativeScalarString } from './utils.js';
 import { resolveSchematicReadSelector } from './schematic-read-scope.js';
 
 interface RawPrimitiveBBox {
@@ -53,15 +53,6 @@ function asNonEmptyRecord(value: unknown): Record<string, unknown> | undefined {
 function asRecordArray(value: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is Record<string, unknown> => isRecord(item));
-}
-
-function nativeScalarString(value: unknown): string {
-  return typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    typeof value === 'bigint'
-    ? String(value)
-    : '';
 }
 
 function readFocusedPageUuid(

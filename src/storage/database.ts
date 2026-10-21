@@ -3,8 +3,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { getLogger } from '../utils/logger.js';
 import { type EnvConfig } from '../config/env.js';
-import { type ProjectCache, type ArtifactRecord, type VerifiedDeviceRecord } from './types.js';
-import { getGlobalMetricsCollector } from '../observability/index.js';
+import { type VerifiedDeviceRecord } from './types.js';
 
 function rowToVerifiedDeviceRecord(row: Record<string, unknown>): VerifiedDeviceRecord {
   return {
@@ -21,8 +20,8 @@ function rowToVerifiedDeviceRecord(row: Record<string, unknown>): VerifiedDevice
 /**
  * SQLite-backed persistent storage for the MCP server.
  *
- * Manages project cache entries, generic key/value cache with TTL,
- * and artifact records. Uses WAL mode and foreign keys for safety.
+ * Stores verified catalog devices. Retains legacy cache/artifact tables for
+ * compatibility with existing databases. Uses WAL mode and foreign keys for safety.
  * All public methods are safe — errors are logged internally and
  * never thrown to the caller.
  */
@@ -99,158 +98,6 @@ export class Storage {
     logger.info({ path: this.config.SQLITE_PATH }, 'storage initialized');
   }
 
-  /** Retrieve a cached value by key. Returns `null` when missing or expired. */
-  cacheGet(key: string): string | null {
-    try {
-      const row = this.db
-        .prepare(
-          `SELECT value FROM cache WHERE key = ? AND (expires_at IS NULL OR expires_at > datetime('now'))`,
-        )
-        .get(key) as { value: string } | undefined;
-
-      const value = row?.value ?? null;
-      getGlobalMetricsCollector().recordCache(value === null ? 'miss' : 'hit');
-      return value;
-    } catch (err) {
-      getLogger().error({ err, key }, 'cacheGet failed');
-      return null;
-    }
-  }
-
-  /**
-   * Store a value in the cache.
-   * @param ttlSec Time-to-live in seconds. 0 means never expire.
-   */
-  cacheSet(key: string, value: string, ttlSec = 0): void {
-    try {
-      const expiresAt = ttlSec > 0 ? new Date(Date.now() + ttlSec * 1000).toISOString() : null;
-      this.db
-        .prepare(`INSERT OR REPLACE INTO cache (key, value, ttl, expires_at) VALUES (?, ?, ?, ?)`)
-        .run(key, value, ttlSec, expiresAt);
-      getGlobalMetricsCollector().recordCache('write');
-    } catch (err) {
-      getLogger().error({ err, key }, 'cacheSet failed');
-    }
-  }
-
-  /** Remove a single cache entry by key. */
-  cacheDelete(key: string): void {
-    try {
-      this.db.prepare('DELETE FROM cache WHERE key = ?').run(key);
-      getGlobalMetricsCollector().recordCache('delete');
-    } catch (err) {
-      getLogger().error({ err, key }, 'cacheDelete failed');
-    }
-  }
-
-  /** Remove all cache entries. */
-  cacheClear(): void {
-    try {
-      this.db.prepare('DELETE FROM cache').run();
-      getGlobalMetricsCollector().recordCache('delete');
-    } catch (err) {
-      getLogger().error({ err }, 'cacheClear failed');
-    }
-  }
-
-  /** Look up a project cache entry by its hash. Returns `null` if not found. */
-  getProjectCache(hash: string): ProjectCache | null {
-    try {
-      const row = this.db
-        .prepare('SELECT * FROM project_cache WHERE project_hash = ?')
-        .get(hash) as Record<string, unknown> | undefined;
-      if (!row) return null;
-      return {
-        projectHash: row.project_hash as string,
-        projectName: row.project_name as string,
-        schematicSnapshot: (row.schematic_snapshot as string) ?? null,
-        boardSnapshot: (row.board_snapshot as string) ?? null,
-        bomSnapshot: (row.bom_snapshot as string) ?? null,
-        lastSyncedAt: row.last_synced_at as string,
-        easyedaVersion: (row.easyeda_version as string) ?? null,
-      };
-    } catch (err) {
-      getLogger().error({ err, hash }, 'getProjectCache failed');
-      return null;
-    }
-  }
-
-  /** Insert or replace a project cache entry. */
-  upsertProjectCache(cache: ProjectCache): void {
-    try {
-      this.db
-        .prepare(
-          `
-        INSERT OR REPLACE INTO project_cache
-          (project_hash, project_name, schematic_snapshot, board_snapshot, bom_snapshot, last_synced_at, easyeda_version)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `,
-        )
-        .run(
-          cache.projectHash,
-          cache.projectName,
-          cache.schematicSnapshot,
-          cache.boardSnapshot,
-          cache.bomSnapshot,
-          cache.lastSyncedAt,
-          cache.easyedaVersion,
-        );
-    } catch (err) {
-      getLogger().error({ err, projectHash: cache.projectHash }, 'upsertProjectCache failed');
-    }
-  }
-
-  /** Store a new artifact record (gerber, bom, pdf, etc.). */
-  insertArtifact(artifact: ArtifactRecord): void {
-    try {
-      this.db
-        .prepare(
-          `
-        INSERT INTO artifacts (id, project_hash, type, file_path, created_at, metadata)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `,
-        )
-        .run(
-          artifact.id,
-          artifact.projectHash,
-          artifact.type,
-          artifact.filePath,
-          artifact.createdAt,
-          artifact.metadata,
-        );
-    } catch (err) {
-      getLogger().error({ err, artifactId: artifact.id }, 'insertArtifact failed');
-    }
-  }
-
-  /**
-   * List artifact records for a project, optionally filtered by type.
-   * Results are ordered by creation date descending.
-   */
-  getArtifacts(projectHash: string, type?: string): ArtifactRecord[] {
-    try {
-      let query = 'SELECT * FROM artifacts WHERE project_hash = ?';
-      const params: Array<string> = [projectHash];
-      if (type) {
-        query += ' AND type = ?';
-        params.push(type);
-      }
-      query += ' ORDER BY created_at DESC';
-      const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
-      return rows.map((r) => ({
-        id: r.id as string,
-        projectHash: r.project_hash as string,
-        type: r.type as ArtifactRecord['type'],
-        filePath: r.file_path as string,
-        createdAt: r.created_at as string,
-        metadata: (r.metadata as string) ?? null,
-      }));
-    } catch (err) {
-      getLogger().error({ err, projectHash, type }, 'getArtifacts failed');
-      return [];
-    }
-  }
-
   /** Insert or replace a verified-device cache entry, keyed by LCSC id. */
   upsertVerifiedDevice(record: Omit<VerifiedDeviceRecord, 'createdAt' | 'updatedAt'>): void {
     try {
@@ -312,24 +159,6 @@ export class Storage {
     } catch (err) {
       getLogger().error({ err, status }, 'listVerifiedDevices failed');
       return [];
-    }
-  }
-
-  /** Remove a cached verified-device entry by LCSC id. */
-  deleteVerifiedDevice(lcscId: string): void {
-    try {
-      this.db.prepare('DELETE FROM verified_devices WHERE lcsc_id = ?').run(lcscId);
-    } catch (err) {
-      getLogger().error({ err, lcscId }, 'deleteVerifiedDevice failed');
-    }
-  }
-
-  /** Reclaim storage by running VACUUM. */
-  vacuum(): void {
-    try {
-      this.db.exec('VACUUM');
-    } catch (err) {
-      getLogger().error({ err }, 'vacuum failed');
     }
   }
 

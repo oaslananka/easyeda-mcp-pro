@@ -21,7 +21,6 @@ function createFakeStorage() {
       const all = Array.from(records.values());
       return status ? all.filter((r) => r.status === status) : all;
     }),
-    deleteVerifiedDevice: vi.fn((lcscId: string) => records.delete(lcscId)),
   };
 }
 

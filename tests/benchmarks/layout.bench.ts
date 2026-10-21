@@ -1,9 +1,6 @@
 import { bench, describe } from 'vitest';
 
-import { detectFunctionalBlocks } from '../../src/layout/block-detector.js';
-import { buildSchematicLayoutGraph } from '../../src/layout/graph.js';
 import { planFunctionalLayout, type FunctionalLayoutComponent } from '../../src/layout/planner.js';
-import type { LayoutComponentInput, LayoutNetInput } from '../../src/layout/types.js';
 import type { SchematicSheetGeometry } from '../../src/schematic-engine/geometry.js';
 
 function sheet(pageSize: 'A4' | 'A3'): SchematicSheetGeometry {
@@ -81,41 +78,6 @@ function multiBlockDesign(blockCount: number): FunctionalLayoutComponent[] {
 
 const multiBlock = multiBlockDesign(4);
 
-function layoutComponents(count: number): LayoutComponentInput[] {
-  const prefixes = ['U', 'R', 'C', 'D', 'J', 'L'];
-  return Array.from({ length: count }, (_, i) => {
-    const prefix = prefixes[i % prefixes.length] ?? 'U';
-    return {
-      id: `${prefix}${i + 1}`,
-      reference: `${prefix}${i + 1}`,
-      width: prefix === 'U' ? 120 : 40,
-      height: prefix === 'U' ? 80 : 20,
-      value: prefix === 'R' ? '10k' : prefix === 'C' ? '100nF' : undefined,
-      deviceName: prefix === 'U' ? 'RP2040' : prefix === 'J' ? 'USB-C' : undefined,
-    };
-  });
-}
-
-function layoutNets(components: readonly LayoutComponentInput[]): LayoutNetInput[] {
-  const nets: LayoutNetInput[] = [];
-  for (let i = 0; i + 2 < components.length; i += 2) {
-    const a = components[i];
-    const b = components[i + 1];
-    const c = components[i + 2];
-    if (!a || !b || !c) continue;
-    nets.push({
-      id: `NET${i}`,
-      name: `NET${i}`,
-      endpoints: [{ componentId: a.id }, { componentId: b.id }, { componentId: c.id }],
-    });
-  }
-  return nets;
-}
-
-const graphComponents = layoutComponents(300);
-const graphNets = layoutNets(graphComponents);
-const prebuiltGraph = buildSchematicLayoutGraph(graphComponents, graphNets);
-
 describe('schematic layout', () => {
   bench('planFunctionalLayout - NE555 astable (A4)', () => {
     planFunctionalLayout({
@@ -132,13 +94,5 @@ describe('schematic layout', () => {
       allowA3Fallback: true,
       components: multiBlock,
     });
-  });
-
-  bench('buildSchematicLayoutGraph - 300 components', () => {
-    buildSchematicLayoutGraph(graphComponents, graphNets);
-  });
-
-  bench('detectFunctionalBlocks - 300 components', () => {
-    detectFunctionalBlocks(graphComponents, prebuiltGraph);
   });
 });

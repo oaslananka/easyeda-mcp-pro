@@ -19,6 +19,7 @@ import {
   ok,
   info,
   warn,
+  readJsonFile,
 } from './client-definitions.js';
 
 // ── Safe logger fallback for CLI paths where pino may not be initialized yet ──
@@ -62,15 +63,6 @@ function buildServerEntry(profile: string, client: ClientDefinition): Record<str
   }
 
   return base;
-}
-
-function readJsonFile(path: string): Record<string, unknown> {
-  try {
-    const raw = readFileSync(path, 'utf8');
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
 }
 
 function writeJsonFile(path: string, data: Record<string, unknown>): void {

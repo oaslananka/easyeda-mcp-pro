@@ -132,6 +132,6 @@ export interface ToolContext {
     mouser: MouserClient | null;
     digikey: DigiKeyClient | null;
   };
-  /** Local SQLite storage (project cache, artifacts, verified device catalog cache). */
+  /** Local SQLite storage for verified catalog devices. */
   storage?: Storage;
 }

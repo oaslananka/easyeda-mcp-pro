@@ -1,3 +1,4 @@
+import { issue } from './schematic-layout-qa-issue.js';
 import type {
   LayoutQaBounds,
   LayoutQaInput,
@@ -9,18 +10,6 @@ import type {
 export interface LayoutQaTopologyThresholds {
   relatedComponentDistance: number;
   excessiveWireLength: number;
-}
-
-function issue(
-  value: Omit<LayoutQaIssue, 'affectedPrimitiveIds' | 'affectedNets' | 'affectedPins'> &
-    Partial<Pick<LayoutQaIssue, 'affectedPrimitiveIds' | 'affectedNets' | 'affectedPins'>>,
-): LayoutQaIssue {
-  return {
-    ...value,
-    affectedPrimitiveIds: value.affectedPrimitiveIds ?? [],
-    affectedNets: value.affectedNets ?? [],
-    affectedPins: value.affectedPins ?? [],
-  };
 }
 
 function center(rect: LayoutQaBounds): { x: number; y: number } {

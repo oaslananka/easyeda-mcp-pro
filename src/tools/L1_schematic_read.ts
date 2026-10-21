@@ -29,6 +29,7 @@ import {
   normalizeNetName,
   normalizeSchematicComponent,
   previewImportedNormalization,
+  validateUniqueComponentOverrides,
 } from '../schematic-model/index.js';
 
 const schematicRegionPreferenceSchema = z.enum([
@@ -52,19 +53,7 @@ const importedNormalizationPreviewInputSchema = z
     resolveMetadataExpressions: z.boolean().default(true),
     componentOverrides: z.array(NormalizationComponentOverrideSchema).max(500).default([]),
   })
-  .superRefine((value, ctx) => {
-    const seen = new Set<string>();
-    value.componentOverrides.forEach((override, index) => {
-      if (seen.has(override.componentId)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Duplicate component override for ${override.componentId}`,
-          path: ['componentOverrides', index, 'componentId'],
-        });
-      }
-      seen.add(override.componentId);
-    });
-  });
+  .superRefine(validateUniqueComponentOverrides);
 
 const searchDeviceInputSchema = z.object({
   key: z

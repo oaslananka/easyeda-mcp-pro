@@ -266,7 +266,7 @@ export function warn(text: string): string {
 
 // ── Shared JSON helper (also used by configHasServer) ───────
 
-function readJsonFile(path: string): Record<string, unknown> {
+export function readJsonFile(path: string): Record<string, unknown> {
   try {
     const raw = readFileSync(path, 'utf8');
     return JSON.parse(raw) as Record<string, unknown>;

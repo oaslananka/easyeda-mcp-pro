@@ -5,6 +5,15 @@
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue | undefined };
 
+export function nativeScalarString(value: unknown): string {
+  return typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+    ? String(value)
+    : '';
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }

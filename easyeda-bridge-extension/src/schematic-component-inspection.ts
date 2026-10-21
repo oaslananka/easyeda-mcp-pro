@@ -1,4 +1,4 @@
-import { isRecord, logRecoverableError } from './utils.js';
+import { isRecord, logRecoverableError, nativeScalarString } from './utils.js';
 
 export interface SchematicComponentInspectionOperationDependencies {
   readFirstPath<T>(paths: readonly string[]): T | undefined;
@@ -7,15 +7,6 @@ export interface SchematicComponentInspectionOperationDependencies {
 
 export interface SchematicComponentInspectionOperations {
   listComponents(limit?: number, offset?: number, allPages?: unknown): Promise<unknown>;
-}
-
-function nativeScalarString(value: unknown): string {
-  return typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    typeof value === 'bigint'
-    ? String(value)
-    : '';
 }
 
 function readOtherPropertyValue(

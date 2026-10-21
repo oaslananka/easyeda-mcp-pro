@@ -1,3 +1,4 @@
+import { issue } from './schematic-layout-qa-issue.js';
 import type {
   LayoutQaBounds,
   LayoutQaEvidenceSource,
@@ -47,18 +48,6 @@ function edgeClearance(a: LayoutQaBounds, b: LayoutQaBounds): number {
   const horizontal = Math.max(b.x - right(a), a.x - right(b), 0);
   const vertical = Math.max(b.y - top(a), a.y - top(b), 0);
   return Math.hypot(horizontal, vertical);
-}
-
-function issue(
-  value: Omit<LayoutQaIssue, 'affectedPrimitiveIds' | 'affectedNets' | 'affectedPins'> &
-    Partial<Pick<LayoutQaIssue, 'affectedPrimitiveIds' | 'affectedNets' | 'affectedPins'>>,
-): LayoutQaIssue {
-  return {
-    ...value,
-    affectedPrimitiveIds: value.affectedPrimitiveIds ?? [],
-    affectedNets: value.affectedNets ?? [],
-    affectedPins: value.affectedPins ?? [],
-  };
 }
 
 function geometrySource(primitive: LayoutQaPrimitive): LayoutQaEvidenceSource {

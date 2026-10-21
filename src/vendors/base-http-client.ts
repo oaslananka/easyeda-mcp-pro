@@ -1,5 +1,4 @@
 import { request } from 'undici';
-import type { Readable } from 'node:stream';
 import { EasyEdaMcpError } from '../schemas/common.js';
 import type pino from 'pino';
 import { getGlobalMetricsCollector } from '../observability/index.js';
@@ -42,18 +41,6 @@ async function waitForVendorRateLimit(hostname: string): Promise<void> {
   lastRequestAtByHost.set(hostname, Date.now());
 }
 
-/**
- * Read the entire body of a readable stream and return it as a UTF-8 string.
- * Works with both Buffer and string chunks.
- */
-export async function readBody(stream: Readable): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer));
-  }
-  return Buffer.concat(chunks).toString('utf-8');
-}
-
 /** Options for an HTTP request. */
 export interface RequestOptions {
   /** HTTP method (default: GET). */
@@ -71,11 +58,6 @@ export interface RequestResult {
   /** HTTP status code. */
   statusCode: number;
   /** Response body as a string. */
-  responseText: string;
-}
-
-export interface RequestResult {
-  statusCode: number;
   responseText: string;
 }
 
@@ -115,7 +97,8 @@ export async function httpRequestWithRetry(
         signal: AbortSignal.timeout(timeoutMs),
       });
 
-      const responseText = await readBody(body as Readable);
+      // Preserve the existing UTF-8/BOM behavior; body.text() strips a leading BOM.
+      const responseText = Buffer.from(await body.arrayBuffer()).toString('utf-8');
 
       if ((statusCode === 429 || statusCode >= 500) && attempt <= maxRetries) {
         const delay = DEFAULT_BASE_DELAY_MS * Math.pow(2, attempt - 1);

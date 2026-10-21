@@ -1,4 +1,3 @@
-import { Readable } from 'node:stream';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import { MouserClient } from '../../../src/vendors/mouser/client.js';
@@ -10,11 +9,14 @@ vi.mock('undici', () => ({
 }));
 
 function jsonResponse(statusCode: number, body: unknown) {
-  return { statusCode, body: Readable.from([JSON.stringify(body)]) };
+  return {
+    statusCode,
+    body: { arrayBuffer: async () => new TextEncoder().encode(JSON.stringify(body)).buffer },
+  };
 }
 
 function textResponse(statusCode: number, text: string) {
-  return { statusCode, body: Readable.from([text]) };
+  return { statusCode, body: { arrayBuffer: async () => new TextEncoder().encode(text).buffer } };
 }
 
 function createEnabledConfig() {
