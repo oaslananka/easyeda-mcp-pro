@@ -136,10 +136,16 @@ export function createDispatcherDomainRouter(
     {
       method: 'pcb.zonePreflight',
       handle: (params) =>
-        dependencies.pcbReadOperations.zonePreflight(
-          params.netName as string,
-          params.layer as number,
-        ),
+        params.rectangle === undefined
+          ? dependencies.pcbReadOperations.zonePreflight(
+              params.netName as string,
+              params.layer as number,
+            )
+          : dependencies.pcbReadOperations.zonePreflight(
+              params.netName as string,
+              params.layer as number,
+              params.rectangle as { x: number; y: number; width: number; height: number },
+            ),
     },
     ...pcbListRoutes,
     {

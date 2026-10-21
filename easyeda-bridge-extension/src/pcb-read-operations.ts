@@ -1,6 +1,7 @@
 import type { ApiRuntime } from './api-runtime.js';
 import type { BoardInspectionOperations } from './board-inspection.js';
 import { logRecoverableError } from './utils.js';
+import { evaluateZoneOutlineEvidence, type ZoneRectangle } from './zone-outline-evidence.js';
 
 export type PrimitiveStateReader = (value: unknown, key: string) => unknown;
 
@@ -11,7 +12,7 @@ export interface PcbReadOperationDependencies {
 }
 
 export interface PcbReadOperations {
-  zonePreflight(netName: string, layer: number): Promise<unknown>;
+  zonePreflight(netName: string, layer: number, rectangle?: ZoneRectangle): Promise<unknown>;
   readProjectScoped(projectId: string, read: () => Promise<unknown>): Promise<unknown>;
   listComponents(limit?: number, offset?: number): Promise<unknown>;
   listFills(limit?: number, offset?: number): Promise<unknown>;
@@ -106,6 +107,26 @@ async function focusedPcbIsVerified(pcb: any, selection: any): Promise<boolean> 
   );
 }
 
+async function readZoneGeometry(
+  rectangle: ZoneRectangle | undefined,
+  activePcb: boolean,
+  readFirstPath: ApiRuntime['readFirstPath'],
+  readState: PrimitiveStateReader,
+) {
+  if (!rectangle || !activePcb) return null;
+  return evaluateZoneOutlineEvidence(rectangle, readFirstPath, readState);
+}
+
+function appendGeometryBlocker(
+  blockers: string[],
+  rectangle: ZoneRectangle | undefined,
+  boardGeometry: { intersectionVerified: boolean } | null,
+): void {
+  if (rectangle && !boardGeometry?.intersectionVerified) {
+    blockers.push('candidate-board-intersection-unverified');
+  }
+}
+
 export function createPcbReadOperations({
   requireActivePcbContext,
   readFirstPath,
@@ -163,7 +184,11 @@ export function createPcbReadOperations({
     return result;
   }
 
-  async function zonePreflight(netName: string, layer: number): Promise<unknown> {
+  async function zonePreflight(
+    netName: string,
+    layer: number,
+    rectangle?: ZoneRectangle,
+  ): Promise<unknown> {
     const environment = readFirstPath<any>(['SYS_Environment', 'sys_Environment']);
     const pcb = readFirstPath<any>(['DMT_Pcb', 'dmt_Pcb']);
     const selection = readFirstPath<any>(['DMT_SelectControl', 'dmt_SelectControl']);
@@ -177,7 +202,7 @@ export function createPcbReadOperations({
       environment?.getEditorCurrentVersion?.(),
     );
     const version = typeof reportedVersion === 'string' ? reportedVersion : null;
-    const runtimeVerified = version !== null && /^3\.2\.206(?:\.|$)/.test(version);
+    const runtimeVerified = version !== null && /^3\.2\.(?:206|209)(?:\.|$)/.test(version);
     const activePcb = await focusedPcbIsVerified(pcb, selection);
     const nativeCapabilities =
       typeof pours?.create === 'function' &&
@@ -194,6 +219,8 @@ export function createPcbReadOperations({
       typeof count === 'number' &&
       Number.isInteger(count) &&
       count >= 2;
+    // Informational only. Even a proven rectangle overlap says nothing about clearance.
+    const boardGeometry = await readZoneGeometry(rectangle, activePcb, readFirstPath, readState);
     const checks: Array<[boolean, string]> = [
       [runtimeVerified, 'runtime-version-unverified'],
       [activePcb, 'active-pcb-unverified'],
@@ -207,6 +234,7 @@ export function createPcbReadOperations({
       'board-outline-and-copper-topology-unverified',
       'apply-and-rollback-not-implemented',
     );
+    appendGeometryBlocker(blockers, rectangle, boardGeometry);
     return {
       runtimeVersion: version,
       runtimeVerified,
@@ -214,6 +242,7 @@ export function createPcbReadOperations({
       nativeCapabilities,
       netVerified,
       layerVerified,
+      boardGeometry,
       readyToApply: false,
       blockers,
     };

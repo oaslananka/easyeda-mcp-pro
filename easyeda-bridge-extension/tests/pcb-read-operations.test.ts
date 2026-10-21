@@ -638,6 +638,63 @@ describe('native zone preflight', () => {
     pcb_PrimitivePoured: { get: vi.fn() },
     pcb_Document: { save: vi.fn() },
   };
+  it('recognizes live-verified 3.2.209 without enabling apply', async () => {
+    const { operations } = makeOperations({
+      ...base,
+      sys_Environment: { getEditorCurrentVersion: async () => '3.2.209.8a704eab' },
+    });
+    await expect(operations.zonePreflight('GND', 2)).resolves.toMatchObject({
+      runtimeVerified: true,
+      readyToApply: false,
+    });
+  });
+  it('checks an optional rectangle only as diagnostic evidence, never authorization', async () => {
+    const { operations } = makeOperations({
+      ...base,
+      DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'project' }) },
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => ({
+          documentType: 3,
+          uuid: 'pcb',
+          parentProjectUuid: 'project',
+        }),
+      },
+      PCB_PrimitivePolyline: {
+        getAll: async () => [
+          {
+            getState_Layer: () => 11,
+            getState_Polygon: () => ({ getSource: () => ['R', 0, 0, 3149.6063, 2362.2047, 0, 0] }),
+          },
+        ],
+      },
+      PCB_PrimitiveLine: { getAll: async () => [] },
+      PCB_PrimitiveArc: { getAll: async () => [] },
+      PCB_PrimitiveRegion: { getAll: async () => [] },
+    });
+    const inside = await operations.zonePreflight('GND', 2, {
+      x: 2420,
+      y: -1800,
+      width: 520,
+      height: 420,
+    });
+    expect(inside).toMatchObject({
+      boardGeometry: { status: 'intersection-confirmed', intersectionVerified: true },
+      readyToApply: false,
+      blockers: expect.arrayContaining(['board-outline-and-copper-topology-unverified']),
+    });
+    const outside = await operations.zonePreflight('GND', 2, {
+      x: 2400,
+      y: 1700,
+      width: 300,
+      height: 250,
+    });
+    expect(outside).toMatchObject({
+      boardGeometry: { status: 'outside-board', intersectionVerified: false },
+      readyToApply: false,
+      blockers: expect.arrayContaining(['candidate-board-intersection-unverified']),
+    });
+  });
+
   it('validates exact net and active board but never authorizes writes', async () => {
     const { operations } = makeOperations(base);
     const result = await operations.zonePreflight('GND', 2);

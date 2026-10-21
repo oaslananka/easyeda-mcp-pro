@@ -1,3 +1,4 @@
+import { pcbZoneRectangleSchema } from './pcb-zone-preview.js';
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
@@ -275,6 +276,7 @@ function registerPcbReadTools(
       .object({
         netName: z.string().trim().min(1).max(128),
         layer: z.union([z.literal(1), z.literal(2)]),
+        rectangle: pcbZoneRectangleSchema.optional(),
       })
       .strict(),
     outputSchema: z.object({
@@ -284,6 +286,19 @@ function registerPcbReadTools(
       nativeCapabilities: z.boolean(),
       netVerified: z.boolean(),
       layerVerified: z.boolean(),
+      boardGeometry: z
+        .object({
+          status: z.enum([
+            'intersection-confirmed',
+            'outside-board',
+            'unsupported-outline',
+            'unavailable',
+          ]),
+          intersectionVerified: z.boolean(),
+          outline: pcbZoneRectangleSchema.nullable(),
+        })
+        .nullable()
+        .optional(),
       readyToApply: z.literal(false),
       blockers: z.array(z.string()),
       not_available: z.boolean().optional(),
@@ -294,12 +309,13 @@ function registerPcbReadTools(
         .object({
           netName: z.string().trim().min(1).max(128),
           layer: z.union([z.literal(1), z.literal(2)]),
+          rectangle: pcbZoneRectangleSchema.optional(),
         })
         .strict()
         .parse(input);
       try {
         return await ctx.bridge.call<
-          { netName: string; layer: number },
+          { netName: string; layer: number; rectangle?: z.infer<typeof pcbZoneRectangleSchema> },
           {
             runtimeVersion: string | null;
             runtimeVerified: boolean;
@@ -307,6 +323,11 @@ function registerPcbReadTools(
             nativeCapabilities: boolean;
             netVerified: boolean;
             layerVerified: boolean;
+            boardGeometry?: {
+              status: string;
+              intersectionVerified: boolean;
+              outline: z.infer<typeof pcbZoneRectangleSchema> | null;
+            } | null;
             readyToApply: false;
             blockers: string[];
           }
@@ -319,6 +340,7 @@ function registerPcbReadTools(
           nativeCapabilities: false,
           netVerified: false,
           layerVerified: false,
+          boardGeometry: null,
           readyToApply: false as const,
           blockers: ['runtime-preflight-unavailable'],
           not_available: true,
