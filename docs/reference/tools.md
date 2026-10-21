@@ -50,7 +50,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_add_via`                              | `full`  | `high`   | Place a via to connect different copper layers on the PCB board. outerDiameter/holeSize are passed through to the native API unconverted (same native unit as x/y) — their real-world scale was not independently verified against a known physical dimension, so confirm the resulting via size visually before trusting it.    |
 | `easyeda_pcb_add_zone`                             | `full`  | `high`   | Preview a strictly typed rectangular native copper-zone create plan without any bridge writes. Apply remains unavailable pending complete capability, approval, read-back and recovery gates. Existing zone write requests continue to fail closed.                                                                              |
 | `easyeda_pcb_autoroute`                            | `pro`   | `high`   | Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a pre-flight constraint check, then run DRC and a constraint report before reporting success. Never reports success without that evidence attached (confirmWrite required).                                                                  |
-| `easyeda_pcb_components`                           | `core`  | `low`    | List components placed on the active PCB layout: primitiveId, designator, footprint identity, position/rotation/layer. Requires a focused PCB tab in EasyEDA Pro — returns an empty list (not an error) if none is active.                                                                                                       |
+| `easyeda_pcb_components`                           | `core`  | `low`    | List native PCB components, designators, footprints and positions. Requires exact active project UUID and a focused PCB document; mismatched or missing focus returns not_available, not a successful empty list.                                                                                                                |
 | `easyeda_pcb_constraint_check`                     | `core`  | `low`    | Run PCB constraint validation against the board design. Checks board outline, layer stackup, net classes, clearance rules, keepout areas, placement zones, mounting holes, fiducials, and manufacturing constraints.                                                                                                             |
 | `easyeda_pcb_constraint_report`                    | `core`  | `low`    | Generate a human-readable report explaining which PCB constraints were applied and which require manual review.                                                                                                                                                                                                                  |
 | `easyeda_pcb_delete_component`                     | `full`  | `high`   | Delete components, tracks, vias, or other PCB primitives by ID. Checks each id against every deletable PCB class instead of assuming component, since PCB_PrimitiveComponent.delete() reports success for ids it does not own without deleting them.                                                                             |
@@ -64,8 +64,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_rebuild_copper`                       | `full`  | `high`   | Rebuild existing PCB_PrimitivePour copper via the beta rebuildCopperRegion() API and verify each result through PCB_PrimitivePoured read-back. Requires confirmWrite. PCB rebuilds are not transaction-covered; after timeout inspect before retry. PlaneZone objects are unsupported.                                           |
 | `easyeda_pcb_regions`                              | `core`  | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                                |
 | `easyeda_pcb_route_path_plan`                      | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                         |
-| `easyeda_pcb_tracks`                               | `core`  | `low`    | List copper track segments on the active PCB layout: primitiveId, net, layer, start/end coordinates, width. A multi-point track drawn by add_track appears as several consecutive segments sharing one net. Returns an empty list (not an error) if no PCB tab is focused.                                                       |
-| `easyeda_pcb_vias`                                 | `core`  | `low`    | List vias on the active PCB layout: primitiveId, net, position, hole/outer diameter (native unit, same scale as x/y — not independently verified against a known physical dimension). Requires a focused PCB tab — returns an empty list (not an error) if none is active.                                                       |
+| `easyeda_pcb_tracks`                               | `core`  | `low`    | List native copper track segments and net/layer geometry. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list.                                                                                                                                    |
+| `easyeda_pcb_vias`                                 | `core`  | `low`    | List native PCB vias, nets and dimensions. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list. Units follow native PCB coordinate scale.                                                                                                         |
 | `easyeda_pcb_zone_preflight`                       | `full`  | `low`    | Verify the live EasyEDA Pro version, focused PCB, exact net membership, supported copper layer and native zone capabilities. This is a read-only diagnostic and never authorizes zone writes or validates the complete board outline.                                                                                            |
 | `easyeda_post_write_qa`                            | `core`  | `medium` | Run and classify post-write schematic QA after generated edits. Combines native DRC/ERC results with policy-aware classification so duplicate net names, free networks, and unconnected pins are reported as pass/fail/inconclusive instead of raw warning counts.                                                               |
 | `easyeda_power_tree_analyze`                       | `core`  | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                      |
@@ -1561,7 +1561,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> List components placed on the active PCB layout: primitiveId, designator, footprint identity, position/rotation/layer. Requires a focused PCB tab in EasyEDA Pro — returns an empty list (not an error) if none is active.
+> List native PCB components, designators, footprints and positions. Requires exact active project UUID and a focused PCB document; mismatched or missing focus returns not_available, not a successful empty list.
 
 ### Input Parameters
 
@@ -2059,7 +2059,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> List copper track segments on the active PCB layout: primitiveId, net, layer, start/end coordinates, width. A multi-point track drawn by add_track appears as several consecutive segments sharing one net. Returns an empty list (not an error) if no PCB tab is focused.
+> List native copper track segments and net/layer geometry. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list.
 
 ### Input Parameters
 
@@ -2089,7 +2089,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> List vias on the active PCB layout: primitiveId, net, position, hole/outer diameter (native unit, same scale as x/y — not independently verified against a known physical dimension). Requires a focused PCB tab — returns an empty list (not an error) if none is active.
+> List native PCB vias, nets and dimensions. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list. Units follow native PCB coordinate scale.
 
 ### Input Parameters
 

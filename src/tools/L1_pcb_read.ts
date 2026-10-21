@@ -3,7 +3,13 @@ import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 
 const pcbListInputSchema = z.object({
-  projectId: z.string().trim().min(1).describe('Exact focused EasyEDA project UUID.'),
+  projectId: z
+    .string()
+    .min(1)
+    .refine((id) => id === id.trim(), {
+      message: 'projectId must be an exact native project UUID without surrounding whitespace.',
+    })
+    .describe('Exact focused EasyEDA project UUID.'),
   limit: z.coerce.number().int().min(1).max(200).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -325,9 +331,7 @@ function registerPcbReadTools(
     name: 'easyeda_pcb_components',
     title: 'List PCB components',
     description:
-      'List components placed on the active PCB layout: primitiveId, designator, footprint ' +
-      'identity, position/rotation/layer. Requires a focused PCB tab in EasyEDA Pro — returns ' +
-      'an empty list (not an error) if none is active.',
+      'List native PCB components, designators, footprints and positions. Requires exact active project UUID and a focused PCB document; mismatched or missing focus returns not_available, not a successful empty list.',
     bridgeMethod: 'pcb.listComponents',
     listKey: 'components',
     itemSchema: z.object({
@@ -392,9 +396,7 @@ function registerPcbReadTools(
     name: 'easyeda_pcb_tracks',
     title: 'List PCB tracks',
     description:
-      'List copper track segments on the active PCB layout: primitiveId, net, layer, start/end ' +
-      'coordinates, width. A multi-point track drawn by add_track appears as several consecutive ' +
-      'segments sharing one net. Returns an empty list (not an error) if no PCB tab is focused.',
+      'List native copper track segments and net/layer geometry. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list.',
     bridgeMethod: 'pcb.listTracks',
     listKey: 'tracks',
     itemSchema: z.object({
@@ -414,9 +416,7 @@ function registerPcbReadTools(
     name: 'easyeda_pcb_vias',
     title: 'List PCB vias',
     description:
-      'List vias on the active PCB layout: primitiveId, net, position, hole/outer diameter ' +
-      '(native unit, same scale as x/y — not independently verified against a known physical ' +
-      'dimension). Requires a focused PCB tab — returns an empty list (not an error) if none is active.',
+      'List native PCB vias, nets and dimensions. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list. Units follow native PCB coordinate scale.',
     bridgeMethod: 'pcb.listVias',
     listKey: 'vias',
     itemSchema: z.object({
