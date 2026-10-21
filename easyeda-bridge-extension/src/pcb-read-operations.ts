@@ -12,6 +12,7 @@ export interface PcbReadOperationDependencies {
 
 export interface PcbReadOperations {
   zonePreflight(netName: string, layer: number): Promise<unknown>;
+  readProjectScoped(projectId: string, read: () => Promise<unknown>): Promise<unknown>;
   listComponents(limit?: number, offset?: number): Promise<unknown>;
   listFills(limit?: number, offset?: number): Promise<unknown>;
   listRegions(limit?: number, offset?: number): Promise<unknown>;
@@ -110,6 +111,58 @@ export function createPcbReadOperations({
   readFirstPath,
   readState,
 }: PcbReadOperationDependencies): PcbReadOperations {
+  function identityMatches(
+    projectId: string,
+    document: { documentType?: unknown; uuid?: unknown; parentProjectUuid?: unknown } | undefined,
+    project: { uuid?: unknown } | undefined,
+  ): boolean {
+    return (
+      document?.documentType === 3 &&
+      typeof document.uuid === 'string' &&
+      document.uuid.length > 0 &&
+      typeof project?.uuid === 'string' &&
+      project.uuid.length > 0 &&
+      document.parentProjectUuid === project.uuid &&
+      projectId === project.uuid
+    );
+  }
+
+  async function verifiedPcbIdentity(projectId: string) {
+    const documentApi = readFirstPath<any>(['DMT_SelectControl', 'dmt_SelectControl']);
+    const projectApi = readFirstPath<any>(['DMT_Project', 'dmt_Project']);
+    if (
+      typeof projectId !== 'string' ||
+      projectId.length === 0 ||
+      typeof documentApi?.getCurrentDocumentInfo !== 'function' ||
+      typeof projectApi?.getCurrentProjectInfo !== 'function'
+    ) {
+      throw new Error(
+        'PCB project identity unavailable: native project/document getters are required',
+      );
+    }
+    const document = await documentApi.getCurrentDocumentInfo();
+    const project = await projectApi.getCurrentProjectInfo();
+    if (!identityMatches(projectId, document, project)) {
+      throw new Error(
+        'PCB project identity mismatch: requested project UUID must match the focused PCB',
+      );
+    }
+    return { projectUuid: project.uuid as string, documentUuid: document.uuid as string };
+  }
+
+  async function readProjectScoped(
+    projectId: string,
+    read: () => Promise<unknown>,
+  ): Promise<unknown> {
+    const before = await verifiedPcbIdentity(projectId);
+    const result = await read();
+    const after = await verifiedPcbIdentity(projectId);
+    if (before.projectUuid !== after.projectUuid || before.documentUuid !== after.documentUuid) {
+      throw new Error('PCB document changed during list read; discard results and retry');
+    }
+    return result;
+  }
+
   async function zonePreflight(netName: string, layer: number): Promise<unknown> {
     const environment = readFirstPath<any>(['SYS_Environment', 'sys_Environment']);
     const pcb = readFirstPath<any>(['DMT_Pcb', 'dmt_Pcb']);
@@ -322,6 +375,7 @@ export function createPcbReadOperations({
 
   return {
     zonePreflight,
+    readProjectScoped,
     listComponents,
     listFills,
     listRegions,

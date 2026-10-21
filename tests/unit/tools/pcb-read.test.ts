@@ -51,7 +51,11 @@ describe('PCB Read Tools', () => {
 
     const result = await tool?.handler(context, { projectId: 'proj-123', limit: 100, offset: 0 });
 
-    expect(bridgeCall).toHaveBeenCalledWith('pcb.listComponents', { limit: 100, offset: 0 });
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listComponents', {
+      projectId: 'proj-123',
+      limit: 100,
+      offset: 0,
+    });
     expect(result).toEqual({
       project_id: 'proj-123',
       components: [{ primitiveId: 'c1', designator: 'R1', x: 11000, y: 6000 }],
@@ -86,7 +90,11 @@ describe('PCB Read Tools', () => {
 
     const result = await tool?.handler(context, { projectId: 'proj-123', limit: 100, offset: 0 });
 
-    expect(bridgeCall).toHaveBeenCalledWith('pcb.listTracks', { limit: 100, offset: 0 });
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listTracks', {
+      projectId: 'proj-123',
+      limit: 100,
+      offset: 0,
+    });
     expect(result?.total).toBe(2);
     expect(result?.tracks).toHaveLength(2);
   });
@@ -115,7 +123,11 @@ describe('PCB Read Tools', () => {
 
     const result = await tool?.handler(context, { projectId: 'proj-123', limit: 100, offset: 0 });
 
-    expect(bridgeCall).toHaveBeenCalledWith('pcb.listVias', { limit: 100, offset: 0 });
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listVias', {
+      projectId: 'proj-123',
+      limit: 100,
+      offset: 0,
+    });
     expect(result).toEqual({
       project_id: 'proj-123',
       vias: [{ primitiveId: 'v1', net: 'GND', x: 150, y: 150, holeDiameter: 300, diameter: 600 }],
@@ -146,7 +158,11 @@ describe('PCB Read Tools', () => {
 
     const result = await tool?.handler(context, { projectId: 'proj-123', limit: 25, offset: 2 });
 
-    expect(bridgeCall).toHaveBeenCalledWith('pcb.listFills', { limit: 25, offset: 2 });
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listFills', {
+      projectId: 'proj-123',
+      limit: 25,
+      offset: 2,
+    });
     expect(result).toEqual({
       project_id: 'proj-123',
       fills: [
@@ -205,7 +221,11 @@ describe('PCB Read Tools', () => {
 
     const result = await tool?.handler(context, { projectId: 'proj-123', limit: 10, offset: 0 });
 
-    expect(bridgeCall).toHaveBeenCalledWith('pcb.listRegions', { limit: 10, offset: 0 });
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listRegions', {
+      projectId: 'proj-123',
+      limit: 10,
+      offset: 0,
+    });
     expect(result).toMatchObject({
       project_id: 'proj-123',
       total: 1,

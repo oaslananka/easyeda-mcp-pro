@@ -15,6 +15,24 @@ function makeToolkit(edaGlobal: Record<string, unknown>): DispatcherToolkit {
   };
 }
 
+// PCB list routes must bind the requested native project UUID to the focused PCB.
+const scopedPcbParams = { projectId: 'verified-project-uuid' };
+function makeVerifiedPcbToolkit(native: Record<string, unknown> = {}): DispatcherToolkit {
+  return makeToolkit({
+    ...native,
+    DMT_SelectControl: {
+      getCurrentDocumentInfo: async () => ({
+        documentType: 3,
+        uuid: 'verified-pcb-uuid',
+        parentProjectUuid: scopedPcbParams.projectId,
+      }),
+    },
+    DMT_Project: {
+      getCurrentProjectInfo: async () => ({ uuid: scopedPcbParams.projectId }),
+    },
+  });
+}
+
 /** Minimal wire primitive exposing the getState_* getters the dispatcher reads. */
 function fakeWire(id: string, net: string, line: number[] | number[][]): Record<string, unknown> {
   return {
@@ -1634,10 +1652,9 @@ describe('createDispatcher', () => {
       'pcb.listTracks',
       'pcb.listVias',
     ]) {
-      await expect(dispatcher.dispatch(method, {})).rejects.toMatchObject({
-        code: 'CONTEXT_UNAVAILABLE',
-        message: 'No active PCB document is focused.',
-      });
+      await expect(dispatcher.dispatch(method, scopedPcbParams)).rejects.toThrow(
+        'PCB project identity unavailable',
+      );
     }
     expect(getAll).not.toHaveBeenCalled();
   });
@@ -2157,9 +2174,9 @@ describe('createDispatcher', () => {
       getState_PrimitiveLock: () => false,
     };
     const dispatcher = createDispatcher(
-      makeToolkit({ PCB_PrimitiveVia: { getAll: async () => [via] } }),
+      makeVerifiedPcbToolkit({ PCB_PrimitiveVia: { getAll: async () => [via] } }),
     );
-    const result = (await dispatcher.dispatch('pcb.listVias', {})) as {
+    const result = (await dispatcher.dispatch('pcb.listVias', scopedPcbParams)) as {
       total: number;
       items: Array<Record<string, unknown>>;
     };
@@ -2192,9 +2209,9 @@ describe('createDispatcher', () => {
       getState_PrimitiveLock: () => false,
     };
     const dispatcher = createDispatcher(
-      makeToolkit({ PCB_PrimitiveLine: { getAll: async () => [line] } }),
+      makeVerifiedPcbToolkit({ PCB_PrimitiveLine: { getAll: async () => [line] } }),
     );
-    const result = (await dispatcher.dispatch('pcb.listTracks', {})) as {
+    const result = (await dispatcher.dispatch('pcb.listTracks', scopedPcbParams)) as {
       total: number;
       items: Array<Record<string, unknown>>;
     };
@@ -2233,9 +2250,9 @@ describe('createDispatcher', () => {
       getState_PrimitiveLock: () => false,
     };
     const dispatcher = createDispatcher(
-      makeToolkit({ PCB_PrimitiveComponent: { getAll: async () => [comp] } }),
+      makeVerifiedPcbToolkit({ PCB_PrimitiveComponent: { getAll: async () => [comp] } }),
     );
-    const result = (await dispatcher.dispatch('pcb.listComponents', {})) as {
+    const result = (await dispatcher.dispatch('pcb.listComponents', scopedPcbParams)) as {
       total: number;
       items: Array<Record<string, unknown>>;
     };
@@ -2260,9 +2277,9 @@ describe('createDispatcher', () => {
   });
 
   it('legacy PCB read methods return an empty list when their native class is unavailable', async () => {
-    const dispatcher = createDispatcher(makeToolkit({}));
+    const dispatcher = createDispatcher(makeVerifiedPcbToolkit({}));
     for (const method of ['pcb.listVias', 'pcb.listTracks', 'pcb.listComponents']) {
-      await expect(dispatcher.dispatch(method, {})).resolves.toEqual({
+      await expect(dispatcher.dispatch(method, scopedPcbParams)).resolves.toEqual({
         total: 0,
         items: [],
       });
@@ -2270,11 +2287,11 @@ describe('createDispatcher', () => {
   });
 
   it('Fill/Region read methods fail cleanly when their native APIs are unavailable', async () => {
-    const dispatcher = createDispatcher(makeToolkit({}));
-    await expect(dispatcher.dispatch('pcb.listFills', {})).rejects.toThrow(
+    const dispatcher = createDispatcher(makeVerifiedPcbToolkit({}));
+    await expect(dispatcher.dispatch('pcb.listFills', scopedPcbParams)).rejects.toThrow(
       'PCB_PrimitiveFill.getAll is unavailable in this EasyEDA Pro runtime',
     );
-    await expect(dispatcher.dispatch('pcb.listRegions', {})).rejects.toThrow(
+    await expect(dispatcher.dispatch('pcb.listRegions', scopedPcbParams)).rejects.toThrow(
       'PCB_PrimitiveRegion.getAll is unavailable in this EasyEDA Pro runtime',
     );
   });

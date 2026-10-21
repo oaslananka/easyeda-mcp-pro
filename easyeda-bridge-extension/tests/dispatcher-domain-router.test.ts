@@ -92,6 +92,7 @@ function createDependencies() {
       })),
     },
     pcbReadOperations: {
+      readProjectScoped: vi.fn(async (_id: string, read: () => Promise<unknown>) => read()),
       zonePreflight: vi.fn(async (netName: string, layer: number) => ({
         netName,
         layer,
@@ -280,6 +281,22 @@ describe('createDispatcherDomainRouter', () => {
     const router = createDispatcherDomainRouter(createDependencies());
     expect(router.methodList).toEqual(expectedMethods);
     expect(router.methodList).toEqual([...router.methodList].sort());
+  });
+
+  it.each([
+    'pcb.listComponents',
+    'pcb.listFills',
+    'pcb.listRegions',
+    'pcb.listTracks',
+    'pcb.listVias',
+  ])('enforces native project identity for %s before reading primitives', async (method) => {
+    const deps = createDependencies();
+    const router = createDispatcherDomainRouter(deps);
+    await router.tryDispatch(method, { projectId: 'verified-project-uuid', limit: 3, offset: 1 });
+    expect(deps.pcbReadOperations.readProjectScoped).toHaveBeenCalledWith(
+      'verified-project-uuid',
+      expect.any(Function),
+    );
   });
 
   it('delegates exact methods without changing parameters or results', async () => {
@@ -507,27 +524,33 @@ describe('createDispatcherDomainRouter', () => {
     const dependencies = createDependencies();
     const router = createDispatcherDomainRouter(dependencies);
 
-    await expect(router.tryDispatch('pcb.listFills', { limit: 5, offset: 1 })).resolves.toEqual({
+    await expect(
+      router.tryDispatch('pcb.listFills', { projectId: 'proj-123', limit: 5, offset: 1 }),
+    ).resolves.toEqual({
       handled: true,
       value: { method: 'fills', limit: 5, offset: 1 },
     });
-    await expect(router.tryDispatch('pcb.listRegions', { limit: 6, offset: 2 })).resolves.toEqual({
+    await expect(
+      router.tryDispatch('pcb.listRegions', { projectId: 'proj-123', limit: 6, offset: 2 }),
+    ).resolves.toEqual({
       handled: true,
       value: { method: 'regions', limit: 6, offset: 2 },
     });
     await expect(
-      router.tryDispatch('pcb.listComponents', { limit: 4, offset: 2 }),
+      router.tryDispatch('pcb.listComponents', { projectId: 'proj-123', limit: 4, offset: 2 }),
     ).resolves.toEqual({
       handled: true,
       value: { method: 'components', limit: 4, offset: 2 },
     });
     await expect(
-      router.tryDispatch('pcb.listTracks', { limit: '4', offset: '2' }),
+      router.tryDispatch('pcb.listTracks', { projectId: 'proj-123', limit: '4', offset: '2' }),
     ).resolves.toEqual({
       handled: true,
       value: { method: 'tracks', limit: undefined, offset: 0 },
     });
-    await expect(router.tryDispatch('pcb.listVias', { offset: 3 })).resolves.toEqual({
+    await expect(
+      router.tryDispatch('pcb.listVias', { projectId: 'proj-123', offset: 3 }),
+    ).resolves.toEqual({
       handled: true,
       value: { method: 'vias', limit: undefined, offset: 3 },
     });

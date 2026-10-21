@@ -3,7 +3,7 @@ import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 
 const pcbListInputSchema = z.object({
-  projectId: z.string(),
+  projectId: z.string().trim().min(1).describe('Exact focused EasyEDA project UUID.'),
   limit: z.coerce.number().int().min(1).max(200).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -187,7 +187,7 @@ function makePcbListHandler(
       const result = await ctx.bridge.call<
         Record<string, unknown>,
         { total?: number; items?: Record<string, unknown>[] }
-      >(bridgeMethod, { limit, offset });
+      >(bridgeMethod, { projectId, limit, offset });
       const items = result?.items ?? [];
       return {
         project_id: projectId,

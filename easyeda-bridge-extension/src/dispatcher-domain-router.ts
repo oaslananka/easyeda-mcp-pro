@@ -67,7 +67,10 @@ export function createDispatcherDomainRouter(
     'pcb.listVias': dependencies.pcbReadOperations.listVias,
   }).map(([method, read]) => ({
     method,
-    handle: (params) => read(optionalNumber(params.limit), offsetNumber(params.offset)),
+    handle: (params) =>
+      dependencies.pcbReadOperations.readProjectScoped(params.projectId as string, () =>
+        read(optionalNumber(params.limit), offsetNumber(params.offset)),
+      ),
   }));
   const routes = [
     {

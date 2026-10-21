@@ -733,3 +733,119 @@ describe('native zone preflight', () => {
     expect(base.pcb_PrimitivePour.create).not.toHaveBeenCalled();
   });
 });
+
+describe('PCB list project identity enforcement', () => {
+  const projectUuid = 'verified-project-uuid';
+  const documentUuid = 'verified-pcb-document-uuid';
+  const realDocument = { documentType: 3, uuid: documentUuid, parentProjectUuid: projectUuid };
+  const project = { uuid: projectUuid };
+
+  function runtime(
+    document = vi.fn(async (): Promise<unknown> => realDocument),
+    currentProject = vi.fn(async (): Promise<unknown> => project),
+  ) {
+    return {
+      DMT_SelectControl: { getCurrentDocumentInfo: document },
+      DMT_Project: { getCurrentProjectInfo: currentProject },
+    };
+  }
+
+  it('returns list data only when the native project UUID and focused PCB match', async () => {
+    const { operations } = makeOperations(runtime());
+    const read = vi.fn(async () => ({ total: 4, items: [{ primitiveId: 'e107' }] }));
+    await expect(operations.readProjectScoped(projectUuid, read)).resolves.toEqual({
+      total: 4,
+      items: [{ primitiveId: 'e107' }],
+    });
+    expect(read).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a fabricated requested project before reading any primitives', async () => {
+    const { operations } = makeOperations(runtime());
+    const read = vi.fn(async () => ({ total: 4, items: [{ primitiveId: 'e107' }] }));
+    await expect(operations.readProjectScoped('Z480_NONEXISTENT_PROJECT', read)).rejects.toThrow(
+      'PCB project identity mismatch',
+    );
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'no focused PCB',
+      { documentType: 1, uuid: documentUuid, parentProjectUuid: projectUuid },
+      project,
+    ],
+    ['focused document missing UUID', { documentType: 3, parentProjectUuid: projectUuid }, project],
+    [
+      'document belongs to another project',
+      { documentType: 3, uuid: documentUuid, parentProjectUuid: 'other-project' },
+      project,
+    ],
+    ['no current project', realDocument, undefined],
+  ])('fails closed for %s', async (_case, document, currentProject) => {
+    const { operations } = makeOperations(
+      runtime(
+        vi.fn(async () => document),
+        vi.fn(async () => currentProject),
+      ),
+    );
+    const read = vi.fn(async () => ({ total: 4, items: [{ primitiveId: 'e107' }] }));
+    await expect(operations.readProjectScoped(projectUuid, read)).rejects.toThrow(
+      'PCB project identity mismatch',
+    );
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing native getter before the read', async () => {
+    const { operations } = makeOperations({ DMT_SelectControl: {} });
+    const read = vi.fn(async () => 'should-never-be-exposed');
+    await expect(operations.readProjectScoped(projectUuid, read)).rejects.toThrow(
+      'PCB project identity unavailable',
+    );
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when a native identity getter throws', async () => {
+    const { operations } = makeOperations(
+      runtime(
+        vi.fn(async () => {
+          throw Error('disconnected');
+        }),
+      ),
+    );
+    const read = vi.fn(async () => 'should-never-be-exposed');
+    await expect(operations.readProjectScoped(projectUuid, read)).rejects.toThrow('disconnected');
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('discards the entire read when focus changes to another PCB document', async () => {
+    const document = vi
+      .fn()
+      .mockResolvedValueOnce(realDocument)
+      .mockResolvedValueOnce({ ...realDocument, uuid: 'other-pcb-doc' });
+    const { operations } = makeOperations(runtime(document));
+    const read = vi.fn(async () => ({ total: 4, items: [{ primitiveId: 'e107' }] }));
+    await expect(operations.readProjectScoped(projectUuid, read)).rejects.toThrow(
+      'PCB document changed during list read',
+    );
+    expect(read).toHaveBeenCalledOnce();
+  });
+
+  it('discards the read if current project switches during the request', async () => {
+    const projectGetter = vi
+      .fn()
+      .mockResolvedValueOnce(project)
+      .mockResolvedValueOnce({ uuid: 'different-project' });
+    const { operations } = makeOperations(
+      runtime(
+        vi.fn(async () => realDocument),
+        projectGetter,
+      ),
+    );
+    const read = vi.fn(async () => ({ total: 4, items: [{ primitiveId: 'e107' }] }));
+    await expect(operations.readProjectScoped(projectUuid, read)).rejects.toThrow(
+      'PCB project identity mismatch',
+    );
+    expect(read).toHaveBeenCalledOnce();
+  });
+});
