@@ -549,13 +549,53 @@ function mapRebuildResults(
       };
     }
 
-    return {
-      pourId: attempt.pourId,
-      pouredId: readbackIds[0],
-      status: 'rebuilt',
-      verified: true,
-    };
+    return directRebuildItemWithGeometry(attempt.pourId, readbackIds[0], postReadback);
   });
+}
+
+function mapFocusChangedRebuildResults(attempts: CopperRebuildAttempt[]): CopperRebuildItem[] {
+  return attempts.map((attempt) => ({
+    pourId: attempt.pourId,
+    pouredId: null,
+    status: 'readback-mismatch',
+    verified: false,
+    error:
+      'Active PCB project/document identity changed or became unavailable during copper rebuild.',
+  }));
+}
+
+function mapResultsAfterFocusCheck(
+  attempts: CopperRebuildAttempt[],
+  preEvidence: Map<string, PouredEvidence> | undefined,
+  postReadback: unknown[],
+  focusUnchanged: boolean,
+): CopperRebuildItem[] {
+  return focusUnchanged
+    ? mapRebuildResults(attempts, preEvidence, postReadback, true)
+    : mapFocusChangedRebuildResults(attempts);
+}
+
+function directRebuildItemWithGeometry(
+  pourId: string,
+  pouredId: string,
+  items: unknown[],
+): CopperRebuildItem {
+  const match = items.find(
+    (item) =>
+      nativeStateString(item, 'getState_PourPrimitiveId') === pourId &&
+      nativeStateString(item, 'getState_PrimitiveId') === pouredId,
+  );
+  if (!match || !pouredFillSignature(match)) {
+    return {
+      pourId,
+      pouredId,
+      status: 'readback-mismatch',
+      verified: false,
+      error:
+        'Native Poured id was confirmed, but actual copper fill geometry could not be verified.',
+    };
+  }
+  return { pourId, pouredId, status: 'rebuilt', verified: true };
 }
 
 function requireCopperRebuildRuntime(readFirstPath: ApiRuntime['readFirstPath']): {
@@ -587,10 +627,17 @@ async function readPouredItems(pouredClass: unknown): Promise<unknown[]> {
 
 async function executeCopperRebuilds(
   targets: CopperRebuildTarget[],
+  expectedIdentity: string,
+  readFirstPath: ApiRuntime['readFirstPath'],
 ): Promise<CopperRebuildAttempt[]> {
   const attempts: CopperRebuildAttempt[] = [];
   for (const target of targets) {
     try {
+      if ((await focusedPcbIdentity(readFirstPath)) !== expectedIdentity) {
+        throw new Error(
+          'Active PCB changed between native copper rebuilds; remaining pours were not rebuilt.',
+        );
+      }
       attempts.push({
         pourId: target.pourId,
         nativeResult: await invokeNative(target.primitive, 'rebuildCopperRegion'),
@@ -658,6 +705,29 @@ function finalRebuildResult(
   };
 }
 
+async function preRebuildEvidence(
+  pouredClass: unknown,
+): Promise<Map<string, PouredEvidence> | undefined> {
+  let items: unknown[];
+  try {
+    items = await readPouredItems(pouredClass);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const wrapped = new Error(
+      'PCB_PrimitivePoured.getAll() preflight failed; read-back cannot be verified, so no copper was rebuilt. ' +
+        message,
+    ) as Error & { cause?: unknown };
+    wrapped.cause = error;
+    throw wrapped;
+  }
+  // Freeze now: EasyEDA can mutate previous native object references in place.
+  try {
+    return snapshotPoured(items);
+  } catch {
+    return undefined;
+  }
+}
+
 export interface PcbMutationOperations {
   addZone(params: Record<string, unknown>): Promise<unknown>;
   rebuildCopper(params: Record<string, unknown>): Promise<CopperRebuildResult>;
@@ -682,51 +752,54 @@ export function createPcbMutationOperations({
   requireActivePcbContext,
   deletePrimitives,
 }: PcbMutationOperationDependencies): PcbMutationOperations {
+  // The dispatcher owns one operation instance. Do not interleave multiple
+  // asynchronous native rebuilds; timeouts may leave the first invocation running.
+  let rebuildInProgress = false;
   async function rebuildCopper(params: Record<string, unknown>): Promise<CopperRebuildResult> {
-    await requireActivePcbContext();
-
-    // Capture identity before resolving targets, not just before the actual rebuild.
-    const initialFocus = await focusedPcbIdentity(readFirstPath);
-    const { pourClass, pouredClass } = requireCopperRebuildRuntime(readFirstPath);
-    const targets = await resolvePours(pourClass, params);
-
-    // Record immutable before-state for narrow reconciliation.
-    // If identity cannot be proven, native return mismatch remains fail-closed.
-    let preReadback: unknown[];
-    try {
-      preReadback = await readPouredItems(pouredClass);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const wrapped = new Error(
-        `PCB_PrimitivePoured.getAll() preflight failed; read-back cannot be verified, so no copper was rebuilt. ${message}`,
-      ) as Error & { cause?: unknown };
-      wrapped.cause = error;
-      throw wrapped;
+    if (rebuildInProgress) {
+      throw new Error(
+        'A PCB copper rebuild is already in progress. Inspect its result before retrying.',
+      );
     }
-
-    // Freeze the state NOW: native objects in preReadback can mutate in place.
-    let preEvidence: Map<string, PouredEvidence> | undefined;
+    rebuildInProgress = true;
     try {
-      preEvidence = snapshotPoured(preReadback);
-    } catch {
-      preEvidence = undefined;
-    }
-    const attempts = await executeCopperRebuilds(targets);
+      await requireActivePcbContext();
 
-    let postReadback: unknown[];
-    try {
-      postReadback = await readPouredItems(pouredClass);
-    } catch (error) {
-      return readbackFailureResult(targets.length, attempts, error);
-    }
+      const initialFocus = await focusedPcbIdentity(readFirstPath);
+      if (!initialFocus) {
+        throw new Error('Active PCB project/document identity unavailable; no copper was rebuilt.');
+      }
+      const { pourClass, pouredClass } = requireCopperRebuildRuntime(readFirstPath);
+      const targets = await resolvePours(pourClass, params);
 
-    const finalFocus = await focusedPcbIdentity(readFirstPath);
-    const focusUnchanged = initialFocus !== undefined && initialFocus === finalFocus;
-    return finalRebuildResult(
-      targets.length,
-      attempts,
-      mapRebuildResults(attempts, preEvidence, postReadback, focusUnchanged),
-    );
+      const preEvidence = await preRebuildEvidence(pouredClass);
+      // Resolving target IDs and snapshotting geometry are asynchronous. Reject a
+      // document change before even one native write, rather than post-hoc only.
+      const beforeWriteFocus = await focusedPcbIdentity(readFirstPath);
+      if (beforeWriteFocus !== initialFocus) {
+        throw new Error(
+          'Active PCB changed during copper rebuild preflight; no copper was rebuilt.',
+        );
+      }
+      const attempts = await executeCopperRebuilds(targets, initialFocus, readFirstPath);
+
+      let postReadback: unknown[];
+      try {
+        postReadback = await readPouredItems(pouredClass);
+      } catch (error) {
+        return readbackFailureResult(targets.length, attempts, error);
+      }
+
+      const finalFocus = await focusedPcbIdentity(readFirstPath);
+      const focusUnchanged = initialFocus !== undefined && initialFocus === finalFocus;
+      return finalRebuildResult(
+        targets.length,
+        attempts,
+        mapResultsAfterFocusCheck(attempts, preEvidence, postReadback, focusUnchanged),
+      );
+    } finally {
+      rebuildInProgress = false;
+    }
   }
 
   async function modifyComponent(params: Record<string, unknown>): Promise<unknown> {

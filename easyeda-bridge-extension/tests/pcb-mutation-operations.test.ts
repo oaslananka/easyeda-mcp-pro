@@ -51,7 +51,7 @@ function createOperations(
     pourClass?: Record<string, unknown>;
     pouredClass?: Record<string, unknown>;
     activeError?: Error;
-    identityDocuments?: string[];
+    identityDocuments?: string[] | null;
   } = {},
 ) {
   const callFirst = vi.fn(async (_paths: readonly string[], ...args: unknown[]) => ({ args }));
@@ -75,15 +75,14 @@ function createOperations(
       } satisfies Record<string, unknown>),
   };
   let identityReads = 0;
-  if (options.identityDocuments) {
+  if (options.identityDocuments !== null) {
+    const documents = options.identityDocuments ?? ['pcb-one'];
     runtime.DMT_Project = {
       getCurrentProjectInfo: vi.fn(async () => ({ uuid: 'project-1' })),
     };
     runtime.DMT_SelectControl = {
       getCurrentDocumentInfo: vi.fn(async () => ({
-        uuid: options.identityDocuments?.[
-          Math.min(identityReads++, options.identityDocuments.length - 1)
-        ],
+        uuid: documents[Math.min(identityReads++, documents.length - 1)],
         parentProjectUuid: 'project-1',
         documentType: 3,
       })),
@@ -126,8 +125,8 @@ describe('createPcbMutationOperations', () => {
   });
 
   it('rebuilds filtered existing pours and verifies them through poured read-back', async () => {
-    const poured1 = fakePoured('poured-1', 'pour-1');
-    const poured2 = fakePoured('poured-2', 'pour-2');
+    const poured1 = fakePouredWithFills('poured-1', 'pour-1');
+    const poured2 = fakePouredWithFills('poured-2', 'pour-2');
     const pour1 = fakePour('pour-1', { net: 'GND', layer: 1, rebuildResult: poured1 });
     const pour2 = fakePour('pour-2', { net: 'GND', layer: 1, rebuildResult: poured2 });
     const getAllPours = vi.fn(async () => [pour1.primitive, pour2.primitive]);
@@ -245,6 +244,30 @@ describe('createPcbMutationOperations', () => {
       ],
     });
     expect(result.error).toContain('produced no copper');
+  });
+
+  it('does not call an id-only Poured readback a successful copper rebuild', async () => {
+    const poured = fakePoured('target-id', 'target-id');
+    const item = fakePour('target-id', { rebuildResult: poured });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([poured]),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      results: [{ pourId: 'target-id', status: 'readback-mismatch', verified: false }],
+    });
+    expect(result.results[0]?.error).toContain('actual copper fill geometry');
   });
 
   it('fails verification when native and persisted poured ids disagree', async () => {
@@ -484,7 +507,7 @@ describe('createPcbMutationOperations', () => {
         fakePouredWithFills('e336', 'e336', 12),
         fakePouredWithFills('target-id', 'target-id', 42),
       ],
-      docs: ['pcb-one', 'pcb-two'],
+      docs: ['pcb-one', 'pcb-one', 'pcb-one', 'pcb-two'],
     },
   ])('fails closed when $scenario', async ({ before, after, docs }) => {
     const existing = before.find((item) => item.getState_PourPrimitiveId() === 'e336');
@@ -555,6 +578,7 @@ describe('createPcbMutationOperations', () => {
     const target = fakePouredWithFills('target-id', 'target-id', 42);
     const pour = fakePour('target-id', { rebuildResult: existing });
     const { operations } = createOperations({
+      identityDocuments: null,
       pourClass: {
         get: vi.fn(async () => pour.primitive),
         getAll: vi.fn(async () => [pour.primitive]),
@@ -566,13 +590,170 @@ describe('createPcbMutationOperations', () => {
           .mockResolvedValueOnce([existing, target]),
       },
     });
+    await expect(operations.rebuildCopper({ pourIds: ['target-id'] })).rejects.toThrow(
+      'Active PCB project/document identity unavailable',
+    );
+    expect(pour.rebuildCopperRegion).not.toHaveBeenCalled();
+  });
+
+  it('rejects a project/document change during preflight without native writes', async () => {
+    const item = fakePour('target-id', { rebuildResult: fakePoured('target-id', 'target-id') });
+    const { operations } = createOperations({
+      identityDocuments: ['pcb-one', 'pcb-two'],
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: { getAll: vi.fn(async () => []) },
+    });
+    await expect(operations.rebuildCopper({ pourIds: ['target-id'] })).rejects.toThrow(
+      'Active PCB changed during copper rebuild preflight',
+    );
+    expect(item.rebuildCopperRegion).not.toHaveBeenCalled();
+  });
+
+  it('fails closed after a document switch even for an exact native return and read-back', async () => {
+    const target = fakePoured('target-id', 'target-id');
+    const item = fakePour('target-id', { rebuildResult: target });
+    const { operations } = createOperations({
+      identityDocuments: ['pcb-one', 'pcb-one', 'pcb-one', 'pcb-two'],
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([target]),
+      },
+    });
     const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
-    expect(result.success).toBe(false);
-    expect(result.results[0]?.status).toBe('readback-mismatch');
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      results: [{ status: 'readback-mismatch', verified: false, pouredId: null }],
+    });
+    expect(result.results[0]?.error).toContain('identity changed');
+    expect(item.rebuildCopperRegion).toHaveBeenCalledOnce();
+  });
+
+  it('stops a multi-target rebuild before writing to a switched PCB', async () => {
+    const first = fakePour('pour-1', { rebuildResult: fakePoured('pour-1', 'pour-1') });
+    const second = fakePour('pour-2', { rebuildResult: fakePoured('pour-2', 'pour-2') });
+    const { operations } = createOperations({
+      // Initial, pre-write, first native target = pcb-one; next target is pcb-two.
+      identityDocuments: ['pcb-one', 'pcb-one', 'pcb-one', 'pcb-two'],
+      pourClass: {
+        get: vi.fn(async () => undefined),
+        getAll: vi.fn(async () => [first.primitive, second.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([fakePoured('pour-1', 'pour-1')]),
+      },
+    });
+    const result = await operations.rebuildCopper({ net: 'GND' });
+    expect(result).toMatchObject({
+      success: false,
+      matchedCount: 2,
+      attemptedCount: 2,
+      rebuiltCount: 0,
+      transactionCovered: false,
+    });
+    expect(first.rebuildCopperRegion).toHaveBeenCalledOnce();
+    expect(second.rebuildCopperRegion).not.toHaveBeenCalled();
+    expect(result.results.every((item) => !item.verified)).toBe(true);
+  });
+
+  it('does not count an ambiguous native timeout as success even when derived copper appeared', async () => {
+    const item = fakePour('target-id', { rebuildError: new Error('native rebuild timed out') });
+    const { operations, deletePrimitives } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([fakePouredWithFills('target-id', 'target-id', 42)]),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: false,
+      attemptedCount: 1,
+      rebuiltCount: 0,
+      transactionCovered: false,
+      results: [{ status: 'error', verified: false, error: 'native rebuild timed out' }],
+    });
+    expect(item.rebuildCopperRegion).toHaveBeenCalledOnce();
+    expect(deletePrimitives).not.toHaveBeenCalled();
+  });
+
+  it('rejects concurrent rebuilds while an unresolved native call is in flight', async () => {
+    let resolveNative!: (value: unknown) => void;
+    const pending = new Promise<unknown>((resolve) => {
+      resolveNative = resolve;
+    });
+    const native = fakePouredWithFills('target-id', 'target-id');
+    const item = fakePour('target-id', { rebuildResult: native });
+    item.rebuildCopperRegion.mockImplementation(() => pending);
+    const { operations, deletePrimitives } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([native])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([native]),
+      },
+    });
+    const first = operations.rebuildCopper({ pourIds: ['target-id'] });
+    // Reaching the first native call is necessary to prove the lock covers awaits.
+    await vi.waitFor(() => expect(item.rebuildCopperRegion).toHaveBeenCalledOnce());
+    await expect(operations.rebuildCopper({ pourIds: ['target-id'] })).rejects.toThrow(
+      'already in progress',
+    );
+    expect(item.rebuildCopperRegion).toHaveBeenCalledOnce();
+    resolveNative(native);
+    expect((await first).success).toBe(true);
+    expect(deletePrimitives).not.toHaveBeenCalled();
+    // Lock is released after completion. A subsequent explicit invocation can run.
+    expect((await operations.rebuildCopper({ pourIds: ['target-id'] })).success).toBe(true);
+    expect(item.rebuildCopperRegion).toHaveBeenCalledTimes(2);
+  });
+
+  it('releases the lock if native preflight rejects without writes', async () => {
+    const item = fakePour('target-id', {
+      rebuildResult: fakePouredWithFills('target-id', 'target-id'),
+    });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([fakePouredWithFills('target-id', 'target-id')]),
+      },
+    });
+    await expect(operations.rebuildCopper({ pourIds: ['missing'] })).rejects.toThrow('missing');
+    expect((await operations.rebuildCopper({ pourIds: ['target-id'] })).success).toBe(true);
+    expect(item.rebuildCopperRegion).toHaveBeenCalledOnce();
   });
 
   it('stops after a native rebuild error and reports already-attempted work only', async () => {
-    const poured1 = fakePoured('poured-1', 'pour-1');
+    const poured1 = fakePouredWithFills('poured-1', 'pour-1');
     const pour1 = fakePour('pour-1', { rebuildResult: poured1 });
     const pour2 = fakePour('pour-2', { rebuildError: new Error('native rebuild failed') });
     const pour3 = fakePour('pour-3', { rebuildResult: fakePoured('poured-3', 'pour-3') });
