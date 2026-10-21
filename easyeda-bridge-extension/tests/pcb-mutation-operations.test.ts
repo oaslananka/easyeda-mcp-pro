@@ -228,6 +228,50 @@ describe('createPcbMutationOperations', () => {
     expect(result.results[0]?.error).toContain('poured-persisted');
   });
 
+  it.each([
+    { caseName: 'with no new poured read-back', includeStaleTarget: false },
+    { caseName: 'even with a stale target poured read-back', includeStaleTarget: true },
+  ])(
+    'rejects a rebuild result associated with another pour $caseName',
+    async ({ includeStaleTarget }) => {
+      const wrongNativeResult = fakePoured('poured-original', 'pour-original');
+      const existingPoured = fakePoured('poured-original', 'pour-original');
+      const targetPoured = fakePoured('poured-target-old', 'pour-target');
+      const target = fakePour('pour-target', { rebuildResult: wrongNativeResult });
+      const getAllPoured = vi
+        .fn<() => Promise<unknown[]>>()
+        .mockResolvedValueOnce([existingPoured])
+        .mockResolvedValueOnce(
+          includeStaleTarget ? [existingPoured, targetPoured] : [existingPoured],
+        );
+      const { operations } = createOperations({
+        pourClass: {
+          get: vi.fn(async () => target.primitive),
+          getAll: vi.fn(async () => [target.primitive]),
+        },
+        pouredClass: { getAll: getAllPoured },
+      });
+
+      const result = await operations.rebuildCopper({ pourIds: ['pour-target'] });
+
+      expect(result).toMatchObject({
+        success: false,
+        rebuiltCount: 0,
+        results: [
+          {
+            pourId: 'pour-target',
+            pouredId: includeStaleTarget ? 'poured-target-old' : null,
+            status: 'readback-mismatch',
+            verified: false,
+          },
+        ],
+      });
+      expect(result.results[0]?.error).toContain('pour-original');
+      expect(result.results[0]?.error).toContain('pour-target');
+      expect(target.rebuildCopperRegion).toHaveBeenCalledOnce();
+    },
+  );
+
   it('stops after a native rebuild error and reports already-attempted work only', async () => {
     const poured1 = fakePoured('poured-1', 'pour-1');
     const pour1 = fakePour('pour-1', { rebuildResult: poured1 });

@@ -11,6 +11,7 @@
 - Every explicit `pourIds` target is resolved before the first mutation. If any requested id is missing, the operation fails before rebuilding anything.
 - The extension calls the documented instance method `IPCB_PrimitivePour.rebuildCopperRegion()`.
 - Success is accepted only after `PCB_PrimitivePoured.getAll()` read-back links exactly one derived primitive to the source pour through `getState_PourPrimitiveId()`.
+- If native rebuild returns `getState_PourPrimitiveId()`, it must match the requested source Pour. A result from another Pour is rejected even when older copper remains present.
 - A native `undefined` result is reported as `no-copper`; it is **not** counted as a successful rebuild.
 - PCB rebuild writes are not covered by the server transaction manager. If the bridge times out, the native outcome is unknown; inspect the active PCB before retrying.
 
@@ -34,3 +35,5 @@ Other EasyEDA Pro versions are therefore capability-gated rather than assumed co
 This tool intentionally excludes EasyEDA inner `PlaneZone` objects. The verified public API surface exposes normal `PCB_PrimitivePour` rebuilds but no equivalent writable PlaneZone class contract. Plane-zone creation/rebuild remains tracked separately by issue #480 and the [upstream EasyEDA API request #43](https://github.com/easyeda/pro-api-sdk/issues/43) referenced from issue #596.
 
 Do not substitute `easyeda_pcb_add_zone`: the nine-argument native `PCB_PrimitivePour.create()` signature is known, but creation remains fail-closed until a supported EasyEDA runtime has a live-verified deterministic create → rebuild → associated `PCB_PrimitivePoured` read-back and recovery contract.
+
+An isolated, disposable EasyEDA Pro `3.2.206` test for #480 showed why this guard matters: creating a new Pour returned a new, readable id, but rebuilding it returned **existing** Pour `e336` with 74 fills and produced no associated `PCB_PrimitivePoured` for the new id. The new Pour was deleted and the original Pour/Poured inventory restored. This does not meet the creation, filling, persistence, or rollback acceptance criteria; zone creation remains fail-closed.
