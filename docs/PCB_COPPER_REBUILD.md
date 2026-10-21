@@ -39,3 +39,11 @@ This tool intentionally excludes EasyEDA inner `PlaneZone` objects. The verified
 An isolated MSI / EasyEDA Pro `3.2.206` positive-path experiment for #480 **did** create a BOTTOM/GND native Pour with `preserveSilos=true`, read 41 associated Poured fills, save, close/reopen, delete, save, close/reopen and restore the exact baseline. However a smaller rectangle failed to produce associated copper, native create accepted a nonexistent net name, and the SDK helper `rebuildCopperRegion()` returned the first available Pour's fill group (`e336`) rather than the target even when a valid target fill existed. Thus this positive-path experiment does not cover general inputs, invalid contexts or timeout recovery. Creation remains fail-closed until strict net membership/board checks, explicit authorization, appropriate version gates, exact-id read-back and deterministic error reconciliation have been implemented and verified. See #480 for detailed live evidence.
 
 An isolated, disposable EasyEDA Pro `3.2.206` test for #480 showed why this guard matters: creating a new Pour returned a new, readable id, but rebuilding it returned **existing** Pour `e336` with 74 fills and produced no associated `PCB_PrimitivePoured` for the new id. The new Pour was deleted and the original Pour/Poured inventory restored. This does not meet the creation, filling, persistence, or rollback acceptance criteria; zone creation remains fail-closed.
+
+The separate zone-preflight diagnostic is read-only and checks the active PCB,
+exact net membership, copper layer stackup, supported 3.2.206 runtime and
+native create/Poured/save API capabilities. Missing active context, unsupported
+runtime or failed net lookup are blocking conditions. Even if every supported
+read succeeds, its readyToApply flag remains false: arbitrary board-outline
+containment, copper topology, write authorization and ambiguous-error rollback
+remain unverified. This diagnostic is not an apply authorization.

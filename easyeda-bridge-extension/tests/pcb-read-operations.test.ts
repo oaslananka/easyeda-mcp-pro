@@ -627,3 +627,109 @@ describe('PCB primitive deletion routing', () => {
     expect(laterMembership).not.toHaveBeenCalled();
   });
 });
+
+describe('native zone preflight', () => {
+  const base = {
+    sys_Environment: { getEditorCurrentVersion: async () => '3.2.206.715d940d' },
+    dmt_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
+    pcb_Net: { getAllNetName: async () => ['GND', 'VCC'] },
+    pcb_Layer: { getTheNumberOfCopperLayers: async () => 2 },
+    pcb_PrimitivePour: { create: vi.fn() },
+    pcb_PrimitivePoured: { get: vi.fn() },
+    pcb_Document: { save: vi.fn() },
+  };
+  it('validates exact net and active board but never authorizes writes', async () => {
+    const { operations } = makeOperations(base);
+    const result = await operations.zonePreflight('GND', 2);
+    expect(result).toMatchObject({
+      runtimeVerified: true,
+      activePcb: true,
+      nativeCapabilities: true,
+      netVerified: true,
+      layerVerified: true,
+      readyToApply: false,
+    });
+    expect((result as { blockers: string[] }).blockers).toContain(
+      'board-outline-and-copper-topology-unverified',
+    );
+    expect(base.pcb_PrimitivePour.create).not.toHaveBeenCalled();
+    expect(base.pcb_Document.save).not.toHaveBeenCalled();
+  });
+  it('accepts documented focused PCB selection when getCurrentPcbInfo is unavailable', async () => {
+    const { operations } = makeOperations({
+      ...base,
+      dmt_Pcb: { getCurrentPcbInfo: async () => undefined },
+      dmt_SelectControl: {
+        getCurrentDocumentInfo: async () => ({ documentType: 3, uuid: 'pcb-1' }),
+      },
+    });
+    expect(await operations.zonePreflight('GND', 2)).toMatchObject({
+      activePcb: true,
+      netVerified: true,
+      readyToApply: false,
+    });
+  });
+  it('rejects focused schematic selection as non-PCB', async () => {
+    const { operations } = makeOperations({
+      ...base,
+      dmt_Pcb: { getCurrentPcbInfo: async () => undefined },
+      dmt_SelectControl: {
+        getCurrentDocumentInfo: async () => ({ documentType: 1, uuid: 'schematic-1' }),
+      },
+    });
+    expect(await operations.zonePreflight('GND', 2)).toMatchObject({
+      activePcb: false,
+      netVerified: false,
+      readyToApply: false,
+    });
+  });
+
+  it('rejects a missing net even though native create accepts unknown net names', async () => {
+    const { operations } = makeOperations(base);
+    expect(await operations.zonePreflight('MISSING_NET', 2)).toMatchObject({
+      netVerified: false,
+      readyToApply: false,
+      blockers: expect.arrayContaining(['net-not-in-active-pcb']),
+    });
+  });
+  it.each([
+    ['missing PCB', { dmt_Pcb: undefined }, 'active-pcb-unverified'],
+    [
+      'missing focus',
+      { dmt_Pcb: { getCurrentPcbInfo: async () => null } },
+      'active-pcb-unverified',
+    ],
+    [
+      'wrong version',
+      { sys_Environment: { getEditorCurrentVersion: async () => '3.2.149' } },
+      'runtime-version-unverified',
+    ],
+    ['net API missing', { pcb_Net: undefined }, 'net-not-in-active-pcb'],
+    [
+      'net API fails',
+      {
+        pcb_Net: {
+          getAllNetName: async () => {
+            throw Error('offline');
+          },
+        },
+      },
+      'net-not-in-active-pcb',
+    ],
+    ['layer not readable', { pcb_Layer: undefined }, 'copper-layer-unverified'],
+    [
+      'too few layers',
+      { pcb_Layer: { getTheNumberOfCopperLayers: async () => 1 } },
+      'copper-layer-unverified',
+    ],
+    ['no save support', { pcb_Document: undefined }, 'native-zone-capabilities-unavailable'],
+  ])('is fail-closed for %s', async (_reason, override, blocker) => {
+    const { operations } = makeOperations({ ...base, ...override });
+    const result = await operations.zonePreflight('GND', 2);
+    expect(result).toMatchObject({
+      readyToApply: false,
+      blockers: expect.arrayContaining([blocker]),
+    });
+    expect(base.pcb_PrimitivePour.create).not.toHaveBeenCalled();
+  });
+});

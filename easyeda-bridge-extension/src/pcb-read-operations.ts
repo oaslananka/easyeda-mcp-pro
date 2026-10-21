@@ -11,6 +11,7 @@ export interface PcbReadOperationDependencies {
 }
 
 export interface PcbReadOperations {
+  zonePreflight(netName: string, layer: number): Promise<unknown>;
   listComponents(limit?: number, offset?: number): Promise<unknown>;
   listFills(limit?: number, offset?: number): Promise<unknown>;
   listRegions(limit?: number, offset?: number): Promise<unknown>;
@@ -85,11 +86,86 @@ async function polygonSource(
   }
 }
 
+async function optionalNativeRead(read: () => Promise<unknown>): Promise<unknown> {
+  try {
+    return await read();
+  } catch {
+    // Missing/throwing native getters must never authorize mutation.
+    return undefined;
+  }
+}
+
+async function focusedPcbIsVerified(pcb: any, selection: any): Promise<boolean> {
+  const current = await optionalNativeRead(() => pcb?.getCurrentPcbInfo?.());
+  if (current) return true;
+  const selected = (await optionalNativeRead(() => selection?.getCurrentDocumentInfo?.())) as
+    { documentType?: unknown; uuid?: unknown } | undefined;
+  return (
+    selected?.documentType === 3 && typeof selected.uuid === 'string' && selected.uuid.length > 0
+  );
+}
+
 export function createPcbReadOperations({
   requireActivePcbContext,
   readFirstPath,
   readState,
 }: PcbReadOperationDependencies): PcbReadOperations {
+  async function zonePreflight(netName: string, layer: number): Promise<unknown> {
+    const environment = readFirstPath<any>(['SYS_Environment', 'sys_Environment']);
+    const pcb = readFirstPath<any>(['DMT_Pcb', 'dmt_Pcb']);
+    const selection = readFirstPath<any>(['DMT_SelectControl', 'dmt_SelectControl']);
+    const nets = readFirstPath<any>(['PCB_Net', 'pcb_Net']);
+    const layers = readFirstPath<any>(['PCB_Layer', 'pcb_Layer']);
+    const pours = readFirstPath<any>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
+    const poured = readFirstPath<any>(['PCB_PrimitivePoured', 'pcb_PrimitivePoured']);
+    const document = readFirstPath<any>(['PCB_Document', 'pcb_Document']);
+
+    const reportedVersion = await optionalNativeRead(() =>
+      environment?.getEditorCurrentVersion?.(),
+    );
+    const version = typeof reportedVersion === 'string' ? reportedVersion : null;
+    const runtimeVerified = version !== null && /^3\.2\.206(?:\.|$)/.test(version);
+    const activePcb = await focusedPcbIsVerified(pcb, selection);
+    const nativeCapabilities =
+      typeof pours?.create === 'function' &&
+      typeof poured?.get === 'function' &&
+      typeof document?.save === 'function';
+
+    const names = activePcb ? await optionalNativeRead(() => nets?.getAllNetName?.()) : undefined;
+    const netVerified = Array.isArray(names) && names.includes(netName);
+    const count = activePcb
+      ? await optionalNativeRead(() => layers?.getTheNumberOfCopperLayers?.())
+      : undefined;
+    const layerVerified =
+      (layer === 1 || layer === 2) &&
+      typeof count === 'number' &&
+      Number.isInteger(count) &&
+      count >= 2;
+    const checks: Array<[boolean, string]> = [
+      [runtimeVerified, 'runtime-version-unverified'],
+      [activePcb, 'active-pcb-unverified'],
+      [nativeCapabilities, 'native-zone-capabilities-unavailable'],
+      [netVerified, 'net-not-in-active-pcb'],
+      [layerVerified, 'copper-layer-unverified'],
+    ];
+    const blockers = checks.filter(([passed]) => !passed).map(([, reason]) => reason);
+    // A bounding box is not proof of full board containment or safe copper topology.
+    blockers.push(
+      'board-outline-and-copper-topology-unverified',
+      'apply-and-rollback-not-implemented',
+    );
+    return {
+      runtimeVersion: version,
+      runtimeVerified,
+      activePcb,
+      nativeCapabilities,
+      netVerified,
+      layerVerified,
+      readyToApply: false,
+      blockers,
+    };
+  }
+
   async function listComponents(limit?: number, offset = 0): Promise<unknown> {
     await requireActivePcbContext();
     const pcbCompClass = readFirstPath<any>(['PCB_PrimitiveComponent', 'pcb_PrimitiveComponent']);
@@ -245,6 +321,7 @@ export function createPcbReadOperations({
   }
 
   return {
+    zonePreflight,
     listComponents,
     listFills,
     listRegions,

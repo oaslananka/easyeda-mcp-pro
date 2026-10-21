@@ -245,6 +245,7 @@ const expectedMethods = [
   'pcb.listVias',
   'pcb.modifyComponent',
   'pcb.rebuildCopper',
+  'pcb.zonePreflight',
   'project.export',
   'project.open',
   'project.save',

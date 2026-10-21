@@ -130,6 +130,14 @@ export function createDispatcherDomainRouter(
       method: 'pcb.exportRouteContext',
       handle: (params) => dependencies.exportOperations.exportRouteContext(params),
     },
+    {
+      method: 'pcb.zonePreflight',
+      handle: (params) =>
+        dependencies.pcbReadOperations.zonePreflight(
+          params.netName as string,
+          params.layer as number,
+        ),
+    },
     ...pcbListRoutes,
     {
       method: 'pcb.modifyComponent',

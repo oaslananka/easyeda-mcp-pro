@@ -403,3 +403,56 @@ describe('PCB Read Tools', () => {
     });
   });
 });
+
+describe('PCB zone native runtime preflight', () => {
+  it('registers a separate read-only tool that never authorizes apply', async () => {
+    const registry = new ToolRegistry();
+    registerPcbReadTools(registry, EnvSchema.parse({ NODE_ENV: 'test' }));
+    const tool = registry.get('easyeda_pcb_zone_preflight');
+    expect(tool?.confirmWrite).toBe(false);
+    expect(tool?.sideEffect).toBe('read-only');
+    expect(tool?.inputSchema.safeParse({ netName: 'GND', layer: 999 }).success).toBe(false);
+    expect(tool?.inputSchema.safeParse({ netName: '', layer: 2 }).success).toBe(false);
+    const call = vi.fn().mockResolvedValue({
+      runtimeVersion: '3.2.206.715d940d',
+      runtimeVerified: true,
+      activePcb: true,
+      nativeCapabilities: true,
+      netVerified: true,
+      layerVerified: true,
+      readyToApply: false,
+      blockers: [
+        'board-outline-and-copper-topology-unverified',
+        'apply-and-rollback-not-implemented',
+      ],
+    });
+    const ctx = {
+      profile: 'full',
+      bridge: { connected: true, call },
+      config: { bridgeTimeoutMs: 1000, artifactDir: '.easyeda-mcp-pro/artifacts' },
+    } as ToolContext;
+    const result = await tool?.handler(ctx, { netName: 'GND', layer: 2 });
+    expect(call).toHaveBeenCalledWith('pcb.zonePreflight', { netName: 'GND', layer: 2 });
+    expect(result).toMatchObject({ readyToApply: false, netVerified: true });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('reports unavailable instead of treating bridge failure as a pass', async () => {
+    const registry = new ToolRegistry();
+    registerPcbReadTools(registry, EnvSchema.parse({ NODE_ENV: 'test' }));
+    const tool = registry.get('easyeda_pcb_zone_preflight');
+    const ctx = {
+      profile: 'full',
+      bridge: { connected: false, call: vi.fn().mockRejectedValue(Error('disconnected')) },
+      config: { bridgeTimeoutMs: 1000, artifactDir: '.easyeda-mcp-pro/artifacts' },
+    } as ToolContext;
+    const result = await tool?.handler(ctx, { netName: 'GND', layer: 2 });
+    expect(result).toMatchObject({
+      readyToApply: false,
+      netVerified: false,
+      not_available: true,
+      blockers: ['runtime-preflight-unavailable'],
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+});

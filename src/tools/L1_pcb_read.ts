@@ -251,6 +251,76 @@ function registerPcbReadTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
 ) {
+  registry.register({
+    name: 'easyeda_pcb_zone_preflight',
+    title: 'Inspect native PCB zone safety prerequisites (read-only)',
+    description:
+      'Verify the live EasyEDA Pro version, focused PCB, exact net membership, supported copper layer and native zone capabilities. ' +
+      'This is a read-only diagnostic and never authorizes zone writes or validates the complete board outline.',
+    profile: 'full',
+    evidence: ['runtime-probe', 'pro-api-types'],
+    risk: 'low',
+    confirmWrite: false,
+    sideEffect: 'read-only',
+    group: 'board',
+    version: '1.0.0',
+    annotations: { readOnlyHint: true, idempotentHint: true },
+    inputSchema: z
+      .object({
+        netName: z.string().trim().min(1).max(128),
+        layer: z.union([z.literal(1), z.literal(2)]),
+      })
+      .strict(),
+    outputSchema: z.object({
+      runtimeVersion: z.string().nullable(),
+      runtimeVerified: z.boolean(),
+      activePcb: z.boolean(),
+      nativeCapabilities: z.boolean(),
+      netVerified: z.boolean(),
+      layerVerified: z.boolean(),
+      readyToApply: z.literal(false),
+      blockers: z.array(z.string()),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, input: unknown) => {
+      const parsed = z
+        .object({
+          netName: z.string().trim().min(1).max(128),
+          layer: z.union([z.literal(1), z.literal(2)]),
+        })
+        .strict()
+        .parse(input);
+      try {
+        return await ctx.bridge.call<
+          { netName: string; layer: number },
+          {
+            runtimeVersion: string | null;
+            runtimeVerified: boolean;
+            activePcb: boolean;
+            nativeCapabilities: boolean;
+            netVerified: boolean;
+            layerVerified: boolean;
+            readyToApply: false;
+            blockers: string[];
+          }
+        >('pcb.zonePreflight', parsed);
+      } catch (error) {
+        return {
+          runtimeVersion: null,
+          runtimeVerified: false,
+          activePcb: false,
+          nativeCapabilities: false,
+          netVerified: false,
+          layerVerified: false,
+          readyToApply: false as const,
+          blockers: ['runtime-preflight-unavailable'],
+          not_available: true,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+  });
   registerPcbListTool(registry, {
     name: 'easyeda_pcb_components',
     title: 'List PCB components',

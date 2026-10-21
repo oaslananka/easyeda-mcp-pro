@@ -66,6 +66,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_route_path_plan`                      | `full`  | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                         |
 | `easyeda_pcb_tracks`                               | `core`  | `low`    | List copper track segments on the active PCB layout: primitiveId, net, layer, start/end coordinates, width. A multi-point track drawn by add_track appears as several consecutive segments sharing one net. Returns an empty list (not an error) if no PCB tab is focused.                                                       |
 | `easyeda_pcb_vias`                                 | `core`  | `low`    | List vias on the active PCB layout: primitiveId, net, position, hole/outer diameter (native unit, same scale as x/y — not independently verified against a known physical dimension). Requires a focused PCB tab — returns an empty list (not an error) if none is active.                                                       |
+| `easyeda_pcb_zone_preflight`                       | `full`  | `low`    | Verify the live EasyEDA Pro version, focused PCB, exact net membership, supported copper layer and native zone capabilities. This is a read-only diagnostic and never authorizes zone writes or validates the complete board outline.                                                                                            |
 | `easyeda_post_write_qa`                            | `core`  | `medium` | Run and classify post-write schematic QA after generated edits. Combines native DRC/ERC results with policy-aware classification so duplicate net names, free networks, and unconnected pins are reported as pass/fail/inconclusive instead of raw warning counts.                                                               |
 | `easyeda_power_tree_analyze`                       | `core`  | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                      |
 | `easyeda_production_qa_artifacts`                  | `pro`   | `low`    | Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.                                                                                                                                                                                        |
@@ -2107,6 +2108,40 @@ Returns a JSON object matching the schema:
   project_id: string;
   vias: object[];
   total: number;
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_zone_preflight`
+
+**Profile:** `full` | **Risk Level:** `low`
+
+> Verify the live EasyEDA Pro version, focused PCB, exact net membership, supported copper layer and native zone capabilities. This is a read-only diagnostic and never authorizes zone writes or validates the complete board outline.
+
+### Input Parameters
+
+| Parameter | Type           | Required | Description |
+| --------- | -------------- | -------- | ----------- |
+| `netName` | `string`       | Yes      |             |
+| `layer`   | `'1'` \| `'2'` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  runtimeVersion: string | null;
+  runtimeVerified: boolean;
+  activePcb: boolean;
+  nativeCapabilities: boolean;
+  netVerified: boolean;
+  layerVerified: boolean;
+  readyToApply: 'false';
+  blockers: string[];
   not_available: boolean (optional);
   error: string (optional);
 }
