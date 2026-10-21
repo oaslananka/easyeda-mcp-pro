@@ -360,6 +360,85 @@ describe('createPcbMutationOperations', () => {
     expect(getAllPoured).toHaveBeenCalledTimes(2);
   });
 
+  it('accepts a native complex polygon with two paths and copper-edge line segments', async () => {
+    const existing = fakePouredWithFills('e336', 'e336', 12);
+    const derived = {
+      ...fakePoured('target-id', 'target-id'),
+      getState_PourFills: () => [
+        {
+          id: 'fill-region',
+          lineWidth: 0,
+          fill: true,
+          path: {
+            getSource: () => [
+              [242.4, -221.6, 'L', 242.4, -180.4, 291.9, -180.4],
+              [243.1, -211.6, 'L', 244.1, -211.6, 246.1, -201.6],
+            ],
+          },
+        },
+        {
+          id: 'outline-line',
+          lineWidth: 1,
+          fill: false,
+          path: { getSource: () => [270.6, -192.9, 'L', 270.6, -197.1] },
+        },
+      ],
+    };
+    const pour = fakePour('target-id', { rebuildResult: existing });
+    const { operations } = createOperations({
+      identityDocuments: ['pcb-one', 'pcb-one'],
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([existing])
+          .mockResolvedValueOnce([existing, derived]),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: true,
+      rebuiltCount: 1,
+      results: [{ pourId: 'target-id', status: 'rebuilt', verified: true }],
+    });
+  });
+
+  it('rejects a malformed nested copper path rather than treating an ID as physical geometry', async () => {
+    const existing = fakePouredWithFills('e336', 'e336', 12);
+    const malformed = {
+      ...fakePoured('target-id', 'target-id'),
+      getState_PourFills: () => [
+        {
+          id: 'malformed',
+          lineWidth: 0,
+          fill: true,
+          path: { getSource: () => [[1, 2, 'L']] },
+        },
+      ],
+    };
+    const pour = fakePour('target-id', { rebuildResult: existing });
+    const { operations } = createOperations({
+      identityDocuments: ['pcb-one', 'pcb-one'],
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([existing])
+          .mockResolvedValueOnce([existing, malformed]),
+      },
+    });
+    expect(await operations.rebuildCopper({ pourIds: ['target-id'] })).toMatchObject({
+      success: false,
+      results: [{ status: 'readback-mismatch', verified: false }],
+    });
+  });
+
   it.each([
     {
       scenario: 'previously present target Poured (stale fill)',

@@ -79,6 +79,28 @@ interface PouredEvidence {
   fillSignature: string;
 }
 
+function validCopperPathPart(part: unknown): boolean {
+  return (
+    Array.isArray(part) &&
+    part.length >= 5 &&
+    part.filter((value) => typeof value === 'number' && Number.isFinite(value)).length >= 4 &&
+    part.some((value) => typeof value === 'string' && value.length > 0) &&
+    part.every(
+      (value) =>
+        (typeof value === 'number' && Number.isFinite(value)) ||
+        (typeof value === 'string' && value.length > 0),
+    )
+  );
+}
+
+function validCopperPathSource(source: unknown): boolean {
+  return (
+    Array.isArray(source) &&
+    source.length > 0 &&
+    (Array.isArray(source[0]) ? source.every(validCopperPathPart) : validCopperPathPart(source))
+  );
+}
+
 function fillSignature(fill: unknown): unknown[] | undefined {
   if (!fill || typeof fill !== 'object') return undefined;
   const part = fill as Record<string, unknown>;
@@ -93,7 +115,7 @@ function fillSignature(fill: unknown): unknown[] | undefined {
     return undefined;
   try {
     const source = getter.call(part.path);
-    if (!Array.isArray(source) || source.length < 3) return undefined;
+    if (!validCopperPathSource(source)) return undefined;
     return [part.id, part.lineWidth, part.fill, source];
   } catch {
     return undefined;
