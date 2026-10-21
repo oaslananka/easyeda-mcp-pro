@@ -1565,11 +1565,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `limit`     | `number` | Yes      |             |
-| `offset`    | `number` | Yes      |             |
+| Parameter   | Type     | Required | Description                         |
+| ----------- | -------- | -------- | ----------------------------------- |
+| `projectId` | `string` | Yes      | Exact focused EasyEDA project UUID. |
+| `limit`     | `number` | Yes      |                                     |
+| `offset`    | `number` | Yes      |                                     |
 
 ### Output Format
 
@@ -1713,11 +1713,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `limit`     | `number` | Yes      |             |
-| `offset`    | `number` | Yes      |             |
+| Parameter   | Type     | Required | Description                         |
+| ----------- | -------- | -------- | ----------------------------------- |
+| `projectId` | `string` | Yes      | Exact focused EasyEDA project UUID. |
+| `limit`     | `number` | Yes      |                                     |
+| `offset`    | `number` | Yes      |                                     |
 
 ### Output Format
 
@@ -1985,11 +1985,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `limit`     | `number` | Yes      |             |
-| `offset`    | `number` | Yes      |             |
+| Parameter   | Type     | Required | Description                         |
+| ----------- | -------- | -------- | ----------------------------------- |
+| `projectId` | `string` | Yes      | Exact focused EasyEDA project UUID. |
+| `limit`     | `number` | Yes      |                                     |
+| `offset`    | `number` | Yes      |                                     |
 
 ### Output Format
 
@@ -2063,11 +2063,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `limit`     | `number` | Yes      |             |
-| `offset`    | `number` | Yes      |             |
+| Parameter   | Type     | Required | Description                         |
+| ----------- | -------- | -------- | ----------------------------------- |
+| `projectId` | `string` | Yes      | Exact focused EasyEDA project UUID. |
+| `limit`     | `number` | Yes      |                                     |
+| `offset`    | `number` | Yes      |                                     |
 
 ### Output Format
 
@@ -2093,11 +2093,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
-| `limit`     | `number` | Yes      |             |
-| `offset`    | `number` | Yes      |             |
+| Parameter   | Type     | Required | Description                         |
+| ----------- | -------- | -------- | ----------------------------------- |
+| `projectId` | `string` | Yes      | Exact focused EasyEDA project UUID. |
+| `limit`     | `number` | Yes      |                                     |
+| `offset`    | `number` | Yes      |                                     |
 
 ### Output Format
 
