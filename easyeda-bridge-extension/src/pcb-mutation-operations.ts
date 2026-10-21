@@ -151,7 +151,6 @@ function selectPourCandidate(candidates: unknown[], id: string): unknown | undef
     (candidate) => nativeStateString(candidate, 'getState_PrimitiveId') === id,
   );
   if (exact !== undefined) return exact;
-  if (candidates.length === 1) return candidates[0];
   return undefined;
 }
 

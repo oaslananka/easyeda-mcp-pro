@@ -160,6 +160,29 @@ describe('createPcbMutationOperations', () => {
     expect(pour1.rebuildCopperRegion).not.toHaveBeenCalled();
   });
 
+  it.each(['object', 'array'] as const)(
+    'rejects a mismatched native get() %s before rebuilding any copper',
+    async (shape) => {
+      const unrelated = fakePour('other-pour', {
+        rebuildResult: fakePoured('other-poured', 'other-pour'),
+      });
+      const get = vi.fn(async () =>
+        shape === 'array' ? [unrelated.primitive] : unrelated.primitive,
+      );
+      const readPoured = vi.fn(async () => []);
+      const { operations } = createOperations({
+        pourClass: { get, getAll: vi.fn(async () => [unrelated.primitive]) },
+        pouredClass: { getAll: readPoured },
+      });
+
+      await expect(
+        operations.rebuildCopper({ pourIds: ['requested-pour'], net: 'GND', layer: 1 }),
+      ).rejects.toThrow('requested-pour');
+      expect(get).toHaveBeenCalledExactlyOnceWith('requested-pour');
+      expect(unrelated.rebuildCopperRegion).not.toHaveBeenCalled();
+      expect(readPoured).not.toHaveBeenCalled();
+    },
+  );
   it('reports native undefined as verified no-copper rather than success', async () => {
     const pour = fakePour('pour-empty', { rebuildResult: undefined });
     const get = vi.fn(async () => pour.primitive);
