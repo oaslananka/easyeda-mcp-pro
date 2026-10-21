@@ -335,7 +335,7 @@ function mapRebuildResults(
         pouredId: readbackIds[0] ?? null,
         status: 'readback-mismatch',
         verified: false,
-        error: `Native rebuild returned copper for pour ${nativeSourcePourId}, but the requested pour was ${attempt.pourId}.`,
+        error: `Pour ${nativeSourcePourId} != ${attempt.pourId} (rebuild source mismatch).`,
       };
     }
 
