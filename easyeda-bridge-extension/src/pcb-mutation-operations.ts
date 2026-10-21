@@ -50,6 +50,7 @@ interface CopperRebuildItem {
   status: CopperRebuildStatus;
   verified: boolean;
   error?: string;
+  warning?: string;
 }
 
 interface CopperRebuildResult {
@@ -68,6 +69,145 @@ interface CopperRebuildAttempt {
   pourId: string;
   nativeResult?: unknown;
   error?: string;
+}
+
+// Snapshot calculated geometry before the beta rebuild, rather than retaining
+// mutable native objects that the editor can change in place.
+interface PouredEvidence {
+  pouredId: string;
+  sourceId: string;
+  fillSignature: string;
+}
+
+function fillSignature(fill: unknown): unknown[] | undefined {
+  if (!fill || typeof fill !== 'object') return undefined;
+  const part = fill as Record<string, unknown>;
+  const getter = nativeMethod(part.path, 'getSource');
+  if (
+    typeof part.id !== 'string' ||
+    typeof part.lineWidth !== 'number' ||
+    !Number.isFinite(part.lineWidth) ||
+    typeof part.fill !== 'boolean' ||
+    !getter
+  )
+    return undefined;
+  try {
+    const source = getter.call(part.path);
+    if (!Array.isArray(source) || source.length < 3) return undefined;
+    return [part.id, part.lineWidth, part.fill, source];
+  } catch {
+    return undefined;
+  }
+}
+
+function pouredFillSignature(item: unknown): string | undefined {
+  const getter = nativeMethod(item, 'getState_PourFills');
+  if (!getter) return undefined;
+  let fills: unknown;
+  try {
+    fills = getter.call(item);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(fills) || fills.length === 0) return undefined;
+  const signatures = fills.map(fillSignature);
+  if (signatures.some((signature) => signature === undefined)) return undefined;
+  return JSON.stringify(signatures);
+}
+
+function snapshotPoured(items: unknown[]): Map<string, PouredEvidence> | undefined {
+  const snapshot = new Map<string, PouredEvidence>();
+  for (const item of items) {
+    const pouredId = nativeStateString(item, 'getState_PrimitiveId');
+    const sourceId = nativeStateString(item, 'getState_PourPrimitiveId');
+    const fillSignature = pouredFillSignature(item);
+    if (!pouredId || !sourceId || !fillSignature || snapshot.has(sourceId)) return undefined;
+    snapshot.set(sourceId, { pouredId, sourceId, fillSignature });
+  }
+  return snapshot;
+}
+
+async function focusedPcbIdentity(
+  readFirstPath: ApiRuntime['readFirstPath'],
+): Promise<string | undefined> {
+  const project = readFirstPath<unknown>(['DMT_Project', 'dmt_Project']);
+  const selector = readFirstPath<unknown>(['DMT_SelectControl', 'dmt_SelectControl']);
+  if (
+    !nativeMethod(project, 'getCurrentProjectInfo') ||
+    !nativeMethod(selector, 'getCurrentDocumentInfo')
+  ) {
+    return undefined;
+  }
+  try {
+    const p = (await invokeNative(project, 'getCurrentProjectInfo')) as Record<
+      string,
+      unknown
+    > | null;
+    const d = (await invokeNative(selector, 'getCurrentDocumentInfo')) as Record<
+      string,
+      unknown
+    > | null;
+    if (
+      !p ||
+      !d ||
+      typeof p.uuid !== 'string' ||
+      !p.uuid ||
+      typeof d.uuid !== 'string' ||
+      !d.uuid ||
+      d.documentType !== 3 ||
+      d.parentProjectUuid !== p.uuid
+    )
+      return undefined;
+    return JSON.stringify([p.uuid, d.uuid]);
+  } catch {
+    return undefined;
+  }
+}
+
+function existingPouredUnchanged(
+  before: Map<string, PouredEvidence>,
+  after: Map<string, PouredEvidence>,
+): boolean {
+  for (const [source, expected] of before) {
+    const current = after.get(source);
+    if (
+      !current ||
+      current.pouredId !== expected.pouredId ||
+      current.fillSignature !== expected.fillSignature
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function independentlyReconciled(
+  attempt: CopperRebuildAttempt,
+  beforeEvidence: Map<string, PouredEvidence> | undefined,
+  after: unknown[],
+  focusUnchanged: boolean,
+): string | undefined {
+  if (!focusUnchanged) return undefined;
+  let afterEvidence: Map<string, PouredEvidence> | undefined;
+  try {
+    afterEvidence = snapshotPoured(after);
+  } catch {
+    return undefined;
+  }
+  if (!beforeEvidence || !afterEvidence || beforeEvidence.has(attempt.pourId)) return undefined;
+  const target = afterEvidence.get(attempt.pourId);
+  if (
+    !target ||
+    target.pouredId !== attempt.pourId ||
+    afterEvidence.size !== beforeEvidence.size + 1
+  )
+    return undefined;
+  if (!existingPouredUnchanged(beforeEvidence, afterEvidence)) return undefined;
+  const returnedSource = nativeStateString(attempt.nativeResult, 'getState_PourPrimitiveId');
+  const returnedId = nativeStateString(attempt.nativeResult, 'getState_PrimitiveId');
+  const priorReturn = returnedSource && beforeEvidence.get(returnedSource);
+  if (!priorReturn || priorReturn.pouredId !== returnedId) return undefined;
+  return target.pouredId;
 }
 
 function nativeMethod(target: unknown, name: string): NativeMethod | undefined {
@@ -291,7 +431,9 @@ function mapReadbackFailureResults(
 
 function mapRebuildResults(
   attempts: CopperRebuildAttempt[],
+  preEvidence: Map<string, PouredEvidence> | undefined,
   postReadback: unknown[],
+  focusUnchanged: boolean,
 ): CopperRebuildItem[] {
   const byPourId = pouredReadbackMap(postReadback);
   return attempts.map((attempt) => {
@@ -329,6 +471,22 @@ function mapRebuildResults(
     // rebuild a newly created pour. Never attribute that result to our target.
     const nativeSourcePourId = nativeStateString(attempt.nativeResult, 'getState_PourPrimitiveId');
     if (nativeSourcePourId !== undefined && nativeSourcePourId !== attempt.pourId) {
+      const reconciledId = independentlyReconciled(
+        attempt,
+        preEvidence,
+        postReadback,
+        focusUnchanged,
+      );
+      if (reconciledId !== undefined) {
+        return {
+          pourId: attempt.pourId,
+          pouredId: reconciledId,
+          status: 'rebuilt',
+          verified: true,
+          warning:
+            'Beta native rebuild returned an unrelated pre-existing Pour; independent newly created Poured geometry was verified without changes to existing Poured objects.',
+        };
+      }
       return {
         pourId: attempt.pourId,
         pouredId: readbackIds[0] ?? null,
@@ -505,12 +663,16 @@ export function createPcbMutationOperations({
   async function rebuildCopper(params: Record<string, unknown>): Promise<CopperRebuildResult> {
     await requireActivePcbContext();
 
+    // Capture identity before resolving targets, not just before the actual rebuild.
+    const initialFocus = await focusedPcbIdentity(readFirstPath);
     const { pourClass, pouredClass } = requireCopperRebuildRuntime(readFirstPath);
     const targets = await resolvePours(pourClass, params);
 
-    // Prove that the read-back surface is callable before any mutation begins.
+    // Record immutable before-state for narrow reconciliation.
+    // If identity cannot be proven, native return mismatch remains fail-closed.
+    let preReadback: unknown[];
     try {
-      await readPouredItems(pouredClass);
+      preReadback = await readPouredItems(pouredClass);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const wrapped = new Error(
@@ -520,6 +682,13 @@ export function createPcbMutationOperations({
       throw wrapped;
     }
 
+    // Freeze the state NOW: native objects in preReadback can mutate in place.
+    let preEvidence: Map<string, PouredEvidence> | undefined;
+    try {
+      preEvidence = snapshotPoured(preReadback);
+    } catch {
+      preEvidence = undefined;
+    }
     const attempts = await executeCopperRebuilds(targets);
 
     let postReadback: unknown[];
@@ -529,7 +698,13 @@ export function createPcbMutationOperations({
       return readbackFailureResult(targets.length, attempts, error);
     }
 
-    return finalRebuildResult(targets.length, attempts, mapRebuildResults(attempts, postReadback));
+    const finalFocus = await focusedPcbIdentity(readFirstPath);
+    const focusUnchanged = initialFocus !== undefined && initialFocus === finalFocus;
+    return finalRebuildResult(
+      targets.length,
+      attempts,
+      mapRebuildResults(attempts, preEvidence, postReadback, focusUnchanged),
+    );
   }
 
   async function modifyComponent(params: Record<string, unknown>): Promise<unknown> {

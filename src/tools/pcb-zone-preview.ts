@@ -16,8 +16,9 @@ export const pcbZoneRectangleSchema = z
     message: 'Rectangle must not exceed the native PCB X-coordinate limit.',
     path: ['width'],
   })
-  .refine((rect) => rect.y + rect.height <= 1_000_000, {
-    message: 'Rectangle must not exceed the native PCB Y-coordinate limit.',
+  // EasyEDA native rectangle height extends downward from y (toward negative Y).
+  .refine((rect) => rect.y - rect.height >= -1_000_000, {
+    message: 'Rectangle must not exceed the negative native PCB Y-coordinate limit.',
     path: ['height'],
   });
 
@@ -80,7 +81,7 @@ export function previewPcbZone(input: PcbZonePreviewInput) {
       'Exact EasyEDA Pro runtime and native capabilities must be verified.',
       'An active PCB document must be confirmed before mutation.',
       'The netName must exist in the current PCB net inventory; native create does not enforce this.',
-      'Polygon must be within supported board bounds and have acceptable copper topology.',
+      'Polygon must have a verified intersection with the actual board outline; overhang may be clipped. Bounding-box overlap is not topology proof.',
       'An explicit confirmWrite=true and applicable remote approval are mandatory.',
       'Fresh Pour and target-associated Poured read-back must match the created id.',
       'Write timeouts require inventory reconciliation, never blind retry.',

@@ -32,11 +32,26 @@ function fakePoured(id: string, pourId: string) {
   };
 }
 
+function fakePouredWithFills(id: string, pourId: string, offset = 1) {
+  return {
+    ...fakePoured(id, pourId),
+    getState_PourFills: () => [
+      {
+        id: 'fill-1',
+        lineWidth: 0.2,
+        fill: true,
+        path: { getSource: () => ['R', offset, -100, 25, 20, 0, 0] },
+      },
+    ],
+  };
+}
+
 function createOperations(
   options: {
     pourClass?: Record<string, unknown>;
     pouredClass?: Record<string, unknown>;
     activeError?: Error;
+    identityDocuments?: string[];
   } = {},
 ) {
   const callFirst = vi.fn(async (_paths: readonly string[], ...args: unknown[]) => ({ args }));
@@ -59,6 +74,21 @@ function createOperations(
         getAll: vi.fn(async () => []),
       } satisfies Record<string, unknown>),
   };
+  let identityReads = 0;
+  if (options.identityDocuments) {
+    runtime.DMT_Project = {
+      getCurrentProjectInfo: vi.fn(async () => ({ uuid: 'project-1' })),
+    };
+    runtime.DMT_SelectControl = {
+      getCurrentDocumentInfo: vi.fn(async () => ({
+        uuid: options.identityDocuments?.[
+          Math.min(identityReads++, options.identityDocuments.length - 1)
+        ],
+        parentProjectUuid: 'project-1',
+        documentType: 3,
+      })),
+    };
+  }
   const readFirstPath = <T>(paths: readonly string[]): T | undefined =>
     (runtime[paths[0] ?? ''] ?? runtime[paths[1] ?? '']) as T | undefined;
   const requireActivePcbContext = vi.fn(async () => {
@@ -294,6 +324,173 @@ describe('createPcbMutationOperations', () => {
       expect(target.rebuildCopperRegion).toHaveBeenCalledOnce();
     },
   );
+
+  it('reconciles a wrong beta return only when independent new copper and unchanged existing fills prove the target', async () => {
+    const existing = fakePouredWithFills('e336', 'e336', 12);
+    const newlyFilled = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: existing });
+    const getAllPoured = vi
+      .fn<() => Promise<unknown[]>>()
+      .mockResolvedValueOnce([existing])
+      .mockResolvedValueOnce([existing, newlyFilled]);
+    const { operations } = createOperations({
+      identityDocuments: ['pcb-one', 'pcb-one'],
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: { getAll: getAllPoured },
+    });
+
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: true,
+      rebuiltCount: 1,
+      results: [
+        {
+          pourId: 'target-id',
+          pouredId: 'target-id',
+          status: 'rebuilt',
+          verified: true,
+          warning: expect.stringContaining('independent'),
+        },
+      ],
+    });
+    expect(pour.rebuildCopperRegion).toHaveBeenCalledOnce();
+    expect(getAllPoured).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    {
+      scenario: 'previously present target Poured (stale fill)',
+      before: [
+        fakePouredWithFills('e336', 'e336', 12),
+        fakePouredWithFills('target-id', 'target-id', 42),
+      ],
+      after: [
+        fakePouredWithFills('e336', 'e336', 12),
+        fakePouredWithFills('target-id', 'target-id', 42),
+      ],
+      docs: ['pcb-one', 'pcb-one'],
+    },
+    {
+      scenario: 'unrelated copper changed shape',
+      before: [fakePouredWithFills('e336', 'e336', 12)],
+      after: [
+        fakePouredWithFills('e336', 'e336', 20),
+        fakePouredWithFills('target-id', 'target-id', 42),
+      ],
+      docs: ['pcb-one', 'pcb-one'],
+    },
+    {
+      scenario: 'an extra unrelated fill was created',
+      before: [fakePouredWithFills('e336', 'e336', 12)],
+      after: [
+        fakePouredWithFills('e336', 'e336', 12),
+        fakePouredWithFills('target-id', 'target-id', 42),
+        fakePouredWithFills('other', 'other', 30),
+      ],
+      docs: ['pcb-one', 'pcb-one'],
+    },
+    {
+      scenario: 'target fill is empty or unverifiable',
+      before: [fakePouredWithFills('e336', 'e336', 12)],
+      after: [fakePouredWithFills('e336', 'e336', 12), fakePoured('target-id', 'target-id')],
+      docs: ['pcb-one', 'pcb-one'],
+    },
+    {
+      scenario: 'focused PCB changed during the rebuild',
+      before: [fakePouredWithFills('e336', 'e336', 12)],
+      after: [
+        fakePouredWithFills('e336', 'e336', 12),
+        fakePouredWithFills('target-id', 'target-id', 42),
+      ],
+      docs: ['pcb-one', 'pcb-two'],
+    },
+  ])('fails closed when $scenario', async ({ before, after, docs }) => {
+    const existing = before.find((item) => item.getState_PourPrimitiveId() === 'e336');
+    const pour = fakePour('target-id', { rebuildResult: existing });
+    const { operations } = createOperations({
+      identityDocuments: docs,
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce(before)
+          .mockResolvedValueOnce(after),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result.success).toBe(false);
+    expect(result.rebuiltCount).toBe(0);
+    expect(result.results[0]).toMatchObject({
+      status: 'readback-mismatch',
+      verified: false,
+    });
+  });
+
+  it('detects unrelated copper mutated in place despite the same native object reference', async () => {
+    let originalX = 12;
+    const existing = {
+      ...fakePoured('e336', 'e336'),
+      getState_PourFills: () => [
+        {
+          id: 'e1',
+          lineWidth: 0.2,
+          fill: true,
+          path: { getSource: () => ['R', originalX, -100, 25, 20, 0, 0] },
+        },
+      ],
+    };
+    const target = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: existing });
+    pour.rebuildCopperRegion.mockImplementation(async () => {
+      originalX = 90;
+      return existing;
+    });
+    const getAllPoured = vi
+      .fn<() => Promise<unknown[]>>()
+      .mockResolvedValueOnce([existing])
+      .mockResolvedValueOnce([existing, target]);
+    const { operations } = createOperations({
+      identityDocuments: ['pcb-one', 'pcb-one'],
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: { getAll: getAllPoured },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      results: [{ status: 'readback-mismatch', verified: false }],
+    });
+  });
+
+  it('rejects wrong native identity if project and document APIs are unavailable', async () => {
+    const existing = fakePouredWithFills('e336', 'e336', 12);
+    const target = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: existing });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([existing])
+          .mockResolvedValueOnce([existing, target]),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result.success).toBe(false);
+    expect(result.results[0]?.status).toBe('readback-mismatch');
+  });
 
   it('stops after a native rebuild error and reports already-attempted work only', async () => {
     const poured1 = fakePoured('poured-1', 'pour-1');

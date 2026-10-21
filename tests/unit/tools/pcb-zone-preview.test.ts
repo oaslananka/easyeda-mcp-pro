@@ -35,12 +35,28 @@ describe('native PCB copper zone preview', () => {
     expect(first.requiredApplyChecks.join(' ')).toContain('netName must exist');
   });
 
+  it('accepts native negative-Y board coordinates and a top-edge rectangle near positive Y limit', () => {
+    expect(
+      pcbZonePreviewSchema.safeParse({
+        ...valid,
+        rectangle: { x: 2420, y: -1800, width: 520, height: 420 },
+      }).success,
+    ).toBe(true);
+    expect(
+      pcbZonePreviewSchema.safeParse({
+        ...valid,
+        rectangle: { x: 1, y: 999_900, width: 10, height: 200 },
+      }).success,
+    ).toBe(true);
+  });
+
   it.each([
     ['invalid layer', { layer: 999 }],
     ['unsupported inner layer', { layer: 15 }],
     ['zero width', { rectangle: { x: 1, y: 2, width: 0, height: 3 } }],
     ['negative width', { rectangle: { x: 1, y: 2, width: -4, height: 3 } }],
     ['out of range', { rectangle: { x: 999_900, y: 2, width: 200, height: 3 } }],
+    ['past negative native Y limit', { rectangle: { x: 10, y: -999_900, width: 30, height: 200 } }],
     ['blank net', { netName: ' ' }],
     ['no net', { netName: undefined }],
     ['missing island flag', { preserveSilos: undefined }],
