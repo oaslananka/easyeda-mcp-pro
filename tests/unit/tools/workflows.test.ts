@@ -222,6 +222,157 @@ describe('Workflow Tools', () => {
     });
   });
 
+  describe.each([
+    {
+      name: 'easyeda_workflow_ne555_astable',
+      devices: {
+        timer: deviceItem,
+        resistor: deviceItem,
+        timingCapacitor: deviceItem,
+        bypassCapacitor: deviceItem,
+        led: deviceItem,
+      },
+    },
+    {
+      name: 'easyeda_workflow_led_blinker',
+      devices: { switch: deviceItem, resistor: deviceItem, led: deviceItem },
+    },
+  ])('$name safe-region gates', ({ name, devices }) => {
+    it('reports title-block fallback warnings without writing during preview', async () => {
+      bridgeCall.mockResolvedValueOnce({ currentPage: { width: 1189, height: 841 } });
+      const tool = registry.get(name)!;
+      const result = (await tool.handler(
+        context,
+        tool.inputSchema.parse({
+          projectId: 'region-warning',
+          mode: 'preview',
+          preferredRegion: 'lower-right',
+          devices,
+        }),
+      )) as any;
+
+      expect(result).toMatchObject({ success: true, applied: false, blocked: false });
+      expect(result.safe_region.warnings.length).toBeGreaterThan(0);
+      expect(result.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'WORKFLOW_SAFE_REGION',
+            severity: 'warning',
+            message: expect.stringContaining('title-block keep-out'),
+          }),
+        ]),
+      );
+      expect(() => tool.outputSchema?.parse(result)).not.toThrow();
+      expect(bridgeCall).toHaveBeenCalledTimes(1);
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', {
+        projectId: 'region-warning',
+      });
+    });
+
+    it('blocks confirmed apply when the template does not fit the sheet', async () => {
+      bridgeCall.mockResolvedValueOnce({ currentPage: { width: 200, height: 200 } });
+      const tool = registry.get(name)!;
+      const result = (await tool.handler(
+        context,
+        tool.inputSchema.parse({
+          projectId: 'region-blocked',
+          mode: 'apply',
+          confirmWrite: true,
+          devices,
+        }),
+      )) as any;
+
+      expect(result).toMatchObject({ success: false, applied: false, blocked: true });
+      expect(result.safe_region.blocked).toBe(true);
+      expect(result.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'WORKFLOW_SAFE_REGION',
+            severity: 'error',
+            message: expect.stringContaining('CONTENT_DOES_NOT_FIT_USABLE_BOUNDS'),
+          }),
+        ]),
+      );
+      expect(bridgeCall).toHaveBeenCalledTimes(1);
+      expect(bridgeCall).toHaveBeenCalledWith('schematic.getSheetInfo', {
+        projectId: 'region-blocked',
+      });
+    });
+  });
+
+  describe('easyeda_workflow_led_blinker', () => {
+    const devices = { switch: deviceItem, resistor: deviceItem, led: deviceItem };
+
+    beforeEach(() => {
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'schematic.getSheetInfo')
+          return { currentPage: { width: 1189, height: 841 } };
+        if (method === 'schematic.placeComponent')
+          return { primitiveId: `id-${bridgeCall.mock.calls.length}` };
+        if (method === 'schematic.connectPinToNet') return { success: true };
+        if (method === 'schematic.listComponents') return { total: 3, items: [] };
+        if (method === 'design.drc')
+          return {
+            violations: [
+              {
+                description: 'Wire has multiple net names: +5V GND',
+                severity: 'warning',
+                net: '+5V',
+              },
+            ],
+            totalViolations: 1,
+            warningCount: 1,
+          };
+        if (method === 'design.erc') return { violations: [], totalViolations: 0, errorCount: 0 };
+        return { result: [] };
+      });
+    });
+
+    it('runs default post-write QA and reports a failed electrical review after apply', async () => {
+      const tool = registry.get('easyeda_workflow_led_blinker')!;
+      const result = (await tool.handler(
+        context,
+        tool.inputSchema.parse({
+          projectId: 'led-qa',
+          mode: 'apply',
+          confirmWrite: true,
+          devices,
+        }),
+      )) as any;
+
+      expect(result).toMatchObject({ applied: true, success: false });
+      expect(result.post_write_qa.status).toBe('fail');
+      expect(result.post_write_qa.categories.duplicate_net_names).toBe(1);
+      expect(
+        bridgeCall.mock.calls.filter(([method]) => method === 'schematic.connectPinToNet'),
+      ).toHaveLength(6);
+      expect(bridgeCall).toHaveBeenCalledWith('design.drc', { projectId: 'led-qa' });
+      expect(bridgeCall).toHaveBeenCalledWith('design.erc', { projectId: 'led-qa' });
+    });
+
+    it('preserves the explicit opt-out from post-write QA', async () => {
+      const tool = registry.get('easyeda_workflow_led_blinker')!;
+      const result = (await tool.handler(
+        context,
+        tool.inputSchema.parse({
+          projectId: 'led-no-qa',
+          mode: 'apply',
+          confirmWrite: true,
+          runPostWriteQa: false,
+          devices,
+        }),
+      )) as any;
+
+      expect(result).toMatchObject({ applied: true, success: true });
+      expect(result.post_write_qa).toBeUndefined();
+      expect(
+        bridgeCall.mock.calls.some(
+          ([method]) => method === 'design.drc' || method === 'design.erc',
+        ),
+      ).toBe(false);
+    });
+  });
+
   describe('easyeda_workflow_rp2040_servo_module', () => {
     const servoDevices = {
       resistor0402: deviceItem,

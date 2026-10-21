@@ -220,7 +220,7 @@ describe('dependency audit policy', () => {
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
     expectPatchedOverride(workspacePolicy, lockfile, 'hono', '4.13.11');
-    expect(lockfile).not.toMatch(/hono@4\.(?:12\.\d+|13\.(?:[0-9]|10))(?=[:(\s])/);
+    expect(lockfile).not.toMatch(/hono@4\.(?:12\.\d+|13\.(?:[0-9]|10))(?=[:()\s])/);
   });
 
   it('pins undici to releases patched for GHSA-3wwx-pv8p-q78v', () => {
