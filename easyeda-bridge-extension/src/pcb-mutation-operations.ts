@@ -458,6 +458,7 @@ function mapRebuildResults(
   focusUnchanged: boolean,
 ): CopperRebuildItem[] {
   const byPourId = pouredReadbackMap(postReadback);
+  const attemptedIds = new Set(attempts.map((attempt) => attempt.pourId));
   return attempts.map((attempt) => {
     if (attempt.error) {
       return {
@@ -549,7 +550,13 @@ function mapRebuildResults(
       };
     }
 
-    return directRebuildItemWithGeometry(attempt.pourId, readbackIds[0], postReadback);
+    return directRebuildItemWithGeometry(
+      attempt.pourId,
+      readbackIds[0],
+      preEvidence,
+      postReadback,
+      attemptedIds,
+    );
   });
 }
 
@@ -575,24 +582,54 @@ function mapResultsAfterFocusCheck(
     : mapFocusChangedRebuildResults(attempts);
 }
 
+function unexpectedPouredChanges(
+  before: Map<string, PouredEvidence>,
+  after: Map<string, PouredEvidence>,
+  attemptedIds: ReadonlySet<string>,
+): boolean {
+  for (const [sourceId, previous] of before) {
+    if (attemptedIds.has(sourceId)) continue;
+    const current = after.get(sourceId);
+    if (
+      !current ||
+      current.pouredId !== previous.pouredId ||
+      current.fillSignature !== previous.fillSignature
+    )
+      return true;
+  }
+  for (const sourceId of after.keys()) {
+    if (!before.has(sourceId) && !attemptedIds.has(sourceId)) return true;
+  }
+  return false;
+}
+
 function directRebuildItemWithGeometry(
   pourId: string,
   pouredId: string,
+  before: Map<string, PouredEvidence> | undefined,
   items: unknown[],
+  attemptedIds: ReadonlySet<string>,
 ): CopperRebuildItem {
-  const match = items.find(
-    (item) =>
-      nativeStateString(item, 'getState_PourPrimitiveId') === pourId &&
-      nativeStateString(item, 'getState_PrimitiveId') === pouredId,
-  );
-  if (!match || !pouredFillSignature(match)) {
+  let after: Map<string, PouredEvidence> | undefined;
+  try {
+    after = snapshotPoured(items);
+  } catch {
+    // A native getter can throw; never attribute such geometry to success.
+  }
+  const target = after?.get(pourId);
+  if (
+    !before ||
+    !after ||
+    target?.pouredId !== pouredId ||
+    unexpectedPouredChanges(before, after, attemptedIds)
+  ) {
     return {
       pourId,
       pouredId,
       status: 'readback-mismatch',
       verified: false,
       error:
-        'Native Poured id was confirmed, but actual copper fill geometry could not be verified.',
+        'Native copper read-back lacks validated fill geometry or changed unrelated Poured geometry.',
     };
   }
   return { pourId, pouredId, status: 'rebuilt', verified: true };

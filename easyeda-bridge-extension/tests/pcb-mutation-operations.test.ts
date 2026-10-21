@@ -267,7 +267,102 @@ describe('createPcbMutationOperations', () => {
       rebuiltCount: 0,
       results: [{ pourId: 'target-id', status: 'readback-mismatch', verified: false }],
     });
-    expect(result.results[0]?.error).toContain('actual copper fill geometry');
+    expect(result.results[0]?.error).toContain('validated fill geometry');
+  });
+
+  it('rejects collateral copper changes even when the native return matches the target', async () => {
+    const original = fakePouredWithFills('e336', 'e336', 10);
+    const changedOriginal = fakePouredWithFills('e336', 'e336', 11);
+    const target = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: target });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([original])
+          .mockResolvedValueOnce([changedOriginal, target]),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      results: [{ status: 'readback-mismatch', verified: false }],
+    });
+    expect(result.results[0]?.error).toContain('unrelated Poured');
+  });
+
+  it('rejects an unexpected new Poured even when the target rebuild is correct', async () => {
+    const target = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: target });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([target, fakePouredWithFills('surprise', 'surprise', 99)]),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      results: [{ status: 'readback-mismatch', verified: false }],
+    });
+  });
+
+  it('fails closed if previous copper geometry cannot be snapshotted', async () => {
+    const target = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: target });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([fakePoured('e336', 'e336')])
+          .mockResolvedValueOnce([fakePouredWithFills('e336', 'e336'), target]),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      results: [{ status: 'readback-mismatch', verified: false }],
+    });
+  });
+
+  it('permits unchanged geometry when rebuilding an existing exact target', async () => {
+    const target = fakePouredWithFills('target-id', 'target-id', 42);
+    const pour = fakePour('target-id', { rebuildResult: target });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([target])
+          .mockResolvedValueOnce([target]),
+      },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: true,
+      rebuiltCount: 1,
+      results: [{ status: 'rebuilt', verified: true }],
+    });
   });
 
   it('fails verification when native and persisted poured ids disagree', async () => {
