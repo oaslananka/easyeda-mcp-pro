@@ -215,6 +215,14 @@ describe('dependency audit policy', () => {
     expect(lockfile).not.toMatch(/qs@6\.15\.3(?:\D|$)/);
   });
 
+  it('pins Hono to releases patched for GHSA-5r4p-p66f-jhc7', () => {
+    const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
+    const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
+
+    expectPatchedOverride(workspacePolicy, lockfile, 'hono', '4.13.11');
+    expect(lockfile).not.toMatch(/hono@4\.(?:12\.\d+|13\.(?:[0-9]|10))(?=[:(\s])/);
+  });
+
   it('pins undici to releases patched for GHSA-3wwx-pv8p-q78v', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as {
       dependencies?: Record<string, string>;
