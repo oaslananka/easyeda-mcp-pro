@@ -39,8 +39,22 @@ const CHUNK_AGGREGATE_MULTIPLIER = 8;
 // Drop a partial chunk assembly that has not completed within this window.
 const CHUNK_ASSEMBLY_TTL_MS = 60_000;
 
-function replacementChunkBytes(total: number, previous: string | undefined, piece: string): number {
-  return total - Buffer.byteLength(previous ?? '', 'utf8') + Buffer.byteLength(piece, 'utf8');
+function replacementChunkBytes(
+  chunks: Array<string | undefined>,
+  seq: number,
+  total: number,
+  piece: string,
+  cap: number,
+): number {
+  const conservative =
+    total - Buffer.byteLength(chunks[seq] ?? '', 'utf8') + Buffer.byteLength(piece, 'utf8');
+  if (conservative <= cap) return conservative;
+
+  // A high surrogate in one fragment and a low surrogate in the next use
+  // fewer bytes when joined. Check the exact candidate before rejecting.
+  const candidate = chunks.slice();
+  candidate[seq] = piece;
+  return Buffer.byteLength(candidate.join(''), 'utf8');
 }
 
 const FOLLOWER_ATTACH_ATTEMPTS = 20;
@@ -486,7 +500,13 @@ export class BridgeManager extends EventEmitter {
         return;
       }
       const previous = assembly.chunks[seq];
-      const nextBytes = replacementChunkBytes(assembly.bytes, previous, piece);
+      const nextBytes = replacementChunkBytes(
+        assembly.chunks,
+        seq,
+        assembly.bytes,
+        piece,
+        aggregateCap,
+      );
       if (nextBytes > aggregateCap) {
         chunkAssemblies.delete(id);
         logger.warn(

@@ -509,6 +509,36 @@ describe('BridgeManager - payload size limit', () => {
     manager.disconnect('test complete');
   });
 
+  it('accepts an exact-limit payload containing an emoji split across chunk boundaries', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_MAX_PAYLOAD_SIZE: 1024,
+      }),
+    );
+    await manager.connect();
+    const socket = await openSocket(port);
+    const parts = [
+      ...Array.from({ length: 10 }, () => 'a'.repeat(800)),
+      'a'.repeat(188),
+      '\uD83D',
+      '\uDE00',
+    ];
+    expect(Buffer.byteLength(parts.join(''), 'utf8')).toBe(8192);
+    for (const [seq, data] of parts.entries()) {
+      socket.send(
+        JSON.stringify({ type: 'chunk', id: 'split-surrogate', seq, total: parts.length, data }),
+      );
+    }
+    const hello = waitForMessage(socket);
+    sendHandshake(socket);
+    await expect(hello).resolves.toMatchObject({ type: 'hello' });
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
   it('should accept payload within limit', async () => {
     const port = await getFreePort();
     const config = createTestConfig({
