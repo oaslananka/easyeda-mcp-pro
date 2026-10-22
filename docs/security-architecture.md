@@ -409,7 +409,7 @@ The required quality gate runs `pnpm check:architecture` against `.github/archit
 
 ### 9.3 Branch Protection
 
-- `main` is protected by the active repository ruleset `main-protection`; there are no bypass actors.
+- `main` is protected by the active repository ruleset `main-standard`. One existing owner-only `pull_request` bypass exception is configured; it is **not** approval to bypass routine CI/review. Any actual use must follow the documented emergency exception and audit procedure in [Repository Governance](REPOSITORY_GOVERNANCE.md).
 - The current solo-maintainer policy has required human approvals: `0`. Independent approval becomes mandatory when a second eligible human maintainer has review access, as defined in [Repository Governance](REPOSITORY_GOVERNANCE.md).
 - Required status checks must pass on an up-to-date head: `quality (24)`, `codeql`, `semgrep`, `Socket Security: Project Report`, and `dependency-review`.
 - Pull requests must resolve review conversations before merge.

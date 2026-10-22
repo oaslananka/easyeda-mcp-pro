@@ -35,7 +35,7 @@ interface GovernancePolicy {
     name: string;
     target: string;
     include: string[];
-    bypassActors: unknown[];
+    bypassActors: Array<{ actor_id: number; actor_type: string; bypass_mode: string }>;
   };
   reviewPolicy: {
     independentReview: string;
@@ -52,6 +52,7 @@ interface GovernancePolicy {
         dismissStaleReviews: boolean;
         requireLastPushApproval: boolean;
       };
+      targetBypassActors: Array<{ actor_id: number; actor_type: string; bypass_mode: string }>;
       verification: string[];
     };
   };
@@ -99,7 +100,7 @@ describe('repository governance policy', () => {
   it('records the enforceable main-branch protection baseline', () => {
     const policy = readPolicy();
 
-    expect(policy.liveStateVerifiedAt).toBe('2026-10-05');
+    expect(policy.liveStateVerifiedAt).toBe('2026-10-22');
     expect(policy.branchProtection).toEqual({
       requiredChecks: [
         'quality (24)',
@@ -122,11 +123,36 @@ describe('repository governance policy', () => {
     expect(policy.repositoryRulesets).toEqual({
       active: true,
       authority: 'repository-ruleset',
-      name: 'main-protection',
+      name: 'main-standard',
       target: 'branch',
       include: ['~DEFAULT_BRANCH'],
-      bypassActors: [],
+      bypassActors: [{ actor_id: 285490571, actor_type: 'User', bypass_mode: 'pull_request' }],
     });
+  });
+
+  it('documents the existing owner bypass without permitting unlimited or untracked actors', () => {
+    const policy = readPolicy();
+    const governance = readText('docs/REPOSITORY_GOVERNANCE.md');
+    const evidence = JSON.parse(readText(policy.continuity.recovery.branchProtectionEvidence)) as {
+      repositoryRuleset: {
+        id: number;
+        name: string;
+        bypassActors: GovernancePolicy['repositoryRulesets']['bypassActors'];
+      };
+      history: { previousVersionId: number; currentVersionId: number };
+    };
+    expect(policy.repositoryRulesets.bypassActors).toEqual([
+      { actor_id: 285490571, actor_type: 'User', bypass_mode: 'pull_request' },
+    ]);
+    expect(evidence.repositoryRuleset.id).toBe(20020112);
+    expect(evidence.repositoryRuleset.name).toBe(policy.repositoryRulesets.name);
+    expect(evidence.repositoryRuleset.bypassActors).toEqual(policy.repositoryRulesets.bypassActors);
+    expect(evidence.history).toMatchObject({
+      previousVersionId: 51888193,
+      currentVersionId: 51966852,
+    });
+    expect(governance).toContain('emergency exception');
+    expect(governance).toContain('approval to use it');
   });
 
   it('keeps architecture docs aligned with the live solo-maintainer ruleset', () => {
@@ -209,9 +235,11 @@ describe('repository governance policy', () => {
         dismissStaleReviews: true,
         requireLastPushApproval: true,
       },
+      targetBypassActors: [],
       verification: [
         'verify-live-collaborator-permission',
         'apply-main-branch-protection-target',
+        'verify-owner-pr-bypass-removed',
         'verify-owner-authored-test-pr-is-reviewable',
         'update-liveStateVerifiedAt',
       ],
@@ -304,7 +332,7 @@ describe('repository governance policy', () => {
     expect(governance).toContain('public rationale');
     expect(governance).toContain('two business days');
     expect(governance).toContain(
-      '`main-protection` repository ruleset is the canonical enforcement mechanism',
+      '`main-standard` repository ruleset is the canonical enforcement mechanism',
     );
     expect(governance).not.toContain('No repository ruleset currently overlaps');
 

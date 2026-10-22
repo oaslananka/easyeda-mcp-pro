@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-22",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "branch": "main",
+  "source": "GitHub repository ruleset API",
+  "repositoryRuleset": {
+    "id": 20020112,
+    "name": "main-standard",
+    "target": "branch",
+    "enforcement": "active",
+    "include": ["~DEFAULT_BRANCH"],
+    "exclude": [],
+    "bypassActors": [
+      {
+        "actor_id": 285490571,
+        "actor_type": "User",
+        "bypass_mode": "pull_request"
+      }
+    ],
+    "ruleTypes": [
+      "deletion",
+      "non_fast_forward",
+      "required_linear_history",
+      "pull_request",
+      "required_status_checks"
+    ],
+    "updatedAt": "2026-10-05T18:00:21.722+03:00"
+  },
+  "branchProtection": {
+    "requiredChecks": [
+      "quality (24)",
+      "codeql",
+      "semgrep",
+      "Socket Security: Project Report",
+      "dependency-review"
+    ],
+    "strictStatusChecks": true,
+    "requiredApprovals": 0,
+    "requireCodeOwnerReviews": false,
+    "dismissStaleReviews": false,
+    "requireLastPushApproval": false,
+    "requireConversationResolution": true,
+    "enforceAdmins": true,
+    "requireLinearHistory": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  },
+  "notes": [
+    "Recorded the existing live ruleset configuration from GitHub API on 2026-10-22; no GitHub settings were modified.",
+    "History documents that the same ruleset changed name and added owner PR-only bypass on 2026-10-05 after the earlier verified snapshot; do not overwrite historical evidence.",
+    "Required status checks, strict up-to-date policy, review-thread resolution, linear history and squash-only merge remain present.",
+    "Owner PR-only bypass is an existing configured exception, not proof of previous use nor routine bypass authorization; emergency exception and follow-up audit are required for use.",
+    "This snapshot is a read-only observation; the current governance reconciliation is tracked in issue #730."
+  ],
+  "history": {
+    "previousVersionId": 51888193,
+    "previousUpdatedAt": "2026-10-05T03:41:19.115+03:00",
+    "currentVersionId": 51966852,
+    "currentUpdatedAt": "2026-10-05T18:00:22.156+03:00",
+    "actor": {
+      "id": 285859825,
+      "login": "oaslananka-ops[bot]",
+      "type": "Bot"
+    },
+    "crossRepositoryCorroboration": "kicad-mcp-pro main-standard changed at 2026-10-05T18:00:07.835+03:00, with the same owner PR-only bypass"
+  }
+}

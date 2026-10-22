@@ -34,7 +34,7 @@ A change is critical-path work when it modifies one of the policy patterns, chan
 
 ### Current solo-maintainer enforcement limitation
 
-The repository currently has one write-capable maintainer. GitHub cannot require one independent approval or a code-owner approval without deadlocking every owner-authored maintenance PR. The live `main-protection` repository ruleset therefore records zero required approvals and does not yet enforce code-owner approval. This solo-maintainer enforcement limitation is public and must not be represented as independent review.
+The repository currently has one write-capable maintainer. GitHub cannot require one independent approval or a code-owner approval without deadlocking every owner-authored maintenance PR. The live `main-standard` repository ruleset therefore records zero required approvals and does not yet enforce code-owner approval. This solo-maintainer enforcement limitation is public and must not be represented as independent review.
 
 Until a second eligible maintainer is added, a critical-path PR must include:
 
@@ -44,7 +44,7 @@ Until a second eligible maintainer is added, a critical-path PR must include:
 4. disposition of every bot, agent, and human finding; and
 5. external review when a suitable reviewer is practically available, especially before a stable release.
 
-When a second eligible maintainer is granted review access, the independent-review activation runbook below becomes mandatory. The activation target is already recorded in `config/repository-governance.json`; it must not be weakened merely to make an owner-authored pull request mergeable.
+When a second eligible maintainer is granted review access, the independent-review activation runbook below becomes mandatory. The activation target is already recorded in `config/repository-governance.json`; it must not be weakened merely to make an owner-authored pull request mergeable. If an eligible independent reviewer is added, explicitly reassess and remove the owner PR-bypass exception before claiming independently enforced approval.
 
 ### Independent-review activation runbook
 
@@ -55,14 +55,16 @@ bot, inactive invite, or external opinion without repository review access does 
 Within **two business days** of the trigger, `@oaslananka` must:
 
 1. verify the collaborator's live permission and accepted invitation;
-2. update the `main-protection` repository ruleset to one required approval, required code-owner review, dismissal of
+2. update the `main-standard` repository ruleset to one required approval, required code-owner review, dismissal of
    stale approvals, and approval after the latest push;
-3. preserve every existing required status check and administrator enforcement setting;
-4. open an owner-authored test pull request touching a critical path and prove that the second
+3. **remove the existing owner PR-only bypass actor** and verify the live ruleset has zero bypass actors
+   before claiming independent reviewer enforcement;
+4. preserve every existing required status check and administrator enforcement setting;
+5. open an owner-authored test pull request touching a critical path and prove that the second
    maintainer can review it while the author cannot self-satisfy the approval requirement;
-5. update `liveStateVerifiedAt`, the current protection evidence snapshot, and public issue #407 with
+6. update `liveStateVerifiedAt`, the current protection evidence snapshot, and the current governance tracking issue with
    the verification URL and date; and
-6. revert access or protection immediately if the test exposes a bypass, deadlock, or privilege
+7. revert access or protection immediately if the test exposes a bypass, deadlock, or privilege
    mismatch, then document the exact blocker publicly.
 
 The target state is machine-checked by the governance policy test even while the live repository
@@ -83,30 +85,33 @@ The pull request must contain a compact disposition table when automated systems
 
 ## Main protection ruleset baseline
 
-The live `main` protection and merge settings must match this table and the machine-readable policy. The `main-protection` repository ruleset is the canonical enforcement mechanism for `main`. It targets `~DEFAULT_BRANCH`, has no bypass actors, and replaces the former classic branch-protection rule after an overlap-first migration proved the required checks and merge restrictions were equivalent.
+The live `main` protection and merge settings must match this table and the machine-readable policy. The `main-standard` repository ruleset is the canonical enforcement mechanism for `main`. It targets `~DEFAULT_BRANCH` and replaces the former classic branch-protection rule after an overlap-first migration proved the required checks and merge restrictions were equivalent.
 
-| Setting                               | Required state                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Pull request required                 | Enabled                                                                                     |
-| Required approvals                    | `0` only while the documented solo-maintainer limitation exists                             |
-| Code-owner review                     | Disabled only while required approvals would deadlock the sole owner                        |
-| Dismiss stale approvals               | Disabled while approvals are zero; enable with independent review enforcement               |
-| Require approval after latest push    | Disabled while approvals are zero; enable with independent review enforcement               |
-| Required checks                       | `quality (24)`, `codeql`, `semgrep`, `Socket Security: Project Report`, `dependency-review` |
-| Strict/up-to-date status checks       | Enabled                                                                                     |
-| Conversation resolution               | Enabled                                                                                     |
-| Apply protection to administrators    | Enabled                                                                                     |
-| Linear history                        | Enabled; repository merge settings permit squash merge only                                 |
-| Force pushes and branch deletion      | Disabled                                                                                    |
-| Automatic branch deletion after merge | Enabled                                                                                     |
+The current live ruleset contains **one explicit, PR-only bypass actor**, the repository owner `@oaslananka` (User ID `285490571`, `bypass_mode=pull_request`). An account-wide `oaslananka-ops[bot]` ruleset update at 2026-10-05 18:00 TRT added this exception and renamed the ruleset; the earlier 03:41 TRT snapshot documents the former no-bypass state. This is a factual description of an existing exception, **not** approval to use it. GitHub's `pull_request` bypass mode can bypass rules **on a pull request**, not by unrestricted direct pushes. Routine merges must satisfy all required checks, resolved review threads, and the allowed squash method. Any actual bypass requires the documented emergency exception, public rationale, accountable owner, and follow-up review; never present a green check or owner status as authorization to bypass. The current configuration and independently identified drift are tracked in [#730](https://github.com/oaslananka/easyeda-mcp-pro/issues/730).
+
+| Setting                               | Required state                                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Pull request required                 | Enabled                                                                                      |
+| Required approvals                    | `0` only while the documented solo-maintainer limitation exists                              |
+| Code-owner review                     | Disabled only while required approvals would deadlock the sole owner                         |
+| Dismiss stale approvals               | Disabled while approvals are zero; enable with independent review enforcement                |
+| Require approval after latest push    | Disabled while approvals are zero; enable with independent review enforcement                |
+| Required checks                       | `quality (24)`, `codeql`, `semgrep`, `Socket Security: Project Report`, `dependency-review`  |
+| Strict/up-to-date status checks       | Enabled                                                                                      |
+| Conversation resolution               | Enabled                                                                                      |
+| Apply protection to administrators    | Enabled                                                                                      |
+| Linear history                        | Enabled; repository merge settings permit squash merge only                                  |
+| Force pushes and branch deletion      | Disabled                                                                                     |
+| Automatic branch deletion after merge | Enabled                                                                                      |
+| Owner ruleset bypass                  | Existing `@oaslananka` PR-only exception; emergency-only use, with documented audit evidence |
 
 A required-check name is a public interface. Renaming, replacing, adding, or removing one requires updating the workflow, repository ruleset, JSON policy, documentation, and repository-policy tests together. The setting change must be verified against the live GitHub API after merge.
 
 ## Mergify merge controls
 
-Mergify is optional queue automation only; it does not replace, bypass, or participate in the required-check boundary of the GitHub `main-protection` ruleset. The repository-owned [`.mergify.yml`](../.mergify.yml) keeps the merge queue in conservative in-place mode with one pull request per check (`batch_size: 1`, `max_parallel_checks: 1`), serial scheduling, and squash merges. It deliberately omits Merge Protections, separate `merge_conditions`, automatic merge conditions, queue retries, and deprecated `autoqueue`/`allow_inplace_checks` settings.
+Mergify is optional queue automation only; it does not replace or itself bypass the required-check boundary of the GitHub `main-standard` ruleset. The repository-owned [`.mergify.yml`](../.mergify.yml) keeps the merge queue in conservative in-place mode with one pull request per check (`batch_size: 1`, `max_parallel_checks: 1`), serial scheduling, and squash merges. It deliberately omits Merge Protections, separate `merge_conditions`, automatic merge conditions, queue retries, and deprecated `autoqueue`/`allow_inplace_checks` settings.
 
-A maintainer may request the queue through Mergify's pull-request queue control or the `@mergifyio queue` command. Queueing never grants a ruleset bypass: GitHub's five required checks, strict up-to-date requirement, conversation resolution, and squash-only ruleset policy remain authoritative. Mergify is not a required status check and receives no ruleset bypass actor.
+A maintainer may request the queue through Mergify's pull-request queue control or the `@mergifyio queue` command. Queueing never grants a ruleset bypass: GitHub's five required checks, strict up-to-date requirement, conversation resolution, and squash-only ruleset policy remain authoritative. Mergify is not a required status check and receives no ruleset bypass actor. The owner's separate PR-only exception is not a permission granted to Mergify.
 
 ## Emergency exception
 
