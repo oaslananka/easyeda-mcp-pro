@@ -118,14 +118,13 @@ function registerCatalogTools(
         const result = await ingestDeviceFromLcsc(ctx, lcscId);
         let cached = false;
         if (ctx.storage) {
-          ctx.storage.upsertVerifiedDevice({
+          cached = ctx.storage.upsertVerifiedDevice({
             lcscId: result.entry.lcsc ?? lcscId,
             entryJson: JSON.stringify(result.entry),
             status: result.status,
             errorCount: result.validation.errors.length,
             warningCount: result.validation.warnings.length,
           });
-          cached = true;
         }
         return {
           lcsc_id: result.entry.lcsc ?? lcscId,
