@@ -277,7 +277,15 @@ function registerPcbReadTools(
       .object({
         netName: z.string().trim().min(1).max(128),
         layer: z.union([z.literal(1), z.literal(2)]),
-        rectangle: pcbZoneRectangleSchema.optional(),
+        rectangle: pcbZoneRectangleSchema
+          .optional()
+          .describe(
+            'Optional native R rectangle: x is the left X anchor, y is the top Y anchor, ' +
+              'width is positive and extends to x + width, height is positive and extends ' +
+              'DOWN to y - height (native negative-Y). Native coordinates, not millimetres; ' +
+              'the rectangle must stay within the +/-1,000,000 native coordinate limits. ' +
+              'An intersection is a read-only diagnostic, never permission to write.',
+          ),
       })
       .strict(),
     outputSchema: z.object({
@@ -299,7 +307,18 @@ function registerPcbReadTools(
           outline: pcbZoneRectangleSchema.nullable(),
         })
         .nullable()
-        .optional(),
+        .optional()
+        .describe(
+          'Null when no rectangle is supplied or there is no active PCB; otherwise ' +
+            'status is intersection-confirmed (one unrotated rectangular board frame ' +
+            'overlaps the candidate), outside-board (no overlap), unsupported-outline ' +
+            '(complex/multiple/rotated frame or additional regions), or unavailable ' +
+            '(identity/native inspection cannot be verified). intersectionVerified is ' +
+            'true only for the single-rectangle overlap case, NOT a clearance, ' +
+            'keepout, board-hole, DRC, or apply authorization. outline is the native ' +
+            'board rectangle {x, y, width, height} or null when unverified. ' +
+            'readyToApply always stays false.',
+        ),
       readyToApply: z.literal(false),
       blockers: z.array(z.string()),
       not_available: z.boolean().optional(),
@@ -310,7 +329,15 @@ function registerPcbReadTools(
         .object({
           netName: z.string().trim().min(1).max(128),
           layer: z.union([z.literal(1), z.literal(2)]),
-          rectangle: pcbZoneRectangleSchema.optional(),
+          rectangle: pcbZoneRectangleSchema
+            .optional()
+            .describe(
+              'Optional native R rectangle: x is the left X anchor, y is the top Y anchor, ' +
+                'width is positive and extends to x + width, height is positive and extends ' +
+                'DOWN to y - height (native negative-Y). Native coordinates, not millimetres; ' +
+                'the rectangle must stay within the +/-1,000,000 native coordinate limits. ' +
+                'An intersection is a read-only diagnostic, never permission to write.',
+            ),
         })
         .strict()
         .parse(input);

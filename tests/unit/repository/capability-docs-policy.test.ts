@@ -34,6 +34,28 @@ describe('capability documentation policy', () => {
     expect(section).toContain("`'top'` \\| `'bottom' (optional)`");
   });
 
+  it('documents native rectangle and non-authorizing board geometry results', () => {
+    const toolsDoc = readFileSync(resolve(repoRoot, 'docs/reference/tools.md'), 'utf8');
+    const section = toolsDoc.split('## `easyeda_pcb_zone_preflight`')[1]?.split('\\n## `')[0] ?? '';
+    for (const expected of [
+      'x is the left X anchor',
+      'y is the top Y anchor',
+      'x + width',
+      'y - height (native negative-Y)',
+      'boardGeometry',
+      'intersection-confirmed',
+      'outside-board',
+      'unsupported-outline',
+      'unavailable',
+      'intersectionVerified',
+      'keepout',
+      'outline is the native board rectangle',
+      'readyToApply always stays false',
+    ]) {
+      expect(section).toContain(expected);
+    }
+  });
+
   it('does not retain superseded tool-count claims', () => {
     const publicDocs = [
       readFileSync(resolve(repoRoot, 'README.md'), 'utf8'),

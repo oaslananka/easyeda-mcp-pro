@@ -143,6 +143,23 @@ function generateMarkdown(): string {
       md.push(getFriendlyZodType(tool.outputSchema));
     }
     md.push('```', '');
+    // Document output semantics from Zod schema descriptions, not manual Markdown edits.
+    if (tool.outputSchema instanceof z.ZodObject) {
+      const descriptions = Object.entries(tool.outputSchema.shape)
+        .filter(([, prop]) => Boolean((prop as z.ZodTypeAny).description))
+        .map(
+          ([key, prop]) =>
+            '- ' +
+            String.fromCharCode(96) +
+            key +
+            String.fromCharCode(96) +
+            ': ' +
+            (prop as z.ZodTypeAny).description!.replace(/\r?\n/g, ' '),
+        );
+      if (descriptions.length > 0) {
+        md.push('**Output field semantics:**', '', ...descriptions, '');
+      }
+    }
     md.push('---', '');
   }
 
