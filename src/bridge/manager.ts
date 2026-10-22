@@ -38,6 +38,26 @@ const HEARTBEAT_LIVENESS_MULTIPLIER = 3;
 const CHUNK_AGGREGATE_MULTIPLIER = 8;
 // Drop a partial chunk assembly that has not completed within this window.
 const CHUNK_ASSEMBLY_TTL_MS = 60_000;
+
+function replacementChunkBytes(
+  chunks: Array<string | undefined>,
+  seq: number,
+  total: number,
+  piece: string,
+  cap: number,
+): { conservative: number; measured: number } {
+  const conservative =
+    total - Buffer.byteLength(chunks[seq] ?? '', 'utf8') + Buffer.byteLength(piece, 'utf8');
+  if (conservative <= cap) return { conservative, measured: conservative };
+
+  // Split UTF-16 surrogate pairs can have fewer bytes once joined. Verify
+  // the exact candidate, but retain the conservative sum for subsequent
+  // replacements so the accounting cannot underflow on a later edit.
+  const candidate = chunks.slice();
+  candidate[seq] = piece;
+  return { conservative, measured: Buffer.byteLength(candidate.join(''), 'utf8') };
+}
+
 const FOLLOWER_ATTACH_ATTEMPTS = 20;
 const FOLLOWER_ATTACH_RETRY_MS = 50;
 const FOLLOWER_RESPONSE_TIMEOUT_GRACE_MS = 1_000;
@@ -480,20 +500,23 @@ export class BridgeManager extends EventEmitter {
         logger.warn({ id }, 'chunk total changed mid-assembly, dropping');
         return;
       }
-      if (assembly.chunks[seq] === undefined) {
-        assembly.received += 1;
-        assembly.bytes += piece.length;
-      }
-      assembly.chunks[seq] = piece;
-      if (assembly.bytes > aggregateCap) {
+      const previous = assembly.chunks[seq];
+      const { conservative, measured } = replacementChunkBytes(
+        assembly.chunks,
+        seq,
+        assembly.bytes,
+        piece,
+        aggregateCap,
+      );
+      if (measured > aggregateCap) {
         chunkAssemblies.delete(id);
-        logger.warn(
-          { id, bytes: assembly.bytes, aggregateCap },
-          'chunked payload exceeds aggregate cap',
-        );
+        logger.warn({ id, bytes: measured, aggregateCap }, 'chunked payload exceeds aggregate cap');
         ws.close(4009, 'payload_too_large');
         return;
       }
+      if (previous === undefined) assembly.received += 1;
+      assembly.bytes = conservative;
+      assembly.chunks[seq] = piece;
       if (assembly.received === assembly.total) {
         chunkAssemblies.delete(id);
         try {
