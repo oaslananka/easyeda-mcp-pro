@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.5.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.4.0...easyeda-mcp-pro-v1.5.0) (2026-10-22)
+
+
+### Features
+
+* **pcb:** add read-only live zone preflight with exact net validation ([#724](https://github.com/oaslananka/easyeda-mcp-pro/issues/724)) ([12db6db](https://github.com/oaslananka/easyeda-mcp-pro/commit/12db6dbd5a98f12c494e961ead28c6973e291f88))
+* **pcb:** add typed copper-zone preview while keeping apply fail-closed ([#723](https://github.com/oaslananka/easyeda-mcp-pro/issues/723)) ([77da3df](https://github.com/oaslananka/easyeda-mcp-pro/commit/77da3dff946909216d5599bf7a4122f26c35045d))
+
+
+### Bug Fixes
+
+* **bridge:** bound UTF-8 bytes and chunk replacement ([#722](https://github.com/oaslananka/easyeda-mcp-pro/issues/722)) ([#735](https://github.com/oaslananka/easyeda-mcp-pro/issues/735)) ([c20d442](https://github.com/oaslananka/easyeda-mcp-pro/commit/c20d4426208c3484d14a2b8a2cd514ddfd0eb365))
+* **bridge:** fail closed on dispatcher registry mismatch ([#727](https://github.com/oaslananka/easyeda-mcp-pro/issues/727)) ([#739](https://github.com/oaslananka/easyeda-mcp-pro/issues/739)) ([654fb2a](https://github.com/oaslananka/easyeda-mcp-pro/commit/654fb2a419ce80fe30718e69c4f37e86e474c33e))
+* **catalog:** report failed SQLite writes accurately ([#720](https://github.com/oaslananka/easyeda-mcp-pro/issues/720)) ([#736](https://github.com/oaslananka/easyeda-mcp-pro/issues/736)) ([771b8e9](https://github.com/oaslananka/easyeda-mcp-pro/commit/771b8e940c4a248fd0c3e305e55cf92337f5c5b3))
+* **deps:** patch Vitest audit advisories in main ([#732](https://github.com/oaslananka/easyeda-mcp-pro/issues/732)) ([f567d7a](https://github.com/oaslananka/easyeda-mcp-pro/commit/f567d7a9c7ac4c37f05e110198518e8e2f472aa5))
+* **extension:** display active dispatcher build and restart requirement ([#727](https://github.com/oaslananka/easyeda-mcp-pro/issues/727)) ([#738](https://github.com/oaslananka/easyeda-mcp-pro/issues/738)) ([ff86793](https://github.com/oaslananka/easyeda-mcp-pro/commit/ff86793ce84b2eafea450d09d2f48c1df783d59b))
+* **pcb:** harden native copper rebuild verification and read-only zone preflight ([#729](https://github.com/oaslananka/easyeda-mcp-pro/issues/729)) ([5837b39](https://github.com/oaslananka/easyeda-mcp-pro/commit/5837b393f17b40a7af86a0d772f9764364630ab9))
+* **pcb:** reject copper rebuild results for other pours ([#718](https://github.com/oaslananka/easyeda-mcp-pro/issues/718)) ([1a0891b](https://github.com/oaslananka/easyeda-mcp-pro/commit/1a0891be50ffe7fc9011c53611d181a3790aac05))
+* **pcb:** reject mismatched native Pour IDs before rebuild ([#728](https://github.com/oaslananka/easyeda-mcp-pro/issues/728)) ([ef30141](https://github.com/oaslananka/easyeda-mcp-pro/commit/ef30141dc2b287346ef876ee75216bedb0802d9c))
+* **pcb:** verify active project UUID on every PCB list read ([#726](https://github.com/oaslananka/easyeda-mcp-pro/issues/726)) ([f5e5dfb](https://github.com/oaslananka/easyeda-mcp-pro/commit/f5e5dfb8d53159d694b5a76c44c81c4428f8ec58))
+* **remote:** validate WebSocket upgrades before admission ([#721](https://github.com/oaslananka/easyeda-mcp-pro/issues/721)) ([#737](https://github.com/oaslananka/easyeda-mcp-pro/issues/737)) ([23e6529](https://github.com/oaslananka/easyeda-mcp-pro/commit/23e652919950a324488aa4cf5a0d408e5c7fd05b))
+
 ## [1.4.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.3.0...easyeda-mcp-pro-v1.4.0) (2026-10-16)
 
 
