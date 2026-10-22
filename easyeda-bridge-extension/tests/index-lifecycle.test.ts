@@ -257,6 +257,7 @@ describe('extension loader lifecycle source', () => {
 
     extension.showStatus();
     expect(toasts.at(-1)).toContain('MCP Bridge connected to local server');
+    expect(toasts.at(-1)).toMatch(/build [A-Za-z0-9-]+/);
     expect(HarnessSocket.instances).toHaveLength(PORT_SCAN_COUNT + 1);
   });
 

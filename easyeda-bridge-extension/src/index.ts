@@ -1366,28 +1366,28 @@ function disconnectCommandInternal(): void {
 
 function showStatusInternal(): void {
   autoConnectEnabled = loadAutoConnectSetting();
-  const autoLabel = autoConnectEnabled ? 'Auto-Connect: ON' : 'Auto-Connect: OFF';
+  const autoLabel = `Auto-Connect: ${autoConnectEnabled ? 'ON' : 'OFF'}`;
 
   if (connectionState === 'connected' && connectedPort !== null) {
-    showToast(`MCP Bridge connected to local server | ${autoLabel}`);
+    showToast(
+      `MCP Bridge connected to local server | ${autoLabel} | build ${activeDispatcher.buildId}`,
+    );
     return;
   }
 
   if (connectionState === 'connecting') {
-    showToast(`MCP Bridge connecting to local server | ${autoLabel}`);
+    showToast(`MCP Bridge connecting | ${autoLabel}`);
     return;
   }
 
   if (autoConnectEnabled && !manualDisconnectRequested) {
-    showToast(
-      `MCP Bridge: waiting for server | ${autoLabel} — retrying (attempt ${reconnectAttempts + 1})`,
-    );
+    showToast(`MCP Bridge: waiting for server | ${autoLabel} — attempt ${reconnectAttempts + 1}`);
     scheduleReconnect();
     return;
   }
 
   showToast(
-    `MCP Bridge disconnected | ${autoLabel} — click Connect to connect${localConnectionDiagnosticSuffix()}`,
+    `MCP Bridge disconnected | ${autoLabel} — click Connect${localConnectionDiagnosticSuffix()}`,
   );
 }
 

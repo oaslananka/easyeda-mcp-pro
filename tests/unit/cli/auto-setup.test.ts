@@ -92,6 +92,8 @@ describe('auto-setup CLI module', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     const result = runExtension({});
     expect(result).toContain('Extension package found');
+    expect(result).toContain('Fully quit and restart EasyEDA Pro');
+    expect(result).toContain('installation, not active runtime code');
   });
 
   it('copies extension if copy flag is provided', () => {

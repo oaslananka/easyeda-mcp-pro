@@ -119,7 +119,8 @@ To bridge the MCP server with the live EasyEDA Pro layout editor:
 3. Go to **Settings** → **Extensions** → **Extension Manager**.
 4. Click **Import Extension** and select the `easyeda-bridge-extension.eext` file.
 5. In the Extension Manager, verify that **Allow External Interaction** is checked for the imported extension.
-6. Click **MCP Bridge** → **Connect** in the top menu bar to start the WebSocket connection.
+6. **Fully exit and restart EasyEDA Pro** after installing or upgrading the .eext file. Installation success does **not** prove the previously running dispatcher was replaced. Reconnecting or toggling the extension alone may keep stale code active.
+7. Click **MCP Bridge** → **Connect**, then **MCP Bridge** → **Status** to see the build ID of the active dispatcher. When verifying an upgrade, compare that active identity and observable supported behavior with the intended build before allowing version-sensitive operations. The build ID in Status describes running code, not just the installed package.
 
 ---
 
