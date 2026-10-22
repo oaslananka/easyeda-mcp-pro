@@ -452,6 +452,53 @@ function mapReadbackFailureResults(
   });
 }
 
+function unchangedNoCopperReadback(
+  before: Map<string, PouredEvidence> | undefined,
+  items: unknown[],
+): boolean {
+  if (!before) return false;
+  try {
+    const after = snapshotPoured(items);
+    return !!after && !unexpectedPouredChanges(before, after, new Set());
+  } catch {
+    return false;
+  }
+}
+
+function noCopperRebuildItem(
+  attempt: CopperRebuildAttempt,
+  readbackIds: string[],
+  before: Map<string, PouredEvidence> | undefined,
+  after: unknown[],
+): CopperRebuildItem {
+  if (readbackIds.length === 0) {
+    if (!unchangedNoCopperReadback(before, after)) {
+      return {
+        pourId: attempt.pourId,
+        pouredId: null,
+        status: 'readback-mismatch',
+        verified: false,
+        error:
+          'Native rebuild returned no copper, but unrelated Poured geometry changed or the read-back inventory could not be validated.',
+      };
+    }
+    return {
+      pourId: attempt.pourId,
+      pouredId: null,
+      status: 'no-copper',
+      verified: true,
+    };
+  }
+  return {
+    pourId: attempt.pourId,
+    pouredId: readbackIds[0] ?? null,
+    status: 'readback-mismatch',
+    verified: false,
+    error:
+      'Native rebuild returned undefined (no copper), but PCB_PrimitivePoured still reports derived copper for this pour.',
+  };
+}
+
 function mapRebuildResults(
   attempts: CopperRebuildAttempt[],
   preEvidence: Map<string, PouredEvidence> | undefined,
@@ -473,22 +520,7 @@ function mapRebuildResults(
 
     const readbackIds = byPourId.get(attempt.pourId) ?? [];
     if (attempt.nativeResult === undefined) {
-      if (readbackIds.length === 0) {
-        return {
-          pourId: attempt.pourId,
-          pouredId: null,
-          status: 'no-copper',
-          verified: true,
-        };
-      }
-      return {
-        pourId: attempt.pourId,
-        pouredId: readbackIds[0] ?? null,
-        status: 'readback-mismatch',
-        verified: false,
-        error:
-          'Native rebuild returned undefined (no copper), but PCB_PrimitivePoured still reports derived copper for this pour.',
-      };
+      return noCopperRebuildItem(attempt, readbackIds, preEvidence, postReadback);
     }
 
     // EasyEDA Pro 3.2.206 has returned an existing pour's copper when asked to

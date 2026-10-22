@@ -246,6 +246,61 @@ describe('createPcbMutationOperations', () => {
     expect(result.error).toContain('produced no copper');
   });
 
+  it('verifies no-copper only when unrelated existing copper stays identical', async () => {
+    const pour = fakePour('pour-empty', { rebuildResult: undefined });
+    const prior = fakePouredWithFills('existing-poured', 'existing-pour', 8);
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: { getAll: vi.fn(async () => [prior]) },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['pour-empty'] });
+    expect(result).toMatchObject({
+      success: false,
+      noCopperCount: 1,
+      results: [{ pourId: 'pour-empty', status: 'no-copper', verified: true }],
+    });
+    expect(pour.rebuildCopperRegion).toHaveBeenCalledOnce();
+  });
+
+  it.each(['changed', 'unexpected', 'unreadable'] as const)(
+    'rejects a no-copper return with %s collateral Poured read-back',
+    async (mode) => {
+      const pour = fakePour('pour-empty', { rebuildResult: undefined });
+      const prior = fakePouredWithFills('existing-poured', 'existing-pour', 8);
+      const after =
+        mode === 'changed'
+          ? [fakePouredWithFills('existing-poured', 'existing-pour', 21)]
+          : mode === 'unexpected'
+            ? [prior, fakePouredWithFills('new-unrelated', 'unrelated-pour', 5)]
+            : [fakePoured('existing-poured', 'existing-pour')];
+      const { operations } = createOperations({
+        pourClass: {
+          get: vi.fn(async () => pour.primitive),
+          getAll: vi.fn(async () => [pour.primitive]),
+        },
+        pouredClass: {
+          getAll: vi
+            .fn<() => Promise<unknown[]>>()
+            .mockResolvedValueOnce([prior])
+            .mockResolvedValueOnce(after),
+        },
+      });
+      const result = await operations.rebuildCopper({ pourIds: ['pour-empty'] });
+      expect(result).toMatchObject({
+        success: false,
+        attemptedCount: 1,
+        rebuiltCount: 0,
+        noCopperCount: 0,
+        results: [{ pourId: 'pour-empty', status: 'readback-mismatch', verified: false }],
+      });
+      expect(result.results[0]?.error).toContain('unrelated Poured geometry');
+      expect(pour.rebuildCopperRegion).toHaveBeenCalledOnce();
+    },
+  );
+
   it('does not call an id-only Poured readback a successful copper rebuild', async () => {
     const poured = fakePoured('target-id', 'target-id');
     const item = fakePour('target-id', { rebuildResult: poured });
