@@ -5,6 +5,7 @@ import { WebSocket } from 'ws';
 import { RemoteGateway } from '../../../src/remote/gateway.js';
 import { REMOTE_RELAY_PROTOCOL_VERSION } from '../../../src/remote/protocol.js';
 import type { RemoteIdentity } from '../../../src/remote/scope.js';
+import { EnvSchema } from '../../../src/config/env.js';
 
 type RelayRecord = Record<string, unknown>;
 
@@ -85,11 +86,21 @@ async function waitForCondition(check: () => boolean, timeoutMs = 1_000): Promis
   }
 }
 
-async function createHarness(): Promise<GatewayHarness> {
+async function createHarness(rateLimit?: number): Promise<GatewayHarness> {
   let counter = 0;
   const gateway = new RemoteGateway({ makeId: () => `id-${++counter}` });
   const server = createServer();
-  gateway.attachWebSocketServer(server);
+  gateway.attachWebSocketServer(
+    server,
+    rateLimit === undefined
+      ? undefined
+      : EnvSchema.parse({
+          NODE_ENV: 'test',
+          HTTP_RATE_LIMIT_MAX: rateLimit,
+          HTTP_HOST: '127.0.0.1',
+          BRIDGE_MAX_PAYLOAD_SIZE: 1024,
+        }),
+  );
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => resolve());
@@ -159,6 +170,45 @@ afterEach(async () => {
     await harness.client.close().catch(() => undefined);
     await new Promise<void>((resolve) => harness.server.close(() => resolve()));
   }
+});
+
+describe('RemoteGateway WebSocket upgrade admission', () => {
+  it('rejects browser origins outside the allowlist before WebSocket admission', async () => {
+    const harness = await createHarness(5);
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const rejected = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`, {
+      headers: { Origin: 'https://untrusted.example' },
+    });
+    await expect(
+      new Promise<void>((resolve, reject) => {
+        rejected.once('open', resolve);
+        rejected.once('error', reject);
+      }),
+    ).rejects.toThrow('403');
+  });
+
+  it('rate-limits further upgrades before registering relay sessions', async () => {
+    const harness = await createHarness(1);
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const rejected = new WebSocket(`ws://127.0.0.1:${address.port}/session`);
+    await expect(
+      new Promise<void>((resolve, reject) => {
+        rejected.once('open', resolve);
+        rejected.once('error', reject);
+      }),
+    ).rejects.toThrow('429');
+  });
+
+  it('enforces a bounded WebSocket frame size at the relay boundary', async () => {
+    const harness = await createHarness(5);
+    const closed = new Promise<number>((resolve) => {
+      harness.client.socket.once('close', (code) => resolve(code));
+    });
+    harness.client.sendRaw('x'.repeat(2048));
+    await expect(closed).resolves.toBe(1009);
+  });
 });
 
 describe('RemoteGateway WebSocket relay', () => {

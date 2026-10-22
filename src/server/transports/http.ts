@@ -665,7 +665,7 @@ export function createHttpTransport(
   const start = async () => {
     return new Promise<void>((resolve) => {
       server = app.listen(config.HTTP_PORT, config.HTTP_HOST, () => {
-        if (server) gateway.attachWebSocketServer(server);
+        if (server) gateway.attachWebSocketServer(server, config);
         logger.info({ host: config.HTTP_HOST, port: config.HTTP_PORT }, 'HTTP transport listening');
         resolve();
       });

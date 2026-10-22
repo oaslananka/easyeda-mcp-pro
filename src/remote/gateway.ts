@@ -4,6 +4,7 @@ import type { Express, Request, Response } from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { z } from 'zod';
 import { type EnvConfig } from '../config/env.js';
+import { getLogger } from '../utils/logger.js';
 import { ApprovalStore, requiresApproval, type ApprovalDecision } from './approval-policy.js';
 import { RemoteInvocationGrantStore } from './invocation-grants.js';
 import { RemoteAuditLog } from './observability.js';
@@ -226,6 +227,40 @@ export function identityFromRequest(
   const expiresAtHeader = req.header('x-remote-expires-at');
   const expiresAt = expiresAtHeader ? new Date(expiresAtHeader) : undefined;
   return { userId, scopes: scopes as RemoteIdentity['scopes'], expiresAt };
+}
+
+const MAX_RELAY_WEBSOCKETS = 64;
+const RELAY_UPGRADE_WINDOW_MS = 60_000;
+
+function validUpgradeHost(host: string | undefined, config: EnvConfig): boolean {
+  if (!host) return false;
+  const hostname = host.toLowerCase().replace(/:\d+$/, '');
+  const expected = config.HTTP_HOST.toLowerCase();
+  if (expected === '127.0.0.1' || expected === 'localhost' || expected === '::1') {
+    return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '[::1]';
+  }
+  return hostname === expected || hostname === '127.0.0.1' || hostname === 'localhost';
+}
+
+function validUpgradeOrigin(origin: string | undefined, config: EnvConfig): boolean {
+  if (!origin) return true; // Non-browser extension clients do not set Origin.
+  if (
+    config.ALLOWED_ORIGINS.split(',')
+      .map((value) => value.trim())
+      .includes(origin)
+  )
+    return true;
+  if (config.CORS_ORIGIN === origin) return true;
+  if (!['127.0.0.1', 'localhost', '::1'].includes(config.HTTP_HOST)) return false;
+  try {
+    const parsed = new URL(origin);
+    return (
+      (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+      ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export class RemoteGateway {
@@ -867,20 +902,56 @@ export class RemoteGateway {
     });
   }
 
-  attachWebSocketServer(server: HttpServer): void {
+  attachWebSocketServer(server: HttpServer, config?: EnvConfig): void {
     if (this.wsAttached) return;
     this.wsAttached = true;
-    const wss = new WebSocketServer({ noServer: true });
+    const wss = new WebSocketServer({
+      noServer: true,
+      maxPayload: config?.BRIDGE_MAX_PAYLOAD_SIZE ?? 1_048_576,
+    });
+    const attempts = new Map<string, { count: number; expiresAt: number }>();
 
     server.on('upgrade', (request, socket, head) => {
       const path = parseUpgradePath(request);
       if (path !== '/remote/relay' && path !== '/session') return;
+      const reject = (status: number, reason: string) => {
+        socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
+      };
+      if (config && !validUpgradeHost(request.headers.host, config)) {
+        reject(400, 'Bad Request');
+        return;
+      }
+      if (config && !validUpgradeOrigin(request.headers.origin, config)) {
+        reject(403, 'Forbidden');
+        return;
+      }
+      const ip = request.socket.remoteAddress ?? 'unknown';
+      const now = Date.now();
+      const previous = attempts.get(ip);
+      const current =
+        previous && previous.expiresAt > now
+          ? previous
+          : { count: 0, expiresAt: now + RELAY_UPGRADE_WINDOW_MS };
+      current.count += 1;
+      attempts.set(ip, current);
+      if (
+        current.count > (config?.HTTP_RATE_LIMIT_MAX ?? 100) ||
+        wss.clients.size >= MAX_RELAY_WEBSOCKETS
+      ) {
+        reject(429, 'Too Many Requests');
+        return;
+      }
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
       });
     });
 
-    wss.on('connection', (ws) => this.handleRelaySocket(ws));
+    wss.on('connection', (ws) => {
+      ws.on('error', (error: Error & { code?: string }) => {
+        getLogger().warn({ code: error.code }, 'relay WebSocket rejected invalid frame');
+      });
+      this.handleRelaySocket(ws);
+    });
   }
 
   private handleRelaySocket(ws: WebSocket): void {
