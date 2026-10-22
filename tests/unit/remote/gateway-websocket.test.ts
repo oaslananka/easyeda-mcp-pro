@@ -86,7 +86,7 @@ async function waitForCondition(check: () => boolean, timeoutMs = 1_000): Promis
   }
 }
 
-async function createHarness(rateLimit?: number): Promise<GatewayHarness> {
+async function createHarness(rateLimit?: number, allowedOrigins = ''): Promise<GatewayHarness> {
   let counter = 0;
   const gateway = new RemoteGateway({ makeId: () => `id-${++counter}` });
   const server = createServer();
@@ -97,6 +97,7 @@ async function createHarness(rateLimit?: number): Promise<GatewayHarness> {
       : EnvSchema.parse({
           NODE_ENV: 'test',
           HTTP_RATE_LIMIT_MAX: rateLimit,
+          ALLOWED_ORIGINS: allowedOrigins,
           HTTP_HOST: '127.0.0.1',
           BRIDGE_MAX_PAYLOAD_SIZE: 1024,
         }),
@@ -186,6 +187,64 @@ describe('RemoteGateway WebSocket upgrade admission', () => {
         rejected.once('error', reject);
       }),
     ).rejects.toThrow('403');
+  });
+
+  it('rejects a mismatched Host header before allocating a relay socket', async () => {
+    const harness = await createHarness(5);
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const rejected = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`, {
+      headers: { Host: 'untrusted.example' },
+    });
+    await expect(
+      new Promise<void>((resolve, reject) => {
+        rejected.once('open', resolve);
+        rejected.once('error', reject);
+      }),
+    ).rejects.toThrow('400');
+  });
+
+  it('accepts a browser Origin explicitly configured in the allowlist', async () => {
+    const harness = await createHarness(5, 'https://trusted.example');
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`, {
+      headers: { Origin: 'https://trusted.example' },
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+    await new Promise<void>((resolve) => {
+      socket.once('close', () => resolve());
+      socket.close();
+    });
+  });
+
+  it('allows loopback web origins but rejects malformed origins', async () => {
+    const harness = await createHarness(5);
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/session`, {
+      headers: { Origin: 'http://127.0.0.1:3000' },
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+    const rejected = new WebSocket(`ws://127.0.0.1:${address.port}/session`, {
+      headers: { Origin: '%%%malformed' },
+    });
+    await expect(
+      new Promise<void>((resolve, reject) => {
+        rejected.once('open', resolve);
+        rejected.once('error', reject);
+      }),
+    ).rejects.toThrow('403');
+    await new Promise<void>((resolve) => {
+      socket.once('close', () => resolve());
+      socket.close();
+    });
   });
 
   it('rate-limits further upgrades before registering relay sessions', async () => {
