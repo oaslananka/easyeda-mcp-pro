@@ -70,6 +70,54 @@ function isMismatchSafeBridgeMethod(method: string, hotSwapEnabled: boolean): bo
   return hotSwapEnabled && method.startsWith('system.hotSwap.');
 }
 
+/**
+ * Conservative read-only allowlist for semantic extension/server version drift.
+ * Matching dispatcher method inventories alone cannot prove handler behavior.
+ * Reject arbitrary API calls, design writes, file exports, and unknown methods.
+ */
+const VERSION_DRIFT_READ_ONLY_METHODS = new Set<string>([
+  'schematic.listNets',
+  'schematic.getNetDetail',
+  'schematic.getPinNoConnect',
+  'schematic.getPrimitiveSnapshot',
+  'schematic.listPrimitiveIds',
+  'schematic.listComponents',
+  'schematic.listRectangles',
+  'schematic.searchDevice',
+  'schematic.getSheetInfo',
+  'schematic.primitiveBounds',
+  'schematic.validateNetlist',
+  'system.inspectComponents',
+  'system.inspectWires',
+  'board.listLayers',
+  'board.getStackup',
+  'board.getDimensions',
+  'board.getFeatures',
+  'bom.validate',
+  'inventory.search',
+  'inventory.getPrice',
+  'design.ruleCheck',
+  'design.erc',
+  'design.drc',
+  'pcb.zonePreflight',
+  'pcb.listComponents',
+  'pcb.listFills',
+  'pcb.listRegions',
+  'pcb.listTracks',
+  'pcb.listVias',
+  'canvas.capture',
+  'canvas.captureRegion',
+  'canvas.locate',
+  'library.getDeviceByLcscId',
+]);
+
+function isVersionDriftSafeBridgeMethod(method: string, hotSwapEnabled: boolean): boolean {
+  return (
+    isMismatchSafeBridgeMethod(method, hotSwapEnabled) ||
+    VERSION_DRIFT_READ_ONLY_METHODS.has(method)
+  );
+}
+
 const FOLLOWER_ATTACH_ATTEMPTS = 20;
 const FOLLOWER_ATTACH_RETRY_MS = 50;
 const FOLLOWER_RESPONSE_TIMEOUT_GRACE_MS = 1_000;
@@ -856,6 +904,17 @@ export class BridgeManager extends EventEmitter {
     ) {
       throw new Error(
         `Bridge method registry mismatch: refused "${method}" until server and active dispatcher agree.`,
+      );
+    }
+
+    if (
+      this.extensionVersionMismatch &&
+      !isVersionDriftSafeBridgeMethod(method, this.config.BRIDGE_HOT_SWAP_ENABLED)
+    ) {
+      throw new Error(
+        'Bridge extension version mismatch: refused potentially mutating "' +
+          method +
+          '" until server and active dispatcher versions match.',
       );
     }
 

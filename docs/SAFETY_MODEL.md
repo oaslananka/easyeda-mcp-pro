@@ -4,6 +4,20 @@ This document explains the security posture, permission checks, data privacy con
 
 ---
 
+## Bridge version drift
+
+When the active EasyEDA extension and MCP server report different versions,
+the local bridge refuses design modifications, arbitrary EasyEDA API execution,
+project/export artifact writes, and unknown methods **before sending a request**.
+Explicitly allowlisted diagnostic commands and project read queries remain
+available. A real method-registry hash mismatch is stricter and permits only
+the already documented diagnostic or development-recovery commands.
+
+Extension import does not hot-replace an already running EasyEDA loader.
+Restart EasyEDA after installing a new extension and verify the active build
+fingerprint, version parity, and MCP health before resuming writes. This
+does not weaken any existing user confirmation or Remote Relay approval gate.
+
 ## 1. Tool Classifications
 
 Our tools are categorized into three risk tiers based on their potential impact on project data and external services:

@@ -447,6 +447,96 @@ describe('BridgeManager - method registry hash', () => {
     manager.disconnect('test complete');
   });
 
+  it('allows scoped reads but fails closed on writes during version-only drift', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) }),
+    );
+    await manager.connect();
+    const socket = await openSocket(port);
+    sendHandshake(socket, {
+      extensionVersion: SERVER_VERSION + '-older-active-dispatcher',
+      methodListHash: manager.methodRegistryHash,
+    });
+    await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
+    expect(manager.extensionVersionMismatch).toBe(true);
+    expect(manager.registryMismatch).toBe(false);
+
+    const transmitted: unknown[] = [];
+    socket.on('message', (raw) => transmitted.push(JSON.parse(raw.toString())));
+    for (const method of [
+      'project.open',
+      'project.save',
+      'project.export',
+      'schematic.placeComponent',
+      'schematic.modifyPrimitive',
+      'schematic.syncToPcb',
+      'pcb.addTrack',
+      'pcb.rebuildCopper',
+      'library.updateDeviceMetadata',
+      'api.call',
+      'api.execute',
+      'board.exportGerbers',
+      'export.pdf',
+      'bom.generate',
+      'pcb.exportRouteContext',
+      'unknown.futureMutation',
+    ]) {
+      await expect(manager.call(method, { confirmWrite: true })).rejects.toThrow(
+        /extension version mismatch: refused potentially mutating/i,
+      );
+    }
+    expect(transmitted).toHaveLength(0);
+
+    for (const method of [
+      'system.getStatus',
+      'system.apiInventory',
+      'pcb.listComponents',
+      'pcb.zonePreflight',
+      'schematic.listNets',
+      'board.getDimensions',
+      'canvas.capture',
+    ]) {
+      const incoming = waitForMessage(socket);
+      const result = manager.call(method, { limit: 1 });
+      const request = (await incoming) as { id: string; method: string };
+      expect(request.method).toBe(method);
+      socket.send(
+        JSON.stringify({ id: request.id, type: 'response', ok: true, result: { safe: true } }),
+      );
+      await expect(result).resolves.toMatchObject({ safe: true });
+    }
+    expect(transmitted).toHaveLength(7);
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('preserves normal write RPC dispatch when semantic versions and registry match', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) }),
+    );
+    await manager.connect();
+    const socket = await openSocket(port);
+    sendHandshake(socket, {
+      extensionVersion: SERVER_VERSION,
+      methodListHash: manager.methodRegistryHash,
+    });
+    await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
+    expect(manager.extensionVersionMismatch).toBe(false);
+    expect(manager.registryMismatch).toBe(false);
+    const incoming = waitForMessage(socket);
+    const pending = manager.call('pcb.addTrack', { confirmWrite: true });
+    const request = (await incoming) as { id: string; method: string };
+    expect(request.method).toBe('pcb.addTrack');
+    socket.send(
+      JSON.stringify({ id: request.id, type: 'response', ok: true, result: { passed: true } }),
+    );
+    await expect(pending).resolves.toMatchObject({ passed: true });
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
   it('does not block compatible methods solely because semantic versions differ', async () => {
     const port = await getFreePort();
     const manager = new BridgeManager(
