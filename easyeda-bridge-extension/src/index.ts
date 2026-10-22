@@ -1381,7 +1381,7 @@ function showStatusInternal(): void {
   }
 
   if (autoConnectEnabled && !manualDisconnectRequested) {
-    showToast(`MCP Bridge: waiting | ${autoLabel} — attempt ${reconnectAttempts + 1}`);
+    showToast(`MCP Bridge: waiting for server | ${autoLabel} — attempt ${reconnectAttempts + 1}`);
     scheduleReconnect();
     return;
   }
