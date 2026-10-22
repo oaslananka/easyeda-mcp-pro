@@ -455,7 +455,7 @@ describe('BridgeManager - method registry hash', () => {
     await manager.connect();
     const socket = await openSocket(port);
     sendHandshake(socket, {
-      extensionVersion: '1.5.0',
+      extensionVersion: `${SERVER_VERSION}-stale-test-build`,
       methodListHash: manager.methodRegistryHash,
     });
     await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
