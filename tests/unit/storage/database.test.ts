@@ -100,6 +100,20 @@ describe('Storage', () => {
       expect(record?.updatedAt).toBeTruthy();
     });
 
+    it('returns false when SQLite refuses an insert and does not misreport persistence', () => {
+      const database = (storage as unknown as { db: DatabaseSync }).db;
+      database.exec('DROP TABLE verified_devices');
+      expect(
+        storage.upsertVerifiedDevice({
+          lcscId: 'C25804',
+          entryJson: '{}',
+          status: 'resolved',
+          errorCount: 0,
+          warningCount: 0,
+        }),
+      ).toBe(false);
+    });
+
     it('returns null for a device that was never cached', () => {
       expect(storage.getVerifiedDevice('C000000')).toBeNull();
     });
