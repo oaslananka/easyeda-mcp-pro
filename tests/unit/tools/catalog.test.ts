@@ -15,6 +15,7 @@ function createFakeStorage() {
         createdAt: records.get(record.lcscId)?.createdAt ?? now,
         updatedAt: now,
       });
+      return true;
     }),
     getVerifiedDevice: vi.fn((lcscId: string) => records.get(lcscId) ?? null),
     listVerifiedDevices: vi.fn((status?: VerifiedDeviceRecord['status']) => {
@@ -87,6 +88,29 @@ describe('Catalog Tools', () => {
       expect(fakeStorage.upsertVerifiedDevice).toHaveBeenCalledWith(
         expect.objectContaining({ lcscId: 'C25804', status: 'resolved' }),
       );
+    });
+
+    it('reports cached=false if the persistence layer rejects the write', async () => {
+      const tool = registry.get('easyeda_catalog_verify_device');
+      getPartDetailMock.mockResolvedValue({
+        lcsc: 'C25804',
+        manufacturer: '0603WAF1002T5E',
+        category: 'resistors',
+        package: '0603',
+        stock: 1000,
+        inStock: true,
+        classification: 'basic',
+      });
+      bridgeCall.mockResolvedValue([
+        { symbol: { name: 'RES-0603' }, footprint: { name: 'R0603' } },
+      ]);
+      fakeStorage.upsertVerifiedDevice.mockReturnValueOnce(false);
+
+      const result = await tool?.handler(context, { lcscId: 'C25804', confirmWrite: true });
+
+      expect(result.valid).toBe(true);
+      expect(result.cached).toBe(false);
+      expect(fakeStorage.getVerifiedDevice('C25804')).toBeNull();
     });
 
     it('reports not_available and does not cache when resolution fails entirely', async () => {

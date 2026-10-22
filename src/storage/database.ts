@@ -22,8 +22,8 @@ function rowToVerifiedDeviceRecord(row: Record<string, unknown>): VerifiedDevice
  *
  * Stores verified catalog devices. Retains legacy cache/artifact tables for
  * compatibility with existing databases. Uses WAL mode and foreign keys for safety.
- * All public methods are safe — errors are logged internally and
- * never thrown to the caller.
+ * Read operations fail safely; persistence methods report failure explicitly
+ * so a write error cannot be mistaken for a committed cache entry.
  */
 export class Storage {
   private readonly db: DatabaseSync;
@@ -98,8 +98,8 @@ export class Storage {
     logger.info({ path: this.config.SQLITE_PATH }, 'storage initialized');
   }
 
-  /** Insert or replace a verified-device cache entry, keyed by LCSC id. */
-  upsertVerifiedDevice(record: Omit<VerifiedDeviceRecord, 'createdAt' | 'updatedAt'>): void {
+  /** Insert or replace a verified-device cache entry, keyed by LCSC id. Returns true only on commit. */
+  upsertVerifiedDevice(record: Omit<VerifiedDeviceRecord, 'createdAt' | 'updatedAt'>): boolean {
     try {
       const existing = this.db
         .prepare('SELECT created_at FROM verified_devices WHERE lcsc_id = ?')
@@ -125,8 +125,10 @@ export class Storage {
           record.warningCount,
           existing?.created_at ?? null,
         );
+      return true;
     } catch (err) {
       getLogger().error({ err, lcscId: record.lcscId }, 'upsertVerifiedDevice failed');
+      return false;
     }
   }
 
