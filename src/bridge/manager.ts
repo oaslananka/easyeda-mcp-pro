@@ -58,6 +58,18 @@ function replacementChunkBytes(
   return { conservative, measured: Buffer.byteLength(candidate.join(''), 'utf8') };
 }
 
+function isMismatchSafeBridgeMethod(method: string, hotSwapEnabled: boolean): boolean {
+  if (
+    method === 'system.getStatus' ||
+    method === 'system.loaderStatus' ||
+    method === 'system.apiInventory'
+  )
+    return true;
+  // Preserve a dev-only recovery channel when the uploaded dispatcher API
+  // surface no longer matches the server registry. Not enabled in production.
+  return hotSwapEnabled && method.startsWith('system.hotSwap.');
+}
+
 const FOLLOWER_ATTACH_ATTEMPTS = 20;
 const FOLLOWER_ATTACH_RETRY_MS = 50;
 const FOLLOWER_RESPONSE_TIMEOUT_GRACE_MS = 1_000;
@@ -836,6 +848,15 @@ export class BridgeManager extends EventEmitter {
       if (waitMs > 0) {
         await this.waitForConnection(waitMs);
       }
+    }
+
+    if (
+      this.registryMismatch &&
+      !isMismatchSafeBridgeMethod(method, this.config.BRIDGE_HOT_SWAP_ENABLED)
+    ) {
+      throw new Error(
+        `Bridge method registry mismatch: refused "${method}" until server and active dispatcher agree.`,
+      );
     }
 
     const timeoutMs = opts?.timeoutMs ?? this.config.BRIDGE_TIMEOUT_MS;

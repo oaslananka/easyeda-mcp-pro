@@ -410,6 +410,71 @@ describe('BridgeManager - method registry hash', () => {
     manager.disconnect('test complete');
   });
 
+  it('fails closed on registry-hash mismatch while preserving status readback', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) }),
+    );
+    await manager.connect();
+    const socket = await openSocket(port);
+    sendHandshake(socket, { methodListHash: '0000000000000000', extensionVersion: SERVER_VERSION });
+    await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
+    expect(manager.connected).toBe(true);
+    expect(manager.registryMismatch).toBe(true);
+
+    await expect(manager.call('pcb.listComponents', { projectId: 'fake' })).rejects.toThrow(
+      /method registry mismatch/,
+    );
+    await expect(manager.call('pcb.modifyComponent', { projectId: 'fake' })).rejects.toThrow(
+      /method registry mismatch/,
+    );
+
+    const diagnostic = waitForMessage(socket);
+    const call = manager.call('system.loaderStatus', {});
+    const request = (await diagnostic) as { id: string; type: string; method: string };
+    expect(request).toMatchObject({ type: 'request', method: 'system.loaderStatus' });
+    socket.send(
+      JSON.stringify({
+        id: request.id,
+        type: 'response',
+        ok: true,
+        result: { buildId: 'current' },
+      }),
+    );
+    await expect(call).resolves.toMatchObject({ buildId: 'current' });
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
+  it('does not block compatible methods solely because semantic versions differ', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) }),
+    );
+    await manager.connect();
+    const socket = await openSocket(port);
+    sendHandshake(socket, {
+      extensionVersion: '1.5.0',
+      methodListHash: manager.methodRegistryHash,
+    });
+    await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
+    expect(manager.extensionVersionMismatch).toBe(true);
+    expect(manager.registryMismatch).toBe(false);
+
+    const outgoing = waitForMessage(socket);
+    const read = manager.call('board.getDimensions', {});
+    const request = (await outgoing) as { id: string; method: string };
+    expect(request.method).toBe('board.getDimensions');
+    socket.send(
+      JSON.stringify({ id: request.id, type: 'response', ok: true, result: { width: 1 } }),
+    );
+    await expect(read).resolves.toMatchObject({ width: 1 });
+
+    socket.close();
+    manager.disconnect('test complete');
+  });
+
   it('includes the configured BRIDGE_MAX_PAYLOAD_SIZE in hello', async () => {
     const port = await getFreePort();
     const config = createTestConfig({
