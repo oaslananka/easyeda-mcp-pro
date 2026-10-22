@@ -142,6 +142,14 @@ describe('repository security tooling policy', () => {
       .filter((entry) => /^[a-z0-9][a-z0-9._-]*==/i.test(entry));
     expect(requirementEntries.length).toBeGreaterThanOrEqual(8);
     expect(preCommitRequirements).toContain('pre-commit==4.6.0');
+    const virtualenvPin = preCommitRequirements.match(/^virtualenv==(\d+)\.(\d+)\.(\d+) \\$/m);
+    expect(virtualenvPin, 'virtualenv must remain hash-locked').not.toBeNull();
+    const [major, minor, patch] = virtualenvPin?.slice(1).map(Number) ?? [0, 0, 0];
+    expect(
+      major > 21 || (major === 21 && (minor > 14 || (minor === 14 && patch >= 9))),
+      'virtualenv must remain >=21.14.9 after GHSA-558c-9hv2-4prj and related advisories',
+    ).toBe(true);
+
     for (const entry of requirementEntries) {
       expect(entry.split('\n')[0]?.replace(/\r$/, '')).toMatch(/==[^\s]+ \\$/);
       expect(entry).toContain('--hash=sha256:');
