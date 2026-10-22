@@ -36,7 +36,7 @@ describe('capability documentation policy', () => {
 
   it('documents native rectangle and non-authorizing board geometry results', () => {
     const toolsDoc = readFileSync(resolve(repoRoot, 'docs/reference/tools.md'), 'utf8');
-    const section = toolsDoc.split('## `easyeda_pcb_zone_preflight`')[1]?.split('\\n## `')[0] ?? '';
+    const section = toolsDoc.split('## `easyeda_pcb_zone_preflight`')[1]?.split('\n## `')[0] ?? '';
     for (const expected of [
       'x is the left X anchor',
       'y is the top Y anchor',

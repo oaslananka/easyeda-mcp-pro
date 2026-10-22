@@ -301,6 +301,41 @@ describe('createPcbMutationOperations', () => {
     },
   );
 
+  it('keeps verified no-copper when another batch target rebuilds its own copper', async () => {
+    const rebuilt = fakePouredWithFills('poured-first', 'pour-first');
+    const pourFirst = fakePour('pour-first', { rebuildResult: rebuilt });
+    const pourEmpty = fakePour('pour-empty', { rebuildResult: undefined });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async (id: unknown) =>
+          id === 'pour-first' ? pourFirst.primitive : pourEmpty.primitive,
+        ),
+        getAll: vi.fn(async () => [pourFirst.primitive, pourEmpty.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([rebuilt]),
+      },
+    });
+    const result = await operations.rebuildCopper({
+      pourIds: ['pour-first', 'pour-empty'],
+    });
+    expect(result).toMatchObject({
+      success: false,
+      attemptedCount: 2,
+      rebuiltCount: 1,
+      noCopperCount: 1,
+      results: [
+        { pourId: 'pour-first', status: 'rebuilt', verified: true },
+        { pourId: 'pour-empty', status: 'no-copper', verified: true },
+      ],
+    });
+    expect(pourFirst.rebuildCopperRegion).toHaveBeenCalledOnce();
+    expect(pourEmpty.rebuildCopperRegion).toHaveBeenCalledOnce();
+  });
+
   it('does not call an id-only Poured readback a successful copper rebuild', async () => {
     const poured = fakePoured('target-id', 'target-id');
     const item = fakePour('target-id', { rebuildResult: poured });

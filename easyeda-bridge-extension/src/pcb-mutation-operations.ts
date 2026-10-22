@@ -455,11 +455,12 @@ function mapReadbackFailureResults(
 function unchangedNoCopperReadback(
   before: Map<string, PouredEvidence> | undefined,
   items: unknown[],
+  otherRebuiltIds: ReadonlySet<string>,
 ): boolean {
   if (!before) return false;
   try {
     const after = snapshotPoured(items);
-    return !!after && !unexpectedPouredChanges(before, after, new Set());
+    return !!after && !unexpectedPouredChanges(before, after, otherRebuiltIds);
   } catch {
     return false;
   }
@@ -470,9 +471,10 @@ function noCopperRebuildItem(
   readbackIds: string[],
   before: Map<string, PouredEvidence> | undefined,
   after: unknown[],
+  otherRebuiltIds: ReadonlySet<string>,
 ): CopperRebuildItem {
   if (readbackIds.length === 0) {
-    if (!unchangedNoCopperReadback(before, after)) {
+    if (!unchangedNoCopperReadback(before, after, otherRebuiltIds)) {
       return {
         pourId: attempt.pourId,
         pouredId: null,
@@ -506,7 +508,15 @@ function mapRebuildResults(
   focusUnchanged: boolean,
 ): CopperRebuildItem[] {
   const byPourId = pouredReadbackMap(postReadback);
-  const attemptedIds = new Set(attempts.map((attempt) => attempt.pourId));
+  // Only native calls with non-undefined successful returns may legitimately
+  // modify other pours in this batch. Never exempt skipped, errored or no-copper sources.
+  const rebuiltIds = new Set(
+    attempts
+      .filter(
+        (attempt) => !attempt.error && !attempt.notInvoked && attempt.nativeResult !== undefined,
+      )
+      .map((attempt) => attempt.pourId),
+  );
   return attempts.map((attempt) => {
     if (attempt.error) {
       return {
@@ -520,7 +530,7 @@ function mapRebuildResults(
 
     const readbackIds = byPourId.get(attempt.pourId) ?? [];
     if (attempt.nativeResult === undefined) {
-      return noCopperRebuildItem(attempt, readbackIds, preEvidence, postReadback);
+      return noCopperRebuildItem(attempt, readbackIds, preEvidence, postReadback, rebuiltIds);
     }
 
     // EasyEDA Pro 3.2.206 has returned an existing pour's copper when asked to
@@ -588,7 +598,7 @@ function mapRebuildResults(
       readbackIds[0],
       preEvidence,
       postReadback,
-      attemptedIds,
+      rebuiltIds,
     );
   });
 }
