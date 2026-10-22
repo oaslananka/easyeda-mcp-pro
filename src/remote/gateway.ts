@@ -263,6 +263,29 @@ function validUpgradeOrigin(origin: string | undefined, config: EnvConfig): bool
   }
 }
 
+export function allowRelayUpgradeAttempt(
+  attempts: Map<string, { count: number; expiresAt: number }>,
+  ip: string,
+  now: number,
+  rateLimit: number,
+): boolean {
+  // A public relay cannot retain an unbounded entry for every unique source.
+  if (!attempts.has(ip) && attempts.size >= 1024) {
+    for (const [address, entry] of attempts) {
+      if (entry.expiresAt <= now) attempts.delete(address);
+    }
+    if (attempts.size >= 1024) return false;
+  }
+  const previous = attempts.get(ip);
+  const current =
+    previous && previous.expiresAt > now
+      ? previous
+      : { count: 0, expiresAt: now + RELAY_UPGRADE_WINDOW_MS };
+  current.count += 1;
+  attempts.set(ip, current);
+  return current.count <= rateLimit;
+}
+
 export class RemoteGateway {
   readonly router: RemoteSessionRouter;
   readonly approvals: ApprovalStore;
@@ -925,17 +948,13 @@ export class RemoteGateway {
         reject(403, 'Forbidden');
         return;
       }
-      const ip = request.socket.remoteAddress ?? 'unknown';
-      const now = Date.now();
-      const previous = attempts.get(ip);
-      const current =
-        previous && previous.expiresAt > now
-          ? previous
-          : { count: 0, expiresAt: now + RELAY_UPGRADE_WINDOW_MS };
-      current.count += 1;
-      attempts.set(ip, current);
       if (
-        current.count > (config?.HTTP_RATE_LIMIT_MAX ?? 100) ||
+        !allowRelayUpgradeAttempt(
+          attempts,
+          request.socket.remoteAddress ?? 'unknown',
+          Date.now(),
+          config?.HTTP_RATE_LIMIT_MAX ?? 100,
+        ) ||
         wss.clients.size >= MAX_RELAY_WEBSOCKETS
       ) {
         reject(429, 'Too Many Requests');

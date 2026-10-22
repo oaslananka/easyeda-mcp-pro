@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { createServer, type Server } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import { RemoteGateway } from '../../../src/remote/gateway.js';
+import { RemoteGateway, allowRelayUpgradeAttempt } from '../../../src/remote/gateway.js';
 import { REMOTE_RELAY_PROTOCOL_VERSION } from '../../../src/remote/protocol.js';
 import type { RemoteIdentity } from '../../../src/remote/scope.js';
 import { EnvSchema } from '../../../src/config/env.js';
@@ -171,6 +171,33 @@ afterEach(async () => {
     await harness.client.close().catch(() => undefined);
     await new Promise<void>((resolve) => harness.server.close(() => resolve()));
   }
+});
+
+describe('RemoteGateway WebSocket upgrade admission accounting', () => {
+  it('bounds source tracking without clearing unexpired rate limits', () => {
+    const now = 100_000;
+    const attempts = new Map(
+      Array.from(
+        { length: 1024 },
+        (_, n) => [`ip-${n}`, { count: 1, expiresAt: now + 60_000 }] as const,
+      ),
+    );
+    expect(allowRelayUpgradeAttempt(attempts, 'new-ip', now, 10)).toBe(false);
+    expect(attempts.size).toBe(1024);
+    expect(allowRelayUpgradeAttempt(attempts, 'ip-0', now, 1)).toBe(false);
+    expect(attempts.get('ip-0')?.count).toBe(2);
+
+    attempts.get('ip-1')!.expiresAt = now - 1;
+    expect(allowRelayUpgradeAttempt(attempts, 'new-ip', now, 1)).toBe(true);
+    expect(attempts.size).toBe(1024);
+    expect(attempts.has('ip-1')).toBe(false);
+  });
+
+  it('resets an expired per-IP attempt window', () => {
+    const attempts = new Map([['ip', { count: 4, expiresAt: 99 }]]);
+    expect(allowRelayUpgradeAttempt(attempts, 'ip', 100, 1)).toBe(true);
+    expect(attempts.get('ip')?.count).toBe(1);
+  });
 });
 
 describe('RemoteGateway WebSocket upgrade admission', () => {
