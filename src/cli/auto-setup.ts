@@ -260,7 +260,13 @@ export function runExtension(options: SetupOptions): string {
   lines.push('  2. Go to Settings → Extensions → Extension Manager');
   lines.push('  3. Click "Import Extension" and select the .eext file above');
   lines.push('  4. Enable "Allow External Interaction" for the extension');
-  lines.push('  5. Click MCP Bridge → Connect in the menu bar');
+  lines.push('  5. Fully quit and restart EasyEDA Pro (required after every import or upgrade)');
+  lines.push(
+    '  6. Click MCP Bridge → Connect, then MCP Bridge → Status to inspect the running build',
+  );
+  lines.push(
+    '  Important: Extension Manager success confirms installation, not active runtime code.',
+  );
 
   return lines.join('\n');
 }

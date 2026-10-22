@@ -201,7 +201,8 @@ npx easyeda-mcp-pro extension --copy /path/to/destination
 2. Go to **Settings** → **Extensions** → **Extension Manager**.
 3. Click **Import Extension** and select the `easyeda-bridge-extension.eext` file.
 4. Ensure **Allow External Interaction** is enabled for the extension.
-5. Click **MCP Bridge** → **Connect** in the menu bar.
+5. **Fully quit and reopen EasyEDA Pro** after each import or upgrade. Extension Manager's success message confirms the installed package, **not** replacement of a dispatcher already running in memory.
+6. Click **MCP Bridge** → **Connect**, then **MCP Bridge** → **Status** to see the **running dispatcher build ID**. A reconnect or extension disable/enable alone does not activate an imported update. For version-sensitive operations, verify the active build against your intended package before trusting the new behavior.
 
 ---
 

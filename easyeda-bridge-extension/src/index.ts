@@ -1369,7 +1369,9 @@ function showStatusInternal(): void {
   const autoLabel = autoConnectEnabled ? 'Auto-Connect: ON' : 'Auto-Connect: OFF';
 
   if (connectionState === 'connected' && connectedPort !== null) {
-    showToast(`MCP Bridge connected to local server | ${autoLabel}`);
+    showToast(
+      `MCP Bridge connected to local server | ${autoLabel} | Running build: ${activeDispatcher.buildId}`,
+    );
     return;
   }
 
