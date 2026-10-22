@@ -451,6 +451,64 @@ describe('BridgeManager - payload size limit', () => {
     manager.disconnect('test complete');
   });
 
+  it('enforces the aggregate limit in UTF-8 bytes rather than UTF-16 string length', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_MAX_PAYLOAD_SIZE: 1024,
+      }),
+    );
+    await manager.connect();
+    const socket = await openSocket(port);
+    const closed = waitForClose(socket);
+    for (let seq = 0; seq < 15; seq++) {
+      socket.send(
+        JSON.stringify({
+          type: 'chunk',
+          id: 'utf8-overflow',
+          seq,
+          total: 16,
+          data: '€'.repeat(200),
+        }),
+      );
+    }
+    expect(await closed).toBe(4009);
+    manager.disconnect('test complete');
+  });
+
+  it('accounts for duplicate chunk replacement without an undersized byte budget', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_MAX_PAYLOAD_SIZE: 1024,
+      }),
+    );
+    await manager.connect();
+    const socket = await openSocket(port);
+    const closed = waitForClose(socket);
+    socket.send(JSON.stringify({ type: 'chunk', id: 'replacement', seq: 0, total: 12, data: 'x' }));
+    for (let seq = 1; seq <= 10; seq++) {
+      socket.send(
+        JSON.stringify({ type: 'chunk', id: 'replacement', seq, total: 12, data: 'a'.repeat(780) }),
+      );
+    }
+    socket.send(
+      JSON.stringify({
+        type: 'chunk',
+        id: 'replacement',
+        seq: 0,
+        total: 12,
+        data: 'z'.repeat(800),
+      }),
+    );
+    expect(await closed).toBe(4009);
+    manager.disconnect('test complete');
+  });
+
   it('should accept payload within limit', async () => {
     const port = await getFreePort();
     const config = createTestConfig({

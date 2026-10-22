@@ -38,6 +38,11 @@ const HEARTBEAT_LIVENESS_MULTIPLIER = 3;
 const CHUNK_AGGREGATE_MULTIPLIER = 8;
 // Drop a partial chunk assembly that has not completed within this window.
 const CHUNK_ASSEMBLY_TTL_MS = 60_000;
+
+function replacementChunkBytes(total: number, previous: string | undefined, piece: string): number {
+  return total - Buffer.byteLength(previous ?? '', 'utf8') + Buffer.byteLength(piece, 'utf8');
+}
+
 const FOLLOWER_ATTACH_ATTEMPTS = 20;
 const FOLLOWER_ATTACH_RETRY_MS = 50;
 const FOLLOWER_RESPONSE_TIMEOUT_GRACE_MS = 1_000;
@@ -480,20 +485,20 @@ export class BridgeManager extends EventEmitter {
         logger.warn({ id }, 'chunk total changed mid-assembly, dropping');
         return;
       }
-      if (assembly.chunks[seq] === undefined) {
-        assembly.received += 1;
-        assembly.bytes += piece.length;
-      }
-      assembly.chunks[seq] = piece;
-      if (assembly.bytes > aggregateCap) {
+      const previous = assembly.chunks[seq];
+      const nextBytes = replacementChunkBytes(assembly.bytes, previous, piece);
+      if (nextBytes > aggregateCap) {
         chunkAssemblies.delete(id);
         logger.warn(
-          { id, bytes: assembly.bytes, aggregateCap },
+          { id, bytes: nextBytes, aggregateCap },
           'chunked payload exceeds aggregate cap',
         );
         ws.close(4009, 'payload_too_large');
         return;
       }
+      if (previous === undefined) assembly.received += 1;
+      assembly.bytes = nextBytes;
+      assembly.chunks[seq] = piece;
       if (assembly.received === assembly.total) {
         chunkAssemblies.delete(id);
         try {
