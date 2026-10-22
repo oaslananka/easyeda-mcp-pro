@@ -849,10 +849,20 @@ export function createPcbMutationOperations({
   // The dispatcher owns one operation instance. Do not interleave multiple
   // asynchronous native rebuilds; timeouts may leave the first invocation running.
   let rebuildInProgress = false;
+  // A failed/ambiguous native write may still be active after a bridge timeout.
+  // Never retry against the same dispatcher without independent reconciliation.
+  let rebuildRequiresReconciliation = false;
   async function rebuildCopper(params: Record<string, unknown>): Promise<CopperRebuildResult> {
     if (rebuildInProgress) {
       throw new Error(
         'A PCB copper rebuild is already in progress. Inspect its result before retrying.',
+      );
+    }
+    if (rebuildRequiresReconciliation) {
+      throw new Error(
+        'A previous native PCB copper rebuild ended without complete verification. ' +
+          'Inspect and reconcile the PCB independently before reconnecting; ' +
+          'reconnecting alone does not prove rollback. No copper was rebuilt.',
       );
     }
     rebuildInProgress = true;
@@ -876,6 +886,9 @@ export function createPcbMutationOperations({
         );
       }
       const attempts = await executeCopperRebuilds(targets, initialFocus, readFirstPath);
+      // Fail closed after any native invocation until its post-write evidence is
+      // fully verified. A timeout/error is not evidence the native write stopped.
+      rebuildRequiresReconciliation = nativeAttemptCount(attempts) > 0;
 
       let postReadback: unknown[];
       try {
@@ -886,11 +899,22 @@ export function createPcbMutationOperations({
 
       const finalFocus = await focusedPcbIdentity(readFirstPath);
       const focusUnchanged = initialFocus !== undefined && initialFocus === finalFocus;
-      return finalRebuildResult(
+      const result = finalRebuildResult(
         targets.length,
         attempts,
         mapResultsAfterFocusCheck(attempts, preEvidence, postReadback, focusUnchanged),
       );
+      if (
+        focusUnchanged &&
+        nativeAttemptCount(attempts) === targets.length &&
+        result.results.length === targets.length &&
+        result.results.every(
+          (item) => item.verified && (item.status === 'rebuilt' || item.status === 'no-copper'),
+        )
+      ) {
+        rebuildRequiresReconciliation = false;
+      }
+      return result;
     } finally {
       rebuildInProgress = false;
     }

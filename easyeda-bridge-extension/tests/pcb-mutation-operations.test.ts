@@ -963,6 +963,65 @@ describe('createPcbMutationOperations', () => {
     expect(deletePrimitives).not.toHaveBeenCalled();
   });
 
+  it('blocks a second native write after a failed or timed-out rebuild', async () => {
+    const item = fakePour('target-id', { rebuildError: new Error('native rebuild timed out') });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: { getAll: vi.fn(async () => []) },
+    });
+
+    expect((await operations.rebuildCopper({ pourIds: ['target-id'] })).success).toBe(false);
+    await expect(operations.rebuildCopper({ pourIds: ['target-id'] })).rejects.toThrow(
+      'previous native PCB copper rebuild ended without complete verification',
+    );
+    expect(item.rebuildCopperRegion).toHaveBeenCalledOnce();
+  });
+
+  it('blocks a second write after ambiguous derived copper read-back', async () => {
+    const item = fakePour('target-id', { rebuildResult: fakePoured('target-id', 'target-id') });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: { getAll: vi.fn(async () => []) },
+    });
+
+    const first = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(first).toMatchObject({
+      success: false,
+      results: [{ verified: false }],
+    });
+    await expect(operations.rebuildCopper({ pourIds: ['target-id'] })).rejects.toThrow(
+      'Inspect and reconcile the PCB independently',
+    );
+    expect(item.rebuildCopperRegion).toHaveBeenCalledOnce();
+  });
+
+  it('allows another explicit write after fully verified no-copper without side effects', async () => {
+    const item = fakePour('target-id', { rebuildResult: undefined });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => item.primitive),
+        getAll: vi.fn(async () => [item.primitive]),
+      },
+      pouredClass: { getAll: vi.fn(async () => []) },
+    });
+
+    expect((await operations.rebuildCopper({ pourIds: ['target-id'] })).results[0]).toMatchObject({
+      status: 'no-copper',
+      verified: true,
+    });
+    expect((await operations.rebuildCopper({ pourIds: ['target-id'] })).results[0]).toMatchObject({
+      status: 'no-copper',
+      verified: true,
+    });
+    expect(item.rebuildCopperRegion).toHaveBeenCalledTimes(2);
+  });
+
   it('rejects concurrent rebuilds while an unresolved native call is in flight', async () => {
     let resolveNative!: (value: unknown) => void;
     const pending = new Promise<unknown>((resolve) => {
