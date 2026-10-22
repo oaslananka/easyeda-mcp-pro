@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-10-16
+- **Last reviewed:** 2026-10-23
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -30,27 +30,78 @@ A record can remain historically valid while being stale for a new release candi
 
 ## Exact-version matrix
 
-| EasyEDA Pro      | OS / architecture           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
-| ---------------- | --------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
-| 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64 | 1.3.0                | 1.3.0                | 1.3.0             | Live validated  | 2026-10-16 | 2027-01-14 |
-| 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64 | 1.2.1                | 1.2.1                | 1.2.1             | Live validated  | 2026-10-16 | 2027-01-14 |
-| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.2.0                | 1.2.0                | 1.2.0             | Live validated  | 2026-10-09 | 2027-01-07 |
-| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.5           | 1.1.0-rc.5           | 1.1.0-rc.5        | Live validated  | 2026-09-29 | 2026-12-28 |
-| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.4           | 1.1.0-rc.4           | 1.1.0-rc.4        | Live validated  | 2026-09-29 | 2026-12-28 |
-| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.3           | 1.1.0-rc.3           | 1.1.0-rc.3        | Live validated  | 2026-09-29 | 2026-12-28 |
-| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0-rc.2           | 1.1.0-rc.2           | 1.1.0-rc.2        | Live validated  | 2026-09-28 | 2026-12-27 |
-| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64 | 1.1.0                | 1.1.0                | 1.1.0             | Live validated  | 2026-09-15 | 2026-12-14 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.1-rc.1           | 1.0.1-rc.1           | 1.0.1-rc.1        | Live validated  | 2026-08-28 | 2026-11-26 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.8           | 1.0.0-rc.8           | 0.99.8            | Live validated  | 2026-08-27 | 2026-11-25 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.7           | 1.0.0-rc.7           | 0.99.7            | Live validated  | 2026-08-27 | 2026-11-25 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.6           | 1.0.0-rc.6           | 0.99.6            | Live validated  | 2026-08-22 | 2026-11-20 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.5           | 1.0.0-rc.5           | 0.99.5            | Live validated  | 2026-08-21 | 2026-11-19 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.4           | 1.0.0-rc.4           | 0.99.4            | Live validated  | 2026-08-17 | 2026-11-15 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.3           | 1.0.0-rc.3           | 0.99.3            | Live validated  | 2026-08-11 | 2026-11-09 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-10 | 2026-11-08 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
-| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+| EasyEDA Pro      | OS / architecture                           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
+| ---------------- | ------------------------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.0                | 1.5.0                | 1.5.0             | Live validated  | 2026-10-23 | 2027-01-21 |
+| 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64                 | 1.3.0                | 1.3.0                | 1.3.0             | Live validated  | 2026-10-16 | 2027-01-14 |
+| 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64                 | 1.2.1                | 1.2.1                | 1.2.1             | Live validated  | 2026-10-16 | 2027-01-14 |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64                 | 1.2.0                | 1.2.0                | 1.2.0             | Live validated  | 2026-10-09 | 2027-01-07 |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.5           | 1.1.0-rc.5           | 1.1.0-rc.5        | Live validated  | 2026-09-29 | 2026-12-28 |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.4           | 1.1.0-rc.4           | 1.1.0-rc.4        | Live validated  | 2026-09-29 | 2026-12-28 |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.3           | 1.1.0-rc.3           | 1.1.0-rc.3        | Live validated  | 2026-09-29 | 2026-12-28 |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.2           | 1.1.0-rc.2           | 1.1.0-rc.2        | Live validated  | 2026-09-28 | 2026-12-27 |
+| 3.2.149.88089769 | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0                | 1.1.0                | 1.1.0             | Live validated  | 2026-09-15 | 2026-12-14 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.1-rc.1           | 1.0.1-rc.1           | 1.0.1-rc.1        | Live validated  | 2026-08-28 | 2026-11-26 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.8           | 1.0.0-rc.8           | 0.99.8            | Live validated  | 2026-08-27 | 2026-11-25 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.7           | 1.0.0-rc.7           | 0.99.7            | Live validated  | 2026-08-27 | 2026-11-25 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.6           | 1.0.0-rc.6           | 0.99.6            | Live validated  | 2026-08-22 | 2026-11-20 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.5           | 1.0.0-rc.5           | 0.99.5            | Live validated  | 2026-08-21 | 2026-11-19 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.4           | 1.0.0-rc.4           | 0.99.4            | Live validated  | 2026-08-17 | 2026-11-15 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.3           | 1.0.0-rc.3           | 0.99.3            | Live validated  | 2026-08-11 | 2026-11-09 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-10 | 2026-11-08 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
+| 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64)
+
+Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-0-owner-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
+| Electron                                 | `41.2.1`                                                           |
+| Chromium                                 | `146.0.7680.188`                                                   |
+| Operating system                         | Microsoft Windows 11 Pro (10.0.26300)                              |
+| Kernel                                   | `Windows NT 10.0.26300`                                            |
+| Architecture                             | `x64`                                                              |
+| Node.js used by validation server        | `24.21.0`                                                          |
+| Validation package version               | `1.5.0`                                                            |
+| Release containing validated fixes       | `1.5.0`                                                            |
+| Compatibility-sensitive base commit      | `c88c67a1582af92fb5e8ce8f74c609a0e5e3a93a`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.5.0`                                                            |
+| Live-validated extension package SHA-256 | `f6d15d2f01d9d759b52611fa6aeae494ed9231eb09bfc0a8038c7c52d86ff6bd` |
+| Live-validated extension package size    | `203256 bytes`                                                     |
+| Loader-reported version                  | `1.5.0`                                                            |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `2341626d16d93145`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.5.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                              | Level  | Status    | Result                                                                                                                                                                                                                                                                                  | Evidence                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------- | ------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Real 1.5.0 local listener owner, extension handshake and server restart | `live` | `passed`  | Exact c88c67a server started on port 49620 as owner and matched the installed 1.5.0 extension build d3d10x0a00xb05a. Stopping/restarting the server restored a second real extension connection; the original 1.4.0 user server was restored afterward.                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.0-owner-readonly.json), [Issue #727](https://github.com/oaslananka/easyeda-mcp-pro/issues/727) |
+| Five scoped native PCB reads with correct project UUID                  | `live` | `passed`  | Focused native PCB document type 3 and its parent project UUID matched. Native components 33, fills 4, regions 0, tracks 98, vias 0; bounded sample limits 10, 10, 10, 10, 10. No design writes.                                                                                        | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.0-owner-readonly.json), [Issue #727](https://github.com/oaslananka/easyeda-mcp-pro/issues/727) |
+| Five wrong-project UUID reads denied                                    | `live` | `passed`  | All five lists rejected a distinct fabricated project UUID. After server-owner restart the component list again passed both positive and negative identity checks.                                                                                                                      | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.0-owner-readonly.json), [Issue #727](https://github.com/oaslananka/easyeda-mcp-pro/issues/727) |
+| Copper-zone preflight remains not ready to apply                        | `live` | `limited` | In a separate 1.5.0 follower attached to restored 1.4.0 owner, a synthetic invalid net yielded runtime 3.2.209 and readyToApply=false (three blockers). This cannot certify native copper writes. **Boundary:** Not part of the 1.5.0 owner session; no native pour mutation attempted. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.0-owner-readonly.json), [Issue #727](https://github.com/oaslananka/easyeda-mcp-pro/issues/727) |
+
+### Known limitations
+
+- Live acceptance covers local loopback MCP bridge on Windows 11 Pro and a previously designated disposable PCB only; it does not establish native EasyEDA compatibility on other desktop operating systems.
+- No design writes, project save/export/reopen, copper zone creation/rebuild/apply/rollback, manufacturing or file-hash persistence acceptance was executed. Production copper-zone apply remains fail-closed (#480).
+- No hosted Remote Relay, OAuth, approval, remote reconnect, registry publication, SBOM/provenance or deployed runtime acceptance was executed; current hosted CI must pass independently.
+- The 1.5.0 bridge owner was started, stopped and restarted with isolated application data; EasyEDA itself was not restarted in the owner lifecycle check. The extension import/editor-restart proof is independently documented under #727.
+- After the live owner test, the original 1.4.0 server was restored with its existing user data and reconnected to the 1.5.0 extension. Its version-drift warning is pre-existing.
+- The installed .eext hash and size are attributable to earlier exact-source artifact verification recorded in PR #719/#727. This owner-lifecycle run itself checked the active dispatcher build ID, not the installer bytes.
+- The native editor API reported 3.2.209; full 3.2.209.8a704eab came from the installed EasyEDA package manifest. Vendor Electron build v41.2.1-jlc-sa-win-x64.6 came from its installed version file. Chromium 146.0.7680.188 is the corresponding upstream Electron 41.2.1 release baseline, not independently measured from the vendor fork.
+- Native project/document UUIDs were validated but omitted from public evidence. The fixture's disposability was previously designated; this test did not independently hash or reopen its design file.
 
 ## 3.2.206.715d940d on Ubuntu 24.04.5 LTS (x86_64)
 

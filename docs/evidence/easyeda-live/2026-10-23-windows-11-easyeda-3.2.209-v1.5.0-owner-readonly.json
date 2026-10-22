@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-23T01:35:34+03:00",
+  "candidateCommit": "c88c67a1582af92fb5e8ce8f74c609a0e5e3a93a",
+  "version": "1.5.0",
+  "sourceIdentity": {
+    "exactPrHead": "c88c67a1582af92fb5e8ce8f74c609a0e5e3a93a",
+    "sourceTrees": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "9354bdf1d69053a573f34383913a423225211a3a",
+        "src/bridge": "bb801432cf5e70612fff4463474e2c8a7567335b",
+        "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+        "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+        "src/tools": "2f6968e0987db4f894c5f9f7346359e781656db5",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "operatingSystem": {
+    "name": "Windows 11 Pro",
+    "build": "10.0.26300",
+    "architecture": "x64",
+    "node": "24.21.0",
+    "pnpm": "11.28.0"
+  },
+  "editor": {
+    "nativeRuntimeVersion": "3.2.209",
+    "installedManifestVersion": "3.2.209.8a704eab",
+    "vendorElectronBuild": "v41.2.1-jlc-sa-win-x64.6",
+    "upstreamChromiumBaseline": "146.0.7680.188",
+    "upstreamSource": "https://releases.electronjs.org/release/v41.2.1"
+  },
+  "extension": {
+    "version": "1.5.0",
+    "loaderVersion": "1.5.0",
+    "activeDispatcherBuildId": "d3d10x0a00xb05a",
+    "methodCount": 72,
+    "methodSurfaceHash": "2341626d16d93145",
+    "installedPackageSha256FromPriorEvidence": "f6d15d2f01d9d759b52611fa6aeae494ed9231eb09bfc0a8038c7c52d86ff6bd",
+    "packageSizeBytesFromPriorEvidence": 203256
+  },
+  "scenario": {
+    "transport": "local loopback WebSocket",
+    "isolatedServerData": true,
+    "fixture": "Previously designated disposable focused PCB, UUID omitted",
+    "editorProcessRestarted": false,
+    "designWrites": 0,
+    "firstOwnerConnect": {
+      "status": "passed",
+      "exactNativeProjectDocumentIdentity": true,
+      "readTotals": {
+        "components": 33,
+        "fills": 4,
+        "regions": 0,
+        "tracks": 98,
+        "vias": 0
+      },
+      "positiveReadsPassed": 5,
+      "wrongUuidDenied": 5
+    },
+    "ownerRestart": {
+      "status": "passed",
+      "nativeDocumentIdentityRechecked": true,
+      "componentsTotal": 33,
+      "positiveComponentReadPassed": true,
+      "wrongUuidComponentReadDenied": true
+    },
+    "rollback": {
+      "status": "passed",
+      "candidateProcessesStopped": true,
+      "originalVersion": "1.4.0",
+      "originalProcessListening": true,
+      "extensionWebsocketReconnected": true
+    },
+    "supplementaryFollowerOnly": {
+      "status": "passed",
+      "version": "1.5.0",
+      "activeBuild": "d3d10x0a00xb05a",
+      "methodCount": 72,
+      "computedMethodSurfaceHash": "2341626d16d93145",
+      "zonePreflightReadyToApply": false,
+      "syntheticNet": true,
+      "blockers": 3
+    }
+  },
+  "knownLimitations": [
+    "Live acceptance covers local loopback MCP bridge on Windows 11 Pro and a previously designated disposable PCB only; it does not establish native EasyEDA compatibility on other desktop operating systems.",
+    "No design writes, project save/export/reopen, copper zone creation/rebuild/apply/rollback, manufacturing or file-hash persistence acceptance was executed. Production copper-zone apply remains fail-closed (#480).",
+    "No hosted Remote Relay, OAuth, approval, remote reconnect, registry publication, SBOM/provenance or deployed runtime acceptance was executed; current hosted CI must pass independently.",
+    "The 1.5.0 bridge owner was started, stopped and restarted with isolated application data; EasyEDA itself was not restarted in the owner lifecycle check. The extension import/editor-restart proof is independently documented under #727.",
+    "After the live owner test, the original 1.4.0 server was restored with its existing user data and reconnected to the 1.5.0 extension. Its version-drift warning is pre-existing.",
+    "The installed .eext hash and size are attributable to earlier exact-source artifact verification recorded in PR #719/#727. This owner-lifecycle run itself checked the active dispatcher build ID, not the installer bytes.",
+    "The native editor API reported 3.2.209; full 3.2.209.8a704eab came from the installed EasyEDA package manifest. Vendor Electron build v41.2.1-jlc-sa-win-x64.6 came from its installed version file. Chromium 146.0.7680.188 is the corresponding upstream Electron 41.2.1 release baseline, not independently measured from the vendor fork.",
+    "Native project/document UUIDs were validated but omitted from public evidence. The fixture's disposability was previously designated; this test did not independently hash or reopen its design file."
+  ],
+  "evidenceLinks": [
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/719",
+    "https://github.com/oaslananka/easyeda-mcp-pro/issues/727"
+  ]
+}

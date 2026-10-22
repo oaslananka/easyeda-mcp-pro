@@ -1,8 +1,115 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-10-16",
+  "lastReviewed": "2026-10-23",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-0-owner-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-10-23T01:35:34+03:00",
+      "reviewBy": "2027-01-21",
+      "environment": {
+        "operatingSystem": "Microsoft Windows 11 Pro (10.0.26300)",
+        "architecture": "x64",
+        "kernel": "Windows NT 10.0.26300",
+        "nodeVersion": "24.21.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "41.2.1",
+        "chromiumVersion": "146.0.7680.188"
+      },
+      "server": {
+        "validationPackageVersion": "1.5.0",
+        "releaseContainingFixes": "1.5.0",
+        "commit": "c88c67a1582af92fb5e8ce8f74c609a0e5e3a93a",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "9354bdf1d69053a573f34383913a423225211a3a",
+            "src/bridge": "bb801432cf5e70612fff4463474e2c8a7567335b",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "2f6968e0987db4f894c5f9f7346359e781656db5",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.5.0",
+        "loaderReportedVersion": "1.5.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "2341626d16d93145",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "f6d15d2f01d9d759b52611fa6aeae494ed9231eb09bfc0a8038c7c52d86ff6bd",
+        "packageSizeBytes": 203256
+      },
+      "fixture": {
+        "project": "Previously designated disposable local PCB (native UUID withheld)",
+        "pcb": "Focused native PCB document",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v150-local-owner-start-reconnect",
+          "name": "Real 1.5.0 local listener owner, extension handshake and server restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact c88c67a server started on port 49620 as owner and matched the installed 1.5.0 extension build d3d10x0a00xb05a. Stopping/restarting the server restored a second real extension connection; the original 1.4.0 user server was restored afterward.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.0-owner-readonly.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/727"
+          ]
+        },
+        {
+          "id": "v150-five-positive-native-pcb-reads",
+          "name": "Five scoped native PCB reads with correct project UUID",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Focused native PCB document type 3 and its parent project UUID matched. Native components 33, fills 4, regions 0, tracks 98, vias 0; bounded sample limits 10, 10, 10, 10, 10. No design writes.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.0-owner-readonly.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/727"
+          ]
+        },
+        {
+          "id": "v150-five-wrong-project-uuid-denials",
+          "name": "Five wrong-project UUID reads denied",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "All five lists rejected a distinct fabricated project UUID. After server-owner restart the component list again passed both positive and negative identity checks.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.0-owner-readonly.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/727"
+          ]
+        },
+        {
+          "id": "v150-read-only-copper-preflight",
+          "name": "Copper-zone preflight remains not ready to apply",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "In a separate 1.5.0 follower attached to restored 1.4.0 owner, a synthetic invalid net yielded runtime 3.2.209 and readyToApply=false (three blockers). This cannot certify native copper writes.",
+          "limitation": "Not part of the 1.5.0 owner session; no native pour mutation attempted.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.0-owner-readonly.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/727"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Live acceptance covers local loopback MCP bridge on Windows 11 Pro and a previously designated disposable PCB only; it does not establish native EasyEDA compatibility on other desktop operating systems.",
+        "No design writes, project save/export/reopen, copper zone creation/rebuild/apply/rollback, manufacturing or file-hash persistence acceptance was executed. Production copper-zone apply remains fail-closed (#480).",
+        "No hosted Remote Relay, OAuth, approval, remote reconnect, registry publication, SBOM/provenance or deployed runtime acceptance was executed; current hosted CI must pass independently.",
+        "The 1.5.0 bridge owner was started, stopped and restarted with isolated application data; EasyEDA itself was not restarted in the owner lifecycle check. The extension import/editor-restart proof is independently documented under #727.",
+        "After the live owner test, the original 1.4.0 server was restored with its existing user data and reconnected to the 1.5.0 extension. Its version-drift warning is pre-existing.",
+        "The installed .eext hash and size are attributable to earlier exact-source artifact verification recorded in PR #719/#727. This owner-lifecycle run itself checked the active dispatcher build ID, not the installer bytes.",
+        "The native editor API reported 3.2.209; full 3.2.209.8a704eab came from the installed EasyEDA package manifest. Vendor Electron build v41.2.1-jlc-sa-win-x64.6 came from its installed version file. Chromium 146.0.7680.188 is the corresponding upstream Electron 41.2.1 release baseline, not independently measured from the vendor fork.",
+        "Native project/document UUIDs were validated but omitted from public evidence. The fixture's disposability was previously designated; this test did not independently hash or reopen its design file."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-3-0-metadata",
       "status": "live-validated",
