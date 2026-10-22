@@ -793,6 +793,25 @@ describe('createPcbMutationOperations', () => {
     expect(item.rebuildCopperRegion).toHaveBeenCalledOnce();
   });
 
+  it('preserves the actual native error after the focused PCB changes', async () => {
+    const pour = fakePour('target-id', { rebuildError: new Error('native operation failed') });
+    const { operations } = createOperations({
+      identityDocuments: ['pcb-one', 'pcb-one', 'pcb-one', 'pcb-two'],
+      pourClass: {
+        get: vi.fn(async () => pour.primitive),
+        getAll: vi.fn(async () => [pour.primitive]),
+      },
+      pouredClass: { getAll: vi.fn(async () => []) },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+    expect(result).toMatchObject({
+      success: false,
+      attemptedCount: 1,
+      results: [{ status: 'error', verified: false, error: 'native operation failed' }],
+    });
+    expect(pour.rebuildCopperRegion).toHaveBeenCalledOnce();
+  });
+
   it('stops a multi-target rebuild before writing to a switched PCB', async () => {
     const first = fakePour('pour-1', { rebuildResult: fakePoured('pour-1', 'pour-1') });
     const second = fakePour('pour-2', { rebuildResult: fakePoured('pour-2', 'pour-2') });
@@ -814,12 +833,17 @@ describe('createPcbMutationOperations', () => {
     expect(result).toMatchObject({
       success: false,
       matchedCount: 2,
-      attemptedCount: 2,
+      attemptedCount: 1,
       rebuiltCount: 0,
       transactionCovered: false,
     });
     expect(first.rebuildCopperRegion).toHaveBeenCalledOnce();
     expect(second.rebuildCopperRegion).not.toHaveBeenCalled();
+    expect(result.results).toMatchObject([
+      { pourId: 'pour-1', status: 'readback-mismatch', verified: false },
+      { pourId: 'pour-2', status: 'error', verified: false },
+    ]);
+    expect(result.results[1]?.error).toContain('was not invoked');
     expect(result.results.every((item) => !item.verified)).toBe(true);
   });
 

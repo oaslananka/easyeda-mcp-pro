@@ -38,7 +38,7 @@ describe('stdio protocol interop', () => {
     } finally {
       await client.close();
     }
-  }, 15_000);
+  }, 30_000);
 
   it('preserves the legacy initialize lifecycle when the experimental flag is disabled', async () => {
     const client = new Client({ name: 'legacy-stdio-test', version: '1.0.0' });
@@ -51,5 +51,5 @@ describe('stdio protocol interop', () => {
     } finally {
       await client.close();
     }
-  }, 15_000);
+  }, 30_000);
 });

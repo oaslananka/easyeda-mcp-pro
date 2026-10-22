@@ -2123,10 +2123,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter | Type           | Required | Description |
-| --------- | -------------- | -------- | ----------- |
-| `netName` | `string`       | Yes      |             |
-| `layer`   | `'1'` \| `'2'` | Yes      |             |
+| Parameter   | Type                | Required | Description |
+| ----------- | ------------------- | -------- | ----------- |
+| `netName`   | `string`            | Yes      |             |
+| `layer`     | `'1'` \| `'2'`      | Yes      |             |
+| `rectangle` | `object (optional)` | No       |             |
 
 ### Output Format
 
@@ -2140,6 +2141,7 @@ Returns a JSON object matching the schema:
   nativeCapabilities: boolean;
   netVerified: boolean;
   layerVerified: boolean;
+  boardGeometry: object | null (optional);
   readyToApply: 'false';
   blockers: string[];
   not_available: boolean (optional);

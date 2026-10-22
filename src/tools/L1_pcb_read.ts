@@ -61,7 +61,8 @@ function rectangleSourcePoints(source: unknown[]): PcbPoint[] {
   if ([x, y, width, height].includes(undefined)) return [];
   if (rotation !== 0 || round !== 0 || (width as number) < 0 || (height as number) < 0) return [];
   const right = (x as number) + (width as number);
-  const bottom = (y as number) + (height as number);
+  // Native R rectangles extend downward from y toward negative Y.
+  const bottom = (y as number) - (height as number);
   return [
     { x: x as number, y: y as number },
     { x: right, y: y as number },

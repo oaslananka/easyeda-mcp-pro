@@ -69,6 +69,7 @@ interface CopperRebuildAttempt {
   pourId: string;
   nativeResult?: unknown;
   error?: string;
+  notInvoked?: boolean;
 }
 
 // Snapshot calculated geometry before the beta rebuild, rather than retaining
@@ -564,9 +565,10 @@ function mapFocusChangedRebuildResults(attempts: CopperRebuildAttempt[]): Copper
   return attempts.map((attempt) => ({
     pourId: attempt.pourId,
     pouredId: null,
-    status: 'readback-mismatch',
+    status: attempt.error ? 'error' : 'readback-mismatch',
     verified: false,
     error:
+      attempt.error ??
       'Active PCB project/document identity changed or became unavailable during copper rebuild.',
   }));
 }
@@ -671,9 +673,12 @@ async function executeCopperRebuilds(
   for (const target of targets) {
     try {
       if ((await focusedPcbIdentity(readFirstPath)) !== expectedIdentity) {
-        throw new Error(
-          'Active PCB changed between native copper rebuilds; remaining pours were not rebuilt.',
-        );
+        attempts.push({
+          pourId: target.pourId,
+          notInvoked: true,
+          error: 'Active PCB changed before this pour; rebuildCopperRegion() was not invoked.',
+        });
+        break;
       }
       attempts.push({
         pourId: target.pourId,
@@ -690,6 +695,10 @@ async function executeCopperRebuilds(
   return attempts;
 }
 
+function nativeAttemptCount(attempts: CopperRebuildAttempt[]): number {
+  return attempts.filter((attempt) => !attempt.notInvoked).length;
+}
+
 function readbackFailureResult(
   matchedCount: number,
   attempts: CopperRebuildAttempt[],
@@ -700,7 +709,7 @@ function readbackFailureResult(
   return {
     success: false,
     matchedCount,
-    attemptedCount: attempts.length,
+    attemptedCount: nativeAttemptCount(attempts),
     rebuiltCount: 0,
     noCopperCount: results.filter((item) => item.status === 'no-copper').length,
     transactionCovered: false,
@@ -719,7 +728,7 @@ function finalRebuildResult(
   const rebuiltCount = results.filter((item) => item.status === 'rebuilt').length;
   const noCopperCount = results.filter((item) => item.status === 'no-copper').length;
   const success =
-    attempts.length === matchedCount &&
+    nativeAttemptCount(attempts) === matchedCount &&
     results.length === matchedCount &&
     rebuiltCount === matchedCount;
   const firstFailure = results.find((item) => item.status !== 'rebuilt');
@@ -732,7 +741,7 @@ function finalRebuildResult(
   return {
     success,
     matchedCount,
-    attemptedCount: attempts.length,
+    attemptedCount: nativeAttemptCount(attempts),
     rebuiltCount,
     noCopperCount,
     transactionCovered: false,

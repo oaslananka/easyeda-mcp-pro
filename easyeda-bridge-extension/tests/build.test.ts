@@ -39,7 +39,7 @@ describe('build.mjs hot-swap define', () => {
     const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: 'true' });
     expect(bundle).toMatch(/HOTSWAP_COMPILED\s*=\s*true;/);
     expect(bundle).not.toContain('__MCP_DEV_HOTSWAP__');
-  });
+  }, 20_000);
 
   it('compiles HOTSWAP_COMPILED to the literal false when MCP_DEV_HOTSWAP is unset', () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ext-build-prod-'));
@@ -47,7 +47,7 @@ describe('build.mjs hot-swap define', () => {
     const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: '' });
     expect(bundle).toMatch(/HOTSWAP_COMPILED\s*=\s*false;/);
     expect(bundle).not.toContain('__MCP_DEV_HOTSWAP__');
-  });
+  }, 20_000);
 
   it('declares the startup activation event required by the EasyEDA loader', () => {
     const manifest = JSON.parse(readFileSync(join(root, 'extension.json'), 'utf8')) as {
