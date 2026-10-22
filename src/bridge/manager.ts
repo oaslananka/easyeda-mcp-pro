@@ -45,16 +45,17 @@ function replacementChunkBytes(
   total: number,
   piece: string,
   cap: number,
-): number {
+): { conservative: number; measured: number } {
   const conservative =
     total - Buffer.byteLength(chunks[seq] ?? '', 'utf8') + Buffer.byteLength(piece, 'utf8');
-  if (conservative <= cap) return conservative;
+  if (conservative <= cap) return { conservative, measured: conservative };
 
-  // A high surrogate in one fragment and a low surrogate in the next use
-  // fewer bytes when joined. Check the exact candidate before rejecting.
+  // Split UTF-16 surrogate pairs can have fewer bytes once joined. Verify
+  // the exact candidate, but retain the conservative sum for subsequent
+  // replacements so the accounting cannot underflow on a later edit.
   const candidate = chunks.slice();
   candidate[seq] = piece;
-  return Buffer.byteLength(candidate.join(''), 'utf8');
+  return { conservative, measured: Buffer.byteLength(candidate.join(''), 'utf8') };
 }
 
 const FOLLOWER_ATTACH_ATTEMPTS = 20;
@@ -500,24 +501,21 @@ export class BridgeManager extends EventEmitter {
         return;
       }
       const previous = assembly.chunks[seq];
-      const nextBytes = replacementChunkBytes(
+      const { conservative, measured } = replacementChunkBytes(
         assembly.chunks,
         seq,
         assembly.bytes,
         piece,
         aggregateCap,
       );
-      if (nextBytes > aggregateCap) {
+      if (measured > aggregateCap) {
         chunkAssemblies.delete(id);
-        logger.warn(
-          { id, bytes: nextBytes, aggregateCap },
-          'chunked payload exceeds aggregate cap',
-        );
+        logger.warn({ id, bytes: measured, aggregateCap }, 'chunked payload exceeds aggregate cap');
         ws.close(4009, 'payload_too_large');
         return;
       }
       if (previous === undefined) assembly.received += 1;
-      assembly.bytes = nextBytes;
+      assembly.bytes = conservative;
       assembly.chunks[seq] = piece;
       if (assembly.received === assembly.total) {
         chunkAssemblies.delete(id);

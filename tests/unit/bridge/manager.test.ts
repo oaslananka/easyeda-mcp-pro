@@ -539,6 +539,38 @@ describe('BridgeManager - payload size limit', () => {
     manager.disconnect('test complete');
   });
 
+  it('rejects a replacement that breaks a split emoji after an exact-cap assembly', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_MAX_PAYLOAD_SIZE: 1024,
+      }),
+    );
+    await manager.connect();
+    const socket = await openSocket(port);
+    const closed = waitForClose(socket);
+    const parts = [
+      ...Array.from({ length: 10 }, () => 'a'.repeat(800)),
+      'a'.repeat(188),
+      '\uD83D',
+      '\uDE00',
+    ];
+    expect(Buffer.byteLength(parts.join(''), 'utf8')).toBe(8192);
+    for (const [seq, data] of parts.entries()) {
+      socket.send(JSON.stringify({ type: 'chunk', id: 'split-replacement', seq, total: 14, data }));
+    }
+    // Replacing the low surrogate destroys the four-byte emoji and increases
+    // actual joined bytes above the cap. Prior exact-byte accounting used an
+    // understated incremental total and incorrectly accepted the replacement.
+    socket.send(
+      JSON.stringify({ type: 'chunk', id: 'split-replacement', seq: 12, total: 14, data: '€' }),
+    );
+    await expect(closed).resolves.toBe(4009);
+    manager.disconnect('test complete');
+  });
+
   it('should accept payload within limit', async () => {
     const port = await getFreePort();
     const config = createTestConfig({
