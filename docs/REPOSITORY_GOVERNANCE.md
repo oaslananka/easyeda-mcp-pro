@@ -57,12 +57,14 @@ Within **two business days** of the trigger, `@oaslananka` must:
 1. verify the collaborator's live permission and accepted invitation;
 2. update the `main-standard` repository ruleset to one required approval, required code-owner review, dismissal of
    stale approvals, and approval after the latest push;
-3. preserve every existing required status check and administrator enforcement setting;
-4. open an owner-authored test pull request touching a critical path and prove that the second
+3. **remove the existing owner PR-only bypass actor** and verify the live ruleset has zero bypass actors
+   before claiming independent reviewer enforcement;
+4. preserve every existing required status check and administrator enforcement setting;
+5. open an owner-authored test pull request touching a critical path and prove that the second
    maintainer can review it while the author cannot self-satisfy the approval requirement;
-5. update `liveStateVerifiedAt`, the current protection evidence snapshot, and the current governance tracking issue with
+6. update `liveStateVerifiedAt`, the current protection evidence snapshot, and the current governance tracking issue with
    the verification URL and date; and
-6. revert access or protection immediately if the test exposes a bypass, deadlock, or privilege
+7. revert access or protection immediately if the test exposes a bypass, deadlock, or privilege
    mismatch, then document the exact blocker publicly.
 
 The target state is machine-checked by the governance policy test even while the live repository

@@ -52,6 +52,7 @@ interface GovernancePolicy {
         dismissStaleReviews: boolean;
         requireLastPushApproval: boolean;
       };
+      targetBypassActors: Array<{ actor_id: number; actor_type: string; bypass_mode: string }>;
       verification: string[];
     };
   };
@@ -234,9 +235,11 @@ describe('repository governance policy', () => {
         dismissStaleReviews: true,
         requireLastPushApproval: true,
       },
+      targetBypassActors: [],
       verification: [
         'verify-live-collaborator-permission',
         'apply-main-branch-protection-target',
+        'verify-owner-pr-bypass-removed',
         'verify-owner-authored-test-pr-is-reviewable',
         'update-liveStateVerifiedAt',
       ],

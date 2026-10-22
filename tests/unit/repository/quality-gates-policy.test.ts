@@ -214,6 +214,7 @@ describe('changed-code quality gate policy', () => {
 
     expect(continuity).toContain('Codecov and SonarQube Cloud remain advisory analytics');
     expect(continuity).toContain('2026-10-22-main-ruleset.json');
+    expect(continuity).toContain('2026-10-05-main-ruleset.json');
     expect(continuity).not.toContain('and SonarQube checks');
 
     expect(openssf).toContain('SonarQube Cloud automatic analysis is advisory');

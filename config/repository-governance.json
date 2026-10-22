@@ -112,9 +112,11 @@
         "dismissStaleReviews": true,
         "requireLastPushApproval": true
       },
+      "targetBypassActors": [],
       "verification": [
         "verify-live-collaborator-permission",
         "apply-main-branch-protection-target",
+        "verify-owner-pr-bypass-removed",
         "verify-owner-authored-test-pr-is-reviewable",
         "update-liveStateVerifiedAt"
       ]
