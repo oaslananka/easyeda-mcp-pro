@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   decideReleaseCreation,
   decodeNpmView,
@@ -76,6 +76,9 @@ describe('bounded npm registry visibility', () => {
   it('accepts scalar and one-entry npm workspace JSON results', () => {
     expect(decodeNpmView('"1.5.1"')).toBe('1.5.1');
     expect(decodeNpmView('["1.5.1"]')).toBe('1.5.1');
+    expect(decodeNpmView('')).toBeNull();
+    expect(decodeNpmView('   ')).toBeNull();
+    expect(() => decodeNpmView('unexpected malformed JSON')).toThrow();
   });
 
   it('waits for a delayed npm index and stops when visible', async () => {

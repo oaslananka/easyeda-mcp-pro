@@ -138,6 +138,7 @@ jobs:
           cp scripts/reconcile-release-please.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/reconcile-release-please-lib.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/mcp-publisher-integrity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
+          cp scripts/release-publication-retry.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp config/mcp-publisher-integrity.json "$RELEASE_VERIFIER_ROOT/config/"
           cp src/release/published-release-verifier.ts "$RELEASE_VERIFIER_ROOT/src/release/"
 
@@ -283,7 +284,7 @@ jobs:
           set -euo pipefail
           # Failed-job reruns retain the original plan. Re-verify immutable
           # tag/release identity at execution time before trying creation.
-          node scripts/release-publication-retry.mjs ensure-release
+          node "$RELEASE_VERIFIER_ROOT/scripts/release-publication-retry.mjs" ensure-release
       - name: Validate immutable release identity
         env:
           GH_TOKEN: ${{ github.token }}
@@ -327,7 +328,7 @@ jobs:
           fi
 
       - name: Wait for npm package index visibility
-        run: node scripts/release-publication-retry.mjs wait-npm
+        run: node "$RELEASE_VERIFIER_ROOT/scripts/release-publication-retry.mjs" wait-npm
       - name: Upload Assets to Release
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}

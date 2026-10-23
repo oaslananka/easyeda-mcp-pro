@@ -108,13 +108,23 @@ describe('release channel policy', () => {
     expect(publisher).toContain('--extension-asset-size');
     expect(publisher).toContain('Create commit-bound GitHub Release');
     expect(publisher).toContain('TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"');
-    expect(publisher).toContain('node scripts/release-publication-retry.mjs ensure-release');
+    expect(publisher).toContain(
+      'cp scripts/release-publication-retry.mjs "$RELEASE_VERIFIER_ROOT/scripts/"',
+    );
+    expect(publisher).toContain(
+      'node "$RELEASE_VERIFIER_ROOT/scripts/release-publication-retry.mjs" ensure-release',
+    );
+    expect(publisher.indexOf('cp scripts/release-publication-retry.mjs')).toBeLessThan(
+      publisher.indexOf('Checkout immutable publication source'),
+    );
     const recoveryScript = readText('scripts/release-publication-retry.mjs');
     expect(recoveryScript).toContain('decideReleaseCreation(');
     expect(recoveryScript).toContain('existingTagSha: existingTagSha(tag)');
     expect(recoveryScript).toMatch(/'release',\s*'create'/);
     expect(publisher).toContain('name: Wait for npm package index visibility');
-    expect(publisher).toContain('node scripts/release-publication-retry.mjs wait-npm');
+    expect(publisher).toContain(
+      'node "$RELEASE_VERIFIER_ROOT/scripts/release-publication-retry.mjs" wait-npm',
+    );
     expect(publisher.indexOf('name: Publish to npm')).toBeLessThan(
       publisher.indexOf('name: Wait for npm package index visibility'),
     );

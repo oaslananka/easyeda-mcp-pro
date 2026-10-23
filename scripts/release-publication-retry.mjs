@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 
 export function decodeNpmView(output) {
+  if (!String(output ?? '').trim()) return null;
   const value = JSON.parse(output);
   return Array.isArray(value) && value.length === 1 ? value[0] : value;
 }
@@ -140,9 +141,31 @@ export async function waitForPublishedNpm(env = process.env) {
       );
     },
   });
-  const distTag = runNpm(['view', name, 'dist-tags.' + tag, '--json', '--fetch-retries=0']);
-  if (distTag.status !== 0 || decodeNpmView(distTag.stdout) !== version) {
-    throw new Error('npm ' + tag + ' dist-tag mismatch.');
+  try {
+    await waitForNpmVisibility({
+      probe: () => {
+        const distTag = runNpm([
+          'view',
+          name,
+          'dist-tags.' + tag,
+          '--json',
+          '--fetch-retries=0',
+          '--fetch-timeout=10000',
+        ]);
+        if (distTag.status !== 0) {
+          throw new Error(
+            'npm dist-tag lookup failed unexpectedly: ' +
+              String(distTag.error?.message ?? distTag.stderr).slice(0, 240),
+          );
+        }
+        return decodeNpmView(distTag.stdout) === version;
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('npm version not visible after ')) {
+      throw new Error('npm ' + tag + ' dist-tag mismatch.');
+    }
+    throw error;
   }
   console.log(
     'npm ' + name + '@' + version + ' visible with ' + tag + ' on attempt ' + attempt + '.',
