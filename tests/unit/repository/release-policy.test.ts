@@ -108,8 +108,19 @@ describe('release channel policy', () => {
     expect(publisher).toContain('--extension-asset-size');
     expect(publisher).toContain('Create commit-bound GitHub Release');
     expect(publisher).toContain('TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"');
-    expect(publisher).toContain('gh release create "$RELEASE_TAG"');
-    expect(publisher).toContain('--target "$TARGET_COMMIT"');
+    expect(publisher).toContain('node scripts/release-publication-retry.mjs ensure-release');
+    const recoveryScript = readText('scripts/release-publication-retry.mjs');
+    expect(recoveryScript).toContain('decideReleaseCreation(');
+    expect(recoveryScript).toContain('existingTagSha: existingTagSha(tag)');
+    expect(recoveryScript).toMatch(/'release',\s*'create'/);
+    expect(publisher).toContain('name: Wait for npm package index visibility');
+    expect(publisher).toContain('node scripts/release-publication-retry.mjs wait-npm');
+    expect(publisher.indexOf('name: Publish to npm')).toBeLessThan(
+      publisher.indexOf('name: Wait for npm package index visibility'),
+    );
+    expect(publisher.indexOf('name: Wait for npm package index visibility')).toBeLessThan(
+      publisher.indexOf('name: Publish to MCP Registry'),
+    );
     expect(publisher).not.toContain('skip-github-pull-request: true');
     expect(publisher.indexOf('Verify Quality Gates')).toBeLessThan(
       publisher.indexOf('Verify release extension identity'),
