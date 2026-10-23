@@ -163,7 +163,7 @@ export async function waitForPublishedNpm(env = process.env) {
     });
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('npm version not visible after ')) {
-      throw new Error('npm ' + tag + ' dist-tag mismatch.');
+      throw new Error('npm ' + tag + ' dist-tag mismatch.', { cause: error });
     }
     throw error;
   }
