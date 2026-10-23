@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture                           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | ------------------------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.1                | 1.5.1                | 1.5.1             | Live validated  | 2026-10-23 | 2027-01-21 |
 | 3.2.209.8a704eab | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.0                | 1.5.0                | 1.5.0             | Live validated  | 2026-10-23 | 2027-01-21 |
 | 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64                 | 1.3.0                | 1.3.0                | 1.3.0             | Live validated  | 2026-10-16 | 2027-01-14 |
 | 3.2.206.715d940d | Ubuntu 24.04.5 LTS / x86_64                 | 1.2.1                | 1.2.1                | 1.2.1             | Live validated  | 2026-10-16 | 2027-01-14 |
@@ -52,6 +53,55 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64)
+
+Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-1-owner-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
+| Electron                                 | `41.2.1`                                                           |
+| Chromium                                 | `146.0.7680.188`                                                   |
+| Operating system                         | Microsoft Windows 11 Pro (10.0.26300)                              |
+| Kernel                                   | `Windows NT 10.0.26300`                                            |
+| Architecture                             | `x64`                                                              |
+| Node.js used by validation server        | `24.21.0`                                                          |
+| Validation package version               | `1.5.1`                                                            |
+| Release containing validated fixes       | `1.5.1`                                                            |
+| Compatibility-sensitive base commit      | `ea22a31cc4eae2b949da2df3f96ba93522f35648`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.5.1`                                                            |
+| Live-validated extension package SHA-256 | `ee7d52b19661ebb9ee2b8104031f732a7639549ca720753bb64e8796f8845f9f` |
+| Live-validated extension package size    | `203256 bytes`                                                     |
+| Loader-reported version                  | `1.5.1`                                                            |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `2341626d16d93145`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.5.1` during this validation.
+
+### Capability evidence
+
+| Capability                                                                | Level  | Status    | Result                                                                                                                                                                                                                                                                                                     | Evidence                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------- | ------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact-source 1.5.1 native extension import, editor restart, owner connect | `live` | `passed`  | Extension Manager displayed 1.5.1; full EasyEDA process exit/relaunch activated 1.5.1 dispatcher. Exact-head owner bound port 49620, WebSocket reconnected; server, loader and extension versions 1.5.1, build d3d10x0a00xb05a and registry hash 2341626d16d93145 matched.                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json) |
+| Native current-project PCB list acceptance                                | `live` | `passed`  | Native project UUID matched focused document parent UUID; components=33, fills=4, regions=0, tracks=98, vias=0; bounded read-only calls.                                                                                                                                                                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json) |
+| Five wrong-project UUID denials                                           | `live` | `passed`  | All five PCB list methods refused fabricated project UUID; no unrelated project data returned.                                                                                                                                                                                                             | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json) |
+| Controlled owner restart, reconnect and SQLite check                      | `live` | `passed`  | Restarted exact 1.5.1 listener, editor reconnected, native document identity and component positive/negative reads passed; SQLite quick_check ok.                                                                                                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json) |
+| Pre-upgrade 1.5.1 follower versus active 1.5.0 guard                      | `live` | `limited` | Before importing 1.5.1, candidate detected version-only mismatch, refused dynamic api.call, allowed five correct UUID reads and rejected five wrong UUID reads; zero writes. **Boundary:** No native write attempts were made; write guard also has 78/78 focused mocked bridge/relay regression coverage. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json) |
+
+### Known limitations
+
+- Live Windows 11/EasyEDA 3.2.209 disposable-PCB-only acceptance; no independent macOS or Linux native GUI acceptance.
+- No PCB/schematic writes, project save/export, native copper rebuild/apply, design-file persistence or recovery test. #480 production copper apply remains fail-closed.
+- No hosted Remote Relay, OAuth, production publish or registry acceptance; GitHub CI and immutable release verification are independent gates.
+- Native Extension Manager import 1.5.1, full editor exit/relaunch, active dispatcher/loader parity and v1.5.1 owner restart were observed; hot swap was not used.
+- Vendor Electron 41.2.1 and EasyEDA Pro 3.2.209.8a704eab were identified locally. Chromium 146.0.7680.188 is upstream Electron reference, not verified vendor-fork runtime.
+- UUIDs and local files omitted; candidate source was exact PR #741 SHA. Source-built candidate has not been published to npm/GHCR. Previous 1.5.0 runtime and installed extension are backed up; final rollback is tracked separately.
 
 ## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64)
 

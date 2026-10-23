@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-23T03:30:51+03:00",
+  "candidateCommit": "ea22a31cc4eae2b949da2df3f96ba93522f35648",
+  "version": "1.5.1",
+  "sourceIdentity": {
+    "exactPrHead": "ea22a31cc4eae2b949da2df3f96ba93522f35648",
+    "sourceTrees": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "252c4b56c3c0cd6052855b1f491cd3cf42531407",
+        "src/bridge": "5e74df8df8743b175026232fce12db0e7552e0c3",
+        "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+        "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+        "src/tools": "2f6968e0987db4f894c5f9f7346359e781656db5",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "operatingSystem": {
+    "name": "Windows 11 Pro",
+    "build": "10.0.26300",
+    "architecture": "x64",
+    "node": "24.21.0",
+    "pnpm": "11.28.0"
+  },
+  "editor": {
+    "nativeRuntimeVersion": "3.2.209",
+    "installedManifestVersion": "3.2.209.8a704eab",
+    "vendorElectronBuild": "v41.2.1-jlc-sa-win-x64.6"
+  },
+  "extension": {
+    "version": "1.5.1",
+    "loaderVersion": "1.5.1",
+    "activeDispatcherBuildId": "d3d10x0a00xb05a",
+    "methodCount": 72,
+    "methodSurfaceHash": "2341626d16d93145",
+    "packageSha256": "ee7d52b19661ebb9ee2b8104031f732a7639549ca720753bb64e8796f8845f9f",
+    "packageSizeBytes": 203256
+  },
+  "scenario": {
+    "transport": "local loopback WebSocket 127.0.0.1:49620",
+    "fullEditorProcessRestarted": true,
+    "fixture": "Disposable PCB, native UUID withheld",
+    "writes": 0,
+    "liveOwnerParity": true,
+    "nativeIdentity": true,
+    "initialPositiveReads": 5,
+    "initialWrongUuidDenials": 5,
+    "readTotals": {
+      "components": 33,
+      "fills": 4,
+      "regions": 0,
+      "tracks": 98,
+      "vias": 0
+    },
+    "ownerRestart": {
+      "passed": true,
+      "editorReconnected": true,
+      "positiveComponents": true,
+      "wrongUuidDenied": true
+    },
+    "sqliteQuickCheckBefore": "ok",
+    "sqliteQuickCheckAfter": "ok",
+    "followerWithOlderExtension": {
+      "versionMismatch": true,
+      "registryMismatch": false,
+      "dynamicApiDenied": true,
+      "positive": 5,
+      "denied": 5,
+      "writes": 0
+    }
+  },
+  "knownLimitations": [
+    "Live Windows 11/EasyEDA 3.2.209 disposable-PCB-only acceptance; no independent macOS or Linux native GUI acceptance.",
+    "No PCB/schematic writes, project save/export, native copper rebuild/apply, design-file persistence or recovery test. #480 production copper apply remains fail-closed.",
+    "No hosted Remote Relay, OAuth, production publish or registry acceptance; GitHub CI and immutable release verification are independent gates.",
+    "Native Extension Manager import 1.5.1, full editor exit/relaunch, active dispatcher/loader parity and v1.5.1 owner restart were observed; hot swap was not used.",
+    "Vendor Electron 41.2.1 and EasyEDA Pro 3.2.209.8a704eab were identified locally. Chromium 146.0.7680.188 is upstream Electron reference, not verified vendor-fork runtime.",
+    "UUIDs and local files omitted; candidate source was exact PR #741 SHA. Source-built candidate has not been published to npm/GHCR. Previous 1.5.0 runtime and installed extension are backed up; final rollback is tracked separately."
+  ],
+  "evidenceLinks": [
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/741",
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/740"
+  ]
+}
