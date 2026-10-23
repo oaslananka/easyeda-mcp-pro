@@ -60,7 +60,7 @@
           "status": "passed",
           "summary": "Extension Manager displayed 1.5.1; full EasyEDA process exit/relaunch activated 1.5.1 dispatcher. Exact-head owner bound port 49620, WebSocket reconnected; server, loader and extension versions 1.5.1, build d3d10x0a00xb05a and registry hash 2341626d16d93145 matched.",
           "evidence": [
-            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/aad77ed10c8a12dbb97d2097dbac4116479847e0/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
           ]
         },
         {
@@ -70,7 +70,7 @@
           "status": "passed",
           "summary": "Native project UUID matched focused document parent UUID; components=33, fills=4, regions=0, tracks=98, vias=0; bounded read-only calls.",
           "evidence": [
-            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/aad77ed10c8a12dbb97d2097dbac4116479847e0/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
           ]
         },
         {
@@ -80,7 +80,7 @@
           "status": "passed",
           "summary": "All five PCB list methods refused fabricated project UUID; no unrelated project data returned.",
           "evidence": [
-            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/aad77ed10c8a12dbb97d2097dbac4116479847e0/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
           ]
         },
         {
@@ -90,7 +90,7 @@
           "status": "passed",
           "summary": "Restarted exact 1.5.1 listener, editor reconnected, native document identity and component positive/negative reads passed; SQLite quick_check ok.",
           "evidence": [
-            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/aad77ed10c8a12dbb97d2097dbac4116479847e0/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
           ]
         },
         {
@@ -101,7 +101,7 @@
           "summary": "Before importing 1.5.1, candidate detected version-only mismatch, refused dynamic api.call, allowed five correct UUID reads and rejected five wrong UUID reads; zero writes.",
           "limitation": "No native write attempts were made; write guard also has 78/78 focused mocked bridge/relay regression coverage.",
           "evidence": [
-            "https://github.com/oaslananka/easyeda-mcp-pro/blob/release-please--branches--main--components--easyeda-mcp-pro/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/aad77ed10c8a12dbb97d2097dbac4116479847e0/docs/evidence/easyeda-live/2026-10-23-windows-11-easyeda-3.2.209-v1.5.1-owner-readonly.json"
           ]
         }
       ],
