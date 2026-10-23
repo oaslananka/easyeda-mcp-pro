@@ -56,7 +56,9 @@ gh workflow run publish-release.yml --ref main \
   -f evidence_url="$EVIDENCE"
 ```
 
-The Publish Release workflow validates commit-bound EasyEDA evidence before checking out the tag. It then restores an existing npm dist-tag when the package version already exists, replaces release assets with `--clobber`, republishes the MCP Registry entry idempotently, and rebuilds moving GHCR tags from the immutable source.
+The Publish Release workflow validates commit-bound EasyEDA evidence before checking out the tag. It then restores an existing npm dist-tag when the package version already exists, preserves and verifies immutable release assets without overwriting them, republishes the MCP Registry entry idempotently, and rebuilds moving GHCR tags from the immutable source.
+
+For stable publication reruns, the Create commit-bound GitHub Release step rechecks the live tag and GitHub Release identity. A release already bound to the same commit and classification is reused instead of created again; a conflicting source, draft status, or prerelease classification fails closed. After npm accepts the release, a bounded npm package-visibility check (up to 20 attempts, 15 seconds apart) runs before MCP Registry publication. Unexpected npm errors are not treated as transient 404s. If the limit is exceeded, preserve the original release and use manual existing-tag recovery rather than minting a new version or moving the tag.
 
 ## Partial publication decision tree
 
@@ -95,11 +97,11 @@ For first publication, new npm versions use Trusted Publishing without `NPM_TOKE
 
 ## GitHub Release recovery
 
-The GitHub Release must remain bound to the original tag. Verify and replace only generated assets:
+The GitHub Release must remain bound to the original tag. Do not overwrite signed release assets during recovery. Verify the tag and download existing assets for content/hash comparison:
 
 ```bash
 gh release view "$TAG" --json tagName,targetCommitish,isDraft,isPrerelease,assets
-gh release upload "$TAG" easyeda-bridge-extension.eext sbom.json --clobber
+gh release download "$TAG" --pattern easyeda-bridge-extension.eext --dir verified-assets
 ```
 
 Expected assets are `easyeda-bridge-extension.eext` and `sbom.json`, each with a published digest. Do not delete provenance or failed-run evidence merely to make the release page look clean.

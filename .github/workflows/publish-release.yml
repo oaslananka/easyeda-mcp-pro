@@ -281,14 +281,9 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         run: |
           set -euo pipefail
-          TARGET_COMMIT="$(git rev-parse "${TARGET_REF}^{commit}")"
-          RELEASE_VERSION="${RELEASE_TAG#easyeda-mcp-pro-v}"
-          gh release create "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$TARGET_COMMIT" \
-            --title "easyeda-mcp-pro v${RELEASE_VERSION}" \
-            --generate-notes
-
+          # Failed-job reruns retain the original plan. Re-verify immutable
+          # tag/release identity at execution time before trying creation.
+          node scripts/release-publication-retry.mjs ensure-release
       - name: Validate immutable release identity
         env:
           GH_TOKEN: ${{ github.token }}
@@ -331,6 +326,8 @@ jobs:
             npm publish --provenance --tag "$NPM_DIST_TAG"
           fi
 
+      - name: Wait for npm package index visibility
+        run: node scripts/release-publication-retry.mjs wait-npm
       - name: Upload Assets to Release
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
