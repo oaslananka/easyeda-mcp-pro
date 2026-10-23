@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.1...easyeda-mcp-pro-v1.5.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* **release:** make partial publication retries idempotent ([#743](https://github.com/oaslananka/easyeda-mcp-pro/issues/743)) ([71c406f](https://github.com/oaslananka/easyeda-mcp-pro/commit/71c406f9319c7c6d7d72c6be2175db53d9bb7cd2))
+
 ## [1.5.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.0...easyeda-mcp-pro-v1.5.1) (2026-10-22)
 
 
