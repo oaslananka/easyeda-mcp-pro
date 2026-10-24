@@ -179,13 +179,13 @@ describe('repository security tooling policy', () => {
     expect(workflow).toContain(`pre-commit run actionlint --all-files`);
     expect(workflow).toContain(`pre-commit run zizmor --all-files`);
 
-    expect(readText('.github/requirements/pre-commit.in').trim()).toBe('pre-commit==4.6.0');
+    expect(readText('.github/requirements/pre-commit.in').trim()).toBe('pre-commit==4.7.0');
     const preCommitRequirements = readText('.github/requirements/pre-commit.txt');
     const requirementEntries = preCommitRequirements
       .split(/(?=^[a-z0-9][a-z0-9._-]*==)/gim)
       .filter((entry) => /^[a-z0-9][a-z0-9._-]*==/i.test(entry));
     expect(requirementEntries.length).toBeGreaterThanOrEqual(8);
-    expect(preCommitRequirements).toContain('pre-commit==4.6.0');
+    expect(preCommitRequirements).toContain('pre-commit==4.7.0');
     const filelockPin = preCommitRequirements.match(/^filelock==(\d+)\.(\d+)\.(\d+) \\$/m);
     expect(filelockPin, 'filelock must remain hash-locked').not.toBeNull();
     const [filelockMajor, filelockMinor, filelockPatch] = filelockPin?.slice(1).map(Number) ?? [
