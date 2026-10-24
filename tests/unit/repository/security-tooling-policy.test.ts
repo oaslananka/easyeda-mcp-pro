@@ -41,6 +41,35 @@ describe('repository security tooling policy', () => {
     expect(workflow).not.toContain('actions/checkout@');
   });
 
+  it('requires pinned OSV vulnerability scans for both npm and hashed Python dependencies', () => {
+    const workflow = readText('.github/workflows/osv-scanner.yml');
+    const osvSha = 'b1d267aea5211fa648d9d442fa64b90dbdcbdd36';
+
+    expect(workflow).toContain('name: OSV Dependency Security');
+    expect(workflow).toContain('  pull_request:');
+    expect(workflow).toContain('  merge_group:');
+    expect(workflow).toContain('  push:');
+    expect(workflow).toContain('  schedule:');
+    expect(workflow).toContain('  workflow_dispatch:');
+    expect(workflow).toContain('security-events: write');
+    expect(workflow).toContain('contents: read');
+    expect(workflow).toContain('actions: read');
+    expect(workflow).toContain(
+      `google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@${osvSha}`,
+    );
+    expect(workflow).toContain(
+      `google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@${osvSha}`,
+    );
+    expect(workflow.match(/fail-on-vuln: true/g)).toHaveLength(2);
+    expect(workflow.match(/--lockfile=pnpm-lock.yaml/g)).toHaveLength(2);
+    expect(
+      workflow.match(/--lockfile=requirements\.txt:\.github\/requirements\/pre-commit\.txt/g),
+    ).toHaveLength(2);
+    expect(workflow).not.toContain('continue-on-error: true');
+    expect(workflow).not.toContain('pull_request_target');
+    expect(workflow).not.toContain('IgnoredVulns');
+  });
+
   it('keeps local hooks fast, deterministic, and focused on changed files', () => {
     const config = readText('.pre-commit-config.yaml');
 
