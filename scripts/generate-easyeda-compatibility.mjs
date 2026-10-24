@@ -188,7 +188,7 @@ export async function renderCompatibilityMarkdown(source) {
   for (const record of source.records) {
     lines.push(
       '',
-      `## ${record.easyedaPro.version} on ${record.environment.operatingSystem} (${record.environment.architecture})`,
+      `## ${record.easyedaPro.version} on ${record.environment.operatingSystem} (${record.environment.architecture}) — ${record.id}`,
       '',
       `Record ID: \`${record.id}\``,
       '',
@@ -198,7 +198,7 @@ export async function renderCompatibilityMarkdown(source) {
       '| --- | --- |',
       `| EasyEDA Pro | \`${record.easyedaPro.version}\` |`,
       `| Electron | \`${record.easyedaPro.electronVersion}\` |`,
-      `| Chromium | \`${record.easyedaPro.chromiumVersion}\` |`,
+      `| Chromium | \`${record.easyedaPro.chromiumVersion}\`${record.easyedaPro.chromiumVersionProvenance ? ` (${escapeCell(record.easyedaPro.chromiumVersionProvenance)})` : ''} |`,
       `| Operating system | ${escapeCell(record.environment.operatingSystem)} |`,
       `| Kernel | \`${record.environment.kernel}\` |`,
       `| Architecture | \`${record.environment.architecture}\` |`,
