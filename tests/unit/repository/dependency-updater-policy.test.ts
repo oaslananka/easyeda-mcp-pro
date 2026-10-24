@@ -97,6 +97,27 @@ describe('dependency updater ownership', () => {
           entry.matchUpdateTypes?.some((type) => type === 'minor' || type === 'major'),
       ),
     ).toBe(false);
+    const denyRule = config.packageRules?.find(
+      (entry) =>
+        entry.matchManagers?.includes('npm') &&
+        entry.matchDepTypes?.includes('overrides') &&
+        entry.matchDepTypes?.includes('pnpm-workspace.overrides'),
+    );
+    expect(denyRule).toMatchObject({ automerge: false });
+    expect(denyRule?.matchUpdateTypes).toBeUndefined();
+    expect(
+      config.packageRules?.some(
+        (entry) => entry.matchDepTypes?.includes('overrides') && entry.automerge === true,
+      ),
+    ).toBe(false);
+    expect(
+      config.packageRules?.some(
+        (entry) =>
+          entry.matchDepTypes?.includes('pnpm-workspace.overrides') &&
+          entry.automerge === true &&
+          (entry.matchUpdateTypes?.length !== 1 || entry.matchUpdateTypes[0] !== 'patch'),
+      ),
+    ).toBe(false);
   });
 
   it('documents hosted Renovate activation without hard-coding a dashboard issue number', () => {
