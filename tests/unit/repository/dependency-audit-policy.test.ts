@@ -219,7 +219,7 @@ describe('dependency audit policy', () => {
     const workspacePolicy = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expectPatchedOverride(workspacePolicy, lockfile, 'hono', '4.13.11');
+    expectPatchedOverride(workspacePolicy, lockfile, 'hono', '4.13.13');
     expect(lockfile).not.toMatch(/hono@4\.(?:12\.\d+|13\.(?:[0-9]|10))(?=[:()\s])/);
   });
 

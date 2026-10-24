@@ -129,7 +129,7 @@ describe('repository security tooling policy', () => {
     expect(packageJson.scripts?.['security:audit']).toBe('node scripts/check-dependency-audit.mjs');
     const workspace = readText('pnpm-workspace.yaml');
     expect(workspace).not.toContain('hono@4.12.34');
-    expect(workspace).toMatch(/\r?\n {2}hono: 4\.13\.11\r?\n/);
+    expect(workspace).toMatch(/\r?\n {2}hono: 4\.13\.13\r?\n/);
     const honoVersion = workspace.match(/'@hono\/node-server': (\d+)\.(\d+)\.(\d+)/);
     expect(honoVersion).not.toBeNull();
     const [, major, minor, patch] = honoVersion ?? [];
