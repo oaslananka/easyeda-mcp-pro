@@ -22,7 +22,7 @@ async function createCanonicalFixture() {
   temporaryRoots.push(root);
   const nodeVersion = '24.22.1';
   const pnpmVersion = '11.28.8';
-  const nodeImage = 'node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1';
+  const nodeImage = 'node@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53';
 
   await writeJson(join(root, 'config/runtime-policy.json'), {
     schemaVersion: 2,
