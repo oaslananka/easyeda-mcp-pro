@@ -162,18 +162,20 @@ describe('MCP Registry environment metadata', () => {
         path.join(fixtureRoot, 'config', 'environment-metadata.json'),
       );
       const original = fs.readFileSync(path.join(root, 'server.json'), 'utf8');
-      const releaseFormatted = `${JSON.stringify(JSON.parse(original), null, 2)}\n`;
-      expect(releaseFormatted).not.toBe(original);
+      const expanded = `${JSON.stringify(JSON.parse(original), null, 2)}\n`;
+      const compact = `${JSON.stringify(JSON.parse(original))}\n`;
+      expect(expanded).not.toBe(compact);
       const fixtureServerPath = path.join(fixtureRoot, 'server.json');
-      fs.writeFileSync(fixtureServerPath, releaseFormatted);
+      for (const variant of [expanded, compact]) {
+        fs.writeFileSync(fixtureServerPath, variant);
+        const result = await generateServerEnvironmentMetadata({
+          check: true,
+          repositoryRoot: fixtureRoot,
+        });
+        expect(result.changed).toBe(false);
+      }
 
-      const result = await generateServerEnvironmentMetadata({
-        check: true,
-        repositoryRoot: fixtureRoot,
-      });
-      expect(result.changed).toBe(false);
-
-      const edited = JSON.parse(releaseFormatted) as {
+      const edited = JSON.parse(expanded) as {
         packages: Array<{ environmentVariables: Array<{ name: string; default?: string }> }>;
       };
       const logLevel = edited.packages[0]?.environmentVariables.find(
