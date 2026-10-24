@@ -23,6 +23,10 @@ interface RenovateConfig {
   dependencyDashboard?: boolean;
   osvVulnerabilityAlerts?: boolean;
   packageRules?: RenovatePackageRule[];
+  'pip-compile'?: {
+    managerFilePatterns: string[];
+    lockFileMaintenance?: { enabled?: boolean; automerge?: boolean };
+  };
 }
 
 describe('dependency updater ownership', () => {
@@ -148,6 +152,29 @@ describe('dependency updater ownership', () => {
 
     expect(assuranceCase).toContain('.github/renovate.json');
     expect(assuranceCase).not.toContain('.github/dependabot.yml');
+  });
+
+  it('tracks hash-locked pre-commit Python dependencies via pip-compile without automerge', () => {
+    const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig & {
+      lockFileMaintenance?: { automerge?: boolean };
+    };
+    const manager = config['pip-compile'];
+    expect(manager?.managerFilePatterns).toEqual([
+      '/^\\.github\\/requirements\\/pre-commit\\.txt$/',
+    ]);
+    expect(manager?.lockFileMaintenance).toEqual({ enabled: true, automerge: false });
+    expect(
+      config.packageRules?.find((rule) => rule.matchManagers?.includes('pip-compile')),
+    ).toMatchObject({ matchManagers: ['pip-compile'], automerge: false });
+
+    const lockfile = readFileSync(resolve(repoRoot, '.github/requirements/pre-commit.txt'), 'utf8');
+    const input = readFileSync(resolve(repoRoot, '.github/requirements/pre-commit.in'), 'utf8');
+    expect(lockfile).toContain('pip-compile --generate-hashes');
+    expect(lockfile).toContain('--output-file=.github/requirements/pre-commit.txt');
+    expect(lockfile).toContain('.github/requirements/pre-commit.in');
+    expect(input).toContain('pre-commit==');
+    expect(lockfile).toContain('--hash=sha256:');
+    expect(config.lockFileMaintenance?.automerge).toBe(true);
   });
 
   it('keeps GitHub Actions and pre-commit hooks under Renovate management', () => {

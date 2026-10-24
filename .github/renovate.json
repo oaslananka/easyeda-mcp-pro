@@ -90,6 +90,19 @@
       "matchUpdateTypes": ["patch"],
       "postUpdateOptions": ["pnpmDedupe"],
       "automerge": true
+    },
+    {
+      "description": "Regenerate hashed pre-commit Python requirements via pip-compile; require reviewed PR and passing OSV, CI and pip hash installation",
+      "matchManagers": ["pip-compile"],
+      "automerge": false,
+      "rebaseWhen": "conflicted"
     }
-  ]
+  ],
+  "pip-compile": {
+    "managerFilePatterns": ["/^\\.github\\/requirements\\/pre-commit\\.txt$/"],
+    "lockFileMaintenance": {
+      "enabled": true,
+      "automerge": false
+    }
+  }
 }
