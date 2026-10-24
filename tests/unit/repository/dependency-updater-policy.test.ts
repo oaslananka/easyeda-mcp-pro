@@ -15,6 +15,7 @@ interface RenovatePackageRule {
   matchManagers?: string[];
   matchDepTypes?: string[];
   matchUpdateTypes?: string[];
+  postUpdateOptions?: string[];
   automerge?: boolean;
 }
 
@@ -68,7 +69,7 @@ describe('dependency updater ownership', () => {
     ).toBe(false);
   });
 
-  it('automerge is limited to npm override patch updates, leaving minor/major overrides manual', () => {
+  it('automerge is limited to pnpm workspace override patch updates with deduped lockfile peers', () => {
     const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig & {
       automergeStrategy?: string;
       automergeType?: string;
@@ -78,21 +79,43 @@ describe('dependency updater ownership', () => {
     const rule = config.packageRules?.find(
       (entry) =>
         entry.matchManagers?.includes('npm') &&
-        entry.matchDepTypes?.includes('overrides') &&
+        entry.matchDepTypes?.includes('pnpm-workspace.overrides') &&
         entry.matchUpdateTypes?.includes('patch'),
     );
     expect(rule).toMatchObject({
       matchManagers: ['npm'],
-      matchDepTypes: ['overrides'],
+      matchDepTypes: ['pnpm-workspace.overrides'],
       matchUpdateTypes: ['patch'],
+      postUpdateOptions: ['pnpmDedupe'],
       automerge: true,
     });
     expect(
       config.packageRules?.some(
         (entry) =>
-          entry.matchDepTypes?.includes('overrides') &&
+          entry.matchDepTypes?.includes('pnpm-workspace.overrides') &&
           entry.automerge === true &&
           entry.matchUpdateTypes?.some((type) => type === 'minor' || type === 'major'),
+      ),
+    ).toBe(false);
+    const denyRule = config.packageRules?.find(
+      (entry) =>
+        entry.matchManagers?.includes('npm') &&
+        entry.matchDepTypes?.includes('overrides') &&
+        entry.matchDepTypes?.includes('pnpm-workspace.overrides'),
+    );
+    expect(denyRule).toMatchObject({ automerge: false });
+    expect(denyRule?.matchUpdateTypes).toBeUndefined();
+    expect(
+      config.packageRules?.some(
+        (entry) => entry.matchDepTypes?.includes('overrides') && entry.automerge === true,
+      ),
+    ).toBe(false);
+    expect(
+      config.packageRules?.some(
+        (entry) =>
+          entry.matchDepTypes?.includes('pnpm-workspace.overrides') &&
+          entry.automerge === true &&
+          (entry.matchUpdateTypes?.length !== 1 || entry.matchUpdateTypes[0] !== 'patch'),
       ),
     ).toBe(false);
   });

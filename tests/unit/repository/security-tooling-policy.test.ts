@@ -157,12 +157,22 @@ describe('repository security tooling policy', () => {
       .filter((entry) => /^[a-z0-9][a-z0-9._-]*==/i.test(entry));
     expect(requirementEntries.length).toBeGreaterThanOrEqual(8);
     expect(preCommitRequirements).toContain('pre-commit==4.6.0');
+    const filelockPin = preCommitRequirements.match(/^filelock==(\d+)\.(\d+)\.(\d+) \\$/m);
+    expect(filelockPin, 'filelock must remain hash-locked').not.toBeNull();
+    const [filelockMajor, filelockMinor, filelockPatch] = filelockPin?.slice(1).map(Number) ?? [
+      0, 0, 0,
+    ];
+    expect(
+      filelockMajor > 4 ||
+        (filelockMajor === 4 && (filelockMinor > 2 || (filelockMinor === 2 && filelockPatch >= 1))),
+      'filelock must remain >=4.2.1 after GHSA-v4x8-3wr5-3wq8 and related advisories',
+    ).toBe(true);
     const virtualenvPin = preCommitRequirements.match(/^virtualenv==(\d+)\.(\d+)\.(\d+) \\$/m);
     expect(virtualenvPin, 'virtualenv must remain hash-locked').not.toBeNull();
     const [major, minor, patch] = virtualenvPin?.slice(1).map(Number) ?? [0, 0, 0];
     expect(
-      major > 21 || (major === 21 && (minor > 14 || (minor === 14 && patch >= 9))),
-      'virtualenv must remain >=21.14.9 after GHSA-558c-9hv2-4prj and related advisories',
+      major > 21 || (major === 21 && (minor > 14 || (minor === 14 && patch >= 13))),
+      'virtualenv must remain >=21.14.13 after GHSA-cx6f-vjhg-g3cc and related advisories',
     ).toBe(true);
 
     for (const entry of requirementEntries) {

@@ -46,6 +46,15 @@ async function getFreePort(host = '127.0.0.1'): Promise<number> {
   });
 }
 
+// A port returned by getFreePort is no longer reserved when its probe socket
+// closes. Let the bridge choose another independently sampled candidate if a
+// concurrent CI test/process takes the first port before connect() binds it.
+async function getFreePortCandidates(count = 3): Promise<string> {
+  const candidates = new Set<number>();
+  while (candidates.size < count) candidates.add(await getFreePort());
+  return [...candidates].join(',');
+}
+
 function openSocket(port: number): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -665,16 +674,16 @@ describe('BridgeManager - payload size limit', () => {
   });
 
   it('accepts an exact-limit payload containing an emoji split across chunk boundaries', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const manager = new BridgeManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
-        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_PORT_SCAN: portCandidates,
         BRIDGE_MAX_PAYLOAD_SIZE: 1024,
       }),
     );
     await manager.connect();
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     const parts = [
       ...Array.from({ length: 10 }, () => 'a'.repeat(800)),
       'a'.repeat(188),
@@ -695,16 +704,16 @@ describe('BridgeManager - payload size limit', () => {
   });
 
   it('rejects a replacement that breaks a split emoji after an exact-cap assembly', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const manager = new BridgeManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
-        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_PORT_SCAN: portCandidates,
         BRIDGE_MAX_PAYLOAD_SIZE: 1024,
       }),
     );
     await manager.connect();
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     const closed = waitForClose(socket);
     const parts = [
       ...Array.from({ length: 10 }, () => 'a'.repeat(800)),
