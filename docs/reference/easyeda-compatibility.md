@@ -55,33 +55,33 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
 
-## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64)
+## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64) — easyeda-pro-3-2-209-windows-11-x64-2026-10-24-v1-5-3-owner-readonly
 
 Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-24-v1-5-3-owner-readonly`
 
 ### Runtime identity
 
-| Field                                    | Exact value                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------ |
-| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
-| Electron                                 | `41.2.1`                                                           |
-| Chromium                                 | `146.0.7680.188`                                                   |
-| Operating system                         | Microsoft Windows 11 Pro (10.0.26300)                              |
-| Kernel                                   | `Windows NT 10.0.26300`                                            |
-| Architecture                             | `x64`                                                              |
-| Node.js used by validation server        | `24.20.0`                                                          |
-| Validation package version               | `1.5.3`                                                            |
-| Release containing validated fixes       | `1.5.3`                                                            |
-| Compatibility-sensitive base commit      | `79eedb6654adf77d7c0853ef061ccd89824d6170`                         |
-| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
-| Installed extension package metadata     | `1.5.3`                                                            |
-| Live-validated extension package SHA-256 | `3ef1228c4a3ebb6cc7beadc3f96c8a2127797f800cbfa007b5e3c162dddca8ab` |
-| Live-validated extension package size    | `203258 bytes`                                                     |
-| Loader-reported version                  | `1.5.3`                                                            |
-| Bridge contract                          | `1.0.0`                                                            |
-| Dispatcher                               | `baked`                                                            |
-| Method registry hash                     | `2341626d16d93145`                                                 |
-| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+| Field                                    | Exact value                                                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                                                                       |
+| Electron                                 | `41.2.1`                                                                                                                 |
+| Chromium                                 | `146.0.7680.188` (Upstream Electron 41.2.1 reference baseline, not independently measured from the EasyEDA vendor fork.) |
+| Operating system                         | Microsoft Windows 11 Pro (10.0.26300)                                                                                    |
+| Kernel                                   | `Windows NT 10.0.26300`                                                                                                  |
+| Architecture                             | `x64`                                                                                                                    |
+| Node.js used by validation server        | `24.20.0`                                                                                                                |
+| Validation package version               | `1.5.3`                                                                                                                  |
+| Release containing validated fixes       | `1.5.3`                                                                                                                  |
+| Compatibility-sensitive base commit      | `79eedb6654adf77d7c0853ef061ccd89824d6170`                                                                               |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                 |
+| Installed extension package metadata     | `1.5.3`                                                                                                                  |
+| Live-validated extension package SHA-256 | `3ef1228c4a3ebb6cc7beadc3f96c8a2127797f800cbfa007b5e3c162dddca8ab`                                                       |
+| Live-validated extension package size    | `203258 bytes`                                                                                                           |
+| Loader-reported version                  | `1.5.3`                                                                                                                  |
+| Bridge contract                          | `1.0.0`                                                                                                                  |
+| Dispatcher                               | `baked`                                                                                                                  |
+| Method registry hash                     | `2341626d16d93145`                                                                                                       |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                                        |
 
 The installed extension package and loader both reported version `1.5.3` during this validation.
 
@@ -104,8 +104,9 @@ The installed extension package and loader both reported version `1.5.3` during 
 - The older v1.5.2 local bridge owner was stopped after confirming only the native editor client; the test used an isolated temporary v1.5.3 owner and re-established native connection after a restart.
 - The bridge status reports contract 1.0.0, not package SemVer. Live loader and extension identity both report 1.5.3. Method registry mismatch flag was false; follower did not expose raw extension registry digest.
 - The editor is linked to a personal account; project names, login details, tokens, native project UUID and local paths are not recorded.
+- Chromium 146.0.7680.188 is the upstream Electron 41.2.1 baseline, not an independently measured EasyEDA vendor-fork runtime.
 
-## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64)
+## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64) — easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-1-owner-readonly
 
 Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-1-owner-readonly`
 
@@ -154,7 +155,7 @@ The installed extension package and loader both reported version `1.5.1` during 
 - Vendor Electron 41.2.1 and EasyEDA Pro 3.2.209.8a704eab were identified locally. Chromium 146.0.7680.188 is upstream Electron reference, not verified vendor-fork runtime.
 - UUIDs and local files omitted; candidate source was exact PR #741 SHA. Source-built candidate has not been published to npm/GHCR. Previous 1.5.0 runtime and installed extension are backed up; final rollback is tracked separately.
 
-## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64)
+## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64) — easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-0-owner-readonly
 
 Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-0-owner-readonly`
 
@@ -204,7 +205,7 @@ The installed extension package and loader both reported version `1.5.0` during 
 - The native editor API reported 3.2.209; full 3.2.209.8a704eab came from the installed EasyEDA package manifest. Vendor Electron build v41.2.1-jlc-sa-win-x64.6 came from its installed version file. Chromium 146.0.7680.188 is the corresponding upstream Electron 41.2.1 release baseline, not independently measured from the vendor fork.
 - Native project/document UUIDs were validated but omitted from public evidence. The fixture's disposability was previously designated; this test did not independently hash or reopen its design file.
 
-## 3.2.206.715d940d on Ubuntu 24.04.5 LTS (x86_64)
+## 3.2.206.715d940d on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-3-0-metadata
 
 Record ID: `easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-3-0-metadata`
 
@@ -250,7 +251,7 @@ The installed extension package and loader both reported version `1.3.0` during 
 - Only one generated PNG thumbnail and one Personal Device metadata write were exercised. Other file formats, production libraries and non-reinsertion writes were not validated.
 - No publication or Docker startup smoke, npm provenance, SBOM or registry verification is claimed in this live record.
 
-## 3.2.206.715d940d on Ubuntu 24.04.5 LTS (x86_64)
+## 3.2.206.715d940d on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-2-1
 
 Record ID: `easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-2-1`
 
@@ -294,7 +295,7 @@ The installed extension package and loader both reported version `1.2.1` during 
 - The public sample project was read-only; no local disposable project was actually imported, and no save/write/reopen/rollback mutation scenario was exercised. No design mutation occurred and restoration is established by the absence of writes and unchanged original local example SHA-256.
 - Connection and read-only operation proof does not validate Remote Relay, unrelated installer paths, mutation semantics, or any unrelated platform GUI behavior.
 
-## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-10-09-v1-2-0
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-10-09-v1-2-0`
 
@@ -341,7 +342,7 @@ The installed extension package and loader both reported version `1.2.0` during 
 - No new copper zone or existing copper pour was rebuilt; these operations were tested for fail-closed behavior with unchanged primitive sets.
 - The EasyEDA 3.2.149 live desktop record applies to Ubuntu x86_64 only; Windows and macOS are supported by separate CI, not identical desktop runtime evidence.
 
-## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-5
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-5`
 
@@ -391,7 +392,7 @@ The installed extension package and loader both reported version `1.1.0-rc.5` du
 - The original pre-run aggregate SHA values were retained, but the one-off helper used to compute those aggregates was not preserved. RC.5 cleanup therefore accepts host isolation using unchanged file/byte counts, a zero-file mtime scan over all three real-host trees since the pre-run timestamp, and an unchanged installed app-database SHA-256 rather than claiming an unreproduced aggregate hash comparison.
 - Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates. The prerelease channel does not publish the MCP Registry.
 
-## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-4
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-4`
 
@@ -441,7 +442,7 @@ The installed extension package and loader both reported version `1.1.0-rc.4` du
 - The exact extension package was built from cf3aa09a4067a020543bb8678be266e8460ecc1d. The compatibility evidence commit adds only docs/config evidence; the six release-sensitive Git tree objects remain the snapshot recorded here.
 - Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates. The prerelease channel does not publish the MCP Registry.
 
-## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-3
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-3`
 
@@ -490,7 +491,7 @@ The installed extension package and loader both reported version `1.1.0-rc.3` du
 - The exact package came from 0ff7dfa17d7a74e23167fbbbff6544282b227d4d; the subsequent evidence-only commit must preserve the recorded six-path compatibility snapshot.
 - Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates. The prerelease channel does not publish the MCP Registry.
 
-## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-28-v1-1-0-rc-2
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-28-v1-1-0-rc-2`
 
@@ -537,7 +538,7 @@ The installed extension package and loader both reported version `1.1.0-rc.2` du
 - The exact package came from 4be3b8c23bff0a9929566966b0bc74bd428556f1. At validation time, main 82bbf12bb6b00964d64f8a5f51a1317d65220f3e had identical Git tree objects under all six release-sensitive paths.
 - Public npm provenance, GitHub Release assets, attestations, SBOM, GHCR identities, and MCP Registry publication remain publication-time/post-publication gates.
 
-## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-15-v1-1-0-candidate
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-15-v1-1-0-candidate`
 
@@ -583,7 +584,7 @@ The installed extension package and loader both reported version `1.1.0` during 
 - The bundled example produced a real non-passing DRC result while the DRC call itself completed successfully. This record validates the live DRC surface and does not reinterpret the fixture result as a clean board.
 - The package SHA-256 in the public evidence identifies the exact f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec candidate. Public npm provenance, GitHub Release assets, attestations, SBOM, GHCR identities, and MCP Registry publication remain publication-time/post-publication gates.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-28-v1-0-1-rc1-candidate
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-28-v1-0-1-rc1-candidate`
 
@@ -629,7 +630,7 @@ The installed extension package and loader both reported version `1.0.1-rc.1` du
 - The bundled example contains one pre-existing PCB/schematic netlist mismatch, which design.drc correctly surfaced as an Import Changes error. This is a fixture finding, not a bridge false-success.
 - The package SHA-256 in the public evidence identifies the exact 6562f248b063c8e263ee02637b36803beee10350 prerelease candidate. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-27-v1-rc8-candidate
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-27-v1-rc8-candidate`
 
@@ -675,7 +676,7 @@ The installed extension package reported `0.99.8`, while the loader reported `1.
 - The bundled example contains one pre-existing PCB/schematic netlist mismatch, which design.drc correctly surfaced as an Import Changes error. This is a fixture finding, not a bridge false-success.
 - The package SHA-256 in this record identifies the exact pre-merge RC.8 candidate built from 869149929750700af039bad3d3ca3daa25fb4924; its Git tree is identical to the merged candidate d947271c0878c11ef1c0f7540767ba8fc7919e5b. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-27-v1-rc7-candidate
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-27-v1-rc7-candidate`
 
@@ -720,7 +721,7 @@ The installed extension package reported `0.99.7`, while the loader reported `1.
 - The isolated desktop emitted sandbox-only SQLite read-only and desktop integration warnings during startup; the bridge and exercised API paths remained operational, and no real EasyEDA profile/project mtime changed.
 - The package SHA-256 in this record identifies the exact pre-merge candidate imported for live validation. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time/post-publication gates.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-22-v1-rc6-candidate
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-22-v1-rc6-candidate`
 
@@ -766,7 +767,7 @@ The installed extension package reported `0.99.6`, while the loader reported `1.
 - EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.6 while the validated server and extension runtime report 1.0.0-rc.6. The upgrade required reloading the isolated editor renderer before the new runtime script replaced the already-loaded RC.5 script space.
 - The package SHA-256 in this record identifies the deterministic pre-merge candidate artifact. Public npm provenance, GitHub prerelease asset digests, attestations, SBOM, GHCR identities, and the RC.6 soak remain publication-time/post-publication gates and are not claimed by this pre-publication live record.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-21-v1-rc5-candidate
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-21-v1-rc5-candidate`
 
@@ -812,7 +813,7 @@ The installed extension package reported `0.99.5`, while the loader reported `1.
 - EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.5 while the validated server and extension runtime report 1.0.0-rc.5.
 - Public npm provenance, GitHub prerelease assets, attestations, SBOM, GHCR identities, and the RC.5 soak remain publication-time/post-publication gates and are not claimed by this pre-publication live record.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-17-v1-rc4-candidate
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-17-v1-rc4-candidate`
 
@@ -858,7 +859,7 @@ The installed extension package reported `0.99.4`, while the loader reported `1.
 - The recorded npm tarball is a local validation pack from the exact candidate. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time gates.
 - Claude Code was not authenticated in this host session; the RC.4 compatibility claim for issue #520 is the exact MCP tools/list schema dialect plus repository regression coverage, not an authenticated Claude API conversation.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-11-v1-rc3-candidate
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-11-v1-rc3-candidate`
 
@@ -903,7 +904,7 @@ The installed extension package reported `0.99.3`, while the loader reported `1.
 - EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.3 while the validated server and extension runtime report 1.0.0-rc.3.
 - The recorded npm tarball is a local validation pack from the exact candidate. Public npm provenance, GitHub prerelease assets, attestations, SBOM, and GHCR identities remain publication-time gates.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-10-v1-rc2-final
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-10-v1-rc2-final`
 
@@ -948,7 +949,7 @@ The installed extension package reported `0.99.2`, while the loader reported `1.
 - EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager uses 0.99.2 while the validated product runtime is 1.0.0-rc.2.
 - The recorded npm tarball is a local validation pack from the exact merged source candidate. Public npm provenance, GitHub release assets, attestations, SBOM, and GHCR identities remain publication-time gates.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-09-v1-rc2
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-09-v1-rc2`
 
@@ -993,7 +994,7 @@ The installed extension package reported `0.99.2`, while the loader reported `1.
 - EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager displays 0.99.2 while the bridge runtime and server report product version 1.0.0-rc.2.
 - The recorded npm tarball is a local validation pack from the source candidate. Public npm provenance, GitHub release assets, attestations, SBOM, and GHCR identities remain publication-time gates and are not claimed by this pre-publication record.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-29-v1-rc1
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-29-v1-rc1`
 
@@ -1036,7 +1037,7 @@ The installed extension package reported `0.99.1`, while the loader reported `1.
 - Remote Relay remains experimental and was not dogfooded through a public hosted endpoint during this pass.
 - EasyEDA Pro 3.2.149 requires numeric extension package metadata, so Extension Manager displays 0.99.1 while the bridge runtime and server report product version 1.0.0-rc.1.
 
-## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64)
+## 3.2.149.88089769 on Ubuntu 24.04.4 LTS (x86_64) — easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-25
 
 Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-25`
 

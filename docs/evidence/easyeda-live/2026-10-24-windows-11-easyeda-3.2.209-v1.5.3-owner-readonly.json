@@ -22,12 +22,14 @@
     "build": "10.0.26300",
     "architecture": "x64",
     "node": "24.20.0",
-    "pnpm": "11.28.3"
+    "pnpm": "11.28.3",
+    "pnpmValidationProvenance": "Windows CLI used pnpm.cmd 11.28.3 for the frozen install/package preparation; the repository declares pnpm@11.28.0. Independent Ubuntu verification used pnpm 11.28.0 and produced the identical .eext SHA-256; the Windows package preparation passed with the installed CLI."
   },
   "editor": {
     "nativeRuntimeVersion": "3.2.209",
     "installedManifestVersion": "3.2.209.8a704eab",
-    "vendorElectronBuild": "v41.2.1-jlc-sa-win-x64.6"
+    "vendorElectronBuild": "v41.2.1-jlc-sa-win-x64.6",
+    "chromiumVersionProvenance": "Upstream Electron 41.2.1 reference baseline, not independently measured from the EasyEDA vendor fork."
   },
   "extension": {
     "version": "1.5.3",
@@ -80,7 +82,8 @@
     "No hosted relay/OAuth or production publish; package identity was built from the exact release PR source and publication remains subject to protected CI and release gates.",
     "The older v1.5.2 local bridge owner was stopped after confirming only the native editor client; the test used an isolated temporary v1.5.3 owner and re-established native connection after a restart.",
     "The bridge status reports contract 1.0.0, not package SemVer. Live loader and extension identity both report 1.5.3. Method registry mismatch flag was false; follower did not expose raw extension registry digest.",
-    "The editor is linked to a personal account; project names, login details, tokens, native project UUID and local paths are not recorded."
+    "The editor is linked to a personal account; project names, login details, tokens, native project UUID and local paths are not recorded.",
+    "Chromium 146.0.7680.188 is the upstream Electron 41.2.1 baseline, not an independently measured EasyEDA vendor-fork runtime."
   ],
   "evidenceLinks": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/748"]
 }

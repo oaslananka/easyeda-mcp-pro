@@ -23,7 +23,12 @@ interface CompatibilitySource {
       kernel: string;
       nodeVersion: string;
     };
-    easyedaPro: { version: string; electronVersion: string; chromiumVersion: string };
+    easyedaPro: {
+      version: string;
+      electronVersion: string;
+      chromiumVersion: string;
+      chromiumVersionProvenance?: string;
+    };
     server: {
       validationPackageVersion: string;
       releaseContainingFixes: string;
@@ -159,6 +164,45 @@ describe('EasyEDA compatibility evidence policy', () => {
     expect(read('docs/reference/easyeda-compatibility.md')).toContain(
       'recorded compatibility-sensitive snapshot',
     );
+  });
+
+  it('generates unique record headings and labels unmeasured Chromium references', () => {
+    const source = JSON.parse(read('config/easyeda-compatibility.json')) as CompatibilitySource;
+    const documentation = read('docs/reference/easyeda-compatibility.md');
+    const headings = documentation.split('\n').filter((line) => line.startsWith('## '));
+
+    for (const record of source.records) {
+      const heading = `## ${record.easyedaPro.version} on ${record.environment.operatingSystem} (${record.environment.architecture}) — ${record.id}`;
+      expect(headings.filter((line) => line === heading)).toHaveLength(1);
+      if (record.easyedaPro.chromiumVersionProvenance) {
+        expect(record.easyedaPro.chromiumVersionProvenance).toContain('not independently measured');
+        expect(
+          documentation
+            .split('\n')
+            .some(
+              (line) =>
+                line.startsWith('| Chromium') &&
+                line.includes(record.easyedaPro.chromiumVersion) &&
+                line.includes(record.easyedaPro.chromiumVersionProvenance ?? ''),
+            ),
+        ).toBe(true);
+      }
+    }
+
+    const liveEvidence = JSON.parse(
+      read(
+        'docs/evidence/easyeda-live/2026-10-24-windows-11-easyeda-3.2.209-v1.5.3-owner-readonly.json',
+      ),
+    ) as {
+      operatingSystem: { pnpm: string; pnpmValidationProvenance: string };
+      sourceIdentity: { exactPrHead: string };
+    };
+    expect(liveEvidence.operatingSystem.pnpm).toBe('11.28.3');
+    expect(liveEvidence.operatingSystem.pnpmValidationProvenance).toContain('11.28.0');
+    expect(liveEvidence.operatingSystem.pnpmValidationProvenance).toContain(
+      'identical .eext SHA-256',
+    );
+    expect(liveEvidence.sourceIdentity.exactPrHead).toBe(source.records[0]?.server.commit);
   });
 
   it('does not use unsupported env syntax fences in VitePress documentation', () => {
