@@ -79,6 +79,13 @@ function validateCompatibilityRecord({ record, sensitivePaths }) {
   if (!COMMIT_RE.test(record.server?.commit ?? '')) {
     return `Compatibility evidence record ${record.id} must reference a full Git commit.`;
   }
+  if (
+    typeof record.reviewBy !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(record.reviewBy) ||
+    !Number.isFinite(Date.parse(`${record.reviewBy}T23:59:59.999Z`))
+  ) {
+    return `Compatibility evidence record ${record.id} must have a valid reviewBy date.`;
+  }
   return validateCompatibilitySnapshot({
     snapshot: record.server?.compatibilitySnapshot,
     sensitivePaths,
@@ -478,6 +485,14 @@ function compareAvailableEvidence({
 }
 
 function inspectRecord({ record, gitBinary, root, headCommit, paths, dirtyFiles }) {
+  if (Date.parse(`${record.reviewBy}T23:59:59.999Z`) < Date.now()) {
+    return recordResult({
+      record,
+      status: 'stale',
+      changedFiles: [],
+      reason: `Live compatibility evidence review expired on ${record.reviewBy}.`,
+    });
+  }
   const recordedSnapshot = record.server.compatibilitySnapshot;
   const headTrees = recordedSnapshot
     ? resolveSensitivePathTrees({ gitBinary, root, commit: headCommit, paths })

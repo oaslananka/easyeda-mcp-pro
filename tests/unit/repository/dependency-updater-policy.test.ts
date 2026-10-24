@@ -15,6 +15,7 @@ interface RenovatePackageRule {
   matchManagers?: string[];
   matchDepTypes?: string[];
   matchUpdateTypes?: string[];
+  matchJsonata?: string[];
   automerge?: boolean;
 }
 
@@ -63,9 +64,27 @@ describe('dependency updater ownership', () => {
           rule.matchUpdateTypes?.length === 1 &&
           rule.matchUpdateTypes[0] === 'patch' &&
           rule.automerge === true &&
-          !rule.matchDepTypes,
+          !rule.matchDepTypes &&
+          !rule.matchJsonata?.includes('isVulnerabilityAlert = true'),
       ),
     ).toBe(false);
+  });
+
+  it('automerge permits vulnerability patches only, leaving security minor/major updates manual', () => {
+    const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig & {
+      automergeStrategy?: string;
+      automergeType?: string;
+    };
+    expect(config.automergeType).toBe('pr');
+    expect(config.automergeStrategy).toBe('squash');
+    const rule = config.packageRules?.find((entry) =>
+      entry.matchJsonata?.includes('isVulnerabilityAlert = true'),
+    );
+    expect(rule).toMatchObject({
+      matchManagers: ['npm'],
+      matchUpdateTypes: ['patch'],
+      automerge: true,
+    });
   });
 
   it('documents hosted Renovate activation without hard-coding a dashboard issue number', () => {

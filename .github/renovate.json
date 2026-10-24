@@ -8,6 +8,8 @@
   "prConcurrentLimit": 3,
   "prHourlyLimit": 1,
   "osvVulnerabilityAlerts": true,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
   "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
   "lockFileMaintenance": {
@@ -80,6 +82,13 @@
       "automerge": false,
       "rebaseWhen": "never",
       "recreateWhen": "never"
+    },
+    {
+      "description": "Automerge only npm security patch updates after required checks pass",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch"],
+      "matchJsonata": ["isVulnerabilityAlert = true"],
+      "automerge": true
     }
   ]
 }

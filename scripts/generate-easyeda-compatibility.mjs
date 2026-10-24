@@ -93,12 +93,6 @@ function validateSource(source) {
       reviewWindowMs <= source.reviewPolicyDays * 24 * 60 * 60 * 1000,
       `${record.id} review window exceeds ${source.reviewPolicyDays} days`,
     );
-    const today = new Date();
-    const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-    assert(
-      Date.parse(`${record.reviewBy}T23:59:59.999Z`) >= todayUtc,
-      `${record.id} compatibility evidence expired on ${record.reviewBy}`,
-    );
     assert(
       Array.isArray(record.capabilities) && record.capabilities.length > 0,
       `${record.id} needs capabilities`,

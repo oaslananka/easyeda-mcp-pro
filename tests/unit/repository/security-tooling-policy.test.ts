@@ -110,7 +110,21 @@ describe('repository security tooling policy', () => {
     expect(workspace).toContain('trustPolicy: no-downgrade');
     expect(workspace).toContain('trustLockfile: false');
     expect(workspace).toContain('blockExoticSubdeps: true');
-    expect(workspace).toContain('body-parser: 2.3.0');
+    // Prevent regressions to vulnerable overrides without rejecting later patched releases.
+    const bodyParserMatch = workspace.match(/^ {2}body-parser: (\d+)\.(\d+)\.(\d+)$/m);
+    expect(bodyParserMatch).not.toBeNull();
+    const [, bodyParserMajor, bodyParserMinor, bodyParserPatch] = bodyParserMatch ?? [];
+    expect(Number(bodyParserMajor)).toBe(2);
+    expect(
+      Number(bodyParserMinor) > 4 ||
+        (Number(bodyParserMinor) === 4 && Number(bodyParserPatch) >= 0),
+    ).toBe(true);
+    const fastUriMatch = workspace.match(/^ {2}fast-uri: (\d+)\.(\d+)\.(\d+)$/m);
+    expect(fastUriMatch).not.toBeNull();
+    const [, fastUriMajor, fastUriMinor, fastUriPatch] = fastUriMatch ?? [];
+    expect(Number(fastUriMajor)).toBe(3);
+    expect(Number(fastUriMinor)).toBe(1);
+    expect(Number(fastUriPatch)).toBeGreaterThanOrEqual(9);
     const lockfile = readText('pnpm-lock.yaml');
     expect(lockfile).toContain(`'@hono/node-server@${major}.${minor}.${patch}':`);
     expect(lockfile).not.toContain("'@hono/node-server@1.19.14':");

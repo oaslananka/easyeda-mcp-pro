@@ -81,9 +81,8 @@ describe('EasyEDA compatibility evidence policy', () => {
           Date.parse(`${record.validatedAt.slice(0, 10)}T00:00:00.000Z`)) /
         (24 * 60 * 60 * 1000);
       expect(reviewWindowDays).toBeLessThanOrEqual(source.reviewPolicyDays);
-      expect(Date.parse(`${record.reviewBy}T23:59:59.999Z`)).toBeGreaterThanOrEqual(
-        Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()),
-      );
+      // Expired historical records remain valid evidence of past tests;
+      // the release-readiness gate decides whether evidence is still fresh.
       expect(record.environment.operatingSystem).not.toMatch(/TBD|unknown/i);
       expect(record.environment.architecture).not.toMatch(/TBD|unknown/i);
       expect(record.environment.kernel).not.toMatch(/TBD|unknown/i);
