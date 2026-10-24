@@ -20,7 +20,7 @@
     <img src="https://img.shields.io/npm/l/easyeda-mcp-pro.svg" alt="license" />
   </a>
   <a href="https://pnpm.io/">
-    <img src="https://img.shields.io/badge/pnpm-11.28.0-blue.svg" alt="pnpm" />
+    <img src="https://img.shields.io/badge/pnpm-11.28.8-blue.svg" alt="pnpm" />
   </a>
 </p>
 
@@ -131,7 +131,7 @@ The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling re
 ## Prerequisites
 
 - **Node.js**: Node.js 24.x is required; repository automation is pinned to **24.21.0**.
-- **pnpm**: local development and automation require exactly **11.28.0**.
+- **pnpm**: local development and automation require exactly **11.28.8**.
 
 Prepare the supported runtime before installing dependencies:
 
@@ -139,7 +139,7 @@ Prepare the supported runtime before installing dependencies:
 nvm install 24.21.0
 nvm use 24.21.0
 corepack enable
-corepack prepare pnpm@11.28.0 --activate
+corepack prepare pnpm@11.28.8 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 
@@ -812,7 +812,7 @@ qualified human review before purchase, fabrication, or assembly.
 ### Prerequisites
 
 - **Node.js**: Node.js 24.x is required; repository automation is pinned to **24.21.0**.
-- **pnpm**: local development and automation require exactly **11.28.0**.
+- **pnpm**: local development and automation require exactly **11.28.8**.
 
 Prepare the supported runtime before installing dependencies:
 
@@ -820,7 +820,7 @@ Prepare the supported runtime before installing dependencies:
 nvm install 24.21.0
 nvm use 24.21.0
 corepack enable
-corepack prepare pnpm@11.28.0 --activate
+corepack prepare pnpm@11.28.8 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 

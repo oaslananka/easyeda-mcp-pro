@@ -6,13 +6,13 @@ Welcome! We appreciate your contributions to `easyeda-mcp-pro`. Please review th
 
 ## 1. Local Development Setup
 
-Use Node.js **24.x** (pinned development version **24.21.0**) and exactly **pnpm 11.28.0**. The repository fails before install/build/test when these runtimes drift.
+Use Node.js **24.x** (pinned development version **24.21.0**) and exactly **pnpm 11.28.8**. The repository fails before install/build/test when these runtimes drift.
 
 ```bash
 nvm install 24.21.0
 nvm use 24.21.0
 corepack enable
-corepack prepare pnpm@11.28.0 --activate
+corepack prepare pnpm@11.28.8 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 
