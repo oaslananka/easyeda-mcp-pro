@@ -12,9 +12,9 @@ distlib==0.4.3 \
     --hash=sha256:4b0ce306c966eb73bc3a7b6abad017c556dadd92c44701562cd528ac7fde4d5b \
     --hash=sha256:f152097224a0ae24be5a0f6bae1b9359af82133bce63f98a95f86cae1aede9ed
     # via virtualenv
-filelock==3.32.0 \
-    --hash=sha256:7be2ad23a14607ccc71808e68fe30848aeace7058ace17852f68e2a68e310402 \
-    --hash=sha256:d396bea984af47333ef05e50eae7eff88c84256de6112aea0ec48a233c064fe3
+filelock==4.2.4 \
+    --hash=sha256:301241438c57936ef93f4243a94f2559022268bfcf9b375a9a72eb0f8db8358e \
+    --hash=sha256:c6d8663535e1650ee430507b4ffbac7b464dd64b7647ea0112a9f406499d163d
     # via
     #   python-discovery
     #   virtualenv
@@ -117,7 +117,7 @@ pyyaml==6.0.3 \
     --hash=sha256:fa160448684b4e94d80416c0fa4aac48967a969efe22931448d853ada8baf926 \
     --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
     # via pre-commit
-virtualenv==21.14.12 \
-    --hash=sha256:7820aeaef23f1f59a96458edfc7f9d3deac937155718de15f1c9a64471e15551 \
-    --hash=sha256:bbcfb78e36c22ad70c6917c4aecb5e63477d3c138e9f88c946f320e31859c76a
+virtualenv==21.14.13 \
+    --hash=sha256:5fbb04138a4861580b78ba9110d529a26bc48fcc93c8ec36bc0202eeed96a788 \
+    --hash=sha256:de5307ba4b9a0001d9c8ea02832d38f63ca432880f416c1bface61c4323fd905
     # via pre-commit
