@@ -82,6 +82,13 @@ function validateSource(source) {
     );
     validateCompatibilitySnapshot(record, source.releaseGate.sensitivePaths);
     assert(Number.isFinite(Date.parse(record.validatedAt)), `${record.id} validatedAt is invalid`);
+    const reviewDay = Date.parse(`${record.reviewBy}T00:00:00.000Z`);
+    assert(
+      /^\d{4}-\d{2}-\d{2}$/.test(record.reviewBy) &&
+        Number.isFinite(reviewDay) &&
+        new Date(reviewDay).toISOString().slice(0, 10) === record.reviewBy,
+      `${record.id} reviewBy is not a valid UTC date`,
+    );
     assert(
       Date.parse(record.reviewBy) > Date.parse(record.validatedAt),
       `${record.id} reviewBy must follow validation`,

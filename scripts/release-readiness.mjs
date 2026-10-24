@@ -82,7 +82,8 @@ function validateCompatibilityRecord({ record, sensitivePaths }) {
   if (
     typeof record.reviewBy !== 'string' ||
     !/^\d{4}-\d{2}-\d{2}$/.test(record.reviewBy) ||
-    !Number.isFinite(Date.parse(`${record.reviewBy}T23:59:59.999Z`))
+    !Number.isFinite(Date.parse(`${record.reviewBy}T23:59:59.999Z`)) ||
+    new Date(`${record.reviewBy}T00:00:00.000Z`).toISOString().slice(0, 10) !== record.reviewBy
   ) {
     return `Compatibility evidence record ${record.id} must have a valid reviewBy date.`;
   }
@@ -611,7 +612,13 @@ export async function inspectCompatibilityFreshness({
     reason = 'Required live compatibility evidence is current.';
   } else if (records.some((record) => record.status === 'stale')) {
     status = 'stale';
-    reason = 'Compatibility-sensitive files changed after live evidence.';
+    reason = records.some(
+      (record) =>
+        record.status === 'stale' &&
+        record.reason.startsWith('Live compatibility evidence review expired'),
+    )
+      ? 'Live compatibility evidence review expired; see record-level reasons for other blockers.'
+      : 'Compatibility-sensitive files changed after live evidence.';
   }
 
   return {

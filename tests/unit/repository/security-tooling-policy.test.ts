@@ -123,8 +123,9 @@ describe('repository security tooling policy', () => {
     expect(fastUriMatch).not.toBeNull();
     const [, fastUriMajor, fastUriMinor, fastUriPatch] = fastUriMatch ?? [];
     expect(Number(fastUriMajor)).toBe(3);
-    expect(Number(fastUriMinor)).toBe(1);
-    expect(Number(fastUriPatch)).toBeGreaterThanOrEqual(9);
+    expect(
+      Number(fastUriMinor) > 1 || (Number(fastUriMinor) === 1 && Number(fastUriPatch) >= 9),
+    ).toBe(true);
     const lockfile = readText('pnpm-lock.yaml');
     expect(lockfile).toContain(`'@hono/node-server@${major}.${minor}.${patch}':`);
     expect(lockfile).not.toContain("'@hono/node-server@1.19.14':");
