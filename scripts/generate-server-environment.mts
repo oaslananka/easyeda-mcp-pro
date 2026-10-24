@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { format, resolveConfig } from 'prettier';
 import { EnvSchema, getEnvironmentVariableNames } from '../src/config/env.js';
 import {
@@ -62,7 +63,10 @@ export async function generateServerEnvironmentMetadata({
     ...prettierConfig,
     filepath: serverPath,
   });
-  const changed = generatedText !== currentText;
+  // Release Please may serialize equivalent JSON with a different array layout.
+  // Keep --check strict about values, not whitespace; generation still normalizes the file.
+  const metadataChanged = !isDeepStrictEqual(generatedServer, currentServer);
+  const changed = check ? metadataChanged : generatedText !== currentText;
 
   if (check && changed) {
     throw new Error(

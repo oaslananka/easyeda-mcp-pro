@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { EnvSchema, getEnvironmentVariableNames } from '../../../src/config/env.js';
+import { generateServerEnvironmentMetadata } from '../../../scripts/generate-server-environment.mts';
 import {
   applyRegistryEnvironmentVariables,
   buildRegistryEnvironmentVariables,
@@ -149,6 +151,43 @@ describe('MCP Registry environment metadata', () => {
     const once = applyRegistryEnvironmentVariables(serverJson, generated);
     const twice = applyRegistryEnvironmentVariables(once, generated);
     expect(serializeServerJson(twice)).toBe(serializeServerJson(once));
+  });
+
+  it('accepts release-generated JSON formatting while rejecting actual metadata drift', async () => {
+    const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'easyeda-metadata-parity-'));
+    try {
+      fs.mkdirSync(path.join(fixtureRoot, 'config'));
+      fs.copyFileSync(
+        path.join(root, 'config', 'environment-metadata.json'),
+        path.join(fixtureRoot, 'config', 'environment-metadata.json'),
+      );
+      const original = fs.readFileSync(path.join(root, 'server.json'), 'utf8');
+      const releaseFormatted = `${JSON.stringify(JSON.parse(original), null, 2)}\n`;
+      expect(releaseFormatted).not.toBe(original);
+      const fixtureServerPath = path.join(fixtureRoot, 'server.json');
+      fs.writeFileSync(fixtureServerPath, releaseFormatted);
+
+      const result = await generateServerEnvironmentMetadata({
+        check: true,
+        repositoryRoot: fixtureRoot,
+      });
+      expect(result.changed).toBe(false);
+
+      const edited = JSON.parse(releaseFormatted) as {
+        packages: Array<{ environmentVariables: Array<{ name: string; default?: string }> }>;
+      };
+      const logLevel = edited.packages[0]?.environmentVariables.find(
+        (variable) => variable.name === 'LOG_LEVEL',
+      );
+      if (!logLevel) throw new Error('Expected LOG_LEVEL metadata in test fixture.');
+      logLevel.default = 'incorrect-release-default';
+      fs.writeFileSync(fixtureServerPath, JSON.stringify(edited, null, 2));
+      await expect(
+        generateServerEnvironmentMetadata({ check: true, repositoryRoot: fixtureRoot }),
+      ).rejects.toThrow('server.json environmentVariables are stale');
+    } finally {
+      fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    }
   });
 
   it('wires the deterministic parity check into repository metadata verification', () => {
