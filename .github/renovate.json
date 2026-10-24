@@ -84,10 +84,10 @@
       "recreateWhen": "never"
     },
     {
-      "description": "Automerge only npm security patch updates after required checks pass",
+      "description": "Automerge npm override patch updates only after required GitHub checks pass; minor and major overrides remain manual",
       "matchManagers": ["npm"],
+      "matchDepTypes": ["overrides"],
       "matchUpdateTypes": ["patch"],
-      "matchJsonata": ["isVulnerabilityAlert = true"],
       "automerge": true
     }
   ]

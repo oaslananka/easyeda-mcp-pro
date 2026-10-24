@@ -15,7 +15,6 @@ interface RenovatePackageRule {
   matchManagers?: string[];
   matchDepTypes?: string[];
   matchUpdateTypes?: string[];
-  matchJsonata?: string[];
   automerge?: boolean;
 }
 
@@ -64,27 +63,38 @@ describe('dependency updater ownership', () => {
           rule.matchUpdateTypes?.length === 1 &&
           rule.matchUpdateTypes[0] === 'patch' &&
           rule.automerge === true &&
-          !rule.matchDepTypes &&
-          !rule.matchJsonata?.includes('isVulnerabilityAlert = true'),
+          !rule.matchDepTypes,
       ),
     ).toBe(false);
   });
 
-  it('automerge permits vulnerability patches only, leaving security minor/major updates manual', () => {
+  it('automerge is limited to npm override patch updates, leaving minor/major overrides manual', () => {
     const config = JSON.parse(readFileSync(renovateConfigPath, 'utf8')) as RenovateConfig & {
       automergeStrategy?: string;
       automergeType?: string;
     };
     expect(config.automergeType).toBe('pr');
     expect(config.automergeStrategy).toBe('squash');
-    const rule = config.packageRules?.find((entry) =>
-      entry.matchJsonata?.includes('isVulnerabilityAlert = true'),
+    const rule = config.packageRules?.find(
+      (entry) =>
+        entry.matchManagers?.includes('npm') &&
+        entry.matchDepTypes?.includes('overrides') &&
+        entry.matchUpdateTypes?.includes('patch'),
     );
     expect(rule).toMatchObject({
       matchManagers: ['npm'],
+      matchDepTypes: ['overrides'],
       matchUpdateTypes: ['patch'],
       automerge: true,
     });
+    expect(
+      config.packageRules?.some(
+        (entry) =>
+          entry.matchDepTypes?.includes('overrides') &&
+          entry.automerge === true &&
+          entry.matchUpdateTypes?.some((type) => type === 'minor' || type === 'major'),
+      ),
+    ).toBe(false);
   });
 
   it('documents hosted Renovate activation without hard-coding a dashboard issue number', () => {
