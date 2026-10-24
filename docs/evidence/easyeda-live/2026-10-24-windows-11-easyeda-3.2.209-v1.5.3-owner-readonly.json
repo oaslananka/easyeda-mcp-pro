@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-24T13:34:08.553Z",
+  "candidateCommit": "79eedb6654adf77d7c0853ef061ccd89824d6170",
+  "version": "1.5.3",
+  "sourceIdentity": {
+    "exactPrHead": "79eedb6654adf77d7c0853ef061ccd89824d6170",
+    "sourceTrees": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "b264e58d9a61fd04b039d988a86492b5d13ef560",
+        "src/bridge": "5e74df8df8743b175026232fce12db0e7552e0c3",
+        "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+        "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+        "src/tools": "2f6968e0987db4f894c5f9f7346359e781656db5",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "operatingSystem": {
+    "name": "Windows 11 Pro",
+    "build": "10.0.26300",
+    "architecture": "x64",
+    "node": "24.20.0",
+    "pnpm": "11.28.3"
+  },
+  "editor": {
+    "nativeRuntimeVersion": "3.2.209",
+    "installedManifestVersion": "3.2.209.8a704eab",
+    "vendorElectronBuild": "v41.2.1-jlc-sa-win-x64.6"
+  },
+  "extension": {
+    "version": "1.5.3",
+    "loaderVersion": "1.5.3",
+    "activeDispatcherBuildId": "d3d10x0a00xb05a",
+    "methodCount": 72,
+    "methodSurfaceHash": "2341626d16d93145",
+    "bridgeProtocolVersion": "1.0.0",
+    "packageSha256": "3ef1228c4a3ebb6cc7beadc3f96c8a2127797f800cbfa007b5e3c162dddca8ab",
+    "packageSizeBytes": 203258
+  },
+  "scenario": {
+    "transport": "local loopback WebSocket 127.0.0.1:49620",
+    "fullEditorProcessRestarted": true,
+    "nativeExtensionImportedThroughManager": true,
+    "extensionExternalInteractionEnabled": true,
+    "fixture": "Disposable Windows 11 project, native UUID withheld",
+    "writes": 0,
+    "liveOwnerParity": true,
+    "nativeIdentity": true,
+    "readOnlySmokeChecksPassed": 6,
+    "positivePcbReads": 5,
+    "wrongProjectUuidDenials": 5,
+    "readTotals": {
+      "components": 33,
+      "fills": 4,
+      "regions": 0,
+      "tracks": 98,
+      "vias": 0
+    },
+    "ownerRestart": {
+      "passed": true,
+      "nativeEditorReconnectedAutomatically": true,
+      "positiveComponents": 33,
+      "wrongUuidDenied": true
+    },
+    "sqliteQuickCheckBefore": "ok",
+    "sqliteQuickCheckAfter": "ok",
+    "projectArchiveSha256Unchanged": true,
+    "mismatchedOldServerGuard": {
+      "observed": true,
+      "oldServerVersion": "1.5.2",
+      "newExtensionVersion": "1.5.3",
+      "bomGenerateDenied": true
+    }
+  },
+  "knownLimitations": [
+    "Windows 11 EasyEDA Pro 3.2.209 only; no independent Linux or macOS native GUI acceptance for v1.5.3.",
+    "Read-only native scenarios; no project save, PCB/schematic mutation, copper rebuild, export or rollback of a native write was exercised. #480 remains fail-closed.",
+    "No hosted relay/OAuth or production publish; package identity was built from the exact release PR source and publication remains subject to protected CI and release gates.",
+    "The older v1.5.2 local bridge owner was stopped after confirming only the native editor client; the test used an isolated temporary v1.5.3 owner and re-established native connection after a restart.",
+    "The bridge status reports contract 1.0.0, not package SemVer. Live loader and extension identity both report 1.5.3. Method registry mismatch flag was false; follower did not expose raw extension registry digest.",
+    "The editor is linked to a personal account; project names, login details, tokens, native project UUID and local paths are not recorded."
+  ],
+  "evidenceLinks": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/748"]
+}

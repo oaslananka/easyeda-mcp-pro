@@ -1,8 +1,117 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-10-23",
+  "lastReviewed": "2026-10-24",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-windows-11-x64-2026-10-24-v1-5-3-owner-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-10-24T13:34:08.553Z",
+      "reviewBy": "2027-01-21",
+      "environment": {
+        "operatingSystem": "Microsoft Windows 11 Pro (10.0.26300)",
+        "architecture": "x64",
+        "kernel": "Windows NT 10.0.26300",
+        "nodeVersion": "24.20.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "41.2.1",
+        "chromiumVersion": "146.0.7680.188"
+      },
+      "server": {
+        "validationPackageVersion": "1.5.3",
+        "releaseContainingFixes": "1.5.3",
+        "commit": "79eedb6654adf77d7c0853ef061ccd89824d6170",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "b264e58d9a61fd04b039d988a86492b5d13ef560",
+            "src/bridge": "5e74df8df8743b175026232fce12db0e7552e0c3",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "2f6968e0987db4f894c5f9f7346359e781656db5",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.5.3",
+        "loaderReportedVersion": "1.5.3",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "2341626d16d93145",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "3ef1228c4a3ebb6cc7beadc3f96c8a2127797f800cbfa007b5e3c162dddca8ab",
+        "packageSizeBytes": 203258
+      },
+      "fixture": {
+        "project": "Disposable live Windows 11 PCB test fixture (UUID withheld)",
+        "pcb": "Focused native PCB and schematic documents",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v153-native-install-and-restart",
+          "name": "Exact-source v1.5.3 native Extension Manager import, full editor restart, loader parity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "EasyEDA Pro 3.2.209 native Extension Manager confirmed v1.5.3 Enabled and external interaction checked; full editor restart, v1.5.3 server/loader/extension and baked dispatcher build d3d10x0a00xb05a observed.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/748"]
+        },
+        {
+          "id": "v153-six-readonly-smoke",
+          "name": "Read-only native system/schematic/BOM/ERC acceptance",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Live smoke: system.getStatus, system.apiInventory, schematic.listNets, schematic.listComponents, bom.generate and design.erc passed (6/6) with disposable Schematic1 focused. No native writes.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/748"]
+        },
+        {
+          "id": "v153-five-pcb-positive-reads",
+          "name": "Five PCB native UUID-verified list operations",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Native DMT_Project.getCurrentProjectInfo and DMT_SelectControl.getCurrentDocumentInfo agreed on focused PCB; components 33, fills 4, regions 0, tracks 98, vias 0.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/748"]
+        },
+        {
+          "id": "v153-five-wrong-uuid-denials",
+          "name": "Five wrong-project UUID fail-closed denials",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "All five PCB list methods rejected an intentionally incorrect project UUID. No mismatched project data was returned and no write occurred.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/748"]
+        },
+        {
+          "id": "v153-owner-restart-and-preservation",
+          "name": "Controlled v1.5.3 owner restart and read-only project preservation",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Restarted temporary v1.5.3 bridge owner; native editor reconnected. Correct UUID component count stayed 33, wrong UUID still denied, SQLite quick_check ok and two project archive SHA-256 values unchanged.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/748"]
+        },
+        {
+          "id": "v153-version-mismatch-guard",
+          "name": "Mismatched v1.5.3 extension versus v1.5.2 server guard",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "Prior to server upgrade the older v1.5.2 owner refused bom.generate due to extension version mismatch; full native writes were not attempted.",
+          "limitation": "Guard observation was restricted to one method and no mutation was attempted.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/748"]
+        }
+      ],
+      "knownLimitations": [
+        "Windows 11 EasyEDA Pro 3.2.209 only; no independent Linux or macOS native GUI acceptance for v1.5.3.",
+        "Read-only native scenarios; no project save, PCB/schematic mutation, copper rebuild, export or rollback of a native write was exercised. #480 remains fail-closed.",
+        "No hosted relay/OAuth or production publish; package identity was built from the exact release PR source and publication remains subject to protected CI and release gates.",
+        "The older v1.5.2 local bridge owner was stopped after confirming only the native editor client; the test used an isolated temporary v1.5.3 owner and re-established native connection after a restart.",
+        "The bridge status reports contract 1.0.0, not package SemVer. Live loader and extension identity both report 1.5.3. Method registry mismatch flag was false; follower did not expose raw extension registry digest.",
+        "The editor is linked to a personal account; project names, login details, tokens, native project UUID and local paths are not recorded."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-1-owner-readonly",
       "status": "live-validated",
