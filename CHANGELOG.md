@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.3...easyeda-mcp-pro-v1.5.4) (2026-10-24)
+
+
+### Bug Fixes
+
+* **deps:** apply reviewed production patch updates ([#757](https://github.com/oaslananka/easyeda-mcp-pro/issues/757)) ([1eab8e9](https://github.com/oaslananka/easyeda-mcp-pro/commit/1eab8e90cfcfad0eb0c7fc6ddfdfd3378bd8b62c))
+* **release:** compare registry metadata semantically ([#762](https://github.com/oaslananka/easyeda-mcp-pro/issues/762)) ([954b059](https://github.com/oaslananka/easyeda-mcp-pro/commit/954b059844f35b3c89de826fe81650ddc3bc7448))
+* **runtime:** update Node 24 LTS security release ([#767](https://github.com/oaslananka/easyeda-mcp-pro/issues/767)) ([09b6b02](https://github.com/oaslananka/easyeda-mcp-pro/commit/09b6b0228e731c09180bd20e6f0127376e60c223))
+
 ## [1.5.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.2...easyeda-mcp-pro-v1.5.3) (2026-10-24)
 
 
