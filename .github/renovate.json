@@ -26,7 +26,7 @@
     },
     {
       "matchManagers": ["npm"],
-      "matchDepTypes": ["overrides"],
+      "matchDepTypes": ["overrides", "pnpm-workspace.overrides"],
       "rebaseWhen": "conflicted",
       "automerge": false
     },
@@ -84,10 +84,11 @@
       "recreateWhen": "never"
     },
     {
-      "description": "Automerge npm override patch updates only after required GitHub checks pass; minor and major overrides remain manual",
+      "description": "Automerge pnpm-workspace override patches only after required checks pass; repair pnpm lockfile peers after updates",
       "matchManagers": ["npm"],
-      "matchDepTypes": ["overrides"],
+      "matchDepTypes": ["pnpm-workspace.overrides"],
       "matchUpdateTypes": ["patch"],
+      "postUpdateOptions": ["pnpmDedupe"],
       "automerge": true
     }
   ]
