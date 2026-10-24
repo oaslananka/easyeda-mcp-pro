@@ -343,7 +343,7 @@ describe('repository security tooling policy', () => {
     expect(workflow).toContain('actions/setup-node@820762786026740c76f36085b0efc47a31fe5020');
     expect(workflow).toContain('actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a');
     expect(workflow).toContain('persist-credentials: false');
-    expect(workflow).toContain("node-version: '24.21.0'");
+    expect(workflow).toContain("node-version: '24.22.1'");
     expect(workflow).toContain('run: pnpm runtime:check');
     expect(workflow).toContain('package-manager-cache: false');
     expect(workflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
@@ -479,7 +479,7 @@ describe('repository security tooling policy', () => {
     expect(dockerfile).toContain('rm -rf /usr/local/lib/node_modules/npm');
     expect(dockerfile).toContain('/usr/local/lib/node_modules/corepack');
     expect(dockerfile).toContain(
-      'apk add --no-cache --upgrade libcrypto3=3.5.8-r0 libssl3=3.5.8-r0',
+      'apk add --no-cache --upgrade libcrypto3=3.5.9-r0 libssl3=3.5.9-r0',
     );
     expect(dockerfile).toContain('USER node');
   });

@@ -42,7 +42,7 @@ If you receive errors like `Bridge not connected` during tool execution:
 
 ## 3. Node.js Version Error
 
-The MCP server supports Node.js **24.x**. Repository automation is pinned to **24.21.0**, and local pnpm workflows require exactly **11.28.0**.
+The MCP server supports Node.js **24.x**. Repository automation is pinned to **24.22.1**, and local pnpm workflows require exactly **11.28.0**.
 
 If you see compilation or runtime errors:
 
@@ -50,8 +50,8 @@ If you see compilation or runtime errors:
 2. Restore the pinned toolchain:
 
    ```bash
-   nvm install 24.21.0
-   nvm use 24.21.0
+   nvm install 24.22.1
+   nvm use 24.22.1
    corepack enable
    corepack prepare pnpm@11.28.0 --activate
    node scripts/check-runtime.mjs --require-pnpm
@@ -59,6 +59,6 @@ If you see compilation or runtime errors:
 
 3. Use `nvm` or your platform package manager to update:
    ```bash
-   nvm install 24.21.0
-   nvm use 24.21.0
+   nvm install 24.22.1
+   nvm use 24.22.1
    ```

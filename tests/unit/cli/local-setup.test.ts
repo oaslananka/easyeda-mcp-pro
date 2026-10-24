@@ -141,7 +141,7 @@ describe('local setup CLI helpers', () => {
   });
 
   it('accepts only Node 24 and exact pnpm 11.28.0 for repository automation', () => {
-    expect(evaluateNodeRuntime('24.21.0')).toMatchObject({ supported: true });
+    expect(evaluateNodeRuntime('24.22.1')).toMatchObject({ supported: true });
     expect(evaluateNodeRuntime('24.99.0')).toMatchObject({ supported: true });
     expect(evaluateNodeRuntime('23.11.1')).toMatchObject({ supported: false });
     expect(evaluateNodeRuntime('26.0.0')).toMatchObject({ supported: false });
@@ -226,12 +226,12 @@ describe('local setup CLI helpers', () => {
           platform: 'linux',
           unitPath,
           executableExists: () => true,
-          readNodeVersion: async () => '24.21.0',
+          readNodeVersion: async () => '24.22.1',
         }),
       ).resolves.toMatchObject({
         installed: true,
         nodePath: '/runtime/node',
-        nodeVersion: '24.21.0',
+        nodeVersion: '24.22.1',
         nodeSupported: true,
         issues: [],
       });
@@ -312,12 +312,12 @@ describe('local setup CLI helpers', () => {
     };
     const supported = await inspectUserServiceRuntime({
       ...base,
-      readNodeVersion: async () => '24.21.0',
+      readNodeVersion: async () => '24.22.1',
     });
     expect(supported).toMatchObject({
       nodePath: '/home/test/node 24/bin/node',
       nodePathExists: true,
-      nodeVersion: '24.21.0',
+      nodeVersion: '24.22.1',
       nodeSupported: true,
       issues: [],
     });
@@ -462,7 +462,7 @@ describe('local setup CLI helpers', () => {
     const output = formatDoctorReport(report, { fix: true });
 
     expect(output).toContain('Suggested fixes:');
-    expect(output).toContain('nvm install 24.21.0 && nvm use 24.21.0');
+    expect(output).toContain('nvm install 24.22.1 && nvm use 24.22.1');
     expect(output).toContain('corepack prepare pnpm@11.28.0 --activate');
     expect(output).toContain('Fix: set/correct BRIDGE_PORT: Expected number, received string');
     expect(output).toContain('pnpm build');
@@ -534,7 +534,7 @@ describe('local setup CLI helpers', () => {
         serverEntryExists: true,
         extensionPackageExists: true,
       },
-      nodeVersion: '24.21.0',
+      nodeVersion: '24.22.1',
       nodeSupported: true,
       pnpmVersion: '11.28.0',
       pnpmSupported: true,
@@ -828,7 +828,7 @@ describe('local setup CLI helpers', () => {
           serverEntryExists: true,
           extensionPackageExists: true,
         },
-        nodeVersion: '24.21.0',
+        nodeVersion: '24.22.1',
         nodeSupported: true,
         pnpmVersion: '11.28.0',
         pnpmSupported: true,
