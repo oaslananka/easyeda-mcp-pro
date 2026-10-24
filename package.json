@@ -144,7 +144,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@codspeed/vitest-plugin": "^6.0.1",
+    "@codspeed/vitest-plugin": "^6.1.0",
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/client": "^2.2.0",
     "@types/express": "^5.0.6",
@@ -152,7 +152,7 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^10.6.0",
-    "fast-check": "4.9.0",
+    "fast-check": "4.10.2",
     "globals": "^17.7.0",
     "prettier": "^3.9.4",
     "tsx": "^4.22.4",
