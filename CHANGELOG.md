@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.2...easyeda-mcp-pro-v1.5.3) (2026-10-24)
+
+
+### Bug Fixes
+
+* **deps:** unblock security updates and enforce live evidence expiry ([#747](https://github.com/oaslananka/easyeda-mcp-pro/issues/747)) ([742e9ee](https://github.com/oaslananka/easyeda-mcp-pro/commit/742e9ee66d7264f8f74a832479aaa7399f63819d))
+
 ## [1.5.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.1...easyeda-mcp-pro-v1.5.2) (2026-10-23)
 
 
