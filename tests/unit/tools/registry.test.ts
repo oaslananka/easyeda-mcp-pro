@@ -941,6 +941,34 @@ describe('ToolRegistry', () => {
     expect(bridgeCall).not.toHaveBeenCalled();
   });
 
+  it('forwards an optional maxDepth of easyeda_api_call to the bridge', async () => {
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const tool = registry.get('easyeda_api_call');
+    const bridgeCall = vi.fn().mockResolvedValue({ path: 'PCB_Drc.check', result: [] });
+    const context = {
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall },
+      config: { bridgeTimeoutMs: 1000, artifactDir: '.easyeda-mcp-pro/artifacts' },
+    } as unknown as ToolContext;
+
+    await tool?.handler(context, { path: 'PCB_Drc.getCurrentRuleConfiguration', args: [] });
+    await tool?.handler(context, {
+      path: 'PCB_Drc.getCurrentRuleConfiguration',
+      args: [],
+      maxDepth: 10,
+    });
+
+    expect(bridgeCall).toHaveBeenNthCalledWith(1, 'api.call', {
+      path: 'PCB_Drc.getCurrentRuleConfiguration',
+      args: [],
+    });
+    expect(bridgeCall).toHaveBeenNthCalledWith(2, 'api.call', {
+      path: 'PCB_Drc.getCurrentRuleConfiguration',
+      args: [],
+      maxDepth: 10,
+    });
+  });
+
   it('should intercept "Bridge not connected" errors and return friendly error content', async () => {
     const tool = createMockTool('test_bridge_fail');
     tool.handler = async () => {

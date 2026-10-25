@@ -46,6 +46,18 @@ describe('system API operations', () => {
     expect(dependencies.callAllowedApi).toHaveBeenCalledWith('SCH_PrimitiveWire.getAll', ['a', 2]);
   });
 
+  it('forwards an optional result depth', async () => {
+    const dependencies = createDependencies();
+    const operations = createSystemApiOperations(dependencies);
+
+    await operations.apiCall({ path: 'PCB_Drc.check', args: [true, false, true], maxDepth: 10 });
+    expect(dependencies.callAllowedApi).toHaveBeenCalledWith(
+      'PCB_Drc.check',
+      [true, false, true],
+      10,
+    );
+  });
+
   it('preserves api.execute validation, eda injection, and normalized result shape', async () => {
     const dependencies = createDependencies();
     const operations = createSystemApiOperations(dependencies);

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createApiRuntime, type BridgeErrorFactory } from '../src/api-runtime.js';
+import {
+  clampApiResultDepth,
+  createApiRuntime,
+  type BridgeErrorFactory,
+} from '../src/api-runtime.js';
 import type { DispatcherToolkit } from '../src/toolkit.js';
 
 function bridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
@@ -101,6 +105,29 @@ describe('EasyEDA API runtime', () => {
       total: 1,
     });
     expect(runtime.inspectApiInventory()).toMatchObject({ total: 2 });
+  });
+
+  it('cuts results at the default depth and returns deeper levels on request', async () => {
+    const roots = mutableRoots();
+    const nested = { a: { b: { c: { d: { e: { f: { g: 'leaf' } } } } } } };
+    roots.setEda({ SCH_Service: { read: () => nested } });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+
+    const cut = JSON.stringify(await runtime.callAllowedApi('SCH_Service.read', []));
+    expect(cut).toContain('[MaxDepth]');
+    expect(cut).not.toContain('leaf');
+
+    const full = JSON.stringify(await runtime.callAllowedApi('SCH_Service.read', [], 12));
+    expect(full).toContain('leaf');
+    expect(full).not.toContain('[MaxDepth]');
+  });
+
+  it('keeps the requested depth within 1..16', () => {
+    expect(clampApiResultDepth(undefined)).toBe(5);
+    expect(clampApiResultDepth(2.5)).toBe(5);
+    expect(clampApiResultDepth(0)).toBe(1);
+    expect(clampApiResultDepth(99)).toBe(16);
+    expect(clampApiResultDepth(10)).toBe(10);
   });
 
   it('authorizes API calls, binds the receiver, and normalizes the result', async () => {

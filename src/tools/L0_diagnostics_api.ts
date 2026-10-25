@@ -18,6 +18,15 @@ const apiCallInputSchema = z.object({
       'Positional EasyEDA API arguments. For documented IPCB_Polygon parameters on PCB_PrimitiveRegion/Pour/Fill/Polyline create or modify and PCB_PrimitiveImage.create, pass {$polygon: [...]} or {$complexPolygon: [[...], ...]}; serialized __class/__methods descriptors are rejected.',
     ),
   confirmWrite: z.boolean().default(false),
+  maxDepth: z
+    .number()
+    .int()
+    .min(1)
+    .max(16)
+    .optional()
+    .describe(
+      'Nesting depth of the returned result (default 5); deeper levels come back as "[MaxDepth]". DRC details (PCB_Drc.check with details) need about 8.',
+    ),
 });
 
 const writeMethodPattern =
@@ -330,7 +339,7 @@ function registerDiagnosticsApi(
       requires_confirmation: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { path, args, confirmWrite } = apiCallInputSchema.parse(params);
+      const { path, args, confirmWrite, maxDepth } = apiCallInputSchema.parse(params);
       if (requiresWriteConfirmation(path) && !confirmWrite) {
         return {
           ok: false,
@@ -341,7 +350,10 @@ function registerDiagnosticsApi(
       }
 
       try {
-        const result = await ctx.bridge.call('api.call', { path, args });
+        const result = await ctx.bridge.call(
+          'api.call',
+          maxDepth === undefined ? { path, args } : { path, args, maxDepth },
+        );
         const data = result as { path?: string; resolvedPath?: string; result?: unknown };
         if (isEmptyCreateResult(path, data.result)) {
           return {

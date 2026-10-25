@@ -24,11 +24,21 @@ type ApiCandidate = {
   root: unknown;
 };
 
+/** Nesting depth of api.call results; deeper levels come back as "[MaxDepth]". */
+export const DEFAULT_API_RESULT_DEPTH = 5;
+export const MAX_API_RESULT_DEPTH = 16;
+
+export function clampApiResultDepth(depth: unknown): number {
+  return typeof depth === 'number' && Number.isInteger(depth)
+    ? Math.min(Math.max(depth, 1), MAX_API_RESULT_DEPTH)
+    : DEFAULT_API_RESULT_DEPTH;
+}
+
 export interface ApiRuntime {
   callFirst(paths: readonly string[], ...args: unknown[]): Promise<unknown>;
   readFirstPath<T>(paths: readonly string[]): T | undefined;
   inspectApiInventory(filter?: string): JsonValue;
-  callAllowedApi(path: string, args: readonly unknown[]): Promise<unknown>;
+  callAllowedApi(path: string, args: readonly unknown[], maxDepth?: number): Promise<unknown>;
 }
 
 export function createApiRuntime(
@@ -196,7 +206,11 @@ export function createApiRuntime(
     };
   }
 
-  async function callAllowedApi(path: string, args: readonly unknown[]): Promise<unknown> {
+  async function callAllowedApi(
+    path: string,
+    args: readonly unknown[],
+    maxDepth = DEFAULT_API_RESULT_DEPTH,
+  ): Promise<unknown> {
     if (!isAllowedApiPath(path)) {
       throw createBridgeError(
         'UNAUTHORIZED',
@@ -218,7 +232,7 @@ export function createApiRuntime(
         return {
           path,
           resolvedPath: `${candidate.name}.${candidatePath}`,
-          result: normalizeValue(result, 5),
+          result: normalizeValue(result, clampApiResultDepth(maxDepth)),
         };
       }
     }
