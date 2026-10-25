@@ -61,6 +61,18 @@ export function createExportOperations({
   }
 
   async function exportPdf(params: Record<string, unknown>): Promise<unknown> {
+    if (params.what === 'schematic') {
+      // callFirst would reach PCB_ManufactureData.getPdfFile first, which always exists. The schematic export is
+      // SCH_ManufactureData.getExportDocumentFile(fileName?, fileType); it exports the active schematic.
+      return normalizeBinaryResult(
+        await callFirst(
+          ['SCH_ManufactureData.getExportDocumentFile'],
+          typeof params.fileName === 'string' ? params.fileName : undefined,
+          'PDF',
+        ),
+        'schematic.pdf',
+      );
+    }
     return normalizeBinaryResult(
       await callFirst(
         ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
