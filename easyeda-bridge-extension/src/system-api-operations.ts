@@ -222,10 +222,11 @@ export function createSystemApiOperations(
 ): SystemApiOperations {
   return {
     async apiCall(params) {
-      return dependencies.callAllowedApi(
-        typeof params.path === 'string' ? params.path : '',
-        Array.isArray(params.args) ? params.args : [],
-      );
+      const path = typeof params.path === 'string' ? params.path : '';
+      const args = Array.isArray(params.args) ? params.args : [];
+      return typeof params.maxDepth === 'number'
+        ? dependencies.callAllowedApi(path, args, params.maxDepth)
+        : dependencies.callAllowedApi(path, args);
     },
 
     async apiExecute(params) {
