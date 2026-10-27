@@ -690,7 +690,7 @@ describe('loadFeatureFlags', () => {
 
     expect(loadFeatureFlags(config)).toEqual({
       mcpTasksEnabled: false,
-      mcpAppsEnabled: false,
+      mcpAppsEnabled: true,
       mcpV2Experimental: true,
       jlcpcbOrderingEnabled: true,
       jlcsearchEnabled: true,

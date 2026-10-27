@@ -22,6 +22,8 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 # Copy tsconfig and source directories
 COPY tsconfig.json tsconfig.build.json ./
 COPY scripts/ ./scripts/
+COPY apps/ ./apps/
+COPY skills/ ./skills/
 COPY src/ ./src/
 COPY easyeda-bridge-extension/ ./easyeda-bridge-extension/
 

@@ -35,14 +35,14 @@ describe('diagnostics feature reporting', () => {
   it('keeps reserved flags ineffective while reporting the experimental MCP v2 flag', () => {
     expect(buildCapabilityFeatureFlags(config)).toEqual({
       tasks_enabled: false,
-      apps_enabled: false,
+      apps_enabled: true,
       v2_experimental: true,
       ordering_enabled: true,
     });
 
     expect(buildServerConfigFeatureFlags(config)).toEqual({
       mcp_tasks_enabled: false,
-      mcp_apps_enabled: false,
+      mcp_apps_enabled: true,
       mcp_v2_experimental: true,
       ai_enabled: false,
       otel_enabled: false,
@@ -52,7 +52,7 @@ describe('diagnostics feature reporting', () => {
   it('keeps implemented and experimental flags explicit in the detailed view', () => {
     expect(buildDetailedFeatureFlags(config)).toEqual({
       mcp_tasks_enabled: false,
-      mcp_apps_enabled: false,
+      mcp_apps_enabled: true,
       mcp_v2_experimental: true,
       jlcpcb_ordering_enabled: true,
       jlcsearch_enabled: true,

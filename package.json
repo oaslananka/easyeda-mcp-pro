@@ -56,7 +56,7 @@
     "dev:hotloop": "BRIDGE_HOT_SWAP_ENABLED=true BRIDGE_HOT_SWAP_WATCH=easyeda-bridge-extension/dist/dispatcher.js TOOL_PROFILE=dev tsx watch src/index.ts",
     "clean": "node scripts/clean.mjs",
     "prebuild": "pnpm runtime:check && node scripts/sync-versions.mjs",
-    "build": "pnpm clean && tsc -p tsconfig.build.json",
+    "build": "pnpm clean && tsc -p tsconfig.build.json && pnpm build:apps",
     "build:extension": "pnpm --filter @easyeda-mcp-pro/bridge-extension build",
     "setup:local": "pnpm build && pnpm build:extension && node dist/index.js --setup-local",
     "doctor": "pnpm build && node dist/index.js --doctor",
@@ -132,9 +132,11 @@
     "check:environment-metadata": "tsx scripts/generate-server-environment.mts --check",
     "lint:server": "eslint src tests vitest.config.ts --max-warnings 0",
     "lint:extension": "eslint easyeda-bridge-extension/src easyeda-bridge-extension/tests easyeda-bridge-extension/scripts --max-warnings 0",
-    "lint:scripts": "eslint scripts skills eslint.config.js --max-warnings 0"
+    "lint:scripts": "eslint scripts skills eslint.config.js --max-warnings 0",
+    "build:apps": "node scripts/build-mcp-apps.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.3",
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
     "dotenv": "^17.4.2",
@@ -152,6 +154,7 @@
     "@types/node": "^24.13.2",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.12",
+    "esbuild": "0.28.2",
     "eslint": "^10.6.0",
     "fast-check": "4.10.2",
     "globals": "^17.7.0",

@@ -130,10 +130,10 @@
     },
     {
       "name": "MCP_APPS_ENABLED",
-      "description": "Reserved; currently non-functional: parsed for compatibility, but no MCP Apps UI or resource runtime is registered.",
+      "description": "Experimental; enables sandboxed read-only MCP Apps project review UI; off by default.",
       "format": "boolean",
       "defaultSource": "runtime",
-      "status": "reserved"
+      "status": "experimental"
     },
     {
       "name": "MCP_SKILLS_ENABLED",

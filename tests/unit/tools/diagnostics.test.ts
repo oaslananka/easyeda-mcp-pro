@@ -280,14 +280,14 @@ describe('Diagnostics Tools', () => {
     const flags = await configuredRegistry.get('easyeda_get_feature_flags')?.handler(context, {});
     expect(flags?.flags).toMatchObject({
       mcp_tasks_enabled: false,
-      mcp_apps_enabled: false,
+      mcp_apps_enabled: true,
       mcp_v2_experimental: true,
       ai_enabled: false,
       otel_enabled: false,
     });
     expect(flags?.maturity).toMatchObject({
       mcp_tasks: { maturity: 'reserved', configured: true, effective: false },
-      mcp_apps: { maturity: 'reserved', configured: true, effective: false },
+      mcp_apps: { maturity: 'experimental', configured: true, effective: true },
       mcp_v2: { maturity: 'experimental', configured: true, effective: true },
       ai_provider: { maturity: 'reserved', configured: true, effective: false },
       otel_export: { maturity: 'reserved', configured: true, effective: false },

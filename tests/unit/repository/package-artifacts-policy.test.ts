@@ -306,6 +306,7 @@ describe('package artifact policy', () => {
   it('requires every runtime and legal artifact in the npm pack file list', () => {
     const complete = [
       'package/dist/index.js',
+      'package/dist/apps/project-review.html',
       'package/easyeda-bridge-extension.eext',
       'package/easyeda-bridge-extension.checksums.json',
       'package/README.md',
@@ -317,6 +318,12 @@ describe('package artifact policy', () => {
     ];
 
     expect(verifyPackedFileList(complete)).toEqual({ ok: true, errors: [] });
+    expect(
+      verifyPackedFileList(complete.filter((path) => !path.endsWith('project-review.html'))),
+    ).toEqual({
+      ok: false,
+      errors: ['npm pack output is missing required file: package/dist/apps/project-review.html'],
+    });
     expect(verifyPackedFileList([...complete, 'package/dist/router/astar.js'])).toEqual({
       ok: false,
       errors: [
