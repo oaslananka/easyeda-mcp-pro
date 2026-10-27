@@ -47,6 +47,17 @@ Cross-tenant task existence is never disclosed. This adapter is NOT used by the
 production factory and does not advertise a Tasks capability; no task producer
 or production durable worker exists. MCP_TASKS_ENABLED remains reserved and ineffective.
 
+## Multi-process lease and fencing substrate (staging only)
+
+The isolated task-leases module maintains an additional SQLite WAL table for
+worker ownership using unpredictable tokens and atomic transactions.
+Independent SQLite connections cannot hold the same unexpired lease, and an
+expired or superseded worker cannot renew, complete or release the newer lease.
+Commit requires the latest unexpired token and a current uncancelled,
+authorized-owner task, checked atomically. Expired work may be marked failed
+without replay; there is NO production worker or lease management integration
+yet and MCP_TASKS_ENABLED stays reserved/inactive. No native design writes.
+
 ## Verified-OAuth scope policy staging (not wired)
 
 The isolated task-authorization module derives a non-reversible owner key from
