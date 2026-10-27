@@ -1,7 +1,8 @@
+import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/client';
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { REVIEW_URI } from '../../../src/server/apps.js';
 
 const tsx = resolve('node_modules/tsx/dist/cli.mjs');
@@ -56,6 +57,15 @@ async function runAppCase(modern: boolean, enabled: boolean) {
 }
 
 describe('MCP Apps sandboxed review process interoperability', () => {
+  // CI runs unit tests before package:prepare. Build the test asset from source
+  // rather than relying on an ignored dist directory from a developer machine.
+  beforeAll(() => {
+    execFileSync(process.execPath, [resolve('scripts/build-mcp-apps.mjs')], {
+      cwd: process.cwd(),
+      stdio: 'pipe',
+    });
+  });
+
   it('serves a sandboxed review view on MCP 2026-07-28', async () => {
     await runAppCase(true, true);
   }, 35_000);
