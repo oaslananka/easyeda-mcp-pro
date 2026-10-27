@@ -7,7 +7,7 @@ adds support for MCP `2026-07-28`. Modern HTTP and stdio are opt-in behind `MCP_
 
 | Area                  | Current repository behavior                                            |
 | --------------------- | ---------------------------------------------------------------------- |
-| MCP SDK               | Modular v2 packages; server/node lock to `2.0.0`, client is test-only  |
+| MCP SDK               | Modular v2 packages; server `2.4.0`; node `2.1.2`, client is test-only |
 | Default MCP revision  | `2025-11-25`                                                           |
 | HTTP era              | Legacy/sessionful by default; dual-era when `MCP_V2_EXPERIMENTAL=true` |
 | HTTP initialization   | `initialize` followed by `notifications/initialized`                   |
@@ -39,11 +39,11 @@ The official TypeScript SDK v2 line exposes the two eras through different lifec
 - client negotiation: `versionNegotiation`, with legacy as the default unless modern behavior is
   explicitly selected.
 
-Research baseline on 2026-08-09: the stable v2 packages
-`@modelcontextprotocol/server`, `@modelcontextprotocol/client`, `@modelcontextprotocol/node`, and
-`@modelcontextprotocol/core` are published at `2.0.0`. The repository now resolves the direct
-server/node SDK packages to `2.0.0` in the lockfile and keeps the client package test-only. This
-provides the modular SDK foundation used by the opt-in modern HTTP and stdio paths.
+As of 2026-10-28, the modular SDK uses server 2.4.0, node 2.1.2 and client 2.4.0 (tests only).
+This supports both protocol eras behind the existing opt-in switch. Skills over MCP is offered
+separately behind MCP_SKILLS_ENABLED=true, currently for two packaged read-oriented workflows.
+The SDK SkillsExtension.attach API is still experimental; neither modern-default migration
+nor legacy deprecation is implied.
 
 Primary references:
 

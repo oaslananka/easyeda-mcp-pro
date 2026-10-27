@@ -33,6 +33,8 @@
   },
   "files": [
     "dist",
+    "skills/design-validation",
+    "skills/easyeda-component-review",
     "easyeda-bridge-extension.eext",
     "easyeda-bridge-extension.checksums.json",
     "README.md",

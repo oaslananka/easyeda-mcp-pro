@@ -193,6 +193,7 @@ describe('EnvSchema', () => {
       'HTTP_AUTH_DISABLED',
       'MCP_TASKS_ENABLED',
       'MCP_APPS_ENABLED',
+      'MCP_SKILLS_ENABLED',
       'MCP_V2_EXPERIMENTAL',
       'MCP_RAW_EXEC_EXPERIMENTAL',
       'EASYEDA_DEV_BRIDGE',

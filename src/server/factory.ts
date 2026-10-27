@@ -21,6 +21,7 @@ import { startHotSwapWatcher } from '../bridge/hotswap-watcher.js';
 import { registerBuiltinTools } from '../tools/register.js';
 import { registerProjectResourcesAndPrompts } from './resources-prompts.js';
 import { RemoteGateway } from '../remote/gateway.js';
+import { maybeLoadBundledSkills } from './skills.js';
 
 import { LcscClient } from '../vendors/lcsc/client.js';
 import { JlcpcbClient } from '../vendors/jlcpcb/client.js';
@@ -177,6 +178,9 @@ export async function createServer(
     storage,
   };
 
+  // Load and validate packaged skills before accepting new MCP connections.
+  const skillCatalog = await maybeLoadBundledSkills(config.MCP_SKILLS_ENABLED);
+
   const createSessionServer = (): McpServer => {
     const sessionServer = new McpServer(
       {
@@ -195,6 +199,7 @@ export async function createServer(
 
     registry.registerAllOnServer(sessionServer, context);
     registerProjectResourcesAndPrompts(sessionServer, context);
+    skillCatalog?.attach(sessionServer);
     sessionServer.server.onerror = (error) => {
       logger.error({ err: error }, 'server error');
     };

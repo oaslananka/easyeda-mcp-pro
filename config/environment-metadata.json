@@ -136,6 +136,13 @@
       "status": "reserved"
     },
     {
+      "name": "MCP_SKILLS_ENABLED",
+      "description": "Experimental; serves packaged read-oriented Skills over MCP; off by default.",
+      "format": "boolean",
+      "defaultSource": "runtime",
+      "status": "experimental"
+    },
+    {
       "name": "MCP_V2_EXPERIMENTAL",
       "description": "Experimental; enables opt-in dual-era HTTP and stdio support for MCP 2026-07-28 while legacy behavior remains the default.",
       "format": "boolean",

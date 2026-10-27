@@ -103,3 +103,12 @@ Do not infer support from the existence of an environment-variable name or from 
 ## Safety
 
 EasyEDA MCP Pro is an engineering assistant, not a manufacturing sign-off authority. DRC, ERC, BOM, sourcing, export artifacts, and all generated changes require human engineering review.
+
+## Experimental Skills over MCP
+
+Set MCP_SKILLS_ENABLED=true to publish packaged design-validation and
+easyeda-component-review skills through skills/list, skills/get and
+resources/directory/read. Off by default while the SDK attachment API is
+experimental. Only two audited, bundled directories are served; the server
+never accepts an arbitrary user-specified folder. Skill instructions do not
+grant CAD write permission or override MCP tool approvals.

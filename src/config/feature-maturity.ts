@@ -12,6 +12,7 @@ export interface FeatureMaturityEntry {
 export interface FeatureMaturityReport {
   mcp_tasks: FeatureMaturityEntry;
   mcp_apps: FeatureMaturityEntry;
+  mcp_skills: FeatureMaturityEntry;
   mcp_v2: FeatureMaturityEntry;
   ai_provider: FeatureMaturityEntry;
   otel_export: FeatureMaturityEntry;
@@ -39,6 +40,12 @@ export function getFeatureMaturity(config: EnvConfig): FeatureMaturityReport {
       configured: config.MCP_APPS_ENABLED,
       effective: false,
       note: 'The setting is reserved; no MCP Apps UI/resource runtime is registered.',
+    },
+    mcp_skills: {
+      maturity: 'experimental',
+      configured: config.MCP_SKILLS_ENABLED,
+      effective: config.MCP_SKILLS_ENABLED,
+      note: 'Publishes two bundled read-oriented Skills using experimental SDK attachment; default off.',
     },
     mcp_v2: {
       maturity: 'experimental',

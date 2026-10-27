@@ -59,6 +59,7 @@ const EnvObjectSchema = z.object({
 
   MCP_TASKS_ENABLED: envBoolean().default(false),
   MCP_APPS_ENABLED: envBoolean().default(false),
+  MCP_SKILLS_ENABLED: envBoolean().default(false),
   MCP_V2_EXPERIMENTAL: envBoolean().default(false),
   MCP_RAW_EXEC_EXPERIMENTAL: envBoolean().default(false),
 
