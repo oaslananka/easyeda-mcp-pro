@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EasyEDA Read-Only Review</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        color-scheme: light dark;
+      }
+      body {
+        padding: 18px;
+        margin: 0;
+        background: transparent;
+      }
+      h1 {
+        font-size: 1.2rem;
+      }
+      h2 {
+        font-size: 1rem;
+      }
+      small,
+      .muted {
+        opacity: 0.76;
+      }
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      button {
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      pre {
+        max-height: 350px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        border: 1px solid currentColor;
+        border-radius: 8px;
+        padding: 12px;
+        opacity: 0.91;
+      }
+      section {
+        margin-top: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>EasyEDA — read-only project review</h1>
+    <p class="muted">
+      All data is requested from the existing MCP tools and stays subject to their normal scope,
+      project ID and Remote Relay gates. No CAD writes are available from this view.
+    </p>
+    <p id="project">Project: waiting for MCP host</p>
+    <nav>
+      <button id="bom" disabled>BOM</button>
+      <button id="pcb" disabled>PCB components</button>
+      <button id="erc" disabled>ERC</button>
+    </nav>
+    <section>
+      <h2 id="result-title">Report</h2>
+      <pre id="report" aria-live="polite">Waiting for host</pre>
+    </section>
+    <!-- BUNDLED_APP -->
+  </body>
+</html>

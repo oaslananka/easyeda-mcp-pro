@@ -112,3 +112,15 @@ resources/directory/read. Off by default while the SDK attachment API is
 experimental. Only two audited, bundled directories are served; the server
 never accepts an arbitrary user-specified folder. Skill instructions do not
 grant CAD write permission or override MCP tool approvals.
+
+## Experimental MCP Apps read-only dashboard
+
+MCP_APPS_ENABLED=true opts into a self-contained, sandboxed MCP Apps UI via
+easyeda_readonly_project_review_app. The resource is ui://easyeda/read-only-project-review.
+The app tool itself only echoes an explicitly selected native project ID; its UI
+requests BOM, PCB component listing or ERC from the existing MCP tools only after
+the user selects a report. Those tools still validate scope, project identity,
+Remote Relay authentication and other policy. No CAD write, export or new direct
+bridge operation is exposed. Older clients ignore the optional UI metadata;
+the flag remains false by default. Hosts without MCP Apps support can continue
+to use all standard MCP tools.

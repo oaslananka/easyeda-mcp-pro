@@ -22,6 +22,7 @@ import { registerBuiltinTools } from '../tools/register.js';
 import { registerProjectResourcesAndPrompts } from './resources-prompts.js';
 import { RemoteGateway } from '../remote/gateway.js';
 import { maybeLoadBundledSkills } from './skills.js';
+import { registerReadonlyAppIfEnabled } from './apps.js';
 
 import { LcscClient } from '../vendors/lcsc/client.js';
 import { JlcpcbClient } from '../vendors/jlcpcb/client.js';
@@ -200,6 +201,7 @@ export async function createServer(
     registry.registerAllOnServer(sessionServer, context);
     registerProjectResourcesAndPrompts(sessionServer, context);
     skillCatalog?.attach(sessionServer);
+    registerReadonlyAppIfEnabled(sessionServer, config.MCP_APPS_ENABLED);
     sessionServer.server.onerror = (error) => {
       logger.error({ err: error }, 'server error');
     };

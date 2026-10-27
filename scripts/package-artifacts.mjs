@@ -22,6 +22,7 @@ const FORBIDDEN_PACKED_PREFIXES = ['package/dist/router/'];
 const REQUIRED_PACKED_FILES = [
   'package/package.json',
   'package/dist/index.js',
+  'package/dist/apps/project-review.html',
   'package/easyeda-bridge-extension.eext',
   'package/easyeda-bridge-extension.checksums.json',
   'package/README.md',
@@ -51,6 +52,7 @@ const PACKAGE_SOURCE_ENTRIES = [
   'LICENSE',
   'THIRD_PARTY_NOTICES.md',
   'src',
+  'apps',
   'scripts',
   'easyeda-bridge-extension/package.json',
   'easyeda-bridge-extension/extension.json',

@@ -36,10 +36,10 @@ export function getFeatureMaturity(config: EnvConfig): FeatureMaturityReport {
       note: 'The setting is reserved; this server does not advertise or execute MCP Tasks.',
     },
     mcp_apps: {
-      maturity: 'reserved',
+      maturity: 'experimental',
       configured: config.MCP_APPS_ENABLED,
-      effective: false,
-      note: 'The setting is reserved; no MCP Apps UI/resource runtime is registered.',
+      effective: config.MCP_APPS_ENABLED,
+      note: 'Optional sandboxed read-only project review UI; data uses existing policy-enforced MCP tools.',
     },
     mcp_skills: {
       maturity: 'experimental',

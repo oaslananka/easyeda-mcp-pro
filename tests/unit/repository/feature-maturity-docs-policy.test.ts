@@ -7,7 +7,6 @@ const read = (path: string) => readFileSync(resolve(repoRoot, path), 'utf8').rep
 
 const reservedNames = [
   'MCP_TASKS_ENABLED',
-  'MCP_APPS_ENABLED',
   'AI_PROVIDER',
   'AI_MODEL',
   'AI_API_KEY',
