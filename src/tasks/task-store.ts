@@ -197,6 +197,25 @@ export class DurableTaskStore {
     );
   }
 
+  fail(ownerId: string, taskId: string, reason: 'execution_failed' | 'execution_timeout'): boolean {
+    requireOwner(ownerId);
+    // Do not persist arbitrary errors: exception messages may contain secrets.
+    const message =
+      reason === 'execution_timeout'
+        ? 'The task exceeded its execution deadline.'
+        : 'The read-only task could not be completed.';
+    return (
+      this.db
+        .prepare(
+          [
+            "UPDATE mcp_task_state_v1 SET status='failed', error_message=?, updated_ms=?",
+            "WHERE task_id=? AND owner_id=? AND status='working' AND cancel_requested=0 AND expires_ms>?",
+          ].join(' '),
+        )
+        .run(message, this.clock(), taskId, ownerId, this.clock()).changes === 1
+    );
+  }
+
   requestCancel(ownerId: string, taskId: string): boolean {
     requireOwner(ownerId);
     return (

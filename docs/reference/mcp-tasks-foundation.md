@@ -16,17 +16,26 @@ The internal DurableTaskStore provides a SQLite WAL task-state substrate:
   fail-interrupted-on-restart recovery. No process-memory-only task IDs.
 - Cancel/complete races never overwrite terminal results.
 
-CRITICAL: No MCP Tasks wire handlers, task-aware tool interception or worker
-are registered yet. MCP_TASKS_ENABLED remains reserved and ineffective.
-The state store is not imported by the runtime; it MUST NOT be described as
-working asynchronous tool execution or as crash-resumable work. The future
-wire adapter must derive owner identity from already validated OAuth or the
-local trusted session, enforce client capability opt-in, validate per-tool
-scopes on create and all task requests, and account for Remote Relay approvals.
-It also needs end-to-end modern protocol conformance tests, durable worker
-ownership and cross-process recovery semantics before exposing this gate.
+CRITICAL: No MCP Tasks handlers, task-aware tool interception or worker
+are registered in the production runtime. MCP_TASKS_ENABLED remains reserved
+and ineffective. Testable, isolated protocol polling and executor modules
+exist, but neither is imported by the factory. They MUST NOT be described as
+working production asynchronous execution or crash-resumable work. The future
+adapter must derive identity from validated OAuth or a trusted local session,
+check tool scopes and relay approvals, and implement durable worker leases,
+crash recovery and cross-OS modern protocol acceptance before exposing the gate.
 Never allow a background worker to perform native CAD design writes without
 fresh explicit authorization, transaction preview and readback.
+
+## Read-only executor substrate (staging only, 2026-10-28)
+
+A separate single-process task runner first commits a bounded durable task
+record, then schedules only allowlisted read-oriented work with a test-injected
+executor, concurrency/queue limits, timeout and owner-scoped cancellation.
+Arbitrary exception details are never stored because they may include secrets.
+The runner is NOT registered in the product and has no cross-process lease or
+crash-resume. MCP_TASKS_ENABLED stays reserved; authorization, relay routing,
+worker-ownership and end-to-end integration remain required before activation.
 
 ## 2026-07-28 Tasks protocol staging adapter
 
@@ -36,7 +45,7 @@ Each request must declare per-request Tasks capability and an injected validated
 principal whose current allowed operations include the original read-only task.
 Cross-tenant task existence is never disclosed. This adapter is NOT used by the
 production factory and does not advertise a Tasks capability; no task producer
-or durable worker exists. MCP_TASKS_ENABLED remains reserved and ineffective.
+or production durable worker exists. MCP_TASKS_ENABLED remains reserved and ineffective.
 
 ## Multi-process lease and fencing substrate (staging only)
 
