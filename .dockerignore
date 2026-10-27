@@ -26,6 +26,18 @@ scripts/**
 !scripts/clean.mjs
 !scripts/sync-versions.mjs
 !scripts/extension-metadata-policy.mjs
+!scripts/build-mcp-apps.mjs
+
+# Only audited read-oriented Skills and the read-only Apps bundle source.
+!apps/
+!apps/project-review.html
+!apps/project-review.ts
+!skills/
+skills/**
+!skills/design-validation/
+!skills/design-validation/**
+!skills/easyeda-component-review/
+!skills/easyeda-component-review/**
 !src/
 !src/**
 
