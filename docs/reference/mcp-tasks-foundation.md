@@ -46,3 +46,14 @@ principal whose current allowed operations include the original read-only task.
 Cross-tenant task existence is never disclosed. This adapter is NOT used by the
 production factory and does not advertise a Tasks capability; no task producer
 or production durable worker exists. MCP_TASKS_ENABLED remains reserved and ineffective.
+
+## Verified-OAuth scope policy staging (not wired)
+
+The isolated task-authorization module derives a non-reversible owner key from
+verified OAuth issuer, subject and client ID. It checks live enabled tool
+profile/side-effect metadata, both current OAuth and TOOL_SCOPES permissions,
+expiry, and the tool input Zod schema **before enqueueing**. Remote Relay is
+**denied**, not bypassed, until its existing session/grant policy can be passed
+through a real task dispatcher. An HTTP handler must obtain identity solely
+from the already-verified OAuth middleware, never from untrusted headers or
+caller-provided tokens. No product server imports this staging evaluator yet.
