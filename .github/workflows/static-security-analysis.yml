@@ -124,7 +124,7 @@ jobs:
         with:
           scan-type: 'config'
           scan-ref: '.'
-          version: 'v0.76.0'
+          version: 'v0.76.1'
           format: 'sarif'
           output: 'trivy-config.sarif'
           severity: 'HIGH,CRITICAL'

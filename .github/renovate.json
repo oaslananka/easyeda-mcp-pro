@@ -62,6 +62,12 @@
       "rebaseWhen": "conflicted"
     },
     {
+      "description": "The pnpm version is a repository-wide runtime contract, not an isolated Actions update",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["pnpm"],
+      "enabled": false
+    },
+    {
       "matchManagers": ["pre-commit"],
       "groupName": "pre-commit hook dependencies",
       "commitMessageTopic": "pre-commit-hooks",

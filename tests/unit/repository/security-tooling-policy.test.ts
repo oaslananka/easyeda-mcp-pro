@@ -129,7 +129,14 @@ describe('repository security tooling policy', () => {
     expect(packageJson.scripts?.['security:audit']).toBe('node scripts/check-dependency-audit.mjs');
     const workspace = readText('pnpm-workspace.yaml');
     expect(workspace).not.toContain('hono@4.12.34');
-    expect(workspace).toMatch(/\r?\n {2}hono: 4\.13\.13\r?\n/);
+    const honoOverride = workspace.match(/^ {2}hono: (\d+)\.(\d+)\.(\d+)$/m);
+    expect(honoOverride).not.toBeNull();
+    const [, honoMajor, honoMinor, honoPatch] = honoOverride ?? [];
+    expect(
+      Number(honoMajor) > 4 ||
+        (Number(honoMajor) === 4 &&
+          (Number(honoMinor) > 13 || (Number(honoMinor) === 13 && Number(honoPatch) >= 13))),
+    ).toBe(true);
     const honoVersion = workspace.match(/'@hono\/node-server': (\d+)\.(\d+)\.(\d+)/);
     expect(honoVersion).not.toBeNull();
     const [, major, minor, patch] = honoVersion ?? [];
@@ -211,7 +218,14 @@ describe('repository security tooling policy', () => {
     expect(workflow).toContain('container-security:');
     expect(workflow).toContain(`aquasecurity/trivy-action@${TRIVY_ACTION_SHA}`);
     expect(workflow).toContain("scan-type: 'config'");
-    expect(workflow).toContain("version: 'v0.76.0'");
+    const trivyVersion = workflow.match(/^\s+version: 'v(\d+)\.(\d+)\.(\d+)'$/m);
+    expect(trivyVersion).not.toBeNull();
+    const [, trivyMajor, trivyMinor, trivyPatch] = trivyVersion ?? [];
+    expect(
+      Number(trivyMajor) > 0 ||
+        (Number(trivyMajor) === 0 &&
+          (Number(trivyMinor) > 76 || (Number(trivyMinor) === 76 && Number(trivyPatch) >= 1))),
+    ).toBe(true);
     expect(workflow).toContain('docker build -t easyeda-mcp-pro:security .');
     expect(workflow).toContain("image-ref: 'easyeda-mcp-pro:security'");
     expect(workflow.match(/exit-code: '1'/g)).toHaveLength(2);

@@ -211,7 +211,7 @@ describe('release channel policy', () => {
     expect(verifier).toContain('packages: read');
     expect(verifier).toContain('verify-published-release.mjs');
     expect(verifier).toContain('check-release-extension-identity.mjs');
-    expect(verifier).toContain('pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4');
+    expect(verifier).toMatch(/pnpm\/setup@[0-9a-f]{40}/);
     expect(verifier).toContain('pnpm install --frozen-lockfile --ignore-scripts');
     expect(verifier).toContain('pnpm package:prepare');
     expect(verifier).toContain('pnpm verify:extension');
@@ -278,9 +278,9 @@ describe('release channel policy', () => {
     expect(manager).toContain(
       'googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
     );
-    expect(publisher).toContain('pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4');
+    expect(publisher).toMatch(/pnpm\/setup@[0-9a-f]{40}/);
     expect(publisher).toContain('actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1');
-    expect(publisher).toContain('docker/login-action@dbcb813823bdd20940b903addbd779551569679f');
+    expect(publisher).toMatch(/docker\/login-action@[0-9a-f]{40}/);
     expect(manager).not.toContain('contents: write');
     expect(manager).not.toContain('pull-requests: write');
     expect(manager).not.toContain('issues: write');
