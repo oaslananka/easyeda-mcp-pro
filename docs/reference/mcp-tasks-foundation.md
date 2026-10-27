@@ -27,3 +27,13 @@ It also needs end-to-end modern protocol conformance tests, durable worker
 ownership and cross-process recovery semantics before exposing this gate.
 Never allow a background worker to perform native CAD design writes without
 fresh explicit authorization, transaction preview and readback.
+
+## 2026-07-28 Tasks protocol staging adapter
+
+The isolated src/tasks/task-protocol.ts registers custom-schema handlers for
+three 2026-era polling operations: tasks/get, tasks/update, tasks/cancel.
+Each request must declare per-request Tasks capability and an injected validated
+principal whose current allowed operations include the original read-only task.
+Cross-tenant task existence is never disclosed. This adapter is NOT used by the
+production factory and does not advertise a Tasks capability; no task producer
+or durable worker exists. MCP_TASKS_ENABLED remains reserved and ineffective.
