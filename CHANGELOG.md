@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.5](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.4...easyeda-mcp-pro-v1.5.5) (2026-10-27)
+
+
+### Bug Fixes
+
+* **ci:** reconcile Renovate updates and remove CodSpeed ([#771](https://github.com/oaslananka/easyeda-mcp-pro/issues/771)) ([dc8aa2d](https://github.com/oaslananka/easyeda-mcp-pro/commit/dc8aa2d76744ccaedd8292ffd320461440c747f2))
+
 ## [1.5.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.3...easyeda-mcp-pro-v1.5.4) (2026-10-24)
 
 
