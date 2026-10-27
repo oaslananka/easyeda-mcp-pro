@@ -37,9 +37,6 @@
   <a href="https://scorecard.dev/viewer/?uri=github.com/oaslananka/easyeda-mcp-pro">
     <img src="https://api.scorecard.dev/projects/github.com/oaslananka/easyeda-mcp-pro/badge" alt="OpenSSF Scorecard" />
   </a>
-  <a href="https://app.codspeed.io/oaslananka/easyeda-mcp-pro?utm_source=badge">
-    <img src="https://img.shields.io/endpoint?url=https://codspeed.io/badge.json" alt="CodSpeed" />
-  </a>
 </p>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
