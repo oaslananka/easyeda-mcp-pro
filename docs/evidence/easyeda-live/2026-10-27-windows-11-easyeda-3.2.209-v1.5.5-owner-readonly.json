@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-27T20:06:51.268Z",
+  "candidateCommit": "d95e92b3ede3dbd2ccfb9e2faea783627abcf8f1",
+  "candidateVersion": "1.5.5",
+  "sourceIdentity": {
+    "algorithm": "git-tree-sha1",
+    "compatibilitySensitivePaths": {
+      "easyeda-bridge-extension/src": "f45b7f8b7f3b27d78188c4ad052e64c0a8cbb823",
+      "src/bridge": "5e74df8df8743b175026232fce12db0e7552e0c3",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "2f6968e0987db4f894c5f9f7346359e781656db5",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "operatingSystem": {
+    "name": "Windows 11 Pro",
+    "build": "10.0.26300",
+    "architecture": "x64",
+    "node": "24.22.1"
+  },
+  "editor": {
+    "version": "3.2.209.8a704eab",
+    "electronVersion": "41.2.1",
+    "vendorBuild": "v41.2.1-jlc-sa-win-x64.6"
+  },
+  "extension": {
+    "installedVersion": "1.5.5",
+    "loaderVersion": "1.5.5",
+    "bridgeVersion": "1.5.5",
+    "contractVersion": "1.0.0",
+    "dispatcherBuildId": "d3d10x0a00xb05a",
+    "capabilityCount": 72,
+    "methodRegistryHash": "2341626d16d93145",
+    "versionMismatch": false,
+    "registryMismatch": false,
+    "packageSha256": "1e7c2e0ff9ed5409839bbb852204c84bb0d8e2779b866b05c727be87a38d36e2",
+    "packageSizeBytes": 203256,
+    "artifactSource": "GitHub Actions PR #772 candidate CI artifact, also independently reproduced on AMD2700X"
+  },
+  "scenario": {
+    "nativeExtensionManagerImported": true,
+    "fullyExitedAndRestartedEditor": true,
+    "externalInteractionEnabled": true,
+    "transport": "127.0.0.1:49621 isolated local loopback",
+    "disposableFixture": true,
+    "focusedSchematicPage": "P1",
+    "focusedPcbDocument": "Board1/PCB1 (empty)",
+    "nativeProjectUuidWithheld": true,
+    "writes": 0,
+    "schematicAndSystemReadOnlyMethods": [
+      "system.getStatus",
+      "system.apiInventory",
+      "schematic.getSheetInfo",
+      "schematic.listNets",
+      "schematic.listComponents",
+      "bom.generate",
+      "design.erc"
+    ],
+    "systemAndSchematicPassed": 7,
+    "pcbReadOnlyMethods": [
+      "pcb.listComponents",
+      "pcb.listFills",
+      "pcb.listRegions",
+      "pcb.listTracks",
+      "pcb.listVias"
+    ],
+    "pcbPositivePassed": 5,
+    "pcbPositiveTotals": {
+      "components": 0,
+      "fills": 0,
+      "regions": 0,
+      "tracks": 0,
+      "vias": 0
+    },
+    "wrongProjectUuidDenials": 5,
+    "wrongProjectDataReturned": false,
+    "nativeDesignWriteAttempted": false,
+    "projectArchiveHashEqualityVerified": false
+  },
+  "knownLimitations": [
+    "Windows 11 EasyEDA Pro 3.2.209 only; no independent Linux or macOS native GUI acceptance was performed for 1.5.5.",
+    "This live acceptance is strictly read-only. No native design write/save, copper-zone rebuild, export, rollback after writes, or manufacturing verification was tested. Issue #480 remains fail-closed.",
+    "Focused PCB1 was empty: all five successful positive native PCB reads returned zero objects. Non-empty board counts and actual nonzero PCB-data results are not proven by this run.",
+    "No per-archive pre/post SHA-256 baseline was acquired. The test scripts issued read-only bridge operations only; persisted project-archive byte equality is not claimed.",
+    "The separate older 1.5.2 bridge owner was paused during acceptance; an isolated 1.5.5 owner bound 127.0.0.1:49621. After validation, the previous 1.5.3 extension was restored from its official SHA-verified GitHub Release asset and the old 1.5.2 owner was restarted on port 49620. This restores the pre-existing local version mismatch; no compatibility claim is made for that pairing.",
+    "Bridge system.getStatus reported hasDMT false while focused PCB read and native identity checks succeeded. No blanket assertion about all native API classes is made.",
+    "Source tree identity is from exact PR #772 head, not a published stable 1.5.5 tag; release promotion remains independently subject to required exact-head CI, security, packaging/provenance and publication gates.",
+    "Chromium 146.0.7680.188 is an upstream Electron 41.2.1 baseline, not a vendor-fork runtime measurement.",
+    "Project names, user account, native project UUID and local test paths are withheld from public evidence."
+  ],
+  "evidenceLinks": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/772"]
+}

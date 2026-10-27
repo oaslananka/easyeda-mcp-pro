@@ -202,7 +202,14 @@ describe('EasyEDA compatibility evidence policy', () => {
     expect(liveEvidence.operatingSystem.pnpmValidationProvenance).toContain(
       'identical .eext SHA-256',
     );
-    expect(liveEvidence.sourceIdentity.exactPrHead).toBe(source.records[0]?.server.commit);
+    // Historical v1.5.3 evidence must remain tied to its own record even when a
+    // newer validated runtime is prepended to the compatibility matrix.
+    const v153Record = source.records.find(
+      (record) =>
+        record.id === 'easyeda-pro-3-2-209-windows-11-x64-2026-10-24-v1-5-3-owner-readonly',
+    );
+    expect(v153Record).toBeDefined();
+    expect(liveEvidence.sourceIdentity.exactPrHead).toBe(v153Record?.server.commit);
   });
 
   it('does not use unsupported env syntax fences in VitePress documentation', () => {
