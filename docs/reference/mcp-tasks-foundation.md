@@ -27,3 +27,13 @@ It also needs end-to-end modern protocol conformance tests, durable worker
 ownership and cross-process recovery semantics before exposing this gate.
 Never allow a background worker to perform native CAD design writes without
 fresh explicit authorization, transaction preview and readback.
+
+## Read-only executor substrate (staging only, 2026-10-28)
+
+A separate single-process task runner first commits a bounded durable task
+record, then schedules only allowlisted read-oriented work with a test-injected
+executor, concurrency/queue limits, timeout and owner-scoped cancellation.
+Arbitrary exception details are never stored because they may include secrets.
+The runner is NOT registered in the product and has no cross-process lease or
+crash-resume. MCP_TASKS_ENABLED stays reserved; authorization, relay routing,
+worker-ownership and end-to-end integration remain required before activation.
