@@ -139,6 +139,36 @@ describe('local no-OAuth 2026 Tasks producer, staging only', () => {
     }
   });
 
+  it('sanitizes queue and database errors without leaking private data to the client', () => {
+    const f = fixture();
+    const submit = vi.spyOn(f.runner, 'submit').mockImplementation(() => {
+      throw new Error('internal-secret:paired-device-token=confidential');
+    });
+    try {
+      expect(() => f.call()).toThrowError(
+        expect.objectContaining({ code: ProtocolErrorCode.InternalError }),
+      );
+      try {
+        f.call();
+        throw new Error('Expected task rejection');
+      } catch (error) {
+        expect(String(error)).not.toContain('paired-device-token=confidential');
+        expect(String(error)).toContain('Read-only task unavailable');
+      }
+      const identity = resolveLocalStdioTaskPrincipal(
+        f.deps.session,
+        f.deps.config,
+        f.deps.registry,
+      )!;
+      expect(f.store.list(identity.ownerId)).toEqual([]);
+      expect(f.executed()).toBe(0);
+    } finally {
+      submit.mockRestore();
+      f.runner.stop();
+      f.store.close();
+    }
+  });
+
   it('denies legacy or missing Tasks opt-in before creating a task', () => {
     const f = fixture();
     try {

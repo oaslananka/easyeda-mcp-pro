@@ -54,6 +54,27 @@ function localPrincipal(deps: LocalTaskProducerDependencies) {
   return principal;
 }
 
+/**
+ * An unavailable durable store must never echo native or SQLite exception
+ * details to an MCP client. A missing record is never acknowledged.
+ */
+function enqueueReadOnlyTask(
+  deps: LocalTaskProducerDependencies,
+  principal: { ownerId: string; allowedOperations: ReadonlySet<SafeTaskOperation> },
+  operation: SafeTaskOperation,
+  arguments_: unknown,
+): TaskRecord | undefined {
+  try {
+    return deps.runner.submit(
+      { ownerId: principal.ownerId, authorizedOperations: principal.allowedOperations },
+      operation,
+      arguments_,
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 export function createLocalTaskFromToolCall(
   deps: LocalTaskProducerDependencies,
   input: z.infer<typeof toolCallParams>,
@@ -78,16 +99,8 @@ export function createLocalTaskFromToolCall(
   }
   // The SQLite insert/readback happen synchronously BEFORE returning a task
   // handle. The injected executor is never a native design write tool.
-  let task: TaskRecord;
-  try {
-    task = deps.runner.submit(
-      { ownerId: principal.ownerId, authorizedOperations: principal.allowedOperations },
-      operation,
-      arguments_,
-    );
-  } catch {
-    // Quotas, database IO or executor failures must never leak internal
-    // identifiers, arguments, or sensitive context to the MCP client.
+  const task = enqueueReadOnlyTask(deps, principal, operation, arguments_);
+  if (!task) {
     throw new ProtocolError(ProtocolErrorCode.InternalError, 'Read-only task unavailable');
   }
   return {
