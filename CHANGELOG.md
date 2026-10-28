@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.6.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.5...easyeda-mcp-pro-v1.6.0) (2026-10-28)
+
+
+### Features
+
+* **mcp:** bounded durable read-only Tasks runner substrate ([#779](https://github.com/oaslananka/easyeda-mcp-pro/issues/779)) ([bc060ec](https://github.com/oaslananka/easyeda-mcp-pro/commit/bc060ec4f9184e81514efa5c64852b7e89490262))
+* **mcp:** durable owner-scoped Tasks state foundation (not enabled) ([#777](https://github.com/oaslananka/easyeda-mcp-pro/issues/777)) ([798d6f9](https://github.com/oaslananka/easyeda-mcp-pro/commit/798d6f9ef7ec52bebecaad896a840769f6712106))
+* **mcp:** experimental packaged Skills over MCP pilot ([#774](https://github.com/oaslananka/easyeda-mcp-pro/issues/774)) ([bbcbd67](https://github.com/oaslananka/easyeda-mcp-pro/commit/bbcbd67600c0e3970d64c57849d22a6afea539c5))
+* **mcp:** opt-in sandboxed read-only project review App ([#776](https://github.com/oaslananka/easyeda-mcp-pro/issues/776)) ([9397079](https://github.com/oaslananka/easyeda-mcp-pro/commit/93970794179981f097032491d1260de7dd3dedf0))
+* **mcp:** stage authenticated Tasks polling protocol (not enabled) ([#778](https://github.com/oaslananka/easyeda-mcp-pro/issues/778)) ([68f96de](https://github.com/oaslananka/easyeda-mcp-pro/commit/68f96de730c36d990908eed30c158636cae3359a))
+* **mcp:** stage durable Tasks worker lease fencing ([#780](https://github.com/oaslananka/easyeda-mcp-pro/issues/780)) ([3fde90e](https://github.com/oaslananka/easyeda-mcp-pro/commit/3fde90e1a3ec4b5a74257f8783cef2beab51fd9a))
+* **mcp:** stage OAuth-free local Tasks creation and polling ([#784](https://github.com/oaslananka/easyeda-mcp-pro/issues/784)) ([2f4c270](https://github.com/oaslananka/easyeda-mcp-pro/commit/2f4c270849661e58299a1edd2fe39110810ac9dd))
+* **mcp:** stage OAuth-free trusted local stdio Tasks identity ([#783](https://github.com/oaslananka/easyeda-mcp-pro/issues/783)) ([88a921c](https://github.com/oaslananka/easyeda-mcp-pro/commit/88a921c4d513136537cd230b206f86a22164d93f))
+* **mcp:** stage read-only Tasks dispatch via ToolRegistry ([#782](https://github.com/oaslananka/easyeda-mcp-pro/issues/782)) ([53e251f](https://github.com/oaslananka/easyeda-mcp-pro/commit/53e251f8fc731c7037f88e87fe501218370693bb))
+* **mcp:** stage verified OAuth and read-only Tasks scope policy ([#781](https://github.com/oaslananka/easyeda-mcp-pro/issues/781)) ([f1420cf](https://github.com/oaslananka/easyeda-mcp-pro/commit/f1420cfd91d36bafc747a8c96b9143b7cbcca604))
+
+
+### Bug Fixes
+
+* **release:** report compatibility source drift before old evidence expiry ([#789](https://github.com/oaslananka/easyeda-mcp-pro/issues/789)) ([b94ac3c](https://github.com/oaslananka/easyeda-mcp-pro/commit/b94ac3c655d4f462c10ee4ed51d4062c9119318e))
+
 ## [1.5.5](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.4...easyeda-mcp-pro-v1.5.5) (2026-10-27)
 
 
