@@ -21,6 +21,7 @@ import {
   READ_ONLY_TASK_OPERATIONS,
   type DurableTaskStore,
   type SafeTaskOperation,
+  type TaskRecord,
 } from './task-store.js';
 
 // Testable, isolated 2026-07-28 tools/call producer; production intentionally
@@ -77,11 +78,18 @@ export function createLocalTaskFromToolCall(
   }
   // The SQLite insert/readback happen synchronously BEFORE returning a task
   // handle. The injected executor is never a native design write tool.
-  const task = deps.runner.submit(
-    { ownerId: principal.ownerId, authorizedOperations: principal.allowedOperations },
-    operation,
-    arguments_,
-  );
+  let task: TaskRecord;
+  try {
+    task = deps.runner.submit(
+      { ownerId: principal.ownerId, authorizedOperations: principal.allowedOperations },
+      operation,
+      arguments_,
+    );
+  } catch {
+    // Quotas, database IO or executor failures must never leak internal
+    // identifiers, arguments, or sensitive context to the MCP client.
+    throw new ProtocolError(ProtocolErrorCode.InternalError, 'Read-only task unavailable');
+  }
   return {
     resultType: 'task' as const,
     taskId: task.id,
