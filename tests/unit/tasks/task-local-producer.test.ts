@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { type McpServer } from '@modelcontextprotocol/server';
 import {
   CLIENT_CAPABILITIES_META_KEY,
   PROTOCOL_VERSION_META_KEY,
@@ -14,6 +15,7 @@ import {
 } from '../../../src/tasks/task-local-session.js';
 import {
   createLocalTaskFromToolCall,
+  registerStagedLocalTaskProducer,
   type LocalTaskProducerDependencies,
 } from '../../../src/tasks/task-local-producer.js';
 import { DurableReadOnlyTaskRunner } from '../../../src/tasks/task-runner.js';
@@ -75,6 +77,62 @@ describe('local no-OAuth 2026 Tasks producer, staging only', () => {
       );
       await new Promise((resolve) => setImmediate(resolve));
       expect(f.executed()).toBe(1);
+    } finally {
+      f.runner.stop();
+      f.store.close();
+    }
+  });
+
+  it('registers and exercises actual get/update/cancel handler callbacks in the covered process', async () => {
+    const f = fixture();
+    type Handler = (params: Record<string, unknown>, ctx: ServerContext) => Promise<unknown>;
+    const handlers = new Map<string, Handler>();
+    const server = {
+      server: {
+        setRequestHandler: vi.fn((method: string, _schemas: unknown, handler: Handler) => {
+          handlers.set(method, handler);
+        }),
+      },
+    } as unknown as McpServer;
+    try {
+      registerStagedLocalTaskProducer(server, f.deps);
+      expect([...handlers.keys()].sort()).toEqual([
+        'tasks/cancel',
+        'tasks/get',
+        'tasks/update',
+        'tools/call',
+      ]);
+      const invoke = (method: string, args: Record<string, unknown>) => {
+        const handler = handlers.get(method);
+        if (!handler) throw new Error('missing registered handler');
+        return handler(args, requestContext());
+      };
+      // The call handler executes the synchronous SQLite transaction before
+      // yielding its Promise; cancellation can immediately stop queued work.
+      const creating = invoke('tools/call', {
+        name: 'easyeda_bom_generate',
+        arguments: { projectId: 'queued' },
+      });
+      const principal = resolveLocalStdioTaskPrincipal(
+        f.deps.session,
+        f.deps.config,
+        f.deps.registry,
+      )!;
+      const persisted = f.store.list(principal.ownerId)[0]!;
+      expect(persisted.status).toBe('working');
+      const cancelling = invoke('tasks/cancel', { taskId: persisted.id });
+      const [created, acknowledged] = await Promise.all([creating, cancelling]);
+      expect(created).toMatchObject({ resultType: 'task', taskId: persisted.id });
+      expect(acknowledged).toEqual({ resultType: 'complete' });
+      expect(f.store.get(principal.ownerId, persisted.id)?.status).toBe('cancelled');
+      expect(f.executed()).toBe(0);
+      expect(await invoke('tasks/get', { taskId: persisted.id })).toMatchObject({
+        status: 'cancelled',
+        taskId: persisted.id,
+      });
+      expect(await invoke('tasks/update', { taskId: persisted.id, inputResponses: {} })).toEqual({
+        resultType: 'complete',
+      });
     } finally {
       f.runner.stop();
       f.store.close();
