@@ -68,3 +68,15 @@ expiry, and the tool input Zod schema **before enqueueing**. Remote Relay is
 through a real task dispatcher. An HTTP handler must obtain identity solely
 from the already-verified OAuth middleware, never from untrusted headers or
 caller-provided tokens. No product server imports this staging evaluator yet.
+
+## Registered-tool dispatch staging (not wired)
+
+The separate src/tasks/task-dispatch.ts module reuses the existing ToolRegistry
+MCP handler instead of calling bridge methods or tool handlers directly. It
+checks that live context scopes match the trusted policy, revalidates the OAuth
+principal and owner before and after a read-only invocation, rejects cancellation
+and excludes tool error details from background task results. The caller must
+supply genuinely verified OAuth identity; no token is stored in the task record.
+Abort is checked at both ends but cannot interrupt an already-running bridge
+read. Production Tasks remains disabled until the trusted context and durable
+lease worker lifecycle are proven end-to-end.
