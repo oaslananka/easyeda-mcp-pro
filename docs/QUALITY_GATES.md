@@ -15,6 +15,29 @@ Pull requests use a layered quality model that separates repository-owned merge 
 
 The exact live branch-protection interface is recorded in `config/repository-governance.json` and the latest ruleset evidence snapshot. Required-check names are public interfaces and must not be renamed without updating the live ruleset and repository policy in the same change.
 
+## Codecov patch required-check qualification (#786)
+
+The Codecov patch target is configured to reject under-covered changed source, but
+that setting alone does not make Codecov a required GitHub merge check. PR #784
+exposed this gap: its patch check failed while the existing deterministic gates
+passed and the PR was merged. Follow-up PR #785 fixed the patch coverage and
+passed Codecov; the protected ruleset did not change.
+
+Before intentionally changing the documented _advisory telemetry_ policy,
+the maintainers must verify the same stable Codecov check for:
+
+- a documentation-only pull request with **no coverable source changes**;
+- a pull request with new uncovered source lines where repository-wide Vitest
+  coverage thresholds still pass; and
+- both server-only and extension-only source changes.
+
+Only a check consistently reported for all applicable PRs can be safely added
+to the GitHub required-check set. A missing required status would block all
+merges, including unrelated documentation and release maintenance. Do not
+change, bypass, or replace existing protection controls during qualification.
+Document the observed check identity, provider, SHA, outcome, and the rollback
+before any separately reviewed ruleset update.
+
 ## Blocking coverage authority
 
 Local Vitest coverage is the blocking coverage authority. The `tests-and-coverage` job generates server and extension LCOV/JUnit outputs, applies repository-owned thresholds, and validates both report sets. That job feeds the required `quality (24)` aggregator.
