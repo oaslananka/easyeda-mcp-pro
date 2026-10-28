@@ -111,3 +111,5 @@ scheduled. Cancellation is forwarded to the runner, not merely stored as
 intent. It is NOT installed in createServer, does not advertise Tasks in
 production and does not replace ordinary synchronous tools/call. Tests run
 an injected mock read-only worker, not native EasyEDA acceptance.
+
+**Known compatibility limit:** the installed high-level @modelcontextprotocol/client 2.4.0 codec currently rejects resultType=task on tools/call. The staged wire acceptance uses the genuine SDK StdioClientTransport without its higher-level result decoder. Until a supported extension codec/client route is available and tested, this producer cannot be advertised as production interoperable.
