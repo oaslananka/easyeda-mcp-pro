@@ -575,7 +575,7 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
   });
 }
 
-async function handleRegisteredToolCall(
+export async function handleRegisteredToolCall(
   tool: ToolDefinition,
   context: ToolContext,
   input: unknown,
