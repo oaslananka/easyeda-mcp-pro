@@ -98,3 +98,16 @@ MCP_TASKS_ENABLED remains reserved. Future stdio-only integration must mint
 the identity inside process bootstrap, never from request parameters, and
 bind task creation and polling to that process. HTTP must independently use
 verified OAuth if Tasks are enabled there.
+
+## Local 2026 Tasks producer (staging only)
+
+The isolated src/tasks/task-local-producer.ts offers a test-only low-level
+modern tools/call task producer for two allowlisted read-only tools. It reuses
+the owner-scoped status/cancel handlers. Before returning a task handle it
+verifies per-request 2026-07-28 Tasks capability, trusted in-process stdio
+identity, current ToolRegistry/profile/scopes and original Zod input schema.
+SQLite state is committed before acknowledgement and the bounded runner is
+scheduled. Cancellation is forwarded to the runner, not merely stored as
+intent. It is NOT installed in createServer, does not advertise Tasks in
+production and does not replace ordinary synchronous tools/call. Tests run
+an injected mock read-only worker, not native EasyEDA acceptance.

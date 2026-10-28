@@ -20,8 +20,9 @@ export interface TrustedTaskPrincipal {
 export interface TaskProtocolDependencies {
   store: DurableTaskStore;
   trustedPrincipal: (ctx: ServerContext) => TrustedTaskPrincipal | undefined;
+  cancelTask?: (principal: TrustedTaskPrincipal, task: TaskRecord) => void;
 }
-function requireCapability(ctx: ServerContext): void {
+export function assertModernTaskCapability(ctx: ServerContext): void {
   const envelope = ctx.mcpReq.envelope as Record<string, unknown> | undefined;
   if (envelope?.[PROTOCOL_VERSION_META_KEY] !== '2026-07-28') {
     throw new ProtocolError(
@@ -44,7 +45,7 @@ function authorize(
   ctx: ServerContext,
   taskId: string,
 ): { task: TaskRecord; principal: TrustedTaskPrincipal } {
-  requireCapability(ctx);
+  assertModernTaskCapability(ctx);
   const principal = dependencies.trustedPrincipal(ctx);
   if (
     !principal ||
@@ -111,7 +112,11 @@ export function registerTaskStatusHandlers(
   server.server.setRequestHandler('tasks/cancel', { params, result: ack }, async (input, ctx) => {
     const { task, principal } = authorize(dependencies, ctx, input.taskId);
     if (task.status === 'working') {
-      dependencies.store.requestCancel(principal.ownerId, task.id);
+      if (dependencies.cancelTask) {
+        dependencies.cancelTask(principal, task);
+      } else {
+        dependencies.store.requestCancel(principal.ownerId, task.id);
+      }
     }
     // Cooperative intent; a worker must later persist terminal cancellation.
     return { resultType: 'complete' as const };
