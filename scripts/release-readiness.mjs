@@ -548,6 +548,20 @@ function inspectRecord({ record, gitBinary, root, headCommit, paths, dirtyFiles 
   });
 }
 
+function explainStaleCompatibility(records) {
+  const stale = records.filter((record) => record.status === 'stale');
+  // Prefer a real source mismatch over an unrelated, expired historical record.
+  if (stale.some((record) => record.changedFiles.length > 0)) {
+    return 'Compatibility-sensitive files changed after live evidence.';
+  }
+  if (
+    stale.some((record) => record.reason.startsWith('Live compatibility evidence review expired'))
+  ) {
+    return 'Live compatibility evidence review expired; see record-level reasons for other blockers.';
+  }
+  return 'Compatibility-sensitive files changed after live evidence.';
+}
+
 export async function inspectCompatibilityFreshness({
   root,
   targetRef = 'HEAD',
@@ -612,13 +626,7 @@ export async function inspectCompatibilityFreshness({
     reason = 'Required live compatibility evidence is current.';
   } else if (records.some((record) => record.status === 'stale')) {
     status = 'stale';
-    reason = records.some(
-      (record) =>
-        record.status === 'stale' &&
-        record.reason.startsWith('Live compatibility evidence review expired'),
-    )
-      ? 'Live compatibility evidence review expired; see record-level reasons for other blockers.'
-      : 'Compatibility-sensitive files changed after live evidence.';
+    reason = explainStaleCompatibility(records);
   }
 
   return {

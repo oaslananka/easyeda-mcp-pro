@@ -293,6 +293,33 @@ describe('hermetic release readiness', { timeout: GIT_FIXTURE_TEST_TIMEOUT_MS },
     expect(report.reason).toContain('review expired');
   });
 
+  it('prioritizes a changed current source over an expired historical record', async () => {
+    const fixture = await createGitFixture();
+    const sourcePath = join(fixture.root, 'config/easyeda-compatibility.json');
+    const source = JSON.parse(await readFile(sourcePath, 'utf8')) as {
+      records: Array<{ id: string; reviewBy: string }>;
+    };
+    source.records.unshift({
+      ...source.records[0]!,
+      id: 'historical-expired-record',
+      reviewBy: '2020-01-01',
+    });
+    await writeJson(sourcePath, source);
+    git(fixture.root, ['add', 'config/easyeda-compatibility.json']);
+    git(fixture.root, ['commit', '-m', 'fixture: preserve expired historical record']);
+    await writeFile(join(fixture.root, 'src/tools/example.ts'), 'export const value = 2;\n');
+    git(fixture.root, ['add', 'src/tools/example.ts']);
+    git(fixture.root, ['commit', '-m', 'fixture: change currently reviewed source']);
+
+    const report = await inspectCompatibilityFreshness({ root: fixture.root, gitBinary });
+    expect(report.status).toBe('stale');
+    expect(report.reason).toBe('Compatibility-sensitive files changed after live evidence.');
+    expect(report.records).toMatchObject([
+      { id: 'historical-expired-record', status: 'stale', changedFiles: [] },
+      { id: 'fixture-live-record', status: 'stale', changedFiles: ['src/tools/example.ts'] },
+    ]);
+  });
+
   it('rejects normalized but nonexistent review dates', async () => {
     const fixture = await createGitFixture();
     const path = join(fixture.root, 'config/easyeda-compatibility.json');
