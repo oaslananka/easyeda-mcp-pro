@@ -78,6 +78,21 @@ describe('Codecov analytics policy', () => {
     expect(ratchet).not.toContain('unwired router');
   });
 
+  it('keeps deterministic changed-line enforcement inside the existing required quality job', () => {
+    const workflow = readText('.github/workflows/ci.yml');
+    const testsJob = workflow.slice(
+      workflow.indexOf('  tests:\n'),
+      workflow.indexOf('  extension_integrity:\n'),
+    );
+    expect(testsJob).toContain('Enforce repository-owned changed-line coverage');
+    expect(testsJob).toContain('github.event_name ==');
+    expect(testsJob).toContain('node scripts/check-patch-coverage.mjs --base "$PR_BASE_SHA"');
+    expect(testsJob).toContain('github.event.pull_request.base.sha');
+    expect(testsJob).not.toContain('continue-on-error: true\n      - name: Enforce');
+    expect(workflow).toContain('      - tests\n');
+    expect(readText('docs/QUALITY_GATES.md')).toContain('Repository-owned changed-line coverage');
+  });
+
   it('uploads coverage and both test reports with pinned Codecov tooling', () => {
     const workflow = readText('.github/workflows/ci.yml');
     const gitignore = readText('.gitignore');

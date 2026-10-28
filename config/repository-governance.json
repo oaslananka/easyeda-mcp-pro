@@ -95,13 +95,7 @@
     "name": "main-standard",
     "target": "branch",
     "include": ["~DEFAULT_BRANCH"],
-    "bypassActors": [
-      {
-        "actor_id": 285490571,
-        "actor_type": "User",
-        "bypass_mode": "pull_request"
-      }
-    ]
+    "bypassActors": [{ "actor_id": 285490571, "actor_type": "User", "bypass_mode": "pull_request" }]
   },
   "reviewPolicy": {
     "independentReview": "required-when-eligible-reviewer-exists",
@@ -154,19 +148,5 @@
       "lastExerciseAt": "2026-07-25",
       "exerciseStatus": "passed"
     }
-  },
-  "proposedCodecovPatchRequirement": {
-    "rulesetId": 20020112,
-    "context": "codecov/patch",
-    "integrationId": 254,
-    "requiredExistingChecks": [
-      "quality (24)",
-      "codeql",
-      "semgrep",
-      "Socket Security: Project Report",
-      "dependency-review"
-    ],
-    "activation": "separately-reviewed-live-ruleset-edit",
-    "issue": 786
   }
 }

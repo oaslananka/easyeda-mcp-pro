@@ -93,6 +93,11 @@ jobs:
         id: extension_reports
         if: ${{ !cancelled() && steps.extension_coverage.outcome == 'success' }}
         run: node scripts/validate-ci-reports.mjs --coverage easyeda-bridge-extension/coverage/lcov.info --junit reports/extension.junit.xml
+      - name: Enforce repository-owned changed-line coverage
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/check-patch-coverage.mjs --base "$PR_BASE_SHA"
       - name: Stage coverage telemetry reports
         id: coverage_artifact
         if: ${{ !cancelled() && steps.server_reports.outcome == 'success' && steps.extension_reports.outcome == 'success' }}

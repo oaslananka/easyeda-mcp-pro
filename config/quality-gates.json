@@ -22,14 +22,7 @@
     "cliVersion": "11.3.1",
     "preparationPlugins": "noop",
     "requiredCheck": false,
-    "mergeRole": "advisory-telemetry",
-    "proposedRequiredCheck": {
-      "context": "codecov/patch",
-      "appId": 254,
-      "source": "codecov",
-      "migrationIssue": 786,
-      "stage": "review-required-before-activation"
-    }
+    "mergeRole": "advisory-telemetry"
   },
   "sonarQubeCloud": {
     "projectKey": "oaslananka_easyeda-mcp-pro",

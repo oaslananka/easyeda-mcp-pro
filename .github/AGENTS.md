@@ -30,7 +30,7 @@ Required status names are repository interfaces.
   test, audit, packaging, security, or release failure.
 
 External telemetry is different from repository-owned validation. The current policy keeps local
-Vitest coverage thresholds and report validation merge-critical while Codecov upload telemetry is
+Vitest coverage thresholds, changed-line LCOV enforcement, and report validation merge-critical while Codecov upload telemetry is
 non-blocking. Do not reverse that policy accidentally through workflow refactoring.
 
 ## Permissions and untrusted input

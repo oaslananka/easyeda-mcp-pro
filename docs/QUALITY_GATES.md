@@ -38,52 +38,33 @@ change, bypass, or replace existing protection controls during qualification.
 Document the observed check identity, provider, SHA, outcome, and the rollback
 before any separately reviewed ruleset update.
 
-## Qualification results and reviewed activation plan (#786)
+## Repository-owned changed-line coverage
 
-The documentation-only #787 final PR head `6961af2` reported successful
-`codecov/patch` and passed all required checks before merging. On its temporary
-`76b2ad8` negative-test head, an uncovered new source function caused
-`codecov/patch` and `codecov/patch/MCP Server` to fail even though the
-local overall Vitest coverage thresholds passed. The temporary source file
-was removed; it was **not merged**. Previously observed Dependabot #733
-and Renovate #749/#769 also reported the umbrella `codecov/patch` status.
+The required tests-and-coverage CI job enforces **at least 78% coverage
+of changed executable source lines** (the existing Codecov 80% patch target
+with two percentage points of tolerance). The script
+scripts/check-patch-coverage.mjs compares the PR base with the checked-out
+PR merge commit and checks added lines against the server and EasyEDA Bridge
+Extension LCOV reports **after** both local test suites succeed.
 
-A proposed future rule is recorded in the governance and quality-gate JSON
-files. It is **not active** merely because these files or this text exist.
-After an independently reviewable settings change, the desired main-standard
-ruleset would add **only** `codecov/patch` from the Codecov GitHub App
-(integration ID `254`) to its existing five required status checks,
-retaining strict up-to-date checking, squash-only PRs, thread resolution,
-and every other current rule. Component-specific patch checks are _not_
-proposed as required because they may not represent every PR type.
+A newly added source file absent from the matching LCOV report fails
+closed. Deletions, type declarations, comments and other lines without
+executable coverage records do not count; explicitly uninstrumentable
+server entrypoints excluded by Vitest are also outside the gate. A PR
+changing only docs or dependencies has no added coverable lines and passes.
+The local check requires no Codecov token, GitHub API call or third-party
+availability. If patch coverage fails, tests-and-coverage fails and the
+existing required quality (24) aggregator blocks the merge.
 
-Before activating the live rule:
-
-1. Check the exact ruleset ID (`20020112`), unchanged current check set,
-   current actor permissions and Codecov check app identity via GitHub API.
-2. Confirm that a docs-only check still appears as success and that
-   an uncovered-source check fails, including fork/Dependabot behavior.
-3. Apply a **separately reviewed** ruleset edit that adds only the Codecov
-   umbrella patch check, without using owner bypass; reread and compare
-   the entire live ruleset to the recorded before-state.
-4. Verify GitHub actually blocks a failing patch on a disposable non-mergeable
-   PR and allows a docs-only PR with a reported successful patch. Never
-   merge the negative probe.
-5. Record the new verified live snapshot, update the operative policy and
-   tests to say Codecov is required, and close #786 only after acceptance.
-
-**Trade-off:** a missing Codecov status or Codecov outage can block merges.
-`coverage-telemetry` stays diagnostic; never spoof statuses, relax CI, turn
-off TLS verification, or use owner/admin bypass for a provider outage.
-If the rule unexpectedly deadlocks otherwise valid PRs, revert **only**
-the added `codecov/patch` requirement through the audited settings-change
-process, reverify the original five checks, and retain the incident evidence.
-The current advisory policy remains authoritative until that migration
-is completed and independently verified.
+Codecov's codecov/patch remains **advisory** for changed-line annotations
+and historical trends. It must not be added to main-standard as a required
+GitHub status solely to enforce coverage. This closes the #786 merge-control
+gap without introducing a new provider-dependent required check. The
+historical negative probe on #787 was never merged.
 
 ## Blocking coverage authority
 
-Local Vitest coverage is the blocking coverage authority. The `tests-and-coverage` job generates server and extension LCOV/JUnit outputs, applies repository-owned thresholds, and validates both report sets. That job feeds the required `quality (24)` aggregator.
+Local Vitest coverage is the blocking coverage authority. The `tests-and-coverage` job generates server and extension LCOV/JUnit outputs, applies repository-owned thresholds, and validates both report sets. Its local changed-line gate applies on pull requests. That job feeds the required `quality (24)` aggregator.
 
 Codecov remains valuable for changed-line annotations, component histories, and Test Analytics, but provider availability must not decide whether repository-owned tests passed. `codecov.yml` therefore retains the 80% patch target and two-point tolerance as advisory provider policy while branch protection relies on local coverage enforcement.
 

@@ -116,48 +116,6 @@ describe('changed-code quality gate policy', () => {
     expect(policy.lastVerifiedAt).toBe('2026-10-05');
   });
 
-  it('keeps the proposed Codecov App requirement explicitly non-active until reviewed', () => {
-    const quality = readPolicy();
-    const governance = JSON.parse(readText('config/repository-governance.json')) as {
-      branchProtection: { requiredChecks: string[] };
-      proposedCodecovPatchRequirement: {
-        rulesetId: number;
-        context: string;
-        integrationId: number;
-        requiredExistingChecks: string[];
-        activation: string;
-        issue: number;
-      };
-    };
-    const codecov = quality.codecov as typeof quality.codecov & {
-      proposedRequiredCheck: {
-        context: string;
-        appId: number;
-        source: string;
-        migrationIssue: number;
-        stage: string;
-      };
-    };
-    expect(codecov.requiredCheck).toBe(false);
-    expect(codecov.proposedRequiredCheck).toEqual({
-      context: 'codecov/patch',
-      appId: 254,
-      source: 'codecov',
-      migrationIssue: 786,
-      stage: 'review-required-before-activation',
-    });
-    expect(governance.proposedCodecovPatchRequirement).toEqual({
-      rulesetId: 20020112,
-      context: 'codecov/patch',
-      integrationId: 254,
-      requiredExistingChecks: governance.branchProtection.requiredChecks,
-      activation: 'separately-reviewed-live-ruleset-edit',
-      issue: 786,
-    });
-    expect(governance.branchProtection.requiredChecks).not.toContain('codecov/patch');
-    expect(readText('docs/QUALITY_GATES.md')).toContain('Trade-off');
-  });
-
   it('retains explicit Codecov patch analytics while local coverage remains blocking', () => {
     const config = readText('codecov.yml');
     const patchSection = config.slice(config.indexOf('    patch:'), config.indexOf('\ncomment:'));
