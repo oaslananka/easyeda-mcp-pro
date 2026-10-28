@@ -68,3 +68,21 @@ expiry, and the tool input Zod schema **before enqueueing**. Remote Relay is
 through a real task dispatcher. An HTTP handler must obtain identity solely
 from the already-verified OAuth middleware, never from untrusted headers or
 caller-provided tokens. No product server imports this staging evaluator yet.
+
+## Local stdio sessions — no OAuth and no login (staging only)
+
+The local identity path is separate from remote OAuth: a trusted stdio process
+bootstrap may mint an opaque in-memory task owner identity. No browser,
+username, token, or account sign-in is required for local users. WeakMap
+ownership prevents request data or copied JSON from impersonating a session.
+Every resolver call rechecks the current enabled ToolRegistry profile, the
+actual server scope parser, and conservative read-only tool metadata. HTTP
+and Remote Relay are rejected. A new process receives a distinct owner ID,
+so unfinished tasks from a dead process are not replayed or accessible to a
+new process using an old task handle.
+
+This is a staging module, not yet installed in the production factory.
+MCP_TASKS_ENABLED remains reserved. Future stdio-only integration must mint
+the identity inside process bootstrap, never from request parameters, and
+bind task creation and polling to that process. HTTP must independently use
+verified OAuth if Tasks are enabled there.

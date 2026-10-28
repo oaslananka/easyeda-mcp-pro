@@ -152,6 +152,17 @@ function hasRequiredToolScopes(
 /**
  * Build a structured error content block for MCP responses.
  */
+/**
+ * Apply the exact interactive registry scope parser to a particular tool,
+ * avoiding a second grant parser in Tasks.
+ */
+export function isToolScopeAllowedByServer(
+  tool: ToolDefinition,
+  configuredScopes: string,
+): boolean {
+  return hasRequiredToolScopes(parseToolScopes(configuredScopes), getRequiredToolScopes(tool));
+}
+
 /** Shallow-copies `value` without `fields` — used to drop large duplicate
  *  payloads (e.g. a base64 image) from structuredContent/text once they've
  *  already been extracted into a dedicated content block. See
