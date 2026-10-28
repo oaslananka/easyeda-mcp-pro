@@ -1,8 +1,118 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-10-27",
+  "lastReviewed": "2026-10-28",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-windows-11-x64-2026-10-28-v1-6-0-owner-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-10-28T15:23:57.846Z",
+      "reviewBy": "2027-01-26",
+      "environment": {
+        "operatingSystem": "Microsoft Windows 11 Pro (10.0.26300)",
+        "architecture": "x64",
+        "kernel": "Windows NT 10.0.26300",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "41.2.1",
+        "chromiumVersion": "146.0.7680.188",
+        "chromiumVersionProvenance": "Upstream Electron 41.2.1 reference baseline, not independently measured in the EasyEDA vendor fork."
+      },
+      "server": {
+        "validationPackageVersion": "1.6.0",
+        "releaseContainingFixes": "1.6.0",
+        "commit": "053303d7fea89774ab36c0ff65c5c6e0baffe474",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "d60df1f0092879d95d3cd29e56832aceffeb4ade",
+            "src/bridge": "5e74df8df8743b175026232fce12db0e7552e0c3",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "745961012fce5615ac5271177cdcd9f393eab9fc",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.6.0",
+        "loaderReportedVersion": "1.6.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "2341626d16d93145",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "c029ef169e0bbc8e51a5fd7b2d43f6dac12902d3bae3685b6dae57ff20ca2e99",
+        "packageSizeBytes": 203256
+      },
+      "fixture": {
+        "project": "Z480_WEB_DISPOSABLE_NATIVE_20261022 (native project UUID withheld)",
+        "schematic": "Focused P1 Schematic document (native documentType=1)",
+        "pcb": "Focused populated PCB (33 components, 4 fills, 0 regions, 98 tracks, 0 vias; documentType=3)",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v160-native-install-restart",
+          "name": "Exact-source v1.6.0 Extension Manager import and editor restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Imported exact-source 203256-byte v1.6.0 .eext via native EasyEDA Pro Extension Manager, enabled external interaction, fully exited and restarted EasyEDA Pro 3.2.209.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/775"]
+        },
+        {
+          "id": "v160-native-bridge-identity",
+          "name": "Runtime server, loader, extension and method-registry identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "127.0.0.1:49620 real native handshake: server, loader and extension reported 1.6.0; 72 methods and method registry hash 2341626d16d93145; mismatch flags both false.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/775"]
+        },
+        {
+          "id": "v160-native-system-schematic-readonly",
+          "name": "Six live read-only system and schematic/BOM/ERC calls",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "6/6 passed: system.getStatus, system.apiInventory, schematic.listNets, schematic.listComponents, bom.generate, design.erc. Native project UUID obtained from DMT_Project.getCurrentProjectInfo and focused P1 bound by DMT_SelectControl.getCurrentDocumentInfo. No write/save command.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/775"]
+        },
+        {
+          "id": "v160-native-populated-pcb-readonly",
+          "name": "Five read-only calls against populated disposable PCB",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "5/5 passed with native verified focused PCB identity: pcb.listComponents 33, pcb.listFills 4, pcb.listRegions 0, pcb.listTracks 98, pcb.listVias 0.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/775"]
+        },
+        {
+          "id": "v160-native-wrong-project-denials",
+          "name": "Five incorrect project UUID denials",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "5/5 PCB list methods rejected wrong project UUID with native project identity mismatch; none returned wrong-project data.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/775"]
+        },
+        {
+          "id": "v160-rollback-restored",
+          "name": "Original v1.5.5 extension restored and source checkout preserved",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "After v1.6.0 validation, imported exact official v1.5.5 rollback asset (SHA-256 1e7c2e0ff9ed5409839bbb852204c84bb0d8e2779b866b05c727be87a38d36e2), restarted native EasyEDA, saw v1.5.5 Enabled with original external interaction/menu/update settings. Editor and temporary local listeners closed, original Git checkout clean.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/775"]
+        }
+      ],
+      "knownLimitations": [
+        "This exact Windows 11 EasyEDA Pro 3.2.209 release candidate evidence is READ-ONLY. No native design write, native save/export, copper rebuild, or transactional write/rollback was attempted. #480 remains fail-closed.",
+        "No per-project archive or remote cloud-data before/after byte-level equality was measured. EasyEDA GUI launch/import may modify local application caches/database; no project-design save/write command was issued.",
+        "No independent Linux or macOS native EasyEDA Pro desktop acceptance was performed for 1.6.0.",
+        "Experimental Remote Relay/pairing, staged MCP Tasks production enablement, live mutation flows and upstream missing flip API (#470) were not tested or promoted.",
+        "Source identity is pinned to PR #775 synthetic merge commit 053303d7fea89774ab36c0ff65c5c6e0baffe474 and the captured compatibility-sensitive Git tree objects. Versioned release artifact attestation, SBOM/publication and protected CI remain separate release-manager gates.",
+        "Restoring v1.5.5 in Extension Manager is a native-application extension rollback, not proof of a transaction-level PCB data rollback."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-windows-11-x64-2026-10-27-v1-5-5-owner-readonly",
       "status": "live-validated",

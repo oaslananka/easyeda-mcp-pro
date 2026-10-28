@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-28T15:23:57.846Z",
+  "candidateCommit": "053303d7fea89774ab36c0ff65c5c6e0baffe474",
+  "candidateTree": "ba36a2fd6787306268d59315d0d39b31f0141282",
+  "candidateVersion": "1.6.0",
+  "sourceIdentity": {
+    "algorithm": "git-tree-sha1",
+    "compatibilitySensitivePaths": {
+      "easyeda-bridge-extension/src": "d60df1f0092879d95d3cd29e56832aceffeb4ade",
+      "src/bridge": "5e74df8df8743b175026232fce12db0e7552e0c3",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "745961012fce5615ac5271177cdcd9f393eab9fc",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "platform": {
+    "os": "Windows 11 Pro",
+    "arch": "x64",
+    "nativeEditor": "EasyEDA Pro 3.2.209.8a704eab",
+    "nodeVersion": "24.22.1"
+  },
+  "extension": {
+    "version": "1.6.0",
+    "loaderVersion": "1.6.0",
+    "serverVersion": "1.6.0",
+    "packageSha256": "c029ef169e0bbc8e51a5fd7b2d43f6dac12902d3bae3685b6dae57ff20ca2e99",
+    "packageSizeBytes": 203256,
+    "methodRegistryHash": "2341626d16d93145",
+    "capabilityCount": 72,
+    "versionMismatch": false,
+    "registryMismatch": false
+  },
+  "fixture": {
+    "kind": "pre-existing-disposable-only",
+    "name": "Z480_WEB_DISPOSABLE_NATIVE_20261022",
+    "projectUuidWithheld": true,
+    "schematicFocused": "P1",
+    "nativePcbFocused": true,
+    "projectIdentityGetterVerified": true,
+    "nativeDocumentParentMatchedProject": true,
+    "designWriteCalls": 0
+  },
+  "nativeReadOnly": {
+    "systemAndSchematic": {
+      "status": "passed",
+      "total": 6,
+      "methods": [
+        "system.getStatus",
+        "system.apiInventory",
+        "schematic.listNets",
+        "schematic.listComponents",
+        "bom.generate",
+        "design.erc"
+      ],
+      "writeEnabled": false
+    },
+    "pcbPositive": {
+      "status": "passed",
+      "total": 5,
+      "items": {
+        "components": 33,
+        "fills": 4,
+        "regions": 0,
+        "tracks": 98,
+        "vias": 0
+      },
+      "methods": [
+        "pcb.listComponents",
+        "pcb.listFills",
+        "pcb.listRegions",
+        "pcb.listTracks",
+        "pcb.listVias"
+      ]
+    },
+    "pcbWrongProjectUuidDenials": {
+      "status": "passed",
+      "total": 5,
+      "wrongProjectDataReturned": false
+    },
+    "aggregate": {
+      "status": "passed",
+      "total": 16,
+      "passed": 16,
+      "mutatingCalls": 0
+    },
+    "localReportTimestamps": {
+      "systemSchematic": "2026-10-28T15:21:54.442Z",
+      "pcb": "2026-10-28T15:23:57.846Z"
+    }
+  },
+  "rollback": {
+    "extensionRestored": "1.5.5",
+    "officialAssetSha256": "1e7c2e0ff9ed5409839bbb852204c84bb0d8e2779b866b05c727be87a38d36e2",
+    "restartVerified": true,
+    "nativeExtensionEnabled": true,
+    "externalInteractionSettingsPreserved": true,
+    "editorExited": true,
+    "temporaryBridgeClosed": true,
+    "trackedCheckoutsClean": true,
+    "pretestDatabaseBackupRetainedLocally": true,
+    "projectArchiveHashEqualityVerified": false
+  },
+  "limitations": [
+    "This exact Windows 11 EasyEDA Pro 3.2.209 release candidate evidence is READ-ONLY. No native design write, native save/export, copper rebuild, or transactional write/rollback was attempted. #480 remains fail-closed.",
+    "No per-project archive or remote cloud-data before/after byte-level equality was measured. EasyEDA GUI launch/import may modify local application caches/database; no project-design save/write command was issued.",
+    "No independent Linux or macOS native EasyEDA Pro desktop acceptance was performed for 1.6.0.",
+    "Experimental Remote Relay/pairing, staged MCP Tasks production enablement, live mutation flows and upstream missing flip API (#470) were not tested or promoted.",
+    "Source identity is pinned to PR #775 synthetic merge commit 053303d7fea89774ab36c0ff65c5c6e0baffe474 and the captured compatibility-sensitive Git tree objects. Versioned release artifact attestation, SBOM/publication and protected CI remain separate release-manager gates.",
+    "Restoring v1.5.5 in Extension Manager is a native-application extension rollback, not proof of a transaction-level PCB data rollback."
+  ],
+  "evidenceUrl": "https://github.com/oaslananka/easyeda-mcp-pro/pull/775#issuecomment-6473258463"
+}
