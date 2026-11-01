@@ -856,6 +856,7 @@ describe('ToolRegistry', () => {
     const bridgeCall = vi
       .fn()
       .mockResolvedValueOnce({ path: 'DMT_Project.createProject', result: null })
+      .mockResolvedValueOnce({ path: 'DMT_Project.createProject', result: undefined })
       .mockResolvedValueOnce({ path: 'DMT_Project.getAllProjectsUuid', result: null })
       .mockResolvedValueOnce({ path: 'DMT_Schematic.createSchematic', result: 'sch-uuid' });
     const context = {
@@ -874,6 +875,17 @@ describe('ToolRegistry', () => {
       ok: false,
       path: 'DMT_Project.createProject',
       error: expect.stringMatching(/nothing was created/),
+    });
+    await expect(
+      tool?.handler(context, {
+        path: 'DMT_Project.createProject',
+        args: ['x'],
+        confirmWrite: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      path: 'DMT_Project.createProject',
+      error: expect.stringMatching(/undefined.*nothing was created/),
     });
     await expect(
       tool?.handler(context, { path: 'DMT_Project.getAllProjectsUuid', args: [] }),
@@ -912,6 +924,18 @@ describe('ToolRegistry', () => {
     expect(result).toMatchObject({
       ok: false,
       path: 'SCH_PrimitiveWire.create',
+      requires_confirmation: true,
+    });
+    expect(bridgeCall).not.toHaveBeenCalled();
+
+    const projectResult = await tool?.handler(context, {
+      path: 'DMT_Project.createProject',
+      args: ['folder'],
+      confirmWrite: false,
+    });
+    expect(projectResult).toMatchObject({
+      ok: false,
+      path: 'DMT_Project.createProject',
       requires_confirmation: true,
     });
     expect(bridgeCall).not.toHaveBeenCalled();

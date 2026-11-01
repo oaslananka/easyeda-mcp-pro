@@ -21,7 +21,7 @@ const apiCallInputSchema = z.object({
 });
 
 const writeMethodPattern =
-  /\.(create|delete|modify|open|openProject|save|import|export|reorder|remove|update|set|reset|done)$/i;
+  /\.(create[A-Za-z0-9_]*|delete|modify|open|openProject|save|import|export|reorder|remove|update|set|reset|done)$/i;
 
 function requiresWriteConfirmation(path: string): boolean {
   return writeMethodPattern.test(path);
