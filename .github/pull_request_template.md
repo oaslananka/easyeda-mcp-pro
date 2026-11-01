@@ -23,11 +23,9 @@
 
 ## External contributions
 
-No paperwork or per-commit DCO sign-off. For your first **substantial** code
-contribution, a maintainer will ask you to accept the short
-[one-time contributor permission](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CONTRIBUTOR-LICENSING.md) in a PR comment.
-Trivial changes and automated dependency PRs are exempt; returning contributors
-do not repeat acceptance.
+No contributor license agreement, additional permission comment, registration,
+or per-commit DCO sign-off is required. Contributions are accepted under the
+project's MIT License. Preserve third-party attribution and license notices.
 
 ## Validation
 

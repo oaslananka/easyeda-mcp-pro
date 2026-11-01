@@ -87,7 +87,7 @@ export default defineConfig({
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/oaslananka/easyeda-mcp-pro' }],
     footer: {
-      message: 'Source-available under PolyForm Noncommercial 1.0.0.',
+      message: 'Open source under the MIT License.',
       copyright: 'Copyright © 2026-present oaslananka',
     },
   },

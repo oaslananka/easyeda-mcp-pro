@@ -74,7 +74,7 @@
 
 easyeda-mcp-pro keeps historical OpenSSF Best Practices evidence in [`docs/OPENSSF_BEST_PRACTICES.md`](docs/OPENSSF_BEST_PRACTICES.md) and its security assurance case in [`docs/SECURITY_ASSURANCE_CASE.md`](docs/SECURITY_ASSURANCE_CASE.md). The header badges link to current workflow-backed signals only: CI, generated docs deployment, the project security policy, and the OpenSSF Scorecard. Release integrity evidence (npm provenance, signed-release status) is tracked in [`docs/RELEASE_VERIFICATION.md`](docs/RELEASE_VERIFICATION.md). Coverage, Test Analytics, and extension bundle monitoring are documented in [`docs/CODECOV_ANALYTICS.md`](docs/CODECOV_ANALYTICS.md).
 
-**Licensing note:** the repository is now source-available under PolyForm Noncommercial 1.0.0 rather than an OSI-approved open-source license. Historical OpenSSF evidence remains for audit history and must not be treated as a current FLOSS-license claim.
+**Licensing note:** current repository source is MIT-licensed. Commercial use is permitted under MIT; historical releases retain the license notices shipped with them.
 
 ---
 
@@ -946,7 +946,7 @@ If this project helps you save time while working with EasyEDA Pro, BOM workflow
 
 ## License
 
-Current project-authored source is licensed under [PolyForm Noncommercial 1.0.0](LICENSE). Commercial use requires a separate written license; see [Commercial Licensing](COMMERCIAL-LICENSING.md). Earlier MIT releases keep the MIT rights that applied when published. See [Licensing](LICENSING.md).
+Current project-authored source is licensed under the [MIT License](LICENSE), including commercial use. No separate contributor license agreement is required. See [Licensing](LICENSING.md) and [Contributing](CONTRIBUTING.md).
 
 ---
 
