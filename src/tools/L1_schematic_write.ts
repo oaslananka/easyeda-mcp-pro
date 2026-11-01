@@ -1539,6 +1539,12 @@ function registerSchematicWriteTools(
     },
   });
 
+  const titleBlockFieldSchema = z.object({
+    showTitle: z.boolean().optional(),
+    showValue: z.boolean().optional(),
+    value: z.union([z.string(), z.number()]).optional(),
+  });
+
   registry.register({
     name: 'easyeda_schematic_set_title_block',
     title: 'Set schematic title block fields',
@@ -1558,14 +1564,13 @@ function registerSchematicWriteTools(
     },
     inputSchema: z.object({
       fields: z
-        .record(
-          z.enum(['Company', 'Version', 'Drawn', 'Reviewed', 'Page Size']),
-          z.object({
-            showTitle: z.boolean().optional(),
-            showValue: z.boolean().optional(),
-            value: z.union([z.string(), z.number()]).optional(),
-          }),
-        )
+        .strictObject({
+          Company: titleBlockFieldSchema.optional(),
+          Version: titleBlockFieldSchema.optional(),
+          Drawn: titleBlockFieldSchema.optional(),
+          Reviewed: titleBlockFieldSchema.optional(),
+          'Page Size': titleBlockFieldSchema.optional(),
+        })
         .describe(
           'Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } }',
         ),

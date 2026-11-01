@@ -3632,11 +3632,11 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type                     | Required | Description                                                                                                           |
-| ---------------- | ------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
-| `fields`         | `Record<string, object>` | Yes      | Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } } |
-| `showTitleBlock` | `boolean (optional)`     | No       | Show/hide the whole title block                                                                                       |
-| `confirmWrite`   | `'true'`                 | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                         |
+| Parameter        | Type                 | Required | Description                                                                                                           |
+| ---------------- | -------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `fields`         | `object`             | Yes      | Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } } |
+| `showTitleBlock` | `boolean (optional)` | No       | Show/hide the whole title block                                                                                       |
+| `confirmWrite`   | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                         |
 
 ### Output Format
 
