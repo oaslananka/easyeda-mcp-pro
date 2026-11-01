@@ -31,7 +31,11 @@ describe('PCB component transform resilience', () => {
       profile: 'full',
       bridge: {
         connected: true,
-        call: bridgeCall,
+        call: vi.fn((method: string, params: unknown) =>
+          method === 'api.call'
+            ? Promise.resolve({ result: { uuid: 'project-uuid-1' } })
+            : bridgeCall(method, params),
+        ) as ToolContext['bridge']['call'],
       },
       config: {
         bridgeTimeoutMs: 1000,
