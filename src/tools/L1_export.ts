@@ -112,7 +112,12 @@ function writeExportPayload(
   let fileName = defaultFileName;
   if (typeof binary.base64 === 'string') {
     buffer = Buffer.from(binary.base64, 'base64');
-    fileName = binary.fileName || defaultFileName;
+    // Native EasyEDA sometimes returns only the project UUID as a file name.
+    // An extensionless name collides across different export formats.
+    fileName =
+      typeof binary.fileName === 'string' && path.extname(binary.fileName)
+        ? binary.fileName
+        : defaultFileName;
   } else {
     buffer = Buffer.from(JSON.stringify(data, null, 2), 'utf-8');
   }

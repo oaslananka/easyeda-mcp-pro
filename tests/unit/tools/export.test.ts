@@ -193,6 +193,30 @@ describe('Export Tools', () => {
     );
   });
 
+  it('keeps extensionless native export filenames distinct across pick-and-place and Gerbers', async () => {
+    bridgeCall.mockImplementation(async (method: string) => ({
+      base64: Buffer.from(
+        method === 'export.pickPlace' ? 'pick-place bytes' : 'gerber bytes',
+      ).toString('base64'),
+      fileName: 'proj-123',
+    }));
+
+    const pickPlace = await registry.get('easyeda_export_pick_place')!.handler(context, {
+      projectId: 'proj-123',
+      format: 'csv',
+    });
+    const gerbers = await registry.get('easyeda_export_gerbers')!.handler(context, {
+      projectId: 'proj-123',
+    });
+
+    expect(pickPlace?.exported).toBe(true);
+    expect(gerbers?.exported).toBe(true);
+    expect(pickPlace?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-pick-place.csv'));
+    expect(gerbers?.artifact_path).toBe(path.join(tmpArtifactDir, 'proj-123-gerbers.zip'));
+    expect(fs.readFileSync(pickPlace!.file_path!, 'utf8')).toBe('pick-place bytes');
+    expect(fs.readFileSync(gerbers!.artifact_path!, 'utf8')).toBe('gerber bytes');
+  });
+
   it('easyeda_export_pick_place writes to an explicit filePath within the artifact directory', async () => {
     const tool = registry.get('easyeda_export_pick_place');
     bridgeCall.mockResolvedValue({ base64: Buffer.from('data').toString('base64') });
