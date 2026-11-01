@@ -3251,4 +3251,78 @@ describe('createDispatcher', () => {
       expect(result).toMatchObject({ primitiveId: 'comp1' });
     });
   });
+
+  describe('schematic.placeComponent mirror and BOM/PCB flags', () => {
+    function placeToolkit() {
+      const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
+      const modify = vi.fn(async () => true);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          LIB_Device: { get: vi.fn(async () => ({ uuid: 'dev-1', libraryUuid: 'lib-1' })) },
+          SCH_PrimitiveComponent: { create, get: vi.fn(async () => fakeComponent()), modify },
+        }),
+      );
+      return { create, modify, dispatcher };
+    }
+    const deviceItem = { uuid: 'dev-1', libraryUuid: 'lib-1' };
+
+    it('applies mirror, addIntoBom and addIntoPcb after create instead of dropping them', async () => {
+      const { create, modify, dispatcher } = placeToolkit();
+
+      const result = await dispatcher.dispatch('schematic.placeComponent', {
+        deviceItem,
+        x: 10,
+        y: 20,
+        mirror: true,
+        addIntoBom: false,
+        addIntoPcb: false,
+      });
+
+      expect(create).toHaveBeenCalledWith(deviceItem, 10, 20);
+      expect(modify).toHaveBeenCalledTimes(1);
+      expect(modify).toHaveBeenCalledWith(
+        'comp1',
+        expect.objectContaining({
+          rotation: 0,
+          mirror: true,
+          addIntoBom: false,
+          addIntoPcb: false,
+          designator: 'C1',
+          uniqueId: 'uid1',
+        }),
+      );
+      expect(result).toMatchObject({ mirror: true, addIntoBom: false, addIntoPcb: false });
+    });
+
+    it('applies rotation together with the flags in one modify', async () => {
+      const { modify, dispatcher } = placeToolkit();
+
+      await dispatcher.dispatch('schematic.placeComponent', {
+        deviceItem,
+        x: 10,
+        y: 20,
+        rotation: 90,
+        addIntoBom: false,
+      });
+
+      expect(modify).toHaveBeenCalledTimes(1);
+      expect(modify).toHaveBeenCalledWith(
+        'comp1',
+        expect.objectContaining({
+          rotation: 90,
+          mirror: false,
+          addIntoBom: false,
+          addIntoPcb: true,
+        }),
+      );
+    });
+
+    it('does not modify a placement that asks for none of them', async () => {
+      const { modify, dispatcher } = placeToolkit();
+
+      await dispatcher.dispatch('schematic.placeComponent', { deviceItem, x: 10, y: 20 });
+
+      expect(modify).not.toHaveBeenCalled();
+    });
+  });
 });
