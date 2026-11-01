@@ -781,6 +781,7 @@ describe('ToolRegistry', () => {
         'easyeda_pcb_delete_component',
         'easyeda_pcb_floorplan',
         'easyeda_pcb_modify_component',
+        'easyeda_pcb_place_batch',
         'easyeda_pcb_place_component',
         'easyeda_pcb_place_component_group',
         'easyeda_pcb_rebuild_copper',

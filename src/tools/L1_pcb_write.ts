@@ -797,6 +797,95 @@ async function handlePcbComponentTransform(
   }
 }
 
+type PcbBatchRequest = {
+  mode: 'preview' | 'apply';
+  placements: Array<{ primitiveId: string; x: number; y: number; rotation?: number }>;
+  confirmWrite?: true;
+};
+type PcbBatchReceipt = {
+  primitive_id: string;
+  status: 'planned' | 'applied' | 'unchanged' | 'failed';
+  transaction_state?: string;
+  rolled_back?: boolean;
+  error?: string;
+};
+
+function compactPcbBatchReceipt(
+  primitiveId: string,
+  mode: PcbBatchRequest['mode'],
+  transform: Awaited<ReturnType<typeof handlePcbComponentTransform>>,
+): PcbBatchReceipt {
+  const status = !transform.success
+    ? 'failed'
+    : transform.no_op
+      ? 'unchanged'
+      : mode === 'preview'
+        ? 'planned'
+        : 'applied';
+  const transactionState =
+    'transaction_state' in transform ? transform.transaction_state : undefined;
+  const rolledBack = 'rolled_back' in transform ? transform.rolled_back : undefined;
+  const error = 'error' in transform ? transform.error : undefined;
+  return {
+    primitive_id: primitiveId,
+    status,
+    ...(transactionState ? { transaction_state: transactionState } : {}),
+    ...(typeof rolledBack === 'boolean' ? { rolled_back: rolledBack } : {}),
+    ...(error ? { error } : {}),
+  };
+}
+
+function summarizePcbBatch(
+  request: PcbBatchRequest,
+  results: PcbBatchReceipt[],
+  confirmationError?: string,
+) {
+  const moved = results.filter((result) => result.status === 'applied').length;
+  const unchanged = results.filter((result) => result.status === 'unchanged').length;
+  const error = confirmationError ?? results.find((result) => result.status === 'failed')?.error;
+  return {
+    success:
+      !error &&
+      results.length === request.placements.length &&
+      results.every((result) => result.status !== 'failed'),
+    mode: request.mode,
+    total: request.placements.length,
+    processed: results.length,
+    moved,
+    unchanged,
+    remaining: request.placements.length - results.length,
+    partial_apply:
+      request.mode === 'apply' &&
+      moved > 0 &&
+      (results.length < request.placements.length ||
+        results.some((result) => result.status === 'failed')),
+    atomic: false as const,
+    results,
+    ...(error ? { error } : {}),
+  };
+}
+
+async function handlePcbBatch(ctx: ToolContext, parsed: PcbBatchRequest) {
+  const results: PcbBatchReceipt[] = [];
+  if (parsed.mode === 'apply' && parsed.confirmWrite !== true) {
+    return summarizePcbBatch(parsed, results, 'Apply mode requires confirmWrite=true.');
+  }
+  for (const item of parsed.placements) {
+    const transform = await handlePcbComponentTransform(ctx, {
+      primitiveId: item.primitiveId,
+      mode: parsed.mode,
+      xMil: item.x,
+      yMil: item.y,
+      ...(item.rotation !== undefined ? { rotationDeg: item.rotation } : {}),
+      ...(parsed.mode === 'apply' ? { confirmWrite: true } : {}),
+    });
+    const receipt = compactPcbBatchReceipt(item.primitiveId, parsed.mode, transform);
+    results.push(receipt);
+    if (receipt.status === 'failed') break;
+  }
+  return summarizePcbBatch(parsed, results);
+}
+
 function registerPcbWriteTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -1565,6 +1654,77 @@ function registerPcbWriteTools(
       .optional(),
     rolled_back: z.boolean().optional(),
     error: z.string().optional(),
+  });
+
+  const pcbBatchPlacementInputSchema = z
+    .object({
+      mode: z.enum(['preview', 'apply']).default('preview'),
+      placements: z
+        .array(
+          z
+            .object({
+              primitiveId: z.string().trim().min(1),
+              x: z.number().finite().describe('Native PCB X coordinate in mils.'),
+              y: z.number().finite().describe('Native PCB Y coordinate in mils.'),
+              rotation: z.number().finite().optional().describe('Optional rotation in degrees.'),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(64)
+        .refine((items) => new Set(items.map((item) => item.primitiveId)).size === items.length, {
+          message: 'Batch placements must have distinct component IDs.',
+        }),
+      confirmWrite: z.literal(true).optional(),
+    })
+    .strict();
+
+  const pcbBatchPlacementResultSchema = z.object({
+    success: z.boolean(),
+    mode: z.enum(['preview', 'apply']),
+    total: z.number().int().nonnegative(),
+    processed: z.number().int().nonnegative(),
+    moved: z.number().int().nonnegative(),
+    unchanged: z.number().int().nonnegative(),
+    remaining: z.number().int().nonnegative(),
+    partial_apply: z.boolean(),
+    atomic: z.literal(false),
+    results: z.array(
+      z.object({
+        primitive_id: z.string(),
+        status: z.enum(['planned', 'applied', 'unchanged', 'failed']),
+        transaction_state: z.string().optional(),
+        rolled_back: z.boolean().optional(),
+        error: z.string().optional(),
+      }),
+    ),
+    error: z.string().optional(),
+  });
+
+  registry.register({
+    name: 'easyeda_pcb_place_batch',
+    title: 'Preview or apply verified PCB component placements in a batch',
+    description:
+      'Compact placement results for up to 64 existing PCB components. Each apply executes the existing ' +
+      'transactional component transform and checks native read-back. Stops at the first failure; ' +
+      'previous successful placements are NOT rolled back as a group. Use smaller batches as needed.',
+    profile: 'full',
+    evidence: ['official-docs', 'runtime-probe'],
+    risk: 'high',
+    confirmWrite: true,
+    confirmationPolicy: 'apply-mode',
+    sideEffect: 'design-mutation',
+    group: 'pcb-write',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: pcbBatchPlacementInputSchema,
+    outputSchema: pcbBatchPlacementResultSchema,
+    handler: async (ctx: ToolContext, params: unknown) =>
+      handlePcbBatch(ctx, pcbBatchPlacementInputSchema.parse(params)),
   });
 
   registry.register({
