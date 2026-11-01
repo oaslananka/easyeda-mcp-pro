@@ -180,7 +180,7 @@ describe('createDispatcher', () => {
     });
     await expect(dispatcher.dispatch('export.pdf', { what: 'board' })).resolves.toEqual({
       kind: 'pdf',
-      params: { what: 'board' },
+      params: undefined,
     });
     await expect(dispatcher.dispatch('export.netlist', { format: 'spice' })).resolves.toEqual({
       kind: 'netlist',
@@ -190,7 +190,7 @@ describe('createDispatcher', () => {
     expect(getGerberFile).toHaveBeenCalledWith('project-1');
     expect(getDsnFile).toHaveBeenCalledWith('board.dsn');
     expect(getPickAndPlaceFile).toHaveBeenCalledWith('project-1', 'csv');
-    expect(getPdfFile).toHaveBeenCalledWith({ what: 'board' });
+    expect(getPdfFile).toHaveBeenCalledWith(undefined, undefined);
     expect(getNetlist).toHaveBeenCalledWith({ format: 'spice' });
   });
 

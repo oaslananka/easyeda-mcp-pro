@@ -25,8 +25,8 @@ export function createExportOperations({
     if (!projectId) {
       throw createBridgeError(
         'INVALID_PARAMS',
-        `${operation} requires a non-empty projectId string.`,
-        'Provide the current EasyEDA projectId before requesting the export.',
+        `${operation} requires a non-empty projectId.`,
+        'Specify a projectId.',
       );
     }
     return projectId;
@@ -63,8 +63,13 @@ export function createExportOperations({
   async function exportPdf(params: Record<string, unknown>): Promise<unknown> {
     return normalizeBinaryResult(
       await callFirst(
-        ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
-        params.what === 'board' ? params : { ...params, type: 'schematic' },
+        [
+          params.what === 'schematic'
+            ? 'SCH_ManufactureData.getExportDocumentFile'
+            : 'PCB_ManufactureData.getPdfFile',
+        ],
+        params.fileName,
+        params.what === 'schematic' ? 'PDF' : undefined,
       ),
       'export.pdf',
     );

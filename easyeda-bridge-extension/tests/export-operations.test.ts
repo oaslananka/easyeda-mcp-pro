@@ -81,24 +81,43 @@ describe('export operations', () => {
     },
   );
 
-  it('keeps board PDF params unchanged and marks every other request schematic', async () => {
+  it('routes board and existing combined requests to the PCB PDF API with its native signature', async () => {
     const { callFirst, operations } = makeOperations();
-    const boardParams = { what: 'board', pageSize: 'A4' };
-    const schematicParams = { what: 'schematic', pageSize: 'A3' };
-
-    await operations.exportPdf(boardParams);
-    await operations.exportPdf(schematicParams);
-
+    await operations.exportPdf({ what: 'board', fileName: 'board' });
+    await operations.exportPdf({ what: 'both' });
     expect(callFirst).toHaveBeenNthCalledWith(
       1,
-      ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
-      boardParams,
+      ['PCB_ManufactureData.getPdfFile'],
+      'board',
+      undefined,
     );
     expect(callFirst).toHaveBeenNthCalledWith(
       2,
-      ['PCB_ManufactureData.getPdfFile', 'SCH_ManufactureData.getExportDocumentFile'],
-      { ...schematicParams, type: 'schematic' },
+      ['PCB_ManufactureData.getPdfFile'],
+      undefined,
+      undefined,
     );
+  });
+
+  it('exports a schematic PDF through the schematic API, never the PCB export', async () => {
+    const { callFirst, normalizeBinaryResult, operations } = makeOperations();
+
+    await operations.exportPdf({ what: 'schematic' });
+    await operations.exportPdf({ what: 'schematic', fileName: 'main' });
+
+    expect(callFirst).toHaveBeenNthCalledWith(
+      1,
+      ['SCH_ManufactureData.getExportDocumentFile'],
+      undefined,
+      'PDF',
+    );
+    expect(callFirst).toHaveBeenNthCalledWith(
+      2,
+      ['SCH_ManufactureData.getExportDocumentFile'],
+      'main',
+      'PDF',
+    );
+    expect(normalizeBinaryResult).toHaveBeenCalledWith('native-result', 'export.pdf');
   });
 
   it('uses the original netlist fallback chain and file-name fallback', async () => {
