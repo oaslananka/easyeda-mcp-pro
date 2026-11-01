@@ -628,6 +628,68 @@ describe('createPcbMutationOperations', () => {
     expect(getAllPoured).toHaveBeenCalledTimes(2);
   });
 
+  it("reconciles a net's second fresh pour when the beta return names the first one, rebuilt in the same batch", async () => {
+    const first = fakePouredWithFills('pour-1', 'pour-1', 12);
+    const second = fakePouredWithFills('pour-2', 'pour-2', 42);
+    const pour1 = fakePour('pour-1', { layer: 1, rebuildResult: first });
+    const pour2 = fakePour('pour-2', { layer: 2, rebuildResult: first });
+    const getAllPoured = vi
+      .fn<() => Promise<unknown[]>>()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([first, second]);
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => undefined),
+        getAll: vi.fn(async () => [pour1.primitive, pour2.primitive]),
+      },
+      pouredClass: { getAll: getAllPoured },
+    });
+
+    const result = await operations.rebuildCopper({ net: 'GND' });
+    expect(result).toMatchObject({
+      success: true,
+      rebuiltCount: 2,
+      results: [
+        { pourId: 'pour-1', pouredId: 'pour-1', status: 'rebuilt', verified: true },
+        {
+          pourId: 'pour-2',
+          pouredId: 'pour-2',
+          status: 'rebuilt',
+          verified: true,
+          warning: expect.stringContaining('independent'),
+        },
+      ],
+    });
+  });
+
+  it("rejects a net's second pour when the batch also left copper of a pour it did not rebuild", async () => {
+    const first = fakePouredWithFills('pour-1', 'pour-1', 12);
+    const second = fakePouredWithFills('pour-2', 'pour-2', 42);
+    const stray = fakePouredWithFills('stray', 'stray', 7);
+    const pour1 = fakePour('pour-1', { layer: 1, rebuildResult: first });
+    const pour2 = fakePour('pour-2', { layer: 2, rebuildResult: first });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => undefined),
+        getAll: vi.fn(async () => [pour1.primitive, pour2.primitive]),
+      },
+      pouredClass: {
+        getAll: vi
+          .fn<() => Promise<unknown[]>>()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([first, second, stray]),
+      },
+    });
+
+    const result = await operations.rebuildCopper({ net: 'GND' });
+    expect(result.success).toBe(false);
+    expect(result.results[1]).toMatchObject({
+      pourId: 'pour-2',
+      status: 'readback-mismatch',
+      verified: false,
+    });
+  });
+
   it('accepts a native complex polygon with two paths and copper-edge line segments', async () => {
     const existing = fakePouredWithFills('e336', 'e336', 12);
     const derived = {
