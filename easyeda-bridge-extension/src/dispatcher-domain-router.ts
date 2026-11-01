@@ -106,6 +106,7 @@ export function createDispatcherDomainRouter(
       method: 'export.netlist',
       handle: (params) => dependencies.exportOperations.exportNetlist(params),
     },
+    { method: 'export.odb', handle: (params) => dependencies.exportOperations.exportOdb(params) },
     { method: 'export.pdf', handle: (params) => dependencies.exportOperations.exportPdf(params) },
     {
       method: 'export.pickPlace',

@@ -82,6 +82,7 @@ const METHOD_LIST: readonly string[] = [
   'design.erc',
   'design.ruleCheck',
   'export.netlist',
+  'export.odb',
   'export.pdf',
   'export.pickPlace',
   'inventory.getPrice',
