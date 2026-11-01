@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { ToolRegistry } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import { registerSchematicReadTools } from '../../../src/tools/L1_schematic_read.js';
@@ -1729,6 +1730,33 @@ describe('Schematic Tools', () => {
       });
 
       expect(result).toEqual({ success: false, error: 'native refused text' });
+    });
+
+    it('publishes Gemini-compatible title block fields without phantom required keys', () => {
+      const schema = registry.get('easyeda_schematic_set_title_block')?.inputSchema;
+      expect(schema).toBeDefined();
+      expect(
+        schema?.safeParse({ fields: { Company: { value: 'ACME' } }, confirmWrite: true }).success,
+      ).toBe(true);
+      expect(
+        schema?.safeParse({ fields: { Symbol: { value: 'unsafe' } }, confirmWrite: true }).success,
+      ).toBe(false);
+
+      const jsonSchema = z.toJSONSchema(schema!);
+      const fields = jsonSchema.properties?.fields as {
+        properties?: Record<string, unknown>;
+        required?: string[];
+        additionalProperties?: boolean;
+      };
+      expect(Object.keys(fields.properties ?? {})).toEqual([
+        'Company',
+        'Version',
+        'Drawn',
+        'Reviewed',
+        'Page Size',
+      ]);
+      expect(fields.required ?? []).toEqual([]);
+      expect(fields.additionalProperties).toBe(false);
     });
 
     it('updates title block fields and defaults missing success to false', async () => {
