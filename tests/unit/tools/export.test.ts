@@ -59,6 +59,7 @@ describe('Export Tools', () => {
       'easyeda_export_pick_place',
       'easyeda_export_pdf',
       'easyeda_export_netlist',
+      'easyeda_export_odb',
     ]) {
       const tool = registry.get(name);
       expect(tool?.sideEffect, name).toBe('artifact-write');
@@ -372,5 +373,64 @@ describe('Export Tools', () => {
     expect(result?.exported).toBe(false);
     expect(result?.not_available).toBe(true);
     expect(result?.error).toBe('bridge offline');
+  });
+
+  it('easyeda_export_odb writes the EasyEDA tgz with its extension and passes name and drill options', async () => {
+    const tool = registry.get('easyeda_export_odb');
+    const tgz = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03]);
+    bridgeCall.mockResolvedValue({ base64: tgz.toString('base64'), fileName: 'proj-123-odb' });
+
+    const result = await tool?.handler(
+      context,
+      tool.inputSchema.parse({ projectId: 'proj-123', nonPlatedHoles: false }),
+    );
+
+    expect(bridgeCall).toHaveBeenCalledWith('export.odb', {
+      projectId: 'proj-123',
+      fileName: 'proj-123-odb',
+      platedHoles: true,
+      nonPlatedHoles: false,
+    });
+    expect(result).toMatchObject({ exported: true, format: 'tgz', byte_length: tgz.byteLength });
+    expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-odb.tgz'));
+    expect(fs.readFileSync(result!.file_path!)).toEqual(tgz);
+  });
+
+  it('easyeda_export_odb accepts a zip archive', async () => {
+    const tool = registry.get('easyeda_export_odb');
+    const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]);
+    bridgeCall.mockResolvedValue({ base64: zip.toString('base64'), fileName: 'odb.zip' });
+
+    const result = await tool?.handler(context, tool.inputSchema.parse({ projectId: 'proj-123' }));
+
+    expect(result).toMatchObject({ exported: true, format: 'zip' });
+    expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-odb.zip'));
+  });
+
+  it('easyeda_export_odb refuses a payload that is no archive and writes nothing', async () => {
+    const tool = registry.get('easyeda_export_odb');
+    bridgeCall.mockResolvedValue({
+      base64: Buffer.from('not an archive').toString('base64'),
+      fileName: 'odb',
+    });
+
+    const result = await tool?.handler(context, tool.inputSchema.parse({ projectId: 'proj-123' }));
+
+    expect(result).toMatchObject({ exported: false, not_available: true });
+    expect(result?.error).toMatch(/ODB\+\+ archive/);
+    expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+  });
+
+  it('easyeda_export_odb reports not_available when the bridge call fails', async () => {
+    const tool = registry.get('easyeda_export_odb');
+    bridgeCall.mockRejectedValue(new Error('Method not found: export.odb'));
+
+    const result = await tool?.handler(context, tool.inputSchema.parse({ projectId: 'proj-123' }));
+
+    expect(result).toMatchObject({
+      exported: false,
+      not_available: true,
+      error: 'Method not found: export.odb',
+    });
   });
 });

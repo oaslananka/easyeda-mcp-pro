@@ -31,6 +31,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_erc_run`                                  | `core`  | `medium` | Run native schematic ERC and supplement aggregate counts with inferred_floating_pins. Requires a focused schematic. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. Native counts remain authoritative; unavailable focus returns not_available.                                               |
 | `easyeda_export_gerbers`                           | `core`  | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                           |
 | `easyeda_export_netlist`                           | `pro`   | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                          |
+| `easyeda_export_odb`                               | `pro`   | `low`    | Export the PCB as ODB++ (PCB_ManufactureData.getOpenDatabaseDoublePlusFile, BETA): copper, mask, silkscreen, drills and the component layers with package, pins and part number in one archive, for assemblers that take ODB++ instead of Gerber. EasyEDA Pro writes it in inch.                                                 |
 | `easyeda_export_pdf`                               | `pro`   | `low`    | Export the schematic and/or board layout to PDF.                                                                                                                                                                                                                                                                                 |
 | `easyeda_export_pick_place`                        | `pro`   | `low`    | Export pick-and-place (centroid) file for PCB assembly. Contains component reference, position, rotation, and layer.                                                                                                                                                                                                             |
 | `easyeda_get_capabilities`                         | `core`  | `low`    | Return server capabilities, including available profiles, enabled feature flags, and supported operations.                                                                                                                                                                                                                       |
@@ -903,6 +904,39 @@ Returns a JSON object matching the schema:
   file_path: string(optional);
   byte_length: number(optional);
   net_count: number(optional);
+  exported: boolean;
+  not_available: boolean(optional);
+  error: string(optional);
+}
+```
+
+---
+
+## `easyeda_export_odb`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Export the PCB as ODB++ (PCB_ManufactureData.getOpenDatabaseDoublePlusFile, BETA): copper, mask, silkscreen, drills and the component layers with package, pins and part number in one archive, for assemblers that take ODB++ instead of Gerber. EasyEDA Pro writes it in inch.
+
+### Input Parameters
+
+| Parameter        | Type                | Required | Description |
+| ---------------- | ------------------- | -------- | ----------- |
+| `projectId`      | `string`            | Yes      |             |
+| `filePath`       | `string (optional)` | No       |             |
+| `platedHoles`    | `boolean`           | Yes      |             |
+| `nonPlatedHoles` | `boolean`           | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  format: 'tgz' | 'zip'(optional);
+  file_path: string(optional);
+  byte_length: number(optional);
   exported: boolean;
   not_available: boolean(optional);
   error: string(optional);

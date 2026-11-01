@@ -33,6 +33,20 @@ function validatePdfPayload(data: unknown): string | undefined {
 }
 
 /**
+ * The archive format of an ODB++ payload by its magic bytes: EasyEDA Pro packs ODB++ as tgz; a zip is
+ * accepted as well. Anything that is no archive is refused.
+ */
+function odbArchiveFormat(data: unknown): 'tgz' | 'zip' | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const binary = data as BinaryBridgeResult;
+  if (typeof binary.base64 !== 'string') return undefined;
+  const head = Buffer.from(binary.base64.slice(0, 8), 'base64');
+  if (head[0] === 0x1f && head[1] === 0x8b) return 'tgz';
+  if (head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04) return 'zip';
+  return undefined;
+}
+
+/**
  * Write a bridge export result to disk under `ctx.config.artifactDir`.
  *
  * The EasyEDA manufacturing-data APIs (Gerbers/PDF/netlist/pick-place) return
@@ -756,6 +770,95 @@ function registerExportTools(
         return {
           project_id: projectId,
           format,
+          exported: false,
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_export_odb',
+    title: 'Export ODB++',
+    description:
+      'Export the PCB as ODB++ (PCB_ManufactureData.getOpenDatabaseDoublePlusFile, BETA): copper, mask, silkscreen, drills and the component layers with package, pins and part number in one archive, for assemblers that take ODB++ instead of Gerber. EasyEDA Pro writes it in inch.',
+    profile: 'pro',
+    evidence: ['official-docs'],
+    risk: 'low',
+    confirmWrite: false,
+    sideEffect: 'artifact-write',
+    group: 'export',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().trim().min(1),
+      filePath: z.string().optional(),
+      platedHoles: z.boolean().default(true),
+      nonPlatedHoles: z.boolean().default(true),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      format: z.enum(['tgz', 'zip']).optional(),
+      file_path: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
+      exported: z.boolean(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, filePath, platedHoles, nonPlatedHoles } = params as {
+        projectId: string;
+        filePath?: string;
+        platedHoles: boolean;
+        nonPlatedHoles: boolean;
+      };
+      try {
+        const result = await ctx.bridge.call('export.odb', {
+          projectId,
+          fileName: `${projectId}-odb`,
+          platedHoles,
+          nonPlatedHoles,
+        });
+        const format = odbArchiveFormat(result);
+        if (!format) {
+          return {
+            project_id: projectId,
+            exported: false,
+            not_available: true,
+            error: 'Bridge did not return an ODB++ archive (tgz or zip).',
+          };
+        }
+        // The default name carries the archive's extension; EasyEDA's own file name may lack it.
+        const written = writeExportPayload(
+          ctx,
+          { base64: (result as BinaryBridgeResult).base64 },
+          filePath,
+          `${projectId}-odb.${format}`,
+        );
+        if (!written.ok) {
+          return {
+            project_id: projectId,
+            format,
+            exported: false,
+            not_available: true,
+            error: written.error,
+          };
+        }
+        return {
+          project_id: projectId,
+          format,
+          file_path: written.filePath,
+          byte_length: written.byteLength,
+          exported: true,
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
           exported: false,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),

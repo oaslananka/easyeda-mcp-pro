@@ -13,6 +13,7 @@ export interface ExportOperations {
   exportPickPlace(params: Record<string, unknown>): Promise<unknown>;
   exportPdf(params: Record<string, unknown>): Promise<unknown>;
   exportNetlist(params: Record<string, unknown>): Promise<unknown>;
+  exportOdb(params: Record<string, unknown>): Promise<unknown>;
 }
 
 export function createExportOperations({
@@ -89,11 +90,29 @@ export function createExportOperations({
     );
   }
 
+  // ODB++ (BETA in EasyEDA Pro's API): getOpenDatabaseDoublePlusFile(fileName, unit, otherData, layers, objects).
+  // Its unit type admits ESYS_Unit.INCH only; layers and objects default to JLCPCB's production set.
+  async function exportOdb(params: Record<string, unknown>): Promise<unknown> {
+    requireProjectId(params, 'ODB++ export');
+    const fileName =
+      typeof params.fileName === 'string' && params.fileName.trim()
+        ? params.fileName.trim()
+        : 'odb';
+    return normalizeBinaryResult(
+      await callFirst(['PCB_ManufactureData.getOpenDatabaseDoublePlusFile'], fileName, 'inch', {
+        metallizedDrilledHoles: params.platedHoles !== false,
+        nonMetallizedDrilledHoles: params.nonPlatedHoles !== false,
+      }),
+      'odb.tgz',
+    );
+  }
+
   return {
     exportGerbers,
     exportRouteContext,
     exportPickPlace,
     exportPdf,
     exportNetlist,
+    exportOdb,
   };
 }
