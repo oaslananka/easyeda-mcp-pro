@@ -189,7 +189,7 @@ describe('createDispatcher', () => {
 
     expect(getGerberFile).toHaveBeenCalledWith('project-1');
     expect(getDsnFile).toHaveBeenCalledWith('board.dsn');
-    expect(getPickAndPlaceFile).toHaveBeenCalledWith('project-1');
+    expect(getPickAndPlaceFile).toHaveBeenCalledWith('project-1', 'csv');
     expect(getPdfFile).toHaveBeenCalledWith({ what: 'board' });
     expect(getNetlist).toHaveBeenCalledWith({ format: 'spice' });
   });

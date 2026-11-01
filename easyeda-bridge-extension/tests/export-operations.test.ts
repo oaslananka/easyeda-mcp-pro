@@ -48,7 +48,7 @@ describe('export operations', () => {
     expect(callFirst).toHaveBeenNthCalledWith(2, ['PCB_ManufactureData.getDsnFile'], undefined);
   });
 
-  it('exports pick-and-place with the projectId string and preserves the output-name fallback', async () => {
+  it('exports pick-and-place as CSV with the projectId string and preserves the output-name fallback', async () => {
     const { callFirst, normalizeBinaryResult, operations } = makeOperations();
 
     await operations.exportPickPlace({ projectId: 'proj-123', format: 'csv' });
@@ -58,11 +58,13 @@ describe('export operations', () => {
       1,
       ['PCB_ManufactureData.getPickAndPlaceFile'],
       'proj-123',
+      'csv',
     );
     expect(callFirst).toHaveBeenNthCalledWith(
       2,
       ['PCB_ManufactureData.getPickAndPlaceFile'],
       'proj-456',
+      'csv',
     );
     expect(normalizeBinaryResult).toHaveBeenNthCalledWith(1, 'native-result', 'pick-place.csv');
     expect(normalizeBinaryResult).toHaveBeenNthCalledWith(2, 'native-result', 'pick-place.csv');
