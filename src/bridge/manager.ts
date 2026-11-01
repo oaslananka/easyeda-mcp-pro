@@ -128,6 +128,8 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>;
   method: string;
   startedAt: number;
+  /** The request's own timeout; the stale sweep must not cut it shorter. */
+  timeoutMs: number;
 }
 
 interface PairingEntry {
@@ -959,6 +961,7 @@ export class BridgeManager extends EventEmitter {
         timer,
         method,
         startedAt: Date.now(),
+        timeoutMs,
       });
 
       const message = JSON.stringify({
@@ -1161,7 +1164,7 @@ export class BridgeManager extends EventEmitter {
       const now = Date.now();
       for (const [id, entry] of this.requestMap) {
         const elapsed = now - entry.startedAt;
-        if (elapsed >= this.config.BRIDGE_TIMEOUT_MS) {
+        if (elapsed >= entry.timeoutMs) {
           getLogger().warn(
             { requestId: id, method: entry.method, elapsed },
             'stale sweep cleaning up expired request',

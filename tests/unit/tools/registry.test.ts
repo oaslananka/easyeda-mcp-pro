@@ -850,6 +850,55 @@ describe('ToolRegistry', () => {
     expect(registry.getEnabledTools().some((tool) => tool.name === 'easyeda_execute')).toBe(true);
   });
 
+  it('reports a create call of easyeda_api_call that returns nothing as a failure', async () => {
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const tool = registry.get('easyeda_api_call');
+    const bridgeCall = vi
+      .fn()
+      .mockResolvedValueOnce({ path: 'DMT_Project.createProject', result: null })
+      .mockResolvedValueOnce({ path: 'DMT_Project.createProject', result: undefined })
+      .mockResolvedValueOnce({ path: 'DMT_Project.getAllProjectsUuid', result: null })
+      .mockResolvedValueOnce({ path: 'DMT_Schematic.createSchematic', result: 'sch-uuid' });
+    const context = {
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall },
+      config: { bridgeTimeoutMs: 1000, artifactDir: '.easyeda-mcp-pro/artifacts' },
+    } as unknown as ToolContext;
+
+    await expect(
+      tool?.handler(context, {
+        path: 'DMT_Project.createProject',
+        args: ['x'],
+        confirmWrite: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      path: 'DMT_Project.createProject',
+      error: expect.stringMatching(/nothing was created/),
+    });
+    await expect(
+      tool?.handler(context, {
+        path: 'DMT_Project.createProject',
+        args: ['x'],
+        confirmWrite: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      path: 'DMT_Project.createProject',
+      error: expect.stringMatching(/undefined.*nothing was created/),
+    });
+    await expect(
+      tool?.handler(context, { path: 'DMT_Project.getAllProjectsUuid', args: [] }),
+    ).resolves.toMatchObject({ ok: true, result: null });
+    await expect(
+      tool?.handler(context, {
+        path: 'DMT_Schematic.createSchematic',
+        args: [],
+        confirmWrite: true,
+      }),
+    ).resolves.toMatchObject({ ok: true, result: 'sch-uuid' });
+  });
+
   it('should require confirmation before generic API write calls reach the bridge', async () => {
     registerBuiltinTools(registry, TEST_CONFIG);
     const tool = registry.get('easyeda_api_call');
@@ -875,6 +924,18 @@ describe('ToolRegistry', () => {
     expect(result).toMatchObject({
       ok: false,
       path: 'SCH_PrimitiveWire.create',
+      requires_confirmation: true,
+    });
+    expect(bridgeCall).not.toHaveBeenCalled();
+
+    const projectResult = await tool?.handler(context, {
+      path: 'DMT_Project.createProject',
+      args: ['folder'],
+      confirmWrite: false,
+    });
+    expect(projectResult).toMatchObject({
+      ok: false,
+      path: 'DMT_Project.createProject',
       requires_confirmation: true,
     });
     expect(bridgeCall).not.toHaveBeenCalled();

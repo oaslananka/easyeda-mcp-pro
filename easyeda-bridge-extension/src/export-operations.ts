@@ -52,8 +52,10 @@ export function createExportOperations({
 
   async function exportPickPlace(params: Record<string, unknown>): Promise<unknown> {
     const projectId = requireProjectId(params, 'Pick-and-place export');
+    // getPickAndPlaceFile(fileName?, fileType?: 'xlsx' | 'csv', unit?) writes xlsx without a type;
+    // both formats of the tool (csv, txt) are CSV text.
     return normalizeBinaryResult(
-      await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], projectId),
+      await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], projectId, 'csv'),
       `pick-place.${typeof params.format === 'string' ? params.format : 'csv'}`,
     );
   }

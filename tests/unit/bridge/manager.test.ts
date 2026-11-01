@@ -937,6 +937,34 @@ describe('BridgeManager - call() round trip', () => {
     manager.disconnect('test complete');
   });
 
+  it('lets the stale sweep honour a per-request timeout longer than BRIDGE_TIMEOUT_MS', async () => {
+    const { manager, socket } = await setupSecureConnection({ BRIDGE_TIMEOUT_MS: '15000' });
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
+    });
+    try {
+      // restart the sweep so it runs on the fake clock
+      (manager as unknown as { startStaleSweep(): void }).startStaleSweep();
+      let settled: string | undefined;
+      const pending = manager
+        .call('project.save', {}, { timeoutMs: 120_000 })
+        .catch((error: Error) => {
+          settled = error.message;
+        });
+
+      await vi.advanceTimersByTimeAsync(61_000); // two sweeps, both past the 15 s default
+      expect(settled).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(60_000); // the request's own 120 s are over: now either may end it
+      await pending;
+      expect(settled).toMatch(/timed out after 120000ms|expired \(stale sweep\)/);
+    } finally {
+      vi.useRealTimers();
+      socket.close();
+      manager.disconnect('test complete');
+    }
+  });
+
   it('round-trips a canvas.capture request/response without a live EasyEDA process', async () => {
     // Simulates the bridge extension's response shape after it has already
     // converted a Blob to base64 (see easyeda-bridge-extension/src/binary-result.ts) —

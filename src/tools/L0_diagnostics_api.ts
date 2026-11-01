@@ -21,7 +21,7 @@ const apiCallInputSchema = z.object({
 });
 
 const writeMethodPattern =
-  /\.(create|delete|modify|open|openProject|save|import|export|reorder|remove|update|set|reset|done)$/i;
+  /\.(create[A-Za-z0-9_]*|delete|modify|open|openProject|save|import|export|reorder|remove|update|set|reset|done)$/i;
 
 function requiresWriteConfirmation(path: string): boolean {
   return writeMethodPattern.test(path);
@@ -40,6 +40,15 @@ type LiveSmokeCheck = {
   duration_ms: number;
   error?: string;
 };
+
+/**
+ * A create method that answers null or undefined created nothing – e.g. DMT_Project.createProject in the
+ * desktop client, whose local server wants a folder path the extension API cannot pass.
+ */
+function isEmptyCreateResult(path: string, result: unknown): boolean {
+  const method = path.slice(path.lastIndexOf('.') + 1);
+  return method.startsWith('create') && (result === null || result === undefined);
+}
 
 function summarizeTotal(payload: unknown): number | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
@@ -334,6 +343,14 @@ function registerDiagnosticsApi(
       try {
         const result = await ctx.bridge.call('api.call', { path, args });
         const data = result as { path?: string; resolvedPath?: string; result?: unknown };
+        if (isEmptyCreateResult(path, data.result)) {
+          return {
+            ok: false,
+            path: data.path ?? path,
+            resolvedPath: data.resolvedPath,
+            error: `EasyEDA returned ${String(data.result)} for "${path}": nothing was created.`,
+          };
+        }
         return {
           ok: true,
           path: data.path ?? path,
