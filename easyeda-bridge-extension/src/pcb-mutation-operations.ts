@@ -204,11 +204,43 @@ function existingPouredUnchanged(
   return true;
 }
 
+// Every new Poured must belong to a pour of this batch: a net's second fresh
+// pour finds the first one's new copper beside its own.
+function onlyBatchCopperAdded(
+  before: Map<string, PouredEvidence>,
+  after: Map<string, PouredEvidence>,
+  batchRebuiltIds: ReadonlySet<string>,
+): boolean {
+  for (const sourceId of after.keys()) {
+    if (!before.has(sourceId) && !batchRebuiltIds.has(sourceId)) return false;
+  }
+  return true;
+}
+
+// The beta return names a pour that already had copper: from before the call,
+// or one this batch rebuilt earlier.
+function returnNamesPriorCopper(
+  attempt: CopperRebuildAttempt,
+  before: Map<string, PouredEvidence>,
+  after: Map<string, PouredEvidence>,
+  earlierRebuiltIds: ReadonlySet<string>,
+): boolean {
+  const returnedSource = nativeStateString(attempt.nativeResult, 'getState_PourPrimitiveId');
+  const returnedId = nativeStateString(attempt.nativeResult, 'getState_PrimitiveId');
+  if (!returnedSource) return false;
+  const prior =
+    before.get(returnedSource) ??
+    (earlierRebuiltIds.has(returnedSource) ? after.get(returnedSource) : undefined);
+  return prior !== undefined && prior.pouredId === returnedId;
+}
+
 function independentlyReconciled(
   attempt: CopperRebuildAttempt,
   beforeEvidence: Map<string, PouredEvidence> | undefined,
   after: unknown[],
   focusUnchanged: boolean,
+  batchRebuiltIds: ReadonlySet<string>,
+  earlierRebuiltIds: ReadonlySet<string>,
 ): string | undefined {
   if (!focusUnchanged) return undefined;
   let afterEvidence: Map<string, PouredEvidence> | undefined;
@@ -222,14 +254,11 @@ function independentlyReconciled(
   if (
     !target ||
     target.pouredId !== attempt.pourId ||
-    afterEvidence.size !== beforeEvidence.size + 1
+    !onlyBatchCopperAdded(beforeEvidence, afterEvidence, batchRebuiltIds) ||
+    !existingPouredUnchanged(beforeEvidence, afterEvidence) ||
+    !returnNamesPriorCopper(attempt, beforeEvidence, afterEvidence, earlierRebuiltIds)
   )
     return undefined;
-  if (!existingPouredUnchanged(beforeEvidence, afterEvidence)) return undefined;
-  const returnedSource = nativeStateString(attempt.nativeResult, 'getState_PourPrimitiveId');
-  const returnedId = nativeStateString(attempt.nativeResult, 'getState_PrimitiveId');
-  const priorReturn = returnedSource && beforeEvidence.get(returnedSource);
-  if (!priorReturn || priorReturn.pouredId !== returnedId) return undefined;
   return target.pouredId;
 }
 
@@ -517,7 +546,7 @@ function mapRebuildResults(
       )
       .map((attempt) => attempt.pourId),
   );
-  return attempts.map((attempt) => {
+  return attempts.map((attempt, index) => {
     if (attempt.error) {
       return {
         pourId: attempt.pourId,
@@ -537,11 +566,19 @@ function mapRebuildResults(
     // rebuild a newly created pour. Never attribute that result to our target.
     const nativeSourcePourId = nativeStateString(attempt.nativeResult, 'getState_PourPrimitiveId');
     if (nativeSourcePourId !== undefined && nativeSourcePourId !== attempt.pourId) {
+      const earlierRebuiltIds = new Set(
+        attempts
+          .slice(0, index)
+          .map((earlier) => earlier.pourId)
+          .filter((id) => rebuiltIds.has(id)),
+      );
       const reconciledId = independentlyReconciled(
         attempt,
         preEvidence,
         postReadback,
         focusUnchanged,
+        rebuiltIds,
+        earlierRebuiltIds,
       );
       if (reconciledId !== undefined) {
         return {
