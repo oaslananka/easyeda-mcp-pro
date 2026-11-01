@@ -33,77 +33,74 @@ export function createExportOperations({
     return projectId;
   }
 
+  const p = 'PCB_ManufactureData.';
+
+  async function exportFile(
+    paths: string[],
+    fileName: string,
+    ...args: unknown[]
+  ): Promise<unknown> {
+    return normalizeBinaryResult(await callFirst(paths, ...args), fileName);
+  }
+
   async function exportGerbers(params: Record<string, unknown>): Promise<unknown> {
-    const projectId = requireProjectId(params, 'Gerber export');
-    return normalizeBinaryResult(
-      await callFirst(['PCB_ManufactureData.getGerberFile'], projectId),
+    return exportFile(
+      [p + 'getGerberFile'],
       'gerbers.zip',
+      requireProjectId(params, 'Gerber export'),
     );
   }
 
   async function exportRouteContext(params: Record<string, unknown>): Promise<unknown> {
-    return normalizeBinaryResult(
-      await callFirst(
-        ['PCB_ManufactureData.getDsnFile'],
-        typeof params.fileName === 'string' ? params.fileName : undefined,
-      ),
+    return exportFile(
+      [p + 'getDsnFile'],
       'route-context.dsn',
+      typeof params.fileName === 'string' ? params.fileName : undefined,
     );
   }
 
   async function exportPickPlace(params: Record<string, unknown>): Promise<unknown> {
-    const projectId = requireProjectId(params, 'Pick-and-place export');
-    // getPickAndPlaceFile(fileName?, fileType?: 'xlsx' | 'csv', unit?) writes xlsx without a type;
-    // both formats of the tool (csv, txt) are CSV text.
-    return normalizeBinaryResult(
-      await callFirst(['PCB_ManufactureData.getPickAndPlaceFile'], projectId, 'csv'),
-      `pick-place.${typeof params.format === 'string' ? params.format : 'csv'}`,
+    return exportFile(
+      [p + 'getPickAndPlaceFile'],
+      'pick-place.' + (typeof params.format === 'string' ? params.format : 'csv'),
+      requireProjectId(params, 'Pick-and-place export'),
+      'csv',
     );
   }
 
   async function exportPdf(params: Record<string, unknown>): Promise<unknown> {
-    return normalizeBinaryResult(
-      await callFirst(
-        [
-          params.what === 'schematic'
-            ? 'SCH_ManufactureData.getExportDocumentFile'
-            : 'PCB_ManufactureData.getPdfFile',
-        ],
-        params.fileName,
-        params.what === 'schematic' ? 'PDF' : undefined,
-      ),
+    return exportFile(
+      [
+        params.what === 'schematic'
+          ? 'SCH_ManufactureData.getExportDocumentFile'
+          : p + 'getPdfFile',
+      ],
       'export.pdf',
+      params.fileName,
+      params.what === 'schematic' ? 'PDF' : undefined,
     );
   }
 
   async function exportNetlist(params: Record<string, unknown>): Promise<unknown> {
-    return normalizeBinaryResult(
-      await callFirst(
-        [
-          'SCH_Netlist.getNetlist',
-          'SCH_ManufactureData.getNetlistFile',
-          'PCB_ManufactureData.getNetlistFile',
-        ],
-        params,
-      ),
-      `netlist.${typeof params.format === 'string' ? params.format : 'txt'}`,
+    return exportFile(
+      ['SCH_Netlist.getNetlist', 'SCH_ManufactureData.getNetlistFile', p + 'getNetlistFile'],
+      'netlist.' + (typeof params.format === 'string' ? params.format : 'txt'),
+      params,
     );
   }
 
-  // ODB++ (BETA in EasyEDA Pro's API): getOpenDatabaseDoublePlusFile(fileName, unit, otherData, layers, objects).
-  // Its unit type admits ESYS_Unit.INCH only; layers and objects default to JLCPCB's production set.
+  // Beta EasyEDA ODB++ export; this is not manufacturing verification.
   async function exportOdb(params: Record<string, unknown>): Promise<unknown> {
     requireProjectId(params, 'ODB++ export');
-    const fileName =
-      typeof params.fileName === 'string' && params.fileName.trim()
-        ? params.fileName.trim()
-        : 'odb';
-    return normalizeBinaryResult(
-      await callFirst(['PCB_ManufactureData.getOpenDatabaseDoublePlusFile'], fileName, 'inch', {
+    return exportFile(
+      [p + 'getOpenDatabaseDoublePlusFile'],
+      'odb.tgz',
+      (typeof params.fileName === 'string' && params.fileName.trim()) || 'odb',
+      'inch',
+      {
         metallizedDrilledHoles: params.platedHoles !== false,
         nonMetallizedDrilledHoles: params.nonPlatedHoles !== false,
-      }),
-      'odb.tgz',
+      },
     );
   }
 

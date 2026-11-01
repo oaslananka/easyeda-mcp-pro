@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
@@ -32,18 +33,49 @@ function validatePdfPayload(data: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * The archive format of an ODB++ payload by its magic bytes: EasyEDA Pro packs ODB++ as tgz; a zip is
- * accepted as well. Anything that is no archive is refused.
- */
+/** A readable gzip-compressed tar, not just a plausible gzip header. */
+function isTgzArchive(archive: Buffer): boolean {
+  if (archive.length < 18 || archive[0] !== 0x1f || archive[1] !== 0x8b) return false;
+  try {
+    // Bound inflation to avoid a small malicious payload exhausting memory.
+    const tar = gunzipSync(archive, { maxOutputLength: 128 * 1024 * 1024 });
+    return (
+      tar.length >= 1024 &&
+      tar.subarray(257, 262).toString('ascii') === 'ustar' &&
+      tar.subarray(0, 100).some((byte) => byte !== 0)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Check for a nonempty ZIP with a consistent central directory. */
+function isZipArchive(archive: Buffer): boolean {
+  if (archive.length < 30 || archive.readUInt32LE(0) !== 0x04034b50) return false;
+  for (let i = archive.length - 22; i >= Math.max(0, archive.length - 65557); i--) {
+    if (archive.readUInt32LE(i) !== 0x06054b50) continue;
+    const count = archive.readUInt16LE(i + 10);
+    const offset = archive.readUInt32LE(i + 16);
+    const size = archive.readUInt32LE(i + 12);
+    if (
+      count > 0 &&
+      i + 22 + archive.readUInt16LE(i + 20) === archive.length &&
+      offset + size === i &&
+      archive.readUInt32LE(offset) === 0x02014b50
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Structural archive check only; no fabrication or ODB++ content approval. */
 function odbArchiveFormat(data: unknown): 'tgz' | 'zip' | undefined {
   if (!data || typeof data !== 'object') return undefined;
   const binary = data as BinaryBridgeResult;
   if (typeof binary.base64 !== 'string') return undefined;
-  const head = Buffer.from(binary.base64.slice(0, 8), 'base64');
-  if (head[0] === 0x1f && head[1] === 0x8b) return 'tgz';
-  if (head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04) return 'zip';
-  return undefined;
+  const archive = Buffer.from(binary.base64, 'base64');
+  return isTgzArchive(archive) ? 'tgz' : isZipArchive(archive) ? 'zip' : undefined;
 }
 
 /**
@@ -782,8 +814,8 @@ function registerExportTools(
     name: 'easyeda_export_odb',
     title: 'Export ODB++',
     description:
-      'Export the PCB as ODB++ (PCB_ManufactureData.getOpenDatabaseDoublePlusFile, BETA): copper, mask, silkscreen, drills and the component layers with package, pins and part number in one archive, for assemblers that take ODB++ instead of Gerber. EasyEDA Pro writes it in inch.',
-    profile: 'pro',
+      'Experimental ODB++ archive export using EasyEDA Pro BETA API. Returns an archive for inspection, not verified fabrication data. Do not use in production.',
+    profile: 'experimental',
     evidence: ['official-docs'],
     risk: 'low',
     confirmWrite: false,
