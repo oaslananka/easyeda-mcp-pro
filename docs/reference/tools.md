@@ -59,6 +59,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_fills`                                | `core`         | `low`    | List native PCB Fill primitives separately from copper pours/zones, including net/layer, fill mode, line width, lock state, and a bounded normalized polygon representation. Netless fills are returned explicitly with netless=true. Read-only; no Fill mutation is exposed.                                                    |
 | `easyeda_pcb_floorplan`                            | `full`         | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                    |
 | `easyeda_pcb_modify_component`                     | `full`         | `high`   | Preview or apply a PCB component transform for top/bottom side, native X/Y coordinates in mils, and rotation in degrees. Apply requires confirmation, captures a transaction snapshot, verifies fresh native read-back, and restores on mismatch. EasyEDA Pro has no independent component mirror field.                         |
+| `easyeda_pcb_place_batch`                          | `full`         | `high`   | Compact placement results for up to 64 existing PCB components. Each apply executes the existing transactional component transform and checks native read-back. Stops at the first failure; previous successful placements are NOT rolled back as a group. Use smaller batches as needed.                                        |
 | `easyeda_pcb_place_component`                      | `full`         | `high`   | Direct PCB component creation is unavailable because the verified EasyEDA runtime does not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in the schematic, sync to PCB, confirm the native dialog, then reposition it with easyeda_pcb_modify_component.                                      |
 | `easyeda_pcb_place_component_group`                | `full`         | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                            |
 | `easyeda_pcb_production_review`                    | `core`         | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                   |
@@ -1860,6 +1861,42 @@ Returns a JSON object matching the schema:
   transaction_id: string (optional);
   transaction_state: 'active' | 'validated' | 'committed' | 'rolled-back' | 'failed' (optional);
   rolled_back: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_place_batch`
+
+**Profile:** `full` | **Risk Level:** `high`
+
+> Compact placement results for up to 64 existing PCB components. Each apply executes the existing transactional component transform and checks native read-back. Stops at the first failure; previous successful placements are NOT rolled back as a group. Use smaller batches as needed.
+
+### Input Parameters
+
+| Parameter      | Type                     | Required | Description |
+| -------------- | ------------------------ | -------- | ----------- |
+| `mode`         | `'preview'` \| `'apply'` | Yes      |             |
+| `placements`   | `object[]`               | Yes      |             |
+| `confirmWrite` | `'true' (optional)`      | No       |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  mode: 'preview' | 'apply';
+  total: number;
+  processed: number;
+  moved: number;
+  unchanged: number;
+  remaining: number;
+  partial_apply: boolean;
+  atomic: 'false';
+  results: object[];
   error: string (optional);
 }
 ```

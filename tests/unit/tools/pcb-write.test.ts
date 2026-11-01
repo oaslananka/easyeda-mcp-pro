@@ -47,7 +47,7 @@ describe('PCB Write Tools', () => {
     };
   });
 
-  it('should register all 12 PCB write tools', () => {
+  it('should register all 13 PCB write tools', () => {
     expect(registry.get('easyeda_pcb_place_component')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_track')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_region')).toBeDefined();
@@ -56,6 +56,7 @@ describe('PCB Write Tools', () => {
     expect(registry.get('easyeda_pcb_rebuild_copper')).toBeDefined();
     expect(registry.get('easyeda_pcb_delete_component')).toBeDefined();
     expect(registry.get('easyeda_pcb_modify_component')).toBeDefined();
+    expect(registry.get('easyeda_pcb_place_batch')).toBeDefined();
     expect(registry.get('easyeda_pcb_place_component_group')).toBeDefined();
     expect(registry.get('easyeda_pcb_route_path_plan')).toBeDefined();
     expect(registry.get('easyeda_pcb_add_text')).toBeDefined();
