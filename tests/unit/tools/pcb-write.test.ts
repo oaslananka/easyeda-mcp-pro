@@ -27,7 +27,12 @@ describe('PCB Write Tools', () => {
       profile: 'full',
       bridge: {
         connected: true,
-        call: bridgeCall,
+        call: vi.fn((method: string, params: unknown) =>
+          method === 'api.call' &&
+          (params as { path?: string })?.path === 'DMT_Project.getCurrentProjectInfo'
+            ? Promise.resolve({ result: { uuid: 'project-uuid-1' } })
+            : bridgeCall(method, params),
+        ) as ToolContext['bridge']['call'],
       },
       config: {
         bridgeTimeoutMs: 1000,
@@ -1343,6 +1348,65 @@ describe('PCB Write Tools', () => {
     expect(result).toEqual({ success: false, error: 'Bridge not connected' });
   });
 
+  it('scopes PCB component reads to the current project UUID without writing in preview', async () => {
+    const tool = registry.get('easyeda_pcb_modify_component');
+    bridgeCall.mockResolvedValue({
+      total: 1,
+      items: [{ primitiveId: 'comp-1', x: 10, y: 20, rotation: 0, layer: 1, locked: false }],
+    });
+
+    const result = await tool?.handler(context, {
+      primitiveId: 'comp-1',
+      mode: 'preview',
+      xMil: 15,
+    });
+
+    expect(context.bridge.call).toHaveBeenCalledWith('api.call', {
+      path: 'DMT_Project.getCurrentProjectInfo',
+      args: [],
+    });
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listComponents', {
+      projectId: 'project-uuid-1',
+    });
+    expect(result).toMatchObject({ success: true, applied: false, mode: 'preview' });
+    expect(bridgeCall).not.toHaveBeenCalledWith('pcb.modifyComponent', expect.anything());
+  });
+
+  it.each([{ result: null }, { result: {} }, { result: { uuid: '   ' } }])(
+    'fails closed without a focused PCB UUID (%j)',
+    async (response) => {
+      const tool = registry.get('easyeda_pcb_modify_component');
+      context.bridge.call = vi.fn(async () => response) as typeof context.bridge.call;
+
+      const result = await tool?.handler(context, {
+        primitiveId: 'comp-1',
+        mode: 'apply',
+        xMil: 15,
+        confirmWrite: true,
+      });
+
+      expect(result).toMatchObject({ success: false, applied: false });
+      expect(result?.error).toContain('Focused PCB project UUID');
+      expect(bridgeCall).not.toHaveBeenCalled();
+    },
+  );
+
+  it('preserves scoped bridge refusal without attempting a write', async () => {
+    const tool = registry.get('easyeda_pcb_modify_component');
+    bridgeCall.mockRejectedValue(new Error('PCB project identity mismatch'));
+
+    const result = await tool?.handler(context, {
+      primitiveId: 'comp-1',
+      mode: 'apply',
+      xMil: 15,
+      confirmWrite: true,
+    });
+
+    expect(result).toMatchObject({ success: false, applied: false });
+    expect(result?.error).toContain('PCB project identity mismatch');
+    expect(bridgeCall).not.toHaveBeenCalledWith('pcb.modifyComponent', expect.anything());
+  });
+
   it('easyeda_pcb_modify_component rejects the legacy unrestricted property bag', () => {
     const tool = registry.get('easyeda_pcb_modify_component');
 
@@ -1391,7 +1455,7 @@ describe('PCB Write Tools', () => {
     });
 
     expect(bridgeCall).toHaveBeenCalledTimes(1);
-    expect(bridgeCall).toHaveBeenCalledWith('pcb.listComponents', {});
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listComponents', { projectId: 'project-uuid-1' });
     expect(bridgeCall).not.toHaveBeenCalledWith('pcb.modifyComponent', expect.anything());
     expect(result).toMatchObject({
       success: true,

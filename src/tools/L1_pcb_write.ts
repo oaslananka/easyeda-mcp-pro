@@ -584,10 +584,18 @@ async function readPcbComponentState(
   ctx: ToolContext,
   primitiveId: string,
 ): Promise<PcbComponentTransformState> {
+  const info = await ctx.bridge.call<
+    { path: string; args: unknown[] },
+    { result?: { uuid?: unknown } }
+  >('api.call', { path: 'DMT_Project.getCurrentProjectInfo', args: [] });
+  const projectId = info?.result?.uuid;
+  if (typeof projectId !== 'string' || !projectId.trim()) {
+    throw new Error('Focused PCB project UUID is unavailable; component read aborted');
+  }
   const listed = await ctx.bridge.call<
-    Record<string, never>,
+    { projectId: string },
     { items?: unknown[]; total?: number }
-  >('pcb.listComponents', {});
+  >('pcb.listComponents', { projectId });
   const raw = Array.isArray(listed?.items)
     ? listed.items.find(
         (item) =>
