@@ -30,8 +30,8 @@ importers:
   .:
     dependencies:
       '@modelcontextprotocol/ext-apps':
-        specifier: 2.0.3
-        version: 2.0.3(@modelcontextprotocol/client@2.4.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.4.0)(zod@4.6.7)
+        specifier: 2.0.4
+        version: 2.0.4(@modelcontextprotocol/client@2.4.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.4.0)(zod@4.6.7)
       '@modelcontextprotocol/node':
         specifier: ^2.1.2
         version: 2.1.2(@modelcontextprotocol/server@2.4.0)
@@ -509,8 +509,8 @@ packages:
     resolution: {integrity: sha512-z8QBKqdfXLPzkLQuG4xp8hrVEMm1PZ1IgxMN2sMbJiFiAKOWXnAzogXn2W4aqIBlP1ea6U5yiqVquvUNM1Cj6Q==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/ext-apps@2.0.3':
-    resolution: {integrity: sha512-Tn+4+cyhO4f4cQSDxNyLiIfEE+qlTTuIbWBJB8JTinEXOhDYgCT4wDTQplxD9MBYZH5pCYGC59GaxiwIT4bu8w==}
+  '@modelcontextprotocol/ext-apps@2.0.4':
+    resolution: {integrity: sha512-B+PcbuGiaf0e5I3uy4iO5tS3Abo+5w8JvZFzHMzQdq9yVwP836zJkw2+KCGOQ0r4TM1fuQi4JdnbuWjkS4aBvg==}
     engines: {node: '>=20'}
     peerDependencies:
       '@modelcontextprotocol/client': ^2.0.0
@@ -2542,7 +2542,7 @@ snapshots:
     dependencies:
       zod: 4.6.7
 
-  '@modelcontextprotocol/ext-apps@2.0.3(@modelcontextprotocol/client@2.4.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.4.0)(zod@4.6.7)':
+  '@modelcontextprotocol/ext-apps@2.0.4(@modelcontextprotocol/client@2.4.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.4.0)(zod@4.6.7)':
     dependencies:
       '@modelcontextprotocol/client': 2.4.0
       '@modelcontextprotocol/core': 2.4.0
