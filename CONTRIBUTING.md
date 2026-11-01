@@ -159,15 +159,11 @@ The authoritative channel, soak, live-validation, emergency, and rollback requir
 
 ## 6. Contribution rights
 
-Open an issue or pull request directly; no separate registration or per-commit
-DCO `Signed-off-by` trailer is required.
-
-Because the project also offers commercial licensing, the first substantial
-external contribution requires only a **one-time GitHub PR comment** granting
-the necessary rights. See [Contributing and Licensing](CONTRIBUTOR-LICENSING.md)
-for the short permission and exact comment. Maintainers skip this step for
-trivial changes and bots, and never ask for a fresh agreement on each PR
-under the same permission version.
+Contributions are welcome through GitHub issues and pull requests without a
+contributor license agreement (CLA), special permission comment, external
+registration, or per-commit DCO sign-off. The project is licensed under MIT.
+Contributors retain their copyright and should submit only material they have
+the right to contribute, identifying third-party material and its license.
 
 ---
 
