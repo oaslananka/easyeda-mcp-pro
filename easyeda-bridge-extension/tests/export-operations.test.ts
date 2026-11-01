@@ -137,4 +137,47 @@ describe('export operations', () => {
     expect(normalizeBinaryResult).toHaveBeenNthCalledWith(1, 'native-result', 'netlist.spice');
     expect(normalizeBinaryResult).toHaveBeenNthCalledWith(2, 'native-result', 'netlist.txt');
   });
+
+  it('exports ODB++ in inch with the file name and both kinds of drill holes', async () => {
+    const { callFirst, normalizeBinaryResult, operations } = makeOperations();
+
+    await expect(
+      operations.exportOdb({ projectId: 'proj-123', fileName: 'board-odb' }),
+    ).resolves.toEqual({ value: 'native-result', fileName: 'odb.tgz' });
+    expect(callFirst).toHaveBeenCalledWith(
+      ['PCB_ManufactureData.getOpenDatabaseDoublePlusFile'],
+      'board-odb',
+      'inch',
+      { metallizedDrilledHoles: true, nonMetallizedDrilledHoles: true },
+    );
+    expect(normalizeBinaryResult).toHaveBeenCalledWith('native-result', 'odb.tgz');
+  });
+
+  it('passes the drill options through and names the file when no name is given', async () => {
+    const { callFirst, operations } = makeOperations();
+
+    await operations.exportOdb({
+      projectId: 'proj-123',
+      platedHoles: false,
+      nonPlatedHoles: false,
+    });
+
+    expect(callFirst).toHaveBeenCalledWith(
+      ['PCB_ManufactureData.getOpenDatabaseDoublePlusFile'],
+      'odb',
+      'inch',
+      { metallizedDrilledHoles: false, nonMetallizedDrilledHoles: false },
+    );
+  });
+
+  it.each([{}, { projectId: '' }, { projectId: '   ' }])(
+    'rejects ODB++ export before the native call when projectId is missing or blank: %j',
+    async (params) => {
+      const { callFirst, normalizeBinaryResult, operations } = makeOperations();
+
+      await expect(operations.exportOdb(params)).rejects.toThrow(/non-empty projectId/i);
+      expect(callFirst).not.toHaveBeenCalled();
+      expect(normalizeBinaryResult).not.toHaveBeenCalled();
+    },
+  );
 });

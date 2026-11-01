@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
@@ -30,6 +31,51 @@ function validatePdfPayload(data: unknown): string | undefined {
   const headerWindow = buffer.subarray(0, Math.min(buffer.byteLength, 1024)).toString('latin1');
   if (!headerWindow.includes('%PDF-')) return 'Bridge did not return a valid PDF payload.';
   return undefined;
+}
+
+/** A readable gzip-compressed tar, not just a plausible gzip header. */
+function isTgzArchive(archive: Buffer): boolean {
+  if (archive.length < 18 || archive[0] !== 0x1f || archive[1] !== 0x8b) return false;
+  try {
+    // Bound inflation to avoid a small malicious payload exhausting memory.
+    const tar = gunzipSync(archive, { maxOutputLength: 128 * 1024 * 1024 });
+    return (
+      tar.length >= 1024 &&
+      tar.subarray(257, 262).toString('ascii') === 'ustar' &&
+      tar.subarray(0, 100).some((byte) => byte !== 0)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Check for a nonempty ZIP with a consistent central directory. */
+function isZipArchive(archive: Buffer): boolean {
+  if (archive.length < 30 || archive.readUInt32LE(0) !== 0x04034b50) return false;
+  for (let i = archive.length - 22; i >= Math.max(0, archive.length - 65557); i--) {
+    if (archive.readUInt32LE(i) !== 0x06054b50) continue;
+    const count = archive.readUInt16LE(i + 10);
+    const offset = archive.readUInt32LE(i + 16);
+    const size = archive.readUInt32LE(i + 12);
+    if (
+      count > 0 &&
+      i + 22 + archive.readUInt16LE(i + 20) === archive.length &&
+      offset + size === i &&
+      archive.readUInt32LE(offset) === 0x02014b50
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Structural archive check only; no fabrication or ODB++ content approval. */
+function odbArchiveFormat(data: unknown): 'tgz' | 'zip' | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const binary = data as BinaryBridgeResult;
+  if (typeof binary.base64 !== 'string') return undefined;
+  const archive = Buffer.from(binary.base64, 'base64');
+  return isTgzArchive(archive) ? 'tgz' : isZipArchive(archive) ? 'zip' : undefined;
 }
 
 /**
@@ -756,6 +802,95 @@ function registerExportTools(
         return {
           project_id: projectId,
           format,
+          exported: false,
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_export_odb',
+    title: 'Export ODB++',
+    description:
+      'Experimental ODB++ archive export using EasyEDA Pro BETA API. Returns an archive for inspection, not verified fabrication data. Do not use in production.',
+    profile: 'experimental',
+    evidence: ['official-docs'],
+    risk: 'low',
+    confirmWrite: false,
+    sideEffect: 'artifact-write',
+    group: 'export',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().trim().min(1),
+      filePath: z.string().optional(),
+      platedHoles: z.boolean().default(true),
+      nonPlatedHoles: z.boolean().default(true),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      format: z.enum(['tgz', 'zip']).optional(),
+      file_path: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
+      exported: z.boolean(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, filePath, platedHoles, nonPlatedHoles } = params as {
+        projectId: string;
+        filePath?: string;
+        platedHoles: boolean;
+        nonPlatedHoles: boolean;
+      };
+      try {
+        const result = await ctx.bridge.call('export.odb', {
+          projectId,
+          fileName: `${projectId}-odb`,
+          platedHoles,
+          nonPlatedHoles,
+        });
+        const format = odbArchiveFormat(result);
+        if (!format) {
+          return {
+            project_id: projectId,
+            exported: false,
+            not_available: true,
+            error: 'Bridge did not return an ODB++ archive (tgz or zip).',
+          };
+        }
+        // The default name carries the archive's extension; EasyEDA's own file name may lack it.
+        const written = writeExportPayload(
+          ctx,
+          { base64: (result as BinaryBridgeResult).base64 },
+          filePath,
+          `${projectId}-odb.${format}`,
+        );
+        if (!written.ok) {
+          return {
+            project_id: projectId,
+            format,
+            exported: false,
+            not_available: true,
+            error: written.error,
+          };
+        }
+        return {
+          project_id: projectId,
+          format,
+          file_path: written.filePath,
+          byte_length: written.byteLength,
+          exported: true,
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
           exported: false,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
