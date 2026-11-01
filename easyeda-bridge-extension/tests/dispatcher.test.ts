@@ -3317,6 +3317,88 @@ describe('createDispatcher', () => {
       );
     });
 
+    it('preserves the automatic designator when applying placement flags', async () => {
+      const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
+      const modify = vi.fn(async () => true);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          LIB_Device: { get: vi.fn(async () => ({ uuid: 'dev-1', libraryUuid: 'lib-1' })) },
+          SCH_PrimitiveComponent: {
+            create,
+            get: vi.fn(async () => fakeComponent({ Designator: 'C?' })),
+            getAll: vi.fn(async () => [{ getState_Designator: () => 'C2' }]),
+            modify,
+          },
+        }),
+      );
+
+      const result = await dispatcher.dispatch('schematic.placeComponent', {
+        deviceItem,
+        x: 10,
+        y: 20,
+        mirror: true,
+      });
+
+      expect(modify).toHaveBeenCalledTimes(2);
+      expect(modify).toHaveBeenNthCalledWith(
+        1,
+        'comp1',
+        expect.objectContaining({ designator: 'C3' }),
+      );
+      expect(modify).toHaveBeenNthCalledWith(2, 'comp1', expect.objectContaining({ mirror: true }));
+      expect(result).toMatchObject({ designator: 'C3', mirror: true });
+    });
+
+    it('does not report requested flags when the component state cannot be read', async () => {
+      const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
+      const modify = vi.fn(async () => true);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          LIB_Device: { get: vi.fn(async () => ({ uuid: 'dev-1', libraryUuid: 'lib-1' })) },
+          SCH_PrimitiveComponent: {
+            create,
+            get: vi.fn(async () => {
+              throw new Error('get failed');
+            }),
+            modify,
+          },
+        }),
+      );
+
+      const result = await dispatcher.dispatch('schematic.placeComponent', {
+        deviceItem,
+        x: 10,
+        y: 20,
+        addIntoPcb: false,
+      });
+
+      expect(modify).not.toHaveBeenCalled();
+      expect(result).not.toHaveProperty('addIntoPcb');
+    });
+
+    it('does not report requested flags when native modify throws', async () => {
+      const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
+      const modify = vi.fn(async () => {
+        throw new Error('modify unavailable');
+      });
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          LIB_Device: { get: vi.fn(async () => ({ uuid: 'dev-1', libraryUuid: 'lib-1' })) },
+          SCH_PrimitiveComponent: { create, get: vi.fn(async () => fakeComponent()), modify },
+        }),
+      );
+
+      const result = await dispatcher.dispatch('schematic.placeComponent', {
+        deviceItem,
+        x: 10,
+        y: 20,
+        addIntoBom: false,
+      });
+
+      expect(modify).toHaveBeenCalledOnce();
+      expect(result).not.toHaveProperty('addIntoBom');
+    });
+
     it('does not modify a placement that asks for none of them', async () => {
       const { modify, dispatcher } = placeToolkit();
 

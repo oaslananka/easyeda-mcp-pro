@@ -970,6 +970,25 @@ function designatorOrdinal(ref: string, prefix: string): number {
  * undefined if nothing was changed). Best-effort: any failure is swallowed by
  * the caller so a placement is never rolled back over annotation.
  */
+function placedComponentSnapshot(current: any): Record<string, unknown> {
+  return {
+    x: safeGetState(current, 'X'),
+    y: safeGetState(current, 'Y'),
+    rotation: safeGetState(current, 'Rotation'),
+    mirror: safeGetState(current, 'Mirror'),
+    addIntoBom: safeGetState(current, 'AddIntoBom'),
+    addIntoPcb: safeGetState(current, 'AddIntoPcb'),
+    designator: safeGetState(current, 'Designator'),
+    name: safeGetState(current, 'Name'),
+    uniqueId: safeGetState(current, 'UniqueId'),
+    manufacturer: safeGetState(current, 'Manufacturer'),
+    manufacturerId: safeGetState(current, 'ManufacturerId'),
+    supplier: safeGetState(current, 'Supplier'),
+    supplierId: safeGetState(current, 'SupplierId'),
+    otherProperty: safeGetState(current, 'OtherProperty') || {},
+  };
+}
+
 async function assignAutoDesignator(created: unknown): Promise<string | undefined> {
   const pid = extractPrimitiveId(created);
   if (!pid) return undefined;
@@ -1015,26 +1034,8 @@ async function assignAutoDesignator(created: unknown): Promise<string | undefine
   }
   const newDesig = `${prefix}${maxN + 1}`;
 
-  // Snapshot-merge exactly like schematic.modifyPrimitive so only the
-  // designator changes and manufacturer/supplier/otherProperty are preserved.
-  const existingOther =
-    (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
-  const merged: Record<string, unknown> = {
-    x: safeGetState(current, 'X'),
-    y: safeGetState(current, 'Y'),
-    rotation: safeGetState(current, 'Rotation'),
-    mirror: safeGetState(current, 'Mirror'),
-    addIntoBom: safeGetState(current, 'AddIntoBom'),
-    addIntoPcb: safeGetState(current, 'AddIntoPcb'),
-    designator: newDesig,
-    name: safeGetState(current, 'Name'),
-    uniqueId: safeGetState(current, 'UniqueId'),
-    manufacturer: safeGetState(current, 'Manufacturer'),
-    manufacturerId: safeGetState(current, 'ManufacturerId'),
-    supplier: safeGetState(current, 'Supplier'),
-    supplierId: safeGetState(current, 'SupplierId'),
-    otherProperty: existingOther,
-  };
+  // Preserve the component snapshot while changing only its designator.
+  const merged = { ...placedComponentSnapshot(current), designator: newDesig };
   await schCompClass.modify(pid, merged);
   return newDesig;
 }
@@ -1081,25 +1082,7 @@ async function applyPlacedState(
     return undefined;
   }
   if (!current) return undefined;
-  const existingOther =
-    (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
-  const merged: Record<string, unknown> = {
-    x: safeGetState(current, 'X'),
-    y: safeGetState(current, 'Y'),
-    rotation: safeGetState(current, 'Rotation'),
-    mirror: safeGetState(current, 'Mirror'),
-    addIntoBom: safeGetState(current, 'AddIntoBom'),
-    addIntoPcb: safeGetState(current, 'AddIntoPcb'),
-    designator: safeGetState(current, 'Designator'),
-    name: safeGetState(current, 'Name'),
-    uniqueId: safeGetState(current, 'UniqueId'),
-    manufacturer: safeGetState(current, 'Manufacturer'),
-    manufacturerId: safeGetState(current, 'ManufacturerId'),
-    supplier: safeGetState(current, 'Supplier'),
-    supplierId: safeGetState(current, 'SupplierId'),
-    otherProperty: existingOther,
-    ...applied,
-  };
+  const merged = { ...placedComponentSnapshot(current), ...applied };
   await schCompClass.modify(pid, merged);
   return applied;
 }
