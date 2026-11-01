@@ -580,14 +580,33 @@ type PcbComponentTransformBase = {
   changes: PcbComponentTransformPlan['changes'];
 };
 
+/**
+ * The focused project's UUID. The read-only PCB bridge methods are scoped by it and verify it against the focused PCB;
+ * without it `pcb.listComponents` always fails with "PCB project identity unavailable". Undefined when it cannot be read,
+ * so the bridge reports its own, more specific error.
+ */
+async function focusedProjectId(ctx: ToolContext): Promise<string | undefined> {
+  try {
+    const info = await ctx.bridge.call<
+      { path: string; args: unknown[] },
+      { result?: { uuid?: unknown } } | undefined
+    >('api.call', { path: 'DMT_Project.getCurrentProjectInfo', args: [] });
+    const uuid = info?.result?.uuid;
+    return typeof uuid === 'string' && uuid.length > 0 ? uuid : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function readPcbComponentState(
   ctx: ToolContext,
   primitiveId: string,
 ): Promise<PcbComponentTransformState> {
+  const projectId = await focusedProjectId(ctx);
   const listed = await ctx.bridge.call<
-    Record<string, never>,
+    { projectId?: string },
     { items?: unknown[]; total?: number }
-  >('pcb.listComponents', {});
+  >('pcb.listComponents', projectId ? { projectId } : {});
   const raw = Array.isArray(listed?.items)
     ? listed.items.find(
         (item) =>
@@ -793,6 +812,7 @@ function registerPcbWriteTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
 ) {
+  registerPcbPlaceBatch(registry);
   registry.register({
     name: 'easyeda_pcb_place_component_group',
     title: 'Plan or apply grouped PCB component placement',
@@ -1583,6 +1603,69 @@ function registerPcbWriteTools(
     handler: async (ctx: ToolContext, params: unknown) => {
       const parsed = pcbComponentTransformInputSchema.parse(params);
       return handlePcbComponentTransform(ctx, parsed);
+    },
+  });
+}
+
+const pcbPlaceBatchInputSchema = z.object({
+  placements: z
+    .array(
+      z.object({
+        primitiveId: z.string().min(1),
+        x: z.number(),
+        y: z.number(),
+        rotation: z.number().optional(),
+      }),
+    )
+    .min(1)
+    .max(300),
+  confirmWrite: z
+    .literal(true)
+    .describe('Must be the literal boolean true (not the string "true") to allow this write.'),
+});
+
+function registerPcbPlaceBatch(registry: { register: (tool: ToolDefinition) => void }) {
+  registry.register({
+    name: 'easyeda_pcb_place_batch',
+    title: 'Move many PCB components in one call',
+    description:
+      'Local fork addition: move PCB components to absolute X/Y (mils, y up) and optional rotation ' +
+      '(degrees) by primitive id through PCB_PrimitiveComponent.modify, one call per part, and return a ' +
+      'compact summary (no per-part state). The focused document must be the PCB.',
+    profile: 'full',
+    evidence: ['runtime-probe'],
+    risk: 'high',
+    confirmWrite: true,
+    group: 'pcb-write',
+    version: '1.0.0',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    inputSchema: pcbPlaceBatchInputSchema,
+    outputSchema: z.object({
+      success: z.boolean(),
+      moved: z.number(),
+      failed: z.array(z.object({ primitiveId: z.string(), error: z.string() })),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const parsed = pcbPlaceBatchInputSchema.parse(params);
+      let moved = 0;
+      const failed: Array<{ primitiveId: string; error: string }> = [];
+      for (const item of parsed.placements) {
+        const property: Record<string, number> = { x: item.x, y: item.y };
+        if (item.rotation !== undefined) property.rotation = item.rotation;
+        try {
+          await ctx.bridge.call<Record<string, unknown>, unknown>('api.call', {
+            path: 'PCB_PrimitiveComponent.modify',
+            args: [item.primitiveId, property],
+          });
+          moved += 1;
+        } catch (error) {
+          failed.push({
+            primitiveId: item.primitiveId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      return { success: failed.length === 0, moved, failed };
     },
   });
 }

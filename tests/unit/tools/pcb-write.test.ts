@@ -1366,6 +1366,63 @@ describe('PCB Write Tools', () => {
     ).toBe(false);
   });
 
+  it('easyeda_pcb_modify_component scopes the component read to the focused project', async () => {
+    const tool = registry.get('easyeda_pcb_modify_component');
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.call') return { result: { uuid: 'project-uuid-1' } };
+      return {
+        total: 1,
+        items: [
+          {
+            primitiveId: 'comp-1',
+            designator: 'U1',
+            x: 10,
+            y: 20,
+            rotation: 0,
+            layer: 1,
+            locked: false,
+          },
+        ],
+      };
+    });
+
+    await tool?.handler(context, { primitiveId: 'comp-1', mode: 'preview', xMil: 15 });
+
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listComponents', { projectId: 'project-uuid-1' });
+  });
+
+  it('easyeda_pcb_place_batch moves each part through PCB_PrimitiveComponent.modify and reports failures', async () => {
+    const tool = registry.get('easyeda_pcb_place_batch');
+    expect(tool).toBeDefined();
+    bridgeCall.mockImplementation(async (_method: string, params: { args: unknown[] }) => {
+      if (params.args[0] === 'bad') throw new Error('component not found');
+      return { result: {} };
+    });
+
+    const result = await tool?.handler(context, {
+      placements: [
+        { primitiveId: 'a', x: 1, y: 2, rotation: 90 },
+        { primitiveId: 'bad', x: 3, y: 4 },
+        { primitiveId: 'b', x: 5, y: 6 },
+      ],
+      confirmWrite: true,
+    });
+
+    expect(bridgeCall).toHaveBeenCalledWith('api.call', {
+      path: 'PCB_PrimitiveComponent.modify',
+      args: ['a', { x: 1, y: 2, rotation: 90 }],
+    });
+    expect(bridgeCall).toHaveBeenCalledWith('api.call', {
+      path: 'PCB_PrimitiveComponent.modify',
+      args: ['b', { x: 5, y: 6 }],
+    });
+    expect(result).toEqual({
+      success: false,
+      moved: 2,
+      failed: [{ primitiveId: 'bad', error: 'component not found' }],
+    });
+  });
+
   it('easyeda_pcb_modify_component previews a typed top-to-bottom transform without mutation', async () => {
     const tool = registry.get('easyeda_pcb_modify_component');
     bridgeCall.mockResolvedValue({
@@ -1390,7 +1447,11 @@ describe('PCB Write Tools', () => {
       xMil: 15,
     });
 
-    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
+    expect(bridgeCall).toHaveBeenCalledWith('api.call', {
+      path: 'DMT_Project.getCurrentProjectInfo',
+      args: [],
+    });
     expect(bridgeCall).toHaveBeenCalledWith('pcb.listComponents', {});
     expect(bridgeCall).not.toHaveBeenCalledWith('pcb.modifyComponent', expect.anything());
     expect(result).toMatchObject({
@@ -1418,7 +1479,7 @@ describe('PCB Write Tools', () => {
       side: 'bottom',
     });
 
-    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ success: false, applied: false });
     expect(result?.error).toContain('confirmWrite=true');
   });
@@ -1529,7 +1590,7 @@ describe('PCB Write Tools', () => {
       confirmWrite: true,
     });
 
-    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ success: true, applied: false, no_op: true });
   });
 
@@ -1547,7 +1608,7 @@ describe('PCB Write Tools', () => {
       confirmWrite: true,
     });
 
-    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ success: false, applied: false });
     expect(result?.error).toContain('complete supported transform state');
   });
@@ -1563,7 +1624,7 @@ describe('PCB Write Tools', () => {
       confirmWrite: true,
     });
 
-    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ success: false, applied: false });
     expect(result?.error).toContain('was not found');
   });
