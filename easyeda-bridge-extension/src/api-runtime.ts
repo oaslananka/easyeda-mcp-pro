@@ -24,11 +24,16 @@ type ApiCandidate = {
   root: unknown;
 };
 
+/** Bound the bridge result depth even for calls bypassing the MCP input schema. */
+export function clampApiResultDepth(depth: unknown): number {
+  return Number.isInteger(depth) ? Math.max(1, Math.min(16, depth as number)) : 5;
+}
+
 export interface ApiRuntime {
   callFirst(paths: readonly string[], ...args: unknown[]): Promise<unknown>;
   readFirstPath<T>(paths: readonly string[]): T | undefined;
   inspectApiInventory(filter?: string): JsonValue;
-  callAllowedApi(path: string, args: readonly unknown[]): Promise<unknown>;
+  callAllowedApi(path: string, args: readonly unknown[], maxDepth?: number): Promise<unknown>;
 }
 
 export function createApiRuntime(
@@ -196,7 +201,11 @@ export function createApiRuntime(
     };
   }
 
-  async function callAllowedApi(path: string, args: readonly unknown[]): Promise<unknown> {
+  async function callAllowedApi(
+    path: string,
+    args: readonly unknown[],
+    maxDepth = 5,
+  ): Promise<unknown> {
     if (!isAllowedApiPath(path)) {
       throw createBridgeError(
         'UNAUTHORIZED',
@@ -218,7 +227,7 @@ export function createApiRuntime(
         return {
           path,
           resolvedPath: `${candidate.name}.${candidatePath}`,
-          result: normalizeValue(result, 5),
+          result: normalizeValue(result, clampApiResultDepth(maxDepth)),
         };
       }
     }

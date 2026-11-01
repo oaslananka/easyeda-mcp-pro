@@ -64,6 +64,9 @@ await build({
   ...commonOptions,
   entryPoints: [join(root, 'src', 'index.ts')],
   outfile: join(distDir, 'index.js'),
+  // Use the same syntax-only compression as the hot-swap bundle; keep identifiers
+  // and whitespace intact for loader compatibility and readable artifacts.
+  minifySyntax: true,
   // EasyEDA's extension loader resolves exported lifecycle/menu functions from
   // this exact IIFE global (the official pro-api-sdk uses the same name), then
   // calls through it after loading (for example edaEsbuildExportName.activate('onStartupFinished')).

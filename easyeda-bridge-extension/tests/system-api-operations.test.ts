@@ -43,7 +43,23 @@ describe('system API operations', () => {
     await expect(
       operations.apiCall({ path: 'SCH_PrimitiveWire.getAll', args: ['a', 2] }),
     ).resolves.toEqual({ path: 'SCH_PrimitiveWire.getAll', args: ['a', 2] });
-    expect(dependencies.callAllowedApi).toHaveBeenCalledWith('SCH_PrimitiveWire.getAll', ['a', 2]);
+    expect(dependencies.callAllowedApi).toHaveBeenCalledWith(
+      'SCH_PrimitiveWire.getAll',
+      ['a', 2],
+      undefined,
+    );
+  });
+
+  it('forwards an optional result depth', async () => {
+    const dependencies = createDependencies();
+    const operations = createSystemApiOperations(dependencies);
+
+    await operations.apiCall({ path: 'PCB_Drc.check', args: [true, false, true], maxDepth: 10 });
+    expect(dependencies.callAllowedApi).toHaveBeenCalledWith(
+      'PCB_Drc.check',
+      [true, false, true],
+      10,
+    );
   });
 
   it('preserves api.execute validation, eda injection, and normalized result shape', async () => {
@@ -125,7 +141,7 @@ describe('system API operation fallbacks', () => {
       path: '',
       args: [],
     });
-    expect(dependencies.callAllowedApi).toHaveBeenCalledWith('', []);
+    expect(dependencies.callAllowedApi).toHaveBeenCalledWith('', [], undefined);
 
     await expect(operations.apiInventory({ filter: 123 })).resolves.toEqual({
       filter: undefined,

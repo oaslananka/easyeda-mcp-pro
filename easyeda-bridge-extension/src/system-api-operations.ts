@@ -221,10 +221,11 @@ export function createSystemApiOperations(
   dependencies: SystemApiOperationsDependencies,
 ): SystemApiOperations {
   return {
-    async apiCall(params) {
+    apiCall(params) {
       return dependencies.callAllowedApi(
         typeof params.path === 'string' ? params.path : '',
         Array.isArray(params.args) ? params.args : [],
+        params.maxDepth as number | undefined,
       );
     },
 
