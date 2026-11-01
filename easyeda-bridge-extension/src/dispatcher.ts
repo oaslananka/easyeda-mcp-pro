@@ -970,6 +970,25 @@ function designatorOrdinal(ref: string, prefix: string): number {
  * undefined if nothing was changed). Best-effort: any failure is swallowed by
  * the caller so a placement is never rolled back over annotation.
  */
+function placedComponentSnapshot(current: any): Record<string, unknown> {
+  return {
+    x: safeGetState(current, 'X'),
+    y: safeGetState(current, 'Y'),
+    rotation: safeGetState(current, 'Rotation'),
+    mirror: safeGetState(current, 'Mirror'),
+    addIntoBom: safeGetState(current, 'AddIntoBom'),
+    addIntoPcb: safeGetState(current, 'AddIntoPcb'),
+    designator: safeGetState(current, 'Designator'),
+    name: safeGetState(current, 'Name'),
+    uniqueId: safeGetState(current, 'UniqueId'),
+    manufacturer: safeGetState(current, 'Manufacturer'),
+    manufacturerId: safeGetState(current, 'ManufacturerId'),
+    supplier: safeGetState(current, 'Supplier'),
+    supplierId: safeGetState(current, 'SupplierId'),
+    otherProperty: safeGetState(current, 'OtherProperty') || {},
+  };
+}
+
 async function assignAutoDesignator(created: unknown): Promise<string | undefined> {
   const pid = extractPrimitiveId(created);
   if (!pid) return undefined;
@@ -1015,43 +1034,32 @@ async function assignAutoDesignator(created: unknown): Promise<string | undefine
   }
   const newDesig = `${prefix}${maxN + 1}`;
 
-  // Snapshot-merge exactly like schematic.modifyPrimitive so only the
-  // designator changes and manufacturer/supplier/otherProperty are preserved.
-  const existingOther =
-    (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
-  const merged: Record<string, unknown> = {
-    x: safeGetState(current, 'X'),
-    y: safeGetState(current, 'Y'),
-    rotation: safeGetState(current, 'Rotation'),
-    mirror: safeGetState(current, 'Mirror'),
-    addIntoBom: safeGetState(current, 'AddIntoBom'),
-    addIntoPcb: safeGetState(current, 'AddIntoPcb'),
-    designator: newDesig,
-    name: safeGetState(current, 'Name'),
-    uniqueId: safeGetState(current, 'UniqueId'),
-    manufacturer: safeGetState(current, 'Manufacturer'),
-    manufacturerId: safeGetState(current, 'ManufacturerId'),
-    supplier: safeGetState(current, 'Supplier'),
-    supplierId: safeGetState(current, 'SupplierId'),
-    otherProperty: existingOther,
-  };
+  // Preserve the component snapshot while changing only its designator.
+  const merged = { ...placedComponentSnapshot(current), designator: newDesig };
   await schCompClass.modify(pid, merged);
   return newDesig;
 }
 
 /**
- * Apply a rotation to a freshly placed component. SCH_PrimitiveComponent.create
- * only accepts (deviceItem, x, y) — passing extra args hangs the API — so the
- * `rotation` requested by place_component was silently dropped. Set it here via
- * the same snapshot-merge used by modifyPrimitive so no other field is wiped.
- * Best-effort: a failure leaves the component at its default rotation.
+ * Apply rotation, mirror and the BOM/PCB flags to a freshly placed component.
+ * SCH_PrimitiveComponent.create only accepts (deviceItem, x, y) — passing extra
+ * args hangs the API — so the `rotation`, `mirror`, `addIntoBom` and
+ * `addIntoPcb` requested by place_component were silently dropped. Set them
+ * here via the same snapshot-merge used by modifyPrimitive so no other field is
+ * wiped. Returns the fields applied. Best-effort: a failure leaves the
+ * component at its defaults.
  */
-async function applyPlacedRotation(
+async function applyPlacedState(
   created: unknown,
-  rotation: unknown,
-): Promise<number | undefined> {
-  const rot = typeof rotation === 'number' ? rotation : Number(rotation);
-  if (!Number.isFinite(rot) || rot === 0) return undefined;
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown> | undefined> {
+  const applied: Record<string, unknown> = {};
+  const rot = typeof params.rotation === 'number' ? params.rotation : Number(params.rotation);
+  if (Number.isFinite(rot) && rot !== 0) applied.rotation = rot;
+  for (const key of ['mirror', 'addIntoBom', 'addIntoPcb']) {
+    if (typeof params[key] === 'boolean') applied[key] = params[key];
+  }
+  if (Object.keys(applied).length === 0) return undefined;
   const pid = extractPrimitiveId(created);
   if (!pid) return undefined;
   const schCompClass = readFirstPath<any>([
@@ -1070,30 +1078,13 @@ async function applyPlacedRotation(
   try {
     current = await schCompClass.get(pid);
   } catch (e) {
-    logRecoverableError(`apply-rotation: get(${pid}) failed`, e);
+    logRecoverableError(`apply-placed-state: get(${pid}) failed`, e);
     return undefined;
   }
   if (!current) return undefined;
-  const existingOther =
-    (safeGetState(current, 'OtherProperty') as Record<string, unknown> | undefined) || {};
-  const merged: Record<string, unknown> = {
-    x: safeGetState(current, 'X'),
-    y: safeGetState(current, 'Y'),
-    rotation: rot,
-    mirror: safeGetState(current, 'Mirror'),
-    addIntoBom: safeGetState(current, 'AddIntoBom'),
-    addIntoPcb: safeGetState(current, 'AddIntoPcb'),
-    designator: safeGetState(current, 'Designator'),
-    name: safeGetState(current, 'Name'),
-    uniqueId: safeGetState(current, 'UniqueId'),
-    manufacturer: safeGetState(current, 'Manufacturer'),
-    manufacturerId: safeGetState(current, 'ManufacturerId'),
-    supplier: safeGetState(current, 'Supplier'),
-    supplierId: safeGetState(current, 'SupplierId'),
-    otherProperty: existingOther,
-  };
+  const merged = { ...placedComponentSnapshot(current), ...applied };
   await schCompClass.modify(pid, merged);
-  return rot;
+  return applied;
 }
 
 /**
@@ -1508,15 +1499,15 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       } catch (e) {
         logRecoverableError('auto-designator failed', e);
       }
-      // create() ignores rotation; apply it after placement so the caller's
-      // requested orientation actually takes effect.
+      // create() is called without rotation, mirror and the BOM/PCB flags;
+      // apply them after placement so the caller's request actually takes effect.
       try {
-        const appliedRot = await applyPlacedRotation(createdComp, params.rotation);
-        if (appliedRot !== undefined && createdComp && typeof createdComp === 'object') {
-          (createdComp as Record<string, unknown>).rotation = appliedRot;
+        const applied = await applyPlacedState(createdComp, params);
+        if (applied && createdComp && typeof createdComp === 'object') {
+          Object.assign(createdComp, applied);
         }
       } catch (e) {
-        logRecoverableError('apply-rotation failed', e);
+        logRecoverableError('apply-placed-state failed', e);
       }
       return createdComp;
     }
