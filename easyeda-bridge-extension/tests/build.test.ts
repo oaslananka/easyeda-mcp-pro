@@ -37,7 +37,7 @@ describe('build.mjs hot-swap define', () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ext-build-dev-'));
     outDirs.push(outDir);
     const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: 'true' });
-    expect(bundle).toMatch(/HOTSWAP_COMPILED\s*=\s*true;/);
+    expect(bundle).toMatch(/HOTSWAP_COMPILED\s*=\s*(?:true|!0)[,;]/);
     expect(bundle).not.toContain('__MCP_DEV_HOTSWAP__');
   }, 20_000);
 
@@ -45,7 +45,7 @@ describe('build.mjs hot-swap define', () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ext-build-prod-'));
     outDirs.push(outDir);
     const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: '' });
-    expect(bundle).toMatch(/HOTSWAP_COMPILED\s*=\s*false;/);
+    expect(bundle).toMatch(/HOTSWAP_COMPILED\s*=\s*(?:false|!1)[,;]/);
     expect(bundle).not.toContain('__MCP_DEV_HOTSWAP__');
   }, 20_000);
 

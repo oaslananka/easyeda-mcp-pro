@@ -24,14 +24,9 @@ type ApiCandidate = {
   root: unknown;
 };
 
-/** Nesting depth of api.call results; deeper levels come back as "[MaxDepth]". */
-export const DEFAULT_API_RESULT_DEPTH = 5;
-export const MAX_API_RESULT_DEPTH = 16;
-
+/** Bound the bridge result depth even for calls bypassing the MCP input schema. */
 export function clampApiResultDepth(depth: unknown): number {
-  return typeof depth === 'number' && Number.isInteger(depth)
-    ? Math.min(Math.max(depth, 1), MAX_API_RESULT_DEPTH)
-    : DEFAULT_API_RESULT_DEPTH;
+  return Number.isInteger(depth) ? Math.max(1, Math.min(16, depth as number)) : 5;
 }
 
 export interface ApiRuntime {
@@ -209,7 +204,7 @@ export function createApiRuntime(
   async function callAllowedApi(
     path: string,
     args: readonly unknown[],
-    maxDepth = DEFAULT_API_RESULT_DEPTH,
+    maxDepth = 5,
   ): Promise<unknown> {
     if (!isAllowedApiPath(path)) {
       throw createBridgeError(
