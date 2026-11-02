@@ -137,6 +137,91 @@ function writeExportPayload(
   return { ok: true, filePath: target, byteLength: buffer.byteLength };
 }
 
+/** Parse native TSV fields, including quoted tabs/newlines and doubled quotes. */
+function parseNativePickPlaceTsv(text: string): string[][] {
+  const records: string[][] = [];
+  let fields: string[] = [];
+  let field = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === '"') {
+      if (quoted && text[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (ch === '\t' && !quoted) {
+      fields.push(field);
+      field = '';
+    } else if ((ch === '\r' || ch === '\n') && !quoted) {
+      records.push([...fields, field]);
+      fields = [];
+      field = '';
+      if (ch === '\r') i += Number(text[i + 1] === '\n');
+    } else {
+      field += ch;
+    }
+  }
+  if (quoted) throw new Error('Native pick-and-place file contains an unterminated quoted field.');
+  if (field || fields.length) records.push([...fields, field]);
+  if (records.length === 0) throw new Error('Native pick-and-place file has no rows.');
+  return records;
+}
+
+function formatPickPlaceRows(records: string[][], format: string): string {
+  if (format === 'txt') return records.map((row) => row.join('\t')).join('\n') + '\n';
+  const csvCell = (value: string): string =>
+    /[",\r\n]/.test(value) ? '"' + value.replaceAll('"', '""') + '"' : value;
+  return records.map((row) => row.map(csvCell).join(',')).join('\n') + '\n';
+}
+
+/**
+ * EasyEDA Pro 3.2.209 can return UTF-16LE, TAB-separated pick-and-place bytes
+ * despite a native "csv" request. Convert that payload to a real UTF-8 CSV,
+ * preserving quoted fields and embedded delimiter/newlines. Leave already
+ * conforming UTF-8 CSV and unrelated binary responses unchanged.
+ */
+function normalizePickPlacePayload(
+  data: unknown,
+  format: string,
+  fallbackFileName: string,
+): unknown {
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    typeof (data as BinaryBridgeResult).base64 !== 'string'
+  ) {
+    return data;
+  }
+  const payload = data as BinaryBridgeResult;
+  if (typeof payload.base64 !== 'string') return data;
+  const bytes = Buffer.from(payload.base64, 'base64');
+  if (bytes.length < 2) return data;
+  const utf16Le = bytes[0] === 0xff && bytes[1] === 0xfe;
+  if (!utf16Le) return data;
+
+  const text = bytes.subarray(2).toString('utf16le');
+  if (!text.includes('\t')) {
+    return {
+      ...payload,
+      base64: Buffer.from(text, 'utf8').toString('base64'),
+      fileName: fallbackFileName,
+    };
+  }
+
+  // The vendor's "CSV" is quoted TSV; convert only when the payload is tabular.
+  const records = parseNativePickPlaceTsv(text);
+  const content = formatPickPlaceRows(records, format);
+
+  return {
+    ...payload,
+    base64: Buffer.from(content, 'utf8').toString('base64'),
+    fileName: fallbackFileName,
+  };
+}
+
 const quoteBoardSchema = z.object({
   boardCount: z.number().int().positive(),
   layers: z.number().int().positive(),
@@ -614,7 +699,7 @@ function registerExportTools(
         });
         const written = writeExportPayload(
           ctx,
-          result,
+          normalizePickPlacePayload(result, format, `${projectId}-pick-place.${format}`),
           filePath,
           `${projectId}-pick-place.${format}`,
         );

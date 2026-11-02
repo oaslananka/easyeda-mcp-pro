@@ -193,6 +193,46 @@ describe('Export Tools', () => {
     );
   });
 
+  it('normalizes real EasyEDA UTF-16LE tab-separated pick-and-place into UTF-8 comma CSV', async () => {
+    const native =
+      'Designator\tDevice\tComment\r\n' +
+      '"LED1"\t"KT-0603W"\t"white, LED"\r\n' +
+      '"R1"\t"1 kΩ"\t"quoted ""value"""\r\n';
+    bridgeCall.mockResolvedValue({
+      base64: Buffer.from('\ufeff' + native, 'utf16le').toString('base64'),
+      fileName: 'proj-123',
+    });
+
+    const result = await registry.get('easyeda_export_pick_place')!.handler(context, {
+      projectId: 'proj-123',
+      format: 'csv',
+    });
+    expect(result?.exported).toBe(true);
+    expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-pick-place.csv'));
+    const output = fs.readFileSync(result!.file_path!, 'utf8');
+    expect(output).toBe(
+      'Designator,Device,Comment\n' +
+        'LED1,KT-0603W,"white, LED"\n' +
+        'R1,1 kΩ,"quoted ""value"""\n',
+    );
+    expect(output).not.toContain('\u0000');
+  });
+
+  it('rejects unterminated quoted fields from native pick-and-place instead of exporting corrupt CSV', async () => {
+    bridgeCall.mockResolvedValue({
+      base64: Buffer.from('\ufeffDesignator\tDevice\r\n"LED1\tbroken', 'utf16le').toString(
+        'base64',
+      ),
+    });
+    const result = await registry.get('easyeda_export_pick_place')!.handler(context, {
+      projectId: 'proj-123',
+      format: 'csv',
+    });
+    expect(result?.exported).toBe(false);
+    expect(result?.error).toMatch(/unterminated quoted field/);
+    expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+  });
+
   it('keeps extensionless native export filenames distinct across pick-and-place and Gerbers', async () => {
     bridgeCall.mockImplementation(async (method: string) => ({
       base64: Buffer.from(

@@ -120,22 +120,76 @@ describe('export operations', () => {
     expect(normalizeBinaryResult).toHaveBeenCalledWith('native-result', 'export.pdf');
   });
 
-  it('uses the original netlist fallback chain and file-name fallback', async () => {
+  it.each([
+    [1, 'SCH_ManufactureData.getNetlistFile'],
+    [3, 'PCB_ManufactureData.getNetlistFile'],
+  ])(
+    'exports the netlist for native document type %i using the correct API signature',
+    async (type, path) => {
+      const { callFirst, normalizeBinaryResult, operations } = makeOperations();
+      callFirst.mockImplementation(async (paths) =>
+        paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo'
+          ? { documentType: type }
+          : 'native-result',
+      );
+
+      await operations.exportNetlist({ projectId: 'proj-123', format: 'altium' });
+      expect(callFirst).toHaveBeenNthCalledWith(1, ['DMT_SelectControl.getCurrentDocumentInfo']);
+      expect(callFirst).toHaveBeenNthCalledWith(2, [path], 'proj-123-netlist', 'Protel2');
+      expect(normalizeBinaryResult).toHaveBeenCalledWith('native-result', 'netlist.altium');
+    },
+  );
+
+  it.each([
+    ['pads', 'PADS'],
+    ['allegro', 'Allegro'],
+    ['altium', 'Protel2'],
+  ])('maps format %s to the vendor netlist enum %s', async (format, expected) => {
+    const { callFirst, operations } = makeOperations();
+    callFirst.mockImplementation(async (paths) =>
+      paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo'
+        ? { documentType: 3 }
+        : 'native-result',
+    );
+
+    await operations.exportNetlist({ projectId: 'proj-123', format });
+    expect(callFirst).toHaveBeenNthCalledWith(
+      2,
+      ['PCB_ManufactureData.getNetlistFile'],
+      'proj-123-netlist',
+      expected,
+    );
+  });
+
+  it('fails closed for missing/incorrect document focus and empty native netlist', async () => {
     const { callFirst, normalizeBinaryResult, operations } = makeOperations();
-    const params = { format: 'spice', includeModels: true };
+    callFirst.mockResolvedValue({ documentType: 0 });
+    await expect(
+      operations.exportNetlist({ projectId: 'proj-123', format: 'pads' }),
+    ).rejects.toThrow(/active schematic or PCB/);
+    expect(callFirst).toHaveBeenCalledTimes(1);
+    expect(normalizeBinaryResult).not.toHaveBeenCalled();
 
-    await operations.exportNetlist(params);
-    await operations.exportNetlist({ format: false });
+    callFirst
+      .mockReset()
+      .mockImplementation(async (paths) =>
+        paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo' ? { documentType: 1 } : undefined,
+      );
+    await expect(
+      operations.exportNetlist({ projectId: 'proj-123', format: 'pads' }),
+    ).rejects.toThrow(/did not return a netlist/);
+    expect(normalizeBinaryResult).not.toHaveBeenCalled();
+  });
 
-    const paths = [
-      'SCH_Netlist.getNetlist',
-      'SCH_ManufactureData.getNetlistFile',
-      'PCB_ManufactureData.getNetlistFile',
-    ];
-    expect(callFirst).toHaveBeenNthCalledWith(1, paths, params);
-    expect(callFirst).toHaveBeenNthCalledWith(2, paths, { format: false });
-    expect(normalizeBinaryResult).toHaveBeenNthCalledWith(1, 'native-result', 'netlist.spice');
-    expect(normalizeBinaryResult).toHaveBeenNthCalledWith(2, 'native-result', 'netlist.txt');
+  it('rejects missing project IDs and unsupported native netlist formats', async () => {
+    const { callFirst, operations } = makeOperations();
+    await expect(operations.exportNetlist({ format: 'pads' })).rejects.toThrow(
+      /non-empty projectId/,
+    );
+    await expect(
+      operations.exportNetlist({ projectId: 'proj-123', format: 'spice' }),
+    ).rejects.toThrow(/format must be/);
+    expect(callFirst).not.toHaveBeenCalled();
   });
 
   it('exports ODB++ in inch with the file name and both kinds of drill holes', async () => {

@@ -82,11 +82,50 @@ export function createExportOperations({
   }
 
   async function exportNetlist(params: Record<string, unknown>): Promise<unknown> {
-    return exportFile(
-      ['SCH_Netlist.getNetlist', 'SCH_ManufactureData.getNetlistFile', p + 'getNetlistFile'],
-      'netlist.' + (typeof params.format === 'string' ? params.format : 'txt'),
-      params,
-    );
+    const projectId = requireProjectId(params, 'Netlist export');
+    const format = params.format;
+    const nativeFormats: Record<string, string> = {
+      pads: 'PADS',
+      allegro: 'Allegro',
+      altium: 'Protel2',
+    };
+    const netlistType = typeof format === 'string' ? nativeFormats[format] : undefined;
+    if (!netlistType) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        'Netlist format must be pads, allegro, or altium.',
+        'Choose one of the supported formats.',
+      );
+    }
+
+    // Both native manufacture-data APIs accept (fileName, netlistType).
+    // The former SCH_Netlist.getNetlist API is obsolete and its signature
+    // differs; never send a single params object to either API.
+    const active = (await callFirst(['DMT_SelectControl.getCurrentDocumentInfo'])) as
+      { documentType?: number } | undefined;
+    const paths =
+      active?.documentType === 1
+        ? ['SCH_ManufactureData.getNetlistFile']
+        : active?.documentType === 3
+          ? ['PCB_ManufactureData.getNetlistFile']
+          : undefined;
+    if (!paths) {
+      throw createBridgeError(
+        'DOCUMENT_NOT_FOCUSED',
+        'Netlist export requires an active schematic or PCB document.',
+        'Open the project schematic or PCB tab, then retry.',
+      );
+    }
+
+    const result = await callFirst(paths, projectId + '-netlist', netlistType);
+    if (result === undefined || result === null) {
+      throw createBridgeError(
+        'NETLIST_NOT_AVAILABLE',
+        'EasyEDA did not return a netlist file for the active document.',
+        'Check the schematic/PCB netlist and native document focus.',
+      );
+    }
+    return normalizeBinaryResult(result, 'netlist.' + format);
   }
 
   // Beta EasyEDA ODB++ export; this is not manufacturing verification.
