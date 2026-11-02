@@ -1647,6 +1647,7 @@ Returns a JSON object matching the schema:
   errors: object[];
   warnings: object[];
   summary: object;
+  unknown_checks: object[];
   not_available: boolean (optional);
 }
 ```
@@ -2008,6 +2009,7 @@ Returns a JSON object matching the schema:
   errors: object[];
   warnings: object[];
   summary: object;
+  unknown_checks: object[];
   not_available: boolean (optional);
 }
 ```

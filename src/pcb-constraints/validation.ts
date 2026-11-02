@@ -585,6 +585,125 @@ function checkFabricationNotes(input: PcbConstraintInput): PcbConstraintIssue[] 
 // ── Combine helper ─────────────────────────────────────────────────────────
 
 type RuleFn = (input: PcbConstraintInput) => PcbConstraintIssue[];
+type InputField = keyof PcbConstraintInput;
+
+/** Evidence required to make a claim about a rule. Not applicable is not a pass. */
+interface RuleEvidence {
+  area: string;
+  fields: (input: PcbConstraintInput) => InputField[];
+  skip?: (input: PcbConstraintInput) => boolean;
+}
+
+const fields =
+  (...required: InputField[]) =>
+  () =>
+    required;
+const RULE_EVIDENCE: RuleEvidence[] = [
+  { area: 'Board outline', fields: fields('hasOutline') },
+  {
+    area: 'Board dimensions',
+    fields: fields('widthMm', 'heightMm'),
+    skip: (i) => i.hasOutline === false,
+  },
+  { area: 'Layer stackup', fields: fields('hasLayerStack') },
+  {
+    area: 'Layer count',
+    fields: (i) =>
+      i.layerCount !== undefined && i.layerCount <= 2
+        ? ['layerCount']
+        : ['layerCount', 'hasLayerStack'],
+    skip: (i) => i.layerCount !== undefined && i.layerCount <= 2,
+  },
+  { area: 'Mounting holes', fields: fields('mountingHoleCount') },
+  { area: 'Net classes', fields: fields('hasNetClasses') },
+  {
+    area: 'Clearance rules',
+    fields: (i) =>
+      i.hasNetClasses === true ? ['hasNetClasses', 'hasClearanceRules'] : ['hasNetClasses'],
+    skip: (i) => i.hasNetClasses === false,
+  },
+  {
+    area: 'Keepout areas',
+    fields: (i) =>
+      i.hasPlacementZones === true
+        ? ['hasPlacementZones', 'hasKeepoutAreas']
+        : ['hasPlacementZones'],
+    skip: (i) => i.hasPlacementZones === false,
+  },
+  {
+    area: 'Placement zones',
+    fields: (i) =>
+      i.layerCount !== undefined && i.layerCount <= 1
+        ? ['layerCount']
+        : ['layerCount', 'hasPlacementZones'],
+    skip: (i) => i.layerCount !== undefined && i.layerCount <= 1,
+  },
+  { area: 'Manufacturing constraints', fields: fields('manufacturingProcess', 'hasQuantity') },
+  {
+    area: 'Fiducials',
+    fields: fields('hasFiducials', 'mountingHoleCount'),
+    skip: (i) => i.mountingHoleCount === 0,
+  },
+  {
+    area: 'High-voltage clearance',
+    fields: (i) =>
+      i.hasHighVoltage === true
+        ? ['hasHighVoltage', 'hasClearanceRules', 'hasNetClasses']
+        : ['hasHighVoltage'],
+    skip: (i) => i.hasHighVoltage === false,
+  },
+  { area: 'Drill file', fields: fields('hasDrillFile') },
+  {
+    area: 'Copper-to-edge clearance',
+    fields: (i) =>
+      i.copperToEdgeViolationCount !== undefined
+        ? ['copperToEdgeViolationCount']
+        : ['minCopperToEdgeMm'],
+  },
+  { area: 'Drill and annular ring', fields: fields('minDrillMm', 'minAnnularRingMm') },
+  {
+    area: 'Soldermask sliver',
+    fields: (i) =>
+      i.solderMaskSliverViolationCount !== undefined
+        ? ['solderMaskSliverViolationCount']
+        : ['minSolderMaskSliverMm'],
+  },
+  { area: 'Silkscreen over pads', fields: fields('silkscreenOverPadCount') },
+  {
+    area: 'Assembly alignment',
+    fields: (i) =>
+      i.smtComponentCount === 0
+        ? ['smtComponentCount']
+        : ['smtComponentCount', 'fiducialCount', 'toolingHoleCount'],
+    skip: (i) => i.smtComponentCount === 0,
+  },
+  {
+    area: 'Polarity marks',
+    fields: (i) =>
+      i.polarizedComponentCount === 0
+        ? ['polarizedComponentCount']
+        : ['polarizedComponentCount', 'polarityMarkCount'],
+    skip: (i) => i.polarizedComponentCount === 0,
+  },
+  { area: 'Component spacing', fields: fields('componentSpacingViolationCount') },
+  {
+    area: 'Testpoint coverage',
+    fields: (i) =>
+      i.criticalNetNames?.length === 0
+        ? ['criticalNetNames']
+        : ['criticalNetNames', 'testPointNets'],
+    skip: (i) => i.criticalNetNames?.length === 0,
+  },
+  {
+    area: 'Programming access',
+    fields: (i) =>
+      i.requiresProgrammingHeader === false
+        ? ['requiresProgrammingHeader']
+        : ['requiresProgrammingHeader', 'hasProgrammingHeader'],
+    skip: (i) => i.requiresProgrammingHeader === false,
+  },
+  { area: 'Fabrication notes', fields: fields('hasFabricationNotes') },
+];
 
 const RULES: RuleFn[] = [
   checkMissingOutline,
@@ -646,36 +765,48 @@ export function validatePcbConstraints(input: PcbConstraintInput): PcbConstraint
   const errors: PcbConstraintIssue[] = [];
   const warnings: PcbConstraintIssue[] = [];
   let passed = 0;
+  let failed = 0;
+  let notApplicable = 0;
+  const unknownChecks: PcbConstraintResult['unknownChecks'] = [];
 
-  for (const rule of RULES) {
+  for (const [index, rule] of RULES.entries()) {
+    const evidence = RULE_EVIDENCE[index];
+    if (!evidence) throw new Error(`Missing evidence contract for PCB rule ${index}`);
+    const missing = evidence
+      .fields(input)
+      .filter((field) => input[field] === undefined || input[field] === null);
+    if (missing.length > 0) {
+      unknownChecks.push({ area: evidence.area, missingFields: missing });
+      continue;
+    }
+    if (evidence.skip?.(input)) {
+      notApplicable++;
+      continue;
+    }
+
     const issues = rule(input);
-
-    if (issues.length === 0) {
-      passed++;
-    } else {
+    if (issues.length === 0) passed++;
+    else {
+      failed++;
       for (const issue of issues) {
-        if (issue.severity === 'error') {
-          errors.push(issue);
-        } else {
-          warnings.push(issue);
-        }
+        if (issue.severity === 'error') errors.push(issue);
+        else warnings.push(issue);
       }
     }
   }
 
-  const totalChecks = RULES.length;
-  const failed = errors.length + warnings.length;
-  const notApplicable = Math.max(0, totalChecks - passed - failed);
-
   return {
-    valid: errors.length === 0,
+    // UNKNOWN is never an approval, even if every observed check passed.
+    valid: errors.length === 0 && unknownChecks.length === 0,
     errors,
     warnings,
+    unknownChecks,
     summary: {
-      totalChecks,
+      totalChecks: RULES.length,
       passed,
       failed,
       notApplicable,
+      unknown: unknownChecks.length,
     },
   };
 }
@@ -690,7 +821,7 @@ export function buildConstraintReport(
 ): import('./types.js').ConstraintReport {
   const checked: Array<{
     area: string;
-    status: 'passed' | 'failed' | 'not-applicable';
+    status: 'passed' | 'failed' | 'not-applicable' | 'unknown';
     details: string;
   }> = [];
   const manualReviewRequired: Array<{ area: string; reason: string }> = [];
@@ -720,6 +851,13 @@ export function buildConstraintReport(
       status: 'failed',
       details: areaMap['Board outline'] ?? '',
     });
+  }
+
+  // Missing native evidence remains visible to consumers, not a silent PASS.
+  for (const unknown of result.unknownChecks) {
+    const reason = `Cannot verify ${unknown.area}: missing ${unknown.missingFields.join(', ')}.`;
+    checked.push({ area: unknown.area, status: 'unknown', details: reason });
+    manualReviewRequired.push({ area: unknown.area, reason });
   }
 
   // Add manual review items for things that can't be auto-checked
@@ -799,17 +937,20 @@ export function fromPcbIntent(pcb: {
     widthMm: pcb.widthMm,
     heightMm: pcb.heightMm,
     layerCount: pcb.layerCount,
-    hasOutline: !!(
-      pcb.boardOutline && (Array.isArray(pcb.boardOutline) ? pcb.boardOutline.length > 0 : true)
-    ),
-    mountingHoleCount: pcb.mountingHoles?.length ?? 0,
-    hasLayerStack: !!(pcb.layerStack && pcb.layerStack.length > 0),
-    hasNetClasses: !!(pcb.netClasses && pcb.netClasses.length > 0),
-    hasClearanceRules: !!(pcb.clearanceRules && pcb.clearanceRules.length > 0),
-    hasKeepoutAreas: !!(pcb.keepoutAreas && pcb.keepoutAreas.length > 0),
-    hasPlacementZones: !!(pcb.placementZones && pcb.placementZones.length > 0),
-    hasFiducials: !!(pcb.fiducials && pcb.fiducials.length > 0),
-    hasTestPads: !!(pcb.testPads && pcb.testPads.length > 0),
+    hasOutline:
+      pcb.boardOutline === undefined
+        ? undefined
+        : Array.isArray(pcb.boardOutline)
+          ? pcb.boardOutline.length > 0
+          : true,
+    mountingHoleCount: pcb.mountingHoles?.length,
+    hasLayerStack: pcb.layerStack === undefined ? undefined : pcb.layerStack.length > 0,
+    hasNetClasses: pcb.netClasses === undefined ? undefined : pcb.netClasses.length > 0,
+    hasClearanceRules: pcb.clearanceRules === undefined ? undefined : pcb.clearanceRules.length > 0,
+    hasKeepoutAreas: pcb.keepoutAreas === undefined ? undefined : pcb.keepoutAreas.length > 0,
+    hasPlacementZones: pcb.placementZones === undefined ? undefined : pcb.placementZones.length > 0,
+    hasFiducials: pcb.fiducials === undefined ? undefined : pcb.fiducials.length > 0,
+    hasTestPads: pcb.testPads === undefined ? undefined : pcb.testPads.length > 0,
     hasDrillFile: pcb.hasDrillFile,
     minCopperToEdgeMm: pcb.minCopperToEdgeMm,
     copperToEdgeViolationCount: pcb.copperToEdgeViolationCount,
@@ -829,10 +970,11 @@ export function fromPcbIntent(pcb: {
     hasProgrammingHeader: pcb.hasProgrammingHeader,
     requiresProgrammingHeader: pcb.requiresProgrammingHeader,
     hasFabricationNotes: pcb.hasFabricationNotes,
-    hasHighVoltage: pcb.highVoltage ?? false,
+    hasHighVoltage: pcb.highVoltage,
     manufacturingProcess: pcb.manufacturingProcess ?? pcb.manufacturing?.process,
     hasQuantity:
-      !!(pcb.quantity && pcb.quantity > 0) ||
-      !!(pcb.manufacturing?.quantity && pcb.manufacturing.quantity > 0),
+      pcb.quantity !== undefined || pcb.manufacturing?.quantity !== undefined
+        ? (pcb.quantity ?? pcb.manufacturing?.quantity ?? 0) > 0
+        : undefined,
   };
 }

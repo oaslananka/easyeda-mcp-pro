@@ -145,6 +145,89 @@ describe('PCB constraint tools', () => {
     expect(result?.not_available).toBeUndefined();
   });
 
+  it('reports UNKNOWN for unavailable native properties and never fabricates missing rules', async () => {
+    const tool = registry.get('easyeda_pcb_production_review');
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions')
+        return { widthMm: 60, heightMm: 40, hasOutline: true, mountingHoleCount: 0 };
+      if (method === 'board.listLayers')
+        return Array.from({ length: 230 }, (_, id) => ({ id, name: `Custom${id}` }));
+      if (method === 'board.getStackup') return { totalLayers: 0, layers: [], available: false };
+      throw new Error(`unexpected ${method}`);
+    });
+    const result = await tool?.handler(context, { projectId: 'pcb-incomplete', gateMode: 'block' });
+    expect(result?.blocked).toBe(true);
+    expect(result?.passed).toBe(false);
+    expect(result?.summary.unknown).toBeGreaterThan(10);
+    expect(result?.unknown_checks).toEqual(
+      expect.arrayContaining([
+        { area: 'Layer count', missingFields: ['layerCount'] },
+        { area: 'Net classes', missingFields: ['hasNetClasses'] },
+        { area: 'High-voltage clearance', missingFields: ['hasHighVoltage'] },
+      ]),
+    );
+    expect(
+      result?.warnings.some((issue: { code: string }) => issue.code === 'PCB_MISSING_NET_CLASSES'),
+    ).toBe(false);
+    expect(
+      result?.errors.some((issue: { code: string }) => issue.code === 'PCB_MISSING_OUTLINE'),
+    ).toBe(false);
+    expect(
+      result?.warnings.some((issue: { code: string }) => issue.code === 'PCB_MISSING_STACKUP'),
+    ).toBe(true);
+  });
+
+  it('keeps partial API failures unknown and does not claim production success in warn mode', async () => {
+    const tool = registry.get('easyeda_pcb_production_review');
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') throw new Error('no active PCB');
+      if (method === 'board.getStackup') throw new Error('no active PCB');
+      if (method === 'board.listLayers') return [{ name: 'TopLayer' }, { name: 'BottomLayer' }];
+      throw new Error(`unexpected ${method}`);
+    });
+    const result = await tool?.handler(context, { projectId: 'pcb-offline', gateMode: 'warn' });
+    expect(result?.not_available).toBeUndefined();
+    expect(result?.passed).toBe(false);
+    expect(result?.blocked).toBe(false);
+    expect(result?.summary.passed).toBe(0);
+    expect(result?.summary.unknown).toBeGreaterThan(15);
+    expect(result?.errors).toEqual([]);
+    expect(result?.warnings).toEqual([]);
+  });
+
+  it('preserves explicit negative board evidence as an actual error', async () => {
+    const tool = registry.get('easyeda_pcb_constraint_check');
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') return { widthMm: 0, heightMm: 0, hasOutline: false };
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return { totalLayers: 2, layers: [], available: false };
+      throw new Error(`unexpected ${method}`);
+    });
+    const result = await tool?.handler(context, { projectId: 'pcb-no-outline' });
+    expect(result?.valid).toBe(false);
+    expect(
+      result?.errors.some((issue: { code: string }) => issue.code === 'PCB_MISSING_OUTLINE'),
+    ).toBe(true);
+    expect(
+      result?.unknown_checks.some((issue: { area: string }) => issue.area === 'Board outline'),
+    ).toBe(false);
+  });
+
+  it('exposes unknown areas in the human-readable report', async () => {
+    const tool = registry.get('easyeda_pcb_constraint_report');
+    const result = await tool?.handler(context, { projectId: 'pcb-partial', boardData: {} });
+    expect(result?.verdict).toBe('needs-review');
+    expect(
+      result?.checked.some(
+        (item: { area: string; status: string }) =>
+          item.area === 'Net classes' && item.status === 'unknown',
+      ),
+    ).toBe(true);
+    expect(
+      result?.manualReviewRequired.some((item: { area: string }) => item.area === 'Net classes'),
+    ).toBe(true);
+  });
+
   it('easyeda_pcb_constraint_check validates explicit board data', async () => {
     const tool = registry.get('easyeda_pcb_constraint_check');
     expect(tool).toBeDefined();

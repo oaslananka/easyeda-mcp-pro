@@ -29,6 +29,22 @@ function passingBoardData() {
     hasHighVoltage: false,
     manufacturingProcess: 'standard',
     hasQuantity: true,
+    hasDrillFile: true,
+    copperToEdgeViolationCount: 0,
+    minDrillMm: 0.3,
+    minAnnularRingMm: 0.15,
+    solderMaskSliverViolationCount: 0,
+    silkscreenOverPadCount: 0,
+    smtComponentCount: 4,
+    fiducialCount: 3,
+    toolingHoleCount: 2,
+    polarizedComponentCount: 0,
+    polarityMarkCount: 0,
+    componentSpacingViolationCount: 0,
+    criticalNetNames: [],
+    testPointNets: [],
+    requiresProgrammingHeader: false,
+    hasFabricationNotes: true,
   };
 }
 

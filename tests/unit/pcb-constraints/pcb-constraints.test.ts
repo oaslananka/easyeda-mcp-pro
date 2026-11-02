@@ -32,6 +32,22 @@ function makeInput(overrides: Partial<PcbConstraintInput> = {}): PcbConstraintIn
     hasHighVoltage: false,
     manufacturingProcess: 'standard',
     hasQuantity: true,
+    hasDrillFile: true,
+    copperToEdgeViolationCount: 0,
+    minDrillMm: 0.3,
+    minAnnularRingMm: 0.15,
+    solderMaskSliverViolationCount: 0,
+    silkscreenOverPadCount: 0,
+    smtComponentCount: 4,
+    fiducialCount: 3,
+    toolingHoleCount: 2,
+    polarizedComponentCount: 0,
+    polarityMarkCount: 0,
+    componentSpacingViolationCount: 0,
+    criticalNetNames: [],
+    testPointNets: [],
+    requiresProgrammingHeader: false,
+    hasFabricationNotes: true,
     ...overrides,
   };
 }
@@ -82,6 +98,46 @@ describe('validatePcbConstraints', () => {
       makeInput({ hasHighVoltage: true, hasClearanceRules: true }),
     );
     expect(result.valid).toBe(true);
+  });
+});
+
+describe('unknown evidence and rule accounting', () => {
+  it('never labels an entirely unknown board as passed', () => {
+    const result = validatePcbConstraints({});
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect(result.summary.unknown).toBeGreaterThan(15);
+    expect(result.summary.passed).toBe(0);
+    expect(
+      result.summary.passed +
+        result.summary.failed +
+        result.summary.notApplicable +
+        result.summary.unknown,
+    ).toBe(23);
+    const report = buildConstraintReport({}, result);
+    expect(report.verdict).toBe('needs-review');
+    expect(
+      report.checked.some((item) => item.status === 'unknown' && item.area === 'Board outline'),
+    ).toBe(true);
+    expect(report.manualReviewRequired.some((item) => item.area === 'Board outline')).toBe(true);
+  });
+
+  it('distinguishes known negative evidence from an unavailable property', () => {
+    const missing = validatePcbConstraints(makeInput({ hasOutline: false }));
+    const unknown = validatePcbConstraints(makeInput({ hasOutline: undefined }));
+    expect(missing.errors.some((item) => item.code === 'PCB_MISSING_OUTLINE')).toBe(true);
+    expect(unknown.errors.some((item) => item.code === 'PCB_MISSING_OUTLINE')).toBe(false);
+    expect(unknown.unknownChecks.some((item) => item.area === 'Board outline')).toBe(true);
+  });
+
+  it('skips inapplicable rules rather than passing them', () => {
+    const result = validatePcbConstraints(
+      makeInput({ hasHighVoltage: false, requiresProgrammingHeader: false, criticalNetNames: [] }),
+    );
+    expect(result.valid).toBe(true);
+    expect(result.summary.notApplicable).toBeGreaterThan(0);
+    expect(result.summary.unknown).toBe(0);
   });
 });
 
@@ -172,12 +228,19 @@ describe('warnings', () => {
     expect(warn).toBeDefined();
   });
 
-  it('warns when manufacturing process is unspecified', () => {
+  it('reports UNKNOWN rather than an invented missing-process warning', () => {
     const result = validatePcbConstraints(makeInput({ manufacturingProcess: undefined }));
-    const warn = result.warnings.find(
-      (w) => w.code === PcbConstraintCodeMap.MANUFACTURING_OPTIONS_WARNING.code,
+    expect(result.valid).toBe(false);
+    expect(
+      result.warnings.some(
+        (issue) => issue.code === PcbConstraintCodeMap.MANUFACTURING_OPTIONS_WARNING.code,
+      ),
+    ).toBe(false);
+    expect(result.unknownChecks).toEqual(
+      expect.arrayContaining([
+        { area: 'Manufacturing constraints', missingFields: ['manufacturingProcess'] },
+      ]),
     );
-    expect(warn).toBeDefined();
   });
 });
 
@@ -320,9 +383,12 @@ describe('validation summary', () => {
       makeInput({ hasOutline: false, hasLayerStack: false, layerCount: 0 }),
     );
     expect(result.summary.totalChecks).toBeGreaterThan(0);
-    expect(result.summary.passed + result.summary.failed + result.summary.notApplicable).toBe(
-      result.summary.totalChecks,
-    );
+    expect(
+      result.summary.passed +
+        result.summary.failed +
+        result.summary.notApplicable +
+        result.summary.unknown,
+    ).toBe(result.summary.totalChecks);
   });
 
   it('shows passed > 0 for a complete design', () => {
@@ -393,10 +459,10 @@ describe('fromPcbIntent', () => {
       highVoltage: undefined,
     };
     const input = fromPcbIntent(intent);
-    expect(input.hasOutline).toBe(false);
-    expect(input.hasLayerStack).toBe(false);
-    expect(input.mountingHoleCount).toBe(0);
-    expect(input.hasHighVoltage).toBe(false);
+    expect(input.hasOutline).toBeUndefined();
+    expect(input.hasLayerStack).toBeUndefined();
+    expect(input.mountingHoleCount).toBeUndefined();
+    expect(input.hasHighVoltage).toBeUndefined();
   });
 
   it('converts a populated PcbIntent correctly', () => {
@@ -506,9 +572,11 @@ describe('PcbConstraintCodeMap', () => {
 // ── fromPcbIntent edge cases ──────────────────────────────────────────────
 
 describe('fromPcbIntent edge cases', () => {
-  it('handles nullish mounting holes', () => {
+  it('does not invent mounting holes, manufacturing details or high-voltage classification', () => {
     const input = fromPcbIntent({} as Parameters<typeof fromPcbIntent>[0]);
-    expect(input.mountingHoleCount).toBe(0);
+    expect(input.mountingHoleCount).toBeUndefined();
+    expect(input.hasQuantity).toBeUndefined();
+    expect(input.hasHighVoltage).toBeUndefined();
   });
 
   it('handles empty arrays', () => {
