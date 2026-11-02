@@ -195,8 +195,7 @@ function normalizePickPlacePayload(
   ) {
     return data;
   }
-  const payload = data as BinaryBridgeResult;
-  if (typeof payload.base64 !== 'string') return data;
+  const payload = data as BinaryBridgeResult & { base64: string };
   const bytes = Buffer.from(payload.base64, 'base64');
   if (bytes.length < 2) return data;
   const utf16Le = bytes[0] === 0xff && bytes[1] === 0xfe;

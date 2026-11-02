@@ -84,45 +84,39 @@ export function createExportOperations({
   async function exportNetlist(params: Record<string, unknown>): Promise<unknown> {
     const projectId = requireProjectId(params, 'Netlist export');
     const format = params.format;
-    const nativeFormats: Record<string, string> = {
-      pads: 'PADS',
-      allegro: 'Allegro',
-      altium: 'Protel2',
-    };
-    const netlistType = typeof format === 'string' ? nativeFormats[format] : undefined;
-    if (!netlistType) {
+    const nativeType =
+      format === 'pads'
+        ? 'PADS'
+        : format === 'allegro'
+          ? 'Allegro'
+          : format === 'altium'
+            ? 'Protel2'
+            : undefined;
+    if (!nativeType) {
       throw createBridgeError(
         'INVALID_PARAMS',
         'Netlist format must be pads, allegro, or altium.',
-        'Choose one of the supported formats.',
+        'Choose a supported netlist format.',
       );
     }
 
-    // Both native manufacture-data APIs accept (fileName, netlistType).
-    // The former SCH_Netlist.getNetlist API is obsolete and its signature
-    // differs; never send a single params object to either API.
-    const active = (await callFirst(['DMT_SelectControl.getCurrentDocumentInfo'])) as
+    // Both documented manufacture-data methods take (fileName, nativeType).
+    const info = (await callFirst(['DMT_SelectControl.getCurrentDocumentInfo'])) as
       { documentType?: number } | undefined;
-    const paths =
-      active?.documentType === 1
-        ? ['SCH_ManufactureData.getNetlistFile']
-        : active?.documentType === 3
-          ? ['PCB_ManufactureData.getNetlistFile']
-          : undefined;
-    if (!paths) {
+    if (info?.documentType !== 1 && info?.documentType !== 3) {
       throw createBridgeError(
         'DOCUMENT_NOT_FOCUSED',
         'Netlist export requires an active schematic or PCB document.',
-        'Open the project schematic or PCB tab, then retry.',
+        'Open a schematic or PCB document, then retry.',
       );
     }
-
-    const result = await callFirst(paths, projectId + '-netlist', netlistType);
-    if (result === undefined || result === null) {
+    const target = `${info.documentType === 1 ? 'SCH' : 'PCB'}_ManufactureData.getNetlistFile`;
+    const result = await callFirst([target], projectId + '-netlist', nativeType);
+    if (result == null) {
       throw createBridgeError(
         'NETLIST_NOT_AVAILABLE',
         'EasyEDA did not return a netlist file for the active document.',
-        'Check the schematic/PCB netlist and native document focus.',
+        'Check the native document focus and try again.',
       );
     }
     return normalizeBinaryResult(result, 'netlist.' + format);

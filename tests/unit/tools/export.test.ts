@@ -233,6 +233,57 @@ describe('Export Tools', () => {
     expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
   });
 
+  it('normalizes UTF-16LE pick-and-place with no TAB without inventing columns', async () => {
+    bridgeCall.mockResolvedValue({
+      base64: Buffer.from('\ufeffReference,Position\r\nR1,1\r\n', 'utf16le').toString('base64'),
+    });
+    const result = await registry.get('easyeda_export_pick_place')!.handler(context, {
+      projectId: 'proj-123',
+      format: 'csv',
+    });
+    expect(result?.exported).toBe(true);
+    expect(fs.readFileSync(result!.file_path!, 'utf8')).toBe('Reference,Position\r\nR1,1\r\n');
+  });
+
+  it('fails closed when native pick-and-place returns no payload', async () => {
+    bridgeCall.mockResolvedValue(undefined);
+    const result = await registry.get('easyeda_export_pick_place')!.handler(context, {
+      projectId: 'proj-123',
+      format: 'csv',
+    });
+    expect(result?.exported).toBe(false);
+    expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+  });
+
+  it('keeps quoted TABs and newlines inside UTF-16LE pick-and-place fields', async () => {
+    bridgeCall.mockResolvedValue({
+      base64: Buffer.from(
+        '\ufeffReference\tComment\nLED1\t"line one\nline\ttwo"\nR1\t"value, 1k"',
+        'utf16le',
+      ).toString('base64'),
+    });
+    const result = await registry.get('easyeda_export_pick_place')!.handler(context, {
+      projectId: 'proj-123',
+      format: 'csv',
+    });
+    expect(result?.exported).toBe(true);
+    expect(fs.readFileSync(result!.file_path!, 'utf8')).toBe(
+      'Reference,Comment\nLED1,"line one\nline\ttwo"\nR1,"value, 1k"\n',
+    );
+  });
+
+  it('supports requested TXT output from native UTF-16LE TSV with CR-only delimiters', async () => {
+    bridgeCall.mockResolvedValue({
+      base64: Buffer.from('\ufeffRef\tX\rR1\t1\r', 'utf16le').toString('base64'),
+    });
+    const result = await registry.get('easyeda_export_pick_place')!.handler(context, {
+      projectId: 'proj-123',
+      format: 'txt',
+    });
+    expect(result?.exported).toBe(true);
+    expect(fs.readFileSync(result!.file_path!, 'utf8')).toBe('Ref\tX\nR1\t1\n');
+  });
+
   it('keeps extensionless native export filenames distinct across pick-and-place and Gerbers', async () => {
     bridgeCall.mockImplementation(async (method: string) => ({
       base64: Buffer.from(
