@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-11-02T01:27:36Z",
+  "candidateCommit": "5de5f875fbe8ef3289e6b6a408e9ee00a91b799f",
+  "candidateVersion": "1.7.0",
+  "sourceIdentity": {
+    "algorithm": "git-tree-sha1",
+    "compatibilitySensitivePaths": {
+      "easyeda-bridge-extension/src": "f39f01947b610e3fd9edb55e034a670b7f310c84",
+      "src/bridge": "36f788ee4d277ad9acda522a38b1f034451640ea",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "3c20d332d20cf0e99e9c650783ab0b14d7b6f06d",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "platform": {
+    "os": "Ubuntu 24.04.5 LTS",
+    "arch": "x86_64",
+    "kernel": "7.0.0-42-generic",
+    "nativeEditor": "EasyEDA Pro 3.2.209.8a704eab",
+    "nodeVersion": "24.18.0",
+    "electronVersion": "41.2.1 (prior 3.2.209 release evidence baseline)",
+    "chromiumVersion": "146.0.7680.188 (upstream Electron reference, not independently measured in vendor fork)"
+  },
+  "extension": {
+    "version": "1.7.0",
+    "loaderVersion": "1.7.0",
+    "serverVersion": "1.7.0",
+    "packageSha256": "92525e97ba934223993dc80b67ceb22227d707ac5d2575ac594653b85bcdb276",
+    "packageSizeBytes": 202319,
+    "methodRegistryHash": "eee1634ec2fdb076",
+    "capabilityCount": 73,
+    "dispatcherBuildId": "d507ax7a25x7507",
+    "versionMismatch": false,
+    "registryMismatch": false,
+    "nativeExtensionManagerImportVerified": true,
+    "fullEditorRestartVerified": true,
+    "enabled": true,
+    "externalInteractionEnabled": true
+  },
+  "fixture": {
+    "kind": "existing-disposable-only",
+    "projectIdentityVerified": true,
+    "nativePcbFocused": true,
+    "nativeDocumentType": 3,
+    "nativeDocumentParentMatchedProject": true,
+    "projectUuidWithheld": true,
+    "pcbDocumentUuidWithheld": true,
+    "mutatingCalls": 0
+  },
+  "nativeReadOnly": {
+    "status": "passed",
+    "positivePcbMethods": [
+      "pcb.listComponents",
+      "pcb.listFills",
+      "pcb.listRegions",
+      "pcb.listTracks",
+      "pcb.listVias"
+    ],
+    "positivePcbCounts": {
+      "components": 1,
+      "fills": 0,
+      "regions": 0,
+      "tracks": 0,
+      "vias": 0
+    },
+    "positivePcbPassed": 5,
+    "wrongProjectUuidDenialsPassed": 5,
+    "wrongProjectDataReturned": false,
+    "nativeIdentityReadsPassed": 2,
+    "aggregate": {
+      "passed": 12,
+      "total": 12,
+      "mutatingCalls": 0
+    }
+  },
+  "limitations": [
+    "This candidate-specific acceptance was read-only. Earlier experimental export/batch tests used other source; no candidate-specific design mutation, native save, manufacturing sign-off or full transactional rollback is claimed.",
+    "Linux Ubuntu 24.04.5 / EasyEDA Pro 3.2.209 only; native Windows/macOS acceptance not performed.",
+    "Gemini CLI issue #791 not independently tested against a published 1.7.0 client.",
+    "Native PCB view orientation issue #470 and beta copper-zone creation issue #480 remain fail-closed, not claimed as supported.",
+    "Exact 1.7.0 package hash is a local deterministic build from the pinned candidate; GitHub release provenance and published assets require separate gated checks."
+  ],
+  "evidenceUrl": "https://github.com/oaslananka/easyeda-mcp-pro/pull/808"
+}

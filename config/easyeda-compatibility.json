@@ -1,8 +1,100 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-10-28",
+  "lastReviewed": "2026-11-02",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-7-0-native-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-11-02T01:27:36Z",
+      "reviewBy": "2027-01-31",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "41.2.1",
+        "chromiumVersion": "146.0.7680.188",
+        "chromiumVersionProvenance": "Electron 41.2.1 upstream reference baseline previously recorded for EasyEDA 3.2.209; not independently measured from vendor-fork runtime."
+      },
+      "server": {
+        "validationPackageVersion": "1.7.0",
+        "releaseContainingFixes": "1.7.0",
+        "commit": "5de5f875fbe8ef3289e6b6a408e9ee00a91b799f",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "f39f01947b610e3fd9edb55e034a670b7f310c84",
+            "src/bridge": "36f788ee4d277ad9acda522a38b1f034451640ea",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "3c20d332d20cf0e99e9c650783ab0b14d7b6f06d",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.7.0",
+        "loaderReportedVersion": "1.7.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "eee1634ec2fdb076",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "92525e97ba934223993dc80b67ceb22227d707ac5d2575ac594653b85bcdb276",
+        "packageSizeBytes": 202319
+      },
+      "fixture": {
+        "project": "Owner-controlled disposable EasyEDA Pro PCB acceptance fixture; native IDs withheld",
+        "pcb": "Focused PCB1 with exactly one native component",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v170-native-extension-restart",
+          "name": "Exact 1.7.0 extension imported via native Extension Manager and editor restarted",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Installed local exact-source 202319-byte 1.7.0 .eext via the native Extension Manager, confirmed Enabled and Allow interactive with external, then fully exited and relaunched the EasyEDA Pro editor.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/808"]
+        },
+        {
+          "id": "v170-bridge-version-registry",
+          "name": "Exact 1.7.0 runtime identity and method registry parity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact-source 1.7.0 server, loader and extension versions aligned; method registry hash eee1634ec2fdb076 matched, mismatch flags false, 73 capabilities and baked dispatcher d507ax7a25x7507 from installed extension.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/808"]
+        },
+        {
+          "id": "v170-project-document-pcb-reads",
+          "name": "Correct focused disposable PCB and five positive native data reads",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "DMT native project and focused PCB identity reads matched the pre-authorized disposable fixture (PCB documentType=3, parent linked); pcb.listComponents/Fills/Regions/Tracks/Vias all passed with counts 1/0/0/0/0.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/808"]
+        },
+        {
+          "id": "v170-wrong-project-denials",
+          "name": "Five focused PCB wrong-project identity denials",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "All five PCB read APIs refused an intentionally incorrect project UUID with native PCB project identity mismatch; no wrong-project data returned.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/808"]
+        }
+      ],
+      "knownLimitations": [
+        "This candidate-specific acceptance was read-only. Earlier experimental export/batch tests used other source; no candidate-specific design mutation, native save, manufacturing sign-off or full transactional rollback is claimed.",
+        "Linux Ubuntu 24.04.5 / EasyEDA Pro 3.2.209 only; native Windows/macOS acceptance not performed.",
+        "Gemini CLI issue #791 not independently tested against a published 1.7.0 client.",
+        "Native PCB view orientation issue #470 and beta copper-zone creation issue #480 remain fail-closed, not claimed as supported.",
+        "Exact 1.7.0 package hash is a local deterministic build from the pinned candidate; GitHub release provenance and published assets require separate gated checks."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-windows-11-x64-2026-10-28-v1-6-0-owner-readonly",
       "status": "live-validated",
