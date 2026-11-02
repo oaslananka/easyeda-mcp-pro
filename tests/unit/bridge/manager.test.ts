@@ -1163,14 +1163,15 @@ function openBufferedSocket(
 
 describe('BridgeManager - pairing (non-loopback host)', () => {
   it('requires pairing before handshake and accepts a valid pairing response', async () => {
-    const port = await getFreePort('0.0.0.0');
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '0.0.0.0',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_TOKEN: 'pair-secret',
     });
     const manager = new BridgeManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const { socket, nextMessage } = await openBufferedSocket(port);
     const challengeMsg = (await nextMessage()) as { type: string; challenge: string };
@@ -1193,14 +1194,15 @@ describe('BridgeManager - pairing (non-loopback host)', () => {
   });
 
   it('closes the connection on an invalid pairing response', async () => {
-    const port = await getFreePort('0.0.0.0');
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '0.0.0.0',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_TOKEN: 'pair-secret',
     });
     const manager = new BridgeManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const { socket, nextMessage } = await openBufferedSocket(port);
     const challengeMsg = (await nextMessage()) as { challenge: string };
@@ -1219,14 +1221,15 @@ describe('BridgeManager - pairing (non-loopback host)', () => {
   });
 
   it('rejects any message before pairing completes', async () => {
-    const port = await getFreePort('0.0.0.0');
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '0.0.0.0',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_TOKEN: 'pair-secret',
     });
     const manager = new BridgeManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const { socket, nextMessage } = await openBufferedSocket(port);
     await nextMessage(); // pairing_challenge
