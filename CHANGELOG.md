@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.7.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.6.0...easyeda-mcp-pro-v1.7.0) (2026-11-02)
+
+
+### Features
+
+* **api:** support configurable bounded EasyEDA result depth ([#812](https://github.com/oaslananka/easyeda-mcp-pro/issues/812)) ([b287863](https://github.com/oaslananka/easyeda-mcp-pro/commit/b287863171623c641aed00a5231aa1b76780a968))
+* **export:** add experimental ODB++ archive export with validation ([#815](https://github.com/oaslananka/easyeda-mcp-pro/issues/815)) ([fc33c4d](https://github.com/oaslananka/easyeda-mcp-pro/commit/fc33c4dd37815f65c8e8ac52bc353a4b61d952ba))
+* **pcb:** add verified batch component placement with compact results ([#816](https://github.com/oaslananka/easyeda-mcp-pro/issues/816)) ([9601584](https://github.com/oaslananka/easyeda-mcp-pro/commit/9601584fde2658a3452372d0faa9abcf42075180))
+
+
+### Bug Fixes
+
+* **deps:** retain immediate vulnerability fixes with pnpm 11 ([#823](https://github.com/oaslananka/easyeda-mcp-pro/issues/823)) ([0bdd9f4](https://github.com/oaslananka/easyeda-mcp-pro/commit/0bdd9f44eca6fdf4ef3b3b051a77c1ea8939be81))
+* **export:** avoid collisions from extensionless native file names ([#821](https://github.com/oaslananka/easyeda-mcp-pro/issues/821)) ([c010d94](https://github.com/oaslananka/easyeda-mcp-pro/commit/c010d94b72164d105319d78a894567c20122cf4f))
+* **export:** route schematic PDFs through the correct EasyEDA API ([#810](https://github.com/oaslananka/easyeda-mcp-pro/issues/810)) ([912b5d1](https://github.com/oaslananka/easyeda-mcp-pro/commit/912b5d1273c77bdf2d70580723a7d823d2758794))
+* integrate bridge timeout, CSV export and API create-result fixes ([#809](https://github.com/oaslananka/easyeda-mcp-pro/issues/809)) ([c02b7b0](https://github.com/oaslananka/easyeda-mcp-pro/commit/c02b7b075452db29a18a14681887965b20e57316))
+* **pcb:** reconcile a net's second fresh pour against copper rebuilt earlier in the batch ([#819](https://github.com/oaslananka/easyeda-mcp-pro/issues/819)) ([a870639](https://github.com/oaslananka/easyeda-mcp-pro/commit/a870639c4271bdc6f798173b63c3e5fcd5bf445f))
+* **pcb:** scope component transform reads to focused project ([#813](https://github.com/oaslananka/easyeda-mcp-pro/issues/813)) ([70ffc9b](https://github.com/oaslananka/easyeda-mcp-pro/commit/70ffc9ba58372b34f346e39dfe90252a20f8648d))
+* **schematic:** expose optional title-block fields to Gemini ([#807](https://github.com/oaslananka/easyeda-mcp-pro/issues/807)) ([83a30d6](https://github.com/oaslananka/easyeda-mcp-pro/commit/83a30d617389bbccc8e7d4d21741194284c66829))
+* **schematic:** preserve mirror and BOM/PCB flags after placement ([#814](https://github.com/oaslananka/easyeda-mcp-pro/issues/814)) ([306b96b](https://github.com/oaslananka/easyeda-mcp-pro/commit/306b96bb0db7f19b5ba492ec330517ceae030e00))
+
 ## [1.6.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.5.5...easyeda-mcp-pro-v1.6.0) (2026-10-28)
 
 
