@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-10-28
+- **Last reviewed:** 2026-11-02
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro      | OS / architecture                           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | ---------------- | ------------------------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab | Ubuntu 24.04.5 LTS / x86_64                 | 1.7.0                | 1.7.0                | 1.7.0             | Live validated  | 2026-11-02 | 2027-01-31 |
 | 3.2.209.8a704eab | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.6.0                | 1.6.0                | 1.6.0             | Live validated  | 2026-10-28 | 2027-01-26 |
 | 3.2.209.8a704eab | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.5                | 1.5.5                | 1.5.5             | Live validated  | 2026-10-27 | 2027-01-23 |
 | 3.2.209.8a704eab | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.3                | 1.5.3                | 1.5.3             | Live validated  | 2026-10-24 | 2027-01-21 |
@@ -56,6 +57,53 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769 | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-7-0-native-readonly
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-7-0-native-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                                                                                                           |
+| Electron                                 | `41.2.1`                                                                                                                                                     |
+| Chromium                                 | `146.0.7680.188` (Electron 41.2.1 upstream reference baseline previously recorded for EasyEDA 3.2.209; not independently measured from vendor-fork runtime.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                                                                           |
+| Kernel                                   | `7.0.0-42-generic`                                                                                                                                           |
+| Architecture                             | `x86_64`                                                                                                                                                     |
+| Node.js used by validation server        | `24.18.0`                                                                                                                                                    |
+| Validation package version               | `1.7.0`                                                                                                                                                      |
+| Release containing validated fixes       | `1.7.0`                                                                                                                                                      |
+| Compatibility-sensitive base commit      | `5de5f875fbe8ef3289e6b6a408e9ee00a91b799f`                                                                                                                   |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                                                     |
+| Installed extension package metadata     | `1.7.0`                                                                                                                                                      |
+| Live-validated extension package SHA-256 | `92525e97ba934223993dc80b67ceb22227d707ac5d2575ac594653b85bcdb276`                                                                                           |
+| Live-validated extension package size    | `202319 bytes`                                                                                                                                               |
+| Loader-reported version                  | `1.7.0`                                                                                                                                                      |
+| Bridge contract                          | `1.0.0`                                                                                                                                                      |
+| Dispatcher                               | `baked`                                                                                                                                                      |
+| Method registry hash                     | `eee1634ec2fdb076`                                                                                                                                           |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                                                                            |
+
+The installed extension package and loader both reported version `1.7.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                                       | Level  | Status   | Result                                                                                                                                                                                                                | Evidence                                                          |
+| -------------------------------------------------------------------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Exact 1.7.0 extension imported via native Extension Manager and editor restarted | `live` | `passed` | Installed local exact-source 202319-byte 1.7.0 .eext via the native Extension Manager, confirmed Enabled and Allow interactive with external, then fully exited and relaunched the EasyEDA Pro editor.                | [PR #808](https://github.com/oaslananka/easyeda-mcp-pro/pull/808) |
+| Exact 1.7.0 runtime identity and method registry parity                          | `live` | `passed` | Exact-source 1.7.0 server, loader and extension versions aligned; method registry hash eee1634ec2fdb076 matched, mismatch flags false, 73 capabilities and baked dispatcher d507ax7a25x7507 from installed extension. | [PR #808](https://github.com/oaslananka/easyeda-mcp-pro/pull/808) |
+| Correct focused disposable PCB and five positive native data reads               | `live` | `passed` | DMT native project and focused PCB identity reads matched the pre-authorized disposable fixture (PCB documentType=3, parent linked); pcb.listComponents/Fills/Regions/Tracks/Vias all passed with counts 1/0/0/0/0.   | [PR #808](https://github.com/oaslananka/easyeda-mcp-pro/pull/808) |
+| Five focused PCB wrong-project identity denials                                  | `live` | `passed` | All five PCB read APIs refused an intentionally incorrect project UUID with native PCB project identity mismatch; no wrong-project data returned.                                                                     | [PR #808](https://github.com/oaslananka/easyeda-mcp-pro/pull/808) |
+
+### Known limitations
+
+- This candidate-specific acceptance was read-only. Earlier experimental export/batch tests used other source; no candidate-specific design mutation, native save, manufacturing sign-off or full transactional rollback is claimed.
+- Linux Ubuntu 24.04.5 / EasyEDA Pro 3.2.209 only; native Windows/macOS acceptance not performed.
+- Gemini CLI issue #791 not independently tested against a published 1.7.0 client.
+- Native PCB view orientation issue #470 and beta copper-zone creation issue #480 remain fail-closed, not claimed as supported.
+- Exact 1.7.0 package hash is a local deterministic build from the pinned candidate; GitHub release provenance and published assets require separate gated checks.
 
 ## 3.2.209.8a704eab on Microsoft Windows 11 Pro (10.0.26300) (x64) — easyeda-pro-3-2-209-windows-11-x64-2026-10-28-v1-6-0-owner-readonly
 
