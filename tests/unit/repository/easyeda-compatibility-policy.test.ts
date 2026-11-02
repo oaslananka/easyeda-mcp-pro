@@ -92,9 +92,15 @@ describe('EasyEDA compatibility evidence policy', () => {
       expect(record.environment.architecture).not.toMatch(/TBD|unknown/i);
       expect(record.environment.kernel).not.toMatch(/TBD|unknown/i);
       expect(record.environment.nodeVersion).toMatch(/^24\./);
-      expect(record.easyedaPro.version).toMatch(/^3\.2\.\d+\.[0-9a-f]{8}$/);
-      // Vendor Electron/Chromium versions evolve independently of old compatibility records.
-      expect(record.easyedaPro.electronVersion).toMatch(/^\d+\.\d+\.\d+$/);
+      const isWebEditor = record.id.startsWith('easyeda-pro-web-');
+      // Web editor reports only the visible product version, and Chrome does
+      // not run the vendor Electron shell. Native evidence stays strict.
+      expect(record.easyedaPro.version).toMatch(
+        isWebEditor ? /^3\.2\.\d+ \(Web editor\)$/ : /^3\.2\.\d+\.[0-9a-f]{8}$/,
+      );
+      expect(record.easyedaPro.electronVersion).toMatch(
+        isWebEditor ? /^not applicable \(Chrome Web\)$/ : /^\d+\.\d+\.\d+$/,
+      );
       expect(record.easyedaPro.chromiumVersion).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
       expect(record.server.validationPackageVersion).toMatch(
         /^(?:0\.35\.\d+|\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?)$/,
