@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.8.0...easyeda-mcp-pro-v1.8.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **export:** correct native netlists and pick-and-place CSV ([#831](https://github.com/oaslananka/easyeda-mcp-pro/issues/831)) ([9c88adf](https://github.com/oaslananka/easyeda-mcp-pro/commit/9c88adf0fa6e67b9f775af7af749189db5b1ab1a))
+* **pcb:** distinguish unknown evidence from verified constraints ([#834](https://github.com/oaslananka/easyeda-mcp-pro/issues/834)) ([0a49ff6](https://github.com/oaslananka/easyeda-mcp-pro/commit/0a49ff6a4e8a3e9d2f0651f4186be9e30e4e241b))
+* **pcb:** enforce exact keepout intersections and rotated placement ([#833](https://github.com/oaslananka/easyeda-mcp-pro/issues/833)) ([254144d](https://github.com/oaslananka/easyeda-mcp-pro/commit/254144dfd67e1a36c1066d4969cc1f6975acc2a0))
+
 ## [1.8.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.7.0...easyeda-mcp-pro-v1.8.0) (2026-11-02)
 
 
