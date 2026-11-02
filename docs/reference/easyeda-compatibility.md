@@ -30,35 +30,35 @@ A record can remain historically valid while being stale for a new release candi
 
 ## Exact-version matrix
 
-| EasyEDA Pro          | OS / architecture                           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
-| -------------------- | ------------------------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
-| 3.2.209 (Web editor) | Ubuntu 24.04.5 LTS / x86_64                 | 1.8.1                | 1.8.1                | 1.8.1             | Live validated  | 2026-11-02 | 2027-01-31 |
-| 3.2.209 (Web editor) | Ubuntu 24.04.5 LTS / x86_64                 | 1.8.0                | 1.8.0                | 1.8.0             | Live validated  | 2026-11-02 | 2027-01-31 |
-| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.7.0                | 1.7.0                | 1.7.0             | Live validated  | 2026-11-02 | 2027-01-31 |
-| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.6.0                | 1.6.0                | 1.6.0             | Live validated  | 2026-10-28 | 2027-01-26 |
-| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.5                | 1.5.5                | 1.5.5             | Live validated  | 2026-10-27 | 2027-01-23 |
-| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.3                | 1.5.3                | 1.5.3             | Live validated  | 2026-10-24 | 2027-01-21 |
-| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.1                | 1.5.1                | 1.5.1             | Live validated  | 2026-10-23 | 2027-01-21 |
-| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.0                | 1.5.0                | 1.5.0             | Live validated  | 2026-10-23 | 2027-01-21 |
-| 3.2.206.715d940d     | Ubuntu 24.04.5 LTS / x86_64                 | 1.3.0                | 1.3.0                | 1.3.0             | Live validated  | 2026-10-16 | 2027-01-14 |
-| 3.2.206.715d940d     | Ubuntu 24.04.5 LTS / x86_64                 | 1.2.1                | 1.2.1                | 1.2.1             | Live validated  | 2026-10-16 | 2027-01-14 |
-| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.2.0                | 1.2.0                | 1.2.0             | Live validated  | 2026-10-09 | 2027-01-07 |
-| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.5           | 1.1.0-rc.5           | 1.1.0-rc.5        | Live validated  | 2026-09-29 | 2026-12-28 |
-| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.4           | 1.1.0-rc.4           | 1.1.0-rc.4        | Live validated  | 2026-09-29 | 2026-12-28 |
-| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.3           | 1.1.0-rc.3           | 1.1.0-rc.3        | Live validated  | 2026-09-29 | 2026-12-28 |
-| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.2           | 1.1.0-rc.2           | 1.1.0-rc.2        | Live validated  | 2026-09-28 | 2026-12-27 |
-| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0                | 1.1.0                | 1.1.0             | Live validated  | 2026-09-15 | 2026-12-14 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.1-rc.1           | 1.0.1-rc.1           | 1.0.1-rc.1        | Live validated  | 2026-08-28 | 2026-11-26 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.8           | 1.0.0-rc.8           | 0.99.8            | Live validated  | 2026-08-27 | 2026-11-25 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.7           | 1.0.0-rc.7           | 0.99.7            | Live validated  | 2026-08-27 | 2026-11-25 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.6           | 1.0.0-rc.6           | 0.99.6            | Live validated  | 2026-08-22 | 2026-11-20 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.5           | 1.0.0-rc.5           | 0.99.5            | Live validated  | 2026-08-21 | 2026-11-19 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.4           | 1.0.0-rc.4           | 0.99.4            | Live validated  | 2026-08-17 | 2026-11-15 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.3           | 1.0.0-rc.3           | 0.99.3            | Live validated  | 2026-08-11 | 2026-11-09 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-10 | 2026-11-08 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
-| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+| EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
+| -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209 (Web editor) | Ubuntu 24.04.5 LTS / x86_64                 | 1.8.1                | 1.8.1                 | 1.8.1             | Live validated  | 2026-11-02 | 2027-01-31 |
+| 3.2.209 (Web editor) | Ubuntu 24.04.5 LTS / x86_64                 | 1.8.0                | 1.8.0                 | 1.8.0             | Live validated  | 2026-11-02 | 2027-01-31 |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.7.0                | 1.7.0                 | 1.7.0             | Live validated  | 2026-11-02 | 2027-01-31 |
+| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.6.0                | 1.6.0                 | 1.6.0             | Live validated  | 2026-10-28 | 2027-01-26 |
+| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.5                | 1.5.5                 | 1.5.5             | Live validated  | 2026-10-27 | 2027-01-23 |
+| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.3                | 1.5.3                 | 1.5.3             | Live validated  | 2026-10-24 | 2027-01-21 |
+| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.1                | 1.5.1                 | 1.5.1             | Live validated  | 2026-10-23 | 2027-01-21 |
+| 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.5.0                | 1.5.0                 | 1.5.0             | Live validated  | 2026-10-23 | 2027-01-21 |
+| 3.2.206.715d940d     | Ubuntu 24.04.5 LTS / x86_64                 | 1.3.0                | 1.3.0                 | 1.3.0             | Live validated  | 2026-10-16 | 2027-01-14 |
+| 3.2.206.715d940d     | Ubuntu 24.04.5 LTS / x86_64                 | 1.2.1                | 1.2.1                 | 1.2.1             | Live validated  | 2026-10-16 | 2027-01-14 |
+| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.2.0                | 1.2.0                 | 1.2.0             | Live validated  | 2026-10-09 | 2027-01-07 |
+| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.5           | 1.1.0-rc.5            | 1.1.0-rc.5        | Live validated  | 2026-09-29 | 2026-12-28 |
+| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.4           | 1.1.0-rc.4            | 1.1.0-rc.4        | Live validated  | 2026-09-29 | 2026-12-28 |
+| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.3           | 1.1.0-rc.3            | 1.1.0-rc.3        | Live validated  | 2026-09-29 | 2026-12-28 |
+| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0-rc.2           | 1.1.0-rc.2            | 1.1.0-rc.2        | Live validated  | 2026-09-28 | 2026-12-27 |
+| 3.2.149.88089769     | Ubuntu 24.04.5 LTS / x86_64                 | 1.1.0                | 1.1.0                 | 1.1.0             | Live validated  | 2026-09-15 | 2026-12-14 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.1-rc.1           | 1.0.1-rc.1            | 1.0.1-rc.1        | Live validated  | 2026-08-28 | 2026-11-26 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.8           | 1.0.0-rc.8            | 0.99.8            | Live validated  | 2026-08-27 | 2026-11-25 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.7           | 1.0.0-rc.7            | 0.99.7            | Live validated  | 2026-08-27 | 2026-11-25 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.6           | 1.0.0-rc.6            | 0.99.6            | Live validated  | 2026-08-22 | 2026-11-20 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.5           | 1.0.0-rc.5            | 0.99.5            | Live validated  | 2026-08-21 | 2026-11-19 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.4           | 1.0.0-rc.4            | 0.99.4            | Live validated  | 2026-08-17 | 2026-11-15 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.3           | 1.0.0-rc.3            | 0.99.3            | Live validated  | 2026-08-11 | 2026-11-09 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-10 | 2026-11-08 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
+| 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
 
 ## 3.2.209 (Web editor) on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-web-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-8-1-native-readonly
 
@@ -76,7 +76,7 @@ Record ID: `easyeda-pro-web-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-8-1-native-re
 | Architecture                             | `x86_64`                                                                                                                                  |
 | Node.js used by validation server        | `24.18.0`                                                                                                                                 |
 | Validation package version               | `1.8.1`                                                                                                                                   |
-| Release containing validated fixes       | `1.8.1`                                                                                                                                   |
+| Fix version represented by evidence      | `1.8.1`                                                                                                                                   |
 | Compatibility-sensitive base commit      | `02138aba87a3553037d2de824fbbdf21671711d9`                                                                                                |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                                  |
 | Installed extension package metadata     | `1.8.1`                                                                                                                                   |
@@ -127,7 +127,7 @@ Record ID: `easyeda-pro-web-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-8-0-pcb`
 | Architecture                             | `x86_64`                                                                                                                                  |
 | Node.js used by validation server        | `24.22.1`                                                                                                                                 |
 | Validation package version               | `1.8.0`                                                                                                                                   |
-| Release containing validated fixes       | `1.8.0`                                                                                                                                   |
+| Fix version represented by evidence      | `1.8.0`                                                                                                                                   |
 | Compatibility-sensitive base commit      | `3589d368201f3ab001ffe2dc501082af0b201cd5`                                                                                                |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                                  |
 | Installed extension package metadata     | `1.8.0`                                                                                                                                   |
@@ -177,7 +177,7 @@ Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-7-0-native-readon
 | Architecture                             | `x86_64`                                                                                                                                                     |
 | Node.js used by validation server        | `24.18.0`                                                                                                                                                    |
 | Validation package version               | `1.7.0`                                                                                                                                                      |
-| Release containing validated fixes       | `1.7.0`                                                                                                                                                      |
+| Fix version represented by evidence      | `1.7.0`                                                                                                                                                      |
 | Compatibility-sensitive base commit      | `5de5f875fbe8ef3289e6b6a408e9ee00a91b799f`                                                                                                                   |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                                                     |
 | Installed extension package metadata     | `1.7.0`                                                                                                                                                      |
@@ -224,7 +224,7 @@ Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-28-v1-6-0-owner-readonly`
 | Architecture                             | `x64`                                                                                                                  |
 | Node.js used by validation server        | `24.22.1`                                                                                                              |
 | Validation package version               | `1.6.0`                                                                                                                |
-| Release containing validated fixes       | `1.6.0`                                                                                                                |
+| Fix version represented by evidence      | `1.6.0`                                                                                                                |
 | Compatibility-sensitive base commit      | `053303d7fea89774ab36c0ff65c5c6e0baffe474`                                                                             |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                               |
 | Installed extension package metadata     | `1.6.0`                                                                                                                |
@@ -274,7 +274,7 @@ Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-27-v1-5-5-owner-readonly`
 | Architecture                             | `x64`                                                                                                                  |
 | Node.js used by validation server        | `24.22.1`                                                                                                              |
 | Validation package version               | `1.5.5`                                                                                                                |
-| Release containing validated fixes       | `1.5.5`                                                                                                                |
+| Fix version represented by evidence      | `1.5.5`                                                                                                                |
 | Compatibility-sensitive base commit      | `d95e92b3ede3dbd2ccfb9e2faea783627abcf8f1`                                                                             |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                               |
 | Installed extension package metadata     | `1.5.5`                                                                                                                |
@@ -327,7 +327,7 @@ Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-24-v1-5-3-owner-readonly`
 | Architecture                             | `x64`                                                                                                                    |
 | Node.js used by validation server        | `24.20.0`                                                                                                                |
 | Validation package version               | `1.5.3`                                                                                                                  |
-| Release containing validated fixes       | `1.5.3`                                                                                                                  |
+| Fix version represented by evidence      | `1.5.3`                                                                                                                  |
 | Compatibility-sensitive base commit      | `79eedb6654adf77d7c0853ef061ccd89824d6170`                                                                               |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                 |
 | Installed extension package metadata     | `1.5.3`                                                                                                                  |
@@ -378,7 +378,7 @@ Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-1-owner-readonly`
 | Architecture                             | `x64`                                                              |
 | Node.js used by validation server        | `24.21.0`                                                          |
 | Validation package version               | `1.5.1`                                                            |
-| Release containing validated fixes       | `1.5.1`                                                            |
+| Fix version represented by evidence      | `1.5.1`                                                            |
 | Compatibility-sensitive base commit      | `ea22a31cc4eae2b949da2df3f96ba93522f35648`                         |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
 | Installed extension package metadata     | `1.5.1`                                                            |
@@ -427,7 +427,7 @@ Record ID: `easyeda-pro-3-2-209-windows-11-x64-2026-10-23-v1-5-0-owner-readonly`
 | Architecture                             | `x64`                                                              |
 | Node.js used by validation server        | `24.21.0`                                                          |
 | Validation package version               | `1.5.0`                                                            |
-| Release containing validated fixes       | `1.5.0`                                                            |
+| Fix version represented by evidence      | `1.5.0`                                                            |
 | Compatibility-sensitive base commit      | `c88c67a1582af92fb5e8ce8f74c609a0e5e3a93a`                         |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
 | Installed extension package metadata     | `1.5.0`                                                            |
@@ -477,7 +477,7 @@ Record ID: `easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-3-0-metadata`
 | Architecture                             | `x86_64`                                                           |
 | Node.js used by validation server        | `24.18.0`                                                          |
 | Validation package version               | `1.3.0`                                                            |
-| Release containing validated fixes       | `1.3.0`                                                            |
+| Fix version represented by evidence      | `1.3.0`                                                            |
 | Compatibility-sensitive base commit      | `79a32b243d663659594f9061917cc3b272d94057`                         |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
 | Installed extension package metadata     | `1.3.0`                                                            |
@@ -523,7 +523,7 @@ Record ID: `easyeda-pro-3-2-206-ubuntu-24-04-x64-2026-10-16-v1-2-1`
 | Architecture                             | `x86_64`                                                           |
 | Node.js used by validation server        | `24.18.0`                                                          |
 | Validation package version               | `1.2.1`                                                            |
-| Release containing validated fixes       | `1.2.1`                                                            |
+| Fix version represented by evidence      | `1.2.1`                                                            |
 | Compatibility-sensitive base commit      | `0896f183f6f92e94ad0470702b6cd1fe2e775566`                         |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
 | Installed extension package metadata     | `1.2.1`                                                            |
@@ -567,7 +567,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-10-09-v1-2-0`
 | Architecture                             | `x86_64`                                                           |
 | Node.js used by validation server        | `24.21.0`                                                          |
 | Validation package version               | `1.2.0`                                                            |
-| Release containing validated fixes       | `1.2.0`                                                            |
+| Fix version represented by evidence      | `1.2.0`                                                            |
 | Compatibility-sensitive base commit      | `575a6b331235b1b829243f75146ac66a0fed61cf`                         |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
 | Installed extension package metadata     | `1.2.0`                                                            |
@@ -614,7 +614,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-5`
 | Architecture                             | `x86_64`                                                           |
 | Node.js used by validation server        | `24.21.0`                                                          |
 | Validation package version               | `1.1.0-rc.5`                                                       |
-| Release containing validated fixes       | `1.1.0-rc.5`                                                       |
+| Fix version represented by evidence      | `1.1.0-rc.5`                                                       |
 | Compatibility-sensitive base commit      | `8e99d035899c6efbdd8bf140e48e7a6b67ebcfc4`                         |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
 | Installed extension package metadata     | `1.1.0-rc.5`                                                       |
@@ -664,7 +664,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-4`
 | Architecture                             | `x86_64`                                                           |
 | Node.js used by validation server        | `24.21.0`                                                          |
 | Validation package version               | `1.1.0-rc.4`                                                       |
-| Release containing validated fixes       | `1.1.0-rc.4`                                                       |
+| Fix version represented by evidence      | `1.1.0-rc.4`                                                       |
 | Compatibility-sensitive base commit      | `cf3aa09a4067a020543bb8678be266e8460ecc1d`                         |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
 | Installed extension package metadata     | `1.1.0-rc.4`                                                       |
@@ -714,7 +714,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-29-v1-1-0-rc-3`
 | Architecture                             | `x86_64`                                                           |
 | Node.js used by validation server        | `24.21.0`                                                          |
 | Validation package version               | `1.1.0-rc.3`                                                       |
-| Release containing validated fixes       | `1.1.0-rc.3`                                                       |
+| Fix version represented by evidence      | `1.1.0-rc.3`                                                       |
 | Compatibility-sensitive base commit      | `0ff7dfa17d7a74e23167fbbbff6544282b227d4d`                         |
 | Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
 | Installed extension package metadata     | `1.1.0-rc.3`                                                       |
@@ -763,7 +763,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-28-v1-1-0-rc-2`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.1.0-rc.2`                               |
-| Release containing validated fixes   | `1.1.0-rc.2`                               |
+| Fix version represented by evidence  | `1.1.0-rc.2`                               |
 | Compatibility-sensitive base commit  | `4be3b8c23bff0a9929566966b0bc74bd428556f1` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `1.1.0-rc.2`                               |
@@ -810,7 +810,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-09-15-v1-1-0-candidate`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.1.0`                                    |
-| Release containing validated fixes   | `1.1.0`                                    |
+| Fix version represented by evidence  | `1.1.0`                                    |
 | Compatibility-sensitive base commit  | `f76585ce9fd4ff1f4f5ab7c9826851fafe5b8fec` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `1.1.0`                                    |
@@ -856,7 +856,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-28-v1-0-1-rc1-candidate
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.1-rc.1`                               |
-| Release containing validated fixes   | `1.0.1-rc.1`                               |
+| Fix version represented by evidence  | `1.0.1-rc.1`                               |
 | Compatibility-sensitive base commit  | `6562f248b063c8e263ee02637b36803beee10350` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `1.0.1-rc.1`                               |
@@ -902,7 +902,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-27-v1-rc8-candidate`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.8`                               |
-| Release containing validated fixes   | `1.0.0-rc.8`                               |
+| Fix version represented by evidence  | `1.0.0-rc.8`                               |
 | Compatibility-sensitive base commit  | `d947271c0878c11ef1c0f7540767ba8fc7919e5b` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.8`                                   |
@@ -948,7 +948,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-27-v1-rc7-candidate`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.7`                               |
-| Release containing validated fixes   | `1.0.0-rc.7`                               |
+| Fix version represented by evidence  | `1.0.0-rc.7`                               |
 | Compatibility-sensitive base commit  | `410abc17d53988bab678ec80e03e3207ae83ccaf` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.7`                                   |
@@ -993,7 +993,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-22-v1-rc6-candidate`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.6`                               |
-| Release containing validated fixes   | `1.0.0-rc.6`                               |
+| Fix version represented by evidence  | `1.0.0-rc.6`                               |
 | Compatibility-sensitive base commit  | `182574275193287fc920e84638909d40488dda75` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.6`                                   |
@@ -1039,7 +1039,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-21-v1-rc5-candidate`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.5`                               |
-| Release containing validated fixes   | `1.0.0-rc.5`                               |
+| Fix version represented by evidence  | `1.0.0-rc.5`                               |
 | Compatibility-sensitive base commit  | `2de7843403dc5d1b0e2110b845af192dc594b263` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.5`                                   |
@@ -1085,7 +1085,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-17-v1-rc4-candidate`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.4`                               |
-| Release containing validated fixes   | `1.0.0-rc.4`                               |
+| Fix version represented by evidence  | `1.0.0-rc.4`                               |
 | Compatibility-sensitive base commit  | `58dbdce90862f64d65199430cd9dd99e37eec610` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.4`                                   |
@@ -1131,7 +1131,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-11-v1-rc3-candidate`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.3`                               |
-| Release containing validated fixes   | `1.0.0-rc.3`                               |
+| Fix version represented by evidence  | `1.0.0-rc.3`                               |
 | Compatibility-sensitive base commit  | `191499110fc92d3cd666c7726e2b23eaecefe880` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.3`                                   |
@@ -1176,7 +1176,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-10-v1-rc2-final`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.2`                               |
-| Release containing validated fixes   | `1.0.0-rc.2`                               |
+| Fix version represented by evidence  | `1.0.0-rc.2`                               |
 | Compatibility-sensitive base commit  | `83577d0a9313a1596283d981b7215e22b3e982c9` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.2`                                   |
@@ -1221,7 +1221,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-08-09-v1-rc2`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.2`                               |
-| Release containing validated fixes   | `1.0.0-rc.2`                               |
+| Fix version represented by evidence  | `1.0.0-rc.2`                               |
 | Compatibility-sensitive base commit  | `48cd31091f5cbb56dc44aea7fe7aea2a42306ea2` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.2`                                   |
@@ -1266,7 +1266,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-29-v1-rc1`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `1.0.0-rc.1`                               |
-| Release containing validated fixes   | `1.0.0-rc.1`                               |
+| Fix version represented by evidence  | `1.0.0-rc.1`                               |
 | Compatibility-sensitive base commit  | `4c5969de73678140e3582f08d2be52233622a718` |
 | Recorded compatibility snapshot      | `git-tree-sha1` across 6 sensitive paths   |
 | Installed extension package metadata | `0.99.1`                                   |
@@ -1309,7 +1309,7 @@ Record ID: `easyeda-pro-3-2-149-ubuntu-24-04-x64-2026-07-25`
 | Architecture                         | `x86_64`                                   |
 | Node.js used by validation server    | `24.18.0`                                  |
 | Validation package version           | `0.35.4`                                   |
-| Release containing validated fixes   | `0.35.4`                                   |
+| Fix version represented by evidence  | `0.35.4`                                   |
 | Compatibility-sensitive base commit  | `3b11042d14a4f2bffbe7b22f9e84da4be2e5a896` |
 | Installed extension package metadata | `0.35.4`                                   |
 | Loader-reported version              | `0.35.4`                                   |

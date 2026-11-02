@@ -175,7 +175,7 @@ export async function renderCompatibilityMarkdown(source) {
     '',
     '## Exact-version matrix',
     '',
-    '| EasyEDA Pro | OS / architecture | MCP validation build | Released fix version | Extension package | Evidence status | Validated | Review by |',
+    '| EasyEDA Pro | OS / architecture | MCP validation build | Fix version validated | Extension package | Evidence status | Validated | Review by |',
     '| --- | --- | --- | --- | --- | --- | --- | --- |',
   ];
 
@@ -204,7 +204,7 @@ export async function renderCompatibilityMarkdown(source) {
       `| Architecture | \`${record.environment.architecture}\` |`,
       `| Node.js used by validation server | \`${record.environment.nodeVersion}\` |`,
       `| Validation package version | \`${record.server.validationPackageVersion}\` |`,
-      `| Release containing validated fixes | \`${record.server.releaseContainingFixes}\` |`,
+      `| Fix version represented by evidence | \`${record.server.releaseContainingFixes}\` |`,
       `| Compatibility-sensitive base commit | \`${record.server.commit}\` |`,
       ...(record.server.compatibilitySnapshot
         ? [
