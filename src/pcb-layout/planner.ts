@@ -46,15 +46,6 @@ function rectsOverlap(a: RectMm, b: RectMm): boolean {
   );
 }
 
-function pointInsideRect(point: NativePcbPoint, rect: NativePcbRect): boolean {
-  return (
-    point.x >= rect.x &&
-    point.x <= rect.x + rect.width &&
-    point.y >= rect.y &&
-    point.y <= rect.y + rect.height
-  );
-}
-
 function rectInsideBoard(rect: RectMm, board: BoardBox): boolean {
   return (
     rect.x >= 0 &&
@@ -95,15 +86,39 @@ function routeLengthMil(points: NativePcbPoint[]): number {
   return total;
 }
 
+/** Exact line-segment / axis-aligned rectangle intersection, including edge contact. */
 function segmentIntersectsRect(a: NativePcbPoint, b: NativePcbPoint, rect: NativePcbRect): boolean {
-  if (pointInsideRect(a, rect) || pointInsideRect(b, rect)) return true;
-  const steps = Math.max(2, Math.ceil(distance(a, b) / mmToPcbMil(0.5)));
-  for (let i = 1; i < steps; i += 1) {
-    const t = i / steps;
-    const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-    if (pointInsideRect(point, rect)) return true;
+  let enter = 0;
+  let exit = 1;
+  const axes: Array<[number, number, number, number]> = [
+    [a.x, b.x - a.x, rect.x, rect.x + rect.width],
+    [a.y, b.y - a.y, rect.y, rect.y + rect.height],
+  ];
+  for (const [start, delta, lower, upper] of axes) {
+    const min = Math.min(lower, upper);
+    const max = Math.max(lower, upper);
+    if (delta === 0) {
+      if (start < min || start > max) return false;
+      continue;
+    }
+    const t1 = (min - start) / delta;
+    const t2 = (max - start) / delta;
+    enter = Math.max(enter, Math.min(t1, t2));
+    exit = Math.min(exit, Math.max(t1, t2));
+    if (enter > exit) return false;
   }
-  return false;
+  return true;
+}
+
+/** Conservative axis-aligned bounds of a footprint after rotating about its centre. */
+function rotatedFootprintSize(widthMm: number, heightMm: number, rotation: number) {
+  const radians = (rotation * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(radians));
+  const sin = Math.abs(Math.sin(radians));
+  // Exact quarter-turns should not acquire floating-point phantom overhang.
+  const c = cos < 1e-12 ? 0 : cos;
+  const s = sin < 1e-12 ? 0 : sin;
+  return { widthMm: widthMm * c + heightMm * s, heightMm: widthMm * s + heightMm * c };
 }
 
 function invalidBoard(board: BoardBox): boolean {
@@ -152,11 +167,16 @@ export function planComponentGroupPlacement(
     const row = Math.floor(index / columns);
     const x = input.anchor.x + col * (component.widthMm + spacing);
     const y = input.anchor.y + row * (component.heightMm + spacing);
+    const rotated = rotatedFootprintSize(
+      component.widthMm,
+      component.heightMm,
+      component.rotation ?? 0,
+    );
     const bbox = {
-      x: x - component.widthMm / 2,
-      y: y - component.heightMm / 2,
-      widthMm: component.widthMm,
-      heightMm: component.heightMm,
+      x: x - rotated.widthMm / 2,
+      y: y - rotated.heightMm / 2,
+      widthMm: rotated.widthMm,
+      heightMm: rotated.heightMm,
       name: component.ref,
     };
     const placement = {
@@ -330,8 +350,18 @@ export function planRoutePath(input: RoutePathInput): RoutePathPlan {
     const a = input.waypoints[i - 1];
     const b = input.waypoints[i];
     if (!a || !b) continue;
+    // Route width matters: the copper edge can enter a keepout even if the
+    // track centreline remains outside it. Keepout coordinates are native mil.
+    const halfWidthMil = mmToPcbMil(Math.max(0, input.widthMm)) / 2;
     for (const keepout of input.keepouts ?? []) {
-      if (segmentIntersectsRect(a, b, keepout)) {
+      const expanded = {
+        ...keepout,
+        x: keepout.x - halfWidthMil,
+        y: keepout.y - halfWidthMil,
+        width: keepout.width + 2 * halfWidthMil,
+        height: keepout.height + 2 * halfWidthMil,
+      };
+      if (segmentIntersectsRect(a, b, expanded)) {
         issues.push(
           issue(
             'LAYOUT_PATH_IN_KEEPOUT',
