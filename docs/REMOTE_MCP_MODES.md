@@ -107,3 +107,13 @@ Tunnels provide reachability only. They do not replace authentication, pairing, 
 - [Claude Web connector setup](./CLAUDE_WEB_CONNECTOR.md)
 - [ChatGPT app integration plan](./CHATGPT_APP_INTEGRATION.md)
 - [Observability model](./REMOTE_OBSERVABILITY.md)
+
+## Custom Remote in the EasyEDA extension (experimental)
+
+The **MCP Bridge** menu is available in the Start Page, schematic and PCB editors:
+
+- **Connect** or **Connect Local** uses the local loopback MCP bridge (the default), including in EasyEDA Pro Web. A locally running MCP server is still required. No domain or Tunnel is needed when both run on the same computer.
+- **Connect Custom Remote... (Experimental)** requests a self-hosted WSS Relay URL and a short-lived EDA-XXXXXXXX pairing code previously obtained from an authenticated Relay gateway. This uses the existing remote session/approval protocol; it does **not** accept a public MCP /mcp URL as a WebSocket Relay endpoint.
+- **Disconnect Remote Relay**, **Remote Relay Status...** and **Connect Local** let the user inspect or return from the experimental mode. Switching modes closes the previous transport. The pairing code is never persisted in extension settings or placed in the Relay URL. Remote mode does not automatically resume after editor restart.
+
+Only endpoints with the secure WSS scheme, a hostname, optional valid port and path are accepted; credential-bearing URLs, fragments and query parameters are rejected. A working gateway, pairing, compatible runtime WebSocket implementation and real project-specific live acceptance are still needed. The earlier local Web PCB tests do not constitute hosted Remote Relay acceptance. If the EasyEDA runtime cannot show the configuration input prompt or cannot create an outbound WebSocket, the extension leaves Local available and reports the limitation.

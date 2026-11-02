@@ -1,3 +1,4 @@
+import { validateCustomRemoteRelayUrl } from './connection-policy.js';
 import type { RuntimeTimerHandle, RuntimeTimers } from './runtime-timers.js';
 
 export type RemoteRelayMode = 'disabled' | 'hosted' | 'self_hosted';
@@ -124,7 +125,7 @@ export class RemoteRelayClient {
 
   connect(input: RemoteRelayConnectInput): void {
     this.disconnect('replaced');
-    const relayUrl = input.relayUrl ?? DEFAULT_HOSTED_RELAY_URL;
+    const relayUrl = validateCustomRemoteRelayUrl(input.relayUrl ?? DEFAULT_HOSTED_RELAY_URL);
     this.desiredConnection = { ...input, relayUrl };
     this.status = {
       mode: input.mode,
@@ -190,7 +191,8 @@ export class RemoteRelayClient {
     const timestamp = nowIso();
     this.status = {
       ...this.status,
-      state: pairingCode ? 'paired' : 'connected',
+      // A code sent by this client is not confirmation that the gateway paired it.
+      state: 'connected',
       lastConnectedAt: timestamp,
       lastHeartbeatAt: timestamp,
       nextReconnectDelayMs: undefined,
@@ -206,7 +208,9 @@ export class RemoteRelayClient {
       capabilities: ['local_bridge_proxy'],
     });
     this.options.showToast(
-      pairingCode ? 'Remote Relay connected and pairing code sent' : 'Remote Relay connected',
+      pairingCode
+        ? 'Remote Relay connected; waiting for pairing confirmation'
+        : 'Remote Relay connected',
     );
   }
 

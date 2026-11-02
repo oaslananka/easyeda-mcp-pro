@@ -13,6 +13,7 @@ import {
   reconnectDelayMs,
   REGISTER_OPEN_CALLBACK_TIMEOUT_MS,
   shouldReconnectAfterSocketFailure,
+  validateCustomRemoteRelayUrl,
 } from './connection-policy.js';
 import {
   RemoteRelayClient,
@@ -91,6 +92,7 @@ interface EasyedaGlobal {
   ) => void;
   disconnectRemoteRelay?: () => void;
   showRemoteRelayStatus?: () => void;
+  connectCustomRemote?: () => Promise<void>;
 }
 
 interface EasyedaWebSocketApi {
@@ -690,17 +692,81 @@ function readRemoteActiveProject():
   return { projectName, documentType, url: href };
 }
 
+// Custom Remote is opt-in for this editor session. Never persist pairing codes,
+// silently connect to the placeholder hosted URL, or auto-open a remote session.
+let selectedConnectionMode: 'local' | 'remote' = 'local';
+
+function promptConnectionValue(message: string, initialValue = ''): string | null {
+  const promptFn = (globalThis as { prompt?: (text: string, value?: string) => string | null })
+    .prompt;
+  if (typeof promptFn !== 'function') {
+    showToast('Custom Remote needs an editor with an input dialog; Local remains available.');
+    return null;
+  }
+  try {
+    return promptFn(message, initialValue);
+  } catch (error) {
+    log('Custom Remote input dialog unavailable', error);
+    showToast('Custom Remote input dialog unavailable. Local remains available.');
+    return null;
+  }
+}
+
+async function connectCustomRemoteInternal(): Promise<void> {
+  const existingUrl = remoteRelayClient?.getStatus().relayUrl ?? '';
+  const rawUrl = promptConnectionValue('Custom Remote Relay URL (wss://)', existingUrl);
+  if (rawUrl === null) return;
+  let relayUrl: string;
+  try {
+    relayUrl = validateCustomRemoteRelayUrl(rawUrl);
+  } catch (error) {
+    showToast(`Custom Remote: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+  const pairingCode = promptConnectionValue('Enter the one-time pairing code (EDA-XXXXXXXX)');
+  if (pairingCode === null) return;
+  const code = pairingCode.trim().toUpperCase();
+  if (!/^EDA-[A-F0-9]{8}$/.test(code)) {
+    showToast('Custom Remote requires a valid EDA-XXXXXXXX pairing code.');
+    return;
+  }
+  connectRemoteRelayInternal('self_hosted', relayUrl, code);
+}
+
+function connectLocalInternal(mode: ConnectMode = 'manual'): Promise<void> {
+  if (selectedConnectionMode === 'remote') {
+    remoteRelayClient?.disconnect('user_disabled');
+    selectedConnectionMode = 'local';
+  }
+  return connectInternal(mode);
+}
+
 function connectRemoteRelayInternal(
   mode: Exclude<RemoteRelayMode, 'disabled'> = 'hosted',
   relayUrl?: string,
   pairingCode?: string,
 ): void {
+  if (relayUrl !== undefined) {
+    try {
+      relayUrl = validateCustomRemoteRelayUrl(relayUrl);
+    } catch (error) {
+      showToast(`Remote Relay: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+  }
+  if (typeof (globalThis as { WebSocket?: unknown }).WebSocket !== 'function') {
+    showToast('Remote Relay requires WebSocket support in this EasyEDA runtime.');
+    return;
+  }
+  disconnectInternal(false);
+  selectedConnectionMode = 'remote';
   getRemoteRelayClient().connect({ mode, relayUrl, pairingCode });
 }
 
 function disconnectRemoteRelayInternal(): void {
   getRemoteRelayClient().disconnect('user_disabled');
-  showToast('Remote Relay disabled');
+  selectedConnectionMode = 'local';
+  showToast('Remote Relay disabled. Choose Connect Local to reconnect locally.');
 }
 
 function showRemoteRelayStatusInternal(): void {
@@ -1263,6 +1329,7 @@ async function connectToPort(
 }
 async function connectInternal(mode: ConnectMode = 'manual'): Promise<void> {
   const manual = mode === 'manual';
+  if (selectedConnectionMode === 'remote') return;
 
   if (connectionState === 'connected' && connectedPort !== null) {
     if (manual) {
@@ -1361,10 +1428,18 @@ function disconnectInternal(notifyUser: boolean): void {
 }
 
 function disconnectCommandInternal(): void {
-  disconnectInternal(true);
+  if (selectedConnectionMode === 'remote') {
+    disconnectRemoteRelayInternal();
+  } else {
+    disconnectInternal(true);
+  }
 }
 
 function showStatusInternal(): void {
+  if (selectedConnectionMode === 'remote') {
+    showRemoteRelayStatusInternal();
+    return;
+  }
   autoConnectEnabled = loadAutoConnectSetting();
   const autoLabel = `Auto-Connect: ${autoConnectEnabled ? 'ON' : 'OFF'}`;
 
@@ -1452,7 +1527,7 @@ async function setAutoConnectInternal(enabled: boolean): Promise<void> {
   if (enabled) {
     manualDisconnectRequested = false;
     reconnectAttempts = 0;
-    if (connectionState === 'disconnected') {
+    if (connectionState === 'disconnected' && selectedConnectionMode === 'local') {
       await connectInternal('auto');
     }
   } else {
@@ -1486,14 +1561,19 @@ let activationStarted = false;
 async function handleActivate(): Promise<void> {
   autoConnectEnabled = loadAutoConnectSetting();
   if (activationStarted) {
-    if (autoConnectEnabled && connectionState === 'disconnected' && !activeConnectPromise) {
+    if (
+      autoConnectEnabled &&
+      selectedConnectionMode === 'local' &&
+      connectionState === 'disconnected' &&
+      !activeConnectPromise
+    ) {
       void connectInternal('auto');
     }
     return;
   }
 
   activationStarted = true;
-  if (autoConnectEnabled) {
+  if (autoConnectEnabled && selectedConnectionMode === 'local') {
     showToast(`MCP Bridge: Auto-Connect ON — scanning local server`);
     void connectInternal('auto');
   } else {
@@ -1510,6 +1590,7 @@ function deactivateInternal(): void {
   disconnectInternal(false);
   remoteRelayClient?.disconnect('disconnected');
   remoteRelayClient = null;
+  selectedConnectionMode = 'local';
   const globalScope = globalThis as any;
   const existing = globalScope[PERSISTENT_RUNTIME_KEY] as PersistentRuntime | undefined;
   if (existing?.deactivate === deactivateInternal) {
@@ -1527,6 +1608,7 @@ interface PersistentRuntime {
   disableAutoConnect: typeof disableAutoConnectInternal;
   toggleAutoConnect: typeof toggleAutoConnectInternal;
   connectRemoteRelay: typeof connectRemoteRelayInternal;
+  connectCustomRemote: typeof connectCustomRemoteInternal;
   disconnectRemoteRelay: typeof disconnectRemoteRelayInternal;
   showRemoteRelayStatus: typeof showRemoteRelayStatusInternal;
 }
@@ -1541,13 +1623,14 @@ function getPersistentRuntime(): PersistentRuntime {
   const runtime: PersistentRuntime = {
     activate: activateInternal,
     deactivate: deactivateInternal,
-    connect: connectInternal,
+    connect: connectLocalInternal,
     disconnect: disconnectCommandInternal,
     showStatus: showStatusInternal,
     enableAutoConnect: enableAutoConnectInternal,
     disableAutoConnect: disableAutoConnectInternal,
     toggleAutoConnect: toggleAutoConnectInternal,
     connectRemoteRelay: connectRemoteRelayInternal,
+    connectCustomRemote: connectCustomRemoteInternal,
     disconnectRemoteRelay: disconnectRemoteRelayInternal,
     showRemoteRelayStatus: showRemoteRelayStatusInternal,
   };
@@ -1597,6 +1680,10 @@ export function connectRemoteRelay(
   persistentRuntime.connectRemoteRelay(mode, relayUrl, pairingCode);
 }
 
+export async function connectCustomRemote(): Promise<void> {
+  await persistentRuntime.connectCustomRemote();
+}
+
 export function disconnectRemoteRelay(): void {
   persistentRuntime.disconnectRemoteRelay();
 }
@@ -1612,6 +1699,7 @@ function expose(): void {
     api.disconnect = disconnect;
     api.showStatus = showStatus;
     api.connectRemoteRelay = connectRemoteRelay;
+    api.connectCustomRemote = connectCustomRemote;
     api.disconnectRemoteRelay = disconnectRemoteRelay;
     api.showRemoteRelayStatus = showRemoteRelayStatus;
     api.enableAutoConnect = enableAutoConnect;
@@ -1626,6 +1714,7 @@ function expose(): void {
   globalScope.disconnect = disconnect;
   globalScope.showStatus = showStatus;
   globalScope.connectRemoteRelay = connectRemoteRelay;
+  globalScope.connectCustomRemote = connectCustomRemote;
   globalScope.disconnectRemoteRelay = disconnectRemoteRelay;
   globalScope.showRemoteRelayStatus = showRemoteRelayStatus;
   globalScope.enableAutoConnect = enableAutoConnect;

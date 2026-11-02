@@ -101,6 +101,7 @@ The fastest way to install and configure `easyeda-mcp-pro` for your favorite AI 
 
 3. **Connect the bridge:**
    In EasyEDA Pro, click **MCP Bridge → Connect** in the menu bar.
+   On EasyEDA Web, Local also works with the server on the same PC. For a separate self-hosted gateway, use **MCP Bridge → Connect Custom Remote... (Experimental)** with its secure WSS Relay address and one-time EDA-XXXXXXXX pairing code; this is not the public HTTP /mcp URL. [Details](docs/REMOTE_MCP_MODES.md).
 
 For advanced configurations, manual instructions, and specific clients, see [Installation & Client Configuration](#installation--client-configuration).
 

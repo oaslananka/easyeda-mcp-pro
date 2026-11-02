@@ -56,7 +56,14 @@ export function createPcbWriteOperations({
     return { primitiveId: createdIds[0], primitiveIds: createdIds };
   }
 
+  function webEditor(): boolean {
+    return typeof location !== 'undefined' && location.hostname === 'pro.easyeda.com';
+  }
+
   async function addText(params: Record<string, unknown>): Promise<unknown> {
+    // The Web editor accepts the documented native default font and dimensions.
+    // Preserve established desktop defaults and every caller-supplied value.
+    const web = webEditor();
     // PCB_PrimitiveString.create was live-confirmed as:
     // create(layer, x, y, text, fontFamily, fontSize, lineWidth, alignMode,
     // rotation, reverse, expansion, mirror, primitiveLock).
@@ -66,10 +73,10 @@ export function createPcbWriteOperations({
       params.x,
       params.y,
       params.text,
-      params.fontFamily ?? 'NotoSansMonoCJKsc-Regular',
-      params.fontSize ?? 1,
-      params.lineWidth ?? 0.15,
-      params.alignMode ?? 0,
+      params.fontFamily ?? (web ? 'default' : 'NotoSansMonoCJKsc-Regular'),
+      params.fontSize ?? (web ? 45 : 1),
+      params.lineWidth ?? (web ? 6 : 0.15),
+      params.alignMode ?? (web ? 3 : 0),
       params.rotation ?? 0,
       params.reverse ?? false,
       params.expansion ?? 0,
@@ -89,7 +96,7 @@ export function createPcbWriteOperations({
       params.startY,
       params.endX,
       params.endY,
-      params.lineWidth ?? 0.2,
+      params.lineWidth ?? (webEditor() ? 10 : 0.2),
       false,
     );
   }

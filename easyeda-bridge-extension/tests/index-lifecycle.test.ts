@@ -13,6 +13,7 @@ const GLOBAL_KEYS = [
   'disconnect',
   'showStatus',
   'connectRemoteRelay',
+  'connectCustomRemote',
   'disconnectRemoteRelay',
   'showRemoteRelayStatus',
   'enableAutoConnect',
@@ -101,6 +102,7 @@ async function loadExtension(
     autoConnect?: boolean;
     withWebSocket?: boolean;
     webSocketApi?: Record<string, unknown>;
+    prompt?: (text: string, initial?: string) => string | null;
     dialog?: {
       showConfirmationMessage: (
         content: string,
@@ -129,6 +131,7 @@ async function loadExtension(
     },
   });
   if (options.withWebSocket) vi.stubGlobal('WebSocket', HarnessSocket);
+  if (options.prompt) vi.stubGlobal('prompt', options.prompt);
   if (options.webSocketApi) vi.stubGlobal('sys_WebSocket', options.webSocketApi);
   if (options.dialog) vi.stubGlobal('sys_Dialog', options.dialog);
   vi.resetModules();
@@ -317,6 +320,68 @@ describe('extension loader lifecycle source', () => {
     expect(logText).toContain('Bridge hello does not include this extension protocol version');
     expect(logText).toContain('"protocolVersion":"1.0.0"');
     expect(toasts).toContain('MCP Bridge connected to local server');
+  });
+
+  it('offers opt-in Custom Remote and returns to Local without competing sockets', async () => {
+    HarnessSocket.localBehavior = 'success';
+    const prompts = ['wss://pcb.example.com/remote/relay', 'eda-abcdef12'];
+    const { extension, toasts, storage } = await loadExtension({
+      autoConnect: true,
+      withWebSocket: true,
+      prompt: () => prompts.shift() ?? null,
+    });
+    await extension.activate('onStartupFinished');
+    await flushMicrotasks();
+    const local = HarnessSocket.instances.find((socket) => socket.url.startsWith('ws://'));
+    expect(local).toBeDefined();
+    expect(local?.readyState).toBe(HarnessSocket.OPEN);
+
+    await extension.connectCustomRemote();
+    expect(local?.closeCalls).toBeGreaterThan(0);
+    const remote = latestRemoteSocket();
+    remote.open();
+    expect(remote.sent).toContainEqual(
+      expect.objectContaining({
+        type: 'register_session',
+        mode: 'self_hosted',
+        pairingCode: 'EDA-ABCDEF12',
+      }),
+    );
+    extension.showStatus();
+    expect(toasts.at(-1)).toContain('Remote Relay: self_hosted/');
+    expect(storage.autoConnect).toBe(true); // Local preference remains intact for later sessions.
+
+    await extension.activate('onStartupFinished');
+    await flushMicrotasks();
+    expect(HarnessSocket.instances.filter((socket) => socket.url.startsWith('ws://'))).toHaveLength(
+      1,
+    );
+
+    await extension.connect(); // The original Connect menu remains the Local entry point.
+    expect(remote.closeCalls).toBeGreaterThan(0);
+    expect(HarnessSocket.instances.filter((socket) => socket.url.startsWith('ws://'))).toHaveLength(
+      2,
+    );
+    extension.showStatus();
+    expect(toasts.at(-1)).toContain('connected to local server');
+  });
+
+  it('keeps Local connected when Custom Remote dialog is cancelled or unsafe', async () => {
+    HarnessSocket.localBehavior = 'success';
+    const prompts = ['ws://insecure.example/relay', 'wss://pcb.example/relay', 'bad-code'];
+    const { extension, toasts } = await loadExtension({
+      withWebSocket: true,
+      prompt: () => prompts.shift() ?? null,
+    });
+    await extension.connect();
+    await extension.connectCustomRemote();
+    await extension.connectCustomRemote();
+    await extension.connectCustomRemote();
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(0);
+    expect(HarnessSocket.instances[0].closeCalls).toBe(0);
+    expect(toasts.join(' | ')).toMatch(/secure wss|valid EDA-/i);
   });
 
   it('returns approval timeout when the EasyEDA dialog remains unanswered', async () => {

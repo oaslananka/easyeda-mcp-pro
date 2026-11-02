@@ -58,6 +58,21 @@
             "registerFn": "disableAutoConnect"
           },
           {
+            "id": "ConnectCustomRemote",
+            "title": "Connect Custom Remote... (Experimental)",
+            "registerFn": "connectCustomRemote"
+          },
+          {
+            "id": "DisconnectRemoteRelay",
+            "title": "Disconnect Remote Relay",
+            "registerFn": "disconnectRemoteRelay"
+          },
+          {
+            "id": "RemoteRelayStatus",
+            "title": "Remote Relay Status...",
+            "registerFn": "showRemoteRelayStatus"
+          },
+          {
             "id": "Status",
             "title": "Status...",
             "registerFn": "showStatus"
@@ -71,6 +86,26 @@
         "title": "MCP Bridge",
         "menuItems": [
           {
+            "id": "ConnectLocal",
+            "title": "Connect Local",
+            "registerFn": "connect"
+          },
+          {
+            "id": "ConnectCustomRemote",
+            "title": "Connect Custom Remote... (Experimental)",
+            "registerFn": "connectCustomRemote"
+          },
+          {
+            "id": "DisconnectRemoteRelay",
+            "title": "Disconnect Remote Relay",
+            "registerFn": "disconnectRemoteRelay"
+          },
+          {
+            "id": "RemoteRelayStatus",
+            "title": "Remote Relay Status...",
+            "registerFn": "showRemoteRelayStatus"
+          },
+          {
             "id": "Status",
             "title": "Status...",
             "registerFn": "showStatus"
@@ -83,6 +118,26 @@
         "id": "MCPBridge",
         "title": "MCP Bridge",
         "menuItems": [
+          {
+            "id": "ConnectLocal",
+            "title": "Connect Local",
+            "registerFn": "connect"
+          },
+          {
+            "id": "ConnectCustomRemote",
+            "title": "Connect Custom Remote... (Experimental)",
+            "registerFn": "connectCustomRemote"
+          },
+          {
+            "id": "DisconnectRemoteRelay",
+            "title": "Disconnect Remote Relay",
+            "registerFn": "disconnectRemoteRelay"
+          },
+          {
+            "id": "RemoteRelayStatus",
+            "title": "Remote Relay Status...",
+            "registerFn": "showRemoteRelayStatus"
+          },
           {
             "id": "Status",
             "title": "Status...",

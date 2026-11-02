@@ -10,6 +10,7 @@ import {
   PRIMARY_CONNECT_TIMEOUT_MS,
   reconnectDelayMs,
   shouldReconnectAfterSocketFailure,
+  validateCustomRemoteRelayUrl,
 } from '../src/connection-policy.js';
 
 describe('local bridge connection policy', () => {
@@ -102,5 +103,34 @@ describe('local bridge connection policy', () => {
     expect(isServerActivityMessage('heartbeat', 'server')).toBe(true);
     expect(isServerActivityMessage('heartbeat', undefined)).toBe(true);
     expect(isServerActivityMessage('request', undefined)).toBe(true);
+  });
+});
+
+describe('Custom Remote endpoint validation', () => {
+  it('accepts a secure user-supplied relay endpoint without the URL constructor', () => {
+    vi.stubGlobal('URL', undefined);
+    try {
+      expect(validateCustomRemoteRelayUrl(' wss://pcb.example.com:8443/remote/relay ')).toBe(
+        'wss://pcb.example.com:8443/remote/relay',
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([
+    'ws://pcb.example.com/remote',
+    'http://pcb.example.com/remote',
+    'wss://user:password@pcb.example.com/remote',
+    'wss://pcb.example.com/remote?token=secret',
+    'wss://pcb.example.com/remote#fragment',
+    'wss://pcb.example.com:0/remote',
+    'wss://pcb.example.com:65536/remote',
+    'wss://pcb..example.com/remote',
+    'wss://pcb.example.com./remote',
+    'wss://',
+    'wss://pcb.example.com/' + 'x'.repeat(2050),
+  ])('rejects nonconforming URL %s', (input) => {
+    expect(() => validateCustomRemoteRelayUrl(input)).toThrow();
   });
 });

@@ -108,6 +108,32 @@ describe('PCB write operations', () => {
     );
   });
 
+  it('uses Web-editor native defaults for PCB text without changing desktop defaults', async () => {
+    vi.stubGlobal('location', { hostname: 'pro.easyeda.com' });
+    try {
+      const { callFirst, operations } = makeOperations();
+      await operations.addText({ layer: 3, x: 2000, y: 2000, text: 'WEB' });
+      expect(callFirst).toHaveBeenCalledWith(
+        ['PCB_PrimitiveString.create', 'pcb_PrimitiveString.create'],
+        3,
+        2000,
+        2000,
+        'WEB',
+        'default',
+        45,
+        6,
+        3,
+        0,
+        false,
+        0,
+        false,
+        false,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('preserves explicit PCB text values including zero and false', async () => {
     const { callFirst, operations } = makeOperations();
     const params = {
@@ -189,6 +215,33 @@ describe('PCB write operations', () => {
       0,
       false,
     );
+  });
+
+  it('uses the Web-compatible default width for decorative PCB lines', async () => {
+    vi.stubGlobal('location', { hostname: 'pro.easyeda.com' });
+    try {
+      const { operations, callFirst } = makeOperations();
+      await operations.addSilkscreenLine({
+        layer: 3,
+        startX: 2000,
+        startY: 2000,
+        endX: 2600,
+        endY: 2000,
+      });
+      expect(callFirst).toHaveBeenCalledWith(
+        ['PCB_PrimitiveLine.create', 'pcb_PrimitiveLine.create'],
+        '',
+        3,
+        2000,
+        2000,
+        2600,
+        2000,
+        10,
+        false,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('creates vias with the live-verified native argument order', async () => {
