@@ -4,6 +4,122 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-web-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-8-0-pcb",
+      "status": "live-validated",
+      "validatedAt": "2026-11-02T04:19:35Z",
+      "reviewBy": "2027-01-31",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209 (Web editor)",
+        "electronVersion": "not applicable (Chrome Web)",
+        "chromiumVersion": "156.0.0.0",
+        "chromiumVersionProvenance": "Chrome/156.0.0.0 measured from the logged-in browser user agent; embedded Chromium engine build not independently measured."
+      },
+      "server": {
+        "validationPackageVersion": "1.8.0",
+        "releaseContainingFixes": "1.8.0",
+        "commit": "3589d368201f3ab001ffe2dc501082af0b201cd5",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "728a48407587743ca62e961be99462dd33625e50",
+            "src/bridge": "36f788ee4d277ad9acda522a38b1f034451640ea",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "ad85a8bef887dc3f18395aee378e9dd8aaab2381",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.8.0",
+        "loaderReportedVersion": "1.8.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "eee1634ec2fdb076",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "dbbfcxa6a0xcf67",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "e1387611897c998284dfd2f71c4364913995e6bbbb4a78715a04ae301d4468a5",
+        "packageSizeBytes": 203291
+      },
+      "fixture": {
+        "project": "Owner-controlled private disposable EasyEDA Pro Web project; project ID withheld",
+        "pcb": "Focused initially blank native PCB1; exact native project and document identity checked before writes",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "v180-web-exact-extension-install",
+          "name": "Exact v1.8.0 package imported into EasyEDA Web 3.2.209",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Imported the 203291-byte exact-source v1.8.0 .eext through native Extensions Manager, accepted the vendor safety prompt, verified extension version/enabled/external interaction and restarted the Web editor tab.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/828"]
+        },
+        {
+          "id": "v180-web-source-version-registry",
+          "name": "Exact source/runtime version and native method-registry identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Source commit 3589d36, server/loader/extension v1.8.0, bridge contract v1.0.0, method registry hash eee1634ec2fdb076, 73 methods and baked dispatcher dbbfcxa6a0xcf67 matched; mismatch flags false.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/828"]
+        },
+        {
+          "id": "v180-web-native-pcb-read-and-guard",
+          "name": "Five native PCB read operations and wrong-project identity rejection",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Verified exact disposable project and focused PCB documentType=3. pcb.listComponents/Fills/Regions/Tracks/Vias returned zero results on a blank PCB; each of those five refused a deliberately incorrect projectId with project identity mismatch.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/828"]
+        },
+        {
+          "id": "v180-web-default-text-write-read-delete",
+          "name": "Native PCB text with omitted defaults, read-back and deletion",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The fixed default pcb.addText call (layer=3,x=2000,y=2000,text set, no font/size/width/alignment supplied) created one native string, matched read-back by ID and exact marker, then deleteComponent deleted it and native getAll returned zero.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/829",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/828"
+          ]
+        },
+        {
+          "id": "v180-web-pcb-track-write-read-delete",
+          "name": "Native top-copper track read-back and deletion",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Created a temporary native PCB line on layer 1 with empty net, documented two-point coordinates and width=10; getAll matched the primitive ID and the exact cleanup deleted it; final line inventory zero.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/828"]
+        },
+        {
+          "id": "v180-web-custom-remote-ui-only",
+          "name": "Experimental Custom Remote mode entry-point",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "New MCP Bridge menu displayed Local and Custom Remote choices; the remote URL prompt required wss://. No real remote WSS Gateway pairing, authenticated user session, approval cycle or end-to-end cloud access was tested.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/827",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/828"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This evidence is from authenticated Chrome Web on Ubuntu, not the separately installed EasyEDA native desktop or Windows/macOS native clients.",
+        "The exact Web roundtrip covers read, default PCB text create/read/delete, copper track create/read/delete and project guard; it does not validate every bridge method, project save, manufacturing output, or fabrication correctness.",
+        "Web native silkscreen line creation returned vendor invalid-parameter errors for both omitted and explicit lineWidth=10; zero primitives remained. No fallback or working silkscreen line support is claimed.",
+        "Custom Remote Relay remains Experimental: UI and insecure-ws rejection were exercised, but no real cross-device WSS endpoint, OAuth pairing, or remote write-approval operation was validated.",
+        "system.getStatus reported hasDMT=false despite successful documented DMT native project/document identity calls; that status field is not used as proof of missing PCB context.",
+        "Live editor mutations were applied only to an owner-controlled disposable PCB, then reversed with explicit native read-back; no user project or production design was modified."
+      ]
+    },
+    {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-7-0-native-readonly",
       "status": "live-validated",
       "validatedAt": "2026-11-02T01:27:36Z",
