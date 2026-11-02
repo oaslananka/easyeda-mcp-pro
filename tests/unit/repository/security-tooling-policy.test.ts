@@ -142,7 +142,7 @@ describe('repository security tooling policy', () => {
     const [, major, minor, patch] = honoVersion ?? [];
     expect(Number(major)).toBe(2);
     expect(Number(minor) > 0 || (Number(minor) === 0 && Number(patch) >= 10)).toBe(true);
-    expect(workspace).not.toContain('minimumReleaseAge');
+    expect(workspace).toMatch(/^minimumReleaseAge: 0$/m);
     expect(workspace).toContain('trustPolicy: no-downgrade');
     expect(workspace).toContain('trustLockfile: false');
     expect(workspace).toContain('blockExoticSubdeps: true');
