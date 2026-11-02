@@ -150,16 +150,21 @@ describe('createDispatcher', () => {
     const getDsnFile = vi.fn(async (fileName: unknown) => ({ kind: 'dsn', fileName }));
     const getPickAndPlaceFile = vi.fn(async (params: unknown) => ({ kind: 'pick-place', params }));
     const getPdfFile = vi.fn(async (params: unknown) => ({ kind: 'pdf', params }));
-    const getNetlist = vi.fn(async (params: unknown) => ({ kind: 'netlist', params }));
+    const getNetlist = vi.fn(async (fileName: unknown, format: unknown) => ({
+      kind: 'netlist',
+      fileName,
+      format,
+    }));
     const dispatcher = createDispatcher(
       makeToolkit({
+        DMT_SelectControl: { getCurrentDocumentInfo: async () => ({ documentType: 3 }) },
         PCB_ManufactureData: {
+          getNetlistFile: getNetlist,
           getGerberFile,
           getDsnFile,
           getPickAndPlaceFile,
           getPdfFile,
         },
-        SCH_Netlist: { getNetlist },
       }),
     );
 
@@ -182,16 +187,19 @@ describe('createDispatcher', () => {
       kind: 'pdf',
       params: undefined,
     });
-    await expect(dispatcher.dispatch('export.netlist', { format: 'spice' })).resolves.toEqual({
+    await expect(
+      dispatcher.dispatch('export.netlist', { projectId: 'project-1', format: 'pads' }),
+    ).resolves.toEqual({
       kind: 'netlist',
-      params: { format: 'spice' },
+      fileName: 'project-1-netlist',
+      format: 'PADS',
     });
 
     expect(getGerberFile).toHaveBeenCalledWith('project-1');
     expect(getDsnFile).toHaveBeenCalledWith('board.dsn');
     expect(getPickAndPlaceFile).toHaveBeenCalledWith('project-1', 'csv');
     expect(getPdfFile).toHaveBeenCalledWith(undefined, undefined);
-    expect(getNetlist).toHaveBeenCalledWith({ format: 'spice' });
+    expect(getNetlist).toHaveBeenCalledWith('project-1-netlist', 'PADS');
   });
 
   it('returns a dispatcher with a sorted, non-empty method list and a build id', () => {

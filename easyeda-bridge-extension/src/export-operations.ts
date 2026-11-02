@@ -82,11 +82,44 @@ export function createExportOperations({
   }
 
   async function exportNetlist(params: Record<string, unknown>): Promise<unknown> {
-    return exportFile(
-      ['SCH_Netlist.getNetlist', 'SCH_ManufactureData.getNetlistFile', p + 'getNetlistFile'],
-      'netlist.' + (typeof params.format === 'string' ? params.format : 'txt'),
-      params,
-    );
+    const projectId = requireProjectId(params, 'Netlist export');
+    const format = params.format;
+    const nativeType =
+      format === 'pads'
+        ? 'PADS'
+        : format === 'allegro'
+          ? 'Allegro'
+          : format === 'altium'
+            ? 'Protel2'
+            : undefined;
+    if (!nativeType) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        'Netlist format must be pads, allegro, or altium.',
+        'Choose a supported netlist format.',
+      );
+    }
+
+    // Both documented manufacture-data methods take (fileName, nativeType).
+    const info = (await callFirst(['DMT_SelectControl.getCurrentDocumentInfo'])) as
+      { documentType?: number } | undefined;
+    if (info?.documentType !== 1 && info?.documentType !== 3) {
+      throw createBridgeError(
+        'DOCUMENT_NOT_FOCUSED',
+        'Netlist export requires an active schematic or PCB document.',
+        'Open a schematic or PCB document, then retry.',
+      );
+    }
+    const target = `${info.documentType === 1 ? 'SCH' : 'PCB'}_ManufactureData.getNetlistFile`;
+    const result = await callFirst([target], projectId + '-netlist', nativeType);
+    if (result == null) {
+      throw createBridgeError(
+        'NETLIST_NOT_AVAILABLE',
+        'EasyEDA did not return a netlist file for the active document.',
+        'Check the native document focus and try again.',
+      );
+    }
+    return normalizeBinaryResult(result, 'netlist.' + format);
   }
 
   // Beta EasyEDA ODB++ export; this is not manufacturing verification.
