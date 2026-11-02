@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-11-02T21:38:24Z",
+  "candidateCommit": "02138aba87a3553037d2de824fbbdf21671711d9",
+  "candidateVersion": "1.8.1",
+  "sourceIdentity": {
+    "algorithm": "git-tree-sha1",
+    "compatibilitySensitivePaths": {
+      "easyeda-bridge-extension/src": "02da259ab69cc5bb629a2b44940e55f6784f7fa5",
+      "src/bridge": "36f788ee4d277ad9acda522a38b1f034451640ea",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "4dd18a5af5f33babd3c3f7f93cad9dd2760d1dec",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "platform": {
+    "os": "Ubuntu 24.04.5 LTS",
+    "arch": "x86_64",
+    "kernel": "7.0.0-42-generic",
+    "nativeEditor": "EasyEDA Pro Web 3.2.209",
+    "nodeVersion": "24.18.0",
+    "electronVersion": "not applicable (Chrome Web)",
+    "chromiumVersion": "156.0.0.0 (live browser user agent)"
+  },
+  "extension": {
+    "version": "1.8.1",
+    "loaderVersion": "1.8.1",
+    "serverVersion": "1.8.1",
+    "packageSha256": "ad65e543fe513f01d4676ed23d2a016571d95830c91d10648058998e70ea1eaa",
+    "packageSizeBytes": 203834,
+    "dispatcherBuildId": "d9e4fxc69fx5367",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "eee1634ec2fdb076",
+    "nativeCapabilityCount": 73,
+    "mcpToolCount": 117,
+    "versionMismatch": false,
+    "registryMismatch": false,
+    "nativeExtensionManagerImportVerified": true,
+    "fullEditorRestartVerified": false,
+    "enabled": true,
+    "externalInteractionEnabled": true
+  },
+  "fixture": {
+    "kind": "owner-controlled-private-E2E-project",
+    "projectIdentityVerified": true,
+    "nativeSchematicFocused": true,
+    "nativePcbFocused": true,
+    "projectUuidWithheld": true,
+    "schematicDocumentUuidWithheld": true,
+    "pcbDocumentUuidWithheld": true,
+    "mutatingCalls": 0,
+    "saveCalls": 0,
+    "readOnly": true
+  },
+  "nativeSchematic": {
+    "status": "passed",
+    "netCount": 3,
+    "netNames": ["LED_ANODE", "LED_GND", "LED_5V"],
+    "floatingPins": 0,
+    "wiresWithoutNetlist": 0,
+    "netlistValid": true,
+    "nativeErc": {
+      "errors": 0,
+      "warnings": 3
+    },
+    "padsNetlist": {
+      "exported": true,
+      "bytes": 344,
+      "sha256": "4790c5d8c67f7a4fac58f817d1a75b5808e682d733fe01ec81585a1c68116583"
+    }
+  },
+  "nativePcb": {
+    "dimensionsMm": {
+      "width": 21.59,
+      "height": 16.51,
+      "area": 356.4509,
+      "shape": "custom"
+    },
+    "outlinePresent": true,
+    "copperLayerCount": 2,
+    "physicalStackupAvailable": false,
+    "drc": {
+      "passed": true,
+      "errors": 0,
+      "warnings": 0,
+      "violations": 0
+    },
+    "constraintReview": {
+      "totalChecks": 23,
+      "passed": 2,
+      "warningLevelFailed": 2,
+      "notApplicable": 1,
+      "unknown": 18,
+      "errorSeverity": 0,
+      "productionReviewPassed": false
+    },
+    "altiumNetlist": {
+      "exported": true,
+      "bytes": 3754,
+      "sha256": "09a53e2f8243be2edf0e401dcd8a27272898405c3b5f8661614309cd68e19410"
+    },
+    "pickAndPlaceCsv": {
+      "exported": true,
+      "bytes": 656,
+      "rows": 3,
+      "encoding": "UTF-8",
+      "sha256": "92e5d652a0e9653f9d8ecf99664faf1af6f74d6dedc8038390d6caf2067ca74e"
+    }
+  },
+  "limitations": [
+    "Web editor only; native desktop Electron and Windows/macOS were not tested.",
+    "Extension tab was reloaded after import; the full browser/editor process was not restarted.",
+    "The private E2E design was only read and exported; no design mutations or save calls were made.",
+    "Physical stackup thickness/material/copper weight unavailable through the current Web API.",
+    "18 of 23 PCB constraint areas are UNKNOWN; this is not a fabrication-readiness approval.",
+    "Three native ERC warnings remain; no suppression or waiver applied.",
+    "Only PADS schematic netlist, Altium PCB netlist and pick-and-place CSV exports were tested."
+  ],
+  "evidenceUrl": "https://github.com/oaslananka/easyeda-mcp-pro/pull/832"
+}
