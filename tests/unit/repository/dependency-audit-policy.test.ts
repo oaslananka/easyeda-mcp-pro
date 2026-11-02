@@ -198,7 +198,7 @@ describe('dependency audit policy', () => {
     );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).not.toContain('minimumReleaseAge');
+    expect(workspacePolicy).toMatch(/^minimumReleaseAge: 0$/m);
     expectPatchedOverride(workspacePolicy, lockfile, 'brace-expansion', '5.0.12');
     expect(lockfile).not.toMatch(/brace-expansion@5\.0\.(?:[0-9]|1[01])(?:\D|$)/);
   });
@@ -210,7 +210,7 @@ describe('dependency audit policy', () => {
     );
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 
-    expect(workspacePolicy).not.toContain('minimumReleaseAge');
+    expect(workspacePolicy).toMatch(/^minimumReleaseAge: 0$/m);
     expectPatchedOverride(workspacePolicy, lockfile, 'qs', '6.16.0');
     expect(lockfile).not.toMatch(/qs@6\.15\.3(?:\D|$)/);
   });
