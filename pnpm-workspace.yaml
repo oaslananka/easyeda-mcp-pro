@@ -27,4 +27,4 @@ overrides:
   '@vue/server-renderer': 3.5.44
   'undici@6.27.0': 6.29.1
   follow-redirects: 1.16.2
-  minimatch: 11.0.1
+  minimatch: 11.0.3
