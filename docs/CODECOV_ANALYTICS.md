@@ -58,6 +58,8 @@ On 2026-09-28, the polygon argument materialization required by `easyeda_api_cal
 
 On 2026-10-05, the existing-copper rebuild path added explicit runtime capability checks, pre-mutation target validation, sequential native execution, source-pour-keyed persisted read-back verification, a complexity-preserving helper split, and ES2020-compatible error-cause preservation. Against current `main`, the deterministic build increased from 263,531 to 276,820 bytes for `index.js` and from 188,745 to 201,168 bytes for `dispatcher.js`; the packaged `.eext` increased from 177,983 to 183,089 bytes and remains below the unchanged 200,000-byte package ceiling. The reviewed ratchets are therefore 276,824 and 201,173 bytes, preserving the existing 4/5-byte deterministic margin. Any further growth still fails closed and requires another measured ratchet review.
 
+On 2026-11-03, native PCB drill inspection and active DRC spacing-profile reads increased the current deterministic build to 310,895 bytes for `index.js`, 248,309 bytes for `dispatcher.js`, and 206,179 bytes for the packaged `.eext`. The `index.js` ratchet is unchanged; the measured dispatcher and package ratchets are 248,314 and 206,184 bytes (5-byte deterministic margins). The added read-only inspection capability is the measured cause. These remain bounded byte budgets, not permission for unreviewed growth; any further increase requires another measured ratchet review.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:
