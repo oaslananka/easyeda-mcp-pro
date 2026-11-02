@@ -144,6 +144,31 @@ describe('Board Tools', () => {
     expect(result?.error).toContain('only the copper-layer count was verified');
   });
 
+  it('easyeda_board_design_rules returns the active global clearance matrix summary', async () => {
+    const tool = registry.get('easyeda_board_design_rules');
+    bridgeCall.mockResolvedValue({
+      available: true,
+      activeRuleConfigurationName: 'JLCPCB Capability(Two Layers Board)',
+      hasClearanceRules: true,
+      minimumClearanceMm: 0.102,
+      clearanceRuleCount: 78,
+      activeSpacingMatrices: ['copperThickness1oz'],
+      source: 'active_rule_configuration',
+    });
+
+    const result = await tool?.handler(context, { projectId: 'proj-rules' });
+    expect(bridgeCall).toHaveBeenCalledWith('board.getDesignRules', { projectId: 'proj-rules' });
+    expect(result).toMatchObject({
+      project_id: 'proj-rules',
+      active_rule_configuration_name: 'JLCPCB Capability(Two Layers Board)',
+      has_clearance_rules: true,
+      minimum_clearance_mm: 0.102,
+      clearance_rule_count: 78,
+      active_spacing_matrices: ['copperThickness1oz'],
+      data_source: 'active_rule_configuration',
+    });
+  });
+
   it('easyeda_board_dimensions returns dimensions', async () => {
     const tool = registry.get('easyeda_board_dimensions');
     expect(tool).toBeDefined();
@@ -152,7 +177,11 @@ describe('Board Tools', () => {
       widthMm: 100,
       heightMm: 80,
       shape: 'rectangle',
-      mountingHoleCount: 4,
+      drilledPadCount: 2,
+      platedDrillPadCount: 1,
+      unplatedDrillPadCount: 1,
+      minDrillMm: 0.3,
+      unknownFields: [],
       areaMm2: 8000,
     });
 
@@ -164,7 +193,12 @@ describe('Board Tools', () => {
     expect(result?.width_mm).toBe(100);
     expect(result?.height_mm).toBe(80);
     expect(result?.shape).toBe('rectangle');
-    expect(result?.mounting_hole_count).toBe(4);
+    expect(result?.mounting_hole_count).toBeUndefined();
+    expect(result?.drilled_pad_count).toBe(2);
+    expect(result?.plated_drill_pad_count).toBe(1);
+    expect(result?.unplated_drill_pad_count).toBe(1);
+    expect(result?.min_drill_mm).toBe(0.3);
+    expect(result?.unknown_fields).toEqual(['mounting_hole_count']);
     expect(result?.area_mm2).toBe(8000);
   });
 
@@ -173,7 +207,12 @@ describe('Board Tools', () => {
     bridgeCall.mockResolvedValue({
       widthMm: 0,
       heightMm: 0,
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: 0,
+      platedDrillPadCount: 0,
+      unplatedDrillPadCount: 0,
+      minDrillMm: undefined,
+      unknownFields: [],
       areaMm2: 0,
       hasOutline: false,
     });
@@ -184,6 +223,7 @@ describe('Board Tools', () => {
       width_mm: 0,
       height_mm: 0,
       has_outline: false,
+      unknown_fields: ['mounting_hole_count'],
       not_available: true,
     });
     expect(result?.error).toContain('No board outline');
@@ -217,7 +257,7 @@ describe('Board Tools', () => {
     expect(result?.components).toBe(45);
   });
 
-  it('easyeda_board_features defaults missing Fill/Region counts to zero', async () => {
+  it('easyeda_board_features reports omitted native counts as unknown', async () => {
     const tool = registry.get('easyeda_board_features');
     bridgeCall.mockResolvedValue({ vias: 1, tracks: 2, zones: 3, pads: 4 });
 
@@ -228,9 +268,10 @@ describe('Board Tools', () => {
       vias: 1,
       tracks: 2,
       zones: 3,
-      fills: 0,
-      regions: 0,
+      fills: undefined,
+      regions: undefined,
       pads: 4,
+      unknown_features: ['fills', 'regions', 'components'],
     });
   });
 
@@ -274,7 +315,15 @@ describe('Board Tools', () => {
 
     expect(result?.not_available).toBe(true);
     expect(result?.project_id).toBe('proj-123');
-    expect(result?.mounting_hole_count).toBe(0);
+    expect(result?.mounting_hole_count).toBeUndefined();
+    expect(result?.drilled_pad_count).toBeUndefined();
+    expect(result?.unknown_fields).toEqual([
+      'mounting_hole_count',
+      'drilled_pad_count',
+      'plated_drill_pad_count',
+      'unplated_drill_pad_count',
+      'min_drill_mm',
+    ]);
     expect(result?.error).toBe('Bridge disconnected');
   });
 
@@ -288,12 +337,21 @@ describe('Board Tools', () => {
 
     expect(result?.not_available).toBe(true);
     expect(result?.project_id).toBe('proj-123');
-    expect(result?.vias).toBe(0);
-    expect(result?.tracks).toBe(0);
-    expect(result?.zones).toBe(0);
-    expect(result?.fills).toBe(0);
-    expect(result?.regions).toBe(0);
-    expect(result?.pads).toBe(0);
+    expect(result?.vias).toBeUndefined();
+    expect(result?.tracks).toBeUndefined();
+    expect(result?.zones).toBeUndefined();
+    expect(result?.fills).toBeUndefined();
+    expect(result?.regions).toBeUndefined();
+    expect(result?.pads).toBeUndefined();
+    expect(result?.unknown_features).toEqual([
+      'vias',
+      'tracks',
+      'zones',
+      'fills',
+      'regions',
+      'pads',
+      'components',
+    ]);
     expect(result?.error).toBe('Bridge disconnected');
   });
 });

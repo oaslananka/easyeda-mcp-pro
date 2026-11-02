@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ToolRegistry } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
-import { registerPcbConstraintTools } from '../../../src/tools/L1_pcb_constraints.js';
+import {
+  fetchBoardDataFromBridge,
+  registerPcbConstraintTools,
+} from '../../../src/tools/L1_pcb_constraints.js';
 import { EnvSchema } from '../../../src/config/env.js';
 
 describe('PCB constraint tools', () => {
@@ -118,6 +121,7 @@ describe('PCB constraint tools', () => {
         return { widthMm: 60, heightMm: 40, mountingHoleCount: 4 };
       if (method === 'board.listLayers') return [{ id: 1 }, { id: 2 }];
       if (method === 'board.getStackup') return { totalLayers: 2, layers: [{ id: 1 }, { id: 2 }] };
+      if (method === 'board.getDesignRules') return { hasClearanceRules: true };
       throw new Error(`unexpected method ${method}`);
     });
 
@@ -126,8 +130,32 @@ describe('PCB constraint tools', () => {
     expect(bridgeCall).toHaveBeenCalledWith('board.getDimensions', { projectId: 'pcb-bridge-1' });
     expect(bridgeCall).toHaveBeenCalledWith('board.listLayers', { projectId: 'pcb-bridge-1' });
     expect(bridgeCall).toHaveBeenCalledWith('board.getStackup', { projectId: 'pcb-bridge-1' });
+    expect(bridgeCall).toHaveBeenCalledWith('board.getDesignRules', { projectId: 'pcb-bridge-1' });
     expect(result?.project_id).toBe('pcb-bridge-1');
     expect(result?.summary.totalChecks).toBeGreaterThan(0);
+  });
+
+  it('uses the measured native minimum drill diameter without guessing mounting holes', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') {
+        return {
+          widthMm: 60,
+          heightMm: 40,
+          drilledPadCount: 2,
+          platedDrillPadCount: 1,
+          unplatedDrillPadCount: 1,
+          minDrillMm: 0.762,
+          unknownFields: ['mounting_hole_count'],
+        };
+      }
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return { totalLayers: 2, layers: [] };
+      throw new Error(`unexpected method ${method}`);
+    });
+
+    const data = await fetchBoardDataFromBridge(context, 'pcb-drill-evidence');
+    expect(data.minDrillMm).toBe(0.762);
+    expect(data.mountingHoleCount).toBeUndefined();
   });
 
   it('easyeda_pcb_production_review tolerates partial bridge failures via Promise.allSettled', async () => {
@@ -136,6 +164,7 @@ describe('PCB constraint tools', () => {
       if (method === 'board.getDimensions') throw new Error('dimensions unavailable');
       if (method === 'board.listLayers') return { layers: [{ id: 1 }] };
       if (method === 'board.getStackup') throw new Error('stackup unavailable');
+      if (method === 'board.getDesignRules') throw new Error('design rules unavailable');
       throw new Error(`unexpected method ${method}`);
     });
 
@@ -262,12 +291,13 @@ describe('PCB constraint tools', () => {
       if (method === 'board.getDimensions') return { widthMm: 60, heightMm: 40 };
       if (method === 'board.listLayers') return [];
       if (method === 'board.getStackup') return {};
+      if (method === 'board.getDesignRules') return {};
       throw new Error(`unexpected method ${method}`);
     });
 
     const result = await tool?.handler(context, { projectId: 'pcb-check-2' });
 
-    expect(bridgeCall).toHaveBeenCalledTimes(3);
+    expect(bridgeCall).toHaveBeenCalledTimes(4);
     expect(result?.project_id).toBe('pcb-check-2');
   });
 
@@ -300,12 +330,13 @@ describe('PCB constraint tools', () => {
       if (method === 'board.getDimensions') return { widthMm: 60, heightMm: 40 };
       if (method === 'board.listLayers') return [];
       if (method === 'board.getStackup') return {};
+      if (method === 'board.getDesignRules') return {};
       throw new Error(`unexpected method ${method}`);
     });
 
     const result = await tool?.handler(context, { projectId: 'pcb-report-2' });
 
-    expect(bridgeCall).toHaveBeenCalledTimes(3);
+    expect(bridgeCall).toHaveBeenCalledTimes(4);
     expect(result?.project_id).toBe('pcb-report-2');
   });
 });

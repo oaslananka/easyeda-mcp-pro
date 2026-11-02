@@ -55,7 +55,6 @@
     "src/schematic-model/normalize.ts": [17],
     "src/schematic-model/primitive-bounds.ts": [19],
     "src/server/factory.ts": [16],
-    "src/tools/L1_board.ts": [18],
     "src/tools/L1_drc_erc.ts": [20],
     "src/tools/L1_schematic_read.ts": [21, 16],
     "src/tools/L1_schematic_write.ts": [17, 16],

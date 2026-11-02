@@ -18,6 +18,7 @@ export interface BoardInspectionOperations {
   requireActivePcbContext(): Promise<void>;
   listLayers(): Promise<unknown>;
   getStackup(): Promise<unknown>;
+  getDesignRules(): Promise<unknown>;
   getDimensions(): Promise<unknown>;
   getFeatures(): Promise<unknown>;
 }
@@ -68,6 +69,43 @@ function readBoardThickness(physicalStacking: any): number | undefined {
   if (typeof physicalStacking?.thicknessMm === 'number') return physicalStacking.thicknessMm;
   if (typeof physicalStacking?.thickness === 'number') return physicalStacking.thickness;
   return undefined;
+}
+
+function readSafeSpacingValues(ruleConfiguration: unknown): {
+  count: number;
+  minimumMm?: number;
+  matrixNames: string[];
+} {
+  if (!isRecord(ruleConfiguration)) return { count: 0, matrixNames: [] };
+  const configuration = isRecord(ruleConfiguration.config)
+    ? ruleConfiguration.config
+    : ruleConfiguration;
+  const spacing = isRecord(configuration.Spacing) ? configuration.Spacing : undefined;
+  const safeSpacing =
+    spacing && isRecord(spacing['Safe Spacing']) ? spacing['Safe Spacing'] : undefined;
+  if (!safeSpacing) return { count: 0, matrixNames: [] };
+
+  const activeMatrices = Object.entries(safeSpacing).filter(
+    (entry): entry is [string, Record<string, unknown>] => {
+      const value = entry[1];
+      return isRecord(value) && value.isSetDefault === true && Array.isArray(value.table);
+    },
+  );
+  const values = activeMatrices.flatMap(([, matrix]) =>
+    (matrix.table as unknown[]).flatMap((row) =>
+      Array.isArray(row)
+        ? row.filter(
+            (value): value is number =>
+              typeof value === 'number' && Number.isFinite(value) && value >= 0,
+          )
+        : [],
+    ),
+  );
+  return {
+    count: values.length,
+    minimumMm: values.length > 0 ? Math.min(...values) : undefined,
+    matrixNames: activeMatrices.map(([name]) => name),
+  };
 }
 
 interface BoundingBox {
@@ -320,30 +358,135 @@ async function addOutlinePrimitiveBounds(
   }
 }
 
-async function countPrimitiveCollection(pcbClass: any, description: string): Promise<number> {
-  if (!pcbClass || typeof pcbClass.getAll !== 'function') return 0;
+async function countPrimitiveCollection(
+  pcbClass: any,
+  description: string,
+): Promise<number | undefined> {
+  if (!pcbClass || typeof pcbClass.getAll !== 'function') return undefined;
   try {
-    return (await pcbClass.getAll())?.length || 0;
+    const primitives = await pcbClass.getAll();
+    return Array.isArray(primitives) ? primitives.length : undefined;
   } catch (error) {
     logRecoverableError(`failed to count ${description}`, error);
-    return 0;
+    return undefined;
   }
 }
 
-async function countMountingHoles(pcbPadClass: any): Promise<number> {
-  if (!pcbPadClass || typeof pcbPadClass.getAll !== 'function') return 0;
+interface DrillSummary {
+  drilledPadCount?: number;
+  platedDrillPadCount?: number;
+  unplatedDrillPadCount?: number;
+  minDrillMm?: number;
+  unknownFields: Array<
+    'drilledPadCount' | 'platedDrillPadCount' | 'unplatedDrillPadCount' | 'minDrillMm'
+  >;
+}
+
+interface DrillAccumulator {
+  drilledPadCount: number;
+  platedDrillPadCount: number;
+  unplatedDrillPadCount: number;
+  minDrillMil: number;
+  drillCountKnown: boolean;
+  metallizationKnown: boolean;
+}
+
+type PadDrillState =
+  | { status: 'none' }
+  | { status: 'unknown' }
+  | { status: 'drilled'; diameterMil: number; metallization?: boolean };
+
+function createUnknownDrillSummary(): DrillSummary {
+  return {
+    drilledPadCount: undefined,
+    platedDrillPadCount: undefined,
+    unplatedDrillPadCount: undefined,
+    minDrillMm: undefined,
+    unknownFields: [
+      'drilledPadCount',
+      'platedDrillPadCount',
+      'unplatedDrillPadCount',
+      'minDrillMm',
+    ],
+  };
+}
+
+async function readPadDrillState(pad: unknown): Promise<PadDrillState> {
+  const hole = await readPrimitiveStateResolved(pad, 'Hole');
+  if (hole === null) return { status: 'none' };
+  if (!Array.isArray(hole) || (hole[0] !== 'ROUND' && hole[0] !== 'SLOT')) {
+    return { status: 'unknown' };
+  }
+
+  const diameterMil = readFiniteNumber(hole[1]);
+  if (diameterMil === undefined || diameterMil <= 0) return { status: 'unknown' };
+
+  const metallization = await readPrimitiveStateResolved(pad, 'Metallization');
+  return {
+    status: 'drilled',
+    diameterMil,
+    metallization: typeof metallization === 'boolean' ? metallization : undefined,
+  };
+}
+
+function addPadDrillState(summary: DrillAccumulator, drill: PadDrillState): void {
+  if (drill.status === 'none') return;
+  if (drill.status === 'unknown') {
+    summary.drillCountKnown = false;
+    summary.metallizationKnown = false;
+    return;
+  }
+
+  summary.drilledPadCount++;
+  summary.minDrillMil = Math.min(summary.minDrillMil, drill.diameterMil);
+  if (drill.metallization === undefined) {
+    summary.metallizationKnown = false;
+  } else if (drill.metallization) {
+    summary.platedDrillPadCount++;
+  } else {
+    summary.unplatedDrillPadCount++;
+  }
+}
+
+function finalizeDrillSummary(summary: DrillAccumulator): DrillSummary {
+  const unknownFields: DrillSummary['unknownFields'] = [];
+  if (!summary.drillCountKnown) unknownFields.push('drilledPadCount');
+  if (!summary.metallizationKnown) {
+    unknownFields.push('platedDrillPadCount', 'unplatedDrillPadCount');
+  }
+  if (!summary.drillCountKnown) unknownFields.push('minDrillMm');
+  return {
+    drilledPadCount: summary.drillCountKnown ? summary.drilledPadCount : undefined,
+    platedDrillPadCount: summary.metallizationKnown ? summary.platedDrillPadCount : undefined,
+    unplatedDrillPadCount: summary.metallizationKnown ? summary.unplatedDrillPadCount : undefined,
+    minDrillMm:
+      summary.drillCountKnown && Number.isFinite(summary.minDrillMil)
+        ? pcbMilToMm(summary.minDrillMil)
+        : undefined,
+    unknownFields,
+  };
+}
+
+async function readDrillSummary(pcbPadClass: any): Promise<DrillSummary> {
+  if (typeof pcbPadClass?.getAll !== 'function') return createUnknownDrillSummary();
+
   try {
-    let mountingHoles = 0;
     const pads = await pcbPadClass.getAll();
-    for (const pad of pads || []) {
-      const holeType = await readPrimitiveStateResolved(pad, 'HoleType');
-      const holeSize = readFiniteNumber(await readPrimitiveStateResolved(pad, 'HoleSize')) ?? 0;
-      if (holeType === 'MountingHole' || holeSize > 2) mountingHoles++;
-    }
-    return mountingHoles;
+    if (!Array.isArray(pads)) return createUnknownDrillSummary();
+
+    const summary: DrillAccumulator = {
+      drilledPadCount: 0,
+      platedDrillPadCount: 0,
+      unplatedDrillPadCount: 0,
+      minDrillMil: Infinity,
+      drillCountKnown: true,
+      metallizationKnown: true,
+    };
+    for (const pad of pads) addPadDrillState(summary, await readPadDrillState(pad));
+    return finalizeDrillSummary(summary);
   } catch (error) {
-    logRecoverableError('failed to read mounting-hole pads', error);
-    return 0;
+    logRecoverableError('failed to read PCB pad drill metadata', error);
+    return createUnknownDrillSummary();
   }
 }
 
@@ -445,6 +588,45 @@ export function createBoardInspectionOperations({
     };
   }
 
+  async function getDesignRules(): Promise<unknown> {
+    await requireActivePcbContext();
+    const drc = readPath<any>(getGlobal(), 'pcb_Drc');
+    if (
+      typeof drc?.getCurrentRuleConfigurationName !== 'function' ||
+      typeof drc?.getRuleConfiguration !== 'function'
+    ) {
+      return { available: false, source: 'active_rule_configuration' };
+    }
+
+    try {
+      const configurationName = await drc.getCurrentRuleConfigurationName();
+      if (typeof configurationName !== 'string' || configurationName.trim().length === 0) {
+        return { available: false, source: 'active_rule_configuration' };
+      }
+      const configuration = await drc.getRuleConfiguration(configurationName);
+      if (!isRecord(configuration)) {
+        return {
+          available: false,
+          activeRuleConfigurationName: configurationName,
+          source: 'active_rule_configuration',
+        };
+      }
+      const spacing = readSafeSpacingValues(configuration);
+      return {
+        available: true,
+        activeRuleConfigurationName: configurationName,
+        hasClearanceRules: spacing.count > 0 ? true : undefined,
+        minimumClearanceMm: spacing.minimumMm,
+        clearanceRuleCount: spacing.count > 0 ? spacing.count : undefined,
+        activeSpacingMatrices: spacing.matrixNames,
+        source: 'active_rule_configuration',
+      };
+    } catch (error) {
+      logRecoverableError('failed to read active PCB design rules', error);
+      return { available: false, source: 'active_rule_configuration' };
+    }
+  }
+
   async function getDimensions(): Promise<unknown> {
     await requireActivePcbContext();
     const globalObj = getGlobal();
@@ -463,14 +645,19 @@ export function createBoardInspectionOperations({
     const heightMil = bounds.maxY > bounds.minY ? bounds.maxY - bounds.minY : 0;
     const width = pcbMilToMm(widthMil);
     const height = pcbMilToMm(heightMil);
-    const mountingHoles = await countMountingHoles(pcbPadClass);
+    const drillSummary = await readDrillSummary(pcbPadClass);
     const hasOutline = width > 0 && height > 0;
 
     return {
       widthMm: width,
       heightMm: height,
       shape: hasOutline ? 'custom' : undefined,
-      mountingHoleCount: mountingHoles,
+      mountingHoleCount: undefined,
+      drilledPadCount: drillSummary.drilledPadCount,
+      platedDrillPadCount: drillSummary.platedDrillPadCount,
+      unplatedDrillPadCount: drillSummary.unplatedDrillPadCount,
+      minDrillMm: drillSummary.minDrillMm,
+      unknownFields: drillSummary.unknownFields,
       areaMm2: roundMetric(width * height),
       hasOutline,
     };
@@ -492,6 +679,15 @@ export function createBoardInspectionOperations({
         countPrimitiveCollection(readPath<any>(globalObj, path), description),
       ),
     );
+    const featureNames = [
+      'vias',
+      'tracks',
+      'zones',
+      'fills',
+      'regions',
+      'pads',
+      'components',
+    ] as const;
     return {
       vias: counts[0],
       tracks: counts[1],
@@ -500,6 +696,7 @@ export function createBoardInspectionOperations({
       regions: counts[4],
       pads: counts[5],
       components: counts[6],
+      unknownFeatures: featureNames.filter((_, index) => counts[index] === undefined),
     };
   }
 
@@ -507,6 +704,7 @@ export function createBoardInspectionOperations({
     requireActivePcbContext,
     listLayers,
     getStackup,
+    getDesignRules,
     getDimensions,
     getFeatures,
   };

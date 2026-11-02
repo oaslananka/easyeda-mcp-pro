@@ -107,22 +107,30 @@ export async function fetchBoardDataFromBridge(
   ctx: ToolContext,
   projectId: string,
 ): Promise<PcbConstraintInput> {
-  const [dimensionsResult, layersResult, stackupResult] = await Promise.allSettled([
-    ctx.bridge.call('board.getDimensions', { projectId }),
-    ctx.bridge.call('board.listLayers', { projectId }),
-    ctx.bridge.call('board.getStackup', { projectId }),
-  ]);
+  const [dimensionsResult, layersResult, stackupResult, designRulesResult] =
+    await Promise.allSettled([
+      ctx.bridge.call('board.getDimensions', { projectId }),
+      ctx.bridge.call('board.listLayers', { projectId }),
+      ctx.bridge.call('board.getStackup', { projectId }),
+      ctx.bridge.call('board.getDesignRules', { projectId }),
+    ]);
 
   // A failed API call or an absent property is UNKNOWN, not evidence of absence.
   // board.listLayers is a catalogue of visible/non-copper layers, never a copper count.
   void layersResult;
   const dimensions = resolvedObject(dimensionsResult);
   const stackup = resolvedObject(stackupResult);
+  const designRules = resolvedObject(designRulesResult);
   return {
     widthMm: measuredNonnegative(dimensions.widthMm),
     heightMm: measuredNonnegative(dimensions.heightMm),
     hasOutline: typeof dimensions.hasOutline === 'boolean' ? dimensions.hasOutline : undefined,
     mountingHoleCount: measuredCount(dimensions.mountingHoleCount),
+    minDrillMm: measuredNonnegative(dimensions.minDrillMm),
+    hasClearanceRules:
+      typeof designRules.hasClearanceRules === 'boolean'
+        ? designRules.hasClearanceRules
+        : undefined,
     layerCount: measuredCount(stackup.totalLayers, 2),
     hasLayerStack: measuredStackup(stackup),
   };

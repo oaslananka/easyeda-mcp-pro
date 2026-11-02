@@ -1588,6 +1588,39 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('board.getDesignRules reads the selected stable configuration without beta net-class APIs', async () => {
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-rules' }) },
+        pcb_Drc: {
+          getCurrentRuleConfigurationName: async () => 'JLCPCB Capability(Two Layers Board)',
+          getRuleConfiguration: async () => ({
+            config: {
+              Spacing: {
+                'Safe Spacing': {
+                  copperThickness1oz: {
+                    isSetDefault: true,
+                    table: [[0.254, 0.152], [0.3]],
+                  },
+                },
+              },
+            },
+          }),
+        },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('board.getDesignRules', {})).resolves.toEqual({
+      available: true,
+      activeRuleConfigurationName: 'JLCPCB Capability(Two Layers Board)',
+      hasClearanceRules: true,
+      minimumClearanceMm: 0.152,
+      clearanceRuleCount: 3,
+      activeSpacingMatrices: ['copperThickness1oz'],
+      source: 'active_rule_configuration',
+    });
+  });
+
   it('delegates board dimensions and feature summaries through the extracted domain', async () => {
     const lineGetAll = vi
       .fn()
@@ -1604,7 +1637,7 @@ describe('createDispatcher', () => {
     const padGetAll = vi
       .fn()
       .mockResolvedValueOnce([
-        { getState_HoleType: () => 'MountingHole', getState_HoleSize: () => 1 },
+        { getState_Hole: () => ['ROUND', 1], getState_Metallization: () => true },
       ])
       .mockResolvedValueOnce([1, 2]);
     const dispatcher = createDispatcher(
@@ -1625,7 +1658,12 @@ describe('createDispatcher', () => {
       widthMm: 10,
       heightMm: 5,
       shape: 'custom',
-      mountingHoleCount: 1,
+      mountingHoleCount: undefined,
+      drilledPadCount: 1,
+      platedDrillPadCount: 1,
+      unplatedDrillPadCount: 0,
+      minDrillMm: 0.0254,
+      unknownFields: [],
       areaMm2: 50,
       hasOutline: true,
     });
@@ -1637,6 +1675,7 @@ describe('createDispatcher', () => {
       regions: 3,
       pads: 2,
       components: 5,
+      unknownFeatures: [],
     });
   });
 

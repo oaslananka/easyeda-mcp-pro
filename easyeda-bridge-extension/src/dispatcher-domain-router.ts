@@ -87,6 +87,7 @@ export function createDispatcherDomainRouter(
       handle: (params) => dependencies.exportOperations.exportGerbers(params),
     },
     { method: 'board.getDimensions', handle: () => dependencies.boardInspection.getDimensions() },
+    { method: 'board.getDesignRules', handle: () => dependencies.boardInspection.getDesignRules() },
     { method: 'board.getFeatures', handle: () => dependencies.boardInspection.getFeatures() },
     { method: 'board.getStackup', handle: () => dependencies.boardInspection.getStackup() },
     { method: 'board.listLayers', handle: () => dependencies.boardInspection.listLayers() },
