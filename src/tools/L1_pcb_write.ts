@@ -1391,7 +1391,7 @@ function registerPcbWriteTools(
       'Place a text primitive on a PCB layer (typically Top/Bottom Silkscreen) — reference ' +
       'labels, section titles, assembly notes. Signature recovered from PCB_PrimitiveString: ' +
       "fontFamily must be a name the runtime's font list actually contains — " +
-      '"NotoSansMonoCJKsc-Regular" (the default) is live-verified to work.',
+      '"default" (font 45, width 6, align 3) verified live in Web 3.2.209.',
     profile: 'full',
     evidence: ['runtime-probe'],
     risk: 'medium',

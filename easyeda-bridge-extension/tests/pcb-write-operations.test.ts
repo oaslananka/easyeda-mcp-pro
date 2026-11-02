@@ -85,7 +85,7 @@ describe('PCB write operations', () => {
     expect(extractPrimitiveId).toHaveBeenCalledTimes(2);
   });
 
-  it('applies the exact PCB text defaults when optional fields are absent', async () => {
+  it('uses the native validated text defaults when optional fields are absent', async () => {
     const { callFirst, operations } = makeOperations();
 
     await operations.addText({ layer: 3, x: 10, y: 20, text: 'REF' });
@@ -96,10 +96,10 @@ describe('PCB write operations', () => {
       10,
       20,
       'REF',
-      'NotoSansMonoCJKsc-Regular',
-      1,
-      0.15,
-      0,
+      'default',
+      45,
+      6,
+      3,
       0,
       false,
       0,
@@ -108,8 +108,8 @@ describe('PCB write operations', () => {
     );
   });
 
-  it('uses Web-editor native defaults for PCB text without changing desktop defaults', async () => {
-    vi.stubGlobal('location', { hostname: 'pro.easyeda.com' });
+  it('uses native defaults without depending on an exposed page location', async () => {
+    vi.stubGlobal('location', undefined);
     try {
       const { callFirst, operations } = makeOperations();
       await operations.addText({ layer: 3, x: 2000, y: 2000, text: 'WEB' });
@@ -217,26 +217,26 @@ describe('PCB write operations', () => {
     );
   });
 
-  it('uses the Web-compatible default width for decorative PCB lines', async () => {
+  it('does not claim a Web-compatible decorative line width without native evidence', async () => {
     vi.stubGlobal('location', { hostname: 'pro.easyeda.com' });
     try {
-      const { operations, callFirst } = makeOperations();
+      const { callFirst, operations } = makeOperations();
       await operations.addSilkscreenLine({
         layer: 3,
         startX: 2000,
-        startY: 2000,
+        startY: 2100,
         endX: 2600,
-        endY: 2000,
+        endY: 2100,
       });
       expect(callFirst).toHaveBeenCalledWith(
         ['PCB_PrimitiveLine.create', 'pcb_PrimitiveLine.create'],
         '',
         3,
         2000,
-        2000,
+        2100,
         2600,
-        2000,
-        10,
+        2100,
+        0.2,
         false,
       );
     } finally {
