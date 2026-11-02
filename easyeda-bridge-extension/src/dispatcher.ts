@@ -893,8 +893,12 @@ async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
     throw new Error('SCH_PrimitiveComponent class not found in EasyEDA Pro API');
   }
 
+  // The focused page only, like SCH_PrimitiveWire.getAll(): with
+  // allSchematicPages=true EasyEDA also returns the parts and net flags of every
+  // other loaded page – another open schematic of the project included – and a
+  // flag there that happens to sit on a wire point here joins its net.
   const comps = await awaitNetDetailStage(budget, 'component_enumeration', () =>
-    schCompClass.getAll(undefined, true),
+    schCompClass.getAll(undefined, false),
   );
   const netMap = new Map<string, SchematicNetNode[]>();
 
