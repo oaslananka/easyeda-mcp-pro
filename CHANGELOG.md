@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.7.0...easyeda-mcp-pro-v1.8.0) (2026-11-02)
+
+
+### Features
+
+* **extension:** add Local and Custom Remote Relay connection modes ([#827](https://github.com/oaslananka/easyeda-mcp-pro/issues/827)) ([00886f1](https://github.com/oaslananka/easyeda-mcp-pro/commit/00886f1d9940758c39076d5e8b19f336ef46fe67))
+
+
+### Bug Fixes
+
+* **extension:** use native PCB text defaults independent of editor URL ([#829](https://github.com/oaslananka/easyeda-mcp-pro/issues/829)) ([5e440fc](https://github.com/oaslananka/easyeda-mcp-pro/commit/5e440fc9d716312471163ce39f6177b61870e52f))
+
 ## [1.7.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.6.0...easyeda-mcp-pro-v1.7.0) (2026-11-02)
 
 
