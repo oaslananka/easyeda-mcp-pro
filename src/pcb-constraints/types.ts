@@ -65,18 +65,21 @@ export interface PcbConstraintIssue {
 // ── Validation result ──────────────────────────────────────────────────────
 
 export interface PcbConstraintResult {
-  /** True when there are zero errors (warnings are allowed). */
+  /** True only when there are no blocking errors and no unverifiable rules. */
   valid: boolean;
   /** Issues that block validation. */
   errors: PcbConstraintIssue[];
   /** Advisory issues. */
   warnings: PcbConstraintIssue[];
+  /** Rules whose required native/explicit evidence was unavailable. */
+  unknownChecks: Array<{ area: string; missingFields: string[] }>;
   /** Summary of how many constraints were checked. */
   summary: {
     totalChecks: number;
     passed: number;
     failed: number;
     notApplicable: number;
+    unknown: number;
   };
 }
 
@@ -168,7 +171,7 @@ export interface ConstraintReport {
   /** Constraint areas that were checked. */
   checked: Array<{
     area: string;
-    status: 'passed' | 'failed' | 'not-applicable';
+    status: 'passed' | 'failed' | 'not-applicable' | 'unknown';
     details: string;
   }>;
   /** Constraints that cannot be verified automatically (require human review). */

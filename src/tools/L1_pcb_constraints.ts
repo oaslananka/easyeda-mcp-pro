@@ -41,6 +41,11 @@ export const pcbBoardDataSchema = z.object({
   hasQuantity: z.boolean().optional(),
 });
 
+const pcbUnknownSchema = z.object({
+  area: z.string(),
+  missingFields: z.array(z.string()),
+});
+
 const pcbIssueSchema = z.object({
   code: z.string(),
   message: z.string(),
@@ -68,6 +73,32 @@ function mapPcbIssue(issue: {
   };
 }
 
+function resolvedObject(result: PromiseSettledResult<unknown>): Record<string, unknown> {
+  if (
+    result.status !== 'fulfilled' ||
+    result.value === null ||
+    typeof result.value !== 'object' ||
+    Array.isArray(result.value)
+  )
+    return {};
+  return result.value as Record<string, unknown>;
+}
+
+function measuredNonnegative(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function measuredCount(value: unknown, minimum = 0): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= minimum
+    ? value
+    : undefined;
+}
+
+function measuredStackup(record: Record<string, unknown>): boolean | undefined {
+  if (typeof record.available === 'boolean') return record.available;
+  return Array.isArray(record.layers) && record.layers.length > 0 ? true : undefined;
+}
+
 /**
  * Fetch board data from the live EasyEDA bridge when no explicit boardData is provided.
  * Queries dimensions, layers, and stackup in parallel via Promise.allSettled.
@@ -82,44 +113,18 @@ export async function fetchBoardDataFromBridge(
     ctx.bridge.call('board.getStackup', { projectId }),
   ]);
 
-  const dimensions =
-    dimensionsResult.status === 'fulfilled'
-      ? (dimensionsResult.value as {
-          widthMm?: number;
-          heightMm?: number;
-          mountingHoleCount?: number;
-        })
-      : {};
-  const layers =
-    layersResult.status === 'fulfilled'
-      ? (layersResult.value as Array<unknown> | { layers?: Array<unknown> })
-      : [];
-  const stackup =
-    stackupResult.status === 'fulfilled'
-      ? (stackupResult.value as { totalLayers?: number; layers?: Array<unknown> })
-      : {};
-
-  const layerList = Array.isArray(layers)
-    ? layers
-    : ((layers as { layers?: Array<unknown> })?.layers ?? []);
-  const stackupLayers = stackup?.layers ?? [];
-
+  // A failed API call or an absent property is UNKNOWN, not evidence of absence.
+  // board.listLayers is a catalogue of visible/non-copper layers, never a copper count.
+  void layersResult;
+  const dimensions = resolvedObject(dimensionsResult);
+  const stackup = resolvedObject(stackupResult);
   return {
-    widthMm: (dimensions as { widthMm?: number }).widthMm,
-    heightMm: (dimensions as { heightMm?: number }).heightMm,
-    layerCount: stackup?.totalLayers ?? layerList.length,
-    hasOutline: !!(dimensions as { widthMm?: number }).widthMm,
-    mountingHoleCount: (dimensions as { mountingHoleCount?: number }).mountingHoleCount ?? 0,
-    hasLayerStack: stackupLayers.length > 0,
-    hasNetClasses: false,
-    hasClearanceRules: false,
-    hasKeepoutAreas: false,
-    hasPlacementZones: false,
-    hasFiducials: false,
-    hasTestPads: false,
-    hasHighVoltage: false,
-    manufacturingProcess: undefined,
-    hasQuantity: false,
+    widthMm: measuredNonnegative(dimensions.widthMm),
+    heightMm: measuredNonnegative(dimensions.heightMm),
+    hasOutline: typeof dimensions.hasOutline === 'boolean' ? dimensions.hasOutline : undefined,
+    mountingHoleCount: measuredCount(dimensions.mountingHoleCount),
+    layerCount: measuredCount(stackup.totalLayers, 2),
+    hasLayerStack: measuredStackup(stackup),
   };
 }
 
@@ -156,7 +161,9 @@ function registerPcbConstraintTools(
         passed: z.number(),
         failed: z.number(),
         notApplicable: z.number(),
+        unknown: z.number(),
       }),
+      unknown_checks: z.array(pcbUnknownSchema),
       not_available: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -183,6 +190,7 @@ function registerPcbConstraintTools(
           errors: result.errors.map(mapPcbIssue),
           warnings: result.warnings.map(mapPcbIssue),
           summary: result.summary,
+          unknown_checks: result.unknownChecks,
         };
       } catch (err) {
         return {
@@ -190,7 +198,8 @@ function registerPcbConstraintTools(
           valid: false,
           errors: [],
           warnings: [],
-          summary: { totalChecks: 0, passed: 0, failed: 0, notApplicable: 0 },
+          summary: { totalChecks: 0, passed: 0, failed: 0, notApplicable: 0, unknown: 0 },
+          unknown_checks: [],
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
         };
@@ -236,7 +245,9 @@ function registerPcbConstraintTools(
         passed: z.number(),
         failed: z.number(),
         notApplicable: z.number(),
+        unknown: z.number(),
       }),
+      unknown_checks: z.array(pcbUnknownSchema),
       not_available: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
@@ -258,7 +269,7 @@ function registerPcbConstraintTools(
         return {
           project_id: projectId,
           passed: result.valid,
-          blocked: mode === 'block' && errors.length > 0,
+          blocked: mode === 'block' && !result.valid,
           gate_mode: mode,
           severity_counts: {
             errors: errors.length,
@@ -268,6 +279,7 @@ function registerPcbConstraintTools(
           errors,
           warnings,
           summary: result.summary,
+          unknown_checks: result.unknownChecks,
         };
       } catch (err) {
         return {
@@ -278,7 +290,8 @@ function registerPcbConstraintTools(
           severity_counts: { errors: 0, warnings: 0, total: 0 },
           errors: [],
           warnings: [],
-          summary: { totalChecks: 0, passed: 0, failed: 0, notApplicable: 0 },
+          summary: { totalChecks: 0, passed: 0, failed: 0, notApplicable: 0, unknown: 0 },
+          unknown_checks: [],
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
         };
