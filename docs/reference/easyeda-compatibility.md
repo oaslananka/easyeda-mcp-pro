@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Released fix version | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | -------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209 (Web editor) | Ubuntu 24.04.5 LTS / x86_64                 | 1.8.1                | 1.8.1                | 1.8.1             | Live validated  | 2026-11-02 | 2027-01-31 |
 | 3.2.209 (Web editor) | Ubuntu 24.04.5 LTS / x86_64                 | 1.8.0                | 1.8.0                | 1.8.0             | Live validated  | 2026-11-02 | 2027-01-31 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.7.0                | 1.7.0                | 1.7.0             | Live validated  | 2026-11-02 | 2027-01-31 |
 | 3.2.209.8a704eab     | Microsoft Windows 11 Pro (10.0.26300) / x64 | 1.6.0                | 1.6.0                | 1.6.0             | Live validated  | 2026-10-28 | 2027-01-26 |
@@ -58,6 +59,57 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2           | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1           | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4               | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209 (Web editor) on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-web-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-8-1-native-readonly
+
+Record ID: `easyeda-pro-web-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-8-1-native-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                                                               |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `3.2.209 (Web editor)`                                                                                                                    |
+| Electron                                 | `not applicable (Chrome Web)`                                                                                                             |
+| Chromium                                 | `156.0.0.0` (Chrome/156.0.0.0 measured from the logged-in browser user agent; embedded Chromium engine build not independently measured.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                                                        |
+| Kernel                                   | `7.0.0-42-generic`                                                                                                                        |
+| Architecture                             | `x86_64`                                                                                                                                  |
+| Node.js used by validation server        | `24.18.0`                                                                                                                                 |
+| Validation package version               | `1.8.1`                                                                                                                                   |
+| Release containing validated fixes       | `1.8.1`                                                                                                                                   |
+| Compatibility-sensitive base commit      | `02138aba87a3553037d2de824fbbdf21671711d9`                                                                                                |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                                  |
+| Installed extension package metadata     | `1.8.1`                                                                                                                                   |
+| Live-validated extension package SHA-256 | `ad65e543fe513f01d4676ed23d2a016571d95830c91d10648058998e70ea1eaa`                                                                        |
+| Live-validated extension package size    | `203834 bytes`                                                                                                                            |
+| Loader-reported version                  | `1.8.1`                                                                                                                                   |
+| Bridge contract                          | `1.0.0`                                                                                                                                   |
+| Dispatcher                               | `baked`                                                                                                                                   |
+| Method registry hash                     | `eee1634ec2fdb076`                                                                                                                        |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                                                         |
+
+The installed extension package and loader both reported version `1.8.1` during this validation.
+
+### Capability evidence
+
+| Capability                                                             | Level  | Status    | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Evidence                                                          |
+| ---------------------------------------------------------------------- | ------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Exact v1.8.1 extension package import and live bridge identity         | `live` | `passed`  | Imported the exact-source 203834-byte v1.8.1 .eext through EasyEDA Pro Web Extensions Manager; verified Enabled and external interaction. The dedicated test tab was reloaded (full browser/editor process restart was not performed). Live handshake reported server/extension 1.8.1, bridge contract 1.0.0, method registry eee1634ec2fdb076, 73 native capabilities and 117 MCP tools; extension_version_mismatch=false and registry_mismatch=false. Baked dispatcher build ID d9e4fxc69fx5367 is from the exact imported package metadata. | [PR #832](https://github.com/oaslananka/easyeda-mcp-pro/pull/832) |
+| Native schematic nets, netlist validation, ERC and PADS netlist export | `live` | `passed`  | Focused P1.Schematic1 returned three nets (LED_ANODE, LED_GND, LED_5V), stable read consistency, zero floating pins and zero wires without netlist. Native ERC reported 0 errors and 3 warnings. PADS netlist export succeeded at 344 bytes; SHA-256 4790c5d8c67f7a4fac58f817d1a75b5808e682d733fe01ec81585a1c68116583.                                                                                                                                                                                                                         | [PR #832](https://github.com/oaslananka/easyeda-mcp-pro/pull/832) |
+| Native PCB dimensions, copper layer count and DRC                      | `live` | `passed`  | Focused PCB1 read returned 21.59 x 16.51 mm (356.4509 mm²), custom outline, zero mounting holes and two copper layers. Native EasyEDA DRC passed with zero errors and zero warnings. The vendor API returned copper-layer count only; physical stackup layers/material/thickness remain unavailable.                                                                                                                                                                                                                                           | [PR #832](https://github.com/oaslananka/easyeda-mcp-pro/pull/832) |
+| PCB constraint and production review with truthful unknown evidence    | `live` | `limited` | All 23 PCB rules executed. Result: 2 passed, 2 warning-level failed checks, 1 not applicable and 18 unknown; zero error-severity findings. Production review returned passed=false because board evidence is incomplete. Missing physical stackup and mounting holes were warnings; 18 other areas were explicitly UNKNOWN, not an approval or fabrication sign-off. **Boundary:** This owner E2E fixture does not expose all metadata needed for manufacturing/DFM claims. No production-readiness or fabrication approval is implied.        | [PR #832](https://github.com/oaslananka/easyeda-mcp-pro/pull/832) |
+| Native PCB Altium netlist and UTF-8 pick-and-place CSV exports         | `live` | `passed`  | Altium PCB netlist export succeeded at 3754 bytes, SHA-256 09a53e2f8243be2edf0e401dcd8a27272898405c3b5f8661614309cd68e19410. Pick-and-place CSV export succeeded at 656 bytes with UTF-8, one header and three component rows (LED1, R1, U1), SHA-256 92e5d652a0e9653f9d8ecf99664faf1af6f74d6dedc8038390d6caf2067ca74e.                                                                                                                                                                                                                        | [PR #832](https://github.com/oaslananka/easyeda-mcp-pro/pull/832) |
+
+### Known limitations
+
+- This validation used the logged-in EasyEDA Pro Web editor 3.2.209 on Ubuntu 24.04.5 through Chrome 156; native EasyEDA desktop Electron, Windows and macOS runtimes were not tested.
+- The Extension Manager import and enabled state were verified and the dedicated browser tab reloaded, but the full Chrome/editor process was not exited and restarted.
+- The owner-controlled private E2E project was inspected in read-only mode. No schematic/PCB mutations, save calls, routing edits or production orders were made; local export files were written only beneath the MCP artifact directory.
+- Physical PCB stackup thickness/material/copper weights are not returned by the current EasyEDA Web API; only two copper layers were confirmed.
+- The updated PCB constraint engine reported 18 UNKNOWN areas, two warning-level findings and one not-applicable rule. It correctly did not approve the board for production.
+- Native ERC reported three warnings; no waiver or suppression was applied.
+- Only schematic PADS netlist, PCB Altium netlist and pick-and-place CSV were exercised here; other export formats and every individual native method were not exhaustively tested.
+- The extension dispatcher build ID is read from the deterministic baked bundle metadata of the exact package; the normal full-profile MCP health tool exposes version and registry parity, not a separate dispatcher-build-ID field.
 
 ## 3.2.209 (Web editor) on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-web-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-8-0-pcb
 
