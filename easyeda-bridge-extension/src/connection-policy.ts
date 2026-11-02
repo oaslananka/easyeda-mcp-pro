@@ -99,3 +99,25 @@ export function isServerActivityMessage(
 ): boolean {
   return messageType !== 'heartbeat' || heartbeatSource !== 'extension';
 }
+
+/**
+ * Remote Relay must use authenticated WSS. Validate without the global URL
+ * constructor: some EasyEDA desktop extension runtimes do not expose it.
+ * Pairing codes are sent in the relay registration frame, never the URL.
+ */
+export function validateCustomRemoteRelayUrl(input: string): string {
+  const value = input.trim();
+  if (value.length > 2048) throw new Error('Remote Relay URL is too long.');
+  const match =
+    /^wss:\/\/([a-z0-9][a-z0-9.-]*)(?::([0-9]{1,5}))?(\/[a-z0-9._~!$&'()*+,;=:@%/-]*)?$/i.exec(
+      value,
+    );
+  if (!match || match[1].includes('..') || match[1].endsWith('.')) {
+    throw new Error('Enter a secure wss:// hostname and optional path (no credentials or query).');
+  }
+  const port = match[2] === undefined ? undefined : Number(match[2]);
+  if (port !== undefined && (port < 1 || port > 65535)) {
+    throw new Error('Remote Relay port must be between 1 and 65535.');
+  }
+  return value;
+}

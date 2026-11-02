@@ -202,6 +202,28 @@ describe('RemoteRelayClient resilience', () => {
     expect(log).toHaveBeenCalledWith('Remote Relay heartbeat stale; closing socket to reconnect');
   });
 
+  it('does not label a sent pairing code as accepted before server confirmation', () => {
+    const { client } = makeClient();
+    client.connect({
+      mode: 'self_hosted',
+      relayUrl: 'wss://relay.example/session',
+      pairingCode: 'EDA-ABCDEF12',
+    });
+    FakeWebSocket.instances[0].open();
+    expect(client.getStatus().state).toBe('connected');
+  });
+
+  it('refuses cleartext and credential-bearing Remote Relay URLs', () => {
+    const { client } = makeClient();
+    expect(() =>
+      client.connect({ mode: 'self_hosted', relayUrl: 'ws://insecure.example/session' }),
+    ).toThrow(/secure wss/i);
+    expect(() =>
+      client.connect({ mode: 'self_hosted', relayUrl: 'wss://user:pass@relay.example/session' }),
+    ).toThrow(/secure wss/i);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
   it('records the paired session id from the relay registration response', () => {
     const { client } = makeClient();
 
