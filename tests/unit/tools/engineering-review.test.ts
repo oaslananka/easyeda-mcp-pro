@@ -129,6 +129,38 @@ describe('evidence-based engineering review', () => {
     expect(result.observations.every((item) => item.status === 'unavailable')).toBe(true);
   });
 
+  it('downgrades native observations when the extension identity differs from the server', async () => {
+    context.bridge.registryMismatch = true;
+    context.bridge.extensionVersionMismatch = true;
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') {
+        return { widthMm: 60, heightMm: 40, hasOutline: true };
+      }
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return { totalLayers: 2, layers: [{ id: 1 }] };
+      if (method === 'board.getDesignRules') return { hasClearanceRules: true };
+      throw new Error('unexpected bridge method');
+    });
+
+    const report = await run();
+    expect(report.runtime).toMatchObject({
+      bridge_connected: true,
+      registry_mismatch: true,
+      extension_version_mismatch: true,
+    });
+    expect(report.pcb_context).toBe('unverified');
+    expect(report.overall_status).toBe('UNKNOWN');
+    expect(report.groups.unknowns).toContain('context:SOURCE_VERSION_MISMATCH');
+    expect(report.groups.passed).not.toContain('pcb:OBSERVED_CONSTRAINT_SUBSET');
+    expect(report.input_evidence.find((entry) => entry.field === 'widthMm')).toMatchObject({
+      source: 'board.getDimensions',
+      quality: 'unverified',
+      age: 'unverified',
+    });
+    expect(bridgeCall.mock.calls.map(([method]) => method)).not.toContain('design.drc');
+    expect(bridgeCall.mock.calls.map(([method]) => method)).not.toContain('design.erc');
+  });
+
   it('does not turn a partial native response into successful verification', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'board.getDimensions') return { widthMm: 60, heightMm: 40 };
