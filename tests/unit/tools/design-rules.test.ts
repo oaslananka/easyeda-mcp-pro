@@ -66,6 +66,10 @@ describe('Design Rules Tools', () => {
           'topic',
           'currentA',
           'traceWidthMils',
+          'traceWidthMm',
+          'neckDownWidthMm',
+          'manufacturerMinWidthMm',
+          'environment',
           'temperatureRiseC',
           'layer',
           'copperWeightOz',
@@ -114,6 +118,94 @@ describe('Design Rules Tools', () => {
       });
       expect((result as any).maxCurrent).toBeDefined();
       expect((result as any).maxCurrent.maxCurrentA).toBeGreaterThan(0);
+    });
+  });
+
+  describe('topic: trace-current-review', () => {
+    it('returns explicit unknowns when context and native routing data are missing', async () => {
+      const tool = registry.get('easyeda_design_rules_lookup');
+      const result = (await tool?.handler(context, { topic: 'trace-current-review' })) as {
+        traceCurrentReview: {
+          status: string;
+          evidence: string;
+          findings: Array<{ id: string; status: string }>;
+        };
+      };
+      expect(tool?.outputSchema.parse(result)).toEqual(result);
+      expect(result.traceCurrentReview.status).toBe('UNKNOWN');
+      expect(result.traceCurrentReview.evidence).toBe('caller_supplied_unverified');
+      expect(result.traceCurrentReview.findings).toContainEqual(
+        expect.objectContaining({ id: 'ROUTE_GEOMETRY', status: 'UNKNOWN' }),
+      );
+      expect(context.bridge.call).not.toHaveBeenCalled();
+    });
+
+    it('flags supplied thermal and fab width risks without design mutation or false PASS', async () => {
+      const tool = registry.get('easyeda_design_rules_lookup');
+      const result = (await tool?.handler(context, {
+        topic: 'trace-current-review',
+        currentA: 2,
+        temperatureRiseC: 10,
+        layer: 'external',
+        copperWeightOz: 1,
+        traceWidthMm: 1,
+        neckDownWidthMm: 0.1,
+        manufacturerMinWidthMm: 0.15,
+      })) as {
+        traceCurrentReview: {
+          status: string;
+          estimatedMinimumWidthMm: number;
+          suppliedNarrowestWidthMm: number;
+          findings: Array<{ id: string; status: string }>;
+        };
+      };
+      expect(tool?.outputSchema.parse(result)).toEqual(result);
+      expect(result.traceCurrentReview.status).toBe('WARNING');
+      expect(result.traceCurrentReview.suppliedNarrowestWidthMm).toBe(0.1);
+      expect(result.traceCurrentReview.estimatedMinimumWidthMm).toBeGreaterThan(0.1);
+      expect(result.traceCurrentReview.findings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'THERMAL_ESTIMATE', status: 'WARNING' }),
+          expect.objectContaining({ id: 'FABRICATION_WIDTH', status: 'WARNING' }),
+          expect.objectContaining({ id: 'VIA_BOTTLENECK', status: 'UNKNOWN' }),
+        ]),
+      );
+      expect(context.bridge.call).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid numeric inputs using the existing tool error contract', async () => {
+      const tool = registry.get('easyeda_design_rules_lookup');
+      const result = (await tool?.handler(context, {
+        topic: 'trace-current-review',
+        currentA: -5,
+      })) as { error?: string; traceCurrentReview?: unknown };
+      expect(result.error).toBeDefined();
+      expect(result.traceCurrentReview).toBeUndefined();
+    });
+
+    it('retains legacy numeric calculator input and result keys', async () => {
+      const tool = registry.get('easyeda_design_rules_lookup');
+      const result = (await tool?.handler(context, {
+        topic: 'trace-width',
+        currentA: 1,
+        temperatureRiseC: 10,
+        layer: 'external',
+        copperWeightOz: 1,
+      })) as {
+        traceWidth: {
+          traceWidthMm: number;
+          traceWidthMils: number;
+          method: string;
+          inputs: { copperWeightOz: number };
+          units: { traceWidthMm: string };
+        };
+      };
+      expect(tool?.outputSchema.parse(result)).toEqual(result);
+      expect(result.traceWidth.traceWidthMils).toBeGreaterThan(11.5);
+      expect(result.traceWidth.traceWidthMm).toBeGreaterThan(0.2);
+      expect(result.traceWidth.method).toBe('IPC2221_EMPIRICAL_REFERENCE');
+      expect(result.traceWidth.inputs.copperWeightOz).toBe(1);
+      expect(result.traceWidth.units.traceWidthMm).toBe('mm');
     });
   });
 

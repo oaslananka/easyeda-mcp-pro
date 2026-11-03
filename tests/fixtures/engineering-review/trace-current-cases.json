@@ -1,0 +1,95 @@
+[
+  {
+    "id": "missing-all-thermal-inputs",
+    "input": {},
+    "status": "UNKNOWN",
+    "requiredUnknown": [
+      "THERMAL_ESTIMATE",
+      "FABRICATION_WIDTH",
+      "ROUTE_GEOMETRY",
+      "VIA_BOTTLENECK"
+    ],
+    "requiredWarnings": [],
+    "hasEstimate": false
+  },
+  {
+    "id": "complete-reference-without-geometry",
+    "input": { "currentA": 1, "temperatureRiseC": 10, "layer": "external", "copperWeightOz": 1 },
+    "status": "UNKNOWN",
+    "requiredUnknown": [
+      "THERMAL_ESTIMATE",
+      "FABRICATION_WIDTH",
+      "ROUTE_GEOMETRY",
+      "VIA_BOTTLENECK"
+    ],
+    "requiredWarnings": [],
+    "hasEstimate": true
+  },
+  {
+    "id": "neckdown-below-estimate",
+    "input": {
+      "currentA": 2,
+      "temperatureRiseC": 10,
+      "layer": "external",
+      "copperWeightOz": 1,
+      "traceWidthMm": 2,
+      "neckDownWidthMm": 0.1,
+      "manufacturerMinWidthMm": 0.15
+    },
+    "status": "WARNING",
+    "requiredUnknown": ["ROUTE_GEOMETRY", "VIA_BOTTLENECK"],
+    "requiredWarnings": ["THERMAL_ESTIMATE", "FABRICATION_WIDTH"],
+    "hasEstimate": true
+  },
+  {
+    "id": "manufacturer-minimum-distinct-from-thermal-adequacy",
+    "input": {
+      "currentA": 1,
+      "temperatureRiseC": 10,
+      "layer": "external",
+      "copperWeightOz": 1,
+      "traceWidthMm": 1,
+      "neckDownWidthMm": 0.8,
+      "manufacturerMinWidthMm": 0.15,
+      "environment": "still-air"
+    },
+    "status": "UNKNOWN",
+    "requiredUnknown": [
+      "THERMAL_ESTIMATE",
+      "FABRICATION_WIDTH",
+      "ROUTE_GEOMETRY",
+      "VIA_BOTTLENECK"
+    ],
+    "requiredWarnings": [],
+    "hasEstimate": true
+  },
+  {
+    "id": "fabrication-warning-with-incomplete-current",
+    "input": { "traceWidthMm": 0.12, "manufacturerMinWidthMm": 0.2 },
+    "status": "WARNING",
+    "requiredUnknown": ["THERMAL_ESTIMATE", "ROUTE_GEOMETRY", "VIA_BOTTLENECK"],
+    "requiredWarnings": ["FABRICATION_WIDTH"],
+    "hasEstimate": false
+  },
+  {
+    "id": "vacuum-is-not-a-thermal-derating-calculator",
+    "input": {
+      "currentA": 1,
+      "temperatureRiseC": 15,
+      "layer": "internal",
+      "copperWeightOz": 2,
+      "traceWidthMm": 5,
+      "neckDownWidthMm": 5,
+      "environment": "vacuum"
+    },
+    "status": "UNKNOWN",
+    "requiredUnknown": [
+      "THERMAL_ESTIMATE",
+      "FABRICATION_WIDTH",
+      "ROUTE_GEOMETRY",
+      "VIA_BOTTLENECK"
+    ],
+    "requiredWarnings": [],
+    "hasEstimate": true
+  }
+]

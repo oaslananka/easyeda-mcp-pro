@@ -8,15 +8,16 @@ The design-rules module is a knowledge pack, not a design tool: every lookup ret
 
 This is exposed to agents through a single MCP tool, `easyeda_design_rules_lookup`, discriminated by a `topic` field:
 
-| Topic              | Purpose                                                                  |
-| ------------------ | ------------------------------------------------------------------------ |
-| `trace-width`      | IPC-2221 minimum conductor width for a required current/temperature rise |
-| `max-current`      | IPC-2221 maximum current for a given trace width (reverse lookup)        |
-| `clearance`        | Simplified, conservative voltage-based electrical clearance bands        |
-| `protocol-routing` | Routing reference data: USB 2.0/3.x, RS-485, I2C, SPI, UART, Ethernet    |
-| `decoupling`       | Per-pin decoupling capacitor recipes by IC category                      |
-| `bulk-capacitance` | Rail bulk capacitance sizing (shares the power-tree analyzer's rule)     |
-| `dfm-checklist`    | Static, generic design-for-manufacturability checklist                   |
+| Topic                  | Purpose                                                                 |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `trace-width`          | IPC-2221 empirical conductor width estimate for stated current and rise |
+| `trace-current-review` | Current-path warnings and explicit UNKNOWN evidence gaps                |
+| `max-current`          | IPC-2221 maximum current for a given trace width (reverse lookup)       |
+| `clearance`            | Simplified, conservative voltage-based electrical clearance bands       |
+| `protocol-routing`     | Routing reference data: USB 2.0/3.x, RS-485, I2C, SPI, UART, Ethernet   |
+| `decoupling`           | Per-pin decoupling capacitor recipes by IC category                     |
+| `bulk-capacitance`     | Rail bulk capacitance sizing (shares the power-tree analyzer's rule)    |
+| `dfm-checklist`        | Static, generic design-for-manufacturability checklist                  |
 
 ## Trace width / current capacity
 
@@ -48,7 +49,29 @@ calculateMaxCurrent({
 // → { maxCurrentA, source, caveat }
 ```
 
-This is an estimate: it does not model adjacent-trace heating, via/plane proximity, forced airflow, or altitude. IPC-2152 supersedes IPC-2221 with more conservative guidance for dense modern boards — cross-check for safety-critical or high-reliability current paths.
+These are **empirical reference estimates**, not certified or native measurements. Inputs, units, method, source and limitations accompany both calculations. The model omits adjacent-trace heating, via/plane proximity, forced airflow and enclosures. [IPC-2152](https://quicksearch.dla.mil/qsDocDetails.aspx?ident_number=277660) provides broader thermal guidance and can yield either higher or lower sizing estimates depending on the actual PCB, rather than being uniformly conservative. Do not reproduce licensed standard tables; refer to the governing standard and the fabricator's documented process.
+
+### Context-aware current-path review
+
+The same read-only MCP tool accepts `topic=trace-current-review` without another tool or service. Supply known current (A), allowed rise (°C), layer, copper weight (oz/ft²), routed width (mm), local narrowest width (mm), manufacturer minimum width (mm), and thermal environment. All supplied geometry and stackup data remains **caller-supplied and unverified** — this lookup does not measure EasyEDA routes.
+
+```json
+{
+  "topic": "trace-current-review",
+  "currentA": 2,
+  "temperatureRiseC": 10,
+  "layer": "external",
+  "copperWeightOz": 1,
+  "traceWidthMm": 1.0,
+  "neckDownWidthMm": 0.15,
+  "manufacturerMinWidthMm": 0.12,
+  "environment": "still-air"
+}
+```
+
+The result uses `WARNING` for supplied values below the empirical thermal estimate or the separately supplied fabricator minimum. Missing route, via, finished-copper and thermal evidence remains `UNKNOWN`. **This review never emits a verified PASS**, even when caller-supplied width exceeds both estimates. A manufacturing trace minimum is not an electrical rating. Via barrels and parallel-current paths require separate analysis.
+
+For genuine native measurements and exact-source runtime evidence, inspect a disposable EasyEDA PCB and follow [engineering review live acceptance](./development/engineering-review-live-acceptance.md). Never claim a fabrication/electrical sign-off from this reference lookup.
 
 ## Electrical clearance
 
@@ -104,7 +127,7 @@ getDfmChecklistItem('annular-ring');
 
 ## MCP Tool
 
-`easyeda_design_rules_lookup` (group `design-rules`, profile `core`, read-only, no `confirmWrite`) exposes all six topics through one discriminated-union input. Example call:
+`easyeda_design_rules_lookup` (group `design-rules`, profile `core`, read-only, no `confirmWrite`) exposes all eight topics through one discriminated-union input. Example call:
 
 ```json
 {

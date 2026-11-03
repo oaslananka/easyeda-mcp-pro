@@ -32,3 +32,10 @@ export type {
 
 export { listDfmChecklist, getDfmChecklistItem } from './dfm-checklist.js';
 export type { DfmCategory, DfmChecklistItem } from './dfm-checklist.js';
+
+export { reviewTraceCurrent } from './trace-current-review.js';
+export type {
+  TraceCurrentReviewInput,
+  TraceCurrentReview,
+  TraceCurrentFinding,
+} from './trace-current-review.js';

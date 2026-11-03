@@ -121,6 +121,7 @@ function designRulesReferenceText(): string {
       '(rule-of-thumb estimates, each carrying a `source` and a `caveat`) for the following topics:',
     '',
     '- `trace-width` — IPC-2221 conductor width for a required current/temperature rise',
+    '- `trace-current-review` — contextual current-path warning/unknown review without native geometry claims',
     '- `max-current` — IPC-2221 max current for a given trace width (reverse lookup)',
     '- `clearance` — simplified voltage-based electrical clearance bands',
     `- \`protocol-routing\` — routing guidance for: ${listProtocolRoutingKeys().join(', ')}`,
@@ -304,7 +305,7 @@ export function registerProjectResourcesAndPrompts(server: McpServer, context: T
               [
                 'Run easyeda_pcb_constraint_check and easyeda_pcb_production_review first.',
                 'For each current-carrying net you are unsure about, call easyeda_design_rules_lookup ' +
-                  '(topic=trace-width) rather than guessing a trace width.',
+                  '(topic=trace-current-review) to separate estimates from unverified routing geometry.',
                 'For any net carrying a meaningful voltage differential, look up clearance ' +
                   '(topic=clearance) before finalizing spacing.',
                 'For any bus (USB/RS-485/I2C/SPI/UART/Ethernet), look up protocol-routing guidance ' +
