@@ -4,6 +4,7 @@ import { type EnvConfig } from '../config/env.js';
 import { calculateTraceWidth, calculateMaxCurrent } from '../design-rules/trace-width.js';
 import { reviewTraceCurrent } from '../design-rules/trace-current-review.js';
 import { lookupClearance } from '../design-rules/clearance.js';
+import { reviewIsolationEmc } from '../design-rules/isolation-emc-review.js';
 import {
   lookupProtocolRouting,
   listProtocolRoutingKeys,
@@ -62,6 +63,57 @@ const loadASchema = z.number().positive();
 const minBulkCapacitanceUfPerASchema = z.number().positive();
 const minBulkCapacitanceUfSchema = z.number().positive();
 
+const standardEvidenceSchema = z.object({
+  identifier: z.string().trim().min(3).max(150),
+  edition: z.string().trim().min(4).max(120),
+  clause: z.string().trim().min(1).max(120),
+  source: z.string().trim().min(3).max(500),
+});
+const spacingRequirementSchema = z.object({
+  minimumMm: z.number().finite().positive(),
+  reference: standardEvidenceSchema,
+});
+const geometryObservationSchema = z.object({
+  distanceMm: z.number().finite().nonnegative(),
+  evidenceRef: z.string().trim().min(3).max(400),
+  evidenceKind: z.enum(['measured_air_gap', 'measured_surface_path', 'estimated']),
+});
+const isolationEmcInputSchema = z.object({
+  purpose: z.enum(['functional', 'basic', 'supplementary', 'reinforced', 'unspecified']).optional(),
+  workingVoltageV: z.number().finite().nonnegative().optional(),
+  transientVoltageV: z.number().finite().nonnegative().optional(),
+  environment: z
+    .enum(['controlled-indoor', 'industrial', 'outdoor', 'condensing', 'unspecified'])
+    .optional(),
+  pollutionDegree: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
+  overvoltageCategory: z.enum(['I', 'II', 'III', 'IV']).optional(),
+  materialGroup: z.enum(['I', 'II', 'IIIa', 'IIIb']).optional(),
+  altitudeM: z.number().finite().nonnegative().max(20000).optional(),
+  safetyStandard: standardEvidenceSchema.optional(),
+  clearanceRequirement: spacingRequirementSchema.optional(),
+  creepageRequirement: spacingRequirementSchema.optional(),
+  airClearance: geometryObservationSchema.optional(),
+  surfaceCreepage: geometryObservationSchema.optional(),
+  boardSlotEvidence: z.string().trim().min(3).max(400).optional(),
+  coatingEvidence: z.string().trim().min(3).max(400).optional(),
+  esdEntry: z
+    .object({
+      connectorRef: z.string().trim().min(1).max(100),
+      protectorRef: z.string().trim().min(1).max(100).optional(),
+      entryNet: z.string().trim().min(1).max(100).optional(),
+      returnPathEvidence: z.string().trim().min(3).max(400).optional(),
+      testStandard: standardEvidenceSchema.optional(),
+    })
+    .optional(),
+  emcReturn: z
+    .object({
+      fastLoopRef: z.string().trim().min(1).max(100).optional(),
+      returnPlaneEvidence: z.string().trim().min(3).max(400).optional(),
+      sensitiveCircuitRef: z.string().trim().min(1).max(100).optional(),
+    })
+    .optional(),
+});
+
 const lookupInputSchema = z.discriminatedUnion('topic', [
   z.object({
     topic: z.literal('trace-width'),
@@ -108,6 +160,10 @@ const lookupInputSchema = z.discriminatedUnion('topic', [
     minBulkCapacitanceUf: minBulkCapacitanceUfSchema.optional(),
   }),
   z.object({
+    topic: z.literal('isolation-emc-review'),
+    review: isolationEmcInputSchema,
+  }),
+  z.object({
     topic: z.literal('dfm-checklist'),
     category: dfmCategorySchema.optional(),
     id: z.string().optional(),
@@ -126,6 +182,7 @@ const inputSchema = z
         'decoupling',
         'bulk-capacitance',
         'dfm-checklist',
+        'isolation-emc-review',
       ])
       .describe('Reference topic to look up.'),
     currentA: currentASchema
@@ -182,6 +239,11 @@ const inputSchema = z
       .optional()
       .describe('Optional absolute minimum bulk capacitance in µF.'),
     id: z.string().optional().describe('Optional DFM checklist item id.'),
+    review: isolationEmcInputSchema
+      .optional()
+      .describe(
+        'Optional source-declared insulation/EMC observations. Required for isolation-emc-review.',
+      ),
   })
   .superRefine((value, ctx) => {
     const parsed = lookupInputSchema.safeParse(value);
@@ -336,6 +398,34 @@ const dfmChecklistItemSchema = z.object({
   caveat: z.string(),
 });
 
+const isolationEmcFindingSchema = z.object({
+  id: z.enum([
+    'AIR_CLEARANCE',
+    'SURFACE_CREEPAGE',
+    'INSULATION_CONTEXT',
+    'ESD_ENTRY',
+    'EMC_RETURN',
+  ]),
+  status: z.enum(['WARNING', 'UNKNOWN']),
+  message: z.string(),
+  reported_mm: z.number().optional(),
+  declared_min_mm: z.number().optional(),
+  reference: standardEvidenceSchema.optional(),
+  evidence_refs: z.array(z.string()),
+  missing: z.array(z.string()),
+});
+const isolationEmcResultSchema = z.object({
+  status: z.enum(['WARNING', 'UNKNOWN']),
+  evidence: z.literal('caller_supplied_unverified'),
+  safety_certification: z.literal(false),
+  qualified_review_required: z.boolean(),
+  context_missing: z.array(z.string()),
+  findings: z.array(isolationEmcFindingSchema),
+  limitations: z.array(z.string()),
+  source_references: z.array(standardEvidenceSchema),
+  engineering_sign_off: z.literal(false),
+});
+
 const outputSchema = z.object({
   topic: z.string(),
   traceWidth: traceWidthResultSchema.optional(),
@@ -349,6 +439,7 @@ const outputSchema = z.object({
   bulkCapacitance: bulkCapacitanceResultSchema.optional(),
   dfmChecklist: z.array(dfmChecklistItemSchema).optional(),
   dfmChecklistItem: dfmChecklistItemSchema.optional(),
+  isolationEmcReview: isolationEmcResultSchema.optional(),
   error: z.string().optional(),
 });
 
@@ -418,6 +509,8 @@ function handleLookup(input: LookupInput): LookupOutput {
           minBulkCapacitanceUf: input.minBulkCapacitanceUf,
         }),
       };
+    case 'isolation-emc-review':
+      return { topic: input.topic, isolationEmcReview: reviewIsolationEmc(input.review) };
     case 'dfm-checklist':
       if (input.id) {
         const item = getDfmChecklistItem(input.id);
@@ -438,16 +531,15 @@ function registerDesignRulesTools(
     name: 'easyeda_design_rules_lookup',
     title: 'Look up engineering design-rule reference guidance',
     description:
-      'Look up IPC-2221 trace-width/current estimates and UNKNOWN-safe routing reviews, ' +
-      'clearance, USB/RS-485/I2C/SPI/UART/Ethernet routing, decoupling, bulk capacitance and ' +
-      'static DFM guidance. Results cite sources, limitations, assumptions and input units; ' +
-      'estimates do not certify electrical, thermal or fabrication safety.',
+      'Look up bounded trace/current, clearance, routing, decoupling, bulk capacitance ' +
+      'and DFM guidance. Source-declared isolation, creepage and ESD/EMC review ' +
+      'reports warnings or UNKNOWN, never safety certification.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'low',
     confirmWrite: false,
     group: 'design-rules',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       idempotentHint: true,
