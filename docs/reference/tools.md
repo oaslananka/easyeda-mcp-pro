@@ -29,6 +29,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_component_probe`                          | `dev`          | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                                             |
 | `easyeda_design_rules_lookup`                      | `core`         | `low`    | Look up generic engineering reference guidance: IPC-2221 trace-width/current-capacity, clearance bands, protocol routing data (USB/RS-485/I2C/SPI/UART/Ethernet), decoupling recipes and bulk capacitance sizing, and a static DFM checklist. Every result cites a source and caveat: these are estimates, not certified values. |
 | `easyeda_drc_run`                                  | `core`         | `medium` | Run EasyEDA Pro's native PCB DRC and refresh its visible DRC panel. Requires a PCB document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Returns coarse severity counts; per-violation detail stays in EasyEDA Pro.                                                    |
+| `easyeda_engineering_review`                       | `core`         | `low`    | Read PCB inspection evidence and summarize existing constraint rules with stable findings, source provenance and explicit unknowns. Does not execute ERC, DRC, design writes or exports, and cannot approve fabrication.                                                                                                         |
 | `easyeda_erc_run`                                  | `core`         | `medium` | Run native schematic ERC and supplement aggregate counts with inferred_floating_pins. Requires a focused schematic. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. Native counts remain authoritative; unavailable focus returns not_available.                                               |
 | `easyeda_export_gerbers`                           | `core`         | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                           |
 | `easyeda_export_netlist`                           | `pro`          | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                          |
@@ -838,6 +839,41 @@ Returns a JSON object matching the schema:
   passed: boolean | null;
   not_available: boolean (optional);
   error: string (optional);
+}
+```
+
+---
+
+## `easyeda_engineering_review`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Read PCB inspection evidence and summarize existing constraint rules with stable findings, source provenance and explicit unknowns. Does not execute ERC, DRC, design writes or exports, and cannot approve fabrication.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  overall_status: 'PASS' | 'FAIL' | 'WARNING' | 'UNKNOWN' | 'NOT_APPLICABLE';
+  pcb_context: 'observed' | 'unverified';
+  runtime: object;
+  groups: object;
+  source_version: object;
+  observations: object[];
+  input_evidence: object[];
+  findings: object[];
+  summary: object;
+  human_review_required: string[];
+  engineering_sign_off: 'false';
 }
 ```
 

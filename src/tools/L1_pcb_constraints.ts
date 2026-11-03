@@ -3,6 +3,7 @@ import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { validatePcbConstraints, buildConstraintReport } from '../pcb-constraints/index.js';
 import type { PcbConstraintInput } from '../pcb-constraints/types.js';
+import type { ReviewObservation } from '../engineering-review/report.js';
 
 export const pcbBoardDataSchema = z.object({
   widthMm: z.number().nonnegative().optional(),
@@ -103,10 +104,26 @@ function measuredStackup(record: Record<string, unknown>): boolean | undefined {
  * Fetch board data from the live EasyEDA bridge when no explicit boardData is provided.
  * Queries dimensions, layers, and stackup in parallel via Promise.allSettled.
  */
-export async function fetchBoardDataFromBridge(
+export async function fetchBoardEvidenceFromBridge(
   ctx: ToolContext,
   projectId: string,
-): Promise<PcbConstraintInput> {
+): Promise<{ data: PcbConstraintInput; observations: ReviewObservation[] }> {
+  const methods = [
+    'board.getDimensions',
+    'board.listLayers',
+    'board.getStackup',
+    'board.getDesignRules',
+  ];
+  if (!ctx.bridge.connected) {
+    return {
+      data: {},
+      observations: methods.map((method) => ({
+        method,
+        status: 'unavailable',
+        guidance: 'Connect the EasyEDA bridge and focus the PCB document.',
+      })),
+    };
+  }
   const [dimensionsResult, layersResult, stackupResult, designRulesResult] =
     await Promise.allSettled([
       ctx.bridge.call('board.getDimensions', { projectId }),
@@ -121,21 +138,39 @@ export async function fetchBoardDataFromBridge(
   const dimensions = resolvedObject(dimensionsResult);
   const stackup = resolvedObject(stackupResult);
   const designRules = resolvedObject(designRulesResult);
+  const results = [dimensionsResult, layersResult, stackupResult, designRulesResult];
+  const observations: ReviewObservation[] = methods.map((method, index) => ({
+    method,
+    status: results[index]?.status === 'fulfilled' ? 'observed' : 'unavailable',
+    ...(results[index]?.status === 'rejected'
+      ? { guidance: 'Native read unavailable. Check the active PCB tab and EasyEDA capabilities.' }
+      : {}),
+  }));
   return {
-    widthMm: measuredNonnegative(dimensions.widthMm),
-    heightMm: measuredNonnegative(dimensions.heightMm),
-    hasOutline: typeof dimensions.hasOutline === 'boolean' ? dimensions.hasOutline : undefined,
-    mountingHoleCount: measuredCount(dimensions.mountingHoleCount),
-    minDrillMm: measuredNonnegative(dimensions.minDrillMm),
-    hasClearanceRules:
-      typeof designRules.hasClearanceRules === 'boolean'
-        ? designRules.hasClearanceRules
-        : undefined,
-    layerCount: measuredCount(stackup.totalLayers, 2),
-    hasLayerStack: measuredStackup(stackup),
+    data: {
+      widthMm: measuredNonnegative(dimensions.widthMm),
+      heightMm: measuredNonnegative(dimensions.heightMm),
+      hasOutline: typeof dimensions.hasOutline === 'boolean' ? dimensions.hasOutline : undefined,
+      mountingHoleCount: measuredCount(dimensions.mountingHoleCount),
+      minDrillMm: measuredNonnegative(dimensions.minDrillMm),
+      hasClearanceRules:
+        typeof designRules.hasClearanceRules === 'boolean'
+          ? designRules.hasClearanceRules
+          : undefined,
+      layerCount: measuredCount(stackup.totalLayers, 2),
+      hasLayerStack: measuredStackup(stackup),
+    },
+    observations,
   };
 }
 
+/** Backward-compatible raw board data reader used by existing constraint tools. */
+export async function fetchBoardDataFromBridge(
+  ctx: ToolContext,
+  projectId: string,
+): Promise<PcbConstraintInput> {
+  return (await fetchBoardEvidenceFromBridge(ctx, projectId)).data;
+}
 function registerPcbConstraintTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
