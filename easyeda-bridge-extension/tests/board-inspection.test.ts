@@ -278,6 +278,87 @@ describe('board inspection operations', () => {
     });
   });
 
+  it('reports unavailable DRC profile names and malformed rule configurations without guessing', async () => {
+    const emptyName = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-empty-name' }) } },
+      { pcb_Drc: { getCurrentRuleConfigurationName: async () => '  ' } },
+    );
+    await expect(emptyName.operations.getDesignRules()).resolves.toEqual({
+      available: false,
+      source: 'active_rule_configuration',
+    });
+
+    const malformed = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-malformed' }) } },
+      {
+        pcb_Drc: {
+          getCurrentRuleConfigurationName: async () => 'Profile without configuration',
+          getRuleConfiguration: async () => null,
+        },
+      },
+    );
+    await expect(malformed.operations.getDesignRules()).resolves.toEqual({
+      available: false,
+      activeRuleConfigurationName: 'Profile without configuration',
+      source: 'active_rule_configuration',
+    });
+  });
+
+  it('handles empty and malformed active Safe Spacing matrices without inventing a minimum', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-empty-spacing' }) } },
+      {
+        pcb_Drc: {
+          getCurrentRuleConfigurationName: async () => 'Profile with empty spacing',
+          getRuleConfiguration: async () => ({
+            Spacing: {
+              'Safe Spacing': {
+                inactive: { isSetDefault: false, table: [[0.1]] },
+                malformed: { isSetDefault: true, table: [null, ['invalid', -1, Number.NaN]] },
+                noTable: { isSetDefault: true },
+              },
+            },
+          }),
+        },
+      },
+    );
+
+    await expect(operations.getDesignRules()).resolves.toEqual({
+      available: true,
+      activeRuleConfigurationName: 'Profile with empty spacing',
+      hasClearanceRules: undefined,
+      minimumClearanceMm: undefined,
+      clearanceRuleCount: undefined,
+      activeSpacingMatrices: ['malformed'],
+      source: 'active_rule_configuration',
+    });
+  });
+
+  it('fails closed when the active DRC configuration read throws', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-rule-error' }) } },
+      {
+        pcb_Drc: {
+          getCurrentRuleConfigurationName: async () => 'Unreadable profile',
+          getRuleConfiguration: async () => {
+            throw new Error('profile read failed');
+          },
+        },
+      },
+    );
+
+    await expect(operations.getDesignRules()).resolves.toEqual({
+      available: false,
+      source: 'active_rule_configuration',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      '[easyeda-mcp-pro]',
+      'failed to read active PCB design rules',
+      expect.any(Error),
+    );
+  });
+
   it('rejects getStackup when the layer class is unavailable', async () => {
     const { operations } = makeOperations({
       DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
@@ -336,6 +417,55 @@ describe('board inspection operations', () => {
       unknownFields: [],
       areaMm2: 120,
       hasOutline: true,
+    });
+  });
+
+  it('keeps drill measurements unknown when native hole shape, diameter, or plating is incomplete', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-partial-drills' }) } },
+      {
+        pcb_PrimitiveLine: { getAll: async () => [] },
+        pcb_PrimitivePad: {
+          getAll: async () => [
+            { getState_Hole: () => ['ROUND', 10] },
+            { getState_Hole: () => ['UNKNOWN', 20], getState_Metallization: () => true },
+            { getState_Hole: () => ['ROUND', 0], getState_Metallization: () => false },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
+    });
+  });
+
+  it('retains known drill geometry when only pad metallization metadata is missing', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-unplated-unknown' }) } },
+      {
+        pcb_PrimitiveLine: { getAll: async () => [] },
+        pcb_PrimitivePad: {
+          getAll: async () => [{ getState_Hole: () => ['ROUND', 25] }],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      drilledPadCount: 1,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: 0.635,
+      unknownFields: ['platedDrillPadCount', 'unplatedDrillPadCount'],
     });
   });
 

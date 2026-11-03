@@ -202,6 +202,20 @@ describe('Board Tools', () => {
     expect(result?.area_mm2).toBe(8000);
   });
 
+  it('easyeda_board_dimensions derives unknown drill fields when the bridge omits an unknown-fields list', async () => {
+    const tool = registry.get('easyeda_board_dimensions');
+    bridgeCall.mockResolvedValue({ widthMm: 20, heightMm: 10, drilledPadCount: 0 });
+
+    const result = await tool?.handler(context, { projectId: 'proj-unknown-fields' });
+    expect(result?.unknown_fields).toEqual([
+      'mounting_hole_count',
+      'plated_drill_pad_count',
+      'unplated_drill_pad_count',
+      'min_drill_mm',
+    ]);
+    expect(result?.has_outline).toBe(true);
+  });
+
   it('easyeda_board_dimensions distinguishes a missing outline from a 0x0 board', async () => {
     const tool = registry.get('easyeda_board_dimensions');
     bridgeCall.mockResolvedValue({

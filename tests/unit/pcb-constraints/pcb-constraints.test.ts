@@ -208,7 +208,7 @@ describe('warnings', () => {
     );
     expect(
       result.warnings.filter(
-        (item) => item.code === PcbConstraintCodeMap.MISSING_MANUFACTURING_CONSTRAINTS.code,
+        (item) => item.code === PcbConstraintCodeMap.MANUFACTURING_OPTIONS_WARNING.code,
       ),
     ).toHaveLength(0);
     expect(
@@ -218,6 +218,17 @@ describe('warnings', () => {
       true,
     );
     expect(result.unknownChecks.some((item) => item.area === 'Fiducials')).toBe(true);
+  });
+
+  it('warns only for explicitly empty manufacturing process and absent quantity', () => {
+    const result = validatePcbConstraints(
+      makeInput({ manufacturingProcess: '', hasQuantity: false }),
+    );
+    expect(
+      result.warnings.filter(
+        (item) => item.code === PcbConstraintCodeMap.MANUFACTURING_OPTIONS_WARNING.code,
+      ),
+    ).toHaveLength(2);
   });
 
   it('warns when no clearance rules defined', () => {
