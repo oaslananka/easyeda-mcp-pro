@@ -1,0 +1,105 @@
+[
+  {
+    "id": "finished-drill-smaller-than-declared-fabrication-floor",
+    "limits": { "minimumFinishedDrillMm": 0.3 },
+    "boardData": { "minDrillMm": 0.15 },
+    "expected": {
+      "status": "WARNING",
+      "rule": "minimumFinishedDrillMm",
+      "comparison": "BELOW_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "board-width-exceeds-assembly-process-limit",
+    "limits": { "maximumBoardWidthMm": 70 },
+    "boardData": { "widthMm": 90 },
+    "expected": {
+      "status": "WARNING",
+      "rule": "maximumBoardWidthMm",
+      "comparison": "ABOVE_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "mask-web-is-below-declared-process-requirement",
+    "limits": { "minimumMaskWebMm": 0.12 },
+    "boardData": { "minSolderMaskSliverMm": 0.08 },
+    "expected": {
+      "status": "WARNING",
+      "rule": "minimumMaskWebMm",
+      "comparison": "BELOW_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "annular-ring-copper-edge-and-height-within-declared-bounds-not-manufacturing-pass",
+    "limits": {
+      "minimumAnnularRingMm": 0.1,
+      "minimumCopperEdgeMm": 0.2,
+      "maximumBoardHeightMm": 120
+    },
+    "boardData": { "minAnnularRingMm": 0.18, "minCopperToEdgeMm": 0.3, "heightMm": 50 },
+    "expected": {
+      "status": "UNKNOWN",
+      "rule": "minimumAnnularRingMm",
+      "comparison": "WITHIN_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "fiducials-tooling-and-polarity-marks-below-assembly-profile",
+    "limits": {
+      "minimumFiducialCount": 3,
+      "minimumToolingHoleCount": 2,
+      "minimumPolarityMarkRatio": 1
+    },
+    "boardData": {
+      "fiducialCount": 1,
+      "toolingHoleCount": 0,
+      "polarizedComponentCount": 2,
+      "polarityMarkCount": 1
+    },
+    "expected": {
+      "status": "WARNING",
+      "rule": "minimumFiducialCount",
+      "comparison": "BELOW_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "critical-testpoint-coverage-low-for-explicit-nets",
+    "limits": { "minimumCriticalNetTestpointRatio": 0.8 },
+    "boardData": { "criticalNetNames": ["GND", "3V3", "RESET"], "testPointNets": ["GND"] },
+    "expected": {
+      "status": "WARNING",
+      "rule": "minimumCriticalNetTestpointRatio",
+      "comparison": "BELOW_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "programming-header-explicitly-absent-when-profile-requires-it",
+    "limits": { "requireProgrammingHeader": true },
+    "boardData": { "hasProgrammingHeader": false },
+    "expected": {
+      "status": "WARNING",
+      "rule": "requireProgrammingHeader",
+      "comparison": "BELOW_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "native-partial-absence-is-not-an-actual-missing-hole",
+    "limits": {
+      "minimumToolingHoleCount": 2,
+      "minimumFiducialCount": 2,
+      "minimumFinishedDrillMm": 0.2
+    },
+    "boardData": { "widthMm": 42 },
+    "expected": { "status": "UNKNOWN", "rule": "minimumToolingHoleCount", "comparison": "UNKNOWN" }
+  },
+  {
+    "id": "reported-minimum-drill-within-bound-does-not-verify-mounting-holes",
+    "limits": { "minimumFinishedDrillMm": 0.2 },
+    "boardData": { "minDrillMm": 0.762 },
+    "expected": {
+      "status": "UNKNOWN",
+      "rule": "minimumFinishedDrillMm",
+      "comparison": "WITHIN_DECLARED_LIMIT"
+    }
+  }
+]
