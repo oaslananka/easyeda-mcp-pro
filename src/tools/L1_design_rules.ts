@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { calculateTraceWidth, calculateMaxCurrent } from '../design-rules/trace-width.js';
+import { reviewTraceCurrent } from '../design-rules/trace-current-review.js';
 import { lookupClearance } from '../design-rules/clearance.js';
 import {
   lookupProtocolRouting,
@@ -49,10 +50,13 @@ const dfmCategorySchema = z.enum([
   'assembly',
 ]);
 
-const currentASchema = z.number().positive();
-const temperatureRiseCSchema = z.number().positive();
-const copperWeightOzSchema = z.number().positive();
-const traceWidthMilsSchema = z.number().positive();
+const currentASchema = z.number().finite().positive();
+const temperatureRiseCSchema = z.number().finite().positive();
+const copperWeightOzSchema = z.number().finite().positive();
+const traceWidthMilsSchema = z.number().finite().positive();
+const traceWidthMmSchema = z.number().finite().positive();
+const environmentSchema = z.enum(['still-air', 'forced-air', 'vacuum', 'unspecified']);
+
 const voltageVSchema = z.number().nonnegative();
 const loadASchema = z.number().positive();
 const minBulkCapacitanceUfPerASchema = z.number().positive();
@@ -65,6 +69,17 @@ const lookupInputSchema = z.discriminatedUnion('topic', [
     temperatureRiseC: temperatureRiseCSchema,
     layer: conductorLayerSchema,
     copperWeightOz: copperWeightOzSchema,
+  }),
+  z.object({
+    topic: z.literal('trace-current-review'),
+    currentA: currentASchema.optional(),
+    temperatureRiseC: temperatureRiseCSchema.optional(),
+    layer: conductorLayerSchema.optional(),
+    copperWeightOz: copperWeightOzSchema.optional(),
+    traceWidthMm: traceWidthMmSchema.optional(),
+    neckDownWidthMm: traceWidthMmSchema.optional(),
+    manufacturerMinWidthMm: traceWidthMmSchema.optional(),
+    environment: environmentSchema.optional(),
   }),
   z.object({
     topic: z.literal('max-current'),
@@ -104,6 +119,7 @@ const inputSchema = z
     topic: z
       .enum([
         'trace-width',
+        'trace-current-review',
         'max-current',
         'clearance',
         'protocol-routing',
@@ -118,6 +134,22 @@ const inputSchema = z
     traceWidthMils: traceWidthMilsSchema
       .optional()
       .describe('Required when topic is max-current. Trace width in mils.'),
+    traceWidthMm: traceWidthMmSchema
+      .optional()
+      .describe(
+        'Optional caller-supplied routed trace width (mm); not a verified EasyEDA measurement.',
+      ),
+    neckDownWidthMm: traceWidthMmSchema
+      .optional()
+      .describe(
+        'Optional caller-supplied narrowest route segment (mm); not a verified whole-route measurement.',
+      ),
+    manufacturerMinWidthMm: traceWidthMmSchema
+      .optional()
+      .describe('Optional manufacturer trace minimum (mm); not a verified fabrication capability.'),
+    environment: environmentSchema
+      .optional()
+      .describe('Qualitative thermal environment context; no thermal correction is assumed.'),
     temperatureRiseC: temperatureRiseCSchema
       .optional()
       .describe('Required for trace-width and max-current. Allowed temperature rise in °C.'),
@@ -164,6 +196,28 @@ const inputSchema = z
     }
   });
 
+const traceReferenceUnitsSchema = z.object({
+  currentA: z.literal('A'),
+  temperatureRiseC: z.literal('°C'),
+  copperWeightOz: z.literal('oz/ft²'),
+});
+
+const traceReferenceInputSchema = z.object({
+  currentA: currentASchema,
+  temperatureRiseC: temperatureRiseCSchema,
+  layer: conductorLayerSchema,
+  copperWeightOz: copperWeightOzSchema,
+});
+
+const maxCurrentReferenceInputSchema = z.object({
+  traceWidthMils: traceWidthMilsSchema,
+  temperatureRiseC: temperatureRiseCSchema,
+  layer: conductorLayerSchema,
+  copperWeightOz: copperWeightOzSchema,
+});
+
+const referenceMethodSchema = z.literal('IPC2221_EMPIRICAL_REFERENCE');
+
 const traceWidthResultSchema = z.object({
   requiredAreaMils2: z.number(),
   copperThicknessMils: z.number(),
@@ -172,12 +226,62 @@ const traceWidthResultSchema = z.object({
   k: z.number(),
   source: z.string(),
   caveat: z.string(),
+  method: referenceMethodSchema,
+  inputs: traceReferenceInputSchema,
+  units: traceReferenceUnitsSchema.extend({
+    traceWidthMm: z.literal('mm'),
+    traceWidthMils: z.literal('mil'),
+    copperThicknessMils: z.literal('mil'),
+    requiredAreaMils2: z.literal('mil²'),
+  }),
+  limitations: z.array(z.string()),
 });
 
 const maxCurrentResultSchema = z.object({
   maxCurrentA: z.number(),
   source: z.string(),
   caveat: z.string(),
+  method: referenceMethodSchema,
+  inputs: maxCurrentReferenceInputSchema,
+  units: z.object({
+    maxCurrentA: z.literal('A'),
+    traceWidthMils: z.literal('mil'),
+    temperatureRiseC: z.literal('°C'),
+    copperWeightOz: z.literal('oz/ft²'),
+  }),
+  limitations: z.array(z.string()),
+});
+
+const traceCurrentReviewSchema = z.object({
+  status: z.enum(['WARNING', 'UNKNOWN']),
+  method: referenceMethodSchema,
+  evidence: z.literal('caller_supplied_unverified'),
+  source: z.string(),
+  inputs: z.object({
+    currentA: currentASchema.optional(),
+    temperatureRiseC: temperatureRiseCSchema.optional(),
+    layer: conductorLayerSchema.optional(),
+    copperWeightOz: copperWeightOzSchema.optional(),
+    traceWidthMm: traceWidthMmSchema.optional(),
+    neckDownWidthMm: traceWidthMmSchema.optional(),
+    manufacturerMinWidthMm: traceWidthMmSchema.optional(),
+    environment: environmentSchema.optional(),
+  }),
+  inputUnits: traceReferenceUnitsSchema.extend({
+    traceWidthMm: z.literal('mm'),
+    neckDownWidthMm: z.literal('mm'),
+    manufacturerMinWidthMm: z.literal('mm'),
+  }),
+  estimatedMinimumWidthMm: z.number().optional(),
+  suppliedNarrowestWidthMm: z.number().optional(),
+  findings: z.array(
+    z.object({
+      id: z.enum(['THERMAL_ESTIMATE', 'FABRICATION_WIDTH', 'ROUTE_GEOMETRY', 'VIA_BOTTLENECK']),
+      status: z.enum(['WARNING', 'UNKNOWN']),
+      message: z.string(),
+    }),
+  ),
+  limitations: z.array(z.string()),
 });
 
 const clearanceResultSchema = z.object({
@@ -235,6 +339,7 @@ const dfmChecklistItemSchema = z.object({
 const outputSchema = z.object({
   topic: z.string(),
   traceWidth: traceWidthResultSchema.optional(),
+  traceCurrentReview: traceCurrentReviewSchema.optional(),
   maxCurrent: maxCurrentResultSchema.optional(),
   clearance: clearanceResultSchema.optional(),
   protocolRouting: protocolRoutingResultSchema.optional(),
@@ -262,6 +367,10 @@ function handleLookup(input: LookupInput): LookupOutput {
           copperWeightOz: input.copperWeightOz,
         }),
       };
+    case 'trace-current-review': {
+      const { topic, ...reviewInput } = input;
+      return { topic, traceCurrentReview: reviewTraceCurrent(reviewInput) };
+    }
     case 'max-current':
       return {
         topic: input.topic,
@@ -329,10 +438,10 @@ function registerDesignRulesTools(
     name: 'easyeda_design_rules_lookup',
     title: 'Look up engineering design-rule reference guidance',
     description:
-      'Look up generic engineering reference guidance: IPC-2221 trace-width/current-capacity, ' +
-      'clearance bands, protocol routing data (USB/RS-485/I2C/SPI/UART/Ethernet), decoupling ' +
-      'recipes and bulk capacitance sizing, and a static DFM checklist. Every result cites a ' +
-      'source and caveat: these are estimates, not certified values.',
+      'Look up IPC-2221 trace-width/current estimates and UNKNOWN-safe routing reviews, ' +
+      'clearance, USB/RS-485/I2C/SPI/UART/Ethernet routing, decoupling, bulk capacitance and ' +
+      'static DFM guidance. Results cite sources, limitations, assumptions and input units; ' +
+      'estimates do not certify electrical, thermal or fabrication safety.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'low',
