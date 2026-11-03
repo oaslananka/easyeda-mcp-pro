@@ -223,6 +223,142 @@ describe('board inspection operations', () => {
     );
   });
 
+  it('reads the active stable DRC configuration and only counts the active safe-spacing matrix', async () => {
+    const { operations } = makeOperations(
+      {
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-rules' }) },
+      },
+      {
+        pcb_Drc: {
+          getCurrentRuleConfigurationName: async () => 'JLCPCB Capability(Two Layers Board)',
+          getRuleConfiguration: async (name: string) => ({
+            config: {
+              Spacing: {
+                'Safe Spacing': {
+                  copperThickness1oz: {
+                    isSetDefault: true,
+                    table: [[0.2, 0.102], [0.15]],
+                  },
+                  copperThickness2oz: {
+                    isSetDefault: false,
+                    table: [[0.05]],
+                  },
+                },
+              },
+            },
+            name,
+          }),
+          getAllNetClasses: async () => {
+            throw new Error('beta net-class API must not be used');
+          },
+        },
+      },
+    );
+
+    await expect(operations.getDesignRules()).resolves.toEqual({
+      available: true,
+      activeRuleConfigurationName: 'JLCPCB Capability(Two Layers Board)',
+      hasClearanceRules: true,
+      minimumClearanceMm: 0.102,
+      clearanceRuleCount: 3,
+      activeSpacingMatrices: ['copperThickness1oz'],
+      source: 'active_rule_configuration',
+    });
+  });
+
+  it('does not claim clearance rules when the active profile or stable API is unavailable', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-rules' }) } },
+      { pcb_Drc: { getCurrentRuleConfigurationName: async () => 'Missing profile' } },
+    );
+
+    await expect(operations.getDesignRules()).resolves.toEqual({
+      available: false,
+      source: 'active_rule_configuration',
+    });
+  });
+
+  it('reports unavailable DRC profile names and malformed rule configurations without guessing', async () => {
+    const emptyName = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-empty-name' }) } },
+      { pcb_Drc: { getCurrentRuleConfigurationName: async () => '  ' } },
+    );
+    await expect(emptyName.operations.getDesignRules()).resolves.toEqual({
+      available: false,
+      source: 'active_rule_configuration',
+    });
+
+    const malformed = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-malformed' }) } },
+      {
+        pcb_Drc: {
+          getCurrentRuleConfigurationName: async () => 'Profile without configuration',
+          getRuleConfiguration: async () => null,
+        },
+      },
+    );
+    await expect(malformed.operations.getDesignRules()).resolves.toEqual({
+      available: false,
+      activeRuleConfigurationName: 'Profile without configuration',
+      source: 'active_rule_configuration',
+    });
+  });
+
+  it('handles empty and malformed active Safe Spacing matrices without inventing a minimum', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-empty-spacing' }) } },
+      {
+        pcb_Drc: {
+          getCurrentRuleConfigurationName: async () => 'Profile with empty spacing',
+          getRuleConfiguration: async () => ({
+            Spacing: {
+              'Safe Spacing': {
+                inactive: { isSetDefault: false, table: [[0.1]] },
+                malformed: { isSetDefault: true, table: [null, ['invalid', -1, Number.NaN]] },
+                noTable: { isSetDefault: true },
+              },
+            },
+          }),
+        },
+      },
+    );
+
+    await expect(operations.getDesignRules()).resolves.toEqual({
+      available: true,
+      activeRuleConfigurationName: 'Profile with empty spacing',
+      hasClearanceRules: undefined,
+      minimumClearanceMm: undefined,
+      clearanceRuleCount: undefined,
+      activeSpacingMatrices: ['malformed'],
+      source: 'active_rule_configuration',
+    });
+  });
+
+  it('fails closed when the active DRC configuration read throws', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-rule-error' }) } },
+      {
+        pcb_Drc: {
+          getCurrentRuleConfigurationName: async () => 'Unreadable profile',
+          getRuleConfiguration: async () => {
+            throw new Error('profile read failed');
+          },
+        },
+      },
+    );
+
+    await expect(operations.getDesignRules()).resolves.toEqual({
+      available: false,
+      source: 'active_rule_configuration',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      '[easyeda-mcp-pro]',
+      'failed to read active PCB design rules',
+      expect.any(Error),
+    );
+  });
+
   it('rejects getStackup when the layer class is unavailable', async () => {
     const { operations } = makeOperations({
       DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
@@ -261,9 +397,9 @@ describe('board inspection operations', () => {
         },
         pcb_PrimitivePad: {
           getAll: async () => [
-            { getState_HoleType: () => 'MountingHole', getState_HoleSize: () => 1 },
-            { getState_HoleType: () => '', getState_HoleSize: () => 2.5 },
-            { getState_HoleType: () => '', getState_HoleSize: () => 1 },
+            { getState_Hole: () => null, getState_Metallization: () => true },
+            { getState_Hole: () => ['ROUND', 43.308], getState_Metallization: () => true },
+            { getState_Hole: () => ['SLOT', 30, 60], getState_Metallization: () => false },
           ],
         },
       },
@@ -273,9 +409,63 @@ describe('board inspection operations', () => {
       widthMm: 12,
       heightMm: 10,
       shape: 'custom',
-      mountingHoleCount: 2,
+      mountingHoleCount: undefined,
+      drilledPadCount: 2,
+      platedDrillPadCount: 1,
+      unplatedDrillPadCount: 1,
+      minDrillMm: 0.762,
+      unknownFields: [],
       areaMm2: 120,
       hasOutline: true,
+    });
+  });
+
+  it('keeps drill measurements unknown when native hole shape, diameter, or plating is incomplete', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-partial-drills' }) } },
+      {
+        pcb_PrimitiveLine: { getAll: async () => [] },
+        pcb_PrimitivePad: {
+          getAll: async () => [
+            { getState_Hole: () => ['ROUND', 10] },
+            { getState_Hole: () => ['UNKNOWN', 20], getState_Metallization: () => true },
+            { getState_Hole: () => ['ROUND', 0], getState_Metallization: () => false },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
+    });
+  });
+
+  it('retains known drill geometry when only pad metallization metadata is missing', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-unplated-unknown' }) } },
+      {
+        pcb_PrimitiveLine: { getAll: async () => [] },
+        pcb_PrimitivePad: {
+          getAll: async () => [{ getState_Hole: () => ['ROUND', 25] }],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      drilledPadCount: 1,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: 0.635,
+      unknownFields: ['platedDrillPadCount', 'unplatedDrillPadCount'],
     });
   });
 
@@ -304,7 +494,17 @@ describe('board inspection operations', () => {
       widthMm: 40,
       heightMm: 20,
       shape: 'custom',
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 800,
       hasOutline: true,
     });
@@ -338,7 +538,17 @@ describe('board inspection operations', () => {
       widthMm: 30,
       heightMm: 10,
       shape: 'custom',
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 300,
       hasOutline: true,
     });
@@ -380,7 +590,17 @@ describe('board inspection operations', () => {
       widthMm: 80,
       heightMm: 60,
       shape: 'custom',
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 4800,
       hasOutline: true,
     });
@@ -406,7 +626,17 @@ describe('board inspection operations', () => {
       widthMm: 12.7,
       heightMm: 12.7,
       shape: 'custom',
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 161.29,
       hasOutline: true,
     });
@@ -461,7 +691,17 @@ describe('board inspection operations', () => {
       widthMm: 80.059,
       heightMm: 50,
       shape: 'custom',
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 4002.95,
       hasOutline: true,
     });
@@ -494,7 +734,17 @@ describe('board inspection operations', () => {
       widthMm: 0,
       heightMm: 0,
       shape: undefined,
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 0,
       hasOutline: false,
     });
@@ -525,7 +775,17 @@ describe('board inspection operations', () => {
       widthMm: 0,
       heightMm: 0,
       shape: undefined,
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 0,
       hasOutline: false,
     });
@@ -624,7 +884,17 @@ describe('board inspection operations', () => {
       widthMm: 40,
       heightMm: 20,
       shape: 'custom',
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 800,
       hasOutline: true,
     });
@@ -673,7 +943,17 @@ describe('board inspection operations', () => {
       widthMm: 0,
       heightMm: 0,
       shape: undefined,
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 0,
       hasOutline: false,
     });
@@ -702,6 +982,41 @@ describe('board inspection operations', () => {
       regions: 2,
       pads: 4,
       components: 5,
+      unknownFeatures: [],
+    });
+  });
+
+  it('distinguishes confirmed empty primitive collections from unavailable collections', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-empty' }) } },
+      {
+        pcb_PrimitiveVia: { getAll: async () => [] },
+        pcb_PrimitiveLine: { getAll: async () => [] },
+        pcb_PrimitivePour: { getAll: async () => [] },
+        pcb_PrimitiveFill: { getAll: async () => [] },
+        pcb_PrimitiveRegion: { getAll: async () => [] },
+        pcb_PrimitivePad: { getAll: async () => [] },
+        pcb_PrimitiveComponent: { getAll: async () => [] },
+      },
+    );
+
+    await expect(operations.getFeatures()).resolves.toEqual({
+      vias: 0,
+      tracks: 0,
+      zones: 0,
+      fills: 0,
+      regions: 0,
+      pads: 0,
+      components: 0,
+      unknownFeatures: [],
+    });
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      mountingHoleCount: undefined,
+      drilledPadCount: 0,
+      platedDrillPadCount: 0,
+      unplatedDrillPadCount: 0,
+      minDrillMm: undefined,
+      unknownFields: [],
     });
   });
 
@@ -774,7 +1089,17 @@ describe('board inspection operations', () => {
       widthMm: 0,
       heightMm: 0,
       shape: undefined,
-      mountingHoleCount: 0,
+      mountingHoleCount: undefined,
+      drilledPadCount: undefined,
+      platedDrillPadCount: undefined,
+      unplatedDrillPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
       areaMm2: 0,
       hasOutline: false,
     };
@@ -807,13 +1132,14 @@ describe('board inspection operations', () => {
       root,
     );
     const emptyFeatures = {
-      vias: 0,
-      tracks: 0,
-      zones: 0,
-      fills: 0,
-      regions: 0,
-      pads: 0,
-      components: 0,
+      vias: undefined,
+      tracks: undefined,
+      zones: undefined,
+      fills: undefined,
+      regions: undefined,
+      pads: undefined,
+      components: undefined,
+      unknownFeatures: ['vias', 'tracks', 'zones', 'fills', 'regions', 'pads', 'components'],
     };
 
     await expect(operations.getFeatures()).resolves.toEqual(emptyFeatures);
@@ -846,13 +1172,14 @@ describe('board inspection operations', () => {
     );
 
     await expect(operations.getFeatures()).resolves.toEqual({
-      vias: 0,
-      tracks: 0,
-      zones: 0,
-      fills: 0,
-      regions: 0,
-      pads: 0,
-      components: 0,
+      vias: undefined,
+      tracks: undefined,
+      zones: undefined,
+      fills: undefined,
+      regions: undefined,
+      pads: undefined,
+      components: undefined,
+      unknownFeatures: ['vias', 'tracks', 'zones', 'fills', 'regions', 'pads', 'components'],
     });
     expect(warn).toHaveBeenCalledTimes(7);
   });

@@ -186,6 +186,51 @@ describe('warnings', () => {
     expect(warn!.severity).toBe('warning');
   });
 
+  it('does not treat unknown net-class or clearance evidence as confirmed absence', () => {
+    const result = validatePcbConstraints(
+      makeInput({ hasNetClasses: undefined, hasClearanceRules: true }),
+    );
+    expect(
+      result.warnings.some((item) => item.code === PcbConstraintCodeMap.NO_NET_CLASSES.code),
+    ).toBe(false);
+    expect(result.unknownChecks.some((item) => item.area === 'Net classes')).toBe(true);
+    expect(result.unknownChecks.some((item) => item.area === 'Clearance rules')).toBe(false);
+  });
+
+  it('does not turn unknown manufacturing and assembly metadata into missing-data warnings', () => {
+    const result = validatePcbConstraints(
+      makeInput({
+        manufacturingProcess: undefined,
+        hasQuantity: undefined,
+        hasFiducials: undefined,
+        mountingHoleCount: 4,
+      }),
+    );
+    expect(
+      result.warnings.filter(
+        (item) => item.code === PcbConstraintCodeMap.MANUFACTURING_OPTIONS_WARNING.code,
+      ),
+    ).toHaveLength(0);
+    expect(
+      result.warnings.some((item) => item.code === PcbConstraintCodeMap.NO_FIDUCIALS.code),
+    ).toBe(false);
+    expect(result.unknownChecks.some((item) => item.area === 'Manufacturing constraints')).toBe(
+      true,
+    );
+    expect(result.unknownChecks.some((item) => item.area === 'Fiducials')).toBe(true);
+  });
+
+  it('warns only for explicitly empty manufacturing process and absent quantity', () => {
+    const result = validatePcbConstraints(
+      makeInput({ manufacturingProcess: '', hasQuantity: false }),
+    );
+    expect(
+      result.warnings.filter(
+        (item) => item.code === PcbConstraintCodeMap.MANUFACTURING_OPTIONS_WARNING.code,
+      ),
+    ).toHaveLength(2);
+  });
+
   it('warns when no clearance rules defined', () => {
     const result = validatePcbConstraints(makeInput({ hasClearanceRules: false }));
     const warn = result.warnings.find(
@@ -198,6 +243,25 @@ describe('warnings', () => {
     const result = validatePcbConstraints(makeInput({ hasKeepoutAreas: false }));
     const warn = result.warnings.find((w) => w.code === PcbConstraintCodeMap.NO_KEEPOUT_AREAS.code);
     expect(warn).toBeDefined();
+  });
+
+  it('does not block a high-voltage board solely because net-class evidence is unknown', () => {
+    const result = validatePcbConstraints(
+      makeInput({ hasHighVoltage: true, hasClearanceRules: true, hasNetClasses: undefined }),
+    );
+    expect(
+      result.errors.some((item) => item.code === PcbConstraintCodeMap.HIGH_VOLTAGE_CLEARANCE.code),
+    ).toBe(false);
+    expect(result.unknownChecks.some((item) => item.area === 'High-voltage clearance')).toBe(true);
+  });
+
+  it('does not treat unknown keepout or placement-zone evidence as absence', () => {
+    const result = validatePcbConstraints(
+      makeInput({ hasPlacementZones: true, hasKeepoutAreas: undefined }),
+    );
+    expect(
+      result.warnings.some((item) => item.code === PcbConstraintCodeMap.NO_KEEPOUT_AREAS.code),
+    ).toBe(false);
   });
 
   it('warns when no placement zones defined', () => {

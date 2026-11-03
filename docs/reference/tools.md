@@ -9,7 +9,8 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | -------------------------------------------------- | -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `easyeda_api_call`                                 | `full`         | `high`   | Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. Polygon-typed parameters use explicit $polygon/$complexPolygon tagged arguments. This is not raw JavaScript execution.                                                                                                       |
 | `easyeda_api_inventory`                            | `core`         | `low`    | Inspect the live EasyEDA extension runtime and list available documented API classes, runtime paths, and methods.                                                                                                                                                                                                                |
-| `easyeda_board_dimensions`                         | `core`         | `low`    | Get the PCB board outline dimensions, shape, and mounting hole information.                                                                                                                                                                                                                                                      |
+| `easyeda_board_design_rules`                       | `core`         | `low`    | Read the active EasyEDA DRC profile and its global safe-spacing matrix. Net-class membership and per-net overrides are reported separately and are not inferred.                                                                                                                                                                 |
+| `easyeda_board_dimensions`                         | `core`         | `low`    | Get the PCB outline dimensions, native drilled-pad counts and minimum drill diameter. Mounting-hole classification is reported as unknown unless explicit evidence exists.                                                                                                                                                       |
 | `easyeda_board_features`                           | `core`         | `low`    | Get counts of board features. zones counts copper Pour boundaries only; native Fill and Region primitives are reported separately as fills and regions.                                                                                                                                                                          |
 | `easyeda_board_layers`                             | `core`         | `low`    | List all layers in the PCB design including signal, power, plane, and mechanical layers.                                                                                                                                                                                                                                         |
 | `easyeda_board_stackup`                            | `core`         | `low`    | Get the PCB layer stackup including thickness, material, and dielectric constants.                                                                                                                                                                                                                                               |
@@ -192,11 +193,11 @@ Returns a JSON object matching the schema:
 
 ---
 
-## `easyeda_board_dimensions`
+## `easyeda_board_design_rules`
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Get the PCB board outline dimensions, shape, and mounting hole information.
+> Read the active EasyEDA DRC profile and its global safe-spacing matrix. Net-class membership and per-net overrides are reported separately and are not inferred.
 
 ### Input Parameters
 
@@ -211,14 +212,51 @@ Returns a JSON object matching the schema:
 ```ts
 {
   project_id: string;
-  width_mm: number(optional);
-  height_mm: number(optional);
-  shape: string(optional);
-  mounting_hole_count: number;
-  area_mm2: number(optional);
+  active_rule_configuration_name: string (optional);
+  has_clearance_rules: boolean (optional);
+  minimum_clearance_mm: number (optional);
+  clearance_rule_count: number (optional);
+  active_spacing_matrices: string[];
+  data_source: 'active_rule_configuration';
+  not_available: boolean (optional);
+  error: string (optional);
+}
+```
+
+---
+
+## `easyeda_board_dimensions`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Get the PCB outline dimensions, native drilled-pad counts and minimum drill diameter. Mounting-hole classification is reported as unknown unless explicit evidence exists.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description |
+| ----------- | -------- | -------- | ----------- |
+| `projectId` | `string` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  width_mm: number (optional);
+  height_mm: number (optional);
+  shape: string (optional);
+  mounting_hole_count: number (optional);
+  drilled_pad_count: number (optional);
+  plated_drill_pad_count: number (optional);
+  unplated_drill_pad_count: number (optional);
+  min_drill_mm: number (optional);
+  area_mm2: number (optional);
   has_outline: boolean;
-  not_available: boolean(optional);
-  error: string(optional);
+  unknown_fields: 'mounting_hole_count' | 'drilled_pad_count' | 'plated_drill_pad_count' | 'unplated_drill_pad_count' | 'min_drill_mm'[] (optional);
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
@@ -243,14 +281,15 @@ Returns a JSON object matching the schema:
 ```ts
 {
   project_id: string;
-  vias: number;
-  tracks: number;
-  zones: number;
-  fills: number;
-  regions: number;
-  pads: number;
-  components: number(optional);
-  not_available: boolean(optional);
+  vias: number (optional);
+  tracks: number (optional);
+  zones: number (optional);
+  fills: number (optional);
+  regions: number (optional);
+  pads: number (optional);
+  unknown_features: 'vias' | 'tracks' | 'zones' | 'fills' | 'regions' | 'pads' | 'components'[];
+  components: number (optional);
+  not_available: boolean (optional);
 }
 ```
 

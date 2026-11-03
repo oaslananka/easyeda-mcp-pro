@@ -52,7 +52,7 @@ function normalizedNetName(name: string): string {
 function checkMissingOutline(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (!input.hasOutline) {
+  if (input.hasOutline === false) {
     issues.push(
       pcbError('PCB_MISSING_OUTLINE', 'Board outline is not defined', {
         remediationHint:
@@ -105,7 +105,7 @@ function checkOutlineTooSmall(input: PcbConstraintInput): PcbConstraintIssue[] {
 function checkMissingStackup(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (!input.hasLayerStack) {
+  if (input.hasLayerStack === false) {
     issues.push(
       pcbWarning('PCB_MISSING_STACKUP', 'Detailed layer stackup is not defined', {
         remediationHint:
@@ -125,7 +125,11 @@ const MAX_LAYERS_WITHOUT_STACKUP = 2;
 function checkLayerCountMismatch(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (input.layerCount && input.layerCount > MAX_LAYERS_WITHOUT_STACKUP && !input.hasLayerStack) {
+  if (
+    input.layerCount &&
+    input.layerCount > MAX_LAYERS_WITHOUT_STACKUP &&
+    input.hasLayerStack === false
+  ) {
     issues.push(
       pcbError(
         'PCB_LAYER_COUNT_MISMATCH',
@@ -164,7 +168,7 @@ function checkMissingMountingHoles(input: PcbConstraintInput): PcbConstraintIssu
 function checkMissingNetClasses(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (!input.hasNetClasses) {
+  if (input.hasNetClasses === false) {
     issues.push(
       pcbWarning('PCB_MISSING_NET_CLASSES', 'No net classes with routing rules are defined', {
         remediationHint:
@@ -181,7 +185,7 @@ function checkMissingNetClasses(input: PcbConstraintInput): PcbConstraintIssue[]
 function checkInvalidClearance(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (input.hasNetClasses && !input.hasClearanceRules) {
+  if (input.hasNetClasses === true && input.hasClearanceRules === false) {
     issues.push(
       pcbWarning(
         'PCB_INVALID_CLEARANCE',
@@ -202,7 +206,7 @@ function checkInvalidClearance(input: PcbConstraintInput): PcbConstraintIssue[] 
 function checkKeepoutAreas(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (!input.hasKeepoutAreas && input.hasPlacementZones) {
+  if (input.hasKeepoutAreas === false && input.hasPlacementZones === true) {
     issues.push(
       pcbWarning(
         'PCB_KEEPOUT_VIOLATION',
@@ -223,7 +227,7 @@ function checkKeepoutAreas(input: PcbConstraintInput): PcbConstraintIssue[] {
 function checkMissingPlacementZones(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (!input.hasPlacementZones && input.layerCount && input.layerCount > 1) {
+  if (input.hasPlacementZones === false && input.layerCount && input.layerCount > 1) {
     issues.push(
       pcbWarning(
         'PCB_MISSING_PLACEMENT_ZONES',
@@ -244,7 +248,7 @@ function checkMissingPlacementZones(input: PcbConstraintInput): PcbConstraintIss
 function checkMissingManufacturingConstraints(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (!input.manufacturingProcess) {
+  if (input.manufacturingProcess === '') {
     issues.push(
       pcbWarning(
         'PCB_MISSING_MANUFACTURING_CONSTRAINTS',
@@ -257,7 +261,7 @@ function checkMissingManufacturingConstraints(input: PcbConstraintInput): PcbCon
     );
   }
 
-  if (!input.hasQuantity) {
+  if (input.hasQuantity === false) {
     issues.push(
       pcbWarning('PCB_MISSING_MANUFACTURING_CONSTRAINTS', 'Production quantity is not specified', {
         remediationHint:
@@ -274,7 +278,7 @@ function checkMissingManufacturingConstraints(input: PcbConstraintInput): PcbCon
 function checkFiducials(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (!input.hasFiducials && input.mountingHoleCount && input.mountingHoleCount > 0) {
+  if (input.hasFiducials === false && input.mountingHoleCount && input.mountingHoleCount > 0) {
     issues.push(
       pcbWarning('PCB_FIDUCIAL_REQUIRED', 'No fiducial marks defined for SMT assembly', {
         remediationHint:
@@ -291,7 +295,10 @@ function checkFiducials(input: PcbConstraintInput): PcbConstraintIssue[] {
 function checkHighVoltageClearance(input: PcbConstraintInput): PcbConstraintIssue[] {
   const issues: PcbConstraintIssue[] = [];
 
-  if (input.hasHighVoltage && (!input.hasClearanceRules || !input.hasNetClasses)) {
+  if (
+    input.hasHighVoltage === true &&
+    (input.hasClearanceRules === false || input.hasNetClasses === false)
+  ) {
     issues.push(
       pcbError(
         'PCB_HIGH_VOLTAGE_CLEARANCE',
@@ -616,12 +623,7 @@ const RULE_EVIDENCE: RuleEvidence[] = [
   },
   { area: 'Mounting holes', fields: fields('mountingHoleCount') },
   { area: 'Net classes', fields: fields('hasNetClasses') },
-  {
-    area: 'Clearance rules',
-    fields: (i) =>
-      i.hasNetClasses === true ? ['hasNetClasses', 'hasClearanceRules'] : ['hasNetClasses'],
-    skip: (i) => i.hasNetClasses === false,
-  },
+  { area: 'Clearance rules', fields: fields('hasClearanceRules') },
   {
     area: 'Keepout areas',
     fields: (i) =>
@@ -845,7 +847,7 @@ export function buildConstraintReport(
   // Determine which rules actually produced output
   const hasErrorsOrWarnings = result.errors.length > 0 || result.warnings.length > 0;
 
-  if (!input.hasOutline && !hasErrorsOrWarnings) {
+  if (input.hasOutline === false && !hasErrorsOrWarnings) {
     checked.push({
       area: 'Board outline',
       status: 'failed',

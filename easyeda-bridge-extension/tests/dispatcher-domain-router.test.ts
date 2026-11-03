@@ -34,6 +34,7 @@ function createDependencies() {
       requireActivePcbContext: vi.fn(async () => undefined),
       listLayers: vi.fn(async () => 'layers'),
       getStackup: vi.fn(async () => 'stackup'),
+      getDesignRules: vi.fn(async () => 'design-rules'),
       getDimensions: vi.fn(async () => 'dimensions'),
       getFeatures: vi.fn(async () => 'features'),
     },
@@ -219,6 +220,7 @@ const expectedMethods = [
   'api.call',
   'api.execute',
   'board.exportGerbers',
+  'board.getDesignRules',
   'board.getDimensions',
   'board.getFeatures',
   'board.getStackup',
@@ -326,6 +328,10 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('board.getStackup', params)).resolves.toEqual({
       handled: true,
       value: 'stackup',
+    });
+    await expect(router.tryDispatch('board.getDesignRules', params)).resolves.toEqual({
+      handled: true,
+      value: 'design-rules',
     });
     await expect(router.tryDispatch('board.getDimensions', params)).resolves.toEqual({
       handled: true,

@@ -39,19 +39,19 @@ describe('PROFILE_DEFINITIONS', () => {
   });
 
   it('should have accurate approxToolCount for core', () => {
-    expect(PROFILE_DEFINITIONS.core.approxToolCount).toBe('74');
+    expect(PROFILE_DEFINITIONS.core.approxToolCount).toBe('75');
   });
 
   it('should have accurate approxToolCount for pro', () => {
-    expect(PROFILE_DEFINITIONS.pro.approxToolCount).toBe('101');
+    expect(PROFILE_DEFINITIONS.pro.approxToolCount).toBe('102');
   });
 
   it('should have accurate approxToolCount for full', () => {
-    expect(PROFILE_DEFINITIONS.full.approxToolCount).toBe('117');
+    expect(PROFILE_DEFINITIONS.full.approxToolCount).toBe('118');
   });
 
   it('should have accurate approxToolCount for dev and experimental', () => {
-    expect(PROFILE_DEFINITIONS.dev.approxToolCount).toBe('122');
-    expect(PROFILE_DEFINITIONS.experimental.approxToolCount).toBe('123');
+    expect(PROFILE_DEFINITIONS.dev.approxToolCount).toBe('123');
+    expect(PROFILE_DEFINITIONS.experimental.approxToolCount).toBe('124');
   });
 });
