@@ -70,7 +70,7 @@ export function createDispatcherDomainRouter(
     handle: (params) => read(optionalNumber(params.limit), offsetNumber(params.offset)),
   }));
 
-  const routeHandlers: Record<string, DomainMethodHandler> = {
+  const routes: DomainRoute[] = Object.entries({
     'library.updateDeviceMetadata': (params) =>
       dependencies.deviceMetadataOperations.updateDeviceMetadata(params),
     'api.call': (params) => dependencies.systemApiOperations.apiCall(params),
@@ -153,17 +153,15 @@ export function createDispatcherDomainRouter(
     'system.inspectComponents': (params) =>
       dependencies.systemApiOperations.inspectComponents(params),
     'system.inspectWires': (params) => dependencies.systemApiOperations.inspectWires(params),
-  };
+  } satisfies Record<string, DomainMethodHandler>).map(([method, handle]) => ({ method, handle }));
   const methodList = Object.freeze(
-    Object.keys(routeHandlers).sort((left, right) => left.localeCompare(right)),
+    routes.map((route) => route.method).sort((left, right) => left.localeCompare(right)),
   );
 
   return {
     methodList,
     async tryDispatch(method, params = {}) {
-      const route = Object.prototype.hasOwnProperty.call(routeHandlers, method)
-        ? routeHandlers[method]
-        : undefined;
+      const route = routes.find((candidate) => candidate.method === method);
       if (!route) return { handled: false };
       assertRouterSchematicScope(method, params);
       const scoped =
@@ -173,9 +171,9 @@ export function createDispatcherDomainRouter(
         handled: true,
         value: await (scoped
           ? dependencies.pcbReadOperations.readProjectScoped(params.projectId as string, () =>
-              route(params),
+              route.handle(params),
             )
-          : route(params)),
+          : route.handle(params)),
       };
     },
   };
