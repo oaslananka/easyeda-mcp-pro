@@ -40,6 +40,7 @@
 </p>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
+[![GitGem](https://gitgem.org/api/badge/github/oaslananka/easyeda-mcp-pro.svg)](https://gitgem.org/github/oaslananka/easyeda-mcp-pro)
 
 <p>
   <a href="docs/ROADMAP.md">Roadmap</a> ·

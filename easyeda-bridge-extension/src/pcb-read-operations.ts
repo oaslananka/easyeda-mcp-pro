@@ -248,13 +248,19 @@ export function createPcbReadOperations({
     };
   }
 
-  async function nativePcbPrimitives(kind: 'Component' | 'Line' | 'Via'): Promise<any[]> {
+  async function nativePcbPrimitives(
+    kind: 'Component' | 'Line' | 'Via' | 'Fill' | 'Region',
+  ): Promise<any[]> {
     const name = `PCB_Primitive${kind}`;
     const nativeClass = readFirstPath<any>([name, `pcb_Primitive${kind}`]);
     if (typeof nativeClass?.getAll !== 'function') {
       throw new Error(`${name}.getAll is unavailable in this EasyEDA Pro runtime`);
     }
-    return (await nativeClass.getAll()) || [];
+    const result: unknown = await nativeClass.getAll();
+    if (!Array.isArray(result)) {
+      throw new Error(`${name}.getAll returned a non-array collection`);
+    }
+    return result;
   }
 
   async function listComponents(limit?: number, offset = 0): Promise<unknown> {
@@ -287,11 +293,7 @@ export function createPcbReadOperations({
     offset = 0,
   ): Promise<unknown> {
     await requireActivePcbContext();
-    const pcbClass = readFirstPath<any>([`PCB_Primitive${kind}`, `pcb_Primitive${kind}`]);
-    if (!pcbClass || typeof pcbClass.getAll !== 'function') {
-      throw new Error(`PCB_Primitive${kind}.getAll is unavailable in this EasyEDA Pro runtime`);
-    }
-    const all = (await pcbClass.getAll()) || [];
+    const all = await nativePcbPrimitives(kind);
     const start = Math.max(0, offset);
     const fill = kind === 'Fill';
     const items = await Promise.all(

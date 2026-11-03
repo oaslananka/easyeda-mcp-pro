@@ -80,12 +80,14 @@ describe('PCB read operations', () => {
     expect(requireActivePcbContext).toHaveBeenCalledOnce();
   });
 
-  it('normalizes a null component collection as an empty result', async () => {
+  it('rejects a null component collection as unavailable evidence', async () => {
     const { operations } = makeOperations({
       PCB_PrimitiveComponent: { getAll: async () => null },
     });
 
-    await expect(operations.listComponents()).resolves.toEqual({ total: 0, items: [] });
+    await expect(operations.listComponents()).rejects.toThrow(
+      'PCB_PrimitiveComponent.getAll returned a non-array collection',
+    );
   });
 
   it('uses the lower-case component alias and normalizes missing nested metadata', async () => {
@@ -123,7 +125,7 @@ describe('PCB read operations', () => {
     });
   });
 
-  it('maps tracks from PCB_PrimitiveLine and preserves null collections as empty', async () => {
+  it('maps tracks from PCB_PrimitiveLine and rejects null collections', async () => {
     const line = {
       getState_PrimitiveId: () => 'line1',
       getState_Net: () => 'GND',
@@ -158,7 +160,9 @@ describe('PCB read operations', () => {
         },
       ],
     });
-    await expect(operations.listTracks()).resolves.toEqual({ total: 0, items: [] });
+    await expect(operations.listTracks()).rejects.toThrow(
+      'PCB_PrimitiveLine.getAll returned a non-array collection',
+    );
     await expect(operations.listTracks()).resolves.toEqual({
       total: 1,
       items: [
@@ -210,7 +214,9 @@ describe('PCB read operations', () => {
         },
       ],
     });
-    await expect(operations.listVias()).resolves.toEqual({ total: 0, items: [] });
+    await expect(operations.listVias()).rejects.toThrow(
+      'PCB_PrimitiveVia.getAll returned a non-array collection',
+    );
     await expect(operations.listVias()).resolves.toEqual({
       total: 1,
       items: [
@@ -495,6 +501,27 @@ describe('PCB read operations', () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 
+  it('rejects malformed native collection results without fabricating a zero total', async () => {
+    const classes = [
+      ['Component', 'listComponents'],
+      ['Line', 'listTracks'],
+      ['Via', 'listVias'],
+      ['Fill', 'listFills'],
+      ['Region', 'listRegions'],
+    ] as const;
+    for (const returned of [null, undefined, { total: 0, items: [] }, ''] as unknown[]) {
+      const runtime = Object.fromEntries(
+        classes.map(([kind]) => ['PCB_Primitive' + kind, { getAll: async () => returned }]),
+      );
+      const { operations } = makeOperations(runtime);
+      for (const [kind, method] of classes) {
+        await expect(operations[method]()).rejects.toThrow(
+          'PCB_Primitive' + kind + '.getAll returned a non-array collection',
+        );
+      }
+    }
+  });
+
   it('fails closed when a native PCB enumeration class is unavailable', async () => {
     const { operations, requireActivePcbContext } = makeOperations();
 
@@ -529,6 +556,25 @@ describe('PCB read operations', () => {
     );
     await expect(invalid.operations.listTracks()).rejects.toThrow('PCB_PrimitiveLine.getAll');
     await expect(invalid.operations.listVias()).rejects.toThrow('PCB_PrimitiveVia.getAll');
+  });
+
+  it('preserves genuinely empty results from all five supported native collection APIs', async () => {
+    const { operations } = makeOperations({
+      PCB_PrimitiveComponent: { getAll: async () => [] },
+      PCB_PrimitiveLine: { getAll: async () => [] },
+      PCB_PrimitiveVia: { getAll: async () => [] },
+      PCB_PrimitiveFill: { getAll: async () => [] },
+      PCB_PrimitiveRegion: { getAll: async () => [] },
+    });
+    for (const method of [
+      'listComponents',
+      'listTracks',
+      'listVias',
+      'listFills',
+      'listRegions',
+    ] as const) {
+      await expect(operations[method]()).resolves.toEqual({ total: 0, items: [] });
+    }
   });
 
   it('fails cleanly when Fill/Region native APIs are unavailable', async () => {
