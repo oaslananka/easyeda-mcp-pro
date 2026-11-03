@@ -71,7 +71,7 @@ const fixtures = JSON.parse(
 
 describe('datasheet provenance-bound ERC observations', () => {
   it('covers nine distinct cases without creating a fabricated PASS', () => {
-    expect(fixtures).toHaveLength(9);
+    expect(fixtures).toHaveLength(12);
     expect(new Set(fixtures.map((f) => f.id)).size).toBe(fixtures.length);
   });
 
@@ -88,6 +88,64 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(result.netlist_scope).toBe('CALLER_SUPPLIED_NOT_LIVE_VERIFIED');
     expect(result.engineering_sign_off).toBe(false);
     expect(result.findings.map((item) => item.status)).not.toContain('PASS');
+  });
+
+  it('rejects corrupt or contradictory caller pin-voltage constraints without a false in-range statement', () => {
+    const pin = fixtures[0]!.constraint;
+    if (pin.kind !== 'pin_voltage') throw new Error('Fixture contract changed');
+    const invalid = [
+      { maxVoltageV: Number.NaN },
+      { maxVoltageV: Number.POSITIVE_INFINITY },
+      { minVoltageV: Number.NaN },
+      { minVoltageV: 6, maxVoltageV: 3 },
+    ];
+    for (const limit of invalid) {
+      const result = reviewDatasheetConstraints(
+        [{ ...pin, maxVoltageV: undefined, ...limit }],
+        nets,
+        devices,
+      );
+      expect(result.status).toBe('UNKNOWN');
+      expect(result.findings[0]?.message).toMatch(/invalid/i);
+      expect(result.findings[0]?.message).not.toMatch(/inside the caller-supplied/);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+    const missing = reviewDatasheetConstraints(
+      [{ ...pin, maxVoltageV: undefined, minVoltageV: undefined }],
+      nets,
+      devices,
+    );
+    expect(missing.findings[0]?.message).toMatch(/no numeric/i);
+  });
+
+  it('rejects invalid regulator headroom constraints and handles exact arithmetic boundaries', () => {
+    const constraint = fixtures[6]!.constraint;
+    if (constraint.kind !== 'regulator_headroom') throw new Error('Fixture contract changed');
+    for (const minHeadroomV of [Number.NaN, Number.POSITIVE_INFINITY, -0.1]) {
+      const result = reviewDatasheetConstraints([{ ...constraint, minHeadroomV }], nets, devices);
+      expect(result.status).toBe('UNKNOWN');
+      expect(result.findings[0]?.message).toMatch(/invalid/i);
+      expect(result.findings[0]?.message).not.toMatch(/meets the caller-supplied minimum/);
+    }
+    const decimalNets: NetValidationEntry[] = [
+      { ...nets[0]!, voltage: 0.3 },
+      { ...nets[1]!, voltage: 0.2 },
+      nets[2]!,
+    ];
+    const exact = reviewDatasheetConstraints(
+      [{ ...constraint, minHeadroomV: 0.1 }],
+      decimalNets,
+      devices,
+    );
+    expect(exact.status).toBe('UNKNOWN');
+    expect(exact.findings[0]?.message).toMatch(/meets the caller-supplied minimum/);
+    const exceeded = reviewDatasheetConstraints(
+      [{ ...constraint, minHeadroomV: 0.101 }],
+      decimalNets,
+      devices,
+    );
+    expect(exceeded.status).toBe('WARNING');
+    expect(exact.engineering_sign_off).toBe(false);
   });
 
   it('does not trust net names alone, or assume a source-declared range was authenticated', () => {
@@ -143,10 +201,10 @@ describe('datasheet provenance-bound ERC observations', () => {
       nets,
       devices,
     );
-    expect(result.finding_count).toBe(9);
+    expect(result.finding_count).toBe(12);
     expect(result.status).toBe('WARNING');
     expect(result.findings.filter((f) => f.status === 'WARNING').length).toBe(5);
-    expect(result.findings.filter((f) => f.status === 'UNKNOWN').length).toBe(4);
+    expect(result.findings.filter((f) => f.status === 'UNKNOWN').length).toBe(7);
   });
 
   it('evaluates an explicitly supplied lower pin voltage bound', () => {

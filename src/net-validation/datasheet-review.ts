@@ -130,6 +130,50 @@ function voltageObservation(pin: PinLookup): DatasheetFinding['observed_voltages
     : [];
 }
 
+function invalidPinVoltageBounds(
+  constraint: Extract<DatasheetConstraint, { kind: 'pin_voltage' }>,
+): boolean {
+  const { minVoltageV, maxVoltageV } = constraint;
+  return (
+    (minVoltageV !== undefined && !Number.isFinite(minVoltageV)) ||
+    (maxVoltageV !== undefined && !Number.isFinite(maxVoltageV)) ||
+    (minVoltageV !== undefined && maxVoltageV !== undefined && minVoltageV > maxVoltageV)
+  );
+}
+
+function pinVoltageConstraintIssue(
+  c: Extract<DatasheetConstraint, { kind: 'pin_voltage' }>,
+  index: number,
+  names: string[],
+  measured: DatasheetFinding['observed_voltages_v'],
+): DatasheetFinding | undefined {
+  if (invalidPinVoltageBounds(c)) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'Caller-declared pin-voltage limits are invalid or contradictory; no range comparison is possible.',
+      [c.pin],
+      names,
+      measured,
+      'explicit_netlist',
+    );
+  }
+  if (c.minVoltageV === undefined && c.maxVoltageV === undefined) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'No numeric caller-declared pin-voltage limit is available for comparison.',
+      [c.pin],
+      names,
+      measured,
+      'explicit_netlist',
+    );
+  }
+  return undefined;
+}
+
 function reviewPinVoltage(
   c: Extract<DatasheetConstraint, { kind: 'pin_voltage' }>,
   index: number,
@@ -171,6 +215,8 @@ function reviewPinVoltage(
       names,
     );
   }
+  const invalidConstraint = pinVoltageConstraintIssue(c, index, names, measured);
+  if (invalidConstraint) return invalidConstraint;
   const value = measured[0]?.voltage_v;
   if (value === undefined) throw new Error('Unreachable: numeric voltage was not observed');
   const violated =
@@ -273,7 +319,21 @@ function reviewHeadroom(
     throw new Error('Unreachable: declared input/output voltages were not observed');
   }
   const margin = inputVoltage - outputVoltage;
-  const violated = margin < c.minHeadroomV;
+  if (!Number.isFinite(c.minHeadroomV) || c.minHeadroomV < 0 || !Number.isFinite(margin)) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'Caller-declared minimum headroom or computed voltage margin is invalid; no comparison is possible.',
+      [c.inputPin, c.outputPin],
+      names,
+      observed,
+      'explicit_netlist',
+    );
+  }
+  // Numerical subtraction of caller-declared rails has finite binary rounding error;
+  // 1e-12 V is not a regulator dropout or electrical design margin.
+  const violated = margin < c.minHeadroomV - 1e-12;
   return finding(
     index,
     c,

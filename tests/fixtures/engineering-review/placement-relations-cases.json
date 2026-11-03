@@ -2,8 +2,22 @@
   {
     "id": "decoupling-close-observation-not-electrical-pass",
     "components": [
-      { "primitiveId": "u1", "designator": "U1", "x": 0, "y": 0, "layer": 1, "rotation": 0 },
-      { "primitiveId": "c1", "designator": "C1", "x": 30, "y": 40, "layer": 1, "rotation": 90 }
+      {
+        "primitiveId": "u1",
+        "designator": "U1",
+        "x": 0,
+        "y": 0,
+        "layer": 1,
+        "rotation": 0
+      },
+      {
+        "primitiveId": "c1",
+        "designator": "C1",
+        "x": 30,
+        "y": 40,
+        "layer": 1,
+        "rotation": 90
+      }
     ],
     "relation": {
       "kind": "decoupling",
@@ -12,13 +26,30 @@
       "maxCenterDistanceMm": 2,
       "constraintSource": "hypothetical device layout note"
     },
-    "expected": { "status": "UNKNOWN", "distanceMm": 1.27 }
+    "expected": {
+      "status": "UNKNOWN",
+      "distanceMm": 1.27
+    }
   },
   {
     "id": "decoupling-origin-distance-exceeds-declared-bound",
     "components": [
-      { "primitiveId": "u1", "designator": "U1", "x": 0, "y": 0, "layer": 1, "rotation": 0 },
-      { "primitiveId": "c1", "designator": "C1", "x": 200, "y": 0, "layer": 1, "rotation": 0 }
+      {
+        "primitiveId": "u1",
+        "designator": "U1",
+        "x": 0,
+        "y": 0,
+        "layer": 1,
+        "rotation": 0
+      },
+      {
+        "primitiveId": "c1",
+        "designator": "C1",
+        "x": 200,
+        "y": 0,
+        "layer": 1,
+        "rotation": 0
+      }
     ],
     "relation": {
       "kind": "decoupling",
@@ -27,22 +58,60 @@
       "maxCenterDistanceMm": 2,
       "constraintSource": "hypothetical component-specific note"
     },
-    "expected": { "status": "WARNING", "distanceMm": 5.08 }
+    "expected": {
+      "status": "WARNING",
+      "distanceMm": 5.08
+    }
   },
   {
     "id": "buck-switch-loop-with-no-pad-net-evidence",
     "components": [
-      { "primitiveId": "q1", "designator": "Q1", "x": 10, "y": 10, "layer": 1, "rotation": 90 },
-      { "primitiveId": "l1", "designator": "L1", "x": 25, "y": 10, "layer": 1, "rotation": 0 }
+      {
+        "primitiveId": "q1",
+        "designator": "Q1",
+        "x": 10,
+        "y": 10,
+        "layer": 1,
+        "rotation": 90
+      },
+      {
+        "primitiveId": "l1",
+        "designator": "L1",
+        "x": 25,
+        "y": 10,
+        "layer": 1,
+        "rotation": 0
+      }
     ],
-    "relation": { "kind": "switching-loop", "first": "Q1", "second": "L1" },
-    "expected": { "status": "UNKNOWN", "distanceMm": 0.381 }
+    "relation": {
+      "kind": "switching-loop",
+      "first": "Q1",
+      "second": "L1"
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "distanceMm": 0.381
+    }
   },
   {
     "id": "crystal-observed-rotation-vs-declared-requirement",
     "components": [
-      { "primitiveId": "y1", "designator": "Y1", "x": 0, "y": 0, "layer": 1, "rotation": 270 },
-      { "primitiveId": "u1", "designator": "U1", "x": 0, "y": 15, "layer": 1, "rotation": 0 }
+      {
+        "primitiveId": "y1",
+        "designator": "Y1",
+        "x": 0,
+        "y": 0,
+        "layer": 1,
+        "rotation": 270
+      },
+      {
+        "primitiveId": "u1",
+        "designator": "U1",
+        "x": 0,
+        "y": 15,
+        "layer": 1,
+        "rotation": 0
+      }
     ],
     "relation": {
       "kind": "crystal",
@@ -52,13 +121,30 @@
       "rotationToleranceDeg": 10,
       "constraintSource": "hypothetical mechanical orientation requirement"
     },
-    "expected": { "status": "WARNING", "distanceMm": 0.381 }
+    "expected": {
+      "status": "WARNING",
+      "distanceMm": 0.381
+    }
   },
   {
     "id": "connector-esd-components-on-different-native-layers",
     "components": [
-      { "primitiveId": "j1", "designator": "J1", "x": 0, "y": 0, "layer": 1, "rotation": 0 },
-      { "primitiveId": "d1", "designator": "D1", "x": 20, "y": 0, "layer": 2, "rotation": 180 }
+      {
+        "primitiveId": "j1",
+        "designator": "J1",
+        "x": 0,
+        "y": 0,
+        "layer": 1,
+        "rotation": 0
+      },
+      {
+        "primitiveId": "d1",
+        "designator": "D1",
+        "x": 20,
+        "y": 0,
+        "layer": 2,
+        "rotation": 180
+      }
     ],
     "relation": {
       "kind": "esd-entry",
@@ -67,21 +153,52 @@
       "requireSameLayer": true,
       "constraintSource": "hypothetical specified assembly constraint"
     },
-    "expected": { "status": "WARNING", "distanceMm": 0.508 }
+    "expected": {
+      "status": "WARNING",
+      "distanceMm": 0.508
+    }
   },
   {
     "id": "feedback-components-distance-only-without-limit",
     "components": [
-      { "primitiveId": "r1", "designator": "R1", "x": 0, "y": 0, "layer": 2, "rotation": 0 },
-      { "primitiveId": "u1", "designator": "U1", "x": 100, "y": 0, "layer": 2, "rotation": 270 }
+      {
+        "primitiveId": "r1",
+        "designator": "R1",
+        "x": 0,
+        "y": 0,
+        "layer": 2,
+        "rotation": 0
+      },
+      {
+        "primitiveId": "u1",
+        "designator": "U1",
+        "x": 100,
+        "y": 0,
+        "layer": 2,
+        "rotation": 270
+      }
     ],
-    "relation": { "kind": "feedback", "first": "R1", "second": "U1" },
-    "expected": { "status": "UNKNOWN", "distanceMm": 2.54 }
+    "relation": {
+      "kind": "feedback",
+      "first": "R1",
+      "second": "U1"
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "distanceMm": 2.54
+    }
   },
   {
     "id": "unobserved-analog-coupling-component",
     "components": [
-      { "primitiveId": "u1", "designator": "U1", "x": 0, "y": 0, "layer": 1, "rotation": 0 }
+      {
+        "primitiveId": "u1",
+        "designator": "U1",
+        "x": 0,
+        "y": 0,
+        "layer": 1,
+        "rotation": 0
+      }
     ],
     "relation": {
       "kind": "sensitive-adjacency",
@@ -90,6 +207,73 @@
       "maxCenterDistanceMm": 1,
       "constraintSource": "hypothetical device layout note"
     },
-    "expected": { "status": "UNKNOWN" }
+    "expected": {
+      "status": "UNKNOWN"
+    }
+  },
+  {
+    "id": "placement-exact-caller-declared-origin-distance",
+    "components": [
+      {
+        "primitiveId": "u1",
+        "designator": "U1",
+        "x": 0,
+        "y": 0,
+        "layer": 1,
+        "rotation": 0
+      },
+      {
+        "primitiveId": "c1",
+        "designator": "C1",
+        "x": 30,
+        "y": 40,
+        "layer": 1,
+        "rotation": 90
+      }
+    ],
+    "relation": {
+      "kind": "decoupling",
+      "first": "U1",
+      "second": "C1",
+      "maxCenterDistanceMm": 1.27,
+      "constraintSource": "hypothetical device layout note"
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "distanceMm": 1.27
+    }
+  },
+  {
+    "id": "crystal-exact-declared-rotation-tolerance",
+    "components": [
+      {
+        "primitiveId": "y1",
+        "designator": "Y1",
+        "x": 0,
+        "y": 0,
+        "layer": 1,
+        "rotation": 270
+      },
+      {
+        "primitiveId": "u1",
+        "designator": "U1",
+        "x": 0,
+        "y": 15,
+        "layer": 1,
+        "rotation": 0
+      }
+    ],
+    "relation": {
+      "kind": "crystal",
+      "first": "Y1",
+      "second": "U1",
+      "firstRotationDeg": 260,
+      "rotationToleranceDeg": 10,
+      "constraintSource": "hypothetical mechanical orientation requirement"
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "distanceMm": 0.381
+    }
   }
 ]
