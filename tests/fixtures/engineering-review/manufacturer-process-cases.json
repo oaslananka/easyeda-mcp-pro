@@ -1,8 +1,12 @@
 [
   {
     "id": "finished-drill-smaller-than-declared-fabrication-floor",
-    "limits": { "minimumFinishedDrillMm": 0.3 },
-    "boardData": { "minDrillMm": 0.15 },
+    "limits": {
+      "minimumFinishedDrillMm": 0.3
+    },
+    "boardData": {
+      "minDrillMm": 0.15
+    },
     "expected": {
       "status": "WARNING",
       "rule": "minimumFinishedDrillMm",
@@ -11,8 +15,12 @@
   },
   {
     "id": "board-width-exceeds-assembly-process-limit",
-    "limits": { "maximumBoardWidthMm": 70 },
-    "boardData": { "widthMm": 90 },
+    "limits": {
+      "maximumBoardWidthMm": 70
+    },
+    "boardData": {
+      "widthMm": 90
+    },
     "expected": {
       "status": "WARNING",
       "rule": "maximumBoardWidthMm",
@@ -21,8 +29,12 @@
   },
   {
     "id": "mask-web-is-below-declared-process-requirement",
-    "limits": { "minimumMaskWebMm": 0.12 },
-    "boardData": { "minSolderMaskSliverMm": 0.08 },
+    "limits": {
+      "minimumMaskWebMm": 0.12
+    },
+    "boardData": {
+      "minSolderMaskSliverMm": 0.08
+    },
     "expected": {
       "status": "WARNING",
       "rule": "minimumMaskWebMm",
@@ -36,7 +48,11 @@
       "minimumCopperEdgeMm": 0.2,
       "maximumBoardHeightMm": 120
     },
-    "boardData": { "minAnnularRingMm": 0.18, "minCopperToEdgeMm": 0.3, "heightMm": 50 },
+    "boardData": {
+      "minAnnularRingMm": 0.18,
+      "minCopperToEdgeMm": 0.3,
+      "heightMm": 50
+    },
     "expected": {
       "status": "UNKNOWN",
       "rule": "minimumAnnularRingMm",
@@ -64,8 +80,13 @@
   },
   {
     "id": "critical-testpoint-coverage-low-for-explicit-nets",
-    "limits": { "minimumCriticalNetTestpointRatio": 0.8 },
-    "boardData": { "criticalNetNames": ["GND", "3V3", "RESET"], "testPointNets": ["GND"] },
+    "limits": {
+      "minimumCriticalNetTestpointRatio": 0.8
+    },
+    "boardData": {
+      "criticalNetNames": ["GND", "3V3", "RESET"],
+      "testPointNets": ["GND"]
+    },
     "expected": {
       "status": "WARNING",
       "rule": "minimumCriticalNetTestpointRatio",
@@ -74,8 +95,12 @@
   },
   {
     "id": "programming-header-explicitly-absent-when-profile-requires-it",
-    "limits": { "requireProgrammingHeader": true },
-    "boardData": { "hasProgrammingHeader": false },
+    "limits": {
+      "requireProgrammingHeader": true
+    },
+    "boardData": {
+      "hasProgrammingHeader": false
+    },
     "expected": {
       "status": "WARNING",
       "rule": "requireProgrammingHeader",
@@ -89,16 +114,54 @@
       "minimumFiducialCount": 2,
       "minimumFinishedDrillMm": 0.2
     },
-    "boardData": { "widthMm": 42 },
-    "expected": { "status": "UNKNOWN", "rule": "minimumToolingHoleCount", "comparison": "UNKNOWN" }
+    "boardData": {
+      "widthMm": 42
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "rule": "minimumToolingHoleCount",
+      "comparison": "UNKNOWN"
+    }
   },
   {
     "id": "reported-minimum-drill-within-bound-does-not-verify-mounting-holes",
-    "limits": { "minimumFinishedDrillMm": 0.2 },
-    "boardData": { "minDrillMm": 0.762 },
+    "limits": {
+      "minimumFinishedDrillMm": 0.2
+    },
+    "boardData": {
+      "minDrillMm": 0.762
+    },
     "expected": {
       "status": "UNKNOWN",
       "rule": "minimumFinishedDrillMm",
+      "comparison": "WITHIN_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "finished-drill-exact-declared-minimum-is-not-fabrication-approval",
+    "limits": {
+      "minimumFinishedDrillMm": 0.2
+    },
+    "boardData": {
+      "minDrillMm": 0.2
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "rule": "minimumFinishedDrillMm",
+      "comparison": "WITHIN_DECLARED_LIMIT"
+    }
+  },
+  {
+    "id": "board-width-exact-declared-maximum-is-not-assembly-approval",
+    "limits": {
+      "maximumBoardWidthMm": 70
+    },
+    "boardData": {
+      "widthMm": 70
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "rule": "maximumBoardWidthMm",
       "comparison": "WITHIN_DECLARED_LIMIT"
     }
   }

@@ -25,7 +25,7 @@ const fixtures = JSON.parse(
 
 describe('contextual isolation, creepage and ESD/EMC observations', () => {
   it('maintains independent explicit source scenarios without numeric standard tables', () => {
-    expect(fixtures).toHaveLength(8);
+    expect(fixtures).toHaveLength(10);
     expect(new Set(fixtures.map((entry) => entry.id)).size).toBe(fixtures.length);
   });
 
@@ -46,6 +46,39 @@ describe('contextual isolation, creepage and ESD/EMC observations', () => {
     expect(result.findings.every((f) => f.status === 'UNKNOWN' || f.status === 'WARNING')).toBe(
       true,
     );
+  });
+
+  it('fails closed on corrupt measurement and declared spacing limits', () => {
+    const source = fixtures[1]!.review;
+    const badMeasurements = [Number.NaN, Number.POSITIVE_INFINITY, -0.1];
+    for (const distanceMm of badMeasurements) {
+      const result = reviewIsolationEmc({
+        ...source,
+        airClearance: {
+          distanceMm,
+          evidenceRef: 'invalid native measurement',
+          evidenceKind: 'measured_air_gap',
+        },
+      });
+      const finding = result.findings.find((entry) => entry.id === 'AIR_CLEARANCE');
+      expect(finding?.status).toBe('UNKNOWN');
+      expect(finding?.missing).toContain('finite nonnegative geometry measurement');
+      expect(finding?.message).not.toContain('meets its declared minimum');
+      expect(finding?.reported_mm).toBeUndefined();
+      expect(result.safety_certification).toBe(false);
+    }
+    for (const minimumMm of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      const result = reviewIsolationEmc({
+        ...source,
+        clearanceRequirement: { ...source.clearanceRequirement!, minimumMm },
+      });
+      const finding = result.findings.find((entry) => entry.id === 'AIR_CLEARANCE');
+      expect(finding?.status).toBe('UNKNOWN');
+      expect(finding?.missing).toContain('finite nonnegative source-declared minimum');
+      expect(finding?.message).not.toContain('meets its declared minimum');
+      expect(finding?.declared_min_mm).toBeUndefined();
+      expect(result.engineering_sign_off).toBe(false);
+    }
   });
 
   it('never derives a creepage measurement from a through-air observation', () => {

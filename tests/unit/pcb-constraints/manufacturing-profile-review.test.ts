@@ -27,7 +27,7 @@ const examples = JSON.parse(
 
 describe('versioned manufacturer process observations (not fabrication approval)', () => {
   it('covers nine distinct bounded examples', () => {
-    expect(examples).toHaveLength(9);
+    expect(examples).toHaveLength(11);
     expect(new Set(examples.map((x) => x.id)).size).toBe(examples.length);
   });
 
@@ -53,6 +53,31 @@ describe('versioned manufacturer process observations (not fabrication approval)
       true,
     );
     expect(result.unknown_workflows.join(' ')).toMatch(/mounting-hole semantics/i);
+  });
+
+  it('does not compare measurements against corrupt process limits', () => {
+    for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      const result = reviewManufacturerProfile(
+        { ...ref, limits: { minimumFinishedDrillMm: invalid } },
+        { minDrillMm: 0.1 },
+        'caller_supplied_unverified',
+      );
+      const finding = result.findings[0];
+      expect(finding?.comparison).toBe('UNKNOWN');
+      expect(finding?.status).toBe('UNKNOWN');
+      expect(finding?.reason).toContain('invalid');
+      expect(result.fabrication_approval).toBe(false);
+    }
+    for (const invalid of [Number.NaN, 1.1, -0.1]) {
+      const result = reviewManufacturerProfile(
+        { ...ref, limits: { minimumPolarityMarkRatio: invalid } },
+        { polarizedComponentCount: 2, polarityMarkCount: 1 },
+        'caller_supplied_unverified',
+      );
+      expect(result.findings[0]?.comparison).toBe('UNKNOWN');
+      expect(result.findings[0]?.reason).toContain('invalid');
+      expect(result.fabrication_approval).toBe(false);
+    }
   });
 
   it('explicitly distinguishes process violations from within-declared bounds', () => {
