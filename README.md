@@ -109,7 +109,7 @@ For advanced configurations, manual instructions, and specific clients, see [Ins
 
 ## Overview
 
-easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes 125 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, Personal Device metadata, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
+easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes 126 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, Personal Device metadata, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
 
 The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling real-time access to open project data. It integrates with JLCPCB, LCSC, Mouser, and DigiKey for BOM sourcing and pricing.
 
@@ -594,11 +594,11 @@ The server registers profile-gated tools according to the active `TOOL_PROFILE`.
 
 | Profile        | Registered tools |
 | -------------- | ---------------: |
-| `core`         |               76 |
-| `pro`          |              103 |
-| `full`         |              119 |
-| `dev`          |              124 |
-| `experimental` |              125 |
+| `core`         |               77 |
+| `pro`          |              104 |
+| `full`         |              120 |
+| `dev`          |              125 |
+| `experimental` |              126 |
 
 <!-- capability-counts:end -->
 
@@ -703,7 +703,7 @@ The schematic write APIs use EasyEDA Pro extension APIs that EasyEDA currently m
 │  (via Plugin)    │     Protocol      │  └───────────────┘  │
 └─────────────────┘                    │  ┌───────────────┐  │
                                        │  │  ToolRegistry  │  │
-                                       │  │ (up to 125 tools) │ │
+                                       │  │ (up to 126 tools) │ │
                                        │  └───────────────┘  │
                                        │  ┌───────────────┐  │
                                        │  │    Storage     │──┼──► SQLite
