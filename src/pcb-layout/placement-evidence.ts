@@ -90,6 +90,60 @@ function angularDifference(a: number, b: number): number {
   return Math.min(delta, 360 - delta);
 }
 
+function applyDistanceConstraint(
+  relation: PlacementRelation,
+  distanceMm: number,
+  finding: PlacementFinding,
+  reasons: string[],
+): void {
+  const limit = relation.maxCenterDistanceMm;
+  if (limit === undefined) return;
+  if (!Number.isFinite(limit) || limit < 0) {
+    finding.reasons.push('Caller-declared maximum component-origin distance is invalid.');
+    return;
+  }
+  finding.declared_max_center_distance_mm = limit;
+  if (distanceMm > limit + 1e-9) {
+    reasons.push('Observed component-origin distance exceeds the caller-declared limit.');
+  }
+}
+
+function applyRotationConstraint(
+  relation: PlacementRelation,
+  first: NativePlaced,
+  finding: PlacementFinding,
+  reasons: string[],
+): void {
+  const target = relation.firstRotationDeg;
+  const tolerance = relation.rotationToleranceDeg;
+  if (target === undefined) {
+    if (tolerance !== undefined) {
+      finding.reasons.push('Rotation tolerance is declared without a rotation target.');
+    }
+    return;
+  }
+  if (!Number.isFinite(target)) {
+    finding.reasons.push('Caller-declared rotation target is invalid.');
+    return;
+  }
+  finding.declared_first_rotation_deg = target;
+  if (
+    tolerance !== undefined &&
+    (!Number.isFinite(tolerance) || tolerance < 0 || tolerance > 180)
+  ) {
+    finding.reasons.push('Caller-declared rotation tolerance is invalid.');
+    return;
+  }
+  if (!Number.isFinite(first.rotation)) {
+    finding.reasons.push('First component native rotation is missing.');
+    return;
+  }
+  // Numerical angular tolerance prevents floating-point-only threshold warnings.
+  if (angularDifference(first.rotation as number, target) > (tolerance ?? 0) + 1e-9) {
+    reasons.push('Observed rotation exceeds the explicitly declared angular tolerance.');
+  }
+}
+
 function compareComponentOrigins(
   relation: PlacementRelation,
   first: NativePlaced,
@@ -103,26 +157,11 @@ function compareComponentOrigins(
   base.native_layers = [first.layer, second.layer];
   if (Number.isFinite(first.rotation)) base.first_rotation_deg = first.rotation;
   const reasons: string[] = [];
-  if (relation.maxCenterDistanceMm !== undefined) {
-    base.declared_max_center_distance_mm = relation.maxCenterDistanceMm;
-    if (distanceMm > relation.maxCenterDistanceMm) {
-      reasons.push('Observed component-origin distance exceeds the caller-declared limit.');
-    }
-  }
+  applyDistanceConstraint(relation, distanceMm, base, reasons);
   if (relation.requireSameLayer && first.layer !== second.layer) {
     reasons.push('Native component layers differ; caller required the same native layer.');
   }
-  if (relation.firstRotationDeg !== undefined) {
-    base.declared_first_rotation_deg = relation.firstRotationDeg;
-    if (!Number.isFinite(first.rotation)) {
-      base.reasons.push('First component native rotation is missing.');
-    } else if (
-      angularDifference(first.rotation as number, relation.firstRotationDeg) >
-      (relation.rotationToleranceDeg ?? 0)
-    ) {
-      reasons.push('Observed rotation exceeds the explicitly declared angular tolerance.');
-    }
-  }
+  applyRotationConstraint(relation, first, base, reasons);
   if (reasons.length) base.status = 'WARNING';
   base.reasons.push(...reasons);
   base.reasons.push(

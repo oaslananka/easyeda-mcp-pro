@@ -14,7 +14,11 @@
         "section": "Absolute maximum voltage"
       }
     },
-    "expected": { "status": "WARNING", "net": "5V", "pins": ["VDD"] }
+    "expected": {
+      "status": "WARNING",
+      "net": "5V",
+      "pins": ["VDD"]
+    }
   },
   {
     "id": "digital-io-overvoltage-against-declared-io-domain",
@@ -31,7 +35,11 @@
         "section": "IO voltage range"
       }
     },
-    "expected": { "status": "WARNING", "net": "5V", "pins": ["GPIO"] }
+    "expected": {
+      "status": "WARNING",
+      "net": "5V",
+      "pins": ["GPIO"]
+    }
   },
   {
     "id": "pin-wired-to-unexpected-rail",
@@ -48,7 +56,11 @@
         "section": "Supply pin map"
       }
     },
-    "expected": { "status": "WARNING", "net": "5V", "pins": ["VDD"] }
+    "expected": {
+      "status": "WARNING",
+      "net": "5V",
+      "pins": ["VDD"]
+    }
   },
   {
     "id": "legitimate-intentional-nc-without-wired-net",
@@ -64,7 +76,10 @@
         "section": "Do not connect"
       }
     },
-    "expected": { "status": "UNKNOWN", "pins": ["NC"] }
+    "expected": {
+      "status": "UNKNOWN",
+      "pins": ["NC"]
+    }
   },
   {
     "id": "nc-declared-but-connected-to-rail",
@@ -80,7 +95,11 @@
         "section": "Do not connect"
       }
     },
-    "expected": { "status": "WARNING", "net": "5V", "pins": ["NCCONNECTED"] }
+    "expected": {
+      "status": "WARNING",
+      "net": "5V",
+      "pins": ["NCCONNECTED"]
+    }
   },
   {
     "id": "required-decoupling-component-not-listed",
@@ -98,7 +117,11 @@
         "section": "External components"
       }
     },
-    "expected": { "status": "UNKNOWN", "net": "5V", "pins": ["VDD"] }
+    "expected": {
+      "status": "UNKNOWN",
+      "net": "5V",
+      "pins": ["VDD"]
+    }
   },
   {
     "id": "regulator-has-insufficient-declared-headroom",
@@ -116,7 +139,11 @@
         "section": "Dropout limits"
       }
     },
-    "expected": { "status": "WARNING", "net": "5V", "pins": ["IN", "OUT"] }
+    "expected": {
+      "status": "WARNING",
+      "net": "5V",
+      "pins": ["IN", "OUT"]
+    }
   },
   {
     "id": "supply-rail-name-without-explicit-voltage",
@@ -133,7 +160,11 @@
         "section": "VREF range"
       }
     },
-    "expected": { "status": "UNKNOWN", "net": "3V3_NOMINAL", "pins": ["VREF"] }
+    "expected": {
+      "status": "UNKNOWN",
+      "net": "3V3_NOMINAL",
+      "pins": ["VREF"]
+    }
   },
   {
     "id": "in-range-is-never-physical-approval",
@@ -150,6 +181,74 @@
         "section": "Output voltage"
       }
     },
-    "expected": { "status": "UNKNOWN", "net": "3V3", "pins": ["OUT"] }
+    "expected": {
+      "status": "UNKNOWN",
+      "net": "3V3",
+      "pins": ["OUT"]
+    }
+  },
+  {
+    "id": "pin-upper-voltage-exact-declared-boundary",
+    "constraint": {
+      "kind": "pin_voltage",
+      "componentRef": "U1",
+      "pin": "VDD",
+      "maxVoltageV": 5,
+      "reference": {
+        "partNumber": "EXAMPLE-U1",
+        "package": "QFN-32",
+        "revision": "rev-A",
+        "source": "Hypothetical device datasheet",
+        "section": "Absolute maximum voltage"
+      }
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "net": "5V",
+      "pins": ["VDD"]
+    }
+  },
+  {
+    "id": "pin-lower-voltage-exact-declared-boundary",
+    "constraint": {
+      "kind": "pin_voltage",
+      "componentRef": "U2",
+      "pin": "OUT",
+      "reference": {
+        "partNumber": "EXAMPLE-U2",
+        "package": "SOT-23-5",
+        "revision": "rev-B",
+        "source": "Hypothetical regulator datasheet",
+        "section": "Output voltage"
+      },
+      "minVoltageV": 3.3
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "net": "3V3",
+      "pins": ["OUT"]
+    }
+  },
+  {
+    "id": "regulator-headroom-exact-declared-boundary",
+    "constraint": {
+      "kind": "regulator_headroom",
+      "componentRef": "U2",
+      "inputPin": "IN",
+      "outputPin": "OUT",
+      "minHeadroomV": 1.7,
+      "reference": {
+        "partNumber": "EXAMPLE-U2",
+        "package": "SOT-23-5",
+        "revision": "rev-B",
+        "source": "Hypothetical regulator datasheet",
+        "section": "Dropout limits"
+      }
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "net": "5V",
+      "pins": ["IN", "OUT"]
+    }
   }
 ]

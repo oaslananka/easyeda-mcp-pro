@@ -21,7 +21,7 @@ const cases = JSON.parse(
 
 describe('read-only origin-based placement relationship observations', () => {
   it('maintains distinct deterministic cases covering the requested functional relationships', () => {
-    expect(cases.length).toBe(7);
+    expect(cases.length).toBe(9);
     expect(new Set(cases.map((item) => item.id)).size).toBe(cases.length);
   });
 
@@ -107,6 +107,54 @@ describe('read-only origin-based placement relationship observations', () => {
     expect(result.status).toBe('UNKNOWN');
     expect(result.findings[0]?.native_layers).toEqual([1, 2]);
     expect(result.limitations.join(' ')).toMatch(/top\/bottom/);
+  });
+
+  it('reports invalid caller distance limits instead of silently treating them as satisfied', () => {
+    const { components, relation } = cases[0]!;
+    for (const maxCenterDistanceMm of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      const result = reviewPlacementRelations(
+        [{ ...relation, maxCenterDistanceMm }],
+        components,
+        components.length,
+        true,
+      );
+      const finding = result.findings[0];
+      expect(finding?.status).toBe('UNKNOWN');
+      expect(finding?.reasons.join(' ')).toMatch(/invalid/i);
+      expect(finding?.declared_max_center_distance_mm).toBeUndefined();
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('reports invalid or incomplete caller rotation targets and tolerances', () => {
+    const { components, relation } = cases[3]!;
+    for (const firstRotationDeg of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      const result = reviewPlacementRelations(
+        [{ ...relation, firstRotationDeg }],
+        components,
+        components.length,
+        true,
+      );
+      expect(result.findings[0]?.reasons.join(' ')).toMatch(/invalid/i);
+      expect(result.findings[0]?.declared_first_rotation_deg).toBeUndefined();
+    }
+    for (const rotationToleranceDeg of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      const result = reviewPlacementRelations(
+        [{ ...relation, firstRotationDeg: 270, rotationToleranceDeg }],
+        components,
+        components.length,
+        true,
+      );
+      expect(result.findings[0]?.status).toBe('UNKNOWN');
+      expect(result.findings[0]?.reasons.join(' ')).toMatch(/invalid/i);
+    }
+    const withoutTarget = reviewPlacementRelations(
+      [{ ...relation, firstRotationDeg: undefined, rotationToleranceDeg: 10 }],
+      components,
+      components.length,
+      true,
+    );
+    expect(withoutTarget.findings[0]?.reasons.join(' ')).toMatch(/without a rotation target/i);
   });
 
   it('compares rotation modulo 360 but requires explicitly declared limits', () => {
