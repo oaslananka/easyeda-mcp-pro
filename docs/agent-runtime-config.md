@@ -61,6 +61,22 @@ For HTTP transport, use an explicit transport environment:
 TRANSPORT=http HTTP_HOST=127.0.0.1 HTTP_PORT=3000 npx easyeda-mcp-pro
 ```
 
+## Source-aware engineering review
+
+Use the canonical phase router at
+[`skills/design-validation/references/engineering-review.md`](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/skills/design-validation/references/engineering-review.md)
+for requirements → exact-part evidence → ERC → power/placement → DRC →
+DFM/DFT → human review. Select the relevant phase and consult registered
+lookup topics only as needed. In particular, `datasheetConstraints`,
+`isolation-emc-review` and `manufacturerProfile` are caller-declared evidence
+comparisons, not native/datasheet/manufacturer certification.
+
+OpenCode's `design-validation` and `easyeda-workflow` copies mirror the canonical
+skill instructions. Other client wrappers point to their existing canonical
+skills, rather than maintaining separate engineering rule catalogs. The MCP
+Skills pilot publishes only audited `design-validation` and
+`easyeda-component-review`; it does not turn guidance into an approval gate.
+
 ## Component datasheet, footprint and model review
 
 Use `skills/easyeda-component-review/SKILL.md` to review a design component against

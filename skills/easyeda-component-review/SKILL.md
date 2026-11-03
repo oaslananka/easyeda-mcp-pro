@@ -13,6 +13,17 @@ Read [the review procedure and input contract](references/review-process.md)
 when collecting assets or preparing a report. The bundled Node helpers have no
 third-party dependencies and never call MCP, upload evidence or write a Device.
 
+## Circuit-level engineering handoff
+
+When a component review also involves its actual schematic power pins,
+I/O limits, NC, support network, or PCB manufacturing context, load
+`skills/design-validation/references/engineering-review.md` on demand and
+route to the _existing_ `easyeda_semantic_erc_validate` or
+`easyeda_pcb_production_review` as appropriate. Component drawing/footprint
+checks here do not validate complete circuit connectivity, real rail values,
+PCB return paths or factory capabilities. Keep device/library metadata writes
+subject to the separate Personal Device approval and native readback gates.
+
 ## Identify and capture
 
 1. Confirm `easyeda_health_check` and the available tool profile. Inspect the

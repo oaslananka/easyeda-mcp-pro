@@ -7,6 +7,16 @@ description: Plan, preview, apply, and verify professional EasyEDA Pro schematic
 
 Use this skill for schematic layout work through EasyEDA MCP Pro. Treat layout as a constrained engineering workflow, not coordinate styling. Read-only inspection may start immediately; request the user's explicit approval before the first schematic write.
 
+## Engineering evidence handoff
+
+For schematic placement following component/datasheet review or before power,
+PCB routing and DRC validation, use the existing staged router at
+`skills/design-validation/references/engineering-review.md`. This
+layout skill enforces geometry/preview/write/readback discipline and never
+authenticates pin electrical limits, live pad-net continuity, physical
+high-frequency return paths or a manufacturer's process profile. Do not
+promote suggested proximity or model-guessed geometry into electrical proof.
+
 ## Non-negotiable policies
 
 - `PAGE_GEOMETRY_REQUIRED`: read health, bridge, project, active document, sheet bounds, drawable bounds, grid, frame, coordinate origin, and title-block bounds before any placement write.

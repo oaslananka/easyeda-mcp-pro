@@ -36,6 +36,21 @@ Collect:
 - User approval for any write operation
 - Output directory requirements for exports
 
+## Engineering review handoff
+
+For requests spanning electronics requirements, schematic/ERC, layout,
+routing/DRC, DFM/DFT and final validation, load the canonical
+`skills/design-validation/references/engineering-review.md` **on demand**.
+Keep `design-validation` as the validation skill and this skill as the
+transport, focused-document and controlled-write workflow. The reference
+routes to registered lookup topics and tools, not another agent or rule store.
+
+A declared datasheet limit or factory process profile is not a verified
+manufacturer source; a generic routing recommendation is not native DRC.
+Report ERROR/WARNING/UNKNOWN separately. No skill instruction substitutes for
+actual MCP `confirmWrite`, user write approval, remote scope/approval, native
+readback or human fabrication/sign-off controls.
+
 ## Primary MCP tools
 
 ### Diagnostics and capability discovery

@@ -37,6 +37,29 @@ Collect:
 - Export directory and artifact requirements
 - Existing waivers or accepted risks
 
+## Staged engineering evidence routing
+
+For mixed schematic/PCB/release requests, follow the **one canonical, on-demand**
+[engineering phase router](references/engineering-review.md): requirements and
+focused document → exact component/datasheet → schematic/ERC → power and
+placement → routed PCB/DRC → source-versioned DFM/DFT → documented human
+review. Select only requested phases; do not load unrelated standard catalogs.
+
+- The existing `easyeda_semantic_erc_validate` can accept caller-declared
+  `datasheetConstraints` for exact part/package/revision and pin/rail evidence.
+  Native ERC is aggregate; the declared review is neither a live EasyEDA
+  readback nor independent datasheet authentication.
+- `easyeda_design_rules_lookup` has on-demand `trace-current-review`,
+  `protocol-routing`, `decoupling`, `dfm-checklist` and
+  `isolation-emc-review` topics; distinguish guidance from measured facts.
+- `easyeda_pcb_production_review` accepts an optional manufacturer/process
+  `manufacturerProfile` with revision and source. A within-declared-limit
+  observation is not fabrication approval; missing native geometry is UNKNOWN.
+- Agent sequencing, checking standard applicability, exact datasheet sources,
+  complete return paths and human sign-off are **skill guidance**, not
+  automatically enforced MCP compliance gates. Respect profile permissions,
+  `confirmWrite` and readback on every requested mutation.
+
 ## Primary MCP tools
 
 ### Health and capability checks
