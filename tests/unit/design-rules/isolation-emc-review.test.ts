@@ -25,7 +25,7 @@ const fixtures = JSON.parse(
 
 describe('contextual isolation, creepage and ESD/EMC observations', () => {
   it('maintains independent explicit source scenarios without numeric standard tables', () => {
-    expect(fixtures).toHaveLength(10);
+    expect(fixtures).toHaveLength(12);
     expect(new Set(fixtures.map((entry) => entry.id)).size).toBe(fixtures.length);
   });
 
@@ -46,6 +46,35 @@ describe('contextual isolation, creepage and ESD/EMC observations', () => {
     expect(result.findings.every((f) => f.status === 'UNKNOWN' || f.status === 'WARNING')).toBe(
       true,
     );
+  });
+
+  it('requires qualified review for invalid context even when the other fields are present', () => {
+    const complete = fixtures[6]!.review;
+    expect(reviewIsolationEmc(complete).context_missing).toEqual([]);
+    const cases = [
+      ['workingVoltageV', Number.NaN, 'working voltage'],
+      ['workingVoltageV', -1, 'working voltage'],
+      ['transientVoltageV', Number.POSITIVE_INFINITY, 'transient/impulse voltage'],
+      ['transientVoltageV', -0.1, 'transient/impulse voltage'],
+      ['altitudeM', Number.NaN, 'installation altitude'],
+      ['altitudeM', Number.POSITIVE_INFINITY, 'installation altitude'],
+      ['pollutionDegree', 0, 'pollution degree'],
+      ['pollutionDegree', 5, 'pollution degree'],
+      ['pollutionDegree', 1.5, 'pollution degree'],
+    ] as const;
+    for (const [name, value, label] of cases) {
+      const review = reviewIsolationEmc({ ...complete, [name]: value });
+      expect(review.context_missing).toContain(label);
+      expect(review.findings.find((item) => item.id === 'INSULATION_CONTEXT')?.missing).toContain(
+        label,
+      );
+      expect(review.qualified_review_required).toBe(true);
+      expect(review.safety_certification).toBe(false);
+      expect(review.engineering_sign_off).toBe(false);
+    }
+    const belowSeaLevel = reviewIsolationEmc({ ...complete, altitudeM: -10 });
+    expect(belowSeaLevel.context_missing).toEqual([]);
+    expect(belowSeaLevel.qualified_review_required).toBe(false);
   });
 
   it('fails closed on corrupt measurement and declared spacing limits', () => {

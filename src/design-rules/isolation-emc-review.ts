@@ -150,20 +150,28 @@ function reviewSpacing(
   };
 }
 
+function validContextVoltage(value: number | undefined): boolean {
+  return value !== undefined && Number.isFinite(value) && value >= 0;
+}
+
+function validPollutionDegree(value: number | undefined): boolean {
+  return value !== undefined && Number.isInteger(value) && value >= 1 && value <= 4;
+}
+
 function missingContext(input: IsolationEmcInput): string[] {
   const missing: string[] = [];
   if (input.purpose === undefined || input.purpose === 'unspecified') {
     missing.push('insulation purpose (functional/basic/supplementary/reinforced)');
   }
-  if (input.workingVoltageV === undefined) missing.push('working voltage');
-  if (input.transientVoltageV === undefined) missing.push('transient/impulse voltage');
+  if (!validContextVoltage(input.workingVoltageV)) missing.push('working voltage');
+  if (!validContextVoltage(input.transientVoltageV)) missing.push('transient/impulse voltage');
   if (input.environment === undefined || input.environment === 'unspecified') {
     missing.push('environment and condensation exposure');
   }
-  if (input.pollutionDegree === undefined) missing.push('pollution degree');
+  if (!validPollutionDegree(input.pollutionDegree)) missing.push('pollution degree');
   if (input.overvoltageCategory === undefined) missing.push('overvoltage category');
   if (input.materialGroup === undefined) missing.push('insulating material group / CTI');
-  if (input.altitudeM === undefined) missing.push('installation altitude');
+  if (!Number.isFinite(input.altitudeM)) missing.push('installation altitude');
   if (input.safetyStandard === undefined)
     missing.push('applicable safety standard, edition and clause');
   return missing;
