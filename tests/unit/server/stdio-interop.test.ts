@@ -1,4 +1,7 @@
-import { resolve } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/client';
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { describe, expect, it } from 'vitest';
@@ -18,6 +21,53 @@ function transport(modernEnabled: boolean): StdioClientTransport {
       MCP_V2_EXPERIMENTAL: String(modernEnabled),
       TOOL_PROFILE: 'core',
       LOG_LEVEL: 'silent',
+    },
+  });
+}
+
+async function freeLoopbackPort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((accept, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', accept);
+  });
+  const address = server.address();
+  if (typeof address !== 'object' || address === null) {
+    server.close();
+    throw new Error('Expected IPv4 loopback address');
+  }
+  await new Promise<void>((accept, reject) => {
+    server.close((error) => (error ? reject(error) : accept()));
+  });
+  return address.port;
+}
+
+function disconnectedLocalTransport(
+  modernEnabled: boolean,
+  port: number,
+  directory: string,
+): StdioClientTransport {
+  return new StdioClientTransport({
+    command: process.execPath,
+    args: [tsxCli, 'src/index.ts'],
+    cwd: process.cwd(),
+    stderr: 'pipe',
+    env: {
+      ...getDefaultEnvironment(),
+      TRANSPORT: 'stdio',
+      MCP_BRIDGE_BACKEND: 'local_bridge',
+      MCP_V2_EXPERIMENTAL: String(modernEnabled),
+      BRIDGE_PORT: String(port),
+      BRIDGE_PORT_SCAN: String(port) + '-' + String(port),
+      BRIDGE_WAIT_FOR_EDA_MS: '0',
+      TOOL_PROFILE: 'core',
+      LOG_LEVEL: 'silent',
+      DATA_DIR: directory,
+      JLCSEARCH_ENABLED: 'false',
+      KEYLESS_SOURCING_ENABLED: 'false',
+      JLCPCB_MODE: 'disabled',
+      MOUSER_ENABLED: 'false',
+      DIGIKEY_ENABLED: 'false',
     },
   });
 }
@@ -52,4 +102,52 @@ describe('stdio protocol interop', () => {
       await client.close();
     }
   }, 30_000);
+
+  it.each([false, true])(
+    'does not invent PCB findings or approval without a local editor (modern=%s)',
+    async (modernEnabled) => {
+      const directory = await mkdtemp(join(tmpdir(), 'easyeda-mcp-stdio-no-editor-'));
+      const client = new Client(
+        { name: 'disconnected-native-evidence', version: '1.0.0' },
+        modernEnabled ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : undefined,
+      );
+      try {
+        const port = await freeLoopbackPort();
+        await client.connect(disconnectedLocalTransport(modernEnabled, port, directory));
+        if (modernEnabled) {
+          expect(client.getNegotiatedProtocolVersion()).toBe('2026-07-28');
+        }
+        const tools = (await client.listTools()).tools;
+        for (const name of ['easyeda_bridge_status', 'easyeda_engineering_review']) {
+          expect(tools.find((tool) => tool.name === name)?.annotations?.readOnlyHint).toBe(true);
+        }
+        const status = await client.callTool({ name: 'easyeda_bridge_status', arguments: {} });
+        expect(status.isError).not.toBe(true);
+        expect(status.structuredContent).toMatchObject({ connected: false });
+
+        const review = await client.callTool({
+          name: 'easyeda_engineering_review',
+          arguments: { projectId: 'isolated-no-editor-fixture' },
+        });
+        expect(review.isError).not.toBe(true);
+        expect(review.structuredContent).toMatchObject({
+          overall_status: 'UNKNOWN',
+          pcb_context: 'unverified',
+          engineering_sign_off: false,
+          summary: { PASS: 0, FAIL: 0 },
+        });
+        const observed = review.structuredContent as {
+          input_evidence: { quality: string }[];
+          summary: { UNKNOWN: number };
+        };
+        expect(observed.summary.UNKNOWN).toBeGreaterThan(0);
+        expect(observed.input_evidence.length).toBeGreaterThan(0);
+        expect(observed.input_evidence.every((item) => item.quality !== 'measured')).toBe(true);
+      } finally {
+        await client.close();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+    45_000,
+  );
 });
