@@ -74,3 +74,78 @@ general acceptance procedure, see
 [engineering review live acceptance](./development/engineering-review-live-acceptance.md).
 Mock tests demonstrate software contracts, not live runtime compatibility
 or physical/electrical correctness.
+
+## Differential pair review (explicit opt-in)
+
+The **same** read-only tool supports an optional `differentialPair` declaration.
+It does not guess which nets form a pair, or apply a universal impedance,
+spacing or length-matching threshold. State both exact native net names, one
+protocol reference, and **only** limits justified by the target device
+datasheet or actual PCB manufacturer.
+
+```json
+{
+  "projectId": "your-exact-native-project-uuid",
+  "intent": "high-speed",
+  "differentialPair": {
+    "positiveNet": "USB_D+",
+    "negativeNet": "USB_D-",
+    "protocol": "usb2",
+    "maxSkewMm": 0.6,
+    "minEdgeGapMm": 0.15,
+    "maxEdgeGapMm": 0.35,
+    "targetImpedanceOhms": 90
+  }
+}
+```
+
+This is an **example with hypothetical, caller-declared limits**, not a
+manufacturer recommendation. The source of each limit must be established
+separately. For LVDS and other device-specific interfaces use
+`protocol: "custom"`, an explicit device-defined target and no assumed
+universal threshold. Protocol references originate from the canonical
+`src/design-rules/protocol-routing.ts` catalog, shared with
+`easyeda_design_rules_lookup`; the model does not recreate the standard.
+
+The optional `differential_pair` result reports both native net identities,
+observed segment counts/primitive IDs, physical length in **mm**, and
+the observed length difference. A bounded `OBSERVED_SINGLE_CHAIN` means
+only that the **visible track primitives** form one unbranched single-layer
+chain without a reported same-net via; it is _not_ a verified PHY-to-connector
+signal path. Missing nets, disjoint/branched paths, unsupported geometry,
+same-net via transitions, incomplete native reads and version mismatches
+produce `MISSING`/`AMBIGUOUS`/`UNAVAILABLE` with **UNKNOWN** skew.
+
+A supplied `maxSkewMm` is compared only when both chains are available.
+`WITHIN_DECLARED_LIMIT_REFERENCE` means an observed line-segment comparison
+meets the _supplied_ limit; it never means verified end-to-end performance.
+`WARNING` denotes an observed threshold exceedance or missing declared
+net in a complete read. Without a caller-supplied bound, the tool reports
+the length delta without an electrical pass/fail decision.
+
+For **parallel, overlapping, same-layer** trace segments, the tool samples
+edge-to-edge copper separation (native centerline spacing minus half of
+both line widths). Only those samples are compared against the supplied
+`minEdgeGapMm`/`maxEdgeGapMm`; perpendicular or nonoverlapping paths
+cannot establish spacing. The result includes sample count and observed
+min/max values in mm. It does not infer complete differential coupling
+or spacing continuity from a few samples.
+
+**Impedance is always UNKNOWN** unless a separate, source-bound dielectric,
+finished-copper and stackup model with justified field-solver/manufacturer
+evidence is supplied by a future validated capability. A referenced
+USB/Ethernet/RS-485 nominal impedance or a caller target is _not_ calculated
+impedance. Reference-plane continuity, copper zones, launch/connector
+transitions, propagation-delay skew and SI/EMC compliance remain unverified.
+The tool does not execute DRC or mutate the EasyEDA PCB.
+
+### Source-bound acceptance cases
+
+Use a disposable, exact-version EasyEDA Pro PCB with clearly declared net
+pairs to verify: a complete geometric pair within a _declared_ skew/spacing
+bound; a known skew exceedance; a deliberately tight/wide parallel gap;
+one absent native net; branched/disconnected routing; via/layer transition;
+missing stackup and unsupported pours. Record the source revision, extension
+checksum, actual editor version, native project identity and no-write
+read-back as described in the general live acceptance checklist. Until
+then, the deterministic tests demonstrate software behavior only.

@@ -1,0 +1,377 @@
+import { lookupProtocolRouting, type ProtocolKey } from '../design-rules/protocol-routing.js';
+import type { NativeTrack, NativeVia } from './route-review.js';
+
+const MIL_TO_MM = 0.0254;
+
+/** Explicitly declared nets and thresholds; never inferred from protocol defaults. */
+export interface DifferentialPairDeclaration {
+  positiveNet: string;
+  negativeNet: string;
+  protocol: ProtocolKey | 'custom';
+  maxSkewMm?: number;
+  minEdgeGapMm?: number;
+  maxEdgeGapMm?: number;
+  targetImpedanceOhms?: number;
+}
+
+type NetCoverage = 'MISSING' | 'UNAVAILABLE' | 'OBSERVED_SINGLE_CHAIN' | 'AMBIGUOUS';
+type Assessment = 'WARNING' | 'UNKNOWN' | 'WITHIN_DECLARED_LIMIT_REFERENCE';
+
+export interface PairNetLength {
+  net: string;
+  coverage: NetCoverage;
+  segment_count: number;
+  primitive_ids: string[];
+  observed_length_mm?: number;
+  single_layer?: number;
+}
+
+export interface PairMeasurement {
+  status: Assessment;
+  observed_mm?: number;
+  declared_limit_mm?: number;
+  note: string;
+}
+
+export interface DifferentialPairReview {
+  status: 'WARNING' | 'UNKNOWN';
+  nets: { positive: string; negative: string };
+  protocol: string;
+  protocol_guidance: {
+    source: string;
+    caveat: string;
+    differential_impedance_reference_ohms?: number;
+  } | null;
+  target_impedance_ohms?: number;
+  impedance_status: 'UNKNOWN';
+  evidence: 'native_segments_not_field_solver_or_full_route';
+  length_units: 'mm';
+  coordinate_units: 'mil';
+  paths: { positive: PairNetLength; negative: PairNetLength };
+  skew: PairMeasurement;
+  spacing: PairMeasurement & { observed_max_mm?: number; sample_count: number };
+  findings: Array<{
+    id: string;
+    status: 'WARNING' | 'UNKNOWN';
+    message: string;
+    net?: string;
+    primitive_ids: string[];
+  }>;
+  limitations: string[];
+  engineering_sign_off: false;
+}
+
+type Sample = { id: string; lengthMil: number; start: string; end: string; layer: number };
+type Geometry = NativeTrack & {
+  primitiveId: string;
+  net: string;
+  layer: number;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  width: number;
+};
+
+function isGeometry(track: NativeTrack): track is Geometry {
+  return (
+    typeof track.primitiveId === 'string' &&
+    track.primitiveId.length > 0 &&
+    typeof track.net === 'string' &&
+    track.net.length > 0 &&
+    Number.isInteger(track.layer) &&
+    Number.isFinite(track.startX) &&
+    Number.isFinite(track.startY) &&
+    Number.isFinite(track.endX) &&
+    Number.isFinite(track.endY) &&
+    typeof track.width === 'number' &&
+    Number.isFinite(track.width) &&
+    track.width > 0 &&
+    (track.startX !== track.endX || track.startY !== track.endY)
+  );
+}
+
+function geometrySample(track: Geometry): Sample {
+  return {
+    id: track.primitiveId,
+    lengthMil: Math.hypot(track.endX - track.startX, track.endY - track.startY),
+    start: JSON.stringify([track.layer, track.startX, track.startY]),
+    end: JSON.stringify([track.layer, track.endX, track.endY]),
+    layer: track.layer,
+  };
+}
+
+function isSingleUnbranchedChain(segments: Sample[]): boolean {
+  const adjacency = new Map<string, number[]>();
+  segments.forEach((segment, index) => {
+    for (const key of [segment.start, segment.end]) {
+      adjacency.set(key, [...(adjacency.get(key) || []), index]);
+    }
+  });
+  const ends = [...adjacency.values()].filter((edges) => edges.length === 1).length;
+  if (ends !== 2 || [...adjacency.values()].some((edges) => edges.length > 2)) {
+    return false;
+  }
+  const visited = new Set<number>();
+  const pending = [0];
+  while (pending.length) {
+    const index = pending.pop();
+    if (index === undefined || visited.has(index)) continue;
+    visited.add(index);
+    const segment = segments[index];
+    if (!segment) continue;
+    for (const key of [segment.start, segment.end]) {
+      for (const neighbor of adjacency.get(key) || []) {
+        if (!visited.has(neighbor)) pending.push(neighbor);
+      }
+    }
+  }
+  return visited.size === segments.length;
+}
+
+function netLength(
+  name: string,
+  tracks: NativeTrack[],
+  vias: NativeVia[],
+  complete: boolean,
+): PairNetLength {
+  const matching = tracks.filter((track) => track.net === name);
+  const primitiveIds = matching
+    .map((track) => track.primitiveId || '')
+    .filter(Boolean)
+    .sort();
+  const base = { net: name, segment_count: matching.length, primitive_ids: primitiveIds };
+  if (!complete) return { ...base, coverage: 'UNAVAILABLE' };
+  if (!matching.length) return { ...base, coverage: 'MISSING' };
+  if (
+    matching.some((track) => !isGeometry(track)) ||
+    vias.some((via) => via.net === name) ||
+    new Set(primitiveIds).size !== matching.length
+  ) {
+    return { ...base, coverage: 'AMBIGUOUS' };
+  }
+  const segments = (matching as Geometry[]).map(geometrySample);
+  const layers = new Set(segments.map((sample) => sample.layer));
+  if (layers.size !== 1) return { ...base, coverage: 'AMBIGUOUS' };
+  if (!isSingleUnbranchedChain(segments)) return { ...base, coverage: 'AMBIGUOUS' };
+  const mil = segments.reduce((sum, segment) => sum + segment.lengthMil, 0);
+  return {
+    ...base,
+    coverage: 'OBSERVED_SINGLE_CHAIN',
+    observed_length_mm: mil * MIL_TO_MM,
+    single_layer: segments[0]?.layer,
+  };
+}
+
+/**
+ * Edge-to-edge separation for one observed pair of parallel, overlapping
+ * line segments on the same layer. No extrapolation beyond their overlap.
+ */
+function parallelEdgeGapMil(a: Geometry, b: Geometry): number | undefined {
+  if (a.layer !== b.layer) return undefined;
+  const dx = a.endX - a.startX,
+    dy = a.endY - a.startY;
+  const ex = b.endX - b.startX,
+    ey = b.endY - b.startY;
+  const lenA = Math.hypot(dx, dy),
+    lenB = Math.hypot(ex, ey);
+  if (lenA <= 0 || lenB <= 0) return undefined;
+  const ux = dx / lenA,
+    uy = dy / lenA;
+  // Require truly parallel finite segments, rather than approximating a
+  // varying distance between nonparallel centre lines.
+  if (Math.abs(ux * ey - uy * ex) / lenB > 1e-7) return undefined;
+  const projectionA = (b.startX - a.startX) * ux + (b.startY - a.startY) * uy;
+  const projectionB = (b.endX - a.startX) * ux + (b.endY - a.startY) * uy;
+  if (
+    Math.min(lenA, Math.max(projectionA, projectionB)) <=
+    Math.max(0, Math.min(projectionA, projectionB))
+  ) {
+    return undefined;
+  }
+  const centreDistance = Math.abs((b.startX - a.startX) * uy - (b.startY - a.startY) * ux);
+  return centreDistance - (a.width + b.width) / 2;
+}
+
+function parallelGapSamples(positive: Geometry[], negative: Geometry[]): number[] {
+  const gaps: number[] = [];
+  for (const a of positive as Geometry[]) {
+    for (const b of negative as Geometry[]) {
+      const gapMil = parallelEdgeGapMil(a, b);
+      if (gapMil !== undefined) gaps.push(gapMil * MIL_TO_MM);
+    }
+  }
+  return gaps;
+}
+
+function spacingReview(
+  tracks: NativeTrack[],
+  declaration: DifferentialPairDeclaration,
+  complete: boolean,
+): DifferentialPairReview['spacing'] {
+  const unknown = (note: string): DifferentialPairReview['spacing'] => ({
+    status: 'UNKNOWN',
+    note,
+    sample_count: 0,
+  });
+  if (!complete) return unknown('Native track/via collections are unavailable or incomplete.');
+  const positive = tracks.filter((track) => track.net === declaration.positiveNet);
+  const negative = tracks.filter((track) => track.net === declaration.negativeNet);
+  if (
+    !positive.length ||
+    !negative.length ||
+    [...positive, ...negative].some((t) => !isGeometry(t))
+  ) {
+    return unknown('Both nets need valid observed segments before measuring spacing.');
+  }
+  const gaps = parallelGapSamples(positive as Geometry[], negative as Geometry[]);
+  if (!gaps.length)
+    return unknown('No overlapping same-layer parallel segment samples are available.');
+  const minimum = Math.min(...gaps),
+    maximum = Math.max(...gaps);
+  const lower = declaration.minEdgeGapMm;
+  const upper = declaration.maxEdgeGapMm;
+  const outside =
+    (lower !== undefined && minimum < lower) || (upper !== undefined && maximum > upper);
+  return {
+    status: outside
+      ? 'WARNING'
+      : lower !== undefined || upper !== undefined
+        ? 'WITHIN_DECLARED_LIMIT_REFERENCE'
+        : 'UNKNOWN',
+    observed_mm: minimum,
+    observed_max_mm: maximum,
+    sample_count: gaps.length,
+    note: outside
+      ? 'Observed parallel segment gap lies outside the caller-declared spacing range.'
+      : 'Only sampled overlapping parallel segments were compared; other coupling and reference-plane regions remain unverified.',
+  };
+}
+
+function skewReview(
+  positive: PairNetLength,
+  negative: PairNetLength,
+  limit: number | undefined,
+): PairMeasurement {
+  if (
+    positive.coverage !== 'OBSERVED_SINGLE_CHAIN' ||
+    negative.coverage !== 'OBSERVED_SINGLE_CHAIN' ||
+    positive.observed_length_mm === undefined ||
+    negative.observed_length_mm === undefined
+  ) {
+    return {
+      status: 'UNKNOWN',
+      declared_limit_mm: limit,
+      note: 'Missing, branched, via-connected, fragmented or incomplete native paths prevent a trustworthy skew comparison.',
+    };
+  }
+  const difference = Math.abs(positive.observed_length_mm - negative.observed_length_mm);
+  if (limit === undefined) {
+    return {
+      status: 'UNKNOWN',
+      observed_mm: difference,
+      note: 'Observed path-length delta is reported without a declared device-specific skew threshold.',
+    };
+  }
+  return {
+    status: difference > limit ? 'WARNING' : 'WITHIN_DECLARED_LIMIT_REFERENCE',
+    observed_mm: difference,
+    declared_limit_mm: limit,
+    note:
+      difference > limit
+        ? 'Observed single-chain segment-length delta exceeds the declared limit.'
+        : 'Observed single-chain segment-length delta is within the declared limit; pads, propagation delay and end-to-end SI remain unverified.',
+  };
+}
+
+export function reviewDifferentialPair(
+  declaration: DifferentialPairDeclaration,
+  tracks: NativeTrack[],
+  vias: NativeVia[],
+  complete: boolean,
+): DifferentialPairReview {
+  // A native getter can report an empty list when its primitive class is unavailable.
+  // Without any observed tracks, absence of a named pair is not proven.
+  const netListSupported = complete && tracks.length > 0;
+  const positive = netLength(declaration.positiveNet, tracks, vias, netListSupported);
+  const negative = netLength(declaration.negativeNet, tracks, vias, netListSupported);
+  const skew = skewReview(positive, negative, declaration.maxSkewMm);
+  const spacing = spacingReview(tracks, declaration, complete);
+  const guidance =
+    declaration.protocol === 'custom' ? null : lookupProtocolRouting(declaration.protocol);
+  const findings: DifferentialPairReview['findings'] = [];
+  for (const path of [positive, negative]) {
+    if (path.coverage !== 'OBSERVED_SINGLE_CHAIN') {
+      findings.push({
+        id: 'pair:' + path.net + ':coverage',
+        status: path.coverage === 'MISSING' ? 'WARNING' : 'UNKNOWN',
+        message:
+          'Declared net observation: ' + path.coverage + '; do not infer a routed end-to-end pair.',
+        net: path.net,
+        primitive_ids: path.primitive_ids,
+      });
+    }
+  }
+  if (skew.status === 'WARNING') {
+    findings.push({
+      id: 'pair:skew',
+      status: 'WARNING',
+      message: skew.note,
+      primitive_ids: [...positive.primitive_ids, ...negative.primitive_ids],
+    });
+  }
+  if (spacing.status === 'WARNING') {
+    findings.push({
+      id: 'pair:spacing',
+      status: 'WARNING',
+      message: spacing.note,
+      primitive_ids: [...positive.primitive_ids, ...negative.primitive_ids],
+    });
+  }
+  findings.push({
+    id: 'pair:impedance',
+    status: 'UNKNOWN',
+    message:
+      'No verified stackup, dielectric/copper model, field-solver output or manufacturer impedance measurement is available.',
+    primitive_ids: [],
+  });
+  findings.push({
+    id: 'pair:return-path',
+    status: 'UNKNOWN',
+    message:
+      'Native tracks and vias do not prove reference-plane continuity, differential coupling, or actual link signal integrity.',
+    primitive_ids: [],
+  });
+  findings.sort((a, b) => a.id.localeCompare(b.id));
+  return {
+    status: findings.some((item) => item.status === 'WARNING') ? 'WARNING' : 'UNKNOWN',
+    nets: { positive: declaration.positiveNet, negative: declaration.negativeNet },
+    protocol: declaration.protocol,
+    protocol_guidance: guidance && {
+      source: guidance.source,
+      caveat: guidance.caveat,
+      ...(guidance.differentialImpedanceOhms === undefined
+        ? {}
+        : { differential_impedance_reference_ohms: guidance.differentialImpedanceOhms }),
+    },
+    ...(declaration.targetImpedanceOhms === undefined
+      ? {}
+      : { target_impedance_ohms: declaration.targetImpedanceOhms }),
+    impedance_status: 'UNKNOWN',
+    evidence: 'native_segments_not_field_solver_or_full_route',
+    length_units: 'mm',
+    coordinate_units: 'mil',
+    paths: { positive, negative },
+    skew,
+    spacing,
+    findings,
+    limitations: [
+      'Native segment sums and parallel-gap samples do not establish actual end-to-end link topology.',
+      'Reference impedance and protocol guidance never substitute a source-bound stackup model or field solver.',
+      'Only explicit device/datasheet-specific caller limits can produce a skew or spacing warning.',
+      'Via transitions, layer discontinuities, pads, coupled impedance and plane return paths require additional native evidence.',
+      'PCB snapshot is not atomic; missing primitive types and editor/runtime mismatch fail closed.',
+    ],
+    engineering_sign_off: false,
+  };
+}

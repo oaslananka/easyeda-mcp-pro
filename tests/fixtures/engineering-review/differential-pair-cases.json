@@ -1,0 +1,257 @@
+[
+  {
+    "id": "matched-parallel-reference",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 20,
+        "endX": 1020,
+        "endY": 20,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "usb2",
+      "maxSkewMm": 0.6,
+      "minEdgeGapMm": 0.2,
+      "maxEdgeGapMm": 0.3
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "skew": "WITHIN_DECLARED_LIMIT_REFERENCE",
+      "spacing": "WITHIN_DECLARED_LIMIT_REFERENCE",
+      "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
+  },
+  {
+    "id": "skew-over-explicit-device-limit",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 20,
+        "endX": 1100,
+        "endY": 20,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "usb2",
+      "maxSkewMm": 1
+    },
+    "expected": {
+      "status": "WARNING",
+      "skew": "WARNING",
+      "spacing": "UNKNOWN",
+      "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
+  },
+  {
+    "id": "parallel-gap-below-explicit-constraint",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 12,
+        "endX": 1000,
+        "endY": 12,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "usb2",
+      "minEdgeGapMm": 0.15
+    },
+    "expected": {
+      "status": "WARNING",
+      "skew": "UNKNOWN",
+      "spacing": "WARNING",
+      "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
+  },
+  {
+    "id": "declared-net-missing-in-complete-read",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "usb2",
+      "maxSkewMm": 1
+    },
+    "expected": {
+      "status": "WARNING",
+      "skew": "UNKNOWN",
+      "spacing": "UNKNOWN",
+      "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
+      "negativeCoverage": "MISSING"
+    }
+  },
+  {
+    "id": "branching-trace-is-not-a-complete-pair-path",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "p2",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 1000,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 100,
+        "width": 10
+      },
+      {
+        "primitiveId": "p3",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 1000,
+        "startY": 0,
+        "endX": 1100,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 20,
+        "endX": 1000,
+        "endY": 20,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "custom",
+      "maxSkewMm": 0.2
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "skew": "UNKNOWN",
+      "spacing": "UNKNOWN",
+      "positiveCoverage": "AMBIGUOUS",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
+  },
+  {
+    "id": "via-transition-invalidates-single-layer-skew-proof",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 20,
+        "endX": 1000,
+        "endY": 20,
+        "width": 10
+      }
+    ],
+    "vias": [
+      {
+        "primitiveId": "v1",
+        "net": "USB_D+",
+        "x": 1000,
+        "y": 0,
+        "diameter": 20,
+        "holeDiameter": 10
+      }
+    ],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "ethernet-1000",
+      "maxSkewMm": 1
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "skew": "UNKNOWN",
+      "spacing": "UNKNOWN",
+      "positiveCoverage": "AMBIGUOUS",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
+  }
+]
