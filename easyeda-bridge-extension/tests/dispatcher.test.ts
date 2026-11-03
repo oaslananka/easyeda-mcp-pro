@@ -743,6 +743,32 @@ describe('createDispatcher', () => {
     ]);
   });
 
+  // Live (EasyEDA Pro 3.2.209, 2026-11-02): with a second schematic of the
+  // project open, getAll(undefined, true) returns its net flags too; one of
+  // them sitting on a wire end of the focused page put that pin on its net.
+  it('schematic.listNets reads only the focused page, not net flags of other loaded schematics', async () => {
+    const u4 = fakeSchematicPart('U4', [fakeSchematicPin('11', 595, 1155)]);
+    const foreignFlag = fakeNetFlag('V_LED', 605, 1155);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: {
+          getAll: async (_type?: string, allSchematicPages?: boolean) =>
+            allSchematicPages ? [u4, foreignFlag] : [u4],
+        },
+        SCH_PrimitiveWire: {
+          getAll: async () => [fakeWire('w1', 'U4_OUT6', [605, 1155, 595, 1155])],
+        },
+      }),
+    );
+
+    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([
+      {
+        netName: 'U4_OUT6',
+        nodes: [{ component: 'U4', pin: '11', x: 595, y: 1155, source: 'coordinate-fallback' }],
+      },
+    ]);
+  });
+
   it('schematic.listNets retains a zero-node named wire that exists on the page', async () => {
     const dispatcher = createDispatcher(
       makeToolkit({
