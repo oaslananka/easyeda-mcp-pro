@@ -3,6 +3,10 @@ import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import { validatePcbConstraints, buildConstraintReport } from '../pcb-constraints/index.js';
 import type { PcbConstraintInput } from '../pcb-constraints/types.js';
+import {
+  reviewManufacturerProfile,
+  type ManufacturerProfile,
+} from '../pcb-constraints/manufacturing-profile-review.js';
 import type { ReviewObservation } from '../engineering-review/report.js';
 
 export const pcbBoardDataSchema = z.object({
@@ -40,6 +44,64 @@ export const pcbBoardDataSchema = z.object({
   hasHighVoltage: z.boolean().optional(),
   manufacturingProcess: z.string().optional(),
   hasQuantity: z.boolean().optional(),
+});
+
+const boundedMm = z.number().finite().positive().max(10000);
+const productionProcessProfileSchema = z.object({
+  manufacturer: z.string().trim().min(2).max(120),
+  process: z.string().trim().min(2).max(150),
+  revision: z.string().trim().min(1).max(100),
+  source: z.string().trim().min(3).max(500),
+  limits: z
+    .object({
+      minimumFinishedDrillMm: boundedMm.optional(),
+      minimumAnnularRingMm: boundedMm.optional(),
+      minimumMaskWebMm: boundedMm.optional(),
+      minimumCopperEdgeMm: boundedMm.optional(),
+      maximumBoardWidthMm: boundedMm.optional(),
+      maximumBoardHeightMm: boundedMm.optional(),
+      minimumFiducialCount: z.number().int().nonnegative().max(10000).optional(),
+      minimumToolingHoleCount: z.number().int().nonnegative().max(10000).optional(),
+      minimumPolarityMarkRatio: z.number().finite().min(0).max(1).optional(),
+      minimumCriticalNetTestpointRatio: z.number().finite().min(0).max(1).optional(),
+      requireProgrammingHeader: z.literal(true).optional(),
+    })
+    .refine(
+      (v) => Object.values(v).some((value) => value !== undefined),
+      'Declare at least one process constraint.',
+    ),
+});
+
+const processProfileFindingSchema = z.object({
+  id: z.string(),
+  category: z.enum(['fabrication', 'assembly', 'testability']),
+  status: z.enum(['WARNING', 'UNKNOWN']),
+  comparison: z.enum([
+    'BELOW_DECLARED_LIMIT',
+    'ABOVE_DECLARED_LIMIT',
+    'WITHIN_DECLARED_LIMIT',
+    'UNKNOWN',
+  ]),
+  actual: z.union([z.number(), z.boolean()]).optional(),
+  declared_limit: z.union([z.number(), z.boolean()]),
+  units: z.enum(['mm', 'count', 'ratio', 'boolean']),
+  source_field: z.string(),
+  reason: z.string(),
+});
+const processProfileReviewSchema = z.object({
+  status: z.enum(['WARNING', 'UNKNOWN']),
+  source: z.object({
+    manufacturer: z.string(),
+    process: z.string(),
+    revision: z.string(),
+    reference: z.string(),
+  }),
+  input_evidence: z.enum(['caller_supplied_unverified', 'native_partial_unverified']),
+  findings: z.array(processProfileFindingSchema),
+  unknown_workflows: z.array(z.string()),
+  manual_review_required: z.literal(true),
+  fabrication_approval: z.literal(false),
+  limitations: z.array(z.string()),
 });
 
 const pcbUnknownSchema = z.object({
@@ -254,13 +316,13 @@ function registerPcbConstraintTools(
     name: 'easyeda_pcb_production_review',
     title: 'Run PCB production review',
     description:
-      'Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.',
+      'Review PCB DFM/DFA/DFT findings with optional caller-declared manufacturer process limits. Missing native measurements remain UNKNOWN; no fabrication approval or ordering action.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
     confirmWrite: false,
     group: 'pcb-constraints',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -270,6 +332,7 @@ function registerPcbConstraintTools(
       projectId: z.string(),
       boardData: pcbBoardDataSchema.optional(),
       gateMode: z.enum(['warn', 'block', 'off']).default('warn'),
+      manufacturerProfile: productionProcessProfileSchema.optional(),
     }),
     outputSchema: z.object({
       project_id: z.string(),
@@ -292,15 +355,21 @@ function registerPcbConstraintTools(
       }),
       unknown_checks: z.array(pcbUnknownSchema),
       not_available: z.boolean().optional(),
+      manufacturing_profile_review: processProfileReviewSchema.optional(),
+      manufacturing_approval: z.literal(false).optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, boardData, gateMode } = params as {
+      const { projectId, boardData, gateMode, manufacturerProfile } = params as {
         projectId: string;
         boardData?: Partial<PcbConstraintInput>;
         gateMode?: 'warn' | 'block' | 'off';
+        manufacturerProfile?: ManufacturerProfile;
       };
 
       try {
+        if (manufacturerProfile !== undefined)
+          productionProcessProfileSchema.parse(manufacturerProfile);
         const input = boardData
           ? (boardData as PcbConstraintInput)
           : await fetchBoardDataFromBridge(ctx, projectId);
@@ -308,11 +377,22 @@ function registerPcbConstraintTools(
         const errors = result.errors.map(mapPcbIssue);
         const warnings = result.warnings.map(mapPcbIssue);
         const mode = gateMode ?? 'warn';
+        const profileReview =
+          manufacturerProfile === undefined
+            ? undefined
+            : reviewManufacturerProfile(
+                manufacturerProfile,
+                input,
+                boardData === undefined
+                  ? 'native_partial_unverified'
+                  : 'caller_supplied_unverified',
+              );
+        const passed = result.valid && profileReview === undefined;
 
         return {
           project_id: projectId,
-          passed: result.valid,
-          blocked: mode === 'block' && !result.valid,
+          passed,
+          blocked: mode === 'block' && !passed,
           gate_mode: mode,
           severity_counts: {
             errors: errors.length,
@@ -323,6 +403,12 @@ function registerPcbConstraintTools(
           warnings,
           summary: result.summary,
           unknown_checks: result.unknownChecks,
+          ...(profileReview === undefined
+            ? {}
+            : {
+                manufacturing_profile_review: profileReview,
+                manufacturing_approval: false,
+              }),
         };
       } catch (err) {
         return {

@@ -64,7 +64,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_place_batch`                          | `full`         | `high`   | Compact placement results for up to 64 existing PCB components. Each apply executes the existing transactional component transform and checks native read-back. Stops at the first failure; previous successful placements are NOT rolled back as a group. Use smaller batches as needed.                                     |
 | `easyeda_pcb_place_component`                      | `full`         | `high`   | Direct PCB component creation is unavailable because the verified EasyEDA runtime does not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in the schematic, sync to PCB, confirm the native dialog, then reposition it with easyeda_pcb_modify_component.                                   |
 | `easyeda_pcb_place_component_group`                | `full`         | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                         |
-| `easyeda_pcb_production_review`                    | `core`         | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                |
+| `easyeda_pcb_production_review`                    | `core`         | `medium` | Review PCB DFM/DFA/DFT findings with optional caller-declared manufacturer process limits. Missing native measurements remain UNKNOWN; no fabrication approval or ordering action.                                                                                                                                            |
 | `easyeda_pcb_rebuild_copper`                       | `full`         | `high`   | Rebuild existing PCB_PrimitivePour copper via the beta rebuildCopperRegion() API and verify each result through PCB_PrimitivePoured read-back. Requires confirmWrite. PCB rebuilds are not transaction-covered; after timeout inspect before retry. PlaneZone objects are unsupported.                                        |
 | `easyeda_pcb_regions`                              | `core`         | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                             |
 | `easyeda_pcb_route_geometry_review`                | `core`         | `low`    | Read bounded native PCB tracks, vias and optionally components; review observed route geometry, declared differential pairs or component-origin placement constraints. Missing electrical paths remain UNKNOWN. Read-only; no DRC or fabrication approval.                                                                    |
@@ -2068,15 +2068,16 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.
+> Review PCB DFM/DFA/DFT findings with optional caller-declared manufacturer process limits. Missing native measurements remain UNKNOWN; no fabrication approval or ordering action.
 
 ### Input Parameters
 
-| Parameter   | Type                             | Required | Description |
-| ----------- | -------------------------------- | -------- | ----------- |
-| `projectId` | `string`                         | Yes      |             |
-| `boardData` | `object (optional)`              | No       |             |
-| `gateMode`  | `'warn'` \| `'block'` \| `'off'` | Yes      |             |
+| Parameter             | Type                             | Required | Description |
+| --------------------- | -------------------------------- | -------- | ----------- |
+| `projectId`           | `string`                         | Yes      |             |
+| `boardData`           | `object (optional)`              | No       |             |
+| `gateMode`            | `'warn'` \| `'block'` \| `'off'` | Yes      |             |
+| `manufacturerProfile` | `object (optional)`              | No       |             |
 
 ### Output Format
 
@@ -2094,6 +2095,9 @@ Returns a JSON object matching the schema:
   summary: object;
   unknown_checks: object[];
   not_available: boolean (optional);
+  manufacturing_profile_review: object (optional);
+  manufacturing_approval: 'false' (optional);
+  error: string (optional);
 }
 ```
 
