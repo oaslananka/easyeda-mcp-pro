@@ -253,5 +253,165 @@
       "positiveCoverage": "AMBIGUOUS",
       "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
     }
+  },
+  {
+    "id": "skew-and-spacing-at-declared-boundaries",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 20,
+        "endX": 1010,
+        "endY": 20,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "custom",
+      "maxSkewMm": 0.254,
+      "minEdgeGapMm": 0.254,
+      "maxEdgeGapMm": 0.254
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "skew": "WITHIN_DECLARED_LIMIT_REFERENCE",
+      "spacing": "WITHIN_DECLARED_LIMIT_REFERENCE",
+      "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
+  },
+  {
+    "id": "skew-one-mil-past-explicit-limit",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 20,
+        "endX": 1011,
+        "endY": 20,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "custom",
+      "maxSkewMm": 0.254,
+      "minEdgeGapMm": 0.254,
+      "maxEdgeGapMm": 0.254
+    },
+    "expected": {
+      "status": "WARNING",
+      "skew": "WARNING",
+      "spacing": "WITHIN_DECLARED_LIMIT_REFERENCE",
+      "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
+  },
+  {
+    "id": "parallel-gap-one-mil-below-minimum",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 19,
+        "endX": 1000,
+        "endY": 19,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "custom",
+      "minEdgeGapMm": 0.254
+    },
+    "expected": {
+      "status": "WARNING",
+      "skew": "UNKNOWN",
+      "spacing": "WARNING",
+      "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
+  },
+  {
+    "id": "parallel-gap-one-mil-above-maximum",
+    "tracks": [
+      {
+        "primitiveId": "p1",
+        "net": "USB_D+",
+        "layer": 1,
+        "startX": 0,
+        "startY": 0,
+        "endX": 1000,
+        "endY": 0,
+        "width": 10
+      },
+      {
+        "primitiveId": "n1",
+        "net": "USB_D-",
+        "layer": 1,
+        "startX": 0,
+        "startY": 21,
+        "endX": 1000,
+        "endY": 21,
+        "width": 10
+      }
+    ],
+    "vias": [],
+    "declaration": {
+      "positiveNet": "USB_D+",
+      "negativeNet": "USB_D-",
+      "protocol": "custom",
+      "maxEdgeGapMm": 0.254
+    },
+    "expected": {
+      "status": "WARNING",
+      "skew": "UNKNOWN",
+      "spacing": "WARNING",
+      "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
+      "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
+    }
   }
 ]
