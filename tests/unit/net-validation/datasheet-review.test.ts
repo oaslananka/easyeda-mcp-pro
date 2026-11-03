@@ -148,4 +148,72 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(result.findings.filter((f) => f.status === 'WARNING').length).toBe(5);
     expect(result.findings.filter((f) => f.status === 'UNKNOWN').length).toBe(4);
   });
+
+  it('evaluates an explicitly supplied lower pin voltage bound', () => {
+    const lower = {
+      kind: 'pin_voltage' as const,
+      componentRef: 'U2',
+      pin: 'OUT',
+      minVoltageV: 4.2,
+      reference: fixtures[8]!.constraint.reference,
+    };
+    const violated = reviewDatasheetConstraints([lower], nets, devices);
+    expect(violated.status).toBe('WARNING');
+    expect(violated.findings[0]?.observed_voltages_v).toEqual([{ net: '3V3', voltage_v: 3.3 }]);
+    const within = reviewDatasheetConstraints([{ ...lower, minVoltageV: 2.5 }], nets, devices);
+    expect(within.status).toBe('UNKNOWN');
+    expect(within.findings[0]?.evidence).toBe('explicit_netlist');
+  });
+
+  it('distinguishes a declared unconnected NC from unavailable pin identity', () => {
+    const declared = fixtures[3]!.constraint;
+    const observedUnconnected = reviewDatasheetConstraints([declared], nets, devices);
+    expect(observedUnconnected.findings[0]?.message).toMatch(/No net connection observed/);
+    const missingPin = reviewDatasheetConstraints(
+      [{ ...declared, pin: 'UNLISTED_NC' }],
+      nets,
+      devices,
+    );
+    expect(missingPin.status).toBe('UNKNOWN');
+    expect(missingPin.findings[0]?.message).toMatch(/pin inventory is unavailable/);
+  });
+
+  it('does not infer the support net from an unconnected declared target pin', () => {
+    const missing = fixtures[5]!.constraint;
+    const supportOnNc = reviewDatasheetConstraints([{ ...missing, pin: 'NC' }], nets, devices);
+    expect(supportOnNc.status).toBe('UNKNOWN');
+    expect(supportOnNc.findings[0]?.nets).toEqual([]);
+    expect(supportOnNc.findings[0]?.observed_voltages_v).toEqual([]);
+  });
+
+  it('preserves regulator input/output provenance when only one side is observed', () => {
+    const source = fixtures[6]!.constraint;
+    if (source.kind !== 'regulator_headroom') throw new Error('Fixture contract changed');
+    const missingInput = reviewDatasheetConstraints(
+      [{ ...source, inputPin: 'UNLISTED_INPUT' }],
+      nets,
+      devices,
+    );
+    expect(missingInput.status).toBe('UNKNOWN');
+    expect(missingInput.findings[0]?.nets).toEqual(['3V3']);
+    expect(missingInput.findings[0]?.observed_voltages_v).toEqual([{ net: '3V3', voltage_v: 3.3 }]);
+    const missingOutput = reviewDatasheetConstraints(
+      [{ ...source, outputPin: 'UNLISTED_OUTPUT' }],
+      nets,
+      devices,
+    );
+    expect(missingOutput.status).toBe('UNKNOWN');
+    expect(missingOutput.findings[0]?.nets).toEqual(['5V']);
+    expect(missingOutput.findings[0]?.observed_voltages_v).toEqual([{ net: '5V', voltage_v: 5 }]);
+  });
+
+  it('never turns an observed regulator headroom within caller limits into hardware approval', () => {
+    const source = fixtures[6]!.constraint;
+    if (source.kind !== 'regulator_headroom') throw new Error('Fixture contract changed');
+    const result = reviewDatasheetConstraints([{ ...source, minHeadroomV: 1.5 }], nets, devices);
+    expect(result.status).toBe('UNKNOWN');
+    expect(result.findings[0]?.evidence).toBe('explicit_netlist');
+    expect(result.findings[0]?.message).toMatch(/meets the caller-supplied minimum/);
+    expect(result.engineering_sign_off).toBe(false);
+  });
 });
