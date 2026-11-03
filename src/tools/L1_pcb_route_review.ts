@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  reviewDifferentialPair,
+  type DifferentialPairDeclaration,
+} from '../pcb-layout/differential-pair.js';
 import { type EnvConfig } from '../config/env.js';
 import {
   reviewRouteGeometry,
@@ -16,6 +20,45 @@ const projectIdSchema = z
     message: 'projectId must match the exact native project UUID without surrounding whitespace.',
   });
 
+const exactNetSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .refine((value) => value === value.trim(), {
+    message: 'Net identity must exactly match the native EasyEDA net name.',
+  });
+
+const differentialPairSchema = z
+  .object({
+    positiveNet: exactNetSchema,
+    negativeNet: exactNetSchema,
+    protocol: z.enum(['usb2', 'usb3', 'rs485', 'ethernet-10-100', 'ethernet-1000', 'custom']),
+    maxSkewMm: z.number().finite().nonnegative().optional(),
+    minEdgeGapMm: z.number().finite().nonnegative().optional(),
+    maxEdgeGapMm: z.number().finite().positive().optional(),
+    targetImpedanceOhms: z.number().finite().positive().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.positiveNet === value.negativeNet) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['negativeNet'],
+        message: 'Differential pair net names must be distinct.',
+      });
+    }
+    if (
+      value.minEdgeGapMm !== undefined &&
+      value.maxEdgeGapMm !== undefined &&
+      value.minEdgeGapMm > value.maxEdgeGapMm
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['minEdgeGapMm'],
+        message: 'Minimum edge gap cannot exceed maximum edge gap.',
+      });
+    }
+  });
+
 const inputSchema = z.object({
   projectId: projectIdSchema,
   intent: z.enum(['general', 'high-speed']).default('general'),
@@ -27,6 +70,7 @@ const inputSchema = z.object({
     .describe(
       'Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.',
     ),
+  differentialPair: differentialPairSchema.optional(),
 });
 
 const nativeTrackSchema = z.object({
@@ -77,6 +121,55 @@ const findingSchema = z.object({
   threshold_mm: z.number().optional(),
   deflection_degrees: z.number().optional(),
 });
+const netLengthSchema = z.object({
+  net: z.string(),
+  coverage: z.enum(['MISSING', 'UNAVAILABLE', 'OBSERVED_SINGLE_CHAIN', 'AMBIGUOUS']),
+  segment_count: z.number().int().nonnegative(),
+  primitive_ids: z.array(z.string()),
+  observed_length_mm: z.number().optional(),
+  single_layer: z.number().optional(),
+});
+const measurementSchema = z.object({
+  status: z.enum(['WARNING', 'UNKNOWN', 'WITHIN_DECLARED_LIMIT_REFERENCE']),
+  observed_mm: z.number().optional(),
+  declared_limit_mm: z.number().optional(),
+  note: z.string(),
+});
+const differentialPairResultSchema = z.object({
+  status: z.enum(['WARNING', 'UNKNOWN']),
+  nets: z.object({ positive: z.string(), negative: z.string() }),
+  protocol: z.string(),
+  protocol_guidance: z
+    .object({
+      source: z.string(),
+      caveat: z.string(),
+      differential_impedance_reference_ohms: z.number().optional(),
+    })
+    .nullable(),
+  target_impedance_ohms: z.number().optional(),
+  impedance_status: z.literal('UNKNOWN'),
+  evidence: z.literal('native_segments_not_field_solver_or_full_route'),
+  length_units: z.literal('mm'),
+  coordinate_units: z.literal('mil'),
+  paths: z.object({ positive: netLengthSchema, negative: netLengthSchema }),
+  skew: measurementSchema,
+  spacing: measurementSchema.extend({
+    observed_max_mm: z.number().optional(),
+    sample_count: z.number().int().nonnegative(),
+  }),
+  findings: z.array(
+    z.object({
+      id: z.string(),
+      status: z.enum(['WARNING', 'UNKNOWN']),
+      message: z.string(),
+      net: z.string().optional(),
+      primitive_ids: z.array(z.string()),
+    }),
+  ),
+  limitations: z.array(z.string()),
+  engineering_sign_off: z.literal(false),
+});
+
 const outputSchema = z.object({
   project_id: projectIdSchema,
   overall_status: z.enum(['WARNING', 'UNKNOWN']),
@@ -107,6 +200,7 @@ const outputSchema = z.object({
     extension_version: z.string().nullable(),
   }),
   errors: z.array(z.string()),
+  differential_pair: differentialPairResultSchema.optional(),
   engineering_sign_off: z.literal(false),
 });
 
@@ -142,19 +236,19 @@ export function registerPcbRouteReviewTools(
     name: 'easyeda_pcb_route_geometry_review',
     title: 'Review observed PCB route geometry and evidence gaps',
     description:
-      'Read up to 200 native PCB track segments and vias for a focused project, review trace widths and context-specific 90-degree bends, and report unknown clearance/return-path evidence. Does not run DRC, edit copper, or certify routing.',
+      'Read bounded native PCB tracks/vias for a focused project; review geometry and optional declared differential net pairs, skew and spacing. Report unknown impedance, planes and incomplete evidence. Read-only; no DRC or fabrication approval.',
     profile: 'core',
     evidence: ['runtime-probe', 'inferred'],
     risk: 'low',
     confirmWrite: false,
     sideEffect: 'read-only',
     group: 'pcb-constraints',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     inputSchema,
     outputSchema,
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, intent, minWidthMm } = inputSchema.parse(params);
+      const { projectId, intent, minWidthMm, differentialPair } = inputSchema.parse(params);
       const sourceMismatch =
         ctx.bridge.registryMismatch === true || ctx.bridge.extensionVersionMismatch === true;
       const errors: string[] = [];
@@ -192,18 +286,35 @@ export function registerPcbRouteReviewTools(
         }
       }
 
+      const geometry = reviewRouteGeometry({
+        tracks,
+        vias,
+        trackCount,
+        viaCount,
+        tracksAvailable,
+        viasAvailable,
+        intent,
+        minWidthMm,
+      });
+      const pair =
+        differentialPair === undefined
+          ? undefined
+          : reviewDifferentialPair(
+              differentialPair as DifferentialPairDeclaration,
+              tracks,
+              vias,
+              geometry.input_evidence.collection_complete,
+            );
+
       return {
         project_id: projectId,
-        ...reviewRouteGeometry({
-          tracks,
-          vias,
-          trackCount,
-          viaCount,
-          tracksAvailable,
-          viasAvailable,
-          intent,
-          minWidthMm,
-        }),
+        ...geometry,
+        ...(pair === undefined
+          ? {}
+          : {
+              differential_pair: pair,
+              overall_status: pair.status === 'WARNING' ? 'WARNING' : geometry.overall_status,
+            }),
         runtime: {
           bridge_connected: ctx.bridge.connected,
           registry_mismatch: ctx.bridge.registryMismatch === true,

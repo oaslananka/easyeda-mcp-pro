@@ -255,4 +255,194 @@ describe('native PCB route geometry review MCP contract', () => {
     );
     expect(result.engineering_sign_off).toBe(false);
   });
+  const pairDeclaration = {
+    positiveNet: 'USB_D+',
+    negativeNet: 'USB_D-',
+    protocol: 'usb2',
+    maxSkewMm: 0.6,
+    minEdgeGapMm: 0.2,
+    maxEdgeGapMm: 0.3,
+  } as const;
+
+  it('validates distinct explicitly named pairs and device-specific numerical constraints', () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    expect(
+      schema?.safeParse({ projectId: 'project-1', differentialPair: pairDeclaration }).success,
+    ).toBe(true);
+    for (const pair of [
+      { ...pairDeclaration, negativeNet: pairDeclaration.positiveNet },
+      { ...pairDeclaration, maxSkewMm: -0.1 },
+      { ...pairDeclaration, minEdgeGapMm: 3, maxEdgeGapMm: 2 },
+      { ...pairDeclaration, targetImpedanceOhms: 0 },
+      { ...pairDeclaration, protocol: 'i2c' },
+      { ...pairDeclaration, positiveNet: '' },
+      { ...pairDeclaration, positiveNet: ' USB_D+ ' },
+    ]) {
+      expect(schema?.safeParse({ projectId: 'project-1', differentialPair: pair }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it('checks observed parallel differential pair without imposing USB reference thresholds', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'pcb.listTracks') {
+        return {
+          total: 2,
+          items: [
+            {
+              primitiveId: 'p1',
+              net: 'USB_D+',
+              layer: 1,
+              startX: 0,
+              startY: 0,
+              endX: 1000,
+              endY: 0,
+              width: 10,
+            },
+            {
+              primitiveId: 'n1',
+              net: 'USB_D-',
+              layer: 1,
+              startX: 0,
+              startY: 20,
+              endX: 1020,
+              endY: 20,
+              width: 10,
+            },
+          ],
+        };
+      }
+      return { total: 0, items: [] };
+    });
+    const result = await run({ differentialPair: pairDeclaration });
+    expect(bridgeCall.mock.calls).toEqual([
+      ['pcb.listTracks', { projectId: 'project-1', limit: 200, offset: 0 }],
+      ['pcb.listVias', { projectId: 'project-1', limit: 200, offset: 0 }],
+    ]);
+    expect(result.differential_pair.paths.positive.coverage).toBe('OBSERVED_SINGLE_CHAIN');
+    expect(result.differential_pair.skew).toMatchObject({
+      status: 'WITHIN_DECLARED_LIMIT_REFERENCE',
+      declared_limit_mm: 0.6,
+    });
+    expect(result.differential_pair.spacing).toMatchObject({
+      status: 'WITHIN_DECLARED_LIMIT_REFERENCE',
+      sample_count: 1,
+    });
+    expect(result.differential_pair.impedance_status).toBe('UNKNOWN');
+    expect(result.differential_pair.protocol_guidance.differential_impedance_reference_ohms).toBe(
+      90,
+    );
+    expect(result.differential_pair.engineering_sign_off).toBe(false);
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.overall_status).toBe('UNKNOWN');
+  });
+
+  it('surfaces a geometry-warning for skew above explicit per-device limit', async () => {
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listTracks'
+        ? {
+            total: 2,
+            items: [
+              {
+                primitiveId: 'p1',
+                net: 'USB_D+',
+                layer: 1,
+                startX: 0,
+                startY: 0,
+                endX: 1000,
+                endY: 0,
+                width: 10,
+              },
+              {
+                primitiveId: 'n1',
+                net: 'USB_D-',
+                layer: 1,
+                startX: 0,
+                startY: 20,
+                endX: 1100,
+                endY: 20,
+                width: 10,
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const result = await run({
+      differentialPair: { ...pairDeclaration, maxSkewMm: 1 },
+    });
+    expect(result.overall_status).toBe('WARNING');
+    expect(result.differential_pair.skew.status).toBe('WARNING');
+    expect(result.differential_pair.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'pair:skew',
+        status: 'WARNING',
+        primitive_ids: ['p1', 'n1'],
+      }),
+    );
+    expect(result.differential_pair.impedance_status).toBe('UNKNOWN');
+  });
+
+  it('does not compute a skew verdict when one declared net is missing', async () => {
+    const result = await run({ differentialPair: pairDeclaration });
+    expect(result.differential_pair.paths.positive.coverage).toBe('MISSING');
+    expect(result.differential_pair.paths.negative.coverage).toBe('MISSING');
+    expect(result.differential_pair.skew.status).toBe('UNKNOWN');
+    expect(result.differential_pair.status).toBe('WARNING');
+  });
+
+  it('fails closed for disconnected or mismatched native sources without additional reads', async () => {
+    context.bridge.connected = false;
+    const disconnected = await run({ differentialPair: pairDeclaration });
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(disconnected.differential_pair.paths.positive.coverage).toBe('UNAVAILABLE');
+    expect(disconnected.differential_pair.status).toBe('UNKNOWN');
+    context.bridge.connected = true;
+    context.bridge.registryMismatch = true;
+    const mismatch = await run({ differentialPair: pairDeclaration });
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(mismatch.differential_pair.paths.negative.coverage).toBe('UNAVAILABLE');
+    expect(mismatch.differential_pair.impedance_status).toBe('UNKNOWN');
+  });
+
+  it('does not mistake a paginated partial project for a missing negative pair', async () => {
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listTracks'
+        ? {
+            total: 201,
+            items: [
+              {
+                primitiveId: 'p1',
+                net: 'USB_D+',
+                layer: 1,
+                startX: 0,
+                startY: 0,
+                endX: 100,
+                endY: 0,
+                width: 10,
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const result = await run({ differentialPair: pairDeclaration });
+    expect(result.input_evidence.collection_complete).toBe(false);
+    expect(result.differential_pair.paths.positive.coverage).toBe('UNAVAILABLE');
+    expect(result.differential_pair.paths.negative.coverage).toBe('UNAVAILABLE');
+    expect(result.differential_pair.status).toBe('UNKNOWN');
+  });
+
+  it('supports custom differential pairs without inventing LVDS or Ethernet impedance', async () => {
+    const result = await run({
+      differentialPair: {
+        positiveNet: 'LVDS_P',
+        negativeNet: 'LVDS_N',
+        protocol: 'custom',
+        targetImpedanceOhms: 100,
+      },
+    });
+    expect(result.differential_pair.protocol_guidance).toBeNull();
+    expect(result.differential_pair.target_impedance_ohms).toBe(100);
+    expect(result.differential_pair.impedance_status).toBe('UNKNOWN');
+  });
 });
