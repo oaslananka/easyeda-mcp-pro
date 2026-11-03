@@ -145,7 +145,7 @@ describe('stdio protocol interop', () => {
         expect(observed.input_evidence.every((item) => item.quality !== 'measured')).toBe(true);
       } finally {
         await client.close();
-        await rm(directory, { recursive: true, force: true });
+        await rm(directory, { recursive: true, force: true, maxRetries: 8, retryDelay: 150 });
       }
     },
     45_000,
