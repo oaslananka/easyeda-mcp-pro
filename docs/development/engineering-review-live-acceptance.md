@@ -43,6 +43,27 @@ disposable EasyEDA Pro project; never alter an existing user design.
 - Unsupported or missing native fields must be reported as unavailable;
   zero errors or an empty array cannot by itself establish a pass.
 
+- Review a deliberately **stale/partial snapshot** only in the synthetic
+  regression harness: a prior-tab `widthMm`, `hasOutline` or `layerCount`
+  must not yield a constraint FAIL or a subset PASS if its owning native
+  method is unavailable, not run, or the bridge disconnected. Only values
+  attributable to a successfully observed native method **in that
+  request** may enter the constraint evaluator. Retained values can
+  remain in diagnostics with `quality: unverified` and
+  `age: unverified`, but must not be presented as fresh measurements.
+- A fulfilled native call with an empty object is **not** proof the
+  document was inspected. Verify actual field presence and focus before
+  interpreting result status. Do not accept a cached `observed` marker
+  from a disconnected bridge. These are automated guardrails, not
+  proof that the native editor provides a stable atomic multi-method
+  snapshot; a focus change between calls still requires live review.
+- For a live repeat, capture only non-sensitive status and document
+  metadata. Compare measurements obtained from the same disposable
+  PCB in two focused reads and then after deliberately switching to
+  a non-PCB tab. Report all unsupported or cross-tab fields as UNKNOWN
+  until a fresh source-bound PCB read succeeds. Never modify a user's
+  existing project or silently save it.
+
 ## Evidence record
 
 Document:

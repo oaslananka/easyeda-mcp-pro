@@ -148,6 +148,33 @@ type ReviewBuildInput = {
   evidenceMode: 'native' | 'supplied';
 };
 
+/**
+ * A native rule verdict must use only fields belonging to a successful
+ * current-request method. Retained data from a previous document/tab,
+ * disconnected bridge, or mismatched extension cannot prove a violation
+ * or a partial PASS. Caller-supplied data retains its own unverified scope.
+ */
+function currentRuleInputs(input: ReviewBuildInput): PcbConstraintInput {
+  if (input.evidenceMode === 'supplied') return input.boardData;
+  if (
+    !input.bridgeConnected ||
+    input.registryMismatch === true ||
+    input.extensionVersionMismatch === true
+  )
+    return {};
+
+  const observedMethods = new Set(
+    input.observations.filter((item) => item.status === 'observed').map((item) => item.method),
+  );
+  const current: Record<string, unknown> = {};
+  for (const { field, source } of OBSERVED_FIELDS) {
+    const value = input.boardData[field];
+    if (observedMethods.has(source) && value !== undefined && value !== null)
+      current[field] = value;
+  }
+  return current as PcbConstraintInput;
+}
+
 function hasObservedBoard(input: ReviewBuildInput): boolean {
   return (
     input.evidenceMode === 'native' &&
@@ -268,7 +295,7 @@ function collectInputEvidence(input: ReviewBuildInput): EngineeringReview['input
     const quality =
       value === undefined || value === null
         ? 'unavailable'
-        : nativeEvidence && sourceObserved
+        : nativeEvidence && sourceObserved && input.bridgeConnected
           ? sourceMismatch
             ? 'unverified'
             : 'measured'
@@ -308,12 +335,10 @@ function groupFindings(findings: ReviewFinding[]): EngineeringReview['groups'] {
 }
 
 export function buildEngineeringReview(input: ReviewBuildInput): EngineeringReview {
-  const sourceMismatch =
-    input.evidenceMode === 'native' &&
-    (input.registryMismatch === true || input.extensionVersionMismatch === true);
-  // Incompatible native snapshots are not safe inputs for rule verdicts.
-  const report = validatePcbConstraints(sourceMismatch ? {} : input.boardData);
-  const observedBoard = hasObservedBoard(input);
+  // Rule evaluation must never consume stale or unsupported native fields.
+  const validatedData = currentRuleInputs(input);
+  const report = validatePcbConstraints(validatedData);
+  const observedBoard = hasObservedBoard({ ...input, boardData: validatedData });
   const findings = collectFindings(report, observedBoard, input.evidenceMode === 'native');
   if (input.registryMismatch === true || input.extensionVersionMismatch === true) {
     findings.push(

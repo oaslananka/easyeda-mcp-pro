@@ -275,5 +275,157 @@
         "age": "unverified"
       }
     }
+  },
+  {
+    "id": "stale-dimensions-rejected-when-native-method-unavailable",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 1,
+        "heightMm": 1,
+        "hasOutline": false,
+        "layerCount": 2,
+        "hasLayerStack": true
+      },
+      "bridgeConnected": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "unavailable"
+        },
+        {
+          "method": "board.getStackup",
+          "status": "observed"
+        }
+      ],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "observed",
+      "requiredFindings": ["coverage:DRC", "pcb:OBSERVED_CONSTRAINT_SUBSET"],
+      "forbiddenFindings": [
+        "pcb:PCB_MISSING_OUTLINE:board:1",
+        "pcb:PCB_OUTLINE_TOO_SMALL:board:1",
+        "pcb:PCB_OUTLINE_TOO_SMALL:board:2"
+      ],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "widthMm",
+        "quality": "unverified",
+        "age": "unverified"
+      }
+    }
+  },
+  {
+    "id": "disconnected-bridge-rejects-observed-snapshot-with-negative-outline",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 1,
+        "heightMm": 1,
+        "hasOutline": false,
+        "hasLayerStack": true
+      },
+      "bridgeConnected": false,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "observed"
+        },
+        {
+          "method": "board.getStackup",
+          "status": "observed"
+        }
+      ],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "unverified",
+      "requiredFindings": ["context:PCB_NOT_OBSERVED"],
+      "forbiddenFindings": [
+        "pcb:OBSERVED_CONSTRAINT_SUBSET",
+        "pcb:PCB_MISSING_OUTLINE:board:1",
+        "pcb:PCB_OUTLINE_TOO_SMALL:board:1"
+      ],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "hasOutline",
+        "quality": "unverified",
+        "age": "unverified"
+      }
+    }
+  },
+  {
+    "id": "native-unstarted-method-cannot-promote-old-board-results",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 1,
+        "heightMm": 1,
+        "hasOutline": false
+      },
+      "bridgeConnected": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "not_run"
+        }
+      ],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "unverified",
+      "requiredFindings": ["context:PCB_NOT_OBSERVED"],
+      "forbiddenFindings": ["pcb:OBSERVED_CONSTRAINT_SUBSET", "pcb:PCB_MISSING_OUTLINE:board:1"],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "widthMm",
+        "quality": "unverified",
+        "age": "unverified"
+      }
+    }
+  },
+  {
+    "id": "fresh-outline-but-stale-stackup-must-not-yield-layer-failure",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 60,
+        "heightMm": 40,
+        "hasOutline": true,
+        "layerCount": 1,
+        "hasLayerStack": false
+      },
+      "bridgeConnected": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "observed"
+        },
+        {
+          "method": "board.getStackup",
+          "status": "unavailable"
+        }
+      ],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "observed",
+      "requiredFindings": ["coverage:POWER_TREE"],
+      "forbiddenFindings": [
+        "pcb:PCB_MISSING_STACKUP:board:1",
+        "pcb:PCB_LAYER_COUNT_MISMATCH:board:1"
+      ],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "layerCount",
+        "quality": "unverified",
+        "age": "unverified"
+      }
+    }
   }
 ]

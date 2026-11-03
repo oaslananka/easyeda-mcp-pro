@@ -26,7 +26,7 @@ const scenarios = JSON.parse(
 
 describe('engineering evidence golden fixtures', () => {
   it('has unique named, representative scenarios', () => {
-    expect(scenarios).toHaveLength(9);
+    expect(scenarios).toHaveLength(13);
     expect(new Set(scenarios.map(({ id }) => id)).size).toBe(scenarios.length);
   });
 

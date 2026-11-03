@@ -238,4 +238,114 @@ describe('evidence-based engineering review', () => {
     expect(report.input_evidence.every((entry) => entry.quality !== 'measured')).toBe(true);
     expect(report.engineering_sign_off).toBe(false);
   });
+
+  it('drops prior-tab measurements after a subsequent native read becomes unavailable', async () => {
+    let wrongTab = false;
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') {
+        if (wrongTab) throw new Error('active document is not a PCB');
+        return { widthMm: 1, heightMm: 1, hasOutline: false };
+      }
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return {};
+      if (method === 'board.getDesignRules') return {};
+      throw new Error('unexpected bridge method');
+    });
+
+    const original = await run();
+    expect(original.overall_status).toBe('FAIL');
+    expect(original.findings.some((f) => f.rule_id === 'PCB_MISSING_OUTLINE')).toBe(true);
+
+    wrongTab = true;
+    const afterTabSwitch = await run();
+    expect(afterTabSwitch.pcb_context).toBe('unverified');
+    expect(afterTabSwitch.overall_status).toBe('UNKNOWN');
+    expect(afterTabSwitch.summary.PASS).toBe(0);
+    expect(afterTabSwitch.summary.FAIL).toBe(0);
+    expect(afterTabSwitch.findings.some((f) => f.rule_id === 'PCB_MISSING_OUTLINE')).toBe(false);
+    expect(afterTabSwitch.input_evidence.find((e) => e.field === 'widthMm')).toMatchObject({
+      quality: 'unavailable',
+      age: 'unverified',
+    });
+    expect(bridgeCall).toHaveBeenCalledTimes(8);
+    expect(new Set(bridgeCall.mock.calls.map(([method]) => method))).toEqual(
+      new Set([
+        'board.getDimensions',
+        'board.listLayers',
+        'board.getStackup',
+        'board.getDesignRules',
+      ]),
+    );
+  });
+
+  it('does not treat fulfilled empty wrong-tab replies as successful PCB measurements', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.listLayers') return [];
+      return {};
+    });
+    const result = await run();
+    expect(result.observations.every((o) => o.status === 'observed')).toBe(true);
+    expect(result.pcb_context).toBe('unverified');
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.summary.PASS).toBe(0);
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.groups.unknowns).toContain('context:PCB_NOT_OBSERVED');
+  });
+
+  it('downgrades a previously observed failing board when the bridge disconnects', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions')
+        return {
+          widthMm: 1,
+          heightMm: 1,
+          hasOutline: false,
+        };
+      return {};
+    });
+    expect((await run()).overall_status).toBe('FAIL');
+    const count = bridgeCall.mock.calls.length;
+    context.bridge.connected = false;
+    const afterDisconnect = await run();
+    expect(bridgeCall).toHaveBeenCalledTimes(count);
+    expect(afterDisconnect.overall_status).toBe('UNKNOWN');
+    expect(afterDisconnect.pcb_context).toBe('unverified');
+    expect(afterDisconnect.summary.FAIL).toBe(0);
+    expect(afterDisconnect.input_evidence.every((e) => e.quality === 'unavailable')).toBe(true);
+  });
+
+  it('uses no native design mutation, DRC/ERC execution, export or project save', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions')
+        return {
+          widthMm: 65,
+          heightMm: 35,
+          hasOutline: true,
+        };
+      if (method === 'board.getStackup')
+        return {
+          totalLayers: 2,
+          layers: [{ id: 1 }, { id: 2 }],
+        };
+      if (method === 'board.getDesignRules')
+        return {
+          hasClearanceRules: true,
+        };
+      if (method === 'board.listLayers') return [{ id: 1 }, { id: 2 }];
+      throw new Error('undeclared bridge operation');
+    });
+    const result = await run();
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.groups.unknowns).toContain('coverage:DRC');
+    expect(result.groups.unknowns).toContain('coverage:ERC');
+    expect(result.groups.unknowns).toContain('coverage:POWER_TREE');
+    expect(new Set(bridgeCall.mock.calls.map(([method]) => method))).toEqual(
+      new Set([
+        'board.getDimensions',
+        'board.listLayers',
+        'board.getStackup',
+        'board.getDesignRules',
+      ]),
+    );
+    expect(bridgeCall.mock.calls.every(([method]) => method.startsWith('board.'))).toBe(true);
+  });
 });
