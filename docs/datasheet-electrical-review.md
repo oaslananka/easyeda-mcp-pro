@@ -1,0 +1,112 @@
+# Source-declared electrical and datasheet review
+
+The existing read-only `easyeda_semantic_erc_validate` MCP tool accepts an
+optional `datasheetConstraints` array of up to 24 exact-part constraints.
+This is **not** a datasheet fetcher or a complete design approval. It reuses
+the existing netlist and semantic ERC model without running native editor
+mutations, changing power-tree formulas, or adding an MCP tool.
+
+## Evidence contract
+
+Each constraint must include the **exact reference designator**, exact pin
+number/identity where applicable, and a source claim with `partNumber`,
+`package`, `revision`, `source` and `section`. These fields are provided by
+the caller and **not independently authenticated** by this tool. The source
+must refer to the actual manufactured component and package; a guessed pin
+function, a generic application note or a different datasheet revision is not
+proof of device-specific limits.
+
+For example, the following is **hypothetical** and is not a real part's
+datasheet specification:
+
+```json
+{
+  "projectId": "your-project",
+  "nets": [
+    {
+      "id": "supply-rail",
+      "name": "5V",
+      "type": "power",
+      "voltage": 5,
+      "nodes": [{ "deviceRef": "U1", "pin": "VDD" }]
+    }
+  ],
+  "devices": [
+    {
+      "id": "U1",
+      "ref": "U1",
+      "pins": [{ "pin": "VDD", "electricalType": "power_input" }]
+    }
+  ],
+  "datasheetConstraints": [
+    {
+      "kind": "pin_voltage",
+      "componentRef": "U1",
+      "pin": "VDD",
+      "minVoltageV": 1.8,
+      "maxVoltageV": 3.6,
+      "reference": {
+        "partNumber": "EXAMPLE-DEVICE",
+        "package": "EXAMPLE-QFN",
+        "revision": "rev-A",
+        "source": "Example only; replace with exact manufacturer datasheet",
+        "section": "Example operating-supply range"
+      }
+    }
+  ]
+}
+```
+
+The result records actual **caller-supplied** net/pin identities, explicit
+numeric voltage, limit source, and a `WARNING` when these declarations
+conflict. A net called `3V3` or `VCC` with no numeric `voltage` field
+does **not** establish a verified 3.3 V or other operating voltage.
+An observed in-range point remains `UNKNOWN` for electrical certification.
+
+## Supported bounded constraints
+
+- `pin_voltage`: compare exact net wiring (`expectedNet`) and explicitly
+  declared voltage against minimum/maximum pin or I/O-domain limits. A
+  mismatched wired net or observed exceedance is `WARNING`.
+- `intentional_nc`: flag a pin declared NC but actually mapped to a net.
+  No observed net remains `UNKNOWN` because a native no-connect marker
+  and the correctness of the datasheet declaration were not independently
+  verified. A valid NC is **not** falsely failed by this review.
+- `required_support`: record required pull resistor, local decoupling,
+  reset/boot support, connector ESD or other protection by exact
+  `supportRef`. Presence of a designator does not prove electrical
+  connection, values, location, or adequacy. Absence from the supplied
+  device list is a candidate finding, not certified absence from the
+  live board, because the supplied list may be partial. Both remain
+  `UNKNOWN` for physical compliance until source-bound live proof.
+- `regulator_headroom`: compare input and output **numeric net voltages**
+  on the declared regulator pins with a caller-supplied `minHeadroomV`.
+  Insufficient margin yields `WARNING`. Load-dependent dropout,
+  temperature, transient and current constraints require separate
+  evidence from the existing `easyeda_power_tree_analyze`.
+
+Exact pin references are required in the supplied device inventory before
+the netlist is considered a unique connection observation. A pin mapped to
+multiple nets, an omitted component, missing voltage, incomplete device
+inventory or absent source revision yields `UNKNOWN` or input validation
+error, never an invented PASS.
+
+The original `passed`, `errors` and `warnings` fields retain the semantic
+ERC contract when this optional review is omitted. When source-declared
+constraints are supplied, an observed datasheet mismatch also makes
+`passed=false`. The additional `datasheet_review` describes every
+constraint's findings and limitations; `electrical_approval=false`
+is always present in this mode. A true semantic `passed` without
+source-declared violations is **not** datasheet sign-off.
+
+## Live acceptance and follow-up
+
+Run the exact-source, real EasyEDA Pro read-only review on a disposable
+schematic with a verified editor/extension version, native project identity,
+correct pin map and chosen datasheet/package/revision; compare recorded
+netlist/readback against the declared facts and ensure no design mutation.
+Representative cases include: an overvoltage rail, unsafe I/O level,
+intentional NC, missing support component, regulator headroom and
+incomplete library metadata. Mock and unit tests alone are not live editor
+acceptance. Do not claim product-safety, electrical or fabrication
+compliance from this software contract.

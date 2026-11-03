@@ -26,6 +26,7 @@ import {
 } from '../workflows/schematic-post-write-qa.js';
 import { fetchComponentPins } from './schematic-helpers.js';
 import { normalizeSchematicNets } from '../schematic-model/index.js';
+import { reviewDatasheetConstraints } from '../net-validation/datasheet-review.js';
 
 /** Shared error/warning mapper for both the hand-authored and auto-extracted
  *  semantic ERC tools — same NetValidationIssue shape, same response fields. */
@@ -415,28 +416,129 @@ function registerDrcErcTools(
     details: z.record(z.string(), z.unknown()).optional(),
   });
 
+  const referenceSchema = z.object({
+    partNumber: z.string().trim().min(1).max(150),
+    package: z.string().trim().min(1).max(120),
+    revision: z.string().trim().min(1).max(100),
+    source: z.string().trim().min(3).max(500),
+    section: z.string().trim().min(1).max(120),
+  });
+  const constrainedRef = z
+    .string()
+    .min(1)
+    .max(100)
+    .refine(
+      (value) => value === value.trim(),
+      'Use exact netlist identity without added whitespace.',
+    );
+  const datasheetConstraintSchema = z.discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('pin_voltage'),
+      componentRef: constrainedRef,
+      pin: constrainedRef,
+      reference: referenceSchema,
+      expectedNet: constrainedRef.optional(),
+      minVoltageV: z.number().finite().optional(),
+      maxVoltageV: z.number().finite().optional(),
+    }),
+    z.object({
+      kind: z.literal('intentional_nc'),
+      componentRef: constrainedRef,
+      pin: constrainedRef,
+      reference: referenceSchema,
+    }),
+    z.object({
+      kind: z.literal('required_support'),
+      componentRef: constrainedRef,
+      pin: constrainedRef,
+      supportRef: constrainedRef,
+      function: z.enum(['pull', 'decoupling', 'reset_boot', 'esd', 'protection']),
+      reference: referenceSchema,
+    }),
+    z.object({
+      kind: z.literal('regulator_headroom'),
+      componentRef: constrainedRef,
+      inputPin: constrainedRef,
+      outputPin: constrainedRef,
+      minHeadroomV: z.number().finite().nonnegative(),
+      reference: referenceSchema,
+    }),
+  ]);
+  const datasheetReviewSchema = z.object({
+    status: z.enum(['WARNING', 'UNKNOWN']),
+    source_authenticity: z.literal('CALLER_DECLARED_UNVERIFIED'),
+    netlist_scope: z.literal('CALLER_SUPPLIED_NOT_LIVE_VERIFIED'),
+    finding_count: z.number().int().nonnegative(),
+    findings: z.array(
+      z.object({
+        id: z.string(),
+        kind: z.enum(['pin_voltage', 'intentional_nc', 'required_support', 'regulator_headroom']),
+        status: z.enum(['WARNING', 'UNKNOWN']),
+        component_ref: z.string(),
+        pins: z.array(z.string()),
+        nets: z.array(z.string()),
+        observed_voltages_v: z.array(z.object({ net: z.string(), voltage_v: z.number() })),
+        source: referenceSchema,
+        message: z.string(),
+        evidence: z.enum(['explicit_netlist', 'incomplete_or_ambiguous']),
+      }),
+    ),
+    limitations: z.array(z.string()),
+    engineering_sign_off: z.literal(false),
+  });
+
+  const semanticValidateSchema = z
+    .object({
+      projectId: z.string().optional(),
+      nets: z.array(semanticNetSchema),
+      devices: z.array(semanticDeviceSchema).optional(),
+      interfaces: z.array(semanticInterfaceSchema).optional(),
+      datasheetConstraints: z.array(datasheetConstraintSchema).min(1).max(24).optional(),
+    })
+    .superRefine((input, ctx) => {
+      input.datasheetConstraints?.forEach((constraint, index) => {
+        if (
+          constraint.kind === 'pin_voltage' &&
+          constraint.minVoltageV !== undefined &&
+          constraint.maxVoltageV !== undefined &&
+          constraint.minVoltageV > constraint.maxVoltageV
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['datasheetConstraints', index],
+            message: 'Minimum voltage cannot exceed maximum voltage.',
+          });
+        }
+        if (
+          constraint.kind === 'regulator_headroom' &&
+          constraint.inputPin === constraint.outputPin
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['datasheetConstraints', index],
+            message: 'Regulator input and output pins must differ.',
+          });
+        }
+      });
+    });
+
   registry.register({
     name: 'easyeda_semantic_erc_validate',
     title: 'Run semantic ERC validation',
     description:
-      'Run semantic electrical-rule validation over a netlist with pin electrical types to detect output contention, floating inputs, power conflicts, missing power pins, missing decoupling, and voltage-domain mismatches.',
+      'Run typed semantic ERC over caller-supplied pin/net metadata. Optional exact part/package/revision constraints report source-declared voltage, intentional NC, support-part and headroom evidence; they do not authenticate a datasheet or certify the circuit.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
     confirmWrite: false,
     group: 'drc-erc',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string().optional(),
-      nets: z.array(semanticNetSchema),
-      devices: z.array(semanticDeviceSchema).optional(),
-      interfaces: z.array(semanticInterfaceSchema).optional(),
-    }),
+    inputSchema: semanticValidateSchema,
     outputSchema: z.object({
       project_id: z.string(),
       passed: z.boolean(),
@@ -445,64 +547,11 @@ function registerDrcErcTools(
       total_issues: z.number().int().nonnegative(),
       errors: z.array(semanticIssueSchema),
       warnings: z.array(semanticIssueSchema),
+      datasheet_review: datasheetReviewSchema.optional(),
+      electrical_approval: z.literal(false).optional(),
     }),
     handler: async (_ctx: ToolContext, params: unknown) => {
-      const parsed = params as {
-        projectId?: string;
-        nets: Array<{
-          id: string;
-          name: string;
-          type: 'power' | 'signal' | 'ground';
-          voltage?: number;
-          nodes: Array<{
-            deviceRef: string;
-            pin: string;
-            electricalType?:
-              | 'input'
-              | 'output'
-              | 'bidirectional'
-              | 'passive'
-              | 'power_input'
-              | 'power_output'
-              | 'power_source'
-              | 'open_drain'
-              | 'tri_state'
-              | 'no_connect';
-            pinName?: string;
-            expectedVoltage?: number;
-          }>;
-        }>;
-        devices?: Array<{
-          id: string;
-          ref: string;
-          category?: string;
-          pins?: Array<{
-            pin: string;
-            name?: string;
-            electricalType:
-              | 'input'
-              | 'output'
-              | 'bidirectional'
-              | 'passive'
-              | 'power_input'
-              | 'power_output'
-              | 'power_source'
-              | 'open_drain'
-              | 'tri_state'
-              | 'no_connect';
-            required?: boolean;
-            expectedNetType?: 'power' | 'signal' | 'ground';
-            expectedVoltage?: number;
-            noConnectAllowed?: boolean;
-          }>;
-          requiresDecoupling?: boolean;
-        }>;
-        interfaces?: Array<{
-          id: string;
-          name: string;
-          pinout: Array<{ pin: string; signal: string; type?: string }>;
-        }>;
-      };
+      const parsed = semanticValidateSchema.parse(params);
 
       const result = validateNets({
         nets: parsed.nets,
@@ -512,15 +561,22 @@ function registerDrcErcTools(
 
       const errors = result.errors.map(mapSemanticIssue);
       const warnings = result.warnings.map(mapSemanticIssue);
+      const datasheet =
+        parsed.datasheetConstraints === undefined
+          ? undefined
+          : reviewDatasheetConstraints(parsed.datasheetConstraints, parsed.nets, parsed.devices);
 
       return {
         project_id: parsed.projectId ?? '',
-        passed: result.valid,
+        passed: result.valid && (datasheet === undefined || datasheet.status !== 'WARNING'),
         error_count: errors.length,
         warning_count: warnings.length,
         total_issues: errors.length + warnings.length,
         errors,
         warnings,
+        ...(datasheet === undefined
+          ? {}
+          : { datasheet_review: datasheet, electrical_approval: false }),
       };
     },
   });
