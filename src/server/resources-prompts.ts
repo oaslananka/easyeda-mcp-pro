@@ -304,6 +304,8 @@ export function registerProjectResourcesAndPrompts(server: McpServer, context: T
               projectId,
               [
                 'Run easyeda_pcb_constraint_check and easyeda_pcb_production_review first.',
+                'Call easyeda_pcb_route_geometry_review on the focused PCB for bounded track/via observations; ' +
+                  'treat plane connectivity, via currents and native clearance as UNKNOWN unless independently verified.',
                 'For each current-carrying net you are unsure about, call easyeda_design_rules_lookup ' +
                   '(topic=trace-current-review) to separate estimates from unverified routing geometry.',
                 'For any net carrying a meaningful voltage differential, look up clearance ' +

@@ -67,6 +67,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_production_review`                    | `core`         | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                  |
 | `easyeda_pcb_rebuild_copper`                       | `full`         | `high`   | Rebuild existing PCB_PrimitivePour copper via the beta rebuildCopperRegion() API and verify each result through PCB_PrimitivePoured read-back. Requires confirmWrite. PCB rebuilds are not transaction-covered; after timeout inspect before retry. PlaneZone objects are unsupported.                                          |
 | `easyeda_pcb_regions`                              | `core`         | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                               |
+| `easyeda_pcb_route_geometry_review`                | `core`         | `low`    | Read up to 200 native PCB track segments and vias for a focused project, review trace widths and context-specific 90-degree bends, and report unknown clearance/return-path evidence. Does not run DRC, edit copper, or certify routing.                                                                                        |
 | `easyeda_pcb_route_path_plan`                      | `full`         | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                        |
 | `easyeda_pcb_tracks`                               | `core`         | `low`    | List native copper track segments and net/layer geometry. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list.                                                                                                                                   |
 | `easyeda_pcb_vias`                                 | `core`         | `low`    | List native PCB vias, nets and dimensions. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list. Units follow native PCB coordinate scale.                                                                                                        |
@@ -2156,6 +2157,45 @@ Returns a JSON object matching the schema:
   total: number;
   not_available: boolean (optional);
   error: string (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_route_geometry_review`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Read up to 200 native PCB track segments and vias for a focused project, review trace widths and context-specific 90-degree bends, and report unknown clearance/return-path evidence. Does not run DRC, edit copper, or certify routing.
+
+### Input Parameters
+
+| Parameter    | Type                          | Required | Description                                                                                         |
+| ------------ | ----------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `projectId`  | `string`                      | Yes      |                                                                                                     |
+| `intent`     | `'general'` \| `'high-speed'` | Yes      |                                                                                                     |
+| `minWidthMm` | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence. |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  overall_status: 'WARNING' | 'UNKNOWN';
+  coordinate_unit: 'mil';
+  width_unit: 'mm';
+  method: 'NATIVE_TRACK_SEGMENT_GEOMETRY';
+  reference: string;
+  review_intent: 'general' | 'high-speed';
+  input_evidence: object;
+  coverage: object;
+  findings: object[];
+  limitations: string[];
+  runtime: object;
+  errors: string[];
+  engineering_sign_off: 'false';
 }
 ```
 
