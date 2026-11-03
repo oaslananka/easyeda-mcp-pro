@@ -80,14 +80,28 @@ export interface IsolationEmcReview {
   engineering_sign_off: false;
 }
 
-function reviewSpacing(
+function spacingEvidenceState(
   id: 'AIR_CLEARANCE' | 'SURFACE_CREEPAGE',
   requirement: SpacingRequirement | undefined,
   observation: GeometryObservation | undefined,
-): IsolationEmcFinding {
+): { validMinimum: boolean; validDistance: boolean; missing: string[] } {
+  const validMinimum =
+    requirement !== undefined &&
+    Number.isFinite(requirement.minimumMm) &&
+    requirement.minimumMm >= 0;
+  const validDistance =
+    observation !== undefined &&
+    Number.isFinite(observation.distanceMm) &&
+    observation.distanceMm >= 0;
   const missing = [
     ...(requirement === undefined ? ['source-declared minimum distance'] : []),
+    ...(requirement !== undefined && !validMinimum
+      ? ['finite nonnegative source-declared minimum']
+      : []),
     ...(observation === undefined ? ['geometry measurement'] : []),
+    ...(observation !== undefined && !validDistance
+      ? ['finite nonnegative geometry measurement']
+      : []),
   ];
   const expectedKind = id === 'AIR_CLEARANCE' ? 'measured_air_gap' : 'measured_surface_path';
   if (observation !== undefined && observation.evidenceKind !== expectedKind) {
@@ -97,6 +111,19 @@ function reviewSpacing(
         : 'measured along-surface creepage path accounting for geometry and slots',
     );
   }
+  return { validMinimum, validDistance, missing };
+}
+
+function reviewSpacing(
+  id: 'AIR_CLEARANCE' | 'SURFACE_CREEPAGE',
+  requirement: SpacingRequirement | undefined,
+  observation: GeometryObservation | undefined,
+): IsolationEmcFinding {
+  const { validMinimum, validDistance, missing } = spacingEvidenceState(
+    id,
+    requirement,
+    observation,
+  );
   const base: IsolationEmcFinding = {
     id,
     status: 'UNKNOWN',
@@ -105,9 +132,12 @@ function reviewSpacing(
     evidence_refs: observation ? [observation.evidenceRef] : [],
     missing,
     ...(requirement
-      ? { declared_min_mm: requirement.minimumMm, reference: requirement.reference }
+      ? {
+          ...(validMinimum ? { declared_min_mm: requirement.minimumMm } : {}),
+          reference: requirement.reference,
+        }
       : {}),
-    ...(observation ? { reported_mm: observation.distanceMm } : {}),
+    ...(validDistance && observation ? { reported_mm: observation.distanceMm } : {}),
   };
   if (missing.length > 0 || !requirement || !observation) return base;
   const violated = observation.distanceMm < requirement.minimumMm;

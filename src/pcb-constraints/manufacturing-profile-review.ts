@@ -113,23 +113,70 @@ const NUMERIC_RULES: readonly Rule[] = [
   },
 ];
 
+function validReportedScalar(value: number, units: ProfileFinding['units']): boolean {
+  return Number.isFinite(value) && value >= 0 && (units !== 'count' || Number.isInteger(value));
+}
+
+function numericFindingReason(
+  validLimit: boolean,
+  numeric: number | undefined,
+  violated: boolean,
+): string {
+  if (!validLimit)
+    return 'The caller-declared process limit is invalid; no comparison is possible.';
+  if (numeric === undefined)
+    return 'The requested board measurement is unavailable; no absence or process capability is inferred.';
+  return violated
+    ? 'Caller-reported board metric conflicts with the declared, unverified manufacturer process limit.'
+    : 'Caller-reported metric meets the declared limit; source validity, complete geometry and manufacturing acceptance remain unverified.';
+}
+
+function reportedRatio(
+  numerator: number | undefined,
+  denominator: number | undefined,
+): number | undefined {
+  return numerator !== undefined &&
+    denominator !== undefined &&
+    Number.isInteger(numerator) &&
+    Number.isInteger(denominator) &&
+    denominator > 0 &&
+    numerator >= 0 &&
+    numerator <= denominator
+    ? numerator / denominator
+    : undefined;
+}
+
+function ratioFindingReason(
+  validLimit: boolean,
+  ratio: number | undefined,
+  violated: boolean,
+): string {
+  if (!validLimit)
+    return 'The caller-declared coverage ratio limit is invalid; no comparison is possible.';
+  if (ratio === undefined)
+    return 'The complete relevant inventory or valid numerator is unavailable; no absent feature is inferred.';
+  return violated
+    ? 'Caller-reported feature coverage is below the declared process requirement.'
+    : 'Caller-reported feature coverage meets its declared threshold, but inventory completeness and physical accessibility are unverified.';
+}
+
 function compareNumeric(rule: Rule, limit: number, data: PcbConstraintInput): ProfileFinding {
+  const validLimit = validReportedScalar(limit, rule.units);
   const candidate = data[rule.field];
   const numeric =
-    typeof candidate === 'number' &&
-    Number.isFinite(candidate) &&
-    candidate >= 0 &&
-    (rule.units !== 'count' || Number.isInteger(candidate))
+    typeof candidate === 'number' && validReportedScalar(candidate, rule.units)
       ? candidate
       : undefined;
   const violate =
-    numeric !== undefined && (rule.comparison === 'min' ? numeric < limit : numeric > limit);
+    validLimit &&
+    numeric !== undefined &&
+    (rule.comparison === 'min' ? numeric < limit : numeric > limit);
   return {
     id: rule.id,
     category: rule.category,
     status: violate ? 'WARNING' : 'UNKNOWN',
     comparison:
-      numeric === undefined
+      numeric === undefined || !validLimit
         ? 'UNKNOWN'
         : violate
           ? rule.comparison === 'min'
@@ -140,12 +187,7 @@ function compareNumeric(rule: Rule, limit: number, data: PcbConstraintInput): Pr
     declared_limit: limit,
     units: rule.units,
     source_field: rule.field,
-    reason:
-      numeric === undefined
-        ? 'The requested board measurement is unavailable; no absence or process capability is inferred.'
-        : violate
-          ? 'Caller-reported board metric conflicts with the declared, unverified manufacturer process limit.'
-          : 'Caller-reported metric meets the declared limit; source validity, complete geometry and manufacturing acceptance remain unverified.',
+    reason: numericFindingReason(validLimit, numeric, violate),
   };
 }
 
@@ -157,33 +199,24 @@ function ratioFinding(
   category: ProfileFinding['category'],
   name: string,
 ): ProfileFinding {
-  const ratio =
-    numerator !== undefined &&
-    denominator !== undefined &&
-    Number.isInteger(numerator) &&
-    Number.isInteger(denominator) &&
-    denominator > 0 &&
-    numerator >= 0 &&
-    numerator <= denominator
-      ? numerator / denominator
-      : undefined;
-  const violated = ratio !== undefined && ratio < limit;
+  const ratio = reportedRatio(numerator, denominator);
+  const validLimit = Number.isFinite(limit) && limit >= 0 && limit <= 1;
+  const violated = validLimit && ratio !== undefined && ratio < limit;
   return {
     id,
     category,
     status: violated ? 'WARNING' : 'UNKNOWN',
     comparison:
-      ratio === undefined ? 'UNKNOWN' : violated ? 'BELOW_DECLARED_LIMIT' : 'WITHIN_DECLARED_LIMIT',
+      ratio === undefined || !validLimit
+        ? 'UNKNOWN'
+        : violated
+          ? 'BELOW_DECLARED_LIMIT'
+          : 'WITHIN_DECLARED_LIMIT',
     ...(ratio !== undefined ? { actual: ratio } : {}),
     declared_limit: limit,
     units: 'ratio',
     source_field: name,
-    reason:
-      ratio === undefined
-        ? 'The complete relevant inventory or valid numerator is unavailable; no absent feature is inferred.'
-        : violated
-          ? 'Caller-reported feature coverage is below the declared process requirement.'
-          : 'Caller-reported feature coverage meets its declared threshold, but inventory completeness and physical accessibility are unverified.',
+    reason: ratioFindingReason(validLimit, ratio, violated),
   };
 }
 function countUniqueNames(data: PcbConstraintInput): { numerator?: number; denominator?: number } {
