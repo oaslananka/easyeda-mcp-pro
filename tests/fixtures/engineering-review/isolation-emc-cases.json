@@ -303,5 +303,111 @@
       "creepage": "UNKNOWN",
       "missing": "applicable safety standard"
     }
+  },
+  {
+    "id": "missing-transient-voltage-with-otherwise-complete-context",
+    "review": {
+      "purpose": "functional",
+      "workingVoltageV": 12,
+      "environment": "controlled-indoor",
+      "pollutionDegree": 1,
+      "overvoltageCategory": "I",
+      "materialGroup": "I",
+      "altitudeM": 0,
+      "safetyStandard": {
+        "identifier": "IPC-2221",
+        "edition": "C (2023)",
+        "clause": "Example only",
+        "source": "Source claim unverified"
+      },
+      "clearanceRequirement": {
+        "minimumMm": 0.3,
+        "reference": {
+          "identifier": "IPC-2221",
+          "edition": "C (2023)",
+          "clause": "Example, not licensed table",
+          "source": "Example only"
+        }
+      },
+      "creepageRequirement": {
+        "minimumMm": 0.5,
+        "reference": {
+          "identifier": "IPC-2221",
+          "edition": "C (2023)",
+          "clause": "Example, not licensed table",
+          "source": "Example only"
+        }
+      },
+      "airClearance": {
+        "distanceMm": 0.4,
+        "evidenceRef": "Claimed air gap",
+        "evidenceKind": "measured_air_gap"
+      },
+      "surfaceCreepage": {
+        "distanceMm": 0.6,
+        "evidenceRef": "Claimed surface distance",
+        "evidenceKind": "measured_surface_path"
+      }
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "qualified": true,
+      "clearance": "UNKNOWN",
+      "creepage": "UNKNOWN",
+      "missing": "transient/impulse voltage"
+    }
+  },
+  {
+    "id": "missing-altitude-with-otherwise-complete-context",
+    "review": {
+      "purpose": "functional",
+      "workingVoltageV": 12,
+      "transientVoltageV": 24,
+      "environment": "controlled-indoor",
+      "pollutionDegree": 1,
+      "overvoltageCategory": "I",
+      "materialGroup": "I",
+      "safetyStandard": {
+        "identifier": "IPC-2221",
+        "edition": "C (2023)",
+        "clause": "Example only",
+        "source": "Source claim unverified"
+      },
+      "clearanceRequirement": {
+        "minimumMm": 0.3,
+        "reference": {
+          "identifier": "IPC-2221",
+          "edition": "C (2023)",
+          "clause": "Example, not licensed table",
+          "source": "Example only"
+        }
+      },
+      "creepageRequirement": {
+        "minimumMm": 0.5,
+        "reference": {
+          "identifier": "IPC-2221",
+          "edition": "C (2023)",
+          "clause": "Example, not licensed table",
+          "source": "Example only"
+        }
+      },
+      "airClearance": {
+        "distanceMm": 0.4,
+        "evidenceRef": "Claimed air gap",
+        "evidenceKind": "measured_air_gap"
+      },
+      "surfaceCreepage": {
+        "distanceMm": 0.6,
+        "evidenceRef": "Claimed surface distance",
+        "evidenceKind": "measured_surface_path"
+      }
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "qualified": true,
+      "clearance": "UNKNOWN",
+      "creepage": "UNKNOWN",
+      "missing": "installation altitude"
+    }
   }
 ]
