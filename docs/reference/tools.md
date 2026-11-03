@@ -67,7 +67,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_production_review`                    | `core`         | `medium` | Run fabrication, assembly, and testability production review rules for PCB handoff. Reports severity-ranked DFM/DFA/DFT findings with actionable remediation before Gerber export or manufacturing submission.                                                                                                                  |
 | `easyeda_pcb_rebuild_copper`                       | `full`         | `high`   | Rebuild existing PCB_PrimitivePour copper via the beta rebuildCopperRegion() API and verify each result through PCB_PrimitivePoured read-back. Requires confirmWrite. PCB rebuilds are not transaction-covered; after timeout inspect before retry. PlaneZone objects are unsupported.                                          |
 | `easyeda_pcb_regions`                              | `core`         | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                               |
-| `easyeda_pcb_route_geometry_review`                | `core`         | `low`    | Read bounded native PCB tracks/vias for a focused project; review geometry and optional declared differential net pairs, skew and spacing. Report unknown impedance, planes and incomplete evidence. Read-only; no DRC or fabrication approval.                                                                                 |
+| `easyeda_pcb_route_geometry_review`                | `core`         | `low`    | Read bounded native PCB tracks, vias and optionally components; review observed route geometry, declared differential pairs or component-origin placement constraints. Missing electrical paths remain UNKNOWN. Read-only; no DRC or fabrication approval.                                                                      |
 | `easyeda_pcb_route_path_plan`                      | `full`         | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                        |
 | `easyeda_pcb_tracks`                               | `core`         | `low`    | List native copper track segments and net/layer geometry. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list.                                                                                                                                   |
 | `easyeda_pcb_vias`                                 | `core`         | `low`    | List native PCB vias, nets and dimensions. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list. Units follow native PCB coordinate scale.                                                                                                        |
@@ -2166,16 +2166,17 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Read bounded native PCB tracks/vias for a focused project; review geometry and optional declared differential net pairs, skew and spacing. Report unknown impedance, planes and incomplete evidence. Read-only; no DRC or fabrication approval.
+> Read bounded native PCB tracks, vias and optionally components; review observed route geometry, declared differential pairs or component-origin placement constraints. Missing electrical paths remain UNKNOWN. Read-only; no DRC or fabrication approval.
 
 ### Input Parameters
 
-| Parameter          | Type                          | Required | Description                                                                                         |
-| ------------------ | ----------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `projectId`        | `string`                      | Yes      |                                                                                                     |
-| `intent`           | `'general'` \| `'high-speed'` | Yes      |                                                                                                     |
-| `minWidthMm`       | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence. |
-| `differentialPair` | `object (optional)`           | No       |                                                                                                     |
+| Parameter            | Type                          | Required | Description                                                                                         |
+| -------------------- | ----------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `projectId`          | `string`                      | Yes      |                                                                                                     |
+| `intent`             | `'general'` \| `'high-speed'` | Yes      |                                                                                                     |
+| `minWidthMm`         | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence. |
+| `differentialPair`   | `object (optional)`           | No       |                                                                                                     |
+| `placementRelations` | `object[] (optional)`         | No       |                                                                                                     |
 
 ### Output Format
 
@@ -2197,6 +2198,7 @@ Returns a JSON object matching the schema:
   runtime: object;
   errors: string[];
   differential_pair: object (optional);
+  placement_review: object (optional);
   engineering_sign_off: 'false';
 }
 ```

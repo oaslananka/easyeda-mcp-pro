@@ -149,3 +149,70 @@ missing stackup and unsupported pours. Record the source revision, extension
 checksum, actual editor version, native project identity and no-write
 read-back as described in the general live acceptance checklist. Until
 then, the deterministic tests demonstrate software behavior only.
+
+## Component-origin placement relationships (optional)
+
+The same read-only MCP tool supports up to eight `placementRelations` in a
+single request, using the existing `pcb.listComponents` native reader. It
+enumerates **at most 200** focused-PCB components and records native
+designator, primitive ID, X/Y origin, rotation and layer. This is a component
+**origin-to-origin** measurement in PCB mils, converted to millimetres.
+It is **not** a pad-to-pad distance, electrical net path, via current,
+copper geometry or closed high-frequency loop measurement.
+
+```json
+{
+  "projectId": "your-exact-native-project-uuid",
+  "placementRelations": [
+    {
+      "first": "U1",
+      "second": "C1",
+      "kind": "decoupling",
+      "maxCenterDistanceMm": 2.0,
+      "constraintSource": "Example only: verify against the device's actual layout datasheet"
+    },
+    {
+      "first": "J1",
+      "second": "D1",
+      "kind": "esd-entry"
+    }
+  ]
+}
+```
+
+The numeric limit above is **illustrative and not a universal bypass-cap
+requirement**. No arbitrary component-origin distance or fixed rotation
+becomes a hard electrical rule by default. To compare an origin distance,
+same-native-layer expectation, or exact first-component rotation, an
+explicit caller-provided `constraintSource` is required; it remains
+**caller-declared/unverified**, not an automatically checked datasheet.
+
+Supported relation contexts: `decoupling`, `switching-loop`, `crystal`,
+`esd-entry`, `feedback`, and `sensitive-adjacency`. Rotation comparison
+supports `firstRotationDeg` and `rotationToleranceDeg` with wraparound.
+`requireSameLayer` compares **native layer numbers only**; the tool does
+not assume undocumented native layer codes prove top/bottom assembly side.
+
+Each result includes implicated designators and native primitive IDs,
+observed centre distance in mm, native layers/rotation when available,
+the caller-supplied limit and constraint source, and relevant reasons.
+If the observed origin distance exceeds the _supplied_ limit, or an
+explicitly required layer/angle mismatches, the result is `WARNING`.
+Even when the observed geometry meets an explicit constraint, the
+relationship and `electrical_loop_status` remain **UNKNOWN** because
+the component origin is not the relevant supply pad, connector pin,
+crystal pin or ESD current path.
+
+An absent, duplicated or malformed designator, unsupported/empty native
+getter, wrong focused PCB, extension-version mismatch or truncated
+collection fails closed to **UNKNOWN**, not `PASS` or a verified missing
+component. Native `getAll()` enumeration is bounded, and separate
+primitive reads are **not an atomic PCB snapshot**.
+
+A verified power/buck loop needs actual pad coordinates, pad-net
+connections, copper/return plane continuity and relevant device-layout
+requirements; those data are **not exposed** by the current
+`pcb.listComponents` read contract. This bounded inspection does not
+claim EMI immunity, SI correctness, safety compliance, autorouting
+or a manufacturing approval. Exact-source live acceptance on a
+disposable EasyEDA PCB remains a separate required milestone.
