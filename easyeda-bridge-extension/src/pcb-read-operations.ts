@@ -248,14 +248,18 @@ export function createPcbReadOperations({
     };
   }
 
+  async function nativePcbPrimitives(kind: 'Component' | 'Line' | 'Via'): Promise<any[]> {
+    const name = `PCB_Primitive${kind}`;
+    const nativeClass = readFirstPath<any>([name, `pcb_Primitive${kind}`]);
+    if (typeof nativeClass?.getAll !== 'function') {
+      throw new Error(`${name}.getAll is unavailable in this EasyEDA Pro runtime`);
+    }
+    return (await nativeClass.getAll()) || [];
+  }
+
   async function listComponents(limit?: number, offset = 0): Promise<unknown> {
     await requireActivePcbContext();
-    const pcbCompClass = readFirstPath<any>(['PCB_PrimitiveComponent', 'pcb_PrimitiveComponent']);
-    if (!pcbCompClass || typeof pcbCompClass.getAll !== 'function') {
-      return { total: 0, items: [] };
-    }
-
-    const all = (await pcbCompClass.getAll()) || [];
+    const all = await nativePcbPrimitives('Component');
     const start = Math.max(0, offset);
     const items = all.slice(start, paginationEnd(limit, start)).map((component: any) => {
       const footprint = readState(component, 'Footprint') as Record<string, unknown> | undefined;
@@ -319,12 +323,7 @@ export function createPcbReadOperations({
     await requireActivePcbContext();
     // Tracks are PCB_PrimitiveLine segments. PCB_PrimitivePolyline.create()
     // never resolved in the live runtime used to validate pcb.addTrack.
-    const pcbLineClass = readFirstPath<any>(['PCB_PrimitiveLine', 'pcb_PrimitiveLine']);
-    if (!pcbLineClass || typeof pcbLineClass.getAll !== 'function') {
-      return { total: 0, items: [] };
-    }
-
-    const all = (await pcbLineClass.getAll()) || [];
+    const all = await nativePcbPrimitives('Line');
     const start = Math.max(0, offset);
     const items = all.slice(start, paginationEnd(limit, start)).map((line: any) => ({
       primitiveId: readState(line, 'PrimitiveId') ?? '',
@@ -342,12 +341,7 @@ export function createPcbReadOperations({
 
   async function listVias(limit?: number, offset = 0): Promise<unknown> {
     await requireActivePcbContext();
-    const pcbViaClass = readFirstPath<any>(['PCB_PrimitiveVia', 'pcb_PrimitiveVia']);
-    if (!pcbViaClass || typeof pcbViaClass.getAll !== 'function') {
-      return { total: 0, items: [] };
-    }
-
-    const all = (await pcbViaClass.getAll()) || [];
+    const all = await nativePcbPrimitives('Via');
     const start = Math.max(0, offset);
     const items = all.slice(start, paginationEnd(limit, start)).map((via: any) => ({
       primitiveId: readState(via, 'PrimitiveId') ?? '',

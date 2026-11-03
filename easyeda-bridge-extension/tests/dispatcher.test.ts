@@ -2349,13 +2349,16 @@ describe('createDispatcher', () => {
     });
   });
 
-  it('legacy PCB read methods return an empty list when their native class is unavailable', async () => {
+  it('native PCB list methods reject missing enumeration APIs rather than reporting empty boards', async () => {
     const dispatcher = createDispatcher(makeVerifiedPcbToolkit({}));
-    for (const method of ['pcb.listVias', 'pcb.listTracks', 'pcb.listComponents']) {
-      await expect(dispatcher.dispatch(method, scopedPcbParams)).resolves.toEqual({
-        total: 0,
-        items: [],
-      });
+    for (const [method, nativeClass] of [
+      ['pcb.listVias', 'PCB_PrimitiveVia'],
+      ['pcb.listTracks', 'PCB_PrimitiveLine'],
+      ['pcb.listComponents', 'PCB_PrimitiveComponent'],
+    ] as const) {
+      await expect(dispatcher.dispatch(method, scopedPcbParams)).rejects.toThrow(
+        nativeClass + '.getAll is unavailable',
+      );
     }
   });
 

@@ -495,13 +495,40 @@ describe('PCB read operations', () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 
-  it('returns an empty list for legacy PCB readers when a native read class is unavailable', async () => {
+  it('fails closed when a native PCB enumeration class is unavailable', async () => {
     const { operations, requireActivePcbContext } = makeOperations();
+
+    await expect(operations.listComponents()).rejects.toThrow(
+      'PCB_PrimitiveComponent.getAll is unavailable',
+    );
+    await expect(operations.listTracks()).rejects.toThrow(
+      'PCB_PrimitiveLine.getAll is unavailable',
+    );
+    await expect(operations.listVias()).rejects.toThrow('PCB_PrimitiveVia.getAll is unavailable');
+    expect(requireActivePcbContext).toHaveBeenCalledTimes(3);
+  });
+
+  it('distinguishes an existing empty native enumeration from missing or invalid getAll', async () => {
+    const { operations } = makeOperations({
+      PCB_PrimitiveComponent: { getAll: async () => [] },
+      PCB_PrimitiveLine: { getAll: async () => [] },
+      PCB_PrimitiveVia: { getAll: async () => [] },
+    });
 
     await expect(operations.listComponents()).resolves.toEqual({ total: 0, items: [] });
     await expect(operations.listTracks()).resolves.toEqual({ total: 0, items: [] });
     await expect(operations.listVias()).resolves.toEqual({ total: 0, items: [] });
-    expect(requireActivePcbContext).toHaveBeenCalledTimes(3);
+
+    const invalid = makeOperations({
+      PCB_PrimitiveComponent: { getAll: null },
+      PCB_PrimitiveLine: { getAll: 'not a function' },
+      PCB_PrimitiveVia: {},
+    });
+    await expect(invalid.operations.listComponents()).rejects.toThrow(
+      'PCB_PrimitiveComponent.getAll',
+    );
+    await expect(invalid.operations.listTracks()).rejects.toThrow('PCB_PrimitiveLine.getAll');
+    await expect(invalid.operations.listVias()).rejects.toThrow('PCB_PrimitiveVia.getAll');
   });
 
   it('fails cleanly when Fill/Region native APIs are unavailable', async () => {
