@@ -750,19 +750,20 @@ repository should catalog this plugin, but the manifest and workflow instruction
 here so they stay synchronized with the actual MCP server, bridge extension, tool
 profiles, and EasyEDA runtime behavior.
 
-| File                                                                                   | Purpose                                                                                                     |
-| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)                             | Claude Code-valid plugin manifest for compatible agent runtimes and marketplace catalogs.                   |
-| [`.mcp.json`](.mcp.json)                                                               | Project-local Claude Code MCP server configuration.                                                         |
-| [`.codex/config.example.toml`](.codex/config.example.toml)                             | Codex CLI MCP configuration example.                                                                        |
-| [`.vscode/mcp.example.json`](.vscode/mcp.example.json)                                 | VS Code / GitHub Copilot workspace MCP configuration example.                                               |
-| [`opencode.example.jsonc`](opencode.example.jsonc)                                     | OpenCode project MCP configuration example.                                                                 |
-| [`.opencode/skills/`](.opencode/skills)                                                | OpenCode-native mirrored skill definitions.                                                                 |
-| [`docs/agent-runtime-config.md`](docs/agent-runtime-config.md)                         | Agent runtime setup and validation matrix.                                                                  |
-| [`skills/easyeda-workflow/SKILL.md`](skills/easyeda-workflow/SKILL.md)                 | End-to-end EasyEDA setup, inspection, controlled write, export, and reporting workflow.                     |
-| [`skills/component-search/SKILL.md`](skills/component-search/SKILL.md)                 | Component search, BOM review, sourcing, pricing, availability, and part-risk workflow.                      |
-| [`skills/design-validation/SKILL.md`](skills/design-validation/SKILL.md)               | DRC/ERC, semantic ERC, PCB constraints, production QA, export, and release-validation workflow.             |
-| [`skills/easyeda-component-review/SKILL.md`](skills/easyeda-component-review/SKILL.md) | Datasheet, actual footprint and bound 3D model review, with structured evidence saved in a Personal Device. |
+| File                                                                                                                     | Purpose                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)                                                               | Claude Code-valid plugin manifest for compatible agent runtimes and marketplace catalogs.                    |
+| [`.mcp.json`](.mcp.json)                                                                                                 | Project-local Claude Code MCP server configuration.                                                          |
+| [`.codex/config.example.toml`](.codex/config.example.toml)                                                               | Codex CLI MCP configuration example.                                                                         |
+| [`.vscode/mcp.example.json`](.vscode/mcp.example.json)                                                                   | VS Code / GitHub Copilot workspace MCP configuration example.                                                |
+| [`opencode.example.jsonc`](opencode.example.jsonc)                                                                       | OpenCode project MCP configuration example.                                                                  |
+| [`.opencode/skills/`](.opencode/skills)                                                                                  | OpenCode-native mirrored skill definitions.                                                                  |
+| [`docs/agent-runtime-config.md`](docs/agent-runtime-config.md)                                                           | Agent runtime setup and validation matrix.                                                                   |
+| [`skills/easyeda-workflow/SKILL.md`](skills/easyeda-workflow/SKILL.md)                                                   | End-to-end EasyEDA setup, inspection, controlled write, export, and reporting workflow.                      |
+| [`skills/component-search/SKILL.md`](skills/component-search/SKILL.md)                                                   | Component search, BOM review, sourcing, pricing, availability, and part-risk workflow.                       |
+| [`skills/design-validation/SKILL.md`](skills/design-validation/SKILL.md)                                                 | DRC/ERC, semantic ERC, PCB constraints, production QA, export, and release-validation workflow.              |
+| [`skills/design-validation/references/engineering-review.md`](skills/design-validation/references/engineering-review.md) | Canonical on-demand phase router for source-aware schematic, layout, DRC, DFM/DFT and human evidence review. |
+| [`skills/easyeda-component-review/SKILL.md`](skills/easyeda-component-review/SKILL.md)                                   | Datasheet, actual footprint and bound 3D model review, with structured evidence saved in a Personal Device.  |
 
 ### Agent setup
 
