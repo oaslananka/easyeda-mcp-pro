@@ -109,7 +109,7 @@ For advanced configurations, manual instructions, and specific clients, see [Ins
 
 ## Overview
 
-easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes up to 120 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, Personal Device metadata, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
+easyeda-mcp-pro is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that bridges AI assistants with hardware design workflows in EasyEDA Pro. It exposes 125 profile-gated MCP tools for schematic inspection and editing, controlled EasyEDA Pro API calls, Personal Device metadata, BOM management, design rule checks, PCB board analysis, fabrication exports, diagnostics, and supplier integration.
 
 The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling real-time access to open project data. It integrates with JLCPCB, LCSC, Mouser, and DigiKey for BOM sourcing and pricing.
 
@@ -594,11 +594,11 @@ The server registers profile-gated tools according to the active `TOOL_PROFILE`.
 
 | Profile        | Registered tools |
 | -------------- | ---------------: |
-| `core`         |               75 |
-| `pro`          |              102 |
-| `full`         |              118 |
-| `dev`          |              123 |
-| `experimental` |              124 |
+| `core`         |               76 |
+| `pro`          |              103 |
+| `full`         |              119 |
+| `dev`          |              124 |
+| `experimental` |              125 |
 
 <!-- capability-counts:end -->
 
@@ -668,6 +668,7 @@ The schematic write APIs use EasyEDA Pro extension APIs that EasyEDA currently m
 | `easyeda_drc_run`            | Design rule check for PCB           |
 | `easyeda_erc_run`            | Electrical rule check for schematic |
 | `easyeda_rule_check_summary` | Combined DRC + ERC summary          |
+| `easyeda_engineering_review` | Read-only PCB evidence and coverage |
 
 ### L1 — Board (core)
 
@@ -702,7 +703,7 @@ The schematic write APIs use EasyEDA Pro extension APIs that EasyEDA currently m
 │  (via Plugin)    │     Protocol      │  └───────────────┘  │
 └─────────────────┘                    │  ┌───────────────┐  │
                                        │  │  ToolRegistry  │  │
-                                       │  │ (up to 120 tools) │ │
+                                       │  │ (up to 125 tools) │ │
                                        │  └───────────────┘  │
                                        │  ┌───────────────┐  │
                                        │  │    Storage     │──┼──► SQLite
