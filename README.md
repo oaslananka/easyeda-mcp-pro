@@ -1,70 +1,27 @@
 <div align="center">
 
-# easyeda-mcp-pro
+# EasyEDA MCP Pro
+
+**Inspect, review, and safely automate EasyEDA Pro designs from MCP-compatible AI assistants.**
+
+[Documentation](https://oaslananka.github.io/easyeda-mcp-pro/) · [Getting Started](https://oaslananka.github.io/easyeda-mcp-pro/guide/getting-started.html) · [Tool Reference](https://oaslananka.github.io/easyeda-mcp-pro/reference/tools.html) · [Compatibility](https://oaslananka.github.io/easyeda-mcp-pro/reference/easyeda-compatibility.html) · [Roadmap](docs/ROADMAP.md)
 
 <p>
-  Production-grade MCP server for EasyEDA Pro: safe PCB design inspection, BOM sourcing, manufacturing export, and AI-assisted hardware review.
+  <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/v/easyeda-mcp-pro.svg?logo=npm" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/node/v/easyeda-mcp-pro" alt="supported Node.js version" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/npm/l/easyeda-mcp-pro.svg" alt="MIT license" /></a>
 </p>
 
 <p>
-  <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
-    <img src="https://img.shields.io/npm/v/easyeda-mcp-pro.svg?logo=npm" alt="npm version" />
-  </a>
-  <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
-    <img src="https://img.shields.io/npm/dt/easyeda-mcp-pro?logo=npm&label=total%20downloads" alt="npm total downloads" />
-  </a>
-  <a href="https://www.npmjs.com/package/easyeda-mcp-pro">
-    <img src="https://img.shields.io/node/v/easyeda-mcp-pro" alt="supported Node.js version" />
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/npm/l/easyeda-mcp-pro.svg" alt="license" />
-  </a>
-  <a href="https://pnpm.io/">
-    <img src="https://img.shields.io/badge/pnpm-11.28.8-blue.svg" alt="pnpm" />
-  </a>
+  <a href="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml"><img src="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
+  <a href="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/deploy-docs.yml"><img src="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/deploy-docs.yml/badge.svg" alt="Docs status" /></a>
+  <a href="https://github.com/oaslananka/easyeda-mcp-pro/security/policy"><img src="https://img.shields.io/badge/security-policy-blue" alt="Security policy" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/oaslananka/easyeda-mcp-pro"><img src="https://api.scorecard.dev/projects/github.com/oaslananka/easyeda-mcp-pro/badge" alt="OpenSSF Scorecard" /></a>
 </p>
 
 <p>
-  <a href="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml">
-    <img src="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/ci.yml/badge.svg" alt="CI status" />
-  </a>
-  <a href="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/deploy-docs.yml">
-    <img src="https://github.com/oaslananka/easyeda-mcp-pro/actions/workflows/deploy-docs.yml/badge.svg" alt="Docs status" />
-  </a>
-  <a href="https://github.com/oaslananka/easyeda-mcp-pro/security/policy">
-    <img src="https://img.shields.io/badge/security-policy-blue" alt="Security policy" />
-  </a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/oaslananka/easyeda-mcp-pro">
-    <img src="https://api.scorecard.dev/projects/github.com/oaslananka/easyeda-mcp-pro/badge" alt="OpenSSF Scorecard" />
-  </a>
-</p>
-
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
-[![GitGem](https://gitgem.org/api/badge/github/oaslananka/easyeda-mcp-pro.svg)](https://gitgem.org/github/oaslananka/easyeda-mcp-pro)
-
-<p>
-  <a href="docs/ROADMAP.md">Roadmap</a> ·
-  <a href="docs/OPENSSF_BEST_PRACTICES.md">OpenSSF evidence</a> ·
-  <a href="docs/SECURITY_ASSURANCE_CASE.md">Security assurance case</a>
-</p>
-
-<p>
-  <strong>Compliance docs:</strong>
-  <a href="THIRD_PARTY_NOTICES.md">Third-Party Notices</a>
-  ·
-  <a href="docs/vendor-terms.md">Vendor Terms and Unsupported Workflows</a>
-  ·
-  <a href="docs/REMOTE_MCP_MODES.md">Remote MCP Modes</a>
-</p>
-
-<p>
-  <a href="https://www.buymeacoffee.com/oaslananka">
-    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=oaslananka&button_colour=FFDD00&font_colour=000000&font_family=Inter&outline_colour=000000&coffee_colour=ffffff" height="28" alt="Buy me a coffee" />
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/oaslananka/easyeda-mcp-pro">
-    <img src="https://img.shields.io/github/stars/oaslananka/easyeda-mcp-pro?style=for-the-badge&logo=github&label=Star%20on%20GitHub&color=FFA500&labelColor=181717" alt="Star on GitHub" />
-  </a>
+  <a href="https://deepwiki.com/oaslananka/easyeda-mcp-pro"><img src="https://img.shields.io/badge/Ask-DeepWiki-2563eb" alt="Ask DeepWiki" /></a>
+  <a href="https://gitgem.org/github/oaslananka/easyeda-mcp-pro"><img src="https://gitgem.org/api/badge/github/oaslananka/easyeda-mcp-pro.svg" alt="GitGem" /></a>
 </p>
 
 </div>
@@ -76,6 +33,10 @@
 easyeda-mcp-pro keeps historical OpenSSF Best Practices evidence in [`docs/OPENSSF_BEST_PRACTICES.md`](docs/OPENSSF_BEST_PRACTICES.md) and its security assurance case in [`docs/SECURITY_ASSURANCE_CASE.md`](docs/SECURITY_ASSURANCE_CASE.md). The header badges link to current workflow-backed signals only: CI, generated docs deployment, the project security policy, and the OpenSSF Scorecard. Release integrity evidence (npm provenance, signed-release status) is tracked in [`docs/RELEASE_VERIFICATION.md`](docs/RELEASE_VERIFICATION.md). Coverage, Test Analytics, and extension bundle monitoring are documented in [`docs/CODECOV_ANALYTICS.md`](docs/CODECOV_ANALYTICS.md).
 
 **Licensing note:** current repository source is MIT-licensed. Commercial use is permitted under MIT; historical releases retain the license notices shipped with them.
+
+**More project references:** [OpenSSF evidence](docs/OPENSSF_BEST_PRACTICES.md) · [Security assurance](docs/SECURITY_ASSURANCE_CASE.md) · [Third-party notices](THIRD_PARTY_NOTICES.md) · [Vendor terms](docs/vendor-terms.md) · [Remote MCP modes](docs/REMOTE_MCP_MODES.md)
+
+**Support development:** [Buy me a coffee](https://www.buymeacoffee.com/oaslananka) · [Star on GitHub](https://github.com/oaslananka/easyeda-mcp-pro)
 
 ---
 
