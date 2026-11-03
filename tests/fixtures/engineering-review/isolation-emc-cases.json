@@ -1,0 +1,229 @@
+[
+  {
+    "id": "ordinary-5v-board-no-safety-standard-evidence",
+    "review": { "purpose": "functional", "workingVoltageV": 5, "environment": "controlled-indoor" },
+    "expected": {
+      "status": "UNKNOWN",
+      "qualified": true,
+      "clearance": "UNKNOWN",
+      "creepage": "UNKNOWN",
+      "missing": "pollution degree"
+    }
+  },
+  {
+    "id": "explicit-air-clearance-declared-shortfall",
+    "review": {
+      "purpose": "basic",
+      "workingVoltageV": 230,
+      "transientVoltageV": 2500,
+      "environment": "industrial",
+      "pollutionDegree": 2,
+      "overvoltageCategory": "II",
+      "materialGroup": "IIIa",
+      "altitudeM": 1000,
+      "safetyStandard": {
+        "identifier": "IEC 60664-1",
+        "edition": "2020+AMD1:2025",
+        "clause": "Source claim to be independently verified",
+        "source": "https://webstore.iec.ch/en/publication/107319"
+      },
+      "clearanceRequirement": {
+        "minimumMm": 3,
+        "reference": {
+          "identifier": "IEC 60664-1",
+          "edition": "2020+AMD1:2025",
+          "clause": "Hypothetical design requirement; not standard table value",
+          "source": "Example only"
+        }
+      },
+      "airClearance": {
+        "distanceMm": 2,
+        "evidenceRef": "Disposable PCB measurement claim",
+        "evidenceKind": "measured_air_gap"
+      }
+    },
+    "expected": {
+      "status": "WARNING",
+      "qualified": true,
+      "clearance": "WARNING",
+      "creepage": "UNKNOWN",
+      "missing": null
+    }
+  },
+  {
+    "id": "creepage-shortfall-independent-of-air-gap",
+    "review": {
+      "purpose": "basic",
+      "workingVoltageV": 110,
+      "transientVoltageV": 1500,
+      "environment": "controlled-indoor",
+      "pollutionDegree": 2,
+      "overvoltageCategory": "II",
+      "materialGroup": "II",
+      "altitudeM": 100,
+      "creepageRequirement": {
+        "minimumMm": 4,
+        "reference": {
+          "identifier": "IEC 60664-1",
+          "edition": "2020+AMD1:2025",
+          "clause": "Manufacturer assessment pending",
+          "source": "Example only"
+        }
+      },
+      "surfaceCreepage": {
+        "distanceMm": 2.5,
+        "evidenceRef": "Claimed surface trace path",
+        "evidenceKind": "measured_surface_path"
+      }
+    },
+    "expected": {
+      "status": "WARNING",
+      "qualified": true,
+      "clearance": "UNKNOWN",
+      "creepage": "WARNING",
+      "missing": "applicable safety standard"
+    }
+  },
+  {
+    "id": "estimated-xy-gap-not-a-creepage-measurement",
+    "review": {
+      "purpose": "reinforced",
+      "workingVoltageV": 400,
+      "creepageRequirement": {
+        "minimumMm": 5,
+        "reference": {
+          "identifier": "IEC 60664-1",
+          "edition": "2020+AMD1:2025",
+          "clause": "Hypothetical assessment",
+          "source": "Example only"
+        }
+      },
+      "surfaceCreepage": {
+        "distanceMm": 1,
+        "evidenceRef": "Raw PCB XY distance estimate",
+        "evidenceKind": "estimated"
+      }
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "qualified": true,
+      "clearance": "UNKNOWN",
+      "creepage": "UNKNOWN",
+      "missing": "transient/impulse"
+    }
+  },
+  {
+    "id": "esd-entry-connector-and-tvss-not-immunity-proof",
+    "review": {
+      "purpose": "functional",
+      "workingVoltageV": 5,
+      "esdEntry": {
+        "connectorRef": "J1",
+        "protectorRef": "D1",
+        "entryNet": "USB_D+",
+        "testStandard": {
+          "identifier": "IEC 61000-4-2",
+          "edition": "2025",
+          "clause": "Test method only",
+          "source": "https://webstore.iec.ch/en/publication/68954"
+        }
+      }
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "qualified": true,
+      "clearance": "UNKNOWN",
+      "creepage": "UNKNOWN",
+      "missing": "pollution degree"
+    }
+  },
+  {
+    "id": "board-slot-coating-not-automatic-reinforced-approval",
+    "review": {
+      "purpose": "reinforced",
+      "workingVoltageV": 230,
+      "boardSlotEvidence": "Proposed slot near barrier",
+      "coatingEvidence": "Selected conformal coating"
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "qualified": true,
+      "clearance": "UNKNOWN",
+      "creepage": "UNKNOWN",
+      "missing": "material group"
+    }
+  },
+  {
+    "id": "both-declared-distances-in-range-still-not-certified",
+    "review": {
+      "purpose": "functional",
+      "workingVoltageV": 12,
+      "transientVoltageV": 24,
+      "environment": "controlled-indoor",
+      "pollutionDegree": 1,
+      "overvoltageCategory": "I",
+      "materialGroup": "I",
+      "altitudeM": 0,
+      "safetyStandard": {
+        "identifier": "IPC-2221",
+        "edition": "C (2023)",
+        "clause": "Example only",
+        "source": "Source claim unverified"
+      },
+      "clearanceRequirement": {
+        "minimumMm": 0.3,
+        "reference": {
+          "identifier": "IPC-2221",
+          "edition": "C (2023)",
+          "clause": "Example, not licensed table",
+          "source": "Example only"
+        }
+      },
+      "creepageRequirement": {
+        "minimumMm": 0.5,
+        "reference": {
+          "identifier": "IPC-2221",
+          "edition": "C (2023)",
+          "clause": "Example, not licensed table",
+          "source": "Example only"
+        }
+      },
+      "airClearance": {
+        "distanceMm": 0.4,
+        "evidenceRef": "Claimed air gap",
+        "evidenceKind": "measured_air_gap"
+      },
+      "surfaceCreepage": {
+        "distanceMm": 0.6,
+        "evidenceRef": "Claimed surface distance",
+        "evidenceKind": "measured_surface_path"
+      }
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "qualified": false,
+      "clearance": "UNKNOWN",
+      "creepage": "UNKNOWN",
+      "missing": null
+    }
+  },
+  {
+    "id": "fast-loop-and-return-reference-are-not-emi-measurements",
+    "review": {
+      "purpose": "functional",
+      "workingVoltageV": 24,
+      "emcReturn": {
+        "fastLoopRef": "Q1-L1-D1",
+        "returnPlaneEvidence": "Claimed copper plane",
+        "sensitiveCircuitRef": "U2"
+      }
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "qualified": true,
+      "clearance": "UNKNOWN",
+      "creepage": "UNKNOWN",
+      "missing": "applicable safety standard"
+    }
+  }
+]
