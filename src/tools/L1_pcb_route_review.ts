@@ -1,5 +1,10 @@
 import { z } from 'zod';
 import {
+  reviewPlacementRelations,
+  type NativePlacement,
+  type PlacementRelation,
+} from '../pcb-layout/placement-evidence.js';
+import {
   reviewDifferentialPair,
   type DifferentialPairDeclaration,
 } from '../pcb-layout/differential-pair.js';
@@ -59,6 +64,53 @@ const differentialPairSchema = z
     }
   });
 
+const placementRelationSchema = z
+  .object({
+    first: exactNetSchema.describe('Exact native PCB component designator, e.g. U1.'),
+    second: exactNetSchema.describe('Exact second PCB component designator, e.g. C1.'),
+    kind: z.enum([
+      'decoupling',
+      'switching-loop',
+      'crystal',
+      'esd-entry',
+      'feedback',
+      'sensitive-adjacency',
+    ]),
+    maxCenterDistanceMm: z.number().finite().positive().optional(),
+    requireSameLayer: z.boolean().optional(),
+    firstRotationDeg: z.number().finite().optional(),
+    rotationToleranceDeg: z.number().finite().min(0).max(180).optional(),
+    constraintSource: z.string().trim().min(3).max(200).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.first === value.second) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['second'],
+        message: 'Two distinct component designators are required.',
+      });
+    }
+    if (value.rotationToleranceDeg !== undefined && value.firstRotationDeg === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rotationToleranceDeg'],
+        message: 'Declare the expected rotation first.',
+      });
+    }
+    if (
+      (value.maxCenterDistanceMm !== undefined ||
+        value.requireSameLayer === true ||
+        value.firstRotationDeg !== undefined) &&
+      !value.constraintSource
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['constraintSource'],
+        message: 'An explicit caller-supplied source is required for any placement constraint.',
+      });
+    }
+  });
+
 const inputSchema = z.object({
   projectId: projectIdSchema,
   intent: z.enum(['general', 'high-speed']).default('general'),
@@ -71,6 +123,21 @@ const inputSchema = z.object({
       'Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.',
     ),
   differentialPair: differentialPairSchema.optional(),
+  placementRelations: z.array(placementRelationSchema).min(1).max(8).optional(),
+});
+
+const nativeComponentSchema = z.object({
+  primitiveId: z.string().optional(),
+  designator: z.string().optional(),
+  x: z.number().finite().optional(),
+  y: z.number().finite().optional(),
+  layer: z.number().finite().optional(),
+  rotation: z.number().finite().optional(),
+  footprintName: z.string().optional(),
+});
+const componentListSchema = z.object({
+  total: z.number().int().nonnegative(),
+  items: z.array(nativeComponentSchema).max(WINDOW),
 });
 
 const nativeTrackSchema = z.object({
@@ -170,6 +237,41 @@ const differentialPairResultSchema = z.object({
   engineering_sign_off: z.literal(false),
 });
 
+const placementReviewSchema = z.object({
+  status: z.enum(['WARNING', 'UNKNOWN']),
+  method: z.literal('NATIVE_COMPONENT_ORIGIN_RELATIONSHIPS'),
+  coordinate_unit: z.literal('mil'),
+  distance_unit: z.literal('mm'),
+  input_evidence: z.object({
+    components: z.enum(['observed', 'unavailable']),
+    native_total: z.number().int().nonnegative(),
+    returned_count: z.number().int().nonnegative(),
+    collection_complete: z.boolean(),
+  }),
+  findings: z
+    .array(
+      z.object({
+        id: z.string(),
+        relation: placementRelationSchema.shape.kind,
+        components: z.array(z.string()),
+        primitive_ids: z.array(z.string()),
+        status: z.enum(['WARNING', 'UNKNOWN']),
+        evidence: z.enum(['caller_declared_unverified', 'native_component_origins']),
+        measured_center_distance_mm: z.number().optional(),
+        declared_max_center_distance_mm: z.number().optional(),
+        native_layers: z.array(z.number()).optional(),
+        first_rotation_deg: z.number().optional(),
+        declared_first_rotation_deg: z.number().optional(),
+        constraint_source: z.string().optional(),
+        reasons: z.array(z.string()),
+        electrical_loop_status: z.literal('UNKNOWN'),
+      }),
+    )
+    .max(8),
+  limitations: z.array(z.string()),
+  engineering_sign_off: z.literal(false),
+});
+
 const outputSchema = z.object({
   project_id: projectIdSchema,
   overall_status: z.enum(['WARNING', 'UNKNOWN']),
@@ -201,6 +303,7 @@ const outputSchema = z.object({
   }),
   errors: z.array(z.string()),
   differential_pair: differentialPairResultSchema.optional(),
+  placement_review: placementReviewSchema.optional(),
   engineering_sign_off: z.literal(false),
 });
 
@@ -208,6 +311,19 @@ type NativeCollection = {
   total: number;
   items: NativeTrack[] | NativeVia[];
 };
+
+async function readComponentCollection(ctx: ToolContext, projectId: string) {
+  const response = await ctx.bridge.call('pcb.listComponents', {
+    projectId,
+    limit: WINDOW,
+    offset: 0,
+  });
+  const parsed = componentListSchema.parse(response);
+  if (parsed.total < parsed.items.length) {
+    throw new Error('pcb.listComponents: native total smaller than returned items');
+  }
+  return parsed;
+}
 
 async function readBoundedCollection(
   ctx: ToolContext,
@@ -224,6 +340,66 @@ async function readBoundedCollection(
   return parsed;
 }
 
+async function collectRouteEvidence(ctx: ToolContext, projectId: string, sourceMismatch: boolean) {
+  const errors: string[] = [];
+  let tracks: NativeTrack[] = [];
+  let vias: NativeVia[] = [];
+  let trackCount = 0;
+  let viaCount = 0;
+  let tracksAvailable = false;
+  let viasAvailable = false;
+  if (!ctx.bridge.connected || sourceMismatch) {
+    errors.push(
+      !ctx.bridge.connected
+        ? 'Native bridge is disconnected; route measurements are unavailable.'
+        : 'Native bridge extension or method registry mismatches this server.',
+    );
+  } else {
+    const [trackRead, viaRead] = await Promise.allSettled([
+      readBoundedCollection(ctx, projectId, 'pcb.listTracks'),
+      readBoundedCollection(ctx, projectId, 'pcb.listVias'),
+    ]);
+    if (trackRead.status === 'fulfilled') {
+      tracks = trackRead.value.items as NativeTrack[];
+      trackCount = trackRead.value.total;
+      tracksAvailable = true;
+    } else {
+      errors.push('pcb.listTracks: ' + String(trackRead.reason));
+    }
+    if (viaRead.status === 'fulfilled') {
+      vias = viaRead.value.items as NativeVia[];
+      viaCount = viaRead.value.total;
+      viasAvailable = true;
+    } else {
+      errors.push('pcb.listVias: ' + String(viaRead.reason));
+    }
+  }
+  return { tracks, vias, trackCount, viaCount, tracksAvailable, viasAvailable, errors };
+}
+
+async function collectPlacementEvidence(
+  ctx: ToolContext,
+  projectId: string,
+  requested: boolean,
+  sourceMismatch: boolean,
+  errors: string[],
+) {
+  let placementComponents: NativePlacement[] = [];
+  let placementTotal = 0;
+  let placementAvailable = false;
+  if (requested && ctx.bridge.connected && !sourceMismatch) {
+    try {
+      const observed = await readComponentCollection(ctx, projectId);
+      placementComponents = observed.items;
+      placementTotal = observed.total;
+      placementAvailable = true;
+    } catch (error) {
+      errors.push('pcb.listComponents: ' + String(error));
+    }
+  }
+  return { placementComponents, placementTotal, placementAvailable };
+}
+
 /**
  * Read-only per-request bounded snapshot. Unavailable or incomplete primitive
  * evidence cannot establish a passing clearance/plane/return-path verdict.
@@ -236,55 +412,32 @@ export function registerPcbRouteReviewTools(
     name: 'easyeda_pcb_route_geometry_review',
     title: 'Review observed PCB route geometry and evidence gaps',
     description:
-      'Read bounded native PCB tracks/vias for a focused project; review geometry and optional declared differential net pairs, skew and spacing. Report unknown impedance, planes and incomplete evidence. Read-only; no DRC or fabrication approval.',
+      'Read bounded native PCB tracks, vias and optionally components; review observed route geometry, declared differential pairs or component-origin placement constraints. Missing electrical paths remain UNKNOWN. Read-only; no DRC or fabrication approval.',
     profile: 'core',
     evidence: ['runtime-probe', 'inferred'],
     risk: 'low',
     confirmWrite: false,
     sideEffect: 'read-only',
     group: 'pcb-constraints',
-    version: '1.1.0',
+    version: '1.2.0',
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     inputSchema,
     outputSchema,
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, intent, minWidthMm, differentialPair } = inputSchema.parse(params);
+      const { projectId, intent, minWidthMm, differentialPair, placementRelations } =
+        inputSchema.parse(params);
       const sourceMismatch =
         ctx.bridge.registryMismatch === true || ctx.bridge.extensionVersionMismatch === true;
-      const errors: string[] = [];
-      let tracks: NativeTrack[] = [];
-      let vias: NativeVia[] = [];
-      let trackCount = 0;
-      let viaCount = 0;
-      let tracksAvailable = false;
-      let viasAvailable = false;
-
-      if (!ctx.bridge.connected || sourceMismatch) {
-        errors.push(
-          !ctx.bridge.connected
-            ? 'Native bridge is disconnected; route measurements are unavailable.'
-            : 'Native bridge extension or method registry mismatches this server.',
-        );
-      } else {
-        const [trackRead, viaRead] = await Promise.allSettled([
-          readBoundedCollection(ctx, projectId, 'pcb.listTracks'),
-          readBoundedCollection(ctx, projectId, 'pcb.listVias'),
-        ]);
-        if (trackRead.status === 'fulfilled') {
-          tracks = trackRead.value.items as NativeTrack[];
-          trackCount = trackRead.value.total;
-          tracksAvailable = true;
-        } else {
-          errors.push('pcb.listTracks: ' + String(trackRead.reason));
-        }
-        if (viaRead.status === 'fulfilled') {
-          vias = viaRead.value.items as NativeVia[];
-          viaCount = viaRead.value.total;
-          viasAvailable = true;
-        } else {
-          errors.push('pcb.listVias: ' + String(viaRead.reason));
-        }
-      }
+      const route = await collectRouteEvidence(ctx, projectId, sourceMismatch);
+      const { tracks, vias, trackCount, viaCount, tracksAvailable, viasAvailable, errors } = route;
+      const componentEvidence = await collectPlacementEvidence(
+        ctx,
+        projectId,
+        placementRelations !== undefined,
+        sourceMismatch,
+        errors,
+      );
+      const { placementComponents, placementTotal, placementAvailable } = componentEvidence;
 
       const geometry = reviewRouteGeometry({
         tracks,
@@ -306,14 +459,33 @@ export function registerPcbRouteReviewTools(
               geometry.input_evidence.collection_complete,
             );
 
+      const placement =
+        placementRelations === undefined
+          ? undefined
+          : reviewPlacementRelations(
+              placementRelations as PlacementRelation[],
+              placementComponents,
+              placementTotal,
+              placementAvailable,
+            );
+
       return {
         project_id: projectId,
         ...geometry,
+        ...(placement === undefined
+          ? {}
+          : {
+              placement_review: placement,
+              overall_status: placement.status === 'WARNING' ? 'WARNING' : geometry.overall_status,
+            }),
         ...(pair === undefined
           ? {}
           : {
               differential_pair: pair,
-              overall_status: pair.status === 'WARNING' ? 'WARNING' : geometry.overall_status,
+              overall_status:
+                pair.status === 'WARNING' || placement?.status === 'WARNING'
+                  ? 'WARNING'
+                  : geometry.overall_status,
             }),
         runtime: {
           bridge_connected: ctx.bridge.connected,

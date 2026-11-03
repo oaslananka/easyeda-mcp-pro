@@ -445,4 +445,142 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.differential_pair.target_impedance_ohms).toBe(100);
     expect(result.differential_pair.impedance_status).toBe('UNKNOWN');
   });
+  const placement = {
+    first: 'U1',
+    second: 'C1',
+    kind: 'decoupling',
+    maxCenterDistanceMm: 2,
+    constraintSource: 'Hypothetical device-specific datasheet layout note',
+  } as const;
+
+  it('accepts only bounded, explicitly sourced placement constraints', () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    expect(
+      schema?.safeParse({ projectId: 'project-1', placementRelations: [placement] }).success,
+    ).toBe(true);
+    for (const relation of [
+      { ...placement, second: 'U1' },
+      { ...placement, maxCenterDistanceMm: -1 },
+      { ...placement, constraintSource: undefined },
+      { ...placement, first: ' U1 ' },
+      { ...placement, rotationToleranceDeg: 10 },
+      { ...placement, kind: 'fictional-rule' },
+    ]) {
+      expect(
+        schema?.safeParse({ projectId: 'project-1', placementRelations: [relation] }).success,
+      ).toBe(false);
+    }
+    expect(schema?.safeParse({ projectId: 'project-1', placementRelations: [] }).success).toBe(
+      false,
+    );
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        placementRelations: Array.from({ length: 9 }, () => placement),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('reads native component origins once only when relations are requested', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'pcb.listComponents')
+        return {
+          total: 2,
+          items: [
+            { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, rotation: 0, layer: 1 },
+            { primitiveId: 'c1', designator: 'C1', x: 200, y: 0, rotation: 90, layer: 1 },
+          ],
+        };
+      return { total: 0, items: [] };
+    });
+    const without = await run();
+    expect(without.placement_review).toBeUndefined();
+    expect(bridgeCall.mock.calls.map(([method]) => method)).not.toContain('pcb.listComponents');
+    bridgeCall.mockClear();
+    const result = await run({ placementRelations: [placement] });
+    expect(bridgeCall.mock.calls).toEqual([
+      ['pcb.listTracks', { projectId: 'project-1', limit: 200, offset: 0 }],
+      ['pcb.listVias', { projectId: 'project-1', limit: 200, offset: 0 }],
+      ['pcb.listComponents', { projectId: 'project-1', limit: 200, offset: 0 }],
+    ]);
+    expect(result.placement_review.status).toBe('WARNING');
+    expect(result.overall_status).toBe('WARNING');
+    expect(result.placement_review.findings).toContainEqual(
+      expect.objectContaining({
+        status: 'WARNING',
+        relation: 'decoupling',
+        components: ['U1', 'C1'],
+        primitive_ids: ['u1', 'c1'],
+        measured_center_distance_mm: 5.08,
+        declared_max_center_distance_mm: 2,
+        electrical_loop_status: 'UNKNOWN',
+      }),
+    );
+    expect(result.placement_review.engineering_sign_off).toBe(false);
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.placement_review.input_evidence.collection_complete).toBe(true);
+  });
+
+  it('does not convert close component origins to electrical decoupling PASS', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'pcb.listComponents')
+        return {
+          total: 2,
+          items: [
+            { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, rotation: 0, layer: 1 },
+            { primitiveId: 'c1', designator: 'C1', x: 20, y: 20, rotation: 90, layer: 1 },
+          ],
+        };
+      return { total: 0, items: [] };
+    });
+    const result = await run({ placementRelations: [placement] });
+    expect(result.placement_review.status).toBe('UNKNOWN');
+    expect(result.placement_review.findings[0].status).toBe('UNKNOWN');
+    expect(result.placement_review.findings[0].measured_center_distance_mm).toBeCloseTo(0.71842, 4);
+    expect(result.placement_review.findings[0].electrical_loop_status).toBe('UNKNOWN');
+  });
+
+  it('rejects partial native component enumeration as incomplete', async () => {
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listComponents'
+        ? { total: 201, items: [{ primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1 }] }
+        : { total: 0, items: [] },
+    );
+    const result = await run({ placementRelations: [placement] });
+    expect(result.placement_review.input_evidence.collection_complete).toBe(false);
+    expect(result.placement_review.status).toBe('UNKNOWN');
+    expect(result.placement_review.findings[0].measured_center_distance_mm).toBeUndefined();
+  });
+
+  it('fails closed when wrong PCB identity or unavailable native component getter prevents read', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'pcb.listComponents') throw new Error('focused PCB project UUID mismatch');
+      return { total: 0, items: [] };
+    });
+    const result = await run({ placementRelations: [placement] });
+    expect(result.errors).toEqual([expect.stringContaining('focused PCB project UUID mismatch')]);
+    expect(result.placement_review.input_evidence.components).toBe('unavailable');
+    expect(result.placement_review.status).toBe('UNKNOWN');
+  });
+
+  it('does not query component primitives while disconnected or extension mismatched', async () => {
+    context.bridge.connected = false;
+    const offline = await run({ placementRelations: [placement] });
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(offline.placement_review.status).toBe('UNKNOWN');
+    context.bridge.connected = true;
+    context.bridge.registryMismatch = true;
+    const mismatch = await run({ placementRelations: [placement] });
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(mismatch.placement_review.input_evidence.components).toBe('unavailable');
+  });
+
+  it('keeps route geometry and differential-pair outputs backward compatible', async () => {
+    const result = await run({ placementRelations: [placement] });
+    expect(result.method).toBe('NATIVE_TRACK_SEGMENT_GEOMETRY');
+    expect(result.placement_review).toBeDefined();
+    expect(result.differential_pair).toBeUndefined();
+    expect(result.input_evidence).toBeDefined();
+    expect(result.engineering_sign_off).toBe(false);
+  });
 });
