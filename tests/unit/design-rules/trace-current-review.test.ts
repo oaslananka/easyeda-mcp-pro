@@ -24,7 +24,7 @@ const cases = JSON.parse(
 
 describe('trace-current evidence reference', () => {
   it('has unique fixtures', () => {
-    expect(cases.length).toBe(6);
+    expect(cases.length).toBe(9);
     expect(new Set(cases.map((item) => item.id)).size).toBe(cases.length);
   });
 

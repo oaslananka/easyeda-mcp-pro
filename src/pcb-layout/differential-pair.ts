@@ -2,6 +2,10 @@ import { lookupProtocolRouting, type ProtocolKey } from '../design-rules/protoco
 import type { NativeTrack, NativeVia } from './route-review.js';
 
 const MIL_TO_MM = 0.0254;
+// Unit conversions and subtraction of large path lengths can differ by a
+// few floating-point ulps. This picometer tolerance is numerical only,
+// not an electrical or fabrication design margin.
+const NUMERIC_TOLERANCE_MM = 1e-9;
 
 /** Explicitly declared nets and thresholds; never inferred from protocol defaults. */
 export interface DifferentialPairDeclaration {
@@ -232,7 +236,8 @@ function spacingReview(
   const lower = declaration.minEdgeGapMm;
   const upper = declaration.maxEdgeGapMm;
   const outside =
-    (lower !== undefined && minimum < lower) || (upper !== undefined && maximum > upper);
+    (lower !== undefined && minimum < lower - NUMERIC_TOLERANCE_MM) ||
+    (upper !== undefined && maximum > upper + NUMERIC_TOLERANCE_MM);
   return {
     status: outside
       ? 'WARNING'
@@ -274,11 +279,12 @@ function skewReview(
     };
   }
   return {
-    status: difference > limit ? 'WARNING' : 'WITHIN_DECLARED_LIMIT_REFERENCE',
+    status:
+      difference > limit + NUMERIC_TOLERANCE_MM ? 'WARNING' : 'WITHIN_DECLARED_LIMIT_REFERENCE',
     observed_mm: difference,
     declared_limit_mm: limit,
     note:
-      difference > limit
+      difference > limit + NUMERIC_TOLERANCE_MM
         ? 'Observed single-chain segment-length delta exceeds the declared limit.'
         : 'Observed single-chain segment-length delta is within the declared limit; pads, propagation delay and end-to-end SI remain unverified.',
   };

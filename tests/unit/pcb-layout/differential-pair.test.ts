@@ -45,7 +45,7 @@ const declared: DifferentialPairDeclaration = {
 
 describe('source-backed native differential-pair evidence', () => {
   it('has distinct deterministic fixture cases', () => {
-    expect(cases.length).toBe(6);
+    expect(cases.length).toBe(10);
     expect(new Set(cases.map((x) => x.id)).size).toBe(cases.length);
   });
 

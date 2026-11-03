@@ -14,7 +14,12 @@
   },
   {
     "id": "complete-reference-without-geometry",
-    "input": { "currentA": 1, "temperatureRiseC": 10, "layer": "external", "copperWeightOz": 1 },
+    "input": {
+      "currentA": 1,
+      "temperatureRiseC": 10,
+      "layer": "external",
+      "copperWeightOz": 1
+    },
     "status": "UNKNOWN",
     "requiredUnknown": [
       "THERMAL_ESTIMATE",
@@ -65,7 +70,10 @@
   },
   {
     "id": "fabrication-warning-with-incomplete-current",
-    "input": { "traceWidthMm": 0.12, "manufacturerMinWidthMm": 0.2 },
+    "input": {
+      "traceWidthMm": 0.12,
+      "manufacturerMinWidthMm": 0.2
+    },
     "status": "WARNING",
     "requiredUnknown": ["THERMAL_ESTIMATE", "ROUTE_GEOMETRY", "VIA_BOTTLENECK"],
     "requiredWarnings": ["FABRICATION_WIDTH"],
@@ -91,5 +99,51 @@
     ],
     "requiredWarnings": [],
     "hasEstimate": true
+  },
+  {
+    "id": "fabrication-one-micron-below-declared-minimum",
+    "input": {
+      "traceWidthMm": 0.4,
+      "neckDownWidthMm": 0.199,
+      "manufacturerMinWidthMm": 0.2
+    },
+    "status": "WARNING",
+    "requiredUnknown": ["THERMAL_ESTIMATE", "ROUTE_GEOMETRY", "VIA_BOTTLENECK"],
+    "requiredWarnings": ["FABRICATION_WIDTH"],
+    "hasEstimate": false
+  },
+  {
+    "id": "fabrication-exact-declared-minimum",
+    "input": {
+      "traceWidthMm": 0.4,
+      "neckDownWidthMm": 0.2,
+      "manufacturerMinWidthMm": 0.2
+    },
+    "status": "UNKNOWN",
+    "requiredUnknown": [
+      "THERMAL_ESTIMATE",
+      "ROUTE_GEOMETRY",
+      "VIA_BOTTLENECK",
+      "FABRICATION_WIDTH"
+    ],
+    "requiredWarnings": [],
+    "hasEstimate": false
+  },
+  {
+    "id": "fabrication-one-micron-above-declared-minimum",
+    "input": {
+      "traceWidthMm": 0.4,
+      "neckDownWidthMm": 0.201,
+      "manufacturerMinWidthMm": 0.2
+    },
+    "status": "UNKNOWN",
+    "requiredUnknown": [
+      "THERMAL_ESTIMATE",
+      "ROUTE_GEOMETRY",
+      "VIA_BOTTLENECK",
+      "FABRICATION_WIDTH"
+    ],
+    "requiredWarnings": [],
+    "hasEstimate": false
   }
 ]
