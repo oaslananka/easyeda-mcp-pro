@@ -1,0 +1,155 @@
+[
+  {
+    "id": "input-pin-supply-above-source-declared-maximum",
+    "constraint": {
+      "kind": "pin_voltage",
+      "componentRef": "U1",
+      "pin": "VDD",
+      "maxVoltageV": 3.6,
+      "reference": {
+        "partNumber": "EXAMPLE-U1",
+        "package": "QFN-32",
+        "revision": "rev-A",
+        "source": "Hypothetical device datasheet",
+        "section": "Absolute maximum voltage"
+      }
+    },
+    "expected": { "status": "WARNING", "net": "5V", "pins": ["VDD"] }
+  },
+  {
+    "id": "digital-io-overvoltage-against-declared-io-domain",
+    "constraint": {
+      "kind": "pin_voltage",
+      "componentRef": "U1",
+      "pin": "GPIO",
+      "maxVoltageV": 3.6,
+      "reference": {
+        "partNumber": "EXAMPLE-U1",
+        "package": "QFN-32",
+        "revision": "rev-A",
+        "source": "Hypothetical device datasheet",
+        "section": "IO voltage range"
+      }
+    },
+    "expected": { "status": "WARNING", "net": "5V", "pins": ["GPIO"] }
+  },
+  {
+    "id": "pin-wired-to-unexpected-rail",
+    "constraint": {
+      "kind": "pin_voltage",
+      "componentRef": "U1",
+      "pin": "VDD",
+      "expectedNet": "3V3",
+      "reference": {
+        "partNumber": "EXAMPLE-U1",
+        "package": "QFN-32",
+        "revision": "rev-A",
+        "source": "Hypothetical device datasheet",
+        "section": "Supply pin map"
+      }
+    },
+    "expected": { "status": "WARNING", "net": "5V", "pins": ["VDD"] }
+  },
+  {
+    "id": "legitimate-intentional-nc-without-wired-net",
+    "constraint": {
+      "kind": "intentional_nc",
+      "componentRef": "U1",
+      "pin": "NC",
+      "reference": {
+        "partNumber": "EXAMPLE-U1",
+        "package": "QFN-32",
+        "revision": "rev-A",
+        "source": "Hypothetical device datasheet",
+        "section": "Do not connect"
+      }
+    },
+    "expected": { "status": "UNKNOWN", "pins": ["NC"] }
+  },
+  {
+    "id": "nc-declared-but-connected-to-rail",
+    "constraint": {
+      "kind": "intentional_nc",
+      "componentRef": "U1",
+      "pin": "NCCONNECTED",
+      "reference": {
+        "partNumber": "EXAMPLE-U1",
+        "package": "QFN-32",
+        "revision": "rev-A",
+        "source": "Hypothetical device datasheet",
+        "section": "Do not connect"
+      }
+    },
+    "expected": { "status": "WARNING", "net": "5V", "pins": ["NCCONNECTED"] }
+  },
+  {
+    "id": "required-decoupling-component-not-listed",
+    "constraint": {
+      "kind": "required_support",
+      "componentRef": "U1",
+      "pin": "VDD",
+      "supportRef": "C404",
+      "function": "decoupling",
+      "reference": {
+        "partNumber": "EXAMPLE-U1",
+        "package": "QFN-32",
+        "revision": "rev-A",
+        "source": "Hypothetical device datasheet",
+        "section": "External components"
+      }
+    },
+    "expected": { "status": "UNKNOWN", "net": "5V", "pins": ["VDD"] }
+  },
+  {
+    "id": "regulator-has-insufficient-declared-headroom",
+    "constraint": {
+      "kind": "regulator_headroom",
+      "componentRef": "U2",
+      "inputPin": "IN",
+      "outputPin": "OUT",
+      "minHeadroomV": 2.0,
+      "reference": {
+        "partNumber": "EXAMPLE-U2",
+        "package": "SOT-23-5",
+        "revision": "rev-B",
+        "source": "Hypothetical regulator datasheet",
+        "section": "Dropout limits"
+      }
+    },
+    "expected": { "status": "WARNING", "net": "5V", "pins": ["IN", "OUT"] }
+  },
+  {
+    "id": "supply-rail-name-without-explicit-voltage",
+    "constraint": {
+      "kind": "pin_voltage",
+      "componentRef": "U1",
+      "pin": "VREF",
+      "maxVoltageV": 3.3,
+      "reference": {
+        "partNumber": "EXAMPLE-U1",
+        "package": "QFN-32",
+        "revision": "rev-A",
+        "source": "Hypothetical device datasheet",
+        "section": "VREF range"
+      }
+    },
+    "expected": { "status": "UNKNOWN", "net": "3V3_NOMINAL", "pins": ["VREF"] }
+  },
+  {
+    "id": "in-range-is-never-physical-approval",
+    "constraint": {
+      "kind": "pin_voltage",
+      "componentRef": "U2",
+      "pin": "OUT",
+      "maxVoltageV": 3.6,
+      "reference": {
+        "partNumber": "EXAMPLE-U2",
+        "package": "SOT-23-5",
+        "revision": "rev-B",
+        "source": "Hypothetical regulator datasheet",
+        "section": "Output voltage"
+      }
+    },
+    "expected": { "status": "UNKNOWN", "net": "3V3", "pins": ["OUT"] }
+  }
+]
