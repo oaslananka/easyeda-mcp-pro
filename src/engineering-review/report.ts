@@ -8,7 +8,7 @@ export const reviewStatusSchema = z.enum(['PASS', 'FAIL', 'WARNING', 'UNKNOWN', 
 const inputEvidenceSchema = z.object({
   field: z.string(),
   source: z.string(),
-  quality: z.enum(['measured', 'supplied', 'unavailable']),
+  quality: z.enum(['measured', 'supplied', 'unavailable', 'unverified']),
   unit: z.string().optional(),
   age: z.enum(['current_request', 'unverified']),
   value: z.union([z.string(), z.number(), z.boolean()]).optional(),
@@ -152,6 +152,8 @@ function hasObservedBoard(input: ReviewBuildInput): boolean {
   return (
     input.evidenceMode === 'native' &&
     input.bridgeConnected &&
+    input.registryMismatch !== true &&
+    input.extensionVersionMismatch !== true &&
     OBSERVED_FIELDS.some(
       ({ field, source }) =>
         input.boardData[field] !== undefined &&
@@ -257,6 +259,7 @@ function collectFindings(
 
 function collectInputEvidence(input: ReviewBuildInput): EngineeringReview['input_evidence'] {
   const nativeEvidence = input.evidenceMode === 'native';
+  const sourceMismatch = input.registryMismatch === true || input.extensionVersionMismatch === true;
   return OBSERVED_FIELDS.map(({ field, source, unit }) => {
     const value = input.boardData[field];
     const sourceObserved = input.observations.some(
@@ -266,8 +269,12 @@ function collectInputEvidence(input: ReviewBuildInput): EngineeringReview['input
       value === undefined || value === null
         ? 'unavailable'
         : nativeEvidence && sourceObserved
-          ? 'measured'
-          : 'supplied';
+          ? sourceMismatch
+            ? 'unverified'
+            : 'measured'
+          : nativeEvidence
+            ? 'unverified'
+            : 'supplied';
     return {
       field,
       source: quality === 'supplied' ? 'caller_supplied' : source,
@@ -301,9 +308,25 @@ function groupFindings(findings: ReviewFinding[]): EngineeringReview['groups'] {
 }
 
 export function buildEngineeringReview(input: ReviewBuildInput): EngineeringReview {
-  const report = validatePcbConstraints(input.boardData);
+  const sourceMismatch =
+    input.evidenceMode === 'native' &&
+    (input.registryMismatch === true || input.extensionVersionMismatch === true);
+  // Incompatible native snapshots are not safe inputs for rule verdicts.
+  const report = validatePcbConstraints(sourceMismatch ? {} : input.boardData);
   const observedBoard = hasObservedBoard(input);
   const findings = collectFindings(report, observedBoard, input.evidenceMode === 'native');
+  if (input.registryMismatch === true || input.extensionVersionMismatch === true) {
+    findings.push(
+      createFinding(
+        'context:SOURCE_VERSION_MISMATCH',
+        'UNKNOWN',
+        'The bridge extension identity or exposed method registry does not match the active MCP server.',
+        'Reconnect an extension built from the compatible exact source and re-run native inspection.',
+        'runtime',
+        'unverified',
+      ),
+    );
+  }
   findings.sort((a, b) => a.id.localeCompare(b.id));
   const summary = summarize(findings);
   const overall_status =

@@ -1,0 +1,279 @@
+[
+  {
+    "id": "disconnected-native-reader",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {},
+      "bridgeConnected": false,
+      "observations": [],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "unverified",
+      "requiredFindings": ["context:PCB_NOT_OBSERVED", "coverage:DRC", "coverage:ERC"],
+      "forbiddenFindings": ["pcb:OBSERVED_CONSTRAINT_SUBSET"],
+      "minUnknown": 3
+    }
+  },
+  {
+    "id": "wrong-editor-tab",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {},
+      "bridgeConnected": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "unavailable"
+        },
+        {
+          "method": "board.getStackup",
+          "status": "unavailable"
+        },
+        {
+          "method": "board.getDesignRules",
+          "status": "unavailable"
+        }
+      ],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "unverified",
+      "requiredFindings": ["context:PCB_NOT_OBSERVED"],
+      "forbiddenFindings": ["pcb:OBSERVED_CONSTRAINT_SUBSET"],
+      "minUnknown": 3
+    }
+  },
+  {
+    "id": "measured-outline-violation",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 60,
+        "heightMm": 40,
+        "hasOutline": false,
+        "layerCount": 2,
+        "hasLayerStack": true
+      },
+      "bridgeConnected": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "observed"
+        },
+        {
+          "method": "board.getStackup",
+          "status": "observed"
+        }
+      ],
+      "evidenceMode": "native",
+      "easyedaVersion": "3.2.149",
+      "extensionVersion": "1.8.1"
+    },
+    "expected": {
+      "overallStatus": "FAIL",
+      "pcbContext": "observed",
+      "requiredFindings": ["pcb:PCB_MISSING_OUTLINE:board:1", "coverage:ERC"],
+      "forbiddenFindings": ["context:PCB_NOT_OBSERVED"],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "widthMm",
+        "quality": "measured",
+        "age": "current_request"
+      }
+    }
+  },
+  {
+    "id": "incomplete-native-evidence",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 60,
+        "heightMm": 40,
+        "hasOutline": true
+      },
+      "bridgeConnected": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "observed"
+        },
+        {
+          "method": "board.getStackup",
+          "status": "unavailable"
+        }
+      ],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "observed",
+      "requiredFindings": ["pcb:OBSERVED_CONSTRAINT_SUBSET", "coverage:DRC"],
+      "forbiddenFindings": ["pcb:PCB_MISSING_OUTLINE:board:1"],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "hasLayerStack",
+        "quality": "unavailable",
+        "age": "unverified"
+      }
+    }
+  },
+  {
+    "id": "caller-supplied-is-not-measured",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 5,
+        "heightMm": 5,
+        "hasOutline": true,
+        "hasHighVoltage": false,
+        "requiresProgrammingHeader": false,
+        "smtComponentCount": 0
+      },
+      "bridgeConnected": false,
+      "observations": [],
+      "evidenceMode": "supplied"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "unverified",
+      "requiredFindings": ["pcb:NOT_APPLICABLE_COUNT"],
+      "forbiddenFindings": ["pcb:OBSERVED_CONSTRAINT_SUBSET", "context:PCB_NOT_OBSERVED"],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "widthMm",
+        "quality": "supplied",
+        "age": "unverified"
+      }
+    }
+  },
+  {
+    "id": "duplicated-small-outline-warnings",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 4.99,
+        "heightMm": 4.99,
+        "hasOutline": true
+      },
+      "bridgeConnected": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "observed"
+        }
+      ],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "observed",
+      "requiredFindings": [
+        "pcb:PCB_OUTLINE_TOO_SMALL:board:1",
+        "pcb:PCB_OUTLINE_TOO_SMALL:board:2"
+      ],
+      "forbiddenFindings": ["pcb:PCB_MISSING_OUTLINE:board:1"],
+      "minUnknown": 3
+    }
+  },
+  {
+    "id": "exact-five-millimeter-outline-boundary",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 5,
+        "heightMm": 5,
+        "hasOutline": true
+      },
+      "bridgeConnected": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "observed"
+        }
+      ],
+      "evidenceMode": "native"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "observed",
+      "requiredFindings": ["pcb:OBSERVED_CONSTRAINT_SUBSET"],
+      "forbiddenFindings": ["pcb:PCB_OUTLINE_TOO_SMALL:board:1"],
+      "minUnknown": 3
+    }
+  },
+  {
+    "id": "extension-source-mismatch",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "widthMm": 60,
+        "heightMm": 40,
+        "hasOutline": true
+      },
+      "bridgeConnected": true,
+      "registryMismatch": true,
+      "extensionVersionMismatch": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "observed"
+        }
+      ],
+      "evidenceMode": "native",
+      "easyedaVersion": "3.2.149",
+      "extensionVersion": "1.8.0"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "unverified",
+      "requiredFindings": ["context:SOURCE_VERSION_MISMATCH"],
+      "forbiddenFindings": ["pcb:OBSERVED_CONSTRAINT_SUBSET"],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "widthMm",
+        "quality": "unverified",
+        "age": "unverified"
+      }
+    }
+  },
+  {
+    "id": "source-mismatch-apparent-failure-is-unverified",
+    "input": {
+      "projectId": "fixture-board",
+      "boardData": {
+        "hasOutline": false,
+        "widthMm": 1,
+        "heightMm": 1
+      },
+      "bridgeConnected": true,
+      "registryMismatch": true,
+      "observations": [
+        {
+          "method": "board.getDimensions",
+          "status": "observed"
+        }
+      ],
+      "evidenceMode": "native",
+      "extensionVersion": "1.8.0"
+    },
+    "expected": {
+      "overallStatus": "UNKNOWN",
+      "pcbContext": "unverified",
+      "requiredFindings": ["context:SOURCE_VERSION_MISMATCH", "context:PCB_NOT_OBSERVED"],
+      "forbiddenFindings": [
+        "pcb:PCB_MISSING_OUTLINE:board:1",
+        "pcb:OBSERVED_CONSTRAINT_SUBSET",
+        "pcb:PCB_OUTLINE_TOO_SMALL:board:1"
+      ],
+      "minUnknown": 3,
+      "evidence": {
+        "field": "widthMm",
+        "quality": "unverified",
+        "age": "unverified"
+      }
+    }
+  }
+]
