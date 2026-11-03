@@ -67,198 +67,93 @@ export function createDispatcherDomainRouter(
     'pcb.listVias': dependencies.pcbReadOperations.listVias,
   }).map(([method, read]) => ({
     method,
-    handle: (params) =>
-      dependencies.pcbReadOperations.readProjectScoped(params.projectId as string, () =>
-        read(optionalNumber(params.limit), offsetNumber(params.offset)),
-      ),
+    handle: (params) => read(optionalNumber(params.limit), offsetNumber(params.offset)),
   }));
-  const routes = [
-    {
-      method: 'library.updateDeviceMetadata',
-      handle: (params) => dependencies.deviceMetadataOperations.updateDeviceMetadata(params),
-    },
-    { method: 'api.call', handle: (params) => dependencies.systemApiOperations.apiCall(params) },
-    {
-      method: 'api.execute',
-      handle: (params) => dependencies.systemApiOperations.apiExecute(params),
-    },
-    {
-      method: 'board.exportGerbers',
-      handle: (params) => dependencies.exportOperations.exportGerbers(params),
-    },
-    { method: 'board.getDimensions', handle: () => dependencies.boardInspection.getDimensions() },
-    { method: 'board.getDesignRules', handle: () => dependencies.boardInspection.getDesignRules() },
-    { method: 'board.getFeatures', handle: () => dependencies.boardInspection.getFeatures() },
-    { method: 'board.getStackup', handle: () => dependencies.boardInspection.getStackup() },
-    { method: 'board.listLayers', handle: () => dependencies.boardInspection.listLayers() },
-    { method: 'canvas.capture', handle: (params) => dependencies.canvasOperations.capture(params) },
-    {
-      method: 'canvas.captureRegion',
-      handle: (params) => dependencies.canvasOperations.captureRegion(params),
-    },
-    { method: 'canvas.locate', handle: (params) => dependencies.canvasOperations.locate(params) },
-    { method: 'design.drc', handle: () => dependencies.designRuleCheckOperations.runDrc() },
-    { method: 'design.erc', handle: () => dependencies.designRuleCheckOperations.runErc() },
-    {
-      method: 'design.ruleCheck',
-      handle: () => dependencies.designRuleCheckOperations.runRuleCheck(),
-    },
-    {
-      method: 'export.netlist',
-      handle: (params) => dependencies.exportOperations.exportNetlist(params),
-    },
-    { method: 'export.odb', handle: (params) => dependencies.exportOperations.exportOdb(params) },
-    { method: 'export.pdf', handle: (params) => dependencies.exportOperations.exportPdf(params) },
-    {
-      method: 'export.pickPlace',
-      handle: (params) => dependencies.exportOperations.exportPickPlace(params),
-    },
-    {
-      method: 'pcb.addSilkscreenLine',
-      handle: (params) => dependencies.pcbWriteOperations.addSilkscreenLine(params),
-    },
-    { method: 'pcb.addText', handle: (params) => dependencies.pcbWriteOperations.addText(params) },
-    {
-      method: 'pcb.addTrack',
-      handle: (params) => dependencies.pcbWriteOperations.addTrack(params),
-    },
-    { method: 'pcb.addVia', handle: (params) => dependencies.pcbWriteOperations.addVia(params) },
-    {
-      method: 'pcb.addZone',
-      handle: (params) => dependencies.pcbMutationOperations.addZone(params),
-    },
-    {
-      method: 'pcb.deleteComponent',
-      handle: (params) => dependencies.pcbMutationOperations.deleteComponents(params),
-    },
-    {
-      method: 'pcb.exportRouteContext',
-      handle: (params) => dependencies.exportOperations.exportRouteContext(params),
-    },
-    {
-      method: 'pcb.zonePreflight',
-      handle: (params) =>
-        params.rectangle === undefined
-          ? dependencies.pcbReadOperations.zonePreflight(
-              params.netName as string,
-              params.layer as number,
-            )
-          : dependencies.pcbReadOperations.zonePreflight(
-              params.netName as string,
-              params.layer as number,
-              params.rectangle as { x: number; y: number; width: number; height: number },
-            ),
-    },
-    ...pcbListRoutes,
-    {
-      method: 'pcb.modifyComponent',
-      handle: (params) => dependencies.pcbMutationOperations.modifyComponent(params),
-    },
-    {
-      method: 'pcb.rebuildCopper',
-      handle: (params) => dependencies.pcbMutationOperations.rebuildCopper(params),
-    },
-    {
-      method: 'project.export',
-      handle: (params) => dependencies.projectOperations.export(params),
-    },
-    { method: 'project.open', handle: (params) => dependencies.projectOperations.open(params) },
-    { method: 'project.save', handle: (params) => dependencies.projectOperations.save(params) },
-    {
-      method: 'bom.generate',
-      handle: (params) => dependencies.readOnlyOperations.generateBom(params),
-    },
-    { method: 'bom.validate', handle: () => dependencies.readOnlyOperations.validateBom() },
-    {
-      method: 'inventory.getPrice',
-      handle: () => dependencies.readOnlyOperations.inventoryGetPrice(),
-    },
-    { method: 'inventory.search', handle: () => dependencies.readOnlyOperations.inventorySearch() },
-    {
-      method: 'library.getDeviceByLcscId',
-      handle: (params) => dependencies.readOnlyOperations.getDeviceByLcscId(params),
-    },
-    {
-      method: 'schematic.deletePrimitive',
-      handle: (params) =>
-        dependencies.schematicTransactionOperations.deletePrimitives(params.primitiveIds),
-    },
-    {
-      method: 'schematic.getNetDetail',
-      handle: (params) => dependencies.readOnlyOperations.getNetDetail(params),
-    },
-    {
-      method: 'schematic.getPinNoConnect',
-      handle: (params) => dependencies.readOnlyOperations.getPinNoConnect(params),
-    },
-    {
-      method: 'schematic.getPrimitiveSnapshot',
-      handle: (params) => dependencies.readOnlyOperations.getPrimitiveSnapshot(params),
-    },
-    {
-      method: 'schematic.getSheetInfo',
-      handle: (params) => dependencies.readOnlyOperations.getSheetInfo(params),
-    },
-    {
-      method: 'schematic.listComponents',
-      handle: (params) => dependencies.readOnlyOperations.listComponents(params),
-    },
-    {
-      method: 'schematic.listNets',
-      handle: (params) => dependencies.readOnlyOperations.listNets(params),
-    },
-    {
-      method: 'schematic.listPrimitiveIds',
-      handle: (params) => dependencies.readOnlyOperations.listPrimitiveIds(params),
-    },
-    {
-      method: 'schematic.listRectangles',
-      handle: () => dependencies.readOnlyOperations.listRectangles(),
-    },
-    {
-      method: 'schematic.modifyPrimitive',
-      handle: (params) =>
-        dependencies.schematicTransactionOperations.modifyPrimitive(
-          params.primitiveId as string,
-          (params.property as Record<string, unknown>) || {},
-        ),
-    },
-    {
-      method: 'schematic.primitiveBounds',
-      handle: (params) => dependencies.readOnlyOperations.primitiveBounds(params),
-    },
-    {
-      method: 'schematic.recreatePrimitiveSnapshot',
-      handle: (params) =>
-        dependencies.schematicTransactionOperations.recreatePrimitiveSnapshot(params.snapshot),
-    },
-    {
-      method: 'schematic.restorePrimitiveSnapshot',
-      handle: (params) =>
-        dependencies.schematicTransactionOperations.restorePrimitiveSnapshot(params.snapshot),
-    },
-    {
-      method: 'schematic.searchDevice',
-      handle: (params) => dependencies.readOnlyOperations.searchDevice(params),
-    },
-    {
-      method: 'schematic.validateNetlist',
-      handle: (params) => dependencies.readOnlyOperations.validateNetlist(params),
-    },
-    {
-      method: 'system.apiInventory',
-      handle: (params) => dependencies.systemApiOperations.apiInventory(params),
-    },
-    { method: 'system.getStatus', handle: () => dependencies.systemApiOperations.getStatus() },
-    {
-      method: 'system.inspectComponents',
-      handle: (params) => dependencies.systemApiOperations.inspectComponents(params),
-    },
-    {
-      method: 'system.inspectWires',
-      handle: (params) => dependencies.systemApiOperations.inspectWires(params),
-    },
-  ] satisfies DomainRoute[];
+
+  const routes: DomainRoute[] = Object.entries({
+    'library.updateDeviceMetadata': (params) =>
+      dependencies.deviceMetadataOperations.updateDeviceMetadata(params),
+    'api.call': (params) => dependencies.systemApiOperations.apiCall(params),
+    'api.execute': (params) => dependencies.systemApiOperations.apiExecute(params),
+    'board.exportGerbers': (params) => dependencies.exportOperations.exportGerbers(params),
+    'board.getDimensions': () => dependencies.boardInspection.getDimensions(),
+    'board.getDesignRules': () => dependencies.boardInspection.getDesignRules(),
+    'board.getFeatures': () => dependencies.boardInspection.getFeatures(),
+    'board.getStackup': () => dependencies.boardInspection.getStackup(),
+    'board.listLayers': () => dependencies.boardInspection.listLayers(),
+    'canvas.capture': (params) => dependencies.canvasOperations.capture(params),
+    'canvas.captureRegion': (params) => dependencies.canvasOperations.captureRegion(params),
+    'canvas.locate': (params) => dependencies.canvasOperations.locate(params),
+    'design.drc': () => dependencies.designRuleCheckOperations.runDrc(),
+    'design.erc': () => dependencies.designRuleCheckOperations.runErc(),
+    'design.ruleCheck': () => dependencies.designRuleCheckOperations.runRuleCheck(),
+    'export.netlist': (params) => dependencies.exportOperations.exportNetlist(params),
+    'export.odb': (params) => dependencies.exportOperations.exportOdb(params),
+    'export.pdf': (params) => dependencies.exportOperations.exportPdf(params),
+    'export.pickPlace': (params) => dependencies.exportOperations.exportPickPlace(params),
+    'pcb.addSilkscreenLine': (params) => dependencies.pcbWriteOperations.addSilkscreenLine(params),
+    'pcb.addText': (params) => dependencies.pcbWriteOperations.addText(params),
+    'pcb.addTrack': (params) => dependencies.pcbWriteOperations.addTrack(params),
+    'pcb.addVia': (params) => dependencies.pcbWriteOperations.addVia(params),
+    'pcb.addZone': (params) => dependencies.pcbMutationOperations.addZone(params),
+    'pcb.deleteComponent': (params) => dependencies.pcbMutationOperations.deleteComponents(params),
+    'pcb.exportRouteContext': (params) => dependencies.exportOperations.exportRouteContext(params),
+    'pcb.zonePreflight': (params) =>
+      params.rectangle === undefined
+        ? dependencies.pcbReadOperations.zonePreflight(
+            params.netName as string,
+            params.layer as number,
+          )
+        : dependencies.pcbReadOperations.zonePreflight(
+            params.netName as string,
+            params.layer as number,
+            params.rectangle as { x: number; y: number; width: number; height: number },
+          ),
+    ...Object.fromEntries(pcbListRoutes.map(({ method, handle }) => [method, handle])),
+    'pcb.modifyComponent': (params) => dependencies.pcbMutationOperations.modifyComponent(params),
+    'pcb.rebuildCopper': (params) => dependencies.pcbMutationOperations.rebuildCopper(params),
+    'project.export': (params) => dependencies.projectOperations.export(params),
+    'project.open': (params) => dependencies.projectOperations.open(params),
+    'project.save': (params) => dependencies.projectOperations.save(params),
+    'bom.generate': (params) => dependencies.readOnlyOperations.generateBom(params),
+    'bom.validate': () => dependencies.readOnlyOperations.validateBom(),
+    'inventory.getPrice': () => dependencies.readOnlyOperations.inventoryGetPrice(),
+    'inventory.search': () => dependencies.readOnlyOperations.inventorySearch(),
+    'library.getDeviceByLcscId': (params) =>
+      dependencies.readOnlyOperations.getDeviceByLcscId(params),
+    'schematic.deletePrimitive': (params) =>
+      dependencies.schematicTransactionOperations.deletePrimitives(params.primitiveIds),
+    'schematic.getNetDetail': (params) => dependencies.readOnlyOperations.getNetDetail(params),
+    'schematic.getPinNoConnect': (params) =>
+      dependencies.readOnlyOperations.getPinNoConnect(params),
+    'schematic.getPrimitiveSnapshot': (params) =>
+      dependencies.readOnlyOperations.getPrimitiveSnapshot(params),
+    'schematic.getSheetInfo': (params) => dependencies.readOnlyOperations.getSheetInfo(params),
+    'schematic.listComponents': (params) => dependencies.readOnlyOperations.listComponents(params),
+    'schematic.listNets': (params) => dependencies.readOnlyOperations.listNets(params),
+    'schematic.listPrimitiveIds': (params) =>
+      dependencies.readOnlyOperations.listPrimitiveIds(params),
+    'schematic.listRectangles': () => dependencies.readOnlyOperations.listRectangles(),
+    'schematic.modifyPrimitive': (params) =>
+      dependencies.schematicTransactionOperations.modifyPrimitive(
+        params.primitiveId as string,
+        (params.property as Record<string, unknown>) || {},
+      ),
+    'schematic.primitiveBounds': (params) =>
+      dependencies.readOnlyOperations.primitiveBounds(params),
+    'schematic.recreatePrimitiveSnapshot': (params) =>
+      dependencies.schematicTransactionOperations.recreatePrimitiveSnapshot(params.snapshot),
+    'schematic.restorePrimitiveSnapshot': (params) =>
+      dependencies.schematicTransactionOperations.restorePrimitiveSnapshot(params.snapshot),
+    'schematic.searchDevice': (params) => dependencies.readOnlyOperations.searchDevice(params),
+    'schematic.validateNetlist': (params) =>
+      dependencies.readOnlyOperations.validateNetlist(params),
+    'system.apiInventory': (params) => dependencies.systemApiOperations.apiInventory(params),
+    'system.getStatus': () => dependencies.systemApiOperations.getStatus(),
+    'system.inspectComponents': (params) =>
+      dependencies.systemApiOperations.inspectComponents(params),
+    'system.inspectWires': (params) => dependencies.systemApiOperations.inspectWires(params),
+  } satisfies Record<string, DomainMethodHandler>).map(([method, handle]) => ({ method, handle }));
   const methodList = Object.freeze(
     routes.map((route) => route.method).sort((left, right) => left.localeCompare(right)),
   );
@@ -269,7 +164,17 @@ export function createDispatcherDomainRouter(
       const route = routes.find((candidate) => candidate.method === method);
       if (!route) return { handled: false };
       assertRouterSchematicScope(method, params);
-      return { handled: true, value: await route.handle(params) };
+      const scoped =
+        method.startsWith('pcb.list') ||
+        (params.projectId !== undefined && /^board\.(get|list)/.test(method));
+      return {
+        handled: true,
+        value: await (scoped
+          ? dependencies.pcbReadOperations.readProjectScoped(params.projectId as string, () =>
+              route.handle(params),
+            )
+          : route.handle(params)),
+      };
     },
   };
 }

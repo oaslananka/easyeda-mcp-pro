@@ -120,6 +120,21 @@ describe('evidence-based engineering review', () => {
     );
   });
 
+  it('never attributes measurements from a different focused project to the requested review', async () => {
+    bridgeCall.mockRejectedValue(
+      new Error('PCB project identity mismatch: requested project UUID must match the focused PCB'),
+    );
+    const result = await run();
+
+    expect(result.project_id).toBe('pcb-1');
+    expect(result.pcb_context).toBe('unverified');
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.summary).toMatchObject({ PASS: 0, FAIL: 0 });
+    expect(result.input_evidence.every((entry) => entry.quality !== 'measured')).toBe(true);
+    expect(result.observations.every((entry) => entry.status === 'unavailable')).toBe(true);
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('skips every native read when bridge is disconnected', async () => {
     context.bridge.connected = false;
     const result = await run();

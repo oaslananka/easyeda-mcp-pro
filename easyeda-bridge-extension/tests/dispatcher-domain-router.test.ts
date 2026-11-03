@@ -303,6 +303,65 @@ describe('createDispatcherDomainRouter', () => {
     );
   });
 
+  it.each([
+    ['board.getDimensions', 'getDimensions'],
+    ['board.getDesignRules', 'getDesignRules'],
+    ['board.getFeatures', 'getFeatures'],
+    ['board.getStackup', 'getStackup'],
+    ['board.listLayers', 'listLayers'],
+  ] as const)(
+    'verifies the supplied project identity before the %s native read and rejects wrong projects',
+    async (method, reader) => {
+      const deps = createDependencies();
+      deps.pcbReadOperations.readProjectScoped.mockImplementation(async (projectId, read) => {
+        if (projectId !== 'focused-project') throw new Error('PCB project identity mismatch');
+        return read();
+      });
+      const router = createDispatcherDomainRouter(deps);
+
+      await expect(router.tryDispatch(method, { projectId: 'unrelated-project' })).rejects.toThrow(
+        'PCB project identity mismatch',
+      );
+      expect(deps.boardInspection[reader]).not.toHaveBeenCalled();
+
+      const expectedValues = {
+        getDimensions: 'dimensions',
+        getDesignRules: 'design-rules',
+        getFeatures: 'features',
+        getStackup: 'stackup',
+        listLayers: 'layers',
+      };
+      await expect(router.tryDispatch(method, { projectId: 'focused-project' })).resolves.toEqual({
+        handled: true,
+        value: expectedValues[reader],
+      });
+      expect(deps.pcbReadOperations.readProjectScoped).toHaveBeenCalledWith(
+        'focused-project',
+        expect.any(Function),
+      );
+      expect(deps.boardInspection[reader]).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('preserves legacy board reads without a projectId while rejecting an explicit blank identity', async () => {
+    const deps = createDependencies();
+    deps.pcbReadOperations.readProjectScoped.mockImplementation(async (projectId, read) => {
+      if (!projectId) throw new Error('PCB project identity unavailable');
+      return read();
+    });
+    const router = createDispatcherDomainRouter(deps);
+
+    await expect(router.tryDispatch('board.getDimensions')).resolves.toEqual({
+      handled: true,
+      value: 'dimensions',
+    });
+    expect(deps.pcbReadOperations.readProjectScoped).not.toHaveBeenCalled();
+    await expect(router.tryDispatch('board.getDimensions', { projectId: '' })).rejects.toThrow(
+      'PCB project identity unavailable',
+    );
+    expect(deps.boardInspection.getDimensions).toHaveBeenCalledTimes(1);
+  });
+
   it('delegates exact methods without changing parameters or results', async () => {
     const dependencies = createDependencies();
     const router = createDispatcherDomainRouter(dependencies);
