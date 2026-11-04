@@ -531,7 +531,10 @@ export function createBoardInspectionOperations({
     }
     const copperLayerCount = await readCopperLayerCount(pcbLayerClass);
     const rawLayers = await pcbLayerClass.getAllLayers();
-    const layers = Array.isArray(rawLayers) ? rawLayers : [];
+    if (!Array.isArray(rawLayers)) {
+      throw new Error('PCB_Layer.getAllLayers returned a non-array collection');
+    }
+    const layers = rawLayers;
     return layers
       .filter((layer: any) => isActivePcbLayerName(String(layer?.name ?? ''), copperLayerCount))
       .map((layer: any, index: number) => ({
