@@ -100,7 +100,7 @@ describe('board inspection operations', () => {
     ]);
   });
 
-  it('degrades invalid copper-layer counts and non-array layer results safely', async () => {
+  it('degrades invalid copper-layer counts but rejects malformed layer inventories', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const getTheNumberOfCopperLayers = vi
       .fn()
@@ -116,13 +116,32 @@ describe('board inspection operations', () => {
     });
 
     await expect(operations.listLayers()).resolves.toEqual([]);
-    await expect(operations.listLayers()).resolves.toEqual([]);
+    await expect(operations.listLayers()).rejects.toThrow(
+      'PCB_Layer.getAllLayers returned a non-array collection',
+    );
     expect(warn).toHaveBeenCalledWith(
       '[easyeda-mcp-pro]',
       'failed to read copper layer count',
       expect.any(Error),
     );
   });
+
+  it.each([null, undefined, { layers: [] }])(
+    'rejects malformed native layer inventory %s instead of reporting an empty board',
+    async (value) => {
+      const { operations } = makeOperations({
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-invalid-layers' }) },
+        PCB_Layer: {
+          getTheNumberOfCopperLayers: async () => 2,
+          getAllLayers: async () => value,
+        },
+      });
+
+      await expect(operations.listLayers()).rejects.toThrow(
+        'PCB_Layer.getAllLayers returned a non-array collection',
+      );
+    },
+  );
 
   it('rejects listLayers when the layer API is unavailable', async () => {
     const { operations } = makeOperations({
