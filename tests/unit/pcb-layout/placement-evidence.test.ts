@@ -157,6 +157,91 @@ describe('read-only origin-based placement relationship observations', () => {
     expect(withoutTarget.findings[0]?.reasons.join(' ')).toMatch(/without a rotation target/i);
   });
 
+  it('checks independently declared second-component orientation without making an electrical PASS', () => {
+    const components: NativePlacement[] = [
+      { primitiveId: 'j1', designator: 'J1', x: 0, y: 0, layer: 1, rotation: 0 },
+      { primitiveId: 'd1', designator: 'D1', x: 35, y: 0, layer: 1, rotation: -10 },
+    ];
+    const relation: PlacementRelation = {
+      first: 'J1',
+      second: 'D1',
+      kind: 'esd-entry',
+      secondRotationDeg: 350,
+      secondRotationToleranceDeg: 0,
+      constraintSource: 'Example device assembly drawing, revision B',
+    };
+    const aligned = reviewPlacementRelations([relation], components, 2, true);
+    expect(aligned.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      second_rotation_deg: -10,
+      declared_second_rotation_deg: 350,
+      electrical_loop_status: 'UNKNOWN',
+      constraint_source: 'Example device assembly drawing, revision B',
+    });
+    expect(aligned.engineering_sign_off).toBe(false);
+    const misaligned = reviewPlacementRelations(
+      [{ ...relation, secondRotationDeg: 320, secondRotationToleranceDeg: 5 }],
+      components,
+      2,
+      true,
+    );
+    expect(misaligned.findings[0]).toMatchObject({
+      status: 'WARNING',
+      declared_second_rotation_deg: 320,
+      second_rotation_deg: -10,
+    });
+    expect(misaligned.findings[0]?.reasons.join(' ')).toContain(
+      'Second component rotation exceeds',
+    );
+  });
+
+  it('keeps missing or invalid second rotation observations explicitly UNKNOWN', () => {
+    const components: NativePlacement[] = [
+      { primitiveId: 'j1', designator: 'J1', x: 0, y: 0, layer: 1 },
+      { primitiveId: 'd1', designator: 'D1', x: 35, y: 0, layer: 1 },
+    ];
+    const basic: PlacementRelation = {
+      first: 'J1',
+      second: 'D1',
+      kind: 'esd-entry',
+      constraintSource: 'Caller-owned layout drawing',
+    };
+    const cases: PlacementRelation[] = [
+      { ...basic, secondRotationDeg: 90 },
+      { ...basic, secondRotationDeg: 90, secondRotationToleranceDeg: -1 },
+      { ...basic, secondRotationToleranceDeg: 10 },
+      { ...basic, secondRotationDeg: Number.POSITIVE_INFINITY },
+    ];
+    for (const relation of cases) {
+      const result = reviewPlacementRelations([relation], components, 2, true);
+      expect(result.findings[0]?.status).toBe('UNKNOWN');
+      expect(result.findings[0]?.reasons.join(' ')).toMatch(/second component/i);
+    }
+  });
+
+  it('does not treat two designators with the same primitive ID as two separate native footprints', () => {
+    const components: NativePlacement[] = [
+      { primitiveId: 'same-id', designator: 'U1', x: 0, y: 0, layer: 1 },
+      { primitiveId: 'same-id', designator: 'C1', x: 500, y: 0, layer: 1 },
+    ];
+    const result = reviewPlacementRelations(
+      [
+        {
+          first: 'U1',
+          second: 'C1',
+          kind: 'decoupling',
+          maxCenterDistanceMm: 1,
+          constraintSource: 'Caller-provided layout limit',
+        },
+      ],
+      components,
+      components.length,
+      true,
+    );
+    expect(result.findings[0]).toMatchObject({ status: 'UNKNOWN', primitive_ids: [] });
+    expect(result.findings[0]?.measured_center_distance_mm).toBeUndefined();
+  });
+
   it('compares rotation modulo 360 but requires explicitly declared limits', () => {
     const data: NativePlacement[] = [
       { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1, rotation: -10 },

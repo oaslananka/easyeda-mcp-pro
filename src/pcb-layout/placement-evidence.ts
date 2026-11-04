@@ -26,6 +26,8 @@ export interface PlacementRelation {
   requireSameLayer?: boolean;
   firstRotationDeg?: number;
   rotationToleranceDeg?: number;
+  secondRotationDeg?: number;
+  secondRotationToleranceDeg?: number;
   constraintSource?: string;
 }
 
@@ -40,7 +42,9 @@ export interface PlacementFinding {
   declared_max_center_distance_mm?: number;
   native_layers?: number[];
   first_rotation_deg?: number;
+  second_rotation_deg?: number;
   declared_first_rotation_deg?: number;
+  declared_second_rotation_deg?: number;
   constraint_source?: string;
   reasons: string[];
   electrical_loop_status: 'UNKNOWN';
@@ -144,6 +148,41 @@ function applyRotationConstraint(
   }
 }
 
+function applySecondRotationConstraint(
+  relation: PlacementRelation,
+  second: NativePlaced,
+  finding: PlacementFinding,
+  reasons: string[],
+): void {
+  const target = relation.secondRotationDeg;
+  const tolerance = relation.secondRotationToleranceDeg;
+  if (target === undefined) {
+    if (tolerance !== undefined) {
+      finding.reasons.push('Second component rotation tolerance has no target.');
+    }
+    return;
+  }
+  if (!Number.isFinite(target)) {
+    finding.reasons.push('Second component rotation target is invalid.');
+    return;
+  }
+  finding.declared_second_rotation_deg = target;
+  if (
+    tolerance !== undefined &&
+    (!Number.isFinite(tolerance) || tolerance < 0 || tolerance > 180)
+  ) {
+    finding.reasons.push('Second component rotation tolerance is invalid.');
+    return;
+  }
+  if (!Number.isFinite(second.rotation)) {
+    finding.reasons.push('Second component native rotation is missing.');
+    return;
+  }
+  if (angularDifference(second.rotation as number, target) > (tolerance ?? 0) + 1e-9) {
+    reasons.push('Second component rotation exceeds its explicitly declared angular tolerance.');
+  }
+}
+
 function compareComponentOrigins(
   relation: PlacementRelation,
   first: NativePlaced,
@@ -156,12 +195,14 @@ function compareComponentOrigins(
   base.measured_center_distance_mm = distanceMm;
   base.native_layers = [first.layer, second.layer];
   if (Number.isFinite(first.rotation)) base.first_rotation_deg = first.rotation;
+  if (Number.isFinite(second.rotation)) base.second_rotation_deg = second.rotation;
   const reasons: string[] = [];
   applyDistanceConstraint(relation, distanceMm, base, reasons);
   if (relation.requireSameLayer && first.layer !== second.layer) {
     reasons.push('Native component layers differ; caller required the same native layer.');
   }
   applyRotationConstraint(relation, first, base, reasons);
+  applySecondRotationConstraint(relation, second, base, reasons);
   if (reasons.length) base.status = 'WARNING';
   base.reasons.push(...reasons);
   base.reasons.push(
@@ -197,7 +238,13 @@ function inspectRelation(
   const b = components.filter((component) => component.designator === relation.second);
   const first = a[0],
     second = b[0];
-  if (a.length !== 1 || b.length !== 1 || !validComponent(first) || !validComponent(second)) {
+  if (
+    a.length !== 1 ||
+    b.length !== 1 ||
+    !validComponent(first) ||
+    !validComponent(second) ||
+    first.primitiveId === second.primitiveId
+  ) {
     base.reasons.push(
       'A declared designator is missing, duplicated, or lacks native origin/layer evidence.',
     );

@@ -557,6 +557,57 @@ describe('native PCB route geometry review MCP contract', () => {
     ).toBe(false);
   });
 
+  it('validates second-component rotation provenance and reports native differences', async () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    const relation = {
+      first: 'J1',
+      second: 'D1',
+      kind: 'esd-entry',
+      secondRotationDeg: 350,
+      secondRotationToleranceDeg: 2,
+      constraintSource: 'Example mechanical datasheet Rev B',
+    };
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        placementRelations: [relation],
+      }).success,
+    ).toBe(true);
+    for (const invalid of [
+      { ...relation, secondRotationDeg: undefined },
+      { ...relation, secondRotationToleranceDeg: 181 },
+      { ...relation, constraintSource: undefined },
+    ]) {
+      expect(
+        schema?.safeParse({
+          projectId: 'project-1',
+          placementRelations: [invalid],
+        }).success,
+      ).toBe(false);
+    }
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'pcb.listComponents')
+        return {
+          total: 2,
+          items: [
+            { primitiveId: 'j1', designator: 'J1', x: 0, y: 0, layer: 1, rotation: 0 },
+            { primitiveId: 'd1', designator: 'D1', x: 20, y: 0, layer: 1, rotation: 90 },
+          ],
+        };
+      return { total: 0, items: [] };
+    });
+    const result = await run({ placementRelations: [relation] });
+    expect(result.placement_review.findings[0]).toMatchObject({
+      status: 'WARNING',
+      relation: 'esd-entry',
+      declared_second_rotation_deg: 350,
+      second_rotation_deg: 90,
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(result.engineering_sign_off).toBe(false);
+    expect(bridgeCall).toHaveBeenCalledTimes(3);
+  });
+
   it('reads native component origins once only when relations are requested', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'pcb.listComponents')

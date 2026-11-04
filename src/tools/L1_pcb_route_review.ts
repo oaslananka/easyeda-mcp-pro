@@ -82,6 +82,8 @@ const placementRelationSchema = z
     requireSameLayer: z.boolean().optional(),
     firstRotationDeg: z.number().finite().optional(),
     rotationToleranceDeg: z.number().finite().min(0).max(180).optional(),
+    secondRotationDeg: z.number().finite().optional(),
+    secondRotationToleranceDeg: z.number().finite().min(0).max(180).optional(),
     constraintSource: z.string().trim().min(3).max(200).optional(),
   })
   .superRefine((value, ctx) => {
@@ -90,6 +92,13 @@ const placementRelationSchema = z
         code: 'custom',
         path: ['second'],
         message: 'Two distinct component designators are required.',
+      });
+    }
+    if (value.secondRotationToleranceDeg !== undefined && value.secondRotationDeg === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['secondRotationToleranceDeg'],
+        message: 'Declare the second component rotation target first.',
       });
     }
     if (value.rotationToleranceDeg !== undefined && value.firstRotationDeg === undefined) {
@@ -102,7 +111,8 @@ const placementRelationSchema = z
     if (
       (value.maxCenterDistanceMm !== undefined ||
         value.requireSameLayer === true ||
-        value.firstRotationDeg !== undefined) &&
+        value.firstRotationDeg !== undefined ||
+        value.secondRotationDeg !== undefined) &&
       !value.constraintSource
     ) {
       ctx.addIssue({
@@ -282,7 +292,9 @@ const placementReviewSchema = z.object({
         declared_max_center_distance_mm: z.number().optional(),
         native_layers: z.array(z.number()).optional(),
         first_rotation_deg: z.number().optional(),
+        second_rotation_deg: z.number().optional(),
         declared_first_rotation_deg: z.number().optional(),
+        declared_second_rotation_deg: z.number().optional(),
         constraint_source: z.string().optional(),
         reasons: z.array(z.string()),
         electrical_loop_status: z.literal('UNKNOWN'),
