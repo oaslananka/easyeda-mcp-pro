@@ -108,6 +108,44 @@ describe('easyeda live smoke plan', () => {
     expect(bridge.disconnect).toHaveBeenCalledWith('live smoke complete');
   });
 
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['string', 'ok'],
+    ['number', 0],
+    ['boolean', false],
+  ])('rejects %s native evidence without a usable result', async (_kind, invalid) => {
+    const bridge = {
+      connect: vi.fn(async () => undefined),
+      disconnect: vi.fn(),
+      waitForConnection: vi.fn(async () => undefined),
+      call: vi.fn(async (method: string) =>
+        method === 'system.getStatus' ? invalid : { ok: true },
+      ),
+      hello: null,
+      methodRegistryHash: 'test-hash',
+    };
+
+    const report = await runLiveSmokeChecks(bridge, baseConfig());
+    expect(report.status).toBe('failed');
+    expect(report.checks.find((check) => check.id === 'system_status')?.status).toBe('failed');
+    expect(bridge.disconnect).toHaveBeenCalledWith('live smoke complete');
+  });
+
+  it('accepts an empty native collection without treating it as unavailable', async () => {
+    const bridge = {
+      connect: vi.fn(async () => undefined),
+      disconnect: vi.fn(),
+      waitForConnection: vi.fn(async () => undefined),
+      call: vi.fn(async (method: string) => (method === 'schematic.listNets' ? [] : { ok: true })),
+      hello: null,
+      methodRegistryHash: 'test-hash',
+    };
+
+    const report = await runLiveSmokeChecks(bridge, baseConfig());
+    expect(report.status).toBe('passed');
+  });
+
   it('should execute checks and report failures without throwing', async () => {
     let connected = false;
     const hello = {
