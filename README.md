@@ -4,7 +4,7 @@
 
 **Inspect, review, and safely automate EasyEDA Pro designs from MCP-compatible AI assistants.**
 
-[Documentation](https://oaslananka.github.io/easyeda-mcp-pro/) · [Getting Started](https://oaslananka.github.io/easyeda-mcp-pro/guide/getting-started.html) · [Tool Reference](https://oaslananka.github.io/easyeda-mcp-pro/reference/tools.html) · [Compatibility](https://oaslananka.github.io/easyeda-mcp-pro/reference/easyeda-compatibility.html) · [Roadmap](docs/ROADMAP.md)
+[Documentation](https://oaslananka.github.io/easyeda-mcp-pro/) · [Getting Started](https://oaslananka.github.io/easyeda-mcp-pro/guide/getting-started.html) · [Tool Reference](https://oaslananka.github.io/easyeda-mcp-pro/reference/tools.html) · [Compatibility](https://oaslananka.github.io/easyeda-mcp-pro/reference/easyeda-compatibility.html) · [Roadmap](docs/ROADMAP.md) · [DeepWiki](https://deepwiki.com/oaslananka/easyeda-mcp-pro)
 
 <p>
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/v/easyeda-mcp-pro.svg?logo=npm" alt="npm version" /></a>
@@ -20,7 +20,6 @@
 </p>
 
 <p>
-  <a href="https://deepwiki.com/oaslananka/easyeda-mcp-pro"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
   <a href="https://gitgem.org/github/oaslananka/easyeda-mcp-pro"><img src="https://gitgem.org/api/badge/github/oaslananka/easyeda-mcp-pro.svg" alt="GitGem" /></a>
 </p>
 
