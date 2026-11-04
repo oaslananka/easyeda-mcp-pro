@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.9.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.8.1...easyeda-mcp-pro-v1.9.0) (2026-11-04)
+
+
+### Features
+
+* **engineering:** introduce evidence-aware read-only design review ([#851](https://github.com/oaslananka/easyeda-mcp-pro/issues/851)) ([571e98c](https://github.com/oaslananka/easyeda-mcp-pro/commit/571e98c938204ecc78fdb6f6172730d118c6791d))
+* **pcb:** add evidence-aware native route geometry review ([#854](https://github.com/oaslananka/easyeda-mcp-pro/issues/854)) ([8b7fbf9](https://github.com/oaslananka/easyeda-mcp-pro/commit/8b7fbf99280a9a0889b0a8b3c8f3f024cec6ab9b))
+* **pcb:** add evidence-aware placement relationship review ([#856](https://github.com/oaslananka/easyeda-mcp-pro/issues/856)) ([17a2a98](https://github.com/oaslananka/easyeda-mcp-pro/commit/17a2a989e028d2158e4b2b0dd2f50f741ab93e6f))
+* **pcb:** add evidence-aware trace current review ([#853](https://github.com/oaslananka/easyeda-mcp-pro/issues/853)) ([fc4040f](https://github.com/oaslananka/easyeda-mcp-pro/commit/fc4040fa7bb4af38f26663a651e742e167eb7b14))
+* **pcb:** review declared differential pair evidence ([#855](https://github.com/oaslananka/easyeda-mcp-pro/issues/855)) ([037962f](https://github.com/oaslananka/easyeda-mcp-pro/commit/037962fa1903d4fd4f4131a5e73d5a48dc47ccf3))
+* **pcb:** review declared manufacturer process profiles ([#860](https://github.com/oaslananka/easyeda-mcp-pro/issues/860)) ([aa4e2a0](https://github.com/oaslananka/easyeda-mcp-pro/commit/aa4e2a0816e3b60518b7e295665583dd36ec9617))
+* **pcb:** review source-scoped isolation and EMC evidence ([#859](https://github.com/oaslananka/easyeda-mcp-pro/issues/859)) ([7cb8502](https://github.com/oaslananka/easyeda-mcp-pro/commit/7cb85023fb1b493b75052472396c1f794de0d1f5))
+* **schematic:** add source-aware electrical constraints review ([#857](https://github.com/oaslananka/easyeda-mcp-pro/issues/857)) ([df5623b](https://github.com/oaslananka/easyeda-mcp-pro/commit/df5623bbbb6753aa561b2188b38e3236ef7f4e8e))
+
+
+### Bug Fixes
+
+* **engineering:** reject stale bridge evidence in design reviews ([#852](https://github.com/oaslananka/easyeda-mcp-pro/issues/852)) ([ee78e5a](https://github.com/oaslananka/easyeda-mcp-pro/commit/ee78e5abc221c453b6592cc2031008a44368fcda))
+* **engineering:** reject unversioned native evidence ([#888](https://github.com/oaslananka/easyeda-mcp-pro/issues/888)) ([49d07b2](https://github.com/oaslananka/easyeda-mcp-pro/commit/49d07b2046540b1bff62f4ad797576e5269339e5))
+* **extension:** report documented native editor version ([#885](https://github.com/oaslananka/easyeda-mcp-pro/issues/885)) ([2bfb797](https://github.com/oaslananka/easyeda-mcp-pro/commit/2bfb797425ecbbb96617699aaa669f9e21932364))
+* **extension:** surface native editor version in bridge status ([#889](https://github.com/oaslananka/easyeda-mcp-pro/issues/889)) ([ff88d0c](https://github.com/oaslananka/easyeda-mcp-pro/commit/ff88d0c4ab3f27351e7b71a0d5d6a193309e654c))
+* **live:** reject non-structured smoke evidence ([#883](https://github.com/oaslananka/easyeda-mcp-pro/issues/883)) ([8dd8f60](https://github.com/oaslananka/easyeda-mcp-pro/commit/8dd8f608add445c30a83dfb199f0e7cda4db6918))
+* **live:** reject unavailable smoke evidence ([#882](https://github.com/oaslananka/easyeda-mcp-pro/issues/882)) ([7fb88a0](https://github.com/oaslananka/easyeda-mcp-pro/commit/7fb88a08758661d57bf4a98d31bdb98eb7706656))
+* **pcb:** distinguish unavailable native readers from empty collections ([#871](https://github.com/oaslananka/easyeda-mcp-pro/issues/871)) ([2a43b91](https://github.com/oaslananka/easyeda-mcp-pro/commit/2a43b914934f9fa1de88d8deedfd1962334dc2e8))
+* **pcb:** fail closed on unreadable outline inventories ([#877](https://github.com/oaslananka/easyeda-mcp-pro/issues/877)) ([705ee61](https://github.com/oaslananka/easyeda-mcp-pro/commit/705ee613d856ce1ae9ae051a91fb8c41868fcee9)), closes [#848](https://github.com/oaslananka/easyeda-mcp-pro/issues/848)
+* **pcb:** preserve unknown drill and rule evidence ([#836](https://github.com/oaslananka/easyeda-mcp-pro/issues/836)) ([9d80538](https://github.com/oaslananka/easyeda-mcp-pro/commit/9d8053836031a40130ea56a8ff8f5467c69b0aa2))
+* **pcb:** reject invalid physical stackup layers ([#878](https://github.com/oaslananka/easyeda-mcp-pro/issues/878)) ([5b58cb9](https://github.com/oaslananka/easyeda-mcp-pro/commit/5b58cb9456a355b12e2df1e36af81be62132ea3a)), closes [#848](https://github.com/oaslananka/easyeda-mcp-pro/issues/848)
+* **pcb:** reject malformed native collection evidence ([#872](https://github.com/oaslananka/easyeda-mcp-pro/issues/872)) ([6361389](https://github.com/oaslananka/easyeda-mcp-pro/commit/6361389aef52af474a219e41ecc26001570c6efa))
+* **pcb:** reject malformed native layer inventories ([#874](https://github.com/oaslananka/easyeda-mcp-pro/issues/874)) ([ef80d57](https://github.com/oaslananka/easyeda-mcp-pro/commit/ef80d574bd88b3fa432a47d4a9673dcbd4762ba9)), closes [#848](https://github.com/oaslananka/easyeda-mcp-pro/issues/848)
+* **pcb:** reject malformed native layer records ([#876](https://github.com/oaslananka/easyeda-mcp-pro/issues/876)) ([dc805fa](https://github.com/oaslananka/easyeda-mcp-pro/commit/dc805fad0a189942915eb73ee57f28f9fca6a612)), closes [#848](https://github.com/oaslananka/easyeda-mcp-pro/issues/848)
+* **pcb:** verify focused project identity for board inspection evidence ([#866](https://github.com/oaslananka/easyeda-mcp-pro/issues/866)) ([5019340](https://github.com/oaslananka/easyeda-mcp-pro/commit/5019340d992c6e90d8be226c27bb85ebff99d1b2))
+* **review:** invalidate evidence on runtime version drift ([#880](https://github.com/oaslananka/easyeda-mcp-pro/issues/880)) ([c7d6e52](https://github.com/oaslananka/easyeda-mcp-pro/commit/c7d6e52551610f8a7138add2b1af7af160d6e6c8))
+* **review:** reject malformed native observation responses ([#879](https://github.com/oaslananka/easyeda-mcp-pro/issues/879)) ([4850b0a](https://github.com/oaslananka/easyeda-mcp-pro/commit/4850b0a86395605895bf362329bf7ff0c46e84dd)), closes [#848](https://github.com/oaslananka/easyeda-mcp-pro/issues/848)
+* **review:** reject stale native observations from rule verdicts ([#862](https://github.com/oaslananka/easyeda-mcp-pro/issues/862)) ([20b12ae](https://github.com/oaslananka/easyeda-mcp-pro/commit/20b12ae8767795d25e3f2a2cfe77eaa7d5f7a442))
+* **review:** reject unavailable native evidence sentinels ([#881](https://github.com/oaslananka/easyeda-mcp-pro/issues/881)) ([3e23f04](https://github.com/oaslananka/easyeda-mcp-pro/commit/3e23f04d67a468647c056791f05e416c4efaabfa))
+* **rules:** avoid false differential warnings at exact declared limits ([#867](https://github.com/oaslananka/easyeda-mcp-pro/issues/867)) ([7cb0ebc](https://github.com/oaslananka/easyeda-mcp-pro/commit/7cb0ebcacd054964081f7947ddbd947d1e64a1c1))
+* **rules:** fail closed on invalid datasheet and placement limits ([#869](https://github.com/oaslananka/easyeda-mcp-pro/issues/869)) ([ebceb05](https://github.com/oaslananka/easyeda-mcp-pro/commit/ebceb05a8c85071efef55dcdc940738365693e85))
+* **rules:** fail closed on invalid isolation and process limits ([#868](https://github.com/oaslananka/easyeda-mcp-pro/issues/868)) ([b222752](https://github.com/oaslananka/easyeda-mcp-pro/commit/b22275236e15a8bbe47044242ed297cf423d8a26))
+* **rules:** fail closed on invalid isolation context evidence ([#870](https://github.com/oaslananka/easyeda-mcp-pro/issues/870)) ([5d47e49](https://github.com/oaslananka/easyeda-mcp-pro/commit/5d47e498ccbc0c158df8092ae84b461ede83cd80))
+* **schematic:** read nets from the focused page only ([#865](https://github.com/oaslananka/easyeda-mcp-pro/issues/865)) ([815ab39](https://github.com/oaslananka/easyeda-mcp-pro/commit/815ab39c9477ea990f34042d63c41a73ad2e2693))
+* **schematic:** reject malformed native component inventories ([#875](https://github.com/oaslananka/easyeda-mcp-pro/issues/875)) ([5b99cfb](https://github.com/oaslananka/easyeda-mcp-pro/commit/5b99cfb0f53a665b5ae1a1411ddd476e16bd8925)), closes [#848](https://github.com/oaslananka/easyeda-mcp-pro/issues/848)
+* **schematic:** validate source project identity for reads ([#884](https://github.com/oaslananka/easyeda-mcp-pro/issues/884)) ([0e630fc](https://github.com/oaslananka/easyeda-mcp-pro/commit/0e630fc53ce97151f78e7c8a804949bfe2897e75))
+
 ## [1.8.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.8.0...easyeda-mcp-pro-v1.8.1) (2026-11-02)
 
 
