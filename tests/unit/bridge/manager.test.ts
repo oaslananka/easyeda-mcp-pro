@@ -813,10 +813,10 @@ describe('BridgeManager - reconnect', () => {
     // This is verified implicitly: reconnect is only scheduled on disconnect,
     // and a new handshake resets reconnectAttempts. We test that reconnecting
     // events fire sequentially only for new disconnect cycles.
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
     const manager = new BridgeManager(config);
     await manager.connect();
@@ -824,7 +824,7 @@ describe('BridgeManager - reconnect', () => {
     const reconnectingSpy = vi.fn();
     manager.on('reconnecting', reconnectingSpy);
 
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     sendHandshake(socket);
     await waitForMessage(socket);
 
