@@ -583,4 +583,79 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.input_evidence).toBeDefined();
     expect(result.engineering_sign_off).toBe(false);
   });
+
+  it('binds an optional trace-current warning to versioned native track widths without adding bridge calls', async () => {
+    const r = await run({
+      traceCurrent: {
+        net: 'CLK',
+        currentA: 1,
+        temperatureRiseC: 10,
+        layer: 'external',
+        copperWeightOz: 1,
+        environment: 'still-air',
+        manufacturerMinWidthMm: 0.2,
+      },
+    });
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
+    expect(r.trace_current_review).toMatchObject({
+      net: 'CLK',
+      geometry_evidence: 'observed_bounded_segments',
+      observed_narrowest_segment_width_mm: 0.1016,
+      observed_primitive_ids: ['track-a', 'track-b'],
+      status: 'WARNING',
+      engineering_sign_off: false,
+    });
+    expect(r.trace_current_review.findings).toContainEqual(
+      expect.objectContaining({ id: 'THERMAL_REFERENCE_SHORTFALL', status: 'WARNING' }),
+    );
+    expect(r.overall_status).toBe('WARNING');
+  });
+
+  it('requires exact source versions for a native current-width verdict', async () => {
+    context.bridge.easyedaVersion = undefined;
+    const r = await run({
+      traceCurrent: {
+        net: 'CLK',
+        currentA: 1,
+        temperatureRiseC: 10,
+        layer: 'external',
+        copperWeightOz: 1,
+      },
+    });
+    expect(r.trace_current_review).toMatchObject({
+      status: 'UNKNOWN',
+      geometry_evidence: 'unavailable',
+      source_versions: { easyeda: null, extension: '1.8.1' },
+    });
+    expect(r.trace_current_review.observed_narrowest_segment_width_mm).toBeUndefined();
+    expect(r.engineering_sign_off).toBe(false);
+  });
+
+  it('rejects invalid trace-current assumptions without reading the native bridge', () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        traceCurrent: {
+          net: 'CLK',
+          currentA: -1,
+          temperatureRiseC: 10,
+          layer: 'external',
+          copperWeightOz: 1,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        traceCurrent: {
+          net: ' CLK ',
+          currentA: 1,
+          temperatureRiseC: 10,
+          layer: 'external',
+          copperWeightOz: 1,
+        },
+      }).success,
+    ).toBe(false);
+  });
 });

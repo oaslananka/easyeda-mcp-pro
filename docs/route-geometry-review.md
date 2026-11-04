@@ -45,6 +45,49 @@ drill-to-pad diameter may produce a warning. **Via current carrying
 capacity is not calculated**, because plated barrel thickness, via layer
 span, current sharing and heat transfer are unverified.
 
+## Optional current / observed net-width review
+
+The same tool accepts an opt-in `traceCurrent` declaration. It uses the
+existing read-only `pcb.listTracks` result to find the **narrowest observed
+primitive line segment** on the exact specified net, converts mils to mm,
+and compares that measurement to an empirical IPC-2221 reference calculated
+from the supplied load current, allowable temperature rise, copper weight
+and declared internal/external layer class. No new native calls or writes
+are introduced.
+
+```json
+{
+  "projectId": "your-exact-native-project-uuid",
+  "traceCurrent": {
+    "net": "VCC",
+    "currentA": 1,
+    "temperatureRiseC": 10,
+    "layer": "external",
+    "copperWeightOz": 1,
+    "manufacturerMinWidthMm": 0.15,
+    "environment": "still-air"
+  }
+}
+```
+
+This is a **caller-declared scenario**, not a recommended design limit.
+The `trace_current_review` reports `observed_narrowest_segment_width_mm`,
+primitive IDs, editor/extension source versions and a model-reference width.
+It emits `WARNING` only for a real observed narrower segment relative to
+the stated empirical or manufacturer reference. **Even if the observed
+width is larger, result remains `UNKNOWN`**, never a current-carrying PASS.
+
+The comparison fails closed if the active project/focus/native reader fails,
+if the read is truncated or malformed, if the named net is absent, or if
+source versions are unavailable. The returned width is **not** an observed
+whole-current-path minimum: native layer codes do not establish the
+caller-declared copper stackup, and vias, fills, parallel conductors,
+plating and thermal/environmental effects remain unverified.
+The separate source-agnostic `easyeda_design_rules_lookup` calculation
+remains backward-compatible and only interprets caller-supplied values.
+Use disposable-board exact-source live acceptance before claiming this
+optional native result compatible with a given EasyEDA runtime.
+
 ## Incomplete evidence
 
 The result always discloses these unverified dimensions:

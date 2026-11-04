@@ -71,6 +71,14 @@ The same read-only MCP tool accepts `topic=trace-current-review` without another
 
 The result uses `WARNING` for supplied values below the empirical thermal estimate or the separately supplied fabricator minimum. Missing route, via, finished-copper and thermal evidence remains `UNKNOWN`. **This review never emits a verified PASS**, even when caller-supplied width exceeds both estimates. A manufacturing trace minimum is not an electrical rating. Via barrels and parallel-current paths require separate analysis.
 
+To compare a real **bounded native net-segment width** with the same empirical
+reference, use the optional `traceCurrent` input on
+[`easyeda_pcb_route_geometry_review`](./route-geometry-review.md#optional-current-observed-net-width-review).
+That operation reads `pcb.listTracks` on an exact focused project and reports
+source/geometry coverage; its measured minimum is not a validated whole
+current path or stackup. The original lookup above remains entirely
+caller-supplied and backward-compatible.
+
 For genuine native measurements and exact-source runtime evidence, inspect a disposable EasyEDA PCB and follow [engineering review live acceptance](./development/engineering-review-live-acceptance.md). Never claim a fabrication/electrical sign-off from this reference lookup.
 
 ## Electrical clearance
