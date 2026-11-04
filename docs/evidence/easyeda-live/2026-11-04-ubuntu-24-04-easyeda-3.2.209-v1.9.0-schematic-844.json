@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "kind": "disposable-project-read-only-schematic-support-pin-acceptance",
+  "observationDate": "2026-11-04",
+  "recordedAt": "2026-11-04T20:48:52.329Z",
+  "implementationCommit": "f33204bd33ee7031298d885b8528fb3df39d04e4",
+  "platform": {
+    "editor": "EasyEDA Pro Web 3.2.209",
+    "serverVersion": "1.9.0",
+    "extensionVersion": "1.9.0",
+    "extensionVersionMismatch": false,
+    "registryMismatch": false
+  },
+  "source": {
+    "kind": "owner-controlled disposable LED indicator schematic",
+    "projectUuidWithheld": true,
+    "documentUuidWithheld": true,
+    "focusedIdentityEnforced": true,
+    "nativeNetCount": 3,
+    "nativeComponentCount": 3,
+    "nativePinCount": 6,
+    "nativeNetNames": ["LED_ANODE", "LED_GND", "LED_5V"],
+    "nativeStableRepeatedReads": true,
+    "observedPinNets": {
+      "LED1.1": "LED_ANODE",
+      "R1.2": "LED_ANODE",
+      "R1.1": "LED_5V"
+    },
+    "designMutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0,
+    "nativeDrcOrErcExecutions": 0
+  },
+  "checks": [
+    {
+      "id": "matching-declared-support-pin",
+      "declaredSupportPin": "R1.2",
+      "referenceKind": "synthetic-hypothesis-not-datasheet",
+      "status": "UNKNOWN",
+      "evidence": "explicit_netlist",
+      "observedNetNames": ["LED_ANODE"],
+      "electricalApproval": false
+    },
+    {
+      "id": "different-net-declared-support-pin",
+      "declaredSupportPin": "R1.1",
+      "referenceKind": "synthetic-hypothesis-not-datasheet",
+      "status": "WARNING",
+      "evidence": "explicit_netlist",
+      "observedNetNames": ["LED_ANODE", "LED_5V"],
+      "electricalApproval": false
+    },
+    {
+      "id": "nonexistent-declared-support-pin",
+      "declaredSupportPin": "R1.99",
+      "referenceKind": "synthetic-hypothesis-not-datasheet",
+      "status": "UNKNOWN",
+      "evidence": "incomplete_or_ambiguous",
+      "electricalApproval": false
+    }
+  ],
+  "limitations": [
+    "The live native component and net inventory is read-only and focused-project-guarded, but the semantic ERC tool consumes a copied netlist and still labels that input caller-supplied not live-verified.",
+    "Support function and source are hypothetical test declarations, NOT an authenticated component manufacturer datasheet or verified electrical requirement.",
+    "Pin electrical types use passive neutral placeholders, not unreliable EasyEDA symbol-library hints; no net voltages were inferred from LED_5V/LED_GND names.",
+    "An apparently matching net is UNKNOWN, not confirmation of component function, value, placement, power integrity, safety or certification.",
+    "This is one representative EasyEDA Pro Web schematic only; no PCB pad-net loop, native Desktop acceptance, design writes, saves, exports or fabrication approval."
+  ],
+  "engineeringSignOff": false
+}

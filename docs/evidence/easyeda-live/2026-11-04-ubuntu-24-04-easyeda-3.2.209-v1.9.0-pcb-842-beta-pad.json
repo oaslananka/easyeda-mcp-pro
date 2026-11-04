@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "kind": "disposable-pcb-beta-pad-inventory-research-not-production-acceptance",
+  "observationDate": "2026-11-04",
+  "recordedAt": "2026-11-04T20:54:26.825Z",
+  "implementationCommit": "f33204bd33ee7031298d885b8528fb3df39d04e4",
+  "runtime": {
+    "editor": "EasyEDA Pro Web 3.2.209",
+    "extensionVersion": "1.9.0",
+    "loaderBuildId": "de7e9xc35bx92a6",
+    "activeDispatcher": "baked"
+  },
+  "source": {
+    "kind": "owner-controlled disposable LED indicator PCB",
+    "projectUuidWithheld": true,
+    "documentUuidWithheld": true,
+    "activePcbIdentityVerified": true,
+    "nativeComponentCount": 3,
+    "nativePadCount": 6,
+    "observedNets": ["LED_5V", "LED_ANODE", "LED_GND"],
+    "nativeLayerCodes": [1, 12],
+    "nativeLayerCodesNotInterpreted": true,
+    "allPadsHaveNumberNetAndFiniteNativeCoordinates": true,
+    "componentParentReferencesChecked": 6,
+    "repeatedGlobalPadInventoryEqual": true,
+    "schematicPadNetComparisonEqual": true,
+    "sameProjectAndDocumentAfterRead": true,
+    "designMutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0
+  },
+  "observedPadNets": {
+    "LED1.1": {
+      "net": "LED_ANODE",
+      "nativeLayerCode": 1,
+      "coordsPresent": true
+    },
+    "LED1.2": {
+      "net": "LED_GND",
+      "nativeLayerCode": 1,
+      "coordsPresent": true
+    },
+    "R1.1": {
+      "net": "LED_5V",
+      "nativeLayerCode": 1,
+      "coordsPresent": true
+    },
+    "R1.2": {
+      "net": "LED_ANODE",
+      "nativeLayerCode": 1,
+      "coordsPresent": true
+    },
+    "U1.1": {
+      "net": "LED_5V",
+      "nativeLayerCode": 12,
+      "coordsPresent": true
+    },
+    "U1.2": {
+      "net": "LED_GND",
+      "nativeLayerCode": 12,
+      "coordsPresent": true
+    }
+  },
+  "limitations": [
+    "PCB_PrimitivePad.getAll and PCB_PrimitiveComponent.getAllPinsByPrimitiveId are beta APIs explicitly not recommended for production in EasyEDA documentation. This read-only experiment does not enable a production tool.",
+    "Native pad layer code 12 occurs for the connector, but its physical meaning is not independently validated; never label it twelfth copper layer or back side.",
+    "Native coordinates are finite but units/transformations were not independently calibrated; do not compute physical mm loop length or pad-to-copper return-path adequacy from this observation.",
+    "Observed pad net metadata and schematic correspondence do not establish physical copper connectivity, EMC/ESD robustness, electrical reliability or manufacturing acceptance.",
+    "Only one EasyEDA Pro Web 3.2.209 disposable PCB was read; other runtimes and designs remain unvalidated. No native DRC/ERC, design writes, saves, exports, purchases or signoff."
+  ],
+  "engineeringSignOff": false,
+  "productionPadReaderApproved": false
+}

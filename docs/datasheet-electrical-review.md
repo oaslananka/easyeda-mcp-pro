@@ -109,6 +109,15 @@ source-declared violations is **not** datasheet sign-off.
 
 ## Live acceptance and follow-up
 
+A bounded [EasyEDA Pro Web 3.2.209 source-matched live read-only schematic
+observation](./evidence/easyeda-live/2026-11-04-ubuntu-24-04-easyeda-3.2.209-v1.9.0-schematic-844.json)
+records three exact net/pin support tests using a disposable LED-indicator
+fixture: a shared net yields `UNKNOWN`, a different net yields `WARNING`,
+and an absent support pin yields `UNKNOWN`. This is a **synthetic support
+requirement applied to observed native connectivity**, not evidence of a
+device-specific datasheet requirement. No external voltage measurements,
+power-tree sign-off, or electrical/fabrication approval were made.
+
 Run the exact-source, real EasyEDA Pro read-only review on a disposable
 schematic with a verified editor/extension version, native project identity,
 correct pin map and chosen datasheet/package/revision; compare recorded

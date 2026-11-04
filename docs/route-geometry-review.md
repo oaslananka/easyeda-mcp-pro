@@ -280,7 +280,21 @@ primitive reads are **not an atomic PCB snapshot**.
 A verified power/buck loop needs actual pad coordinates, pad-net
 connections, copper/return plane continuity and relevant device-layout
 requirements; those data are **not exposed** by the current
-`pcb.listComponents` read contract. This bounded inspection does not
+`pcb.listComponents` read contract.
+
+A bounded [read-only EasyEDA Web 3.2.209 beta pad experiment](./evidence/easyeda-live/2026-11-04-ubuntu-24-04-easyeda-3.2.209-v1.9.0-pcb-842-beta-pad.json)
+confirmed that `PCB_PrimitivePad.getAll` and
+`PCB_PrimitiveComponent.getAllPinsByPrimitiveId` return six source-matched
+pad identities, parent footprint references, pad/net labels and finite
+coordinates in **one disposable LED PCB**. Two consecutive global reads
+agreed and the pad net labels matched the disposable schematic.
+These native APIs are **beta and not recommended for production** by
+EasyEDA's documentation, so the observation is research evidence only:
+**no production pad reader, power-loop check or electrical approval** was
+added. The observed raw native layer codes `1` and `12` are not
+interpreted as physical copper-layer indices or board sides. Native
+coordinate units/transforms, copper continuity and return paths remain
+unverified. This bounded inspection does not
 claim EMI immunity, SI correctness, safety compliance, autorouting
 or a manufacturing approval. Exact-source live acceptance on a
 disposable EasyEDA PCB remains a separate required milestone.
