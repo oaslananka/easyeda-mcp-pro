@@ -74,7 +74,15 @@ An observed in-range point remains `UNKNOWN` for electrical certification.
   verified. A valid NC is **not** falsely failed by this review.
 - `required_support`: record required pull resistor, local decoupling,
   reset/boot support, connector ESD or other protection by exact
-  `supportRef`. Presence of a designator does not prove electrical
+  `supportRef`. An optional exact `supportPin` tests whether that pin
+  and the target component's declared pin appear on the same explicit net.
+  When both pins are uniquely identified and map to **different** nets,
+  the review reports `WARNING` with both net names and the support-pin
+  identity. Matching names/net IDs remain `UNKNOWN`, not a support PASS:
+  the other terminal, component function/value, location, and physical
+  behavior are not independently verified. Duplicate component or pin
+  identities are ambiguous and never produce a false mismatch.
+  Presence of a designator does not prove electrical
   connection, values, location, or adequacy. Absence from the supplied
   device list is a candidate finding, not certified absence from the
   live board, because the supplied list may be partial. Both remain

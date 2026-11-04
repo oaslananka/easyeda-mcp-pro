@@ -115,6 +115,74 @@ describe('optional source-aware electrical review MCP contract', () => {
     expect(tool.outputSchema.parse(result)).toEqual(result);
   });
 
+  it('reports a named support-pin net mismatch using the existing read-only tool', async () => {
+    const { tool, context, call } = toolSetup();
+    const declaredDevices = [
+      ...devices,
+      {
+        id: 'C1',
+        ref: 'C1',
+        pins: [
+          { pin: '1', electricalType: 'passive' as const },
+          { pin: '2', electricalType: 'passive' as const },
+        ],
+      },
+    ];
+    const declaredNets = [
+      { ...nets[0]!, nodes: [...nets[0]!.nodes, { deviceRef: 'C1', pin: '1' }] },
+      { ...nets[1]!, nodes: [...nets[1]!.nodes, { deviceRef: 'C1', pin: '2' }] },
+      nets[2]!,
+    ];
+    const baseline = {
+      kind: 'required_support',
+      componentRef: 'U1',
+      pin: 'VDD',
+      supportRef: 'C1',
+      supportPin: '2',
+      function: 'decoupling',
+      reference: source,
+    };
+    expect(
+      tool.inputSchema.safeParse({
+        nets: declaredNets,
+        devices: declaredDevices,
+        datasheetConstraints: [baseline],
+      }).success,
+    ).toBe(true);
+    expect(
+      tool.inputSchema.safeParse({
+        nets: declaredNets,
+        devices: declaredDevices,
+        datasheetConstraints: [{ ...baseline, supportPin: ' 2 ' }],
+      }).success,
+    ).toBe(false);
+    const result = await tool.handler(context, {
+      nets: declaredNets,
+      devices: declaredDevices,
+      datasheetConstraints: [baseline],
+    });
+    expect(result.datasheet_review.findings[0]).toMatchObject({
+      kind: 'required_support',
+      status: 'WARNING',
+      component_ref: 'U1',
+      related_component_ref: 'C1',
+      related_pin: '2',
+      nets: ['5V', 'GND'],
+    });
+    expect(result.electrical_approval).toBe(false);
+    expect(result.passed).toBe(false);
+    expect(tool.outputSchema.parse(result)).toEqual(result);
+    expect(call).not.toHaveBeenCalled();
+    const absentOptionalPin = await tool.handler(context, {
+      nets: declaredNets,
+      devices: declaredDevices,
+      datasheetConstraints: [{ ...baseline, supportPin: undefined }],
+    });
+    expect(absentOptionalPin.datasheet_review.findings[0]).toMatchObject({ status: 'UNKNOWN' });
+    expect(absentOptionalPin.datasheet_review.findings[0].related_pin).toBeUndefined();
+    expect(tool.outputSchema.parse(absentOptionalPin)).toEqual(absentOptionalPin);
+  });
+
   it('keeps undeclared/in-range datasheet compliance unapproved', async () => {
     const { tool, context } = toolSetup();
     const result = await tool.handler(context, {

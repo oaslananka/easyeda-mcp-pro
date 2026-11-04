@@ -182,6 +182,92 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(result.findings[0]?.nets).toEqual([]);
   });
 
+  it('flags exact support-pin net mismatch without inventing a matching-net PASS', () => {
+    const support = fixtures.find((f) => f.constraint.kind === 'required_support')?.constraint;
+    if (support?.kind !== 'required_support') throw new Error('Missing required-support fixture');
+    const target = {
+      ...support,
+      componentRef: 'U1',
+      pin: 'VDD',
+      supportRef: 'C404',
+      supportPin: '1',
+    };
+    const augmentedDevices: DeviceValidationEntry[] = [
+      ...devices,
+      {
+        id: 'C404',
+        ref: 'C404',
+        pins: [
+          { pin: '1', electricalType: 'passive' },
+          { pin: '2', electricalType: 'passive' },
+        ],
+      },
+    ];
+    const augmentedNets: NetValidationEntry[] = [
+      { ...nets[0]!, nodes: [...nets[0]!.nodes, { deviceRef: 'C404', pin: '1' }] },
+      { ...nets[1]!, nodes: [...nets[1]!.nodes, { deviceRef: 'C404', pin: '2' }] },
+      nets[2]!,
+    ];
+    const matched = reviewDatasheetConstraints([target], augmentedNets, augmentedDevices);
+    expect(matched.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'explicit_netlist',
+      related_component_ref: 'C404',
+      related_pin: '1',
+      nets: ['5V'],
+    });
+    expect(matched.findings[0]?.message).toContain('remain unverified');
+    const mismatched = reviewDatasheetConstraints(
+      [{ ...target, supportPin: '2' }],
+      augmentedNets,
+      augmentedDevices,
+    );
+    expect(mismatched.findings[0]).toMatchObject({
+      status: 'WARNING',
+      evidence: 'explicit_netlist',
+      related_component_ref: 'C404',
+      related_pin: '2',
+      nets: ['5V', '3V3'],
+    });
+    expect(mismatched.findings[0]?.message).toContain('different nets');
+    expect(mismatched.engineering_sign_off).toBe(false);
+    const missingSupportPin = reviewDatasheetConstraints(
+      [{ ...target, supportPin: '99' }],
+      augmentedNets,
+      augmentedDevices,
+    );
+    expect(missingSupportPin.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+      related_component_ref: 'C404',
+      related_pin: '99',
+    });
+  });
+
+  it('fails closed for repeated component or pin identity in declared inventories', () => {
+    const sourceConstraint = fixtures[0]!.constraint;
+    const duplicatedDevice = reviewDatasheetConstraints([sourceConstraint], nets, [
+      ...devices,
+      devices[0]!,
+    ]);
+    expect(duplicatedDevice.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+    });
+    const duplicatedPinDevice = {
+      ...devices[0]!,
+      pins: [...(devices[0]!.pins ?? []), devices[0]!.pins![0]!],
+    };
+    const duplicatedPin = reviewDatasheetConstraints([sourceConstraint], nets, [
+      duplicatedPinDevice,
+      devices[1]!,
+    ]);
+    expect(duplicatedPin.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+    });
+  });
+
   it('keeps absent declared supports unverified, even if another component happens to exist', () => {
     const support = fixtures[5]!.constraint;
     const missing = reviewDatasheetConstraints([support], nets, devices);

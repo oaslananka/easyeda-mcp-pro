@@ -35,6 +35,8 @@ export type DatasheetConstraint =
       componentRef: string;
       pin: string;
       supportRef: string;
+      /** Exact declared support pin; missing means connectivity is unverified. */
+      supportPin?: string;
       function: 'pull' | 'decoupling' | 'reset_boot' | 'esd' | 'protection';
       reference: DatasheetReference;
     }
@@ -54,6 +56,8 @@ export interface DatasheetFinding {
   kind: DatasheetConstraint['kind'];
   status: Observation;
   component_ref: string;
+  related_component_ref?: string;
+  related_pin?: string;
   pins: string[];
   nets: string[];
   observed_voltages_v: Array<{ net: string; voltage_v: number }>;
@@ -83,10 +87,10 @@ function findPinNet(
   nets: NetValidationEntry[],
   devices: DeviceValidationEntry[] | undefined,
 ): PinLookup {
+  const matchedDevices = devices?.filter((device) => device.ref === componentRef);
   if (
-    !devices?.some(
-      (device) => device.ref === componentRef && device.pins?.some((p) => p.pin === pin),
-    )
+    matchedDevices?.length !== 1 ||
+    matchedDevices[0]?.pins?.filter((p) => p.pin === pin).length !== 1
   )
     return { status: 'UNKNOWN' };
   const matched = nets.filter((net) =>
@@ -267,26 +271,63 @@ function reviewNoConnect(
   );
 }
 
+function supportMessage(
+  mismatched: boolean,
+  target: PinLookup,
+  support: PinLookup | undefined,
+  supportPresent: boolean | undefined,
+): string {
+  if (mismatched)
+    return 'Declared support pin and target pin connect to different nets in the caller-supplied netlist.';
+  if (support === undefined)
+    return supportPresent
+      ? 'Named support component is declared, but its electrical connection, value, location and function are unverified.'
+      : 'Named required support component is absent from the supplied device inventory; completeness and live absence are unverified.';
+  return target.status === 'CONNECTED' && support.status === 'CONNECTED'
+    ? 'Both explicitly named pins share a declared net; component function, support value, other terminal, location and physical adequacy remain unverified.'
+    : 'One or both exact pin connections are missing or ambiguous; support topology cannot be established.';
+}
+
 function reviewSupport(
   c: Extract<DatasheetConstraint, { kind: 'required_support' }>,
   index: number,
   nets: NetValidationEntry[],
   devices: DeviceValidationEntry[] | undefined,
 ): DatasheetFinding {
-  const pin = findPinNet(c.componentRef, c.pin, nets, devices);
+  const target = findPinNet(c.componentRef, c.pin, nets, devices);
+  const support =
+    c.supportPin === undefined ? undefined : findPinNet(c.supportRef, c.supportPin, nets, devices);
+  const names = [
+    ...(target.status === 'CONNECTED' ? [target.net.name] : []),
+    ...(support?.status === 'CONNECTED' ? [support.net.name] : []),
+  ];
+  const distinctNets = [...new Set(names)];
+  const mismatched =
+    target.status === 'CONNECTED' &&
+    support?.status === 'CONNECTED' &&
+    (target.net.id !== support.net.id || target.net.name !== support.net.name);
   const supportPresent = devices?.some((device) => device.ref === c.supportRef);
-  const names = pin.status === 'CONNECTED' ? [pin.net.name] : [];
-  return finding(
-    index,
-    c,
-    'UNKNOWN',
-    supportPresent
-      ? 'Named support component is declared, but its electrical connection, value, location and function are unverified.'
-      : 'Named required support component is absent from the supplied device inventory; completeness and live absence are unverified.',
-    [c.pin],
-    names,
-    voltageObservation(pin),
-  );
+  const message = supportMessage(mismatched, target, support, supportPresent);
+  return {
+    ...finding(
+      index,
+      c,
+      mismatched ? 'WARNING' : 'UNKNOWN',
+      message,
+      [c.pin],
+      distinctNets,
+      voltageObservation(target),
+      target.status === 'CONNECTED' && support?.status === 'CONNECTED'
+        ? 'explicit_netlist'
+        : 'incomplete_or_ambiguous',
+    ),
+    ...(c.supportPin === undefined
+      ? {}
+      : {
+          related_component_ref: c.supportRef,
+          related_pin: c.supportPin,
+        }),
+  };
 }
 
 function reviewHeadroom(
