@@ -83,6 +83,31 @@ describe('easyeda live smoke plan', () => {
     expect(bridge.call).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['unavailable', { not_available: true, error: 'PCB context unavailable' }],
+    ['stale', { not_available: true, widthMm: 42, hasOutline: true }],
+  ])('rejects fulfilled but %s live check evidence', async (_reason, invalid) => {
+    const bridge = {
+      connect: vi.fn(async () => undefined),
+      disconnect: vi.fn(),
+      waitForConnection: vi.fn(async () => undefined),
+      call: vi.fn(async (method: string) =>
+        method === 'system.getStatus' ? invalid : { ok: true },
+      ),
+      hello: null,
+      methodRegistryHash: 'test-hash',
+    };
+
+    const report = await runLiveSmokeChecks(bridge, baseConfig());
+    expect(report.status).toBe('failed');
+    expect(report.checks.find((check) => check.id === 'system_status')).toMatchObject({
+      status: 'failed',
+      mutates: false,
+    });
+    expect(report.checks.every((check) => check.mutates === false)).toBe(true);
+    expect(bridge.disconnect).toHaveBeenCalledWith('live smoke complete');
+  });
+
   it('should execute checks and report failures without throwing', async () => {
     let connected = false;
     const hello = {
