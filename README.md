@@ -8,6 +8,7 @@
 
 <p>
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/v/easyeda-mcp-pro.svg?logo=npm" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/dt/easyeda-mcp-pro?logo=npm&amp;label=total%20downloads" alt="npm total downloads" /></a>
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/node/v/easyeda-mcp-pro" alt="supported Node.js version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/easyeda-mcp-pro.svg" alt="MIT license" /></a>
 </p>
