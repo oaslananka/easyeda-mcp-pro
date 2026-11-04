@@ -3,6 +3,7 @@ import { ToolRegistry } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import {
   fetchBoardDataFromBridge,
+  fetchBoardEvidenceFromBridge,
   registerPcbConstraintTools,
 } from '../../../src/tools/L1_pcb_constraints.js';
 import { EnvSchema } from '../../../src/config/env.js';
@@ -134,6 +135,28 @@ describe('PCB constraint tools', () => {
     expect(result?.project_id).toBe('pcb-bridge-1');
     expect(result?.summary.totalChecks).toBeGreaterThan(0);
   });
+
+  it.each([
+    ['board.getDimensions', null],
+    ['board.getDimensions', []],
+    ['board.getStackup', 'no stackup'],
+    ['board.getDesignRules', 42],
+    ['board.listLayers', {}],
+  ])(
+    'does not mark malformed fulfilled %s as an observed native source',
+    async (method, invalid) => {
+      bridgeCall.mockImplementation(async (name: string) => {
+        if (name === method) return invalid;
+        return name === 'board.listLayers' ? [] : {};
+      });
+
+      const result = await fetchBoardEvidenceFromBridge(context, 'pcb-invalid-evidence');
+      expect(result.observations.find((entry) => entry.method === method)).toMatchObject({
+        status: 'unavailable',
+      });
+      expect(result.observations.filter((entry) => entry.status === 'observed')).toHaveLength(3);
+    },
+  );
 
   it('uses the measured native minimum drill diameter without guessing mounting holes', async () => {
     bridgeCall.mockImplementation(async (method: string) => {

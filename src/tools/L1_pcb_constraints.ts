@@ -162,6 +162,12 @@ function measuredStackup(record: Record<string, unknown>): boolean | undefined {
   return Array.isArray(record.layers) && record.layers.length > 0 ? true : undefined;
 }
 
+function isObservedBoardResponse(method: string, result?: PromiseSettledResult<unknown>): boolean {
+  if (!result || result.status !== 'fulfilled') return false;
+  if (method === 'board.listLayers') return Array.isArray(result.value);
+  return result.value !== null && typeof result.value === 'object' && !Array.isArray(result.value);
+}
+
 /**
  * Fetch board data from the live EasyEDA bridge when no explicit boardData is provided.
  * Queries dimensions, layers, and stackup in parallel via Promise.allSettled.
@@ -203,9 +209,12 @@ export async function fetchBoardEvidenceFromBridge(
   const results = [dimensionsResult, layersResult, stackupResult, designRulesResult];
   const observations: ReviewObservation[] = methods.map((method, index) => ({
     method,
-    status: results[index]?.status === 'fulfilled' ? 'observed' : 'unavailable',
-    ...(results[index]?.status === 'rejected'
-      ? { guidance: 'Native read unavailable. Check the active PCB tab and EasyEDA capabilities.' }
+    status: isObservedBoardResponse(method, results[index]) ? 'observed' : 'unavailable',
+    ...(!isObservedBoardResponse(method, results[index])
+      ? {
+          guidance:
+            'Native read unavailable or malformed. Check the active PCB tab and EasyEDA capabilities.',
+        }
       : {}),
   }));
   return {
