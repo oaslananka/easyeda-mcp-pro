@@ -890,6 +890,20 @@ describe('PCB list project identity enforcement', () => {
     expect(read).toHaveBeenCalledOnce();
   });
 
+  it('can validate a focused schematic document against the exact native project', async () => {
+    const schematic = { documentType: 1, uuid: 'sch-doc', parentProjectUuid: projectUuid };
+    const { operations } = makeOperations(runtime(vi.fn(async () => schematic)));
+    const read = vi.fn(async () => [{ netName: 'VCC' }]);
+    await expect(operations.readProjectScoped(projectUuid, read, 1)).resolves.toEqual([
+      { netName: 'VCC' },
+    ]);
+    expect(read).toHaveBeenCalledOnce();
+    await expect(operations.readProjectScoped('wrong-project', read, 1)).rejects.toThrow(
+      'project identity mismatch',
+    );
+    expect(read).toHaveBeenCalledOnce();
+  });
+
   it('rejects a fabricated requested project before reading any primitives', async () => {
     const { operations } = makeOperations(runtime());
     const read = vi.fn(async () => ({ total: 4, items: [{ primitiveId: 'e107' }] }));
