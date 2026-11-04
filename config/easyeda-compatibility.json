@@ -1,8 +1,112 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-02",
+  "lastReviewed": "2026-11-04",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-04-v1-8-1-source-bound-native-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-11-04T12:55:31Z",
+      "reviewBy": "2027-01-31",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.18.0"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "41.2.1",
+        "chromiumVersion": "146.0.7680.188",
+        "chromiumVersionProvenance": "Electron 41.2.1 / Chromium 146.0.7680.188 are recorded upstream reference baselines for this EasyEDA 3.2.209 desktop build, not independently measured from the vendor-fork runtime."
+      },
+      "server": {
+        "validationPackageVersion": "1.8.1",
+        "releaseContainingFixes": "1.8.1",
+        "commit": "ff88d0c4ab3f27351e7b71a0d5d6a193309e654c",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "e02133f02726c2fdf9e9f5f566079a9d0cb79064",
+            "src/bridge": "36f788ee4d277ad9acda522a38b1f034451640ea",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "a8a919281e60b150835c2ca2b1bc1c31d6754e36",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.8.1",
+        "loaderReportedVersion": "1.8.1",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "eee1634ec2fdb076",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "da093x898fxec2c",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "a616f2801f49eb3a0b6936015bc016400dc20e10bd80d97df86cae21103f257f",
+        "packageSizeBytes": 206178
+      },
+      "fixture": {
+        "project": "Owner-controlled disposable EasyEDA Pro engineering acceptance fixture; native IDs withheld",
+        "pcb": "Focused PCB with one component; native board reads intentionally include missing-outline and missing-stackup cases",
+        "schematic": "Focused page of the same disposable project for wrong-PCB-focus negative",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v181-20261104-desktop-install-and-full-relaunch",
+          "name": "Exact built package installed and loaded after full native-editor relaunch",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The 206178-byte SHA-256-verified local 1.8.1 package was imported via the native EasyEDA Pro Extension Manager. After fully exiting and relaunching only the native desktop editor, the active baked dispatcher was da093x898fxec2c (not the previous web-editor dispatcher), and the extension remained enabled with external interaction permitted.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/issues/848"]
+        },
+        {
+          "id": "v181-20261104-native-version-and-registry",
+          "name": "New dispatcher, native editor version, extension and registry provenance",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Live MCP status and system method probe repeatedly reported native EasyEDA editor 3.2.209, extension 1.8.1, baked dispatcher da093x898fxec2c, and method-registry hash eee1634ec2fdb076. Four successive reads retained the new source identity after isolation from a competing browser extension.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/issues/848"]
+        },
+        {
+          "id": "v181-20261104-focused-pcb-read-evidence",
+          "name": "Exact-project, repeated native PCB observations and honest engineering verdict",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Native built-in read-only project-info API verified the disposable project identity. Two repeated source-matched engineering reviews produced the same evidence hash: all four native board methods observed, six measured inputs, 1 PASS, 1 FAIL (missing board outline), 1 WARNING (missing detailed stackup), 21 UNKNOWN and 1 NOT_APPLICABLE; engineering_sign_off=false.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/issues/848"]
+        },
+        {
+          "id": "v181-20261104-wrong-tab-and-project-negative",
+          "name": "Wrong-focused-page and foreign-project rejection with restored PCB focus",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "With schematic focused, all four PCB readers reported unavailable, 0 measured, 0 PASS/FAIL, 27 UNKNOWN and no signoff; an intentionally foreign project UUID was rejected. Restoring focus to the disposable PCB returned four observed reads with unchanged native source versions and expected FAIL/WARNING evidence.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/issues/848"]
+        },
+        {
+          "id": "v181-20261104-unmeasured-native-write-and-drc-erc",
+          "name": "Read-only acceptance limitation: no candidate-specific native mutation or DRC/ERC",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "DRC, ERC, POWER_TREE, design write/save/export and manufacturing-readiness evidence were not exercised. Native engineering review kept missing measurements UNKNOWN, and did not claim electrical correctness, production approval, transactional rollback or a fully validated write path.",
+          "limitation": "Candidate-specific read-only scope cannot substitute for any additional write-path or native DRC/ERC acceptance needed for release claims.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/issues/848"]
+        }
+      ],
+      "knownLimitations": [
+        "Only the EasyEDA Pro 3.2.209 desktop on Ubuntu 24.04.5 was live tested for this exact source; native EasyEDA on Windows/macOS was not tested.",
+        "The 1.8.1 source package and dispatcher were live verified; the later Release Please 1.9.0 managed version-literal promotion was not itself installed and must meet the strict sequential-version normalization gate.",
+        "Only bounded read-only project identity, four PCB native reads, focused schematic negative and source-bound engineering review were exercised. No candidate-specific design save, writes, exports, native DRC/ERC/POWER_TREE, full mutation/rollback or electrical/fabrication readiness is claimed.",
+        "The disposable PCB genuinely lacked a board outline (FAIL) and detailed physical layer stackup (WARNING). Neither was waived or fixed; engineering signoff remained false.",
+        "A separate older EasyEDA Web editor can replace the loopback listener's single client by automatically reconnecting. During isolated desktop verification its disposable test tab was temporarily disconnected with Auto-Connect OFF, then restored to Auto-Connect ON. Other browser tabs and user documents were not closed.",
+        "Electron and Chromium upstream reference versions are listed for matrix compatibility, but the actual vendor-fork embedded Electron/Chromium build was not independently measured."
+      ]
+    },
     {
       "id": "easyeda-pro-web-3-2-209-ubuntu-24-04-x64-2026-11-02-v1-8-1-native-readonly",
       "status": "live-validated",
