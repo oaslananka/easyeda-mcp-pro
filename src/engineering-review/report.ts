@@ -143,6 +143,7 @@ type ReviewBuildInput = {
   bridgeConnected: boolean;
   registryMismatch?: boolean;
   extensionVersionMismatch?: boolean;
+  sourceChangedDuringRead?: boolean;
   easyedaVersion?: string;
   extensionVersion?: string;
   evidenceMode: 'native' | 'supplied';
@@ -159,7 +160,8 @@ function currentRuleInputs(input: ReviewBuildInput): PcbConstraintInput {
   if (
     !input.bridgeConnected ||
     input.registryMismatch === true ||
-    input.extensionVersionMismatch === true
+    input.extensionVersionMismatch === true ||
+    input.sourceChangedDuringRead === true
   )
     return {};
 
@@ -181,6 +183,7 @@ function hasObservedBoard(input: ReviewBuildInput): boolean {
     input.bridgeConnected &&
     input.registryMismatch !== true &&
     input.extensionVersionMismatch !== true &&
+    input.sourceChangedDuringRead !== true &&
     OBSERVED_FIELDS.some(
       ({ field, source }) =>
         input.boardData[field] !== undefined &&
@@ -286,7 +289,10 @@ function collectFindings(
 
 function collectInputEvidence(input: ReviewBuildInput): EngineeringReview['input_evidence'] {
   const nativeEvidence = input.evidenceMode === 'native';
-  const sourceMismatch = input.registryMismatch === true || input.extensionVersionMismatch === true;
+  const sourceMismatch =
+    input.registryMismatch === true ||
+    input.extensionVersionMismatch === true ||
+    input.sourceChangedDuringRead === true;
   return OBSERVED_FIELDS.map(({ field, source, unit }) => {
     const value = input.boardData[field];
     const sourceObserved = input.observations.some(
@@ -347,6 +353,18 @@ export function buildEngineeringReview(input: ReviewBuildInput): EngineeringRevi
         'UNKNOWN',
         'The bridge extension identity or exposed method registry does not match the active MCP server.',
         'Reconnect an extension built from the compatible exact source and re-run native inspection.',
+        'runtime',
+        'unverified',
+      ),
+    );
+  }
+  if (input.sourceChangedDuringRead === true) {
+    findings.push(
+      createFinding(
+        'context:SOURCE_CHANGED_DURING_READ',
+        'UNKNOWN',
+        'The editor or bridge extension version changed during native board inspection.',
+        'Focus the intended PCB and repeat the review after the runtime is stable.',
         'runtime',
         'unverified',
       ),
