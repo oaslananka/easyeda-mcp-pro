@@ -176,6 +176,46 @@ describe('evidence-based engineering review', () => {
     expect(bridgeCall.mock.calls.map(([method]) => method)).not.toContain('design.erc');
   });
 
+  it.each([
+    { field: 'easyedaVersion', version: undefined },
+    { field: 'extensionVersion', version: undefined },
+    { field: 'easyedaVersion', version: '   ' },
+    { field: 'extensionVersion', version: '   ' },
+    { field: 'easyedaVersion', version: 'undefined' },
+    { field: 'easyedaVersion', version: '[object Promise]' },
+    { field: 'extensionVersion', version: 'unknown' },
+  ] as const)(
+    'never promotes native data with unavailable source provenance ($field=$version)',
+    async ({ field, version }) => {
+      context.bridge[field] = version;
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'board.getDimensions')
+          return { widthMm: 60, heightMm: 40, hasOutline: false };
+        if (method === 'board.listLayers') return [];
+        if (method === 'board.getStackup') return { totalLayers: 2, layers: [{ id: 1 }] };
+        if (method === 'board.getDesignRules') return { hasClearanceRules: true };
+        throw new Error('unexpected bridge method');
+      });
+
+      const result = await run();
+      expect(
+        result.source_version[field === 'easyedaVersion' ? 'easyeda' : 'extension'],
+      ).toBeNull();
+      expect(result.pcb_context).toBe('unverified');
+      expect(result.overall_status).toBe('UNKNOWN');
+      expect(result.summary.PASS).toBe(0);
+      expect(result.summary.FAIL).toBe(0);
+      expect(result.groups.unknowns).toContain('context:SOURCE_VERSION_UNAVAILABLE');
+      expect(result.groups.passed).not.toContain('pcb:OBSERVED_CONSTRAINT_SUBSET');
+      expect(result.input_evidence.find((entry) => entry.field === 'widthMm')).toMatchObject({
+        quality: 'unverified',
+        age: 'unverified',
+      });
+      expect(result.observations.some((item) => item.status === 'observed')).toBe(true);
+      expect(result.engineering_sign_off).toBe(false);
+    },
+  );
+
   it.each(['easyedaVersion', 'extensionVersion'] as const)(
     'rejects native evidence when %s changes during a single review',
     async (field) => {

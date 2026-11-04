@@ -105,7 +105,9 @@
           "status": "unavailable"
         }
       ],
-      "evidenceMode": "native"
+      "evidenceMode": "native",
+      "easyedaVersion": "3.2.149",
+      "extensionVersion": "1.8.1"
     },
     "expected": {
       "overallStatus": "UNKNOWN",
@@ -165,7 +167,9 @@
           "status": "observed"
         }
       ],
-      "evidenceMode": "native"
+      "evidenceMode": "native",
+      "easyedaVersion": "3.2.149",
+      "extensionVersion": "1.8.1"
     },
     "expected": {
       "overallStatus": "UNKNOWN",
@@ -194,7 +198,9 @@
           "status": "observed"
         }
       ],
-      "evidenceMode": "native"
+      "evidenceMode": "native",
+      "easyedaVersion": "3.2.149",
+      "extensionVersion": "1.8.1"
     },
     "expected": {
       "overallStatus": "UNKNOWN",
@@ -298,7 +304,9 @@
           "status": "observed"
         }
       ],
-      "evidenceMode": "native"
+      "evidenceMode": "native",
+      "easyedaVersion": "3.2.149",
+      "extensionVersion": "1.8.1"
     },
     "expected": {
       "overallStatus": "UNKNOWN",
@@ -410,7 +418,9 @@
           "status": "unavailable"
         }
       ],
-      "evidenceMode": "native"
+      "evidenceMode": "native",
+      "easyedaVersion": "3.2.149",
+      "extensionVersion": "1.8.1"
     },
     "expected": {
       "overallStatus": "UNKNOWN",

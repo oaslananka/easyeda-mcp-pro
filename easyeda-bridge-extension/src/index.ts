@@ -999,16 +999,15 @@ function sendHandshake(): void {
 }
 
 function getEasyedaVersion(): string | undefined {
-  const maybeVersion = readPath<unknown>(getGlobal(), 'sys_Environment.getEditorCurrentVersion');
-  if (typeof maybeVersion === 'function') {
-    try {
-      return String(maybeVersion());
-    } catch (error) {
-      log('failed to read EasyEDA version', String(error));
-      return undefined;
-    }
+  try {
+    const environment = readPath<Record<string, unknown>>(getGlobal(), 'sys_Environment');
+    const getVersion = environment?.getEditorCurrentVersion as (() => unknown) | undefined;
+    const value = getVersion?.call(environment);
+    return typeof value === 'string' ? value.trim() || undefined : undefined;
+  } catch (error) {
+    log('version:', String(error));
+    return undefined;
   }
-  return undefined;
 }
 
 function startHeartbeat(): void {
