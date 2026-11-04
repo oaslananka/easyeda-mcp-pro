@@ -674,17 +674,26 @@ describe('createDispatcher', () => {
     };
   }
 
-  it('schematic.listNets treats a null component inventory as empty physical inventory', async () => {
-    const dispatcher = createDispatcher(
-      makeToolkit({
-        SCH_PrimitiveComponent: { getAll: async () => null },
-        SCH_PrimitiveWire: { getAll: async () => [] },
-        SCH_Net: { getAllNets: async () => [{ netName: 'STALE_NET' }] },
-      }),
-    );
+  it.each([null, undefined, { items: [] }])(
+    'schematic.listNets rejects malformed focused-page component inventory %s',
+    async (value) => {
+      const getAllWires = vi.fn(async () => []);
+      const getAllNets = vi.fn(async () => [{ netName: 'STALE_NET' }]);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          SCH_PrimitiveComponent: { getAll: async () => value },
+          SCH_PrimitiveWire: { getAll: getAllWires },
+          SCH_Net: { getAllNets },
+        }),
+      );
 
-    await expect(dispatcher.dispatch('schematic.listNets', {})).resolves.toEqual([]);
-  });
+      await expect(dispatcher.dispatch('schematic.listNets', {})).rejects.toThrow(
+        'SCH_PrimitiveComponent.getAll returned a non-array collection',
+      );
+      expect(getAllWires).not.toHaveBeenCalled();
+      expect(getAllNets).not.toHaveBeenCalled();
+    },
+  );
 
   it('schematic.listNets drops a zero-node name seen only in the native net catalog', async () => {
     const dispatcher = createDispatcher(

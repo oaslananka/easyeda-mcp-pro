@@ -881,6 +881,12 @@ async function addCoordinateFallbackNets(
   return true;
 }
 
+function assertNativeComponentInventory(value: unknown): asserts value is any[] {
+  if (!Array.isArray(value)) {
+    throw new Error('SCH_PrimitiveComponent.getAll returned a non-array collection');
+  }
+}
+
 async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
   const schCompClass = readFirstPath<any>([
     'SCH_PrimitiveComponent',
@@ -900,6 +906,7 @@ async function listNetsApi(budget?: NetDetailBudget): Promise<unknown> {
   const comps = await awaitNetDetailStage(budget, 'component_enumeration', () =>
     schCompClass.getAll(undefined, false),
   );
+  assertNativeComponentInventory(comps);
   const netMap = new Map<string, SchematicNetNode[]>();
 
   for (const c of comps || []) {
