@@ -141,7 +141,8 @@ function resolvedObject(result: PromiseSettledResult<unknown>): Record<string, u
     result.status !== 'fulfilled' ||
     result.value === null ||
     typeof result.value !== 'object' ||
-    Array.isArray(result.value)
+    Array.isArray(result.value) ||
+    ('not_available' in result.value && result.value.not_available === true)
   )
     return {};
   return result.value as Record<string, unknown>;
@@ -164,6 +165,13 @@ function measuredStackup(record: Record<string, unknown>): boolean | undefined {
 
 function isObservedBoardResponse(method: string, result?: PromiseSettledResult<unknown>): boolean {
   if (!result || result.status !== 'fulfilled') return false;
+  if (
+    result.value &&
+    typeof result.value === 'object' &&
+    'not_available' in result.value &&
+    result.value.not_available === true
+  )
+    return false;
   if (method === 'board.listLayers') return Array.isArray(result.value);
   return result.value !== null && typeof result.value === 'object' && !Array.isArray(result.value);
 }
