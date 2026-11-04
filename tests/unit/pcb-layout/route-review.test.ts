@@ -85,6 +85,82 @@ describe('bounded native route geometry evidence', () => {
     }
   });
 
+  it('warns only for measured same-layer, different-net copper contact', () => {
+    const base = track('h', 0, 0, 100, 0, 10);
+    const crossing = { ...track('v', 50, -50, 50, 50, 10), net: 'GND' };
+    const result = review({ tracks: [base, crossing] });
+    const warning = result.findings.find((f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP');
+    expect(warning).toMatchObject({
+      status: 'WARNING',
+      net: 'DATA+',
+      other_net: 'GND',
+      layer: 1,
+      primitive_ids: ['h', 'v'],
+      observed_edge_gap_mm: -0.254,
+    });
+    expect(result.overall_status).toBe('WARNING');
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'COPPER_CLEARANCE_UNVERIFIED',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('detects parallel and end-cap overlap but not far or separate-layer segments', () => {
+    const a = track('a', 0, 0, 100, 0, 10);
+    const b = { ...track('b', 30, 8, 90, 8, 10), net: 'GND' };
+    const cap = { ...track('cap', 107, 0, 180, 0, 10), net: 'VCC' };
+    const far = { ...track('far', 30, 11, 90, 11, 10), net: 'SENSE' };
+    const otherLayer = { ...track('layer', 20, 0, 80, 0, 10), net: 'LAYER', layer: 2 };
+    const result = review({ tracks: [a, b, cap, far, otherLayer] });
+    const warnings = result.findings.filter((f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP');
+    expect(warnings.map((w) => w.primitive_ids)).toEqual([
+      ['a', 'b'],
+      ['a', 'cap'],
+      ['b', 'far'],
+    ]);
+    expect(warnings[0]!.observed_edge_gap_mm).toBeCloseTo(-0.0508, 7);
+    expect(warnings[1]!.observed_edge_gap_mm).toBeCloseTo(-0.0762, 7);
+    expect(result.findings.some((f) => f.other_net === 'LAYER')).toBe(false);
+  });
+
+  it('treats implausible and overflowing native coordinates as missing geometry', () => {
+    const valid = track('valid', 0, 0, 100, 0);
+    const invalid = { ...track('far-out', 0, 0, 10, 10), net: 'GND', startX: 1e308 };
+    const result = review({ tracks: [valid, invalid] });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:far-out:missing-geometry',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.findings.some((f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP')).toBe(false);
+  });
+
+  it('ignores same-net connections, malformed geometry and disconnected/untrusted track snapshots', () => {
+    const a = track('a', 0, 0, 100, 0);
+    const b = track('b', 50, -50, 50, 50);
+    const malformed = { ...b, primitiveId: 'bad', net: 'GND', width: undefined };
+    const stale = { ...b, net: 'GND' };
+    expect(
+      review({ tracks: [a, b, malformed] }).findings.some(
+        (f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP',
+      ),
+    ).toBe(false);
+    expect(
+      review({ tracks: [a, stale], tracksAvailable: false }).findings.some(
+        (f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP',
+      ),
+    ).toBe(false);
+    expect(
+      review({ tracks: [a, { ...stale, layer: 2 }] }).findings.some(
+        (f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP',
+      ),
+    ).toBe(false);
+  });
+
   it('reports an actual native segment narrower than the caller-supplied minimum', () => {
     const result = review({
       tracks: [track('narrow-1', 0, 0, 100, 0, 4)],

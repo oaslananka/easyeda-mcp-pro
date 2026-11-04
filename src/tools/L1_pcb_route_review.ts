@@ -187,6 +187,7 @@ const findingSchema = z.object({
   id: z.string(),
   rule_id: z.enum([
     'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM',
+    'OBSERVED_TRACK_COPPER_OVERLAP',
     'TRACK_GEOMETRY_UNAVAILABLE',
     'RIGHT_ANGLE_STYLE_REVIEW',
     'VIA_ANNULAR_GEOMETRY',
@@ -198,8 +199,10 @@ const findingSchema = z.object({
   status: z.enum(['WARNING', 'ADVISORY', 'UNKNOWN']),
   message: z.string(),
   net: z.string().optional(),
+  other_net: z.string().optional(),
   layer: z.number().optional(),
   primitive_ids: z.array(z.string()),
+  observed_edge_gap_mm: z.number().optional(),
   position_mil: z.object({ x: z.number(), y: z.number() }).optional(),
   width_mm: z.number().optional(),
   threshold_mm: z.number().optional(),

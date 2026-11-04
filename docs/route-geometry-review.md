@@ -45,6 +45,24 @@ drill-to-pad diameter may produce a warning. **Via current carrying
 capacity is not calculated**, because plated barrel thickness, via layer
 span, current sharing and heat transfer are unverified.
 
+### Observed track-to-track copper contact
+
+A bounded pairwise check now measures shortest **finite centerline distance**
+between valid, same-layer **different-net** native copper line segments,
+subtracts half of both observed widths, and emits
+`OBSERVED_TRACK_COPPER_OVERLAP=WARNING` only when their projected copper
+widths touch or overlap. Findings identify both nets, primitive IDs, native
+layer and signed `observed_edge_gap_mm` (a negative value indicates projected
+overlap). Parallel, intersecting, and endpoint-to-endpoint cases are included;
+same-net joins and different-layer crossings are excluded.
+
+This is a **2D geometry warning**, not an assertion that the actual fabricated
+board shorts: native line collections may not include every object and do not
+prove finished copper topology. Pads, polygons, keepouts, board stackup and all
+remaining clearances continue to report `COPPER_CLEARANCE_UNVERIFIED=UNKNOWN`.
+An empty or disconnected native getter never supplies overlap evidence.
+Run native DRC and verify the relevant manufacturer rules separately.
+
 ## Optional current / observed net-width review
 
 The same tool accepts an opt-in `traceCurrent` declaration. It uses the

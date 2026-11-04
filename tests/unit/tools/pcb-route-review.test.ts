@@ -142,6 +142,57 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('reports actual different-net same-layer copper overlap from the existing read-only bridge', async () => {
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listTracks'
+        ? {
+            total: 2,
+            items: [
+              {
+                primitiveId: 'clk-1',
+                net: 'CLK',
+                layer: 1,
+                startX: 0,
+                startY: 0,
+                endX: 100,
+                endY: 0,
+                width: 10,
+              },
+              {
+                primitiveId: 'gnd-1',
+                net: 'GND',
+                layer: 1,
+                startX: 50,
+                startY: -50,
+                endX: 50,
+                endY: 50,
+                width: 10,
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const result = await run();
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'OBSERVED_TRACK_COPPER_OVERLAP',
+        status: 'WARNING',
+        primitive_ids: ['clk-1', 'gnd-1'],
+        net: 'CLK',
+        other_net: 'GND',
+        observed_edge_gap_mm: -0.254,
+      }),
+    );
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'COPPER_CLEARANCE_UNVERIFIED',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('does not invent a geometry PASS or warn on 90 degrees in general context', async () => {
     const result = await run();
     expect(result.overall_status).toBe('UNKNOWN');

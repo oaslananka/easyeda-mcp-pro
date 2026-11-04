@@ -31,6 +31,7 @@ export interface NativeVia {
 export type GeometryStatus = 'WARNING' | 'ADVISORY' | 'UNKNOWN';
 export type GeometryRule =
   | 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'
+  | 'OBSERVED_TRACK_COPPER_OVERLAP'
   | 'TRACK_GEOMETRY_UNAVAILABLE'
   | 'RIGHT_ANGLE_STYLE_REVIEW'
   | 'VIA_ANNULAR_GEOMETRY'
@@ -45,8 +46,10 @@ export interface RouteGeometryFinding {
   status: GeometryStatus;
   message: string;
   net?: string;
+  other_net?: string;
   layer?: number;
   primitive_ids: string[];
+  observed_edge_gap_mm?: number;
   position_mil?: { x: number; y: number };
   width_mm?: number;
   threshold_mm?: number;
@@ -178,6 +181,112 @@ function detectRightAngleJoints(tracks: NativeTrack[]): RouteGeometryFinding[] {
   return result;
 }
 
+/** Copper-only finite line primitives, never schematic wires or a polygon/plane substitute. */
+type CopperSegment = Required<
+  Pick<
+    NativeTrack,
+    'primitiveId' | 'net' | 'layer' | 'startX' | 'startY' | 'endX' | 'endY' | 'width'
+  >
+>;
+
+function validNativeCoordinate(value: unknown): value is number {
+  return finite(value) && Math.abs(value) <= 1_000_000;
+}
+
+function observedCopperSegment(track: NativeTrack): CopperSegment | undefined {
+  if (!track.primitiveId || !track.net || !Number.isInteger(track.layer)) return undefined;
+  if (!positive(track.width) || track.width > 1_000_000) return undefined;
+  const coords = [track.startX, track.startY, track.endX, track.endY];
+  if (!coords.every(validNativeCoordinate)) return undefined;
+  if (track.startX === track.endX && track.startY === track.endY) return undefined;
+  return track as CopperSegment;
+}
+
+type Point = { x: number; y: number };
+function orient(a: Point, b: Point, c: Point): number {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+function between(a: Point, b: Point, p: Point): boolean {
+  return (
+    p.x >= Math.min(a.x, b.x) &&
+    p.x <= Math.max(a.x, b.x) &&
+    p.y >= Math.min(a.y, b.y) &&
+    p.y <= Math.max(a.y, b.y)
+  );
+}
+function oppositeSides(a: number, b: number): boolean {
+  return (a > 0 && b < 0) || (a < 0 && b > 0);
+}
+function lineSegmentsIntersect(a: Point, b: Point, c: Point, d: Point): boolean {
+  const abC = orient(a, b, c),
+    abD = orient(a, b, d);
+  const cdA = orient(c, d, a),
+    cdB = orient(c, d, b);
+  if (oppositeSides(abC, abD) && oppositeSides(cdA, cdB)) return true;
+  return (
+    (abC === 0 && between(a, b, c)) ||
+    (abD === 0 && between(a, b, d)) ||
+    (cdA === 0 && between(c, d, a)) ||
+    (cdB === 0 && between(c, d, b))
+  );
+}
+function pointToSegmentDistance(point: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x,
+    dy = b.y - a.y;
+  const t = Math.max(
+    0,
+    Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy)),
+  );
+  return Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy);
+}
+function minimumCenterDistanceMil(a: CopperSegment, b: CopperSegment): number {
+  const a0 = { x: a.startX, y: a.startY },
+    a1 = { x: a.endX, y: a.endY };
+  const b0 = { x: b.startX, y: b.startY },
+    b1 = { x: b.endX, y: b.endY };
+  if (lineSegmentsIntersect(a0, a1, b0, b1)) return 0;
+  return Math.min(
+    pointToSegmentDistance(a0, b0, b1),
+    pointToSegmentDistance(a1, b0, b1),
+    pointToSegmentDistance(b0, a0, a1),
+    pointToSegmentDistance(b1, a0, a1),
+  );
+}
+
+/** Only a demonstrated two-segment geometric overlap is a WARNING.
+ * All other net clearances (including pads/fills/keepouts) stay UNKNOWN.
+ */
+function reviewObservedTrackOverlaps(tracks: NativeTrack[]): RouteGeometryFinding[] {
+  const segments = tracks.map(observedCopperSegment).filter((s): s is CopperSegment => !!s);
+  const findings: RouteGeometryFinding[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const a = segments[i];
+    if (!a) continue;
+    for (let j = i + 1; j < segments.length; j++) {
+      const b = segments[j];
+      if (!b) continue;
+      if (a.net === b.net || a.layer !== b.layer || a.primitiveId === b.primitiveId) continue;
+      const gapMil = minimumCenterDistanceMil(a, b) - (a.width + b.width) / 2;
+      if (gapMil > 0) continue;
+      const ids = [a.primitiveId, b.primitiveId].sort();
+      findings.push({
+        ...finding(
+          'copper-overlap:' + JSON.stringify([a.layer, ...ids]),
+          'OBSERVED_TRACK_COPPER_OVERLAP',
+          'WARNING',
+          'Two different-net native copper line widths overlap/touch in observed same-layer geometry; inspect native DRC. This does not certify all other clearances.',
+          ids,
+        ),
+        net: a.net,
+        other_net: b.net,
+        layer: a.layer,
+        observed_edge_gap_mm: gapMil * MIL_TO_MM,
+      });
+    }
+  }
+  return findings;
+}
+
 function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
   const findings: RouteGeometryFinding[] = [];
   if (!input.tracksAvailable || input.tracks.length === 0) {
@@ -192,17 +301,7 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
   }
   input.tracks.forEach((track, index) => {
     const id = track.primitiveId || String(index);
-    if (
-      !positive(track.width) ||
-      !finite(track.startX) ||
-      !finite(track.startY) ||
-      !finite(track.endX) ||
-      !finite(track.endY) ||
-      !Number.isInteger(track.layer) ||
-      !track.net ||
-      !track.primitiveId ||
-      (track.startX === track.endX && track.startY === track.endY)
-    ) {
+    if (!observedCopperSegment(track)) {
       findings.push({
         ...finding(
           'track:' + id + ':missing-geometry',
@@ -232,7 +331,9 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
       });
     }
   });
-  if (input.intent === 'high-speed') findings.push(...detectRightAngleJoints(input.tracks));
+  if (input.tracksAvailable) findings.push(...reviewObservedTrackOverlaps(input.tracks));
+  if (input.tracksAvailable && input.intent === 'high-speed')
+    findings.push(...detectRightAngleJoints(input.tracks));
   return findings;
 }
 
