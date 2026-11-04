@@ -262,6 +262,7 @@ export function createSystemApiOperations(
       const hasDMTEDA = isRecord(EDAObject) && 'DMT_Schematic' in EDAObject;
       return {
         bridgeVersion: dependencies.toolkit.getBridgeVersion(),
+        easyedaVersion: dependencies.toolkit.getEasyedaVersion?.(),
         capabilities: [...dependencies.methodList],
         devMode: false,
         globals,

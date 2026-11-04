@@ -113,6 +113,17 @@ describe('system API operations', () => {
     expect(summarizeWirePrimitive).toHaveBeenCalledTimes(1);
   });
 
+  it('exposes a live loader-reported editor version in status without trusting static build metadata', async () => {
+    const getEasyedaVersion = vi.fn(() => '3.2.209');
+    const toolkit = createToolkit({ getEasyedaVersion });
+    const operations = createSystemApiOperations(createDependencies({ toolkit }));
+    await expect(operations.getStatus()).resolves.toMatchObject({
+      easyedaVersion: '3.2.209',
+      bridgeVersion: 'test-bridge',
+    });
+    expect(getEasyedaVersion).toHaveBeenCalledOnce();
+  });
+
   it('reports status with the full dispatcher capability list and build id', async () => {
     const dependencies = createDependencies();
     const operations = createSystemApiOperations(dependencies);
