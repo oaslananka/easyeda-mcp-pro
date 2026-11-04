@@ -186,12 +186,10 @@ export async function runLiveSmokeChecks(
         const response: unknown = await bridge.call(check.method, check.params, {
           timeoutMs: config.timeoutMs,
         });
-        if (
-          response !== null &&
-          typeof response === 'object' &&
-          'not_available' in response &&
-          response.not_available === true
-        ) {
+        if (response === null || typeof response !== 'object') {
+          throw new Error('Native check returned no structured evidence');
+        }
+        if ('not_available' in response && response.not_available === true) {
           throw new Error('Native check returned unavailable evidence');
         }
         results.push({
