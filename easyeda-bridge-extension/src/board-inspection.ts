@@ -534,6 +534,9 @@ export function createBoardInspectionOperations({
     if (!Array.isArray(rawLayers)) {
       throw new Error('PCB_Layer.getAllLayers returned a non-array collection');
     }
+    if (rawLayers.some((layer: unknown) => !isRecord(layer))) {
+      throw new Error('PCB_Layer.getAllLayers returned a malformed layer record');
+    }
     const layers = rawLayers;
     return layers
       .filter((layer: any) => isActivePcbLayerName(String(layer?.name ?? ''), copperLayerCount))
