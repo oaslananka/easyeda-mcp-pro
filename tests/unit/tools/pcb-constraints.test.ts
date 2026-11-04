@@ -158,6 +158,29 @@ describe('PCB constraint tools', () => {
     },
   );
 
+  it.each([
+    ['board.getDimensions', { not_available: true, widthMm: 60, heightMm: 40, hasOutline: false }],
+    ['board.getStackup', { not_available: true, totalLayers: 4, available: true }],
+    ['board.getDesignRules', { not_available: true, hasClearanceRules: true }],
+    ['board.listLayers', Object.assign([{ name: 'Top' }], { not_available: true })],
+  ])('rejects unavailable sentinel evidence from %s', async (method, unavailable) => {
+    bridgeCall.mockImplementation(async (name: string) => {
+      if (name === method) return unavailable;
+      return name === 'board.listLayers' ? [] : {};
+    });
+
+    const result = await fetchBoardEvidenceFromBridge(context, 'pcb-stale-evidence');
+    expect(result.observations.find((entry) => entry.method === method)?.status).toBe(
+      'unavailable',
+    );
+    if (method === 'board.getDimensions') {
+      expect(result.data.widthMm).toBeUndefined();
+      expect(result.data.hasOutline).toBeUndefined();
+    }
+    if (method === 'board.getStackup') expect(result.data.layerCount).toBeUndefined();
+    if (method === 'board.getDesignRules') expect(result.data.hasClearanceRules).toBeUndefined();
+  });
+
   it('uses the measured native minimum drill diameter without guessing mounting holes', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'board.getDimensions') {
