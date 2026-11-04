@@ -1101,32 +1101,29 @@ describe('board inspection operations', () => {
     });
   });
 
-  it('normalizes an undefined physical stackup layer without inventing fields', async () => {
-    const { operations } = makeOperations({
-      DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
-      PCB_Layer: {
-        getTheNumberOfCopperLayers: async () => 2,
-        getCurrentPhysicalStackingConfiguration: async () => ({ layers: [undefined] }),
-      },
-    });
-
-    await expect(operations.getStackup()).resolves.toEqual({
-      totalLayers: 2,
-      boardThicknessMm: undefined,
-      layers: [
-        {
-          name: '',
-          type: '',
-          thicknessMm: undefined,
-          material: '',
-          dielectricConstant: undefined,
-          copperWeightOz: undefined,
+  it.each([undefined, null, 17, 'invalid'])(
+    'does not claim a physical stackup when native layer entry is %s',
+    async (entry) => {
+      const { operations } = makeOperations({
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
+        PCB_Layer: {
+          getTheNumberOfCopperLayers: async () => 2,
+          getCurrentPhysicalStackingConfiguration: async () => ({
+            thicknessMm: 1.6,
+            layers: [{ name: 'Top', type: 'copper' }, entry],
+          }),
         },
-      ],
-      available: true,
-      source: 'physical_stackup',
-    });
-  });
+      });
+
+      await expect(operations.getStackup()).resolves.toEqual({
+        totalLayers: 2,
+        boardThicknessMm: undefined,
+        layers: [],
+        available: false,
+        source: 'copper_layer_count_only',
+      });
+    },
+  );
 
   it('contains absent, null, and partial primitive dimension data', async () => {
     const root: Record<string, unknown> = {};

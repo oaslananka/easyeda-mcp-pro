@@ -571,6 +571,15 @@ export function createBoardInspectionOperations({
     }
 
     const rawLayers = selectPhysicalStackupLayers(physicalStacking);
+    if (rawLayers.some((layer: unknown) => !isRecord(layer))) {
+      return {
+        totalLayers: totalCopper,
+        boardThicknessMm: undefined,
+        layers: [],
+        available: false,
+        source: 'copper_layer_count_only',
+      };
+    }
     const layers = rawLayers.map((layer: any) => ({
       name: layer?.name || '',
       type: layer?.type || '',
