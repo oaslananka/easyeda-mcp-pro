@@ -30,7 +30,12 @@ export function registerEngineeringReviewTools(
     outputSchema: engineeringReviewSchema,
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = params as { projectId: string };
+      const easyedaVersionBefore = ctx.bridge.easyedaVersion;
+      const extensionVersionBefore = ctx.bridge.extensionVersion;
       const evidence = await fetchBoardEvidenceFromBridge(ctx, projectId);
+      const sourceChangedDuringRead =
+        easyedaVersionBefore !== ctx.bridge.easyedaVersion ||
+        extensionVersionBefore !== ctx.bridge.extensionVersion;
       return buildEngineeringReview({
         projectId,
         boardData: evidence.data,
@@ -38,6 +43,7 @@ export function registerEngineeringReviewTools(
         bridgeConnected: ctx.bridge.connected,
         registryMismatch: ctx.bridge.registryMismatch,
         extensionVersionMismatch: ctx.bridge.extensionVersionMismatch,
+        sourceChangedDuringRead,
         easyedaVersion: ctx.bridge.easyedaVersion,
         extensionVersion: ctx.bridge.extensionVersion,
         evidenceMode: 'native',

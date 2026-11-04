@@ -176,6 +176,32 @@ describe('evidence-based engineering review', () => {
     expect(bridgeCall.mock.calls.map(([method]) => method)).not.toContain('design.erc');
   });
 
+  it.each(['easyedaVersion', 'extensionVersion'] as const)(
+    'rejects native evidence when %s changes during a single review',
+    async (field) => {
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'board.getDimensions') {
+          context.bridge[field] = 'changed-during-read';
+          return { widthMm: 60, heightMm: 40, hasOutline: false };
+        }
+        if (method === 'board.listLayers') return [];
+        if (method === 'board.getStackup') return { totalLayers: 2, layers: [{ id: 1 }] };
+        if (method === 'board.getDesignRules') return { hasClearanceRules: true };
+        throw new Error('unexpected bridge method');
+      });
+      const result = await run();
+      expect(result.pcb_context).toBe('unverified');
+      expect(result.overall_status).toBe('UNKNOWN');
+      expect(result.summary.FAIL).toBe(0);
+      expect(result.groups.unknowns).toContain('context:SOURCE_CHANGED_DURING_READ');
+      expect(result.groups.passed).not.toContain('pcb:OBSERVED_CONSTRAINT_SUBSET');
+      expect(result.input_evidence.find((e) => e.field === 'widthMm')).toMatchObject({
+        quality: 'unverified',
+        age: 'unverified',
+      });
+    },
+  );
+
   it('does not turn a partial native response into successful verification', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'board.getDimensions') return { widthMm: 60, heightMm: 40 };
