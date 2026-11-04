@@ -50,6 +50,15 @@ the exact focused project before repeating a read. No suffix grants permission
 to bypass the before/after identity guard; focus changes during a read also
 discard the response.
 
+When multiple EasyEDA Desktop/Web sessions share a local bridge listener,
+the server now preserves a **currently connected matching-version** extension
+rather than letting a stale extension replace it. New same-version reloads
+still replace the previous connection; a stale extension can still establish
+a diagnostic-only connection when no matching-version session is available.
+Recheck `easyeda_bridge_status` and `system.loaderStatus` before a native
+acceptance run. Connection priority is **not** proof of project focus or
+electrical correctness.
+
 Pad and component-pad native enumeration APIs are still beta in current
 EasyEDA Pro documentation. Their availability in a particular editor build
 alone does not establish a production-ready pad-to-net topology reader or

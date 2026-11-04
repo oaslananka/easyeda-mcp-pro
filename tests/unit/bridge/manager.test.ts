@@ -194,6 +194,59 @@ describe('BridgeManager', () => {
     manager.disconnect('test complete');
   });
 
+  it('does not let a stale extension replace an active exact-version session', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+    const current = await openSocket(port);
+    sendHandshake(current, { extensionVersion: SERVER_VERSION });
+    await expect(waitForMessage(current)).resolves.toMatchObject({ type: 'hello' });
+    expect(manager.extensionVersion).toBe(SERVER_VERSION);
+
+    const stale = await openSocket(port);
+    const staleClosed = waitForClose(stale);
+    sendHandshake(stale, { extensionVersion: '1.8.1' });
+    await expect(staleClosed).resolves.toBe(4003);
+    expect(manager.connected).toBe(true);
+    expect(manager.extensionVersion).toBe(SERVER_VERSION);
+    expect(current.readyState).toBe(WebSocket.OPEN);
+
+    const updated = await openSocket(port);
+    const currentClosed = waitForClose(current);
+    sendHandshake(updated, { extensionVersion: SERVER_VERSION });
+    await expect(waitForMessage(updated)).resolves.toMatchObject({ type: 'hello' });
+    await expect(currentClosed).resolves.toBe(4000);
+    expect(manager.extensionVersionMismatch).toBe(false);
+    expect(manager.connected).toBe(true);
+    updated.close();
+    manager.disconnect('test complete');
+  });
+
+  it('can replace a stale bridge client with a fresh exact-version extension', async () => {
+    const port = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: String(port),
+      }),
+    );
+    await manager.connect();
+    const stale = await openSocket(port);
+    sendHandshake(stale, { extensionVersion: '1.8.1' });
+    await expect(waitForMessage(stale)).resolves.toMatchObject({ type: 'hello' });
+    expect(manager.extensionVersionMismatch).toBe(true);
+    const previousClosed = waitForClose(stale);
+    const fresh = await openSocket(port);
+    sendHandshake(fresh, { extensionVersion: SERVER_VERSION });
+    await expect(waitForMessage(fresh)).resolves.toMatchObject({ type: 'hello' });
+    await expect(previousClosed).resolves.toBe(4000);
+    expect(manager.extensionVersion).toBe(SERVER_VERSION);
+    expect(manager.extensionVersionMismatch).toBe(false);
+    fresh.close();
+    manager.disconnect('test complete');
+  });
+
   it('should log a warning if extension version mismatches', async () => {
     const port = await getFreePort();
     const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });

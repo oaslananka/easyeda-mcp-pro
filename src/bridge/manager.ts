@@ -686,6 +686,14 @@ export class BridgeManager extends EventEmitter {
    * Validate and accept a handshake message. Sets up the bridge session
    * and replies with a hello containing the server's capabilities.
    */
+  private staleHandshakeWouldReplaceExactVersion(incomingVersion: string | undefined): boolean {
+    return (
+      this.ws?.readyState === WebSocket.OPEN &&
+      this._extensionVersion === SERVER_VERSION &&
+      incomingVersion !== SERVER_VERSION
+    );
+  }
+
   private handleHandshake(ws: WebSocket, data: unknown): void {
     const logger = getLogger();
     const parsed = BridgeHandshakeSchema.safeParse(data);
@@ -707,6 +715,19 @@ export class BridgeManager extends EventEmitter {
         ws.close(4001, 'invalid_session_token');
         return;
       }
+    }
+
+    // When an exact-version extension is already active, a stale desktop/web
+    // instance must not hijack its session. Still allow an exact-version
+    // replacement (normal reload) and allow a stale client as the sole session
+    // so existing fail-closed read-only diagnostics remain available.
+    if (this.staleHandshakeWouldReplaceExactVersion(parsed.data.extensionVersion)) {
+      logger.warn(
+        { incomingVersion: parsed.data.extensionVersion },
+        'stale bridge extension rejected: exact-version session remains active',
+      );
+      ws.close(4003, 'Active exact-version extension takes precedence');
+      return;
     }
 
     // Replace existing connection if any
