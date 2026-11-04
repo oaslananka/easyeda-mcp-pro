@@ -571,33 +571,21 @@ export function createBoardInspectionOperations({
     }
 
     const rawLayers = selectPhysicalStackupLayers(physicalStacking);
-    if (rawLayers.some((layer: unknown) => !isRecord(layer))) {
-      return {
-        totalLayers: totalCopper,
-        boardThicknessMm: undefined,
-        layers: [],
-        available: false,
-        source: 'copper_layer_count_only',
-      };
-    }
-    const layers = rawLayers.map((layer: any) => ({
-      name: layer?.name || '',
-      type: layer?.type || '',
-      thicknessMm: typeof layer?.thicknessMm === 'number' ? layer.thicknessMm : layer?.thickness,
-      material: layer?.material || '',
+    const layers = (rawLayers.every(isRecord) ? rawLayers : []).map((layer: any) => ({
+      name: layer.name || '',
+      type: layer.type || '',
+      thicknessMm: typeof layer.thicknessMm === 'number' ? layer.thicknessMm : layer.thickness,
+      material: layer.material || '',
       dielectricConstant:
-        typeof layer?.dielectricConstant === 'number'
-          ? layer.dielectricConstant
-          : layer?.dielectric,
+        typeof layer.dielectricConstant === 'number' ? layer.dielectricConstant : layer.dielectric,
       copperWeightOz:
-        typeof layer?.copperWeightOz === 'number' ? layer.copperWeightOz : layer?.copperWeight,
+        typeof layer.copperWeightOz === 'number' ? layer.copperWeightOz : layer.copperWeight,
     }));
-    const boardThickness = readBoardThickness(physicalStacking);
-    const available = Boolean(physicalStacking && layers.length > 0);
+    const available = layers.length > 0;
 
     return {
       totalLayers: totalCopper,
-      boardThicknessMm: boardThickness,
+      boardThicknessMm: available ? readBoardThickness(physicalStacking) : undefined,
       layers,
       available,
       source: available ? 'physical_stackup' : 'copper_layer_count_only',
