@@ -20,7 +20,7 @@
 </p>
 
 <p>
-  <a href="https://deepwiki.com/oaslananka/easyeda-mcp-pro"><img src="https://img.shields.io/badge/Ask-DeepWiki-2563eb" alt="Ask DeepWiki" /></a>
+  <a href="https://deepwiki.com/oaslananka/easyeda-mcp-pro"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
   <a href="https://gitgem.org/github/oaslananka/easyeda-mcp-pro"><img src="https://gitgem.org/api/badge/github/oaslananka/easyeda-mcp-pro.svg" alt="GitGem" /></a>
 </p>
 
