@@ -131,6 +131,21 @@ function appendGeometryBlocker(
   }
 }
 
+/** Classify scoped read failures without returning account/project/document identifiers. */
+function scopedIdentityFailure(
+  document: { documentType?: unknown; uuid?: unknown; parentProjectUuid?: unknown } | null,
+  project: { uuid?: unknown } | null,
+  requested: string,
+  documentType: number,
+): string | undefined {
+  if (document?.documentType !== documentType) return 'wrong-focused-document-type';
+  if (typeof document.uuid !== 'string' || !document.uuid)
+    return 'focused-document-uuid-unavailable';
+  if (project?.uuid !== requested) return 'current-project-uuid-mismatch';
+  if (document.parentProjectUuid !== requested) return 'document-parent-project-mismatch';
+  return undefined;
+}
+
 export function createPcbReadOperations({
   requireActivePcbContext,
   readFirstPath,
@@ -151,18 +166,10 @@ export function createPcbReadOperations({
     }
     const document = await documentApi.getCurrentDocumentInfo();
     const project = await projectApi.getCurrentProjectInfo();
-    if (
-      document?.documentType !== documentType ||
-      typeof document.uuid !== 'string' ||
-      !document.uuid ||
-      project?.uuid !== projectId ||
-      document.parentProjectUuid !== projectId
-    ) {
-      throw new Error(
-        documentType === 3
-          ? 'PCB project identity mismatch: requested project UUID must match the focused PCB'
-          : 'Schematic project identity mismatch',
-      );
+    const reason = scopedIdentityFailure(document, project, projectId, documentType);
+    if (reason) {
+      const label = documentType === 3 ? 'PCB' : 'Schematic';
+      throw new Error(`${label} project identity mismatch: ${reason}`);
     }
     return document.uuid as string;
   }
@@ -176,7 +183,9 @@ export function createPcbReadOperations({
     const result = await read();
     const after = await verifiedPcbIdentity(projectId, documentType);
     if (before !== after) {
-      throw new Error('PCB document changed during list read; discard results and retry');
+      throw new Error(
+        `${documentType === 3 ? 'PCB' : 'Schematic'} document changed during list read; discard results and retry`,
+      );
     }
     return result;
   }

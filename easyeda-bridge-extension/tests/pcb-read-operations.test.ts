@@ -904,6 +904,64 @@ describe('PCB list project identity enforcement', () => {
     expect(read).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    [
+      'wrong document type',
+      { documentType: 3, uuid: 'doc', parentProjectUuid: projectUuid },
+      project,
+      'wrong-focused-document-type',
+    ],
+    [
+      'document missing UUID',
+      { documentType: 1, parentProjectUuid: projectUuid },
+      project,
+      'focused-document-uuid-unavailable',
+    ],
+    [
+      'current project mismatch',
+      { documentType: 1, uuid: 'doc', parentProjectUuid: projectUuid },
+      { uuid: 'different-project' },
+      'current-project-uuid-mismatch',
+    ],
+    [
+      'document parent mismatch',
+      { documentType: 1, uuid: 'doc', parentProjectUuid: 'different-project' },
+      project,
+      'document-parent-project-mismatch',
+    ],
+  ])(
+    'explains %s without leaking the underlying project or document identity',
+    async (_label, document, currentProject, reason) => {
+      const { operations } = makeOperations(
+        runtime(
+          vi.fn(async () => document),
+          vi.fn(async () => currentProject),
+        ),
+      );
+      const read = vi.fn(async () => 'sensitive-data');
+      await expect(operations.readProjectScoped(projectUuid, read, 1)).rejects.toThrow(
+        `Schematic project identity mismatch: ${reason}`,
+      );
+      await expect(operations.readProjectScoped(projectUuid, read, 1)).rejects.not.toThrow(
+        /verified-project-uuid|different-project|sensitive-data/,
+      );
+      expect(read).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects focus switching during scoped schematic reads', async () => {
+    const document = vi
+      .fn()
+      .mockResolvedValueOnce({ documentType: 1, uuid: 'sch-1', parentProjectUuid: projectUuid })
+      .mockResolvedValueOnce({ documentType: 1, uuid: 'sch-2', parentProjectUuid: projectUuid });
+    const { operations } = makeOperations(runtime(document));
+    const read = vi.fn(async () => [{ netName: 'VCC' }]);
+    await expect(operations.readProjectScoped(projectUuid, read, 1)).rejects.toThrow(
+      'Schematic document changed during list read',
+    );
+    expect(read).toHaveBeenCalledOnce();
+  });
+
   it('rejects a fabricated requested project before reading any primitives', async () => {
     const { operations } = makeOperations(runtime());
     const read = vi.fn(async () => ({ total: 4, items: [{ primitiveId: 'e107' }] }));
