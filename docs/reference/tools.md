@@ -2176,13 +2176,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter            | Type                          | Required | Description                                                                                         |
-| -------------------- | ----------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `projectId`          | `string`                      | Yes      |                                                                                                     |
-| `intent`             | `'general'` \| `'high-speed'` | Yes      |                                                                                                     |
-| `minWidthMm`         | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence. |
-| `differentialPair`   | `object (optional)`           | No       |                                                                                                     |
-| `placementRelations` | `object[] (optional)`         | No       |                                                                                                     |
+| Parameter            | Type                          | Required | Description                                                                                                                      |
+| -------------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`          | `string`                      | Yes      |                                                                                                                                  |
+| `intent`             | `'general'` \| `'high-speed'` | Yes      |                                                                                                                                  |
+| `minWidthMm`         | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.                              |
+| `differentialPair`   | `object (optional)`           | No       |                                                                                                                                  |
+| `placementRelations` | `object[] (optional)`         | No       |                                                                                                                                  |
+| `traceCurrent`       | `object (optional)`           | No       | Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass. |
 
 ### Output Format
 
@@ -2205,6 +2206,7 @@ Returns a JSON object matching the schema:
   errors: string[];
   differential_pair: object (optional);
   placement_review: object (optional);
+  trace_current_review: object (optional);
   engineering_sign_off: 'false';
 }
 ```

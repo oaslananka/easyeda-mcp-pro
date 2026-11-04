@@ -9,6 +9,7 @@ import {
   type DifferentialPairDeclaration,
 } from '../pcb-layout/differential-pair.js';
 import { type EnvConfig } from '../config/env.js';
+import { reviewNativeTraceCurrent } from '../pcb-layout/native-trace-current.js';
 import {
   reviewRouteGeometry,
   type NativeTrack,
@@ -111,6 +112,16 @@ const placementRelationSchema = z
     }
   });
 
+const nativeTraceCurrentDeclarationSchema = z.object({
+  net: exactNetSchema,
+  currentA: z.number().finite().positive(),
+  temperatureRiseC: z.number().finite().positive(),
+  layer: z.enum(['external', 'internal']),
+  copperWeightOz: z.number().finite().positive(),
+  environment: z.enum(['still-air', 'forced-air', 'vacuum', 'unspecified']).optional(),
+  manufacturerMinWidthMm: z.number().finite().positive().optional(),
+});
+
 const inputSchema = z.object({
   projectId: projectIdSchema,
   intent: z.enum(['general', 'high-speed']).default('general'),
@@ -124,6 +135,11 @@ const inputSchema = z.object({
     ),
   differentialPair: differentialPairSchema.optional(),
   placementRelations: z.array(placementRelationSchema).min(1).max(8).optional(),
+  traceCurrent: nativeTraceCurrentDeclarationSchema
+    .optional()
+    .describe(
+      'Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass.',
+    ),
 });
 
 const nativeComponentSchema = z.object({
@@ -272,6 +288,36 @@ const placementReviewSchema = z.object({
   engineering_sign_off: z.literal(false),
 });
 
+const nativeTraceCurrentResultSchema = z.object({
+  net: z.string(),
+  status: z.enum(['WARNING', 'UNKNOWN']),
+  method: z.literal('IPC2221_EMPIRICAL_REFERENCE'),
+  geometry_source: z.literal('pcb.listTracks'),
+  geometry_evidence: z.enum(['observed_bounded_segments', 'unavailable']),
+  source_versions: z.object({ easyeda: z.string().nullable(), extension: z.string().nullable() }),
+  width_unit: z.literal('mm'),
+  declaration: nativeTraceCurrentDeclarationSchema,
+  model_source: z.string(),
+  empirical_reference_width_mm: z.number().finite().positive(),
+  observed_narrowest_segment_width_mm: z.number().finite().positive().optional(),
+  observed_primitive_ids: z.array(z.string()),
+  findings: z.array(
+    z.object({
+      id: z.enum([
+        'NATIVE_GEOMETRY_UNKNOWN',
+        'THERMAL_REFERENCE_SHORTFALL',
+        'FABRICATION_DECLARATION_SHORTFALL',
+        'THERMAL_ADEQUACY_UNKNOWN',
+        'VIA_CURRENT_UNKNOWN',
+      ]),
+      status: z.enum(['WARNING', 'UNKNOWN']),
+      message: z.string(),
+    }),
+  ),
+  limitations: z.array(z.string()),
+  engineering_sign_off: z.literal(false),
+});
+
 const outputSchema = z.object({
   project_id: projectIdSchema,
   overall_status: z.enum(['WARNING', 'UNKNOWN']),
@@ -304,6 +350,7 @@ const outputSchema = z.object({
   errors: z.array(z.string()),
   differential_pair: differentialPairResultSchema.optional(),
   placement_review: placementReviewSchema.optional(),
+  trace_current_review: nativeTraceCurrentResultSchema.optional(),
   engineering_sign_off: z.literal(false),
 });
 
@@ -400,6 +447,30 @@ async function collectPlacementEvidence(
   return { placementComponents, placementTotal, placementAvailable };
 }
 
+function optionalNativeCurrentReview(
+  declaration: z.infer<typeof nativeTraceCurrentDeclarationSchema> | undefined,
+  route: Awaited<ReturnType<typeof collectRouteEvidence>>,
+  collectionComplete: boolean,
+  ctx: ToolContext,
+) {
+  if (declaration === undefined) return undefined;
+  return reviewNativeTraceCurrent({
+    declaration,
+    tracks: route.tracks,
+    trackCount: route.trackCount,
+    collectionComplete,
+    easyedaVersion: ctx.bridge.easyedaVersion,
+    extensionVersion: ctx.bridge.extensionVersion,
+  });
+}
+
+function aggregateReviewStatus(
+  geometry: 'WARNING' | 'UNKNOWN',
+  ...components: Array<'WARNING' | 'UNKNOWN' | undefined>
+): 'WARNING' | 'UNKNOWN' {
+  return geometry === 'WARNING' || components.includes('WARNING') ? 'WARNING' : 'UNKNOWN';
+}
+
 /**
  * Read-only per-request bounded snapshot. Unavailable or incomplete primitive
  * evidence cannot establish a passing clearance/plane/return-path verdict.
@@ -424,7 +495,7 @@ export function registerPcbRouteReviewTools(
     inputSchema,
     outputSchema,
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, intent, minWidthMm, differentialPair, placementRelations } =
+      const { projectId, intent, minWidthMm, differentialPair, placementRelations, traceCurrent } =
         inputSchema.parse(params);
       const sourceMismatch =
         ctx.bridge.registryMismatch === true || ctx.bridge.extensionVersionMismatch === true;
@@ -459,6 +530,12 @@ export function registerPcbRouteReviewTools(
               geometry.input_evidence.collection_complete,
             );
 
+      const nativeCurrent = optionalNativeCurrentReview(
+        traceCurrent,
+        route,
+        geometry.input_evidence.collection_complete,
+        ctx,
+      );
       const placement =
         placementRelations === undefined
           ? undefined
@@ -472,21 +549,15 @@ export function registerPcbRouteReviewTools(
       return {
         project_id: projectId,
         ...geometry,
-        ...(placement === undefined
-          ? {}
-          : {
-              placement_review: placement,
-              overall_status: placement.status === 'WARNING' ? 'WARNING' : geometry.overall_status,
-            }),
-        ...(pair === undefined
-          ? {}
-          : {
-              differential_pair: pair,
-              overall_status:
-                pair.status === 'WARNING' || placement?.status === 'WARNING'
-                  ? 'WARNING'
-                  : geometry.overall_status,
-            }),
+        ...(placement === undefined ? {} : { placement_review: placement }),
+        ...(pair === undefined ? {} : { differential_pair: pair }),
+        ...(nativeCurrent === undefined ? {} : { trace_current_review: nativeCurrent }),
+        overall_status: aggregateReviewStatus(
+          geometry.overall_status,
+          placement?.status,
+          pair?.status,
+          nativeCurrent?.status,
+        ),
         runtime: {
           bridge_connected: ctx.bridge.connected,
           registry_mismatch: ctx.bridge.registryMismatch === true,
