@@ -959,7 +959,41 @@ describe('board inspection operations', () => {
     });
   });
 
-  it('returns an empty dimension summary when primitive reads fail', async () => {
+  it.each([
+    [
+      'throwing arc inventory',
+      {
+        getAll: async () => {
+          throw new Error('native arc read unavailable');
+        },
+      },
+    ],
+    ['null arc inventory', { getAll: async () => null }],
+    ['non-array arc inventory', { getAll: async () => ({ items: [] }) }],
+  ])('rejects partial outline measurements when %s', async (_reason, arcClass) => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-partial-outline' }) } },
+      {
+        pcb_PrimitiveLine: {
+          getAll: async () => [
+            {
+              Layer: 'Board Outline',
+              Points: [
+                { x: mmToPcbMil(0), y: mmToPcbMil(0) },
+                { x: mmToPcbMil(10), y: mmToPcbMil(20) },
+              ],
+            },
+          ],
+        },
+        pcb_PrimitiveArc: arcClass,
+        pcb_PrimitivePad: { getAll: async () => [] },
+      },
+    );
+
+    await expect(operations.getDimensions()).rejects.toThrow();
+  });
+
+  it('rejects dimensions when a native outline inventory read fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const failingClass = { getAll: async () => Promise.reject(new Error('read failed')) };
     const { operations } = makeOperations(
@@ -971,25 +1005,8 @@ describe('board inspection operations', () => {
       },
     );
 
-    await expect(operations.getDimensions()).resolves.toEqual({
-      widthMm: 0,
-      heightMm: 0,
-      shape: undefined,
-      mountingHoleCount: undefined,
-      drilledPadCount: undefined,
-      platedDrillPadCount: undefined,
-      unplatedDrillPadCount: undefined,
-      minDrillMm: undefined,
-      unknownFields: [
-        'drilledPadCount',
-        'platedDrillPadCount',
-        'unplatedDrillPadCount',
-        'minDrillMm',
-      ],
-      areaMm2: 0,
-      hasOutline: false,
-    });
-    expect(warn).toHaveBeenCalledTimes(3);
+    await expect(operations.getDimensions()).rejects.toThrow('read failed');
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('counts all supported board feature classes', async () => {
@@ -1141,7 +1158,9 @@ describe('board inspection operations', () => {
     root.pcb_PrimitiveLine = { getAll: async () => null };
     root.pcb_PrimitiveArc = { getAll: async () => null };
     root.pcb_PrimitivePad = { getAll: async () => null };
-    await expect(operations.getDimensions()).resolves.toEqual(emptyDimensions);
+    await expect(operations.getDimensions()).rejects.toThrow(
+      'Invalid board outline lines inventory',
+    );
 
     root.pcb_PrimitiveLine = {
       getAll: async () => [
