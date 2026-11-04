@@ -999,7 +999,7 @@ function sendHandshake(): void {
 }
 
 function getEasyedaVersion(): string | undefined {
-  const maybeVersion = readPath<unknown>(getGlobal(), 'sys_Environment.getVersion');
+  const maybeVersion = readPath<unknown>(getGlobal(), 'sys_Environment.getEditorCurrentVersion');
   if (typeof maybeVersion === 'function') {
     try {
       return String(maybeVersion());
