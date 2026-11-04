@@ -164,14 +164,18 @@ export function createDispatcherDomainRouter(
       const route = routes.find((candidate) => candidate.method === method);
       if (!route) return { handled: false };
       assertRouterSchematicScope(method, params);
+      const schematicScoped = params.projectId !== undefined && method.startsWith('schematic.list');
       const scoped =
+        schematicScoped ||
         method.startsWith('pcb.list') ||
         (params.projectId !== undefined && /^board\.(get|list)/.test(method));
       return {
         handled: true,
         value: await (scoped
-          ? dependencies.pcbReadOperations.readProjectScoped(params.projectId as string, () =>
-              route.handle(params),
+          ? dependencies.pcbReadOperations.readProjectScoped(
+              params.projectId as string,
+              () => route.handle(params),
+              schematicScoped ? 1 : 3,
             )
           : route.handle(params)),
       };

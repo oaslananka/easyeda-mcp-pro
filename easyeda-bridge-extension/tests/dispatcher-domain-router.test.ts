@@ -300,6 +300,7 @@ describe('createDispatcherDomainRouter', () => {
     expect(deps.pcbReadOperations.readProjectScoped).toHaveBeenCalledWith(
       'verified-project-uuid',
       expect.any(Function),
+      3,
     );
   });
 
@@ -338,6 +339,7 @@ describe('createDispatcherDomainRouter', () => {
       expect(deps.pcbReadOperations.readProjectScoped).toHaveBeenCalledWith(
         'focused-project',
         expect.any(Function),
+        3,
       );
       expect(deps.boardInspection[reader]).toHaveBeenCalledTimes(1);
     },
@@ -590,6 +592,30 @@ describe('createDispatcherDomainRouter', () => {
       value: null,
     });
   });
+
+  it.each(['schematic.listNets', 'schematic.listComponents'])(
+    'rejects wrong native project identity for %s before reading',
+    async (method) => {
+      const deps = createDependencies();
+      deps.pcbReadOperations.readProjectScoped.mockImplementation(async (projectId, read) => {
+        if (projectId !== 'focused-schematic') {
+          throw new Error('Schematic project identity mismatch');
+        }
+        return read();
+      });
+      const router = createDispatcherDomainRouter(deps);
+
+      await expect(router.tryDispatch(method, { projectId: 'other-project' })).rejects.toThrow(
+        'Schematic project identity mismatch',
+      );
+      expect(deps.pcbReadOperations.readProjectScoped).toHaveBeenCalled();
+      const reader =
+        method === 'schematic.listNets'
+          ? deps.readOnlyOperations.listNets
+          : deps.readOnlyOperations.listComponents;
+      expect(reader).not.toHaveBeenCalled();
+    },
+  );
 
   it('preserves PCB pagination coercion', async () => {
     const dependencies = createDependencies();
