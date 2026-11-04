@@ -149,6 +149,29 @@ type ReviewBuildInput = {
   evidenceMode: 'native' | 'supplied';
 };
 
+// An older loader may stringify an absent API result to a misleading version.
+const UNVERIFIED_VERSION_SENTINELS = new Set([
+  'undefined',
+  'null',
+  'unknown',
+  'nan',
+  '[object promise]',
+  '[object object]',
+]);
+
+function knownSourceVersion(value: string | undefined): string | null {
+  const version = value?.trim();
+  return version && !UNVERIFIED_VERSION_SENTINELS.has(version.toLowerCase()) ? version : null;
+}
+
+/** Successful native reads become verified rule input only with source versions. */
+function hasNativeSourceVersions(input: ReviewBuildInput): boolean {
+  return (
+    knownSourceVersion(input.easyedaVersion) !== null &&
+    knownSourceVersion(input.extensionVersion) !== null
+  );
+}
+
 /**
  * A native rule verdict must use only fields belonging to a successful
  * current-request method. Retained data from a previous document/tab,
@@ -159,6 +182,7 @@ function currentRuleInputs(input: ReviewBuildInput): PcbConstraintInput {
   if (input.evidenceMode === 'supplied') return input.boardData;
   if (
     !input.bridgeConnected ||
+    !hasNativeSourceVersions(input) ||
     input.registryMismatch === true ||
     input.extensionVersionMismatch === true ||
     input.sourceChangedDuringRead === true
@@ -181,6 +205,7 @@ function hasObservedBoard(input: ReviewBuildInput): boolean {
   return (
     input.evidenceMode === 'native' &&
     input.bridgeConnected &&
+    hasNativeSourceVersions(input) &&
     input.registryMismatch !== true &&
     input.extensionVersionMismatch !== true &&
     input.sourceChangedDuringRead !== true &&
@@ -290,6 +315,7 @@ function collectFindings(
 function collectInputEvidence(input: ReviewBuildInput): EngineeringReview['input_evidence'] {
   const nativeEvidence = input.evidenceMode === 'native';
   const sourceMismatch =
+    (nativeEvidence && !hasNativeSourceVersions(input)) ||
     input.registryMismatch === true ||
     input.extensionVersionMismatch === true ||
     input.sourceChangedDuringRead === true;
@@ -340,6 +366,21 @@ function groupFindings(findings: ReviewFinding[]): EngineeringReview['groups'] {
   return groups;
 }
 
+function sourceVersionAvailabilityFindings(input: ReviewBuildInput): ReviewFinding[] {
+  if (input.evidenceMode !== 'native' || !input.bridgeConnected || hasNativeSourceVersions(input))
+    return [];
+  return [
+    createFinding(
+      'context:SOURCE_VERSION_UNAVAILABLE',
+      'UNKNOWN',
+      'The native EasyEDA editor or bridge extension version could not be verified.',
+      'Use an extension and editor runtime that report both source versions, then repeat the read-only review.',
+      'runtime',
+      'unverified',
+    ),
+  ];
+}
+
 export function buildEngineeringReview(input: ReviewBuildInput): EngineeringReview {
   // Rule evaluation must never consume stale or unsupported native fields.
   const validatedData = currentRuleInputs(input);
@@ -358,6 +399,7 @@ export function buildEngineeringReview(input: ReviewBuildInput): EngineeringRevi
       ),
     );
   }
+  findings.push(...sourceVersionAvailabilityFindings(input));
   if (input.sourceChangedDuringRead === true) {
     findings.push(
       createFinding(
@@ -392,8 +434,8 @@ export function buildEngineeringReview(input: ReviewBuildInput): EngineeringRevi
     },
     groups: groupFindings(findings),
     source_version: {
-      easyeda: input.easyedaVersion ?? null,
-      extension: input.extensionVersion ?? null,
+      easyeda: knownSourceVersion(input.easyedaVersion),
+      extension: knownSourceVersion(input.extensionVersion),
     },
     observations: input.observations,
     input_evidence,

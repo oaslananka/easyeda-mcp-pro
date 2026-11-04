@@ -300,6 +300,40 @@ describe('extension loader lifecycle source', () => {
     expect(handshake?.easyedaVersion).toBeUndefined();
   });
 
+  it.each([undefined, null, '   ', 123, Promise.resolve('3.2.209')])(
+    'does not stringify an unsupported native editor-version return value (%s)',
+    async (returnValue) => {
+      HarnessSocket.localBehavior = 'success';
+      vi.stubGlobal('eda', {
+        sys_Environment: { getEditorCurrentVersion: () => returnValue },
+      });
+      const { extension } = await loadExtension({ withWebSocket: true });
+      await extension.connect();
+      const handshake = HarnessSocket.instances[0].sent.find(
+        (message) => message.type === 'handshake',
+      );
+      expect(handshake?.easyedaVersion).toBeUndefined();
+    },
+  );
+
+  it('keeps the documented sys_Environment receiver when reading editor version', async () => {
+    HarnessSocket.localBehavior = 'success';
+    const environment = {
+      version: '3.2.209',
+      getEditorCurrentVersion() {
+        if (this !== environment) throw new Error('lost native environment receiver');
+        return this.version;
+      },
+    };
+    vi.stubGlobal('eda', { sys_Environment: environment });
+    const { extension } = await loadExtension({ withWebSocket: true });
+    await extension.connect();
+    const handshake = HarnessSocket.instances[0].sent.find(
+      (message) => message.type === 'handshake',
+    );
+    expect(handshake?.easyedaVersion).toBe('3.2.209');
+  });
+
   it('suppresses duplicate auto-connect calls while one handshake is pending', async () => {
     HarnessSocket.localBehavior = 'pending';
     const { extension } = await loadExtension({ withWebSocket: true });

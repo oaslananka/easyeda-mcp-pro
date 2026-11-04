@@ -38,6 +38,11 @@ disposable EasyEDA Pro project; never alter an existing user design.
   mismatch detection. If method registry or extension versions differ,
   affected evidence remains unverified until the exact matching extension
   is reimported and validated.
+- Treat unavailable, blank or invalid editor/extension version values as
+  **unverified native provenance**. Preserve raw read-only observations as
+  diagnostics, but do not promote their fields to `measured` or issue a
+  subset PCB `PASS`/`FAIL` until both runtime versions are known. The
+  review reports `context:SOURCE_VERSION_UNAVAILABLE` in this case.
 - Compare the disposable project's relevant state with the original
   state. There must be no design mutation, export, or implicit approval.
 - Unsupported or missing native fields must be reported as unavailable;
