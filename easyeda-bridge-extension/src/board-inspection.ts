@@ -347,9 +347,10 @@ async function addOutlinePrimitiveBounds(
   pcbMathPolygonClass: any,
 ): Promise<void> {
   if (!primitiveClass || typeof primitiveClass.getAll !== 'function') return;
+  const primitives = await primitiveClass.getAll();
+  if (!Array.isArray(primitives)) throw new Error(`Invalid board outline ${description} inventory`);
   try {
-    const primitives = await primitiveClass.getAll();
-    for (const primitive of primitives || []) {
+    for (const primitive of primitives) {
       if (!(await primitiveIsOnBoardOutlineResolved(primitive))) continue;
       await addPrimitivePoints(bounds, primitive, pcbMathPolygonClass);
     }
