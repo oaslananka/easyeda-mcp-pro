@@ -32,8 +32,18 @@ export interface ProfileFinding {
   declared_limit: number | boolean;
   units: 'mm' | 'count' | 'ratio' | 'boolean';
   source_field: string;
+  /** Caller-declared process source and revision, repeated for standalone findings. */
+  profile_reference: string;
+  profile_revision: string;
+  /** Availability of this specific reported metric, not generic board connection state. */
+  measurement_evidence: 'caller_supplied_unverified' | 'native_partial_unverified' | 'unavailable';
   reason: string;
 }
+type ProfileComparison = Omit<
+  ProfileFinding,
+  'profile_reference' | 'profile_revision' | 'measurement_evidence'
+>;
+
 export interface ManufacturingProfileReview {
   status: 'WARNING' | 'UNKNOWN';
   source: { manufacturer: string; process: string; revision: string; reference: string };
@@ -160,7 +170,7 @@ function ratioFindingReason(
     : 'Caller-reported feature coverage meets its declared threshold, but inventory completeness and physical accessibility are unverified.';
 }
 
-function compareNumeric(rule: Rule, limit: number, data: PcbConstraintInput): ProfileFinding {
+function compareNumeric(rule: Rule, limit: number, data: PcbConstraintInput): ProfileComparison {
   const validLimit = validReportedScalar(limit, rule.units);
   const candidate = data[rule.field];
   const numeric =
@@ -198,7 +208,7 @@ function ratioFinding(
   limit: number,
   category: ProfileFinding['category'],
   name: string,
-): ProfileFinding {
+): ProfileComparison {
   const ratio = reportedRatio(numerator, denominator);
   const validLimit = Number.isFinite(limit) && limit >= 0 && limit <= 1;
   const violated = validLimit && ratio !== undefined && ratio < limit;
@@ -232,8 +242,11 @@ function countUniqueNames(data: PcbConstraintInput): { numerator?: number; denom
   };
 }
 
-function manualFindings(profile: ManufacturerProfile, data: PcbConstraintInput): ProfileFinding[] {
-  const output: ProfileFinding[] = [];
+function manualFindings(
+  profile: ManufacturerProfile,
+  data: PcbConstraintInput,
+): ProfileComparison[] {
+  const output: ProfileComparison[] = [];
   const marks = profile.limits.minimumPolarityMarkRatio;
   if (marks !== undefined) {
     output.push(
@@ -291,13 +304,19 @@ export function reviewManufacturerProfile(
   boardData: PcbConstraintInput,
   source: ManufacturingProfileReview['input_evidence'],
 ): ManufacturingProfileReview {
-  const findings = [
+  const comparisons = [
     ...NUMERIC_RULES.flatMap((rule) => {
       const limit = profile.limits[rule.id];
       return typeof limit === 'number' ? [compareNumeric(rule, limit, boardData)] : [];
     }),
     ...manualFindings(profile, boardData),
   ];
+  const findings: ProfileFinding[] = comparisons.map((finding) => ({
+    ...finding,
+    profile_reference: profile.source,
+    profile_revision: profile.revision,
+    measurement_evidence: finding.actual === undefined ? 'unavailable' : source,
+  }));
   return {
     status: findings.some((f) => f.status === 'WARNING') ? 'WARNING' : 'UNKNOWN',
     source: {

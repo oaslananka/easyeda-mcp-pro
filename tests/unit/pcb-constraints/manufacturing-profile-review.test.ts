@@ -43,6 +43,15 @@ describe('versioned manufacturer process observations (not fabrication approval)
     });
     expect(result.fabrication_approval).toBe(false);
     expect(result.manual_review_required).toBe(true);
+    expect(result.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          profile_reference: ref.source,
+          profile_revision: ref.revision,
+          measurement_evidence: expect.stringMatching(/^(caller_supplied_unverified|unavailable)$/),
+        }),
+      ]),
+    );
     expect(result.source).toEqual({
       manufacturer: ref.manufacturer,
       process: ref.process,
@@ -53,6 +62,43 @@ describe('versioned manufacturer process observations (not fabrication approval)
       true,
     );
     expect(result.unknown_workflows.join(' ')).toMatch(/mounting-hole semantics/i);
+  });
+
+  it('attributes each observed metric to its own data evidence and the declared factory revision', () => {
+    const profile = {
+      ...ref,
+      revision: 'hypothetical-process-rev-B',
+      source: 'Manufacturer process limits: hypothetical issue #846 example',
+      limits: { maximumBoardWidthMm: 80, minimumAnnularRingMm: 0.15 },
+    };
+    const review = reviewManufacturerProfile(
+      profile,
+      { widthMm: 100 },
+      'native_partial_unverified',
+    );
+    expect(review.status).toBe('WARNING');
+    expect(review.findings).toEqual([
+      expect.objectContaining({
+        id: 'minimumAnnularRingMm',
+        status: 'UNKNOWN',
+        units: 'mm',
+        profile_reference: profile.source,
+        profile_revision: profile.revision,
+        measurement_evidence: 'unavailable',
+      }),
+      expect.objectContaining({
+        id: 'maximumBoardWidthMm',
+        status: 'WARNING',
+        units: 'mm',
+        source_field: 'widthMm',
+        actual: 100,
+        profile_reference: profile.source,
+        profile_revision: profile.revision,
+        measurement_evidence: 'native_partial_unverified',
+      }),
+    ]);
+    expect(review.findings[0]).not.toHaveProperty('actual');
+    expect(review.fabrication_approval).toBe(false);
   });
 
   it('does not compare measurements against corrupt process limits', () => {

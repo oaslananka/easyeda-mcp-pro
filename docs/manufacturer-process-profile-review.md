@@ -77,7 +77,13 @@ package review are **not inferred** from drilled-pad counts.
 The optional `manufacturing_profile_review` returns per-metric
 reported values, declared bounds, units, input field, comparison,
 source identity, a list of unsupported workflows, and
-`fabrication_approval: false`.
+`fabrication_approval: false`. Each individual finding also carries
+`profile_reference` and `profile_revision` from the caller-declared
+manufacturer profile, plus `measurement_evidence`:
+`caller_supplied_unverified`, `native_partial_unverified` or
+`unavailable` for missing/invalid individual measurements. These values
+track provenance **without authenticating** any process limits or native
+fabrication readiness.
 
 - `BELOW_DECLARED_LIMIT` or `ABOVE_DECLARED_LIMIT` yields `WARNING`
   when a finite reported metric conflicts with the declared limit.

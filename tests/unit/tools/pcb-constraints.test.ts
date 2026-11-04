@@ -91,6 +91,44 @@ describe('PCB constraint tools', () => {
     ).toBe(true);
   });
 
+  it('preserves per-finding process revision and missing measurement source in the public tool result', async () => {
+    const tool = registry.get('easyeda_pcb_production_review');
+    const result = await tool?.handler(context, {
+      projectId: 'example-board',
+      boardData: { widthMm: 100 },
+      manufacturerProfile: {
+        manufacturer: 'Example fab (hypothetical)',
+        process: 'prototype',
+        revision: 'rev-X',
+        source: 'Caller-supplied test limits',
+        limits: { maximumBoardWidthMm: 80, minimumAnnularRingMm: 0.15 },
+      },
+    });
+    const findings = result?.manufacturing_profile_review?.findings;
+    expect(findings).toEqual([
+      expect.objectContaining({
+        id: 'minimumAnnularRingMm',
+        status: 'UNKNOWN',
+        units: 'mm',
+        profile_reference: 'Caller-supplied test limits',
+        profile_revision: 'rev-X',
+        measurement_evidence: 'unavailable',
+      }),
+      expect.objectContaining({
+        id: 'maximumBoardWidthMm',
+        status: 'WARNING',
+        units: 'mm',
+        actual: 100,
+        profile_reference: 'Caller-supplied test limits',
+        profile_revision: 'rev-X',
+        measurement_evidence: 'caller_supplied_unverified',
+      }),
+    ]);
+    expect(result?.manufacturing_approval).toBe(false);
+    expect(result?.passed).toBe(false);
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_pcb_production_review blocks in block mode when errors exist', async () => {
     const tool = registry.get('easyeda_pcb_production_review');
     const result = await tool?.handler(context, {

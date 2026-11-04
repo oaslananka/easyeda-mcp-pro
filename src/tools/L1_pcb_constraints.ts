@@ -86,6 +86,13 @@ const processProfileFindingSchema = z.object({
   declared_limit: z.union([z.number(), z.boolean()]),
   units: z.enum(['mm', 'count', 'ratio', 'boolean']),
   source_field: z.string(),
+  profile_reference: z.string(),
+  profile_revision: z.string(),
+  measurement_evidence: z.enum([
+    'caller_supplied_unverified',
+    'native_partial_unverified',
+    'unavailable',
+  ]),
   reason: z.string(),
 });
 const processProfileReviewSchema = z.object({
