@@ -127,6 +127,28 @@ describe('source-backed native differential-pair evidence', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('attributes device limits only to the exact caller-supplied source, never protocol guidance', () => {
+    const input = {
+      ...declared,
+      maxSkewMm: 0.5,
+      constraintSource: 'Demo device datasheet Rev C, Section 8.3',
+    };
+    const tracks = [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 0, 20, 100, 20)];
+    const sourced = reviewDifferentialPair(input, tracks, [], true);
+    const unsourced = reviewDifferentialPair(
+      { ...input, constraintSource: undefined },
+      tracks,
+      [],
+      true,
+    );
+    expect(sourced.constraint_source).toBe('Demo device datasheet Rev C, Section 8.3');
+    expect(unsourced.constraint_source).toBeNull();
+    expect(sourced.protocol_guidance).toBeNull();
+    expect(sourced.engineering_sign_off).toBe(false);
+    expect(sourced.skew.status).toBe('WITHIN_DECLARED_LIMIT_REFERENCE');
+    expect(sourced.limitations.join(' ')).toContain('remains unverified');
+  });
+
   it('missing or truncated collections cannot fabricate a missing net or skew warning', () => {
     const input = cases[0]!;
     const result = reviewDifferentialPair(input.declaration, input.tracks.slice(0, 1), [], false);

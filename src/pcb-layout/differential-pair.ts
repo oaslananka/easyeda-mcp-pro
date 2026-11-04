@@ -16,6 +16,8 @@ export interface DifferentialPairDeclaration {
   minEdgeGapMm?: number;
   maxEdgeGapMm?: number;
   targetImpedanceOhms?: number;
+  /** Explicit data-sheet / design-revision provenance; not verified by the tool. */
+  constraintSource?: string;
 }
 
 type NetCoverage = 'MISSING' | 'UNAVAILABLE' | 'OBSERVED_SINGLE_CHAIN' | 'AMBIGUOUS';
@@ -47,6 +49,8 @@ export interface DifferentialPairReview {
     differential_impedance_reference_ohms?: number;
   } | null;
   target_impedance_ohms?: number;
+  /** Null means the caller did not provide a traceable source for numerical limits. */
+  constraint_source: string | null;
   impedance_status: 'UNKNOWN';
   evidence: 'native_segments_not_field_solver_or_full_route';
   length_units: 'mm';
@@ -363,6 +367,7 @@ export function reviewDifferentialPair(
     ...(declaration.targetImpedanceOhms === undefined
       ? {}
       : { target_impedance_ohms: declaration.targetImpedanceOhms }),
+    constraint_source: declaration.constraintSource?.trim() || null,
     impedance_status: 'UNKNOWN',
     evidence: 'native_segments_not_field_solver_or_full_route',
     length_units: 'mm',
@@ -374,7 +379,7 @@ export function reviewDifferentialPair(
     limitations: [
       'Native segment sums and parallel-gap samples do not establish actual end-to-end link topology.',
       'Reference impedance and protocol guidance never substitute a source-bound stackup model or field solver.',
-      'Only explicit device/datasheet-specific caller limits can produce a skew or spacing warning.',
+      'Only explicit device/datasheet-specific caller limits can produce a skew or spacing warning; their claimed source is reported separately and remains unverified.',
       'Via transitions, layer discontinuities, pads, coupled impedance and plane return paths require additional native evidence.',
       'PCB snapshot is not atomic; missing primitive types and editor/runtime mismatch fail closed.',
     ],

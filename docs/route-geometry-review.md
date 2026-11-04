@@ -137,10 +137,17 @@ datasheet or actual PCB manufacturer.
     "maxSkewMm": 0.6,
     "minEdgeGapMm": 0.15,
     "maxEdgeGapMm": 0.35,
-    "targetImpedanceOhms": 90
+    "targetImpedanceOhms": 90,
+    "constraintSource": "Illustrative only: verify against the target device datasheet revision"
   }
 }
 ```
+
+The optional `constraintSource` records the **caller-supplied** datasheet,
+manufacturer document or design revision that motivated the numeric bounds.
+The output `constraint_source` is `null` when omitted; protocol guidance
+references are kept separate and cannot stand in for a device-specific
+limit source. The source string itself is never independently verified.
 
 This is an **example with hypothetical, caller-declared limits**, not a
 manufacturer recommendation. The source of each limit must be established

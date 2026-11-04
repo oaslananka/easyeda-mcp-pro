@@ -43,6 +43,7 @@ const differentialPairSchema = z
     minEdgeGapMm: z.number().finite().nonnegative().optional(),
     maxEdgeGapMm: z.number().finite().positive().optional(),
     targetImpedanceOhms: z.number().finite().positive().optional(),
+    constraintSource: z.string().trim().min(3).max(200).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.positiveNet === value.negativeNet) {
@@ -230,6 +231,7 @@ const differentialPairResultSchema = z.object({
     })
     .nullable(),
   target_impedance_ohms: z.number().optional(),
+  constraint_source: z.string().nullable(),
   impedance_status: z.literal('UNKNOWN'),
   evidence: z.literal('native_segments_not_field_solver_or_full_route'),
   length_units: z.literal('mm'),

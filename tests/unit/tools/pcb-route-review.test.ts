@@ -284,6 +284,31 @@ describe('native PCB route geometry review MCP contract', () => {
     }
   });
 
+  it('carries optional datasheet provenance without mistaking a protocol reference for a device limit', async () => {
+    const source = 'Hypothetical part Rev B, Section 3 - example only';
+    const params = {
+      ...pairDeclaration,
+      constraintSource: source,
+    };
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    expect(schema?.safeParse({ projectId: 'project-1', differentialPair: params }).success).toBe(
+      true,
+    );
+    for (const invalid of ['', ' ', 'x'.repeat(201)]) {
+      expect(
+        schema?.safeParse({
+          projectId: 'project-1',
+          differentialPair: { ...params, constraintSource: invalid },
+        }).success,
+      ).toBe(false);
+    }
+    const result = await run({ differentialPair: params });
+    expect(result.differential_pair.constraint_source).toBe(source);
+    expect(result.differential_pair.protocol_guidance.source).not.toEqual(source);
+    const oldClient = await run({ differentialPair: pairDeclaration });
+    expect(oldClient.differential_pair.constraint_source).toBeNull();
+  });
+
   it('checks observed parallel differential pair without imposing USB reference thresholds', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'pcb.listTracks') {
