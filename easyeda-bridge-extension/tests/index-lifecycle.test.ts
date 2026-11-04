@@ -264,6 +264,42 @@ describe('extension loader lifecycle source', () => {
     expect(HarnessSocket.instances).toHaveLength(PORT_SCAN_COUNT + 1);
   });
 
+  it('reports the editor version from the documented native environment API', async () => {
+    HarnessSocket.localBehavior = 'success';
+    const getEditorCurrentVersion = vi.fn(() => '3.2.209');
+    const getVersion = vi.fn(() => 'unsupported-old-method');
+    vi.stubGlobal('eda', { sys_Environment: { getEditorCurrentVersion, getVersion } });
+    const { extension } = await loadExtension({ withWebSocket: true });
+
+    await extension.connect();
+
+    const handshake = HarnessSocket.instances[0].sent.find(
+      (message) => message.type === 'handshake',
+    );
+    expect(handshake).toMatchObject({ easyedaVersion: '3.2.209' });
+    expect(getEditorCurrentVersion).toHaveBeenCalledOnce();
+    expect(getVersion).not.toHaveBeenCalled();
+  });
+
+  it('omits unavailable editor version rather than inventing a runtime version', async () => {
+    HarnessSocket.localBehavior = 'success';
+    vi.stubGlobal('eda', {
+      sys_Environment: {
+        getEditorCurrentVersion: () => {
+          throw new Error('unavailable');
+        },
+      },
+    });
+    const { extension } = await loadExtension({ withWebSocket: true });
+
+    await extension.connect();
+
+    const handshake = HarnessSocket.instances[0].sent.find(
+      (message) => message.type === 'handshake',
+    );
+    expect(handshake?.easyedaVersion).toBeUndefined();
+  });
+
   it('suppresses duplicate auto-connect calls while one handshake is pending', async () => {
     HarnessSocket.localBehavior = 'pending';
     const { extension } = await loadExtension({ withWebSocket: true });
