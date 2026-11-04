@@ -210,6 +210,42 @@ describe('extension loader lifecycle source', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('reports an actionable permission hint when EasyEDA denies socket registration', async () => {
+    const { extension, toasts } = await loadExtension({
+      webSocketApi: {
+        register: () => {
+          throw new Error('External interactions permission denied');
+        },
+        send: () => undefined,
+      },
+    });
+    await extension.connect();
+    expect(toasts).toContain(
+      'External Interactions permission: enable MCP Pro Bridge in Extension Manager.',
+    );
+  });
+
+  it('reports safe local and Remote Relay connection fallbacks without opening remote sockets', async () => {
+    const { extension, toasts } = await loadExtension();
+    await extension.connectCustomRemote();
+    expect(toasts).toContain('Custom Remote input dialog unavailable; local works.');
+
+    extension.connectRemoteRelay('hosted');
+    expect(toasts).toContain('Remote Relay needs WebSocket in EasyEDA.');
+
+    extension.disconnectRemoteRelay();
+    expect(toasts.at(-1)).toBe('Remote Relay off. Use Connect for the local bridge.');
+    expect(HarnessSocket.instances).toHaveLength(0);
+  });
+
+  it('explains that manual local disconnection requires a new Connect action', async () => {
+    HarnessSocket.localBehavior = 'success';
+    const { extension, toasts } = await loadExtension({ withWebSocket: true });
+    await extension.connect();
+    extension.disconnect();
+    expect(toasts.at(-1)).toBe('Bridge disconnected. Click Connect to resume.');
+  });
+
   it('falls back from a silent register handle to the EasyEDA create API', async () => {
     HarnessSocket.localBehavior = 'success';
     const registeredIds: string[] = [];

@@ -270,8 +270,7 @@ function showToast(message: string): void {
 }
 
 function showExternalInteractionHintOnce(error?: unknown): void {
-  const message =
-    'MCP Bridge needs EasyEDA External Interactions permission. Enable it in Extension Manager for MCP Pro Bridge.';
+  const message = 'External Interactions permission: enable MCP Pro Bridge in Extension Manager.';
   log(message, error);
   if (externalInteractionWarningShown) return;
   externalInteractionWarningShown = true;
@@ -306,6 +305,7 @@ const dispatcherToolkit: DispatcherToolkit = {
   normalizeCanvasBinaryResult: (value, fallbackFileName) =>
     normalizeCanvasBinaryResult(value, fallbackFileName, bridgeMaxPayloadSize),
   getBridgeVersion: () => BRIDGE_VERSION,
+  getEasyedaVersion,
 };
 
 const bakedDispatcher: Dispatcher = createDispatcher(dispatcherToolkit);
@@ -700,7 +700,7 @@ function promptConnectionValue(message: string, initialValue = ''): string | nul
   const promptFn = (globalThis as { prompt?: (text: string, value?: string) => string | null })
     .prompt;
   if (typeof promptFn !== 'function') {
-    showToast('Custom Remote needs an editor with an input dialog; Local remains available.');
+    showToast('Custom Remote input dialog unavailable; local works.');
     return null;
   }
   try {
@@ -755,7 +755,7 @@ function connectRemoteRelayInternal(
     }
   }
   if (typeof (globalThis as { WebSocket?: unknown }).WebSocket !== 'function') {
-    showToast('Remote Relay requires WebSocket support in this EasyEDA runtime.');
+    showToast('Remote Relay needs WebSocket in EasyEDA.');
     return;
   }
   disconnectInternal(false);
@@ -766,7 +766,7 @@ function connectRemoteRelayInternal(
 function disconnectRemoteRelayInternal(): void {
   getRemoteRelayClient().disconnect('user_disabled');
   selectedConnectionMode = 'local';
-  showToast('Remote Relay disabled. Choose Connect Local to reconnect locally.');
+  showToast('Remote Relay off. Use Connect for the local bridge.');
 }
 
 function showRemoteRelayStatusInternal(): void {
@@ -1422,7 +1422,7 @@ function disconnectInternal(notifyUser: boolean): void {
   } else if (wasConnecting) {
     showToast('MCP Bridge connection cancelled');
   } else {
-    showToast('MCP Bridge disconnected. Auto reconnect is paused until Connect.');
+    showToast('Bridge disconnected. Click Connect to resume.');
   }
 }
 

@@ -25,6 +25,8 @@ export interface DispatcherToolkit {
   normalizeCanvasBinaryResult?(value: unknown, fallbackFileName: string): Promise<unknown>;
   /** The bridge protocol version string reported by system.getStatus. */
   getBridgeVersion(): string;
+  /** Loader-owned editor version, resolved at status read time; optional for old toolkits. */
+  getEasyedaVersion?(): string | undefined;
 }
 
 export interface Dispatcher {
