@@ -4,7 +4,10 @@
  * measurements or manufacturing/electrical certification.
  */
 import { describe, expect, it } from 'vitest';
-import { validatePcbConstraints } from '../../../src/pcb-constraints/index.js';
+import {
+  PcbConstraintCodeMap,
+  validatePcbConstraints,
+} from '../../../src/pcb-constraints/index.js';
 import type {
   PcbConstraintInput,
   PcbConstraintResult,
@@ -231,15 +234,36 @@ const cases: RuleScenario[] = [
   },
 ];
 
+// One rule area can emit more than one published violation code. Keep the
+// second drill/manufacturability code covered by the same four-way contract.
+const additionalCodes: RuleScenario[] = [
+  {
+    area: 'Drill and annular ring',
+    code: 'PCB_ANNULAR_RING_TOO_SMALL',
+    good: { minAnnularRingMm: 0.15 },
+    bad: { minAnnularRingMm: 0.099 },
+    edge: { minAnnularRingMm: 0.1 },
+    unknown: { minAnnularRingMm: undefined },
+  },
+];
+
 describe('23 shipped PCB rules: deterministic evidence boundary matrix', () => {
   it('contains one unique area per shipped rule', () => {
     expect(cases).toHaveLength(23);
     expect(new Set(cases.map((entry) => entry.area)).size).toBe(cases.length);
     expect(validatePcbConstraints(input()).summary.totalChecks).toBe(cases.length);
+    const publishedCodes = new Set(
+      Object.values(PcbConstraintCodeMap)
+        .map((item) => item.code)
+        .filter((code) => code !== 'PCB_CONSTRAINT_INTERNAL'),
+    );
+    expect(new Set([...cases, ...additionalCodes].map((entry) => entry.code))).toEqual(
+      publishedCodes,
+    );
   });
 
-  for (const scenario of cases) {
-    describe(scenario.area, () => {
+  for (const scenario of [...cases, ...additionalCodes]) {
+    describe(`${scenario.area} — ${scenario.code}`, () => {
       it('positive evidence does not produce a false violation', () => {
         const report = validatePcbConstraints(input(scenario.good));
         expect(hasIssue(report, scenario.code)).toBe(false);
