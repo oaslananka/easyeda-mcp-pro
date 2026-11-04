@@ -143,6 +143,19 @@ describe('board inspection operations', () => {
     },
   );
 
+  it.each([null, undefined, 17, 'signal'])(
+    'rejects malformed native layer record %s before fabricating visible metadata',
+    async (entry) => {
+      const { operations } = makeOperations({
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-invalid-layer' }) },
+        PCB_Layer: { getAllLayers: async () => [{ name: 'Top Layer' }, entry] },
+      });
+      await expect(operations.listLayers()).rejects.toThrow(
+        'PCB_Layer.getAllLayers returned a malformed layer record',
+      );
+    },
+  );
+
   it('rejects listLayers when the layer API is unavailable', async () => {
     const { operations } = makeOperations({
       DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
@@ -1052,16 +1065,16 @@ describe('board inspection operations', () => {
     });
   });
 
-  it('normalizes absent layer metadata and stackup APIs without inventing values', async () => {
+  it('rejects absent layer records without changing stackup API fallback', async () => {
     const getAllLayers = vi.fn(async () => [undefined]);
     const { operations } = makeOperations({
       DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
       PCB_Layer: { getAllLayers },
     });
 
-    await expect(operations.listLayers()).resolves.toEqual([
-      { name: '', type: '', color: '', visible: true, order: 0 },
-    ]);
+    await expect(operations.listLayers()).rejects.toThrow(
+      'PCB_Layer.getAllLayers returned a malformed layer record',
+    );
     await expect(operations.getStackup()).resolves.toEqual({
       totalLayers: 0,
       boardThicknessMm: undefined,
