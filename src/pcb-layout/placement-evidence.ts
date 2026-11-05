@@ -305,7 +305,15 @@ export function reviewPlacementRelations(
   nativeTotal: number,
   available: boolean,
 ): PlacementReview {
-  const complete = available && components.length > 0 && nativeTotal === components.length;
+  // A matching count does not prove that a native inventory identifies distinct
+  // components. A reused or malformed ID can otherwise attribute an unrelated
+  // part's origin, rotation or footprint to the requested assembly relation.
+  const ids = components.map((component) => component.primitiveId);
+  const identitiesUnique =
+    ids.every((id) => typeof id === 'string' && id.length > 0 && id.trim() === id) &&
+    new Set(ids).size === ids.length;
+  const complete =
+    available && components.length > 0 && nativeTotal === components.length && identitiesUnique;
   const findings = relations.map((relation, index) =>
     inspectRelation(relation, components, complete, index),
   );

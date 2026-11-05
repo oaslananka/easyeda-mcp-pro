@@ -310,6 +310,39 @@ describe('read-only origin-based placement relationship observations', () => {
     expect(result.findings[0]?.measured_center_distance_mm).toBeUndefined();
   });
 
+  it('rejects a reused native primitive identity outside the selected assembly pair', () => {
+    const relation: PlacementRelation = {
+      first: 'U1',
+      second: 'C1',
+      kind: 'decoupling',
+      maxCenterDistanceMm: 1,
+      firstFootprintName: 'QFN-32',
+      constraintSource: 'Caller-owned assembly drawing',
+    };
+    const components: NativePlacement[] = [
+      { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1, footprintName: 'QFN-32' },
+      { primitiveId: 'c1', designator: 'C1', x: 500, y: 0, layer: 1 },
+      { primitiveId: 'u1', designator: 'R7', x: 800, y: 0, layer: 1 },
+    ];
+    for (const inventory of [
+      components,
+      [{ ...components[0], primitiveId: ' u1' }, ...components.slice(1)],
+    ]) {
+      const result = reviewPlacementRelations([relation], inventory, inventory.length, true);
+      expect(result.input_evidence.collection_complete).toBe(false);
+      expect(result.status).toBe('UNKNOWN');
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'caller_declared_unverified',
+        primitive_ids: [],
+        electrical_loop_status: 'UNKNOWN',
+      });
+      expect(result.findings[0]?.measured_center_distance_mm).toBeUndefined();
+      expect(result.findings[0]?.first_footprint_name).toBeUndefined();
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('compares rotation modulo 360 but requires explicitly declared limits', () => {
     const data: NativePlacement[] = [
       { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1, rotation: -10 },
