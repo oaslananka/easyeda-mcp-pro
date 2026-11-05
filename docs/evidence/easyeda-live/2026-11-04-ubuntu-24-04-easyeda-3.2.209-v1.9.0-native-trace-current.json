@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "observationDate": "2026-11-04",
+  "recordedAt": "2026-11-04T17:57:35+00:00",
+  "kind": "disposable-project-read-only-native-trace-current-acceptance",
+  "implementationCommit": "a289c1d3f71ed0000e1a8fd702e7e1dc144f383c",
+  "toolName": "easyeda_pcb_route_geometry_review",
+  "platform": {
+    "os": "Ubuntu 24.04.5 LTS",
+    "editor": "EasyEDA Pro Web 3.2.209",
+    "browser": "Chrome",
+    "node": "24.22.1",
+    "pnpm": "11.28.8"
+  },
+  "runtime": {
+    "serverVersion": "1.9.0",
+    "extensionVersion": "1.9.0",
+    "loaderVersion": "1.9.0",
+    "methodRegistryHash": "eee1634ec2fdb076",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "da093x898fxec2c",
+    "nativeCapabilityCount": 73,
+    "extensionVersionMismatch": false,
+    "registryMismatch": false,
+    "extensionPackageSha256": "844eb1a26f558ac26dedac98cf417957ecf12eeae584749d0ff154d818ae967e",
+    "extensionPackageBytes": 206178,
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false
+  },
+  "fixture": {
+    "kind": "owner-controlled disposable LED indicator PCB",
+    "privateProjectUuidWithheld": true,
+    "documentUuidWithheld": true,
+    "nativeFocusedPcbIdentityVerified": true,
+    "nativeTrackCount": 9,
+    "nativeViaCount": 0,
+    "nativeComponentCount": 3,
+    "observedNetNames": ["LED_5V", "LED_ANODE", "LED_GND"],
+    "nativeCollectionComplete": true,
+    "designMutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0,
+    "drcOrErcExecutions": 0
+  },
+  "checks": [
+    {
+      "id": "positive-measured-warning",
+      "declaredInputs": {
+        "net": "LED_5V",
+        "currentA": 1,
+        "temperatureRiseC": 10,
+        "layer": "external",
+        "copperWeightOz": 1,
+        "manufacturerMinWidthMm": 0.15
+      },
+      "observedMinimumMm": 0.254,
+      "empiricalReferenceMm": 0.3004,
+      "result": "WARNING",
+      "finding": "THERMAL_REFERENCE_SHORTFALL",
+      "geometryEvidence": "observed_bounded_segments",
+      "observedPrimitiveCount": 3,
+      "repeatedReadCount": 2,
+      "repeatedResultIdentical": true,
+      "unknowns": [
+        "VIA_CURRENT_UNKNOWN",
+        "REFERENCE_PLANE_UNVERIFIED",
+        "COPPER_CLEARANCE_UNVERIFIED"
+      ],
+      "engineeringSignOff": false
+    },
+    {
+      "id": "no-false-pass-at-low-declared-current",
+      "declaredInputs": {
+        "net": "LED_5V",
+        "currentA": 0.1,
+        "temperatureRiseC": 10,
+        "layer": "external",
+        "copperWeightOz": 1
+      },
+      "observedMinimumMm": 0.254,
+      "empiricalReferenceMm": 0.0125,
+      "result": "UNKNOWN",
+      "finding": "THERMAL_ADEQUACY_UNKNOWN",
+      "engineeringSignOff": false
+    },
+    {
+      "id": "wrong-project-identity",
+      "result": "UNKNOWN",
+      "nativeTracks": "unavailable",
+      "nativeVias": "unavailable",
+      "finding": "NATIVE_GEOMETRY_UNKNOWN",
+      "verified": "native focus identity rejected mismatched requested project UUID",
+      "engineeringSignOff": false
+    },
+    {
+      "id": "wrong-editor-tab-schematic",
+      "result": "UNKNOWN",
+      "nativeTracks": "unavailable",
+      "nativeVias": "unavailable",
+      "finding": "NATIVE_GEOMETRY_UNKNOWN",
+      "verified": "native PCB reader rejected non-PCB tab context",
+      "engineeringSignOff": false
+    }
+  ],
+  "limitations": [
+    "All current, temperature rise, copper weight, layer class and manufacturer minima are hypothetical caller declarations, not physically measured design requirements.",
+    "Only the bounded native line-segment widths were observed. Whole-current-path topology, finished copper, via ampacity, stackup, reference plane continuity and heat dissipation were NOT validated.",
+    "Only the EasyEDA Pro Web runtime was exercised. No native desktop, Windows or macOS validation was performed.",
+    "The active loader identity was confirmed at the moment of positive acceptance; a later separate read observed version drift back to 1.8.1 and correctly produced UNKNOWN until freshly source-matched again.",
+    "No PCB design save, design mutation, fabrication acceptance, electrical safety sign-off or thermal certification was performed.",
+    "Do not apply this record as source-bound evidence for any later behavior-changing commit without renewed validation."
+  ],
+  "finalDesignSignOff": false
+}

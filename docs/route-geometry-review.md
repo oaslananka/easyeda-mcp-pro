@@ -19,6 +19,25 @@ fabricator's design rules, or physical current/EMC validation.
 - Reads are individually identity-protected but **not an atomic board
   snapshot**. An empty collection can also indicate an unsupported native
   primitive getter, so it never proves a clean board.
+- If a native track or via collection is **unavailable**, any rows
+  supplied alongside that unavailable result are ignored for measured
+  warnings and right-angle advisories. Valid measurements from the
+  _other_ available collection remain reportable with incomplete
+  coverage and never establish a geometry or manufacturing pass.
+- Measured track widths, copper overlaps, 90° bends and via-transition candidates
+  require native segments with finite bounded coordinates, a positive width,
+  a valid layer and an **exact, non-padded net name**. Missing copper
+  geometry or ambiguous net identity produces \`UNKNOWN\`, not a geometry
+  warning or style advisory. A misleading 90° bend from an invalid-width
+  segment is excluded even when its endpoints appear connected.
+- Native primitive IDs must be present, unpadded and **unique within
+  each track/via inventory**. Duplicated track identities are excluded
+  from width, overlap, corner and via-transition attribution; duplicated
+  or absent via identities cannot yield an annular-geometry warning.
+  Such an inventory sets `collection_complete=false` and reports
+  `NATIVE_COLLECTION_INCOMPLETE=UNKNOWN`. Independent primitives
+  with unique identities may still report genuine observed warnings.
+
 - `minWidthMm` is a **caller-supplied** constraint, not proof of an active
   DRC or manufacturer minimum. The tool warns on observed segments narrower
   than that input; not observing such a warning is **not** a verified pass.
@@ -41,9 +60,38 @@ fabricator's design rules, or physical current/EMC validation.
 Findings include stable identifiers, affected primitive IDs, the net/layer
 when known, original junction coordinates, and the width/constraint that
 triggered the warning. An invalid or physically contradictory via
-drill-to-pad diameter may produce a warning. **Via current carrying
+drill-to-pad diameter may produce a warning. **When an observed same-net via center exactly matches native track
+endpoints carrying the same net on **two or more distinct native layer
+codes**, the tool emits `VIA_LAYER_TRANSITION_CANDIDATE=UNKNOWN` with
+the via/track primitive IDs, net name, center coordinate and raw layer
+codes. Missing or duplicate identities, malformed via dimensions and
+incomplete segment geometry cannot establish this observation. Raw
+layer codes are not treated as verified copper layers, and a coincident
+endpoint does not prove a plated via connection, electrical continuity
+or an adequate high-frequency return path. No via movement or DRC
+execution occurs.
+
+Via current carrying
 capacity is not calculated**, because plated barrel thickness, via layer
 span, current sharing and heat transfer are unverified.
+
+### Observed track-to-track copper contact
+
+A bounded pairwise check now measures shortest **finite centerline distance**
+between valid, same-layer **different-net** native copper line segments,
+subtracts half of both observed widths, and emits
+`OBSERVED_TRACK_COPPER_OVERLAP=WARNING` only when their projected copper
+widths touch or overlap. Findings identify both nets, primitive IDs, native
+layer and signed `observed_edge_gap_mm` (a negative value indicates projected
+overlap). Parallel, intersecting, and endpoint-to-endpoint cases are included;
+same-net joins and different-layer crossings are excluded.
+
+This is a **2D geometry warning**, not an assertion that the actual fabricated
+board shorts: native line collections may not include every object and do not
+prove finished copper topology. Pads, polygons, keepouts, board stackup and all
+remaining clearances continue to report `COPPER_CLEARANCE_UNVERIFIED=UNKNOWN`.
+An empty or disconnected native getter never supplies overlap evidence.
+Run native DRC and verify the relevant manufacturer rules separately.
 
 ## Optional current / observed net-width review
 
@@ -76,6 +124,15 @@ primitive IDs, editor/extension source versions and a model-reference width.
 It emits `WARNING` only for a real observed narrower segment relative to
 the stated empirical or manufacturer reference. **Even if the observed
 width is larger, result remains `UNKNOWN`**, never a current-carrying PASS.
+
+Native trace-width measurements require exact nonblank net/primitive IDs,
+globally unique primitive IDs across the entire returned track collection,
+bounded finite coordinates and positive bounded native segment widths. This
+prevents attributing the same native track to two nets or treating malformed
+net labels as measured copper. An invalid (nonpositive or nonfinite)
+caller-declared manufacturer minimum is explicitly reported as
+\`FABRICATION_DECLARATION_INVALID=UNKNOWN\`, not silently treated as a
+verified process limit.
 
 The comparison fails closed if the active project/focus/native reader fails,
 if the read is truncated or malformed, if the named net is absent, or if
@@ -137,10 +194,17 @@ datasheet or actual PCB manufacturer.
     "maxSkewMm": 0.6,
     "minEdgeGapMm": 0.15,
     "maxEdgeGapMm": 0.35,
-    "targetImpedanceOhms": 90
+    "targetImpedanceOhms": 90,
+    "constraintSource": "Illustrative only: verify against the target device datasheet revision"
   }
 }
 ```
+
+The optional `constraintSource` records the **caller-supplied** datasheet,
+manufacturer document or design revision that motivated the numeric bounds.
+The output `constraint_source` is `null` when omitted; protocol guidance
+references are kept separate and cannot stand in for a device-specific
+limit source. The source string itself is never independently verified.
 
 This is an **example with hypothetical, caller-declared limits**, not a
 manufacturer recommendation. The source of each limit must be established
@@ -149,6 +213,23 @@ separately. For LVDS and other device-specific interfaces use
 universal threshold. Protocol references originate from the canonical
 `src/design-rules/protocol-routing.ts` catalog, shared with
 `easyeda_design_rules_lookup`; the model does not recreate the standard.
+
+Both declared pair net names must be **distinct, exact, nonblank identities**.
+A missing, padded or identical pair name leaves skew and spacing **UNKNOWN**,
+rather than comparing the same copper path against itself. Caller-declared
+skew/spacing limits must be finite and nonnegative; an inverted spacing
+interval cannot establish a within-limit reference.
+
+Differential-pair measurements require exact, nonblank native primitive IDs
+that remain unique across the **entire observed track inventory**, and
+unique IDs across observed vias. A repeated or padded identity produces
+ambiguous source evidence, with skew/spacing **UNKNOWN** even if two
+displayed net rows appear plausible. Native segment nets must be exact,
+copper widths positive and bounded, and all coordinates finite within
+the supported native range; malformed observations cannot establish a
+length or within-limit spacing verdict. Neither this check nor the
+native reader verifies a physical pad, electrical return path or full
+device-to-connector signal route.
 
 The optional `differential_pair` result reports both native net identities,
 observed segment counts/primitive IDs, physical length in **mm**, and
@@ -195,6 +276,13 @@ then, the deterministic tests demonstrate software behavior only.
 
 ## Component-origin placement relationships (optional)
 
+Native component enumeration must contain unique, exact, nonblank primitive IDs
+**and designators across the entire bounded inventory**, including parts not
+named in a requested relation. Missing/padded/reused designators make
+'collection_complete=false' and leave placement distances **UNKNOWN**;
+a selected pair cannot be attributed safely from an ambiguous component
+inventory. This does not verify physical pads or component packages.
+
 The same read-only MCP tool supports up to eight `placementRelations` in a
 single request, using the existing `pcb.listComponents` native reader. It
 enumerates **at most 200** focused-PCB components and records native
@@ -232,7 +320,17 @@ explicit caller-provided `constraintSource` is required; it remains
 
 Supported relation contexts: `decoupling`, `switching-loop`, `crystal`,
 `esd-entry`, `feedback`, and `sensitive-adjacency`. Rotation comparison
-supports `firstRotationDeg` and `rotationToleranceDeg` with wraparound.
+supports `firstRotationDeg` and `rotationToleranceDeg` with wraparound. It also supports `secondRotationDeg` and `secondRotationToleranceDeg` to check the second footprint independently; both comparisons use observed native rotation and caller-supplied tolerances, never inferred ESD, crystal, or power-loop compliance. If a required rotation is missing, the relationship remains `UNKNOWN` unless another independent declared limit already produces a `WARNING`. Duplicate native primitive identity across two named components is invalid evidence, not proof of their separation.
+The optional `firstFootprintName` and `secondFootprintName` fields
+compare **exact native PCB footprint names** against an explicitly
+declared, sourced expectation. A mismatch is a `WARNING`; a matching
+name remains `UNKNOWN` because this is not a physical package,
+pad/pinout, library-revision or assembly side/orientation
+certification. Absent or malformed native footprint names are
+`UNKNOWN`, not invented mismatches or passes. The existing
+`pcb.listComponents` read is reused without a new bridge capability
+or design write.
+
 `requireSameLayer` compares **native layer numbers only**; the tool does
 not assume undocumented native layer codes prove top/bottom assembly side.
 
@@ -255,7 +353,21 @@ primitive reads are **not an atomic PCB snapshot**.
 A verified power/buck loop needs actual pad coordinates, pad-net
 connections, copper/return plane continuity and relevant device-layout
 requirements; those data are **not exposed** by the current
-`pcb.listComponents` read contract. This bounded inspection does not
+`pcb.listComponents` read contract.
+
+A bounded [read-only EasyEDA Web 3.2.209 beta pad experiment](./evidence/easyeda-live/2026-11-04-ubuntu-24-04-easyeda-3.2.209-v1.9.0-pcb-842-beta-pad.json)
+confirmed that `PCB_PrimitivePad.getAll` and
+`PCB_PrimitiveComponent.getAllPinsByPrimitiveId` return six source-matched
+pad identities, parent footprint references, pad/net labels and finite
+coordinates in **one disposable LED PCB**. Two consecutive global reads
+agreed and the pad net labels matched the disposable schematic.
+These native APIs are **beta and not recommended for production** by
+EasyEDA's documentation, so the observation is research evidence only:
+**no production pad reader, power-loop check or electrical approval** was
+added. The observed raw native layer codes `1` and `12` are not
+interpreted as physical copper-layer indices or board sides. Native
+coordinate units/transforms, copper continuity and return paths remain
+unverified. This bounded inspection does not
 claim EMI immunity, SI correctness, safety compliance, autorouting
 or a manufacturing approval. Exact-source live acceptance on a
 disposable EasyEDA PCB remains a separate required milestone.

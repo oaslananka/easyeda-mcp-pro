@@ -389,6 +389,20 @@ describe('generateBomQualityReport', () => {
     );
   });
 
+  it('does not mistake a manufacturer name for an exact manufacturer part number', async () => {
+    const report = await generateBomQualityReport(
+      'bom-1',
+      [
+        entry({ reference: 'U1', mpn: undefined, manufacturer: 'KnownVendor' }),
+        entry({ reference: 'U2', mpn: 'REAL-MPN', manufacturer: 'KnownVendor' }),
+      ],
+      mockAdapters(),
+    );
+    expect(report.summary.missingMpnCount).toBe(1);
+    expect(report.entries[0]!.issues.map((issue) => issue.type)).toContain('missing_mpn');
+    expect(report.entries[1]!.issues.map((issue) => issue.type)).not.toContain('missing_mpn');
+  });
+
   it('flags package mismatch as unsafe substitution caveat', async () => {
     const adapters = mockAdapters({
       mouser: {

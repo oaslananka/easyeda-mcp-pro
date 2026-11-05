@@ -115,6 +115,156 @@ describe('optional source-aware electrical review MCP contract', () => {
     expect(tool.outputSchema.parse(result)).toEqual(result);
   });
 
+  it('reports a named support-pin net mismatch using the existing read-only tool', async () => {
+    const { tool, context, call } = toolSetup();
+    const declaredDevices = [
+      ...devices,
+      {
+        id: 'C1',
+        ref: 'C1',
+        pins: [
+          { pin: '1', electricalType: 'passive' as const },
+          { pin: '2', electricalType: 'passive' as const },
+        ],
+      },
+    ];
+    const declaredNets = [
+      { ...nets[0]!, nodes: [...nets[0]!.nodes, { deviceRef: 'C1', pin: '1' }] },
+      { ...nets[1]!, nodes: [...nets[1]!.nodes, { deviceRef: 'C1', pin: '2' }] },
+      nets[2]!,
+    ];
+    const baseline = {
+      kind: 'required_support',
+      componentRef: 'U1',
+      pin: 'VDD',
+      supportRef: 'C1',
+      supportPin: '2',
+      function: 'decoupling',
+      reference: source,
+    };
+    expect(
+      tool.inputSchema.safeParse({
+        nets: declaredNets,
+        devices: declaredDevices,
+        datasheetConstraints: [baseline],
+      }).success,
+    ).toBe(true);
+    expect(
+      tool.inputSchema.safeParse({
+        nets: declaredNets,
+        devices: declaredDevices,
+        datasheetConstraints: [{ ...baseline, supportPin: ' 2 ' }],
+      }).success,
+    ).toBe(false);
+    const result = await tool.handler(context, {
+      nets: declaredNets,
+      devices: declaredDevices,
+      datasheetConstraints: [baseline],
+    });
+    expect(result.datasheet_review.findings[0]).toMatchObject({
+      kind: 'required_support',
+      status: 'WARNING',
+      component_ref: 'U1',
+      related_component_ref: 'C1',
+      related_pin: '2',
+      nets: ['5V', 'GND'],
+    });
+    expect(result.electrical_approval).toBe(false);
+    expect(result.passed).toBe(false);
+    expect(tool.outputSchema.parse(result)).toEqual(result);
+    expect(call).not.toHaveBeenCalled();
+    const absentOptionalPin = await tool.handler(context, {
+      nets: declaredNets,
+      devices: declaredDevices,
+      datasheetConstraints: [{ ...baseline, supportPin: undefined }],
+    });
+    expect(absentOptionalPin.datasheet_review.findings[0]).toMatchObject({ status: 'UNKNOWN' });
+    expect(absentOptionalPin.datasheet_review.findings[0].related_pin).toBeUndefined();
+    expect(tool.outputSchema.parse(absentOptionalPin)).toEqual(absentOptionalPin);
+  });
+
+  it('checks source-declared I/O supply domain bounds without assuming datasheet authenticity', async () => {
+    const { tool, context, call } = toolSetup();
+    const constraint = {
+      kind: 'io_domain_voltage',
+      componentRef: 'U1',
+      pin: 'IO',
+      supplyPin: 'VREF',
+      maxAboveSupplyV: 0.3,
+      reference: source,
+    };
+    const data = [nets[0]!, nets[1]!, { ...nets[2]!, voltage: 3.3 }];
+    expect(
+      tool.inputSchema.safeParse({
+        nets: data,
+        devices,
+        datasheetConstraints: [constraint],
+      }).success,
+    ).toBe(true);
+    const result = await tool.handler(context, {
+      nets: data,
+      devices,
+      datasheetConstraints: [constraint],
+    });
+    expect(result).toMatchObject({
+      passed: false,
+      electrical_approval: false,
+      datasheet_review: {
+        status: 'WARNING',
+        source_authenticity: 'CALLER_DECLARED_UNVERIFIED',
+        netlist_scope: 'CALLER_SUPPLIED_NOT_LIVE_VERIFIED',
+        findings: [
+          {
+            kind: 'io_domain_voltage',
+            status: 'WARNING',
+            component_ref: 'U1',
+            pins: ['IO', 'VREF'],
+            nets: ['5V', '3V3_NOMINAL'],
+            source,
+          },
+        ],
+      },
+    });
+    expect(tool.outputSchema.parse(result)).toEqual(result);
+    expect(call).not.toHaveBeenCalled();
+
+    const matching = await tool.handler(context, {
+      nets: [{ ...data[0]!, voltage: 3.6 }, data[1]!, data[2]!],
+      devices,
+      datasheetConstraints: [constraint],
+    });
+    expect(matching.datasheet_review.findings[0]?.status).toBe('UNKNOWN');
+    expect(matching.electrical_approval).toBe(false);
+    expect(tool.outputSchema.parse(matching)).toEqual(matching);
+  });
+
+  it('rejects invalid I/O domain pin identity, allowance and source metadata at input', () => {
+    const { tool } = toolSetup();
+    const valid = {
+      kind: 'io_domain_voltage',
+      componentRef: 'U1',
+      pin: 'IO',
+      supplyPin: 'VREF',
+      maxAboveSupplyV: 0.3,
+      reference: source,
+    };
+    const invalid = [
+      { ...valid, supplyPin: 'IO' },
+      { ...valid, maxAboveSupplyV: -0.1 },
+      { ...valid, maxAboveSupplyV: Infinity },
+      { ...valid, reference: { ...source, revision: '' } },
+    ];
+    for (const constraint of invalid) {
+      expect(
+        tool.inputSchema.safeParse({
+          nets,
+          devices,
+          datasheetConstraints: [constraint],
+        }).success,
+      ).toBe(false);
+    }
+  });
+
   it('keeps undeclared/in-range datasheet compliance unapproved', async () => {
     const { tool, context } = toolSetup();
     const result = await tool.handler(context, {

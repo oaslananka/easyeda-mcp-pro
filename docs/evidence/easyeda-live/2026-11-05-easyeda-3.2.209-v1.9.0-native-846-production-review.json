@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "observationDate": "2026-11-05",
+  "kind": "source-bound-native-dfm-readonly-disposable-board",
+  "implementationCommit": "85a84aa098d22207e67345ca28fc9a1833c7305b",
+  "runtime": {
+    "editor": "EasyEDA Pro Web 3.2.209",
+    "extensionVersion": "1.9.0",
+    "registryMismatch": false,
+    "extensionVersionMismatch": false
+  },
+  "source": {
+    "kind": "owner-controlled disposable LED indicator PCB",
+    "projectUuidWithheld": true,
+    "documentUuidWithheld": true,
+    "projectScopedNativeReads": true,
+    "sourceIdentityVerifiedSeparatelySameFocusedTab": true,
+    "designMutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0,
+    "nativeDrcOrErcExecutions": 0
+  },
+  "declaredProfile": {
+    "manufacturer": "Hypothetical internal QA test profile",
+    "process": "Disposable native DFM comparison, not a vendor process",
+    "revision": "test-only-2026-11-05",
+    "source": "Synthetic comparison limits for read-only acceptance, NOT documented fabrication capabilities",
+    "limits": {
+      "maximumBoardWidthMm": 20,
+      "maximumBoardHeightMm": 18,
+      "minimumFinishedDrillMm": 0.8,
+      "minimumAnnularRingMm": 0.15,
+      "minimumCriticalNetTestpointRatio": 0.9,
+      "requireProgrammingHeader": true
+    },
+    "manufacturerCertification": false
+  },
+  "observedNativeMetrics": {
+    "boardWidthMm": 21.59,
+    "boardHeightMm": 16.51,
+    "boardOutlineReportedPresent": true,
+    "minimumDrillMm": 1.1,
+    "stackupDetailedLayersUnavailable": true,
+    "layerCountReported": 2
+  },
+  "findings": [
+    {
+      "id": "minimumFinishedDrillMm",
+      "status": "UNKNOWN",
+      "comparison": "WITHIN_DECLARED_LIMIT",
+      "actual": 1.1,
+      "declaredLimit": 0.8,
+      "units": "mm",
+      "sourceField": "minDrillMm",
+      "measurementEvidence": "native_partial_unverified",
+      "profileRevision": "test-only-2026-11-05"
+    },
+    {
+      "id": "minimumAnnularRingMm",
+      "status": "UNKNOWN",
+      "comparison": "UNKNOWN",
+      "declaredLimit": 0.15,
+      "units": "mm",
+      "sourceField": "minAnnularRingMm",
+      "measurementEvidence": "unavailable",
+      "profileRevision": "test-only-2026-11-05"
+    },
+    {
+      "id": "maximumBoardWidthMm",
+      "status": "WARNING",
+      "comparison": "ABOVE_DECLARED_LIMIT",
+      "actual": 21.59,
+      "declaredLimit": 20,
+      "units": "mm",
+      "sourceField": "widthMm",
+      "measurementEvidence": "native_partial_unverified",
+      "profileRevision": "test-only-2026-11-05"
+    },
+    {
+      "id": "maximumBoardHeightMm",
+      "status": "UNKNOWN",
+      "comparison": "WITHIN_DECLARED_LIMIT",
+      "actual": 16.51,
+      "declaredLimit": 18,
+      "units": "mm",
+      "sourceField": "heightMm",
+      "measurementEvidence": "native_partial_unverified",
+      "profileRevision": "test-only-2026-11-05"
+    },
+    {
+      "id": "minimumCriticalNetTestpointRatio",
+      "status": "UNKNOWN",
+      "comparison": "UNKNOWN",
+      "declaredLimit": 0.9,
+      "units": "ratio",
+      "sourceField": "criticalNetNames / testPointNets",
+      "measurementEvidence": "unavailable",
+      "profileRevision": "test-only-2026-11-05"
+    },
+    {
+      "id": "requireProgrammingHeader",
+      "status": "UNKNOWN",
+      "comparison": "UNKNOWN",
+      "declaredLimit": true,
+      "units": "boolean",
+      "sourceField": "hasProgrammingHeader",
+      "measurementEvidence": "unavailable",
+      "profileRevision": "test-only-2026-11-05"
+    }
+  ],
+  "toolResult": {
+    "passed": false,
+    "blocked": true,
+    "gateMode": "block",
+    "manualReviewRequired": true,
+    "fabricationApproval": false,
+    "unknownChecksCount": 18
+  },
+  "limitations": [
+    "Synthetic manufacturer profile is NOT a supplier data sheet or a claim about any actual fabrication or assembly capability.",
+    "Native board dimensions and drill size come from a source-bound focused disposable PCB read, but manufacturer capabilities and missing profile fields were not verified.",
+    "Detailed stackup, annular ring, test-point coverage, programming access, solder mask, BOM/package mapping, assembly export, copper continuity and real fab/assembly readiness remain unknown.",
+    "No PCB design mutation, save, export, ordering, native DRC/ERC or external supplier communication was performed.",
+    "An in-range metric is UNKNOWN, not fabrication approval. This is one EasyEDA Pro Web 3.2.209 fixture, not cross-version qualification."
+  ]
+}

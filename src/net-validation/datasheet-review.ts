@@ -25,6 +25,15 @@ export type DatasheetConstraint =
       maxVoltageV?: number;
     }
   | {
+      kind: 'io_domain_voltage';
+      componentRef: string;
+      pin: string;
+      supplyPin: string;
+      /** Caller-declared maximum I/O voltage above its explicitly stated supply. */
+      maxAboveSupplyV: number;
+      reference: DatasheetReference;
+    }
+  | {
       kind: 'intentional_nc';
       componentRef: string;
       pin: string;
@@ -35,6 +44,8 @@ export type DatasheetConstraint =
       componentRef: string;
       pin: string;
       supportRef: string;
+      /** Exact declared support pin; missing means connectivity is unverified. */
+      supportPin?: string;
       function: 'pull' | 'decoupling' | 'reset_boot' | 'esd' | 'protection';
       reference: DatasheetReference;
     }
@@ -54,6 +65,8 @@ export interface DatasheetFinding {
   kind: DatasheetConstraint['kind'];
   status: Observation;
   component_ref: string;
+  related_component_ref?: string;
+  related_pin?: string;
   pins: string[];
   nets: string[];
   observed_voltages_v: Array<{ net: string; voltage_v: number }>;
@@ -77,16 +90,38 @@ type PinLookup =
   | { status: 'UNCONNECTED' }
   | { status: 'UNKNOWN' };
 
+function uniqueExactIdentities(values: string[]): boolean {
+  return (
+    values.every(
+      (value) => typeof value === 'string' && value.length > 0 && value.trim() === value,
+    ) && new Set(values).size === values.length
+  );
+}
+
+function sourceIdentityUnambiguous(
+  nets: NetValidationEntry[],
+  devices: DeviceValidationEntry[] | undefined,
+): boolean {
+  return (
+    devices !== undefined &&
+    uniqueExactIdentities(nets.map((net) => net.id)) &&
+    uniqueExactIdentities(nets.map((net) => net.name)) &&
+    uniqueExactIdentities(devices.map((device) => device.id)) &&
+    uniqueExactIdentities(devices.map((device) => device.ref))
+  );
+}
+
 function findPinNet(
   componentRef: string,
   pin: string,
   nets: NetValidationEntry[],
   devices: DeviceValidationEntry[] | undefined,
 ): PinLookup {
+  if (!sourceIdentityUnambiguous(nets, devices)) return { status: 'UNKNOWN' };
+  const matchedDevices = devices?.filter((device) => device.ref === componentRef);
   if (
-    !devices?.some(
-      (device) => device.ref === componentRef && device.pins?.some((p) => p.pin === pin),
-    )
+    matchedDevices?.length !== 1 ||
+    matchedDevices[0]?.pins?.filter((p) => p.pin === pin).length !== 1
   )
     return { status: 'UNKNOWN' };
   const matched = nets.filter((net) =>
@@ -94,8 +129,16 @@ function findPinNet(
   );
   if (matched.length > 1) return { status: 'UNKNOWN' };
   const one = matched[0];
-  if (matched.length === 1 && one) return { status: 'CONNECTED', net: one };
-  return { status: 'UNCONNECTED' };
+  if (!one) return { status: 'UNCONNECTED' };
+  // A single matching record is not unique when another net reuses
+  // its ID/name or the record itself repeats the pin node.
+  if (
+    one.nodes.filter((node) => node.deviceRef === componentRef && node.pin === pin).length !== 1 ||
+    nets.some((net) => net !== one && (net.id === one.id || net.name === one.name))
+  ) {
+    return { status: 'UNKNOWN' };
+  }
+  return { status: 'CONNECTED', net: one };
 }
 
 function finding(
@@ -236,6 +279,74 @@ function reviewPinVoltage(
   );
 }
 
+function invalidIoDomainComparison(
+  constraint: Extract<DatasheetConstraint, { kind: 'io_domain_voltage' }>,
+  differenceV: number,
+): boolean {
+  return (
+    constraint.pin === constraint.supplyPin ||
+    !Number.isFinite(constraint.maxAboveSupplyV) ||
+    constraint.maxAboveSupplyV < 0 ||
+    !Number.isFinite(differenceV)
+  );
+}
+
+function reviewIoDomainVoltage(
+  c: Extract<DatasheetConstraint, { kind: 'io_domain_voltage' }>,
+  index: number,
+  nets: NetValidationEntry[],
+  devices: DeviceValidationEntry[] | undefined,
+): DatasheetFinding {
+  const io = findPinNet(c.componentRef, c.pin, nets, devices);
+  const supply = findPinNet(c.componentRef, c.supplyPin, nets, devices);
+  const observed = [...voltageObservation(io), ...voltageObservation(supply)];
+  const names = [
+    ...(io.status === 'CONNECTED' ? [io.net.name] : []),
+    ...(supply.status === 'CONNECTED' ? [supply.net.name] : []),
+  ];
+  const pins = [c.pin, c.supplyPin];
+  if (io.status !== 'CONNECTED' || supply.status !== 'CONNECTED' || observed.length !== 2) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'Unique I/O and supply pin connections with two explicitly declared numeric net voltages are required.',
+      pins,
+      names,
+      observed,
+    );
+  }
+  const ioVoltage = observed[0]?.voltage_v;
+  const supplyVoltage = observed[1]?.voltage_v;
+  const difference = (ioVoltage ?? Number.NaN) - (supplyVoltage ?? Number.NaN);
+  if (invalidIoDomainComparison(c, difference)) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'The I/O supply pin identity, declared allowance or voltage difference is invalid.',
+      pins,
+      names,
+      observed,
+      'explicit_netlist',
+    );
+  }
+  // 1e-12 V only compensates floating-point rounding, not electrical tolerance.
+  const violated = difference > c.maxAboveSupplyV + 1e-12;
+  return finding(
+    index,
+    c,
+    violated ? 'WARNING' : 'UNKNOWN',
+    violated
+      ? 'Caller-declared I/O voltage exceeds the source-declared supply-relative upper bound.'
+      : 'Declared I/O voltage is within the supply-relative upper bound; logic levels, negative limits, rail tolerance and physical behavior remain unverified.',
+    pins,
+    names,
+    observed,
+    'explicit_netlist',
+  );
+}
+
 function reviewNoConnect(
   c: Extract<DatasheetConstraint, { kind: 'intentional_nc' }>,
   index: number,
@@ -267,26 +378,87 @@ function reviewNoConnect(
   );
 }
 
+function supportMessage(
+  mismatched: boolean,
+  target: PinLookup,
+  support: PinLookup | undefined,
+  supportPresent: boolean | undefined,
+): string {
+  if (mismatched)
+    return 'Declared support pin and target pin connect to different nets in the caller-supplied netlist.';
+  if (support === undefined)
+    return supportPresent
+      ? 'Named support component is declared, but its electrical connection, value, location and function are unverified.'
+      : 'Named required support component is absent from the supplied device inventory; completeness and live absence are unverified.';
+  return target.status === 'CONNECTED' && support.status === 'CONNECTED'
+    ? 'Both explicitly named pins share a declared net; component function, support value, other terminal, location and physical adequacy remain unverified.'
+    : 'One or both exact pin connections are missing or ambiguous; support topology cannot be established.';
+}
+
+function findSupportPin(
+  c: Extract<DatasheetConstraint, { kind: 'required_support' }>,
+  nets: NetValidationEntry[],
+  devices: DeviceValidationEntry[] | undefined,
+): PinLookup | undefined {
+  return c.supportPin === undefined
+    ? undefined
+    : findPinNet(c.supportRef, c.supportPin, nets, devices);
+}
+
+function unverifiedSelfSupport(
+  c: Extract<DatasheetConstraint, { kind: 'required_support' }>,
+  index: number,
+): DatasheetFinding {
+  return {
+    ...finding(
+      index,
+      c,
+      'UNKNOWN',
+      'The same component cannot independently evidence its own declared external support; select a distinct support part.',
+      [c.pin],
+      [],
+    ),
+    related_component_ref: c.supportRef,
+    ...(c.supportPin === undefined ? {} : { related_pin: c.supportPin }),
+  };
+}
+
 function reviewSupport(
   c: Extract<DatasheetConstraint, { kind: 'required_support' }>,
   index: number,
   nets: NetValidationEntry[],
   devices: DeviceValidationEntry[] | undefined,
 ): DatasheetFinding {
-  const pin = findPinNet(c.componentRef, c.pin, nets, devices);
+  if (c.componentRef === c.supportRef) return unverifiedSelfSupport(c, index);
+  const target = findPinNet(c.componentRef, c.pin, nets, devices);
+  const support = findSupportPin(c, nets, devices);
+  const names = [
+    ...(target.status === 'CONNECTED' ? [target.net.name] : []),
+    ...(support?.status === 'CONNECTED' ? [support.net.name] : []),
+  ];
+  const distinctNets = [...new Set(names)];
+  const mismatched =
+    target.status === 'CONNECTED' &&
+    support?.status === 'CONNECTED' &&
+    (target.net.id !== support.net.id || target.net.name !== support.net.name);
   const supportPresent = devices?.some((device) => device.ref === c.supportRef);
-  const names = pin.status === 'CONNECTED' ? [pin.net.name] : [];
-  return finding(
-    index,
-    c,
-    'UNKNOWN',
-    supportPresent
-      ? 'Named support component is declared, but its electrical connection, value, location and function are unverified.'
-      : 'Named required support component is absent from the supplied device inventory; completeness and live absence are unverified.',
-    [c.pin],
-    names,
-    voltageObservation(pin),
-  );
+  const message = supportMessage(mismatched, target, support, supportPresent);
+  return {
+    ...finding(
+      index,
+      c,
+      mismatched ? 'WARNING' : 'UNKNOWN',
+      message,
+      [c.pin],
+      distinctNets,
+      voltageObservation(target),
+      target.status === 'CONNECTED' && support?.status === 'CONNECTED'
+        ? 'explicit_netlist'
+        : 'incomplete_or_ambiguous',
+    ),
+    related_component_ref: c.supportRef,
+    ...(c.supportPin === undefined ? {} : { related_pin: c.supportPin }),
+  };
 }
 
 function reviewHeadroom(
@@ -357,6 +529,8 @@ export function reviewDatasheetConstraints(
     switch (constraint.kind) {
       case 'pin_voltage':
         return reviewPinVoltage(constraint, index, nets, devices);
+      case 'io_domain_voltage':
+        return reviewIoDomainVoltage(constraint, index, nets, devices);
       case 'intentional_nc':
         return reviewNoConnect(constraint, index, nets, devices);
       case 'required_support':

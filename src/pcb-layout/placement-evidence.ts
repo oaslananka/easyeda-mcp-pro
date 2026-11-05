@@ -26,6 +26,11 @@ export interface PlacementRelation {
   requireSameLayer?: boolean;
   firstRotationDeg?: number;
   rotationToleranceDeg?: number;
+  secondRotationDeg?: number;
+  secondRotationToleranceDeg?: number;
+  /** Exact expected native footprint name from a caller's assembly source. */
+  firstFootprintName?: string;
+  secondFootprintName?: string;
   constraintSource?: string;
 }
 
@@ -40,7 +45,13 @@ export interface PlacementFinding {
   declared_max_center_distance_mm?: number;
   native_layers?: number[];
   first_rotation_deg?: number;
+  second_rotation_deg?: number;
   declared_first_rotation_deg?: number;
+  declared_second_rotation_deg?: number;
+  first_footprint_name?: string;
+  second_footprint_name?: string;
+  declared_first_footprint_name?: string;
+  declared_second_footprint_name?: string;
   constraint_source?: string;
   reasons: string[];
   electrical_loop_status: 'UNKNOWN';
@@ -144,6 +155,72 @@ function applyRotationConstraint(
   }
 }
 
+function applySecondRotationConstraint(
+  relation: PlacementRelation,
+  second: NativePlaced,
+  finding: PlacementFinding,
+  reasons: string[],
+): void {
+  const target = relation.secondRotationDeg;
+  const tolerance = relation.secondRotationToleranceDeg;
+  if (target === undefined) {
+    if (tolerance !== undefined) {
+      finding.reasons.push('Second component rotation tolerance has no target.');
+    }
+    return;
+  }
+  if (!Number.isFinite(target)) {
+    finding.reasons.push('Second component rotation target is invalid.');
+    return;
+  }
+  finding.declared_second_rotation_deg = target;
+  if (
+    tolerance !== undefined &&
+    (!Number.isFinite(tolerance) || tolerance < 0 || tolerance > 180)
+  ) {
+    finding.reasons.push('Second component rotation tolerance is invalid.');
+    return;
+  }
+  if (!Number.isFinite(second.rotation)) {
+    finding.reasons.push('Second component native rotation is missing.');
+    return;
+  }
+  if (angularDifference(second.rotation as number, target) > (tolerance ?? 0) + 1e-9) {
+    reasons.push('Second component rotation exceeds its explicitly declared angular tolerance.');
+  }
+}
+
+function compareNativeFootprint(
+  expected: string | undefined,
+  nativeName: string | undefined,
+  componentOrder: 'first' | 'second',
+  finding: PlacementFinding,
+  warnings: string[],
+): void {
+  if (expected === undefined) return;
+  if (!expected || expected !== expected.trim()) {
+    finding.reasons.push('Caller-declared ' + componentOrder + ' footprint name is invalid.');
+    return;
+  }
+  if (componentOrder === 'first') finding.declared_first_footprint_name = expected;
+  else finding.declared_second_footprint_name = expected;
+  if (!nativeName || nativeName !== nativeName.trim()) {
+    finding.reasons.push(
+      'Native ' + componentOrder + ' footprint identity is missing or ambiguous.',
+    );
+    return;
+  }
+  if (componentOrder === 'first') finding.first_footprint_name = nativeName;
+  else finding.second_footprint_name = nativeName;
+  if (expected !== nativeName) {
+    warnings.push(
+      'Native ' +
+        componentOrder +
+        ' footprint name differs from the declared exact footprint identity.',
+    );
+  }
+}
+
 function compareComponentOrigins(
   relation: PlacementRelation,
   first: NativePlaced,
@@ -156,12 +233,22 @@ function compareComponentOrigins(
   base.measured_center_distance_mm = distanceMm;
   base.native_layers = [first.layer, second.layer];
   if (Number.isFinite(first.rotation)) base.first_rotation_deg = first.rotation;
+  if (Number.isFinite(second.rotation)) base.second_rotation_deg = second.rotation;
   const reasons: string[] = [];
   applyDistanceConstraint(relation, distanceMm, base, reasons);
   if (relation.requireSameLayer && first.layer !== second.layer) {
     reasons.push('Native component layers differ; caller required the same native layer.');
   }
   applyRotationConstraint(relation, first, base, reasons);
+  applySecondRotationConstraint(relation, second, base, reasons);
+  compareNativeFootprint(relation.firstFootprintName, first.footprintName, 'first', base, reasons);
+  compareNativeFootprint(
+    relation.secondFootprintName,
+    second.footprintName,
+    'second',
+    base,
+    reasons,
+  );
   if (reasons.length) base.status = 'WARNING';
   base.reasons.push(...reasons);
   base.reasons.push(
@@ -197,7 +284,13 @@ function inspectRelation(
   const b = components.filter((component) => component.designator === relation.second);
   const first = a[0],
     second = b[0];
-  if (a.length !== 1 || b.length !== 1 || !validComponent(first) || !validComponent(second)) {
+  if (
+    a.length !== 1 ||
+    b.length !== 1 ||
+    !validComponent(first) ||
+    !validComponent(second) ||
+    first.primitiveId === second.primitiveId
+  ) {
     base.reasons.push(
       'A declared designator is missing, duplicated, or lacks native origin/layer evidence.',
     );
@@ -212,7 +305,24 @@ export function reviewPlacementRelations(
   nativeTotal: number,
   available: boolean,
 ): PlacementReview {
-  const complete = available && components.length > 0 && nativeTotal === components.length;
+  // A matching count does not prove that a native inventory identifies distinct
+  // components. A reused or malformed ID can otherwise attribute an unrelated
+  // part's origin, rotation or footprint to the requested assembly relation.
+  const ids = components.map((component) => component.primitiveId);
+  const designators = components.map((component) => component.designator);
+  const identitiesUnique =
+    ids.every((id) => typeof id === 'string' && id.length > 0 && id.trim() === id) &&
+    new Set(ids).size === ids.length;
+  const designatorsUnique =
+    designators.every(
+      (name) => typeof name === 'string' && name.length > 0 && name.trim() === name,
+    ) && new Set(designators).size === designators.length;
+  const complete =
+    available &&
+    components.length > 0 &&
+    nativeTotal === components.length &&
+    identitiesUnique &&
+    designatorsUnique;
   const findings = relations.map((relation, index) =>
     inspectRelation(relation, components, complete, index),
   );
@@ -232,6 +342,7 @@ export function reviewPlacementRelations(
       'Native component origins are not PCB pad locations or actual routed current-path distances.',
       'No pad/net topology or copper loop/plane continuity was verified; decoupling, buck and ESD loop adequacy remain UNKNOWN.',
       'Rotation and native layer are reported without inferring top/bottom orientation from an undocumented layer number.',
+      'Exact footprint name comparison is not verification of package dimensions, land pattern, pad alignment or manufacturer authenticity.',
       'Numeric distance/angle limits and their source are caller-supplied and not verified device datasheet constraints.',
       'Read-only bounded non-atomic PCB component snapshot; missing native component getters can return an empty list.',
     ],

@@ -32,8 +32,18 @@ export interface ProfileFinding {
   declared_limit: number | boolean;
   units: 'mm' | 'count' | 'ratio' | 'boolean';
   source_field: string;
+  /** Caller-declared process source and revision, repeated for standalone findings. */
+  profile_reference: string;
+  profile_revision: string;
+  /** Availability of this specific reported metric, not generic board connection state. */
+  measurement_evidence: 'caller_supplied_unverified' | 'native_partial_unverified' | 'unavailable';
   reason: string;
 }
+type ProfileComparison = Omit<
+  ProfileFinding,
+  'profile_reference' | 'profile_revision' | 'measurement_evidence'
+>;
+
 export interface ManufacturingProfileReview {
   status: 'WARNING' | 'UNKNOWN';
   source: { manufacturer: string; process: string; revision: string; reference: string };
@@ -160,11 +170,34 @@ function ratioFindingReason(
     : 'Caller-reported feature coverage meets its declared threshold, but inventory completeness and physical accessibility are unverified.';
 }
 
-function compareNumeric(rule: Rule, limit: number, data: PcbConstraintInput): ProfileFinding {
+function missingOutlineForBoardSize(
+  rule: Rule,
+  data: PcbConstraintInput,
+  source: ManufacturingProfileReview['input_evidence'],
+): boolean {
+  if (rule.field !== 'widthMm' && rule.field !== 'heightMm') return false;
+  // A native getter can return canvas extents even when it has not
+  // established that the PCB has a manufactured board outline.
+  return (
+    data.hasOutline === false ||
+    (source === 'native_partial_unverified' && data.hasOutline !== true)
+  );
+}
+
+function compareNumeric(
+  rule: Rule,
+  limit: number,
+  data: PcbConstraintInput,
+  source: ManufacturingProfileReview['input_evidence'],
+): ProfileComparison {
   const validLimit = validReportedScalar(limit, rule.units);
   const candidate = data[rule.field];
+  // A board with an explicitly absent outline has no verified board-size
+  // boundary. Do not compare a canvas/extents width or height against a
+  // fabrication maximum, even if the caller supplied a finite number.
+  const outlineMissing = missingOutlineForBoardSize(rule, data, source);
   const numeric =
-    typeof candidate === 'number' && validReportedScalar(candidate, rule.units)
+    !outlineMissing && typeof candidate === 'number' && validReportedScalar(candidate, rule.units)
       ? candidate
       : undefined;
   const violate =
@@ -187,7 +220,11 @@ function compareNumeric(rule: Rule, limit: number, data: PcbConstraintInput): Pr
     declared_limit: limit,
     units: rule.units,
     source_field: rule.field,
-    reason: numericFindingReason(validLimit, numeric, violate),
+    reason: outlineMissing
+      ? data.hasOutline === false
+        ? 'The board outline is explicitly absent; reported dimensions cannot establish manufactured board size.'
+        : 'The native board outline is unverified; reported canvas extents cannot establish manufactured board size.'
+      : numericFindingReason(validLimit, numeric, violate),
   };
 }
 
@@ -198,7 +235,7 @@ function ratioFinding(
   limit: number,
   category: ProfileFinding['category'],
   name: string,
-): ProfileFinding {
+): ProfileComparison {
   const ratio = reportedRatio(numerator, denominator);
   const validLimit = Number.isFinite(limit) && limit >= 0 && limit <= 1;
   const violated = validLimit && ratio !== undefined && ratio < limit;
@@ -220,20 +257,26 @@ function ratioFinding(
   };
 }
 function countUniqueNames(data: PcbConstraintInput): { numerator?: number; denominator?: number } {
-  if (!data.criticalNetNames || !data.testPointNets) return {};
-  const required = new Set(
-    data.criticalNetNames.map((n) => n.trim().toUpperCase()).filter(Boolean),
-  );
-  const observed = new Set(data.testPointNets.map((n) => n.trim().toUpperCase()).filter(Boolean));
-  if (required.size === 0 || required.size !== data.criticalNetNames.length) return {};
+  const required = data.criticalNetNames;
+  const testPoints = data.testPointNets;
+  if (!required?.length || !testPoints) return {};
+  // Exact native net names are identities, not case-insensitive labels.
+  // Reject ambiguous declared inventories instead of fabricating coverage
+  // through trimming or case folding.
+  if ([...required, ...testPoints].some((name) => !name || name.trim() !== name)) return {};
+  if (new Set(required.map((name) => name.toUpperCase())).size !== required.length) return {};
+  const observed = new Set(testPoints);
   return {
-    numerator: [...required].filter((n) => observed.has(n)).length,
-    denominator: required.size,
+    numerator: required.filter((name) => observed.has(name)).length,
+    denominator: required.length,
   };
 }
 
-function manualFindings(profile: ManufacturerProfile, data: PcbConstraintInput): ProfileFinding[] {
-  const output: ProfileFinding[] = [];
+function manualFindings(
+  profile: ManufacturerProfile,
+  data: PcbConstraintInput,
+): ProfileComparison[] {
+  const output: ProfileComparison[] = [];
   const marks = profile.limits.minimumPolarityMarkRatio;
   if (marks !== undefined) {
     output.push(
@@ -291,13 +334,19 @@ export function reviewManufacturerProfile(
   boardData: PcbConstraintInput,
   source: ManufacturingProfileReview['input_evidence'],
 ): ManufacturingProfileReview {
-  const findings = [
+  const comparisons = [
     ...NUMERIC_RULES.flatMap((rule) => {
       const limit = profile.limits[rule.id];
-      return typeof limit === 'number' ? [compareNumeric(rule, limit, boardData)] : [];
+      return typeof limit === 'number' ? [compareNumeric(rule, limit, boardData, source)] : [];
     }),
     ...manualFindings(profile, boardData),
   ];
+  const findings: ProfileFinding[] = comparisons.map((finding) => ({
+    ...finding,
+    profile_reference: profile.source,
+    profile_revision: profile.revision,
+    measurement_evidence: finding.actual === undefined ? 'unavailable' : source,
+  }));
   return {
     status: findings.some((f) => f.status === 'WARNING') ? 'WARNING' : 'UNKNOWN',
     source: {

@@ -10,6 +10,8 @@ easyeda_production_qa_artifacts
 
 The tool is read-only. It generates Markdown and JSON artifacts from board metadata and does not call the EasyEDA bridge.
 
+Assembly placement side comes only from the caller-declared component metadata. When omitted, the assembly notes display **unverified** (not an assumed top-side placement), and the affected assembly checklist item remains **review** until confirmed. This is metadata completeness, not independent native placement or pick-and-place proof. The report's `passed` field only means no generated hard-error issues; required human-review checklist items and physical fabrication/assembly approval remain separate.
+
 ## Generated artifacts
 
 | Role                      | Filename pattern               | Purpose                                         |
@@ -42,6 +44,13 @@ The tool is read-only. It generates Markdown and JSON artifacts from board metad
   "requiresFunctionalTest": true
 }
 ```
+
+Critical-net testpoint rows preserve exact net identities even if different names
+normalize to the same checklist slug. A declared test point without a nonblank,
+exact reference, a repeated testpoint reference across critical nets, or a
+duplicate/ambiguous net identity remains **review / unverified**, never checklist `pass`. All such inputs are caller-supplied, not
+independent proof of physical access. Bring-up instructions do not invent a
+test-point position when a reference is missing.
 
 ## Findings
 

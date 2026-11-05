@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "observationDate": "2026-11-05",
+  "kind": "exact-source-read-only-native-bom-mpn-acceptance",
+  "implementationCommit": "e9cb30c6eb4ad6bb279261b77ca9d84f701d1df8",
+  "runtime": {
+    "editor": "EasyEDA Pro Web 3.2.209",
+    "extensionVersion": "1.9.0",
+    "bakedDispatcherBefore": "de7e9xc35bx92a6",
+    "bakedDispatcherAfter": "d7db8xef8bx53c6",
+    "expectedNewDispatcherMatched": true,
+    "sourceProjectAndFocusedSchematicMatched": true,
+    "nativeDocumentType": 1,
+    "newEditorTabUsedForAcceptance": true,
+    "extensionManagerImport": true,
+    "externalInteractionPermissionEnabled": true,
+    "packageSizeBytes": 206483,
+    "packageSha256": "7b6f65bb0dfc69ab43df76fc62d1b4aa2b494a27fa09b33fe1b818c8f6151e89"
+  },
+  "source": {
+    "fixture": "owner-controlled disposable three-component LED indicator schematic",
+    "projectUuidWithheld": true,
+    "documentUuidWithheld": true,
+    "componentIdentifiersAndActualManufacturerPartNumbersWithheld": true,
+    "directReadMethods": ["schematic.listComponents", "bom.generate"],
+    "mcpReadTool": "easyeda_bom_generate",
+    "designMutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0,
+    "nativeDrcOrErcCalls": 0,
+    "externalSupplierQueries": 0,
+    "supplierContactOrOrders": 0
+  },
+  "before": {
+    "nativeComponentCount": 3,
+    "nativeComponentsWithManufacturerId": 3,
+    "bomRows": 3,
+    "bomRowsWithMpn": 0,
+    "claim": "existing baked v1.9.0 dispatcher omitted three source-observed manufacturerId values"
+  },
+  "after": {
+    "nativeComponentCount": 3,
+    "nativeComponentsWithManufacturerId": 3,
+    "bomRows": 3,
+    "bomRowsWithMpn": 3,
+    "bomRowsMatchingSourceReferenceQuantityFootprintMpn": 3,
+    "bomQuantityTotal": 3,
+    "directNativeReadAccepted": true
+  },
+  "mcpReadOnlyTool": {
+    "totalEntries": 3,
+    "entriesWithMpn": 3,
+    "totalComponentQuantity": 3,
+    "notAvailable": false,
+    "accepted": true
+  },
+  "remainingUnknowns": [
+    "Live fixture has three distinct values and does not prove same-value conflicting MPN/footprint splitting in a real PCB; deterministic extension tests cover that case.",
+    "EasyEDA manufacturerId is source-observed but not cross-verified against a real manufacturer datasheet or supplier catalogue.",
+    "BOM export artifacts, pick-and-place, placement side/rotation, full package geometry and fabrication/assembly readiness were not reviewed.",
+    "The original already-open browser tab may still be running the earlier dispatcher until explicitly reloaded; only the new task tab was proven to use the new build.",
+    "No native EasyEDA design changes, supplier queries, purchases or manufacturing communication were performed."
+  ],
+  "conclusion": "SOURCE_BOUND_READ_ONLY_MPN_PRESERVATION_ACCEPTED_NO_MANUFACTURING_APPROVAL"
+}

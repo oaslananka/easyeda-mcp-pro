@@ -182,6 +182,303 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(result.findings[0]?.nets).toEqual([]);
   });
 
+  it('rejects global native device ID collisions and unrelated duplicate net identifiers', () => {
+    const c = fixtures[0]!.constraint;
+    const poisonedDevices: DeviceValidationEntry[] = [
+      ...devices,
+      { id: 'U1', ref: 'J9', pins: [{ pin: 'SENSE', electricalType: 'input' }] },
+    ];
+    const unrelated: NetValidationEntry = {
+      id: 'three',
+      name: 'AUX',
+      type: 'signal',
+      nodes: [{ deviceRef: 'J9', pin: 'SENSE' }],
+    };
+    for (const [inventory, componentInventory] of [
+      [nets, poisonedDevices],
+      [[...nets, unrelated], devices],
+      [[...nets, { ...unrelated, id: 'aux', name: '  AUX  ' }], devices],
+      [nets, [...devices, { id: ' J9 ', ref: 'J9' }]],
+    ] as const) {
+      const result = reviewDatasheetConstraints([c], inventory, componentInventory);
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+        observed_voltages_v: [],
+        nets: [],
+      });
+      expect(result.findings[0]?.message).toMatch(/unique|ambiguous/i);
+    }
+    const original = reviewDatasheetConstraints([c], nets, devices);
+    expect(original.findings[0]?.status).toBe('WARNING');
+  });
+
+  it('does not claim the target component or pin is its own external support', () => {
+    const reference = fixtures[0]!.constraint.reference;
+    for (const supportPin of ['VDD', 'GPIO', undefined]) {
+      const c: DatasheetConstraint = {
+        kind: 'required_support',
+        componentRef: 'U1',
+        pin: 'VDD',
+        supportRef: 'U1',
+        ...(supportPin === undefined ? {} : { supportPin }),
+        function: 'decoupling',
+        reference,
+      };
+      const result = reviewDatasheetConstraints([c], nets, devices);
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+        related_component_ref: 'U1',
+        observed_voltages_v: [],
+      });
+      expect(result.findings[0]?.message).toMatch(/same component|self-support/i);
+      expect(result.findings[0]?.message).not.toMatch(/Both explicitly named pins share/);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('flags exact support-pin net mismatch without inventing a matching-net PASS', () => {
+    const support = fixtures.find((f) => f.constraint.kind === 'required_support')?.constraint;
+    if (support?.kind !== 'required_support') throw new Error('Missing required-support fixture');
+    const target = {
+      ...support,
+      componentRef: 'U1',
+      pin: 'VDD',
+      supportRef: 'C404',
+      supportPin: '1',
+    };
+    const augmentedDevices: DeviceValidationEntry[] = [
+      ...devices,
+      {
+        id: 'C404',
+        ref: 'C404',
+        pins: [
+          { pin: '1', electricalType: 'passive' },
+          { pin: '2', electricalType: 'passive' },
+        ],
+      },
+    ];
+    const augmentedNets: NetValidationEntry[] = [
+      { ...nets[0]!, nodes: [...nets[0]!.nodes, { deviceRef: 'C404', pin: '1' }] },
+      { ...nets[1]!, nodes: [...nets[1]!.nodes, { deviceRef: 'C404', pin: '2' }] },
+      nets[2]!,
+    ];
+    const matched = reviewDatasheetConstraints([target], augmentedNets, augmentedDevices);
+    expect(matched.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'explicit_netlist',
+      related_component_ref: 'C404',
+      related_pin: '1',
+      nets: ['5V'],
+    });
+    expect(matched.findings[0]?.message).toContain('remain unverified');
+    const mismatched = reviewDatasheetConstraints(
+      [{ ...target, supportPin: '2' }],
+      augmentedNets,
+      augmentedDevices,
+    );
+    expect(mismatched.findings[0]).toMatchObject({
+      status: 'WARNING',
+      evidence: 'explicit_netlist',
+      related_component_ref: 'C404',
+      related_pin: '2',
+      nets: ['5V', '3V3'],
+    });
+    expect(mismatched.findings[0]?.message).toContain('different nets');
+    expect(mismatched.engineering_sign_off).toBe(false);
+    const missingSupportPin = reviewDatasheetConstraints(
+      [{ ...target, supportPin: '99' }],
+      augmentedNets,
+      augmentedDevices,
+    );
+    expect(missingSupportPin.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+      related_component_ref: 'C404',
+      related_pin: '99',
+    });
+  });
+
+  it('compares declared I/O-to-supply overvoltage without falsely passing nominal IO', () => {
+    const ref = fixtures[0]!.constraint.reference;
+    const constraint: DatasheetConstraint = {
+      kind: 'io_domain_voltage',
+      componentRef: 'U1',
+      pin: 'GPIO',
+      supplyPin: 'VREF',
+      maxAboveSupplyV: 0.3,
+      reference: ref,
+    };
+    const withSupply = [nets[0]!, nets[1]!, { ...nets[2]!, voltage: 3.3 }];
+    const over = reviewDatasheetConstraints([constraint], withSupply, devices);
+    expect(over.findings[0]).toMatchObject({
+      kind: 'io_domain_voltage',
+      status: 'WARNING',
+      evidence: 'explicit_netlist',
+      pins: ['GPIO', 'VREF'],
+      nets: ['5V', '3V3_NOMINAL'],
+      observed_voltages_v: [
+        { net: '5V', voltage_v: 5 },
+        { net: '3V3_NOMINAL', voltage_v: 3.3 },
+      ],
+      source: ref,
+    });
+    expect(over.engineering_sign_off).toBe(false);
+
+    const within = reviewDatasheetConstraints(
+      [constraint],
+      [{ ...nets[0]!, voltage: 3.6 }, nets[1]!, withSupply[2]!],
+      devices,
+    );
+    expect(within.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'explicit_netlist',
+    });
+    expect(within.findings[0]?.message).toContain('remain unverified');
+
+    const supplyUnknown = reviewDatasheetConstraints([constraint], nets, devices);
+    expect(supplyUnknown.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+      observed_voltages_v: [{ net: '5V', voltage_v: 5 }],
+    });
+    expect(supplyUnknown.findings[0]?.message).toContain('two explicitly declared');
+  });
+
+  it('fails closed on missing I/O pin, invalid domain bounds and reused net IDs', () => {
+    const source = fixtures[0]!.constraint.reference;
+    const base: DatasheetConstraint = {
+      kind: 'io_domain_voltage',
+      componentRef: 'U1',
+      pin: 'GPIO',
+      supplyPin: 'VREF',
+      maxAboveSupplyV: 0.3,
+      reference: source,
+    };
+    const declared = [nets[0]!, nets[1]!, { ...nets[2]!, voltage: 3.3 }];
+    for (const invalid of [
+      { ...base, pin: 'MISSING' },
+      { ...base, supplyPin: 'MISSING' },
+      { ...base, pin: 'VREF' },
+      { ...base, maxAboveSupplyV: -1 },
+      { ...base, maxAboveSupplyV: Number.POSITIVE_INFINITY },
+    ]) {
+      const result = reviewDatasheetConstraints([invalid], declared, devices);
+      expect(result.findings[0]?.status).toBe('UNKNOWN');
+      expect(result.engineering_sign_off).toBe(false);
+    }
+    const duplicate = reviewDatasheetConstraints(
+      [base],
+      [declared[0]!, declared[1]!, { ...declared[2]!, id: declared[0]!.id }],
+      devices,
+    );
+    expect(duplicate.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+    });
+  });
+
+  it('fails closed for reused net ID, reused net name and duplicate pin nodes', () => {
+    const constraint = fixtures[0]!.constraint;
+    if (constraint.kind !== 'pin_voltage') throw Error('Missing pin-voltage fixture');
+    const other = { ...nets[1]!, nodes: [...nets[1]!.nodes] };
+    const cases: NetValidationEntry[][] = [
+      [nets[0]!, { ...other, id: nets[0]!.id }, nets[2]!],
+      [nets[0]!, { ...other, name: nets[0]!.name }, nets[2]!],
+      [
+        {
+          ...nets[0]!,
+          nodes: [
+            ...nets[0]!.nodes,
+            {
+              deviceRef: constraint.componentRef,
+              pin: constraint.pin,
+            },
+          ],
+        },
+        other,
+        nets[2]!,
+      ],
+    ];
+    for (const declaredNets of cases) {
+      const result = reviewDatasheetConstraints([constraint], declaredNets, devices);
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+        observed_voltages_v: [],
+      });
+      expect(result.findings[0]?.message).toContain('not uniquely observed');
+      expect(result.engineering_sign_off).toBe(false);
+    }
+    expect(reviewDatasheetConstraints([constraint], nets, devices).findings[0]?.status).toBe(
+      'WARNING',
+    );
+  });
+
+  it('does not infer a support-pin mismatch from reused net identities', () => {
+    const source = fixtures.find((f) => f.constraint.kind === 'required_support')?.constraint;
+    if (source?.kind !== 'required_support') throw Error('Missing support fixture');
+    const constraint = {
+      ...source,
+      componentRef: 'U1',
+      pin: 'VDD',
+      supportRef: 'C4',
+      supportPin: '1',
+    };
+    const declaredDevices: DeviceValidationEntry[] = [
+      ...devices,
+      { id: 'C4', ref: 'C4', pins: [{ pin: '1', electricalType: 'passive' }] },
+    ];
+    const observedNets = [
+      nets[0]!,
+      { ...nets[1]!, nodes: [...nets[1]!.nodes, { deviceRef: 'C4', pin: '1' }] },
+      nets[2]!,
+    ];
+    expect(
+      reviewDatasheetConstraints([constraint], observedNets, declaredDevices).findings[0]?.status,
+    ).toBe('WARNING');
+    for (const net of [
+      { ...observedNets[1]!, id: observedNets[0]!.id },
+      { ...observedNets[1]!, name: observedNets[0]!.name },
+    ]) {
+      const result = reviewDatasheetConstraints(
+        [constraint],
+        [observedNets[0]!, net, observedNets[2]!],
+        declaredDevices,
+      );
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+      });
+      expect(result.findings[0]?.nets).toEqual([]);
+    }
+  });
+
+  it('fails closed for repeated component or pin identity in declared inventories', () => {
+    const sourceConstraint = fixtures[0]!.constraint;
+    const duplicatedDevice = reviewDatasheetConstraints([sourceConstraint], nets, [
+      ...devices,
+      devices[0]!,
+    ]);
+    expect(duplicatedDevice.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+    });
+    const duplicatedPinDevice = {
+      ...devices[0]!,
+      pins: [...(devices[0]!.pins ?? []), devices[0]!.pins![0]!],
+    };
+    const duplicatedPin = reviewDatasheetConstraints([sourceConstraint], nets, [
+      duplicatedPinDevice,
+      devices[1]!,
+    ]);
+    expect(duplicatedPin.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+    });
+  });
+
   it('keeps absent declared supports unverified, even if another component happens to exist', () => {
     const support = fixtures[5]!.constraint;
     const missing = reviewDatasheetConstraints([support], nets, devices);

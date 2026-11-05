@@ -85,6 +85,328 @@ describe('bounded native route geometry evidence', () => {
     }
   });
 
+  it('warns only for measured same-layer, different-net copper contact', () => {
+    const base = track('h', 0, 0, 100, 0, 10);
+    const crossing = { ...track('v', 50, -50, 50, 50, 10), net: 'GND' };
+    const result = review({ tracks: [base, crossing] });
+    const warning = result.findings.find((f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP');
+    expect(warning).toMatchObject({
+      status: 'WARNING',
+      net: 'DATA+',
+      other_net: 'GND',
+      layer: 1,
+      primitive_ids: ['h', 'v'],
+      observed_edge_gap_mm: -0.254,
+    });
+    expect(result.overall_status).toBe('WARNING');
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'COPPER_CLEARANCE_UNVERIFIED',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('detects parallel and end-cap overlap but not far or separate-layer segments', () => {
+    const a = track('a', 0, 0, 100, 0, 10);
+    const b = { ...track('b', 30, 8, 90, 8, 10), net: 'GND' };
+    const cap = { ...track('cap', 107, 0, 180, 0, 10), net: 'VCC' };
+    const far = { ...track('far', 30, 11, 90, 11, 10), net: 'SENSE' };
+    const otherLayer = { ...track('layer', 20, 0, 80, 0, 10), net: 'LAYER', layer: 2 };
+    const result = review({ tracks: [a, b, cap, far, otherLayer] });
+    const warnings = result.findings.filter((f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP');
+    expect(warnings.map((w) => w.primitive_ids)).toEqual([
+      ['a', 'b'],
+      ['a', 'cap'],
+      ['b', 'far'],
+    ]);
+    expect(warnings[0]!.observed_edge_gap_mm).toBeCloseTo(-0.0508, 7);
+    expect(warnings[1]!.observed_edge_gap_mm).toBeCloseTo(-0.0762, 7);
+    expect(result.findings.some((f) => f.other_net === 'LAYER')).toBe(false);
+  });
+
+  it('treats implausible and overflowing native coordinates as missing geometry', () => {
+    const valid = track('valid', 0, 0, 100, 0);
+    const invalid = { ...track('far-out', 0, 0, 10, 10), net: 'GND', startX: 1e308 };
+    const result = review({ tracks: [valid, invalid] });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:far-out:missing-geometry',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.findings.some((f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP')).toBe(false);
+  });
+
+  it('ignores same-net connections, malformed geometry and disconnected/untrusted track snapshots', () => {
+    const a = track('a', 0, 0, 100, 0);
+    const b = track('b', 50, -50, 50, 50);
+    const malformed = { ...b, primitiveId: 'bad', net: 'GND', width: undefined };
+    const stale = { ...b, net: 'GND' };
+    expect(
+      review({ tracks: [a, b, malformed] }).findings.some(
+        (f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP',
+      ),
+    ).toBe(false);
+    expect(
+      review({ tracks: [a, stale], tracksAvailable: false }).findings.some(
+        (f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP',
+      ),
+    ).toBe(false);
+    expect(
+      review({ tracks: [a, { ...stale, layer: 2 }] }).findings.some(
+        (f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP',
+      ),
+    ).toBe(false);
+  });
+
+  it('does not infer a high-speed corner from a native segment with missing copper width', () => {
+    const valid = track('valid', 0, 0, 100, 0);
+    const incomplete = { ...track('incomplete', 100, 0, 100, 100), width: undefined };
+    const result = review({ tracks: [valid, incomplete], intent: 'high-speed' });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:incomplete:missing-geometry',
+        rule_id: 'TRACK_GEOMETRY_UNAVAILABLE',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.findings.some((item) => item.rule_id === 'RIGHT_ANGLE_STYLE_REVIEW')).toBe(false);
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('excludes padded or blank native net labels from measured track and via claims', () => {
+    const valid = track('valid', 0, 0, 100, 0, 10);
+    const invalidNet = { ...track('bad-net', 50, -40, 50, 40, 2), net: ' GND ' };
+    const via = {
+      primitiveId: 'via',
+      net: ' DATA+ ',
+      x: 100,
+      y: 0,
+      holeDiameter: 10,
+      diameter: 30,
+    };
+    const otherLayer = { ...track('layer', 100, 0, 100, 80), layer: 2 };
+    const result = review({
+      tracks: [valid, invalidNet, otherLayer],
+      vias: [via],
+      intent: 'high-speed',
+      minWidthMm: 0.2,
+    });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:bad-net:missing-geometry',
+        rule_id: 'TRACK_GEOMETRY_UNAVAILABLE',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.findings.some((item) => item.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP')).toBe(
+      false,
+    );
+    expect(
+      result.findings.some((item) => item.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'),
+    ).toBe(false);
+    expect(result.findings.some((item) => item.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+      false,
+    );
+
+    const padded = review({
+      tracks: [
+        { ...track('top', 0, 0, 100, 0), net: ' DATA+ ' },
+        { ...track('bottom', 100, 0, 100, 100), net: ' DATA+ ', layer: 12 },
+      ],
+      vias: [via],
+    });
+    expect(padded.findings.some((item) => item.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+      false,
+    );
+    expect(
+      padded.findings.filter((item) => item.rule_id === 'TRACK_GEOMETRY_UNAVAILABLE'),
+    ).toHaveLength(2);
+  });
+
+  it('never emits measured geometry warnings from explicitly unavailable native collections', () => {
+    const narrow = track('narrow', 0, 0, 100, 0, 2);
+    const colliding = { ...track('collision', 50, -30, 50, 30, 10), net: 'GND' };
+    const impossibleVia = {
+      primitiveId: 'via-bad',
+      net: 'DATA+',
+      x: 100,
+      y: 0,
+      holeDiameter: 40,
+      diameter: 20,
+    };
+    const stale = review({
+      tracks: [narrow, colliding],
+      vias: [impossibleVia],
+      tracksAvailable: false,
+      viasAvailable: false,
+      minWidthMm: 0.2,
+      intent: 'high-speed',
+    });
+    expect(stale.overall_status).toBe('UNKNOWN');
+    expect(stale.input_evidence).toMatchObject({
+      tracks: 'unavailable',
+      vias: 'unavailable',
+      collection_complete: false,
+    });
+    expect(stale.findings.some((f) => f.status === 'WARNING' || f.status === 'ADVISORY')).toBe(
+      false,
+    );
+    expect(stale.findings.map((f) => f.rule_id)).toEqual(
+      expect.arrayContaining([
+        'TRACK_GEOMETRY_UNAVAILABLE',
+        'NATIVE_COLLECTION_INCOMPLETE',
+        'VIA_CURRENT_CAPACITY_UNKNOWN',
+        'REFERENCE_PLANE_UNVERIFIED',
+        'COPPER_CLEARANCE_UNVERIFIED',
+      ]),
+    );
+    expect(stale.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+    expect(stale.findings.some((f) => f.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM')).toBe(
+      false,
+    );
+    expect(stale.findings.some((f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP')).toBe(false);
+    expect(stale.findings.some((f) => f.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(false);
+    expect(stale.engineering_sign_off).toBe(false);
+  });
+
+  it('uses only a source-available collection, never stale rows in the other collection', () => {
+    const narrow = track('narrow', 0, 0, 100, 0, 2);
+    const badVia = {
+      primitiveId: 'via-bad',
+      net: 'DATA+',
+      x: 100,
+      y: 0,
+      holeDiameter: 40,
+      diameter: 20,
+    };
+    const withTracksOnly = review({
+      tracks: [narrow],
+      vias: [badVia],
+      viasAvailable: false,
+      minWidthMm: 0.2,
+    });
+    expect(
+      withTracksOnly.findings.some((f) => f.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'),
+    ).toBe(true);
+    expect(withTracksOnly.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+    expect(withTracksOnly.input_evidence.collection_complete).toBe(false);
+
+    const withViasOnly = review({
+      tracks: [narrow],
+      tracksAvailable: false,
+      vias: [badVia],
+      minWidthMm: 0.2,
+    });
+    expect(
+      withViasOnly.findings.some((f) => f.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'),
+    ).toBe(false);
+    expect(withViasOnly.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'VIA_ANNULAR_GEOMETRY',
+        status: 'WARNING',
+        primitive_ids: ['via-bad'],
+      }),
+    );
+    expect(withViasOnly.input_evidence.collection_complete).toBe(false);
+  });
+
+  it('fails closed on duplicated track IDs without inventing source-attributed geometry warnings', () => {
+    const a = track('duplicate', 0, 0, 100, 0, 2);
+    const b = { ...track('duplicate', 50, -40, 50, 40), net: 'GND' };
+    const result = review({
+      tracks: [a, b],
+      minWidthMm: 0.2,
+      intent: 'high-speed',
+    });
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.input_evidence.collection_complete).toBe(false);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:duplicate:ambiguous-identity',
+        status: 'UNKNOWN',
+        rule_id: 'TRACK_GEOMETRY_UNAVAILABLE',
+      }),
+    );
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'NATIVE_COLLECTION_INCOMPLETE',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.findings.some((f) => f.status === 'WARNING' || f.status === 'ADVISORY')).toBe(
+      false,
+    );
+    expect(result.engineering_sign_off).toBe(false);
+
+    const withUnique = review({
+      tracks: [a, b, track('unique', 0, 200, 100, 200, 2)],
+      minWidthMm: 0.2,
+    });
+    expect(
+      withUnique.findings
+        .filter((f) => f.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM')
+        .map((f) => f.primitive_ids),
+    ).toEqual([['unique']]);
+    expect(withUnique.input_evidence.collection_complete).toBe(false);
+  });
+
+  it('does not trust duplicate or absent via identities for annular geometry', () => {
+    const bad = {
+      primitiveId: 'via-duplicate',
+      net: 'DATA+',
+      x: 100,
+      y: 0,
+      holeDiameter: 35,
+      diameter: 30,
+    };
+    const ambiguous = review({ tracks: [], vias: [bad, { ...bad, net: 'GND' }] });
+    expect(ambiguous.input_evidence.collection_complete).toBe(false);
+    expect(ambiguous.overall_status).toBe('UNKNOWN');
+    expect(ambiguous.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+    expect(ambiguous.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'NATIVE_COLLECTION_INCOMPLETE',
+        status: 'UNKNOWN',
+      }),
+    );
+    const mixed = review({
+      tracks: [],
+      vias: [bad, { ...bad }, { ...bad, primitiveId: 'real-unique' }],
+    });
+    expect(
+      mixed.findings
+        .filter((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')
+        .map((f) => f.primitive_ids),
+    ).toEqual([['real-unique']]);
+
+    const missing = review({ tracks: [], vias: [{ ...bad, primitiveId: undefined }] });
+    expect(missing.input_evidence.collection_complete).toBe(false);
+    expect(missing.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+  });
+
+  it('does not infer a via transition when a track ID collides away from the candidate', () => {
+    const front = track('same', 0, 0, 100, 0);
+    const back = { ...track('back', 100, 0, 100, 80), layer: 12 };
+    const duplicateAway = { ...track('same', 300, 300, 400, 300), net: 'OTHER' };
+    const via = { primitiveId: 'via', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 };
+    const ambiguous = review({ tracks: [front, back, duplicateAway], vias: [via] });
+    expect(ambiguous.input_evidence.collection_complete).toBe(false);
+    expect(ambiguous.findings.some((f) => f.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+      false,
+    );
+    const exact = review({ tracks: [front, back], vias: [via] });
+    expect(exact.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'VIA_LAYER_TRANSITION_CANDIDATE',
+        status: 'UNKNOWN',
+        native_layers: [1, 12],
+      }),
+    );
+  });
+
   it('reports an actual native segment narrower than the caller-supplied minimum', () => {
     const result = review({
       tracks: [track('narrow-1', 0, 0, 100, 0, 4)],
@@ -118,6 +440,58 @@ describe('bounded native route geometry evidence', () => {
       false,
     );
     expect(result.limitations).toContainEqual(expect.stringContaining('caller-supplied width'));
+  });
+
+  it('observes coincident same-net via endpoints across two raw native layer codes without a connectivity PASS', () => {
+    const a = track('front', 0, 0, 100, 0);
+    const b = { ...track('other-code', 100, 0, 100, 120), layer: 12 };
+    const result = review({
+      tracks: [a, b],
+      vias: [{ primitiveId: 'v1', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 }],
+    });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'via-transition:v1',
+        rule_id: 'VIA_LAYER_TRANSITION_CANDIDATE',
+        status: 'UNKNOWN',
+        primitive_ids: ['front', 'other-code', 'v1'],
+        net: 'DATA+',
+        position_mil: { x: 100, y: 0 },
+        native_layers: [1, 12],
+      }),
+    );
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'REFERENCE_PLANE_UNVERIFIED',
+        status: 'UNKNOWN',
+      }),
+    );
+  });
+
+  it('does not infer a via transition from unrelated or incomplete native identities', () => {
+    const front = track('front', 0, 0, 100, 0);
+    const back = { ...track('back', 100, 0, 100, 120), layer: 2 };
+    const via = { primitiveId: 'v', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 };
+    const variants: Array<Partial<RouteGeometryInput>> = [
+      { tracks: [front, { ...back, net: 'GND' }], vias: [via] },
+      { tracks: [front, { ...back, startX: 100.001 }], vias: [via] },
+      { tracks: [front, { ...back, layer: 1 }], vias: [via] },
+      { tracks: [front, { ...back, width: undefined }], vias: [via] },
+      { tracks: [front, { ...back, primitiveId: 'front' }], vias: [via] },
+      { tracks: [front, back], vias: [{ ...via, holeDiameter: 35 }] },
+      { tracks: [front, back], vias: [{ ...via, x: Number.NaN }] },
+      { tracks: [front, back], vias: [via, { ...via }] },
+      { tracks: [front, back], vias: [via], tracksAvailable: false },
+      { tracks: [front, back], vias: [via], viasAvailable: false },
+    ];
+    for (const variant of variants) {
+      const finding = review(variant).findings.find(
+        (item) => item.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE',
+      );
+      expect(finding).toBeUndefined();
+    }
   });
 
   it('flags physically contradictory via land/drill diameter without claiming current rating', () => {

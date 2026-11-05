@@ -31,9 +31,11 @@ export interface NativeVia {
 export type GeometryStatus = 'WARNING' | 'ADVISORY' | 'UNKNOWN';
 export type GeometryRule =
   | 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'
+  | 'OBSERVED_TRACK_COPPER_OVERLAP'
   | 'TRACK_GEOMETRY_UNAVAILABLE'
   | 'RIGHT_ANGLE_STYLE_REVIEW'
   | 'VIA_ANNULAR_GEOMETRY'
+  | 'VIA_LAYER_TRANSITION_CANDIDATE'
   | 'VIA_CURRENT_CAPACITY_UNKNOWN'
   | 'REFERENCE_PLANE_UNVERIFIED'
   | 'COPPER_CLEARANCE_UNVERIFIED'
@@ -45,8 +47,11 @@ export interface RouteGeometryFinding {
   status: GeometryStatus;
   message: string;
   net?: string;
+  other_net?: string;
   layer?: number;
+  native_layers?: number[];
   primitive_ids: string[];
+  observed_edge_gap_mm?: number;
   position_mil?: { x: number; y: number };
   width_mm?: number;
   threshold_mm?: number;
@@ -106,6 +111,33 @@ function positive(value: unknown): value is number {
   return finite(value) && value > 0;
 }
 
+function exactPrimitiveId(id: string | undefined): id is string {
+  return typeof id === 'string' && id.length > 0 && id.trim() === id;
+}
+
+function exactNativeNet(net: string | undefined): net is string {
+  return typeof net === 'string' && net.length > 0 && net.trim() === net;
+}
+
+function duplicatePrimitiveIds(items: Array<{ primitiveId?: string }>): Set<string> {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const item of items) {
+    const id = item.primitiveId;
+    if (!exactPrimitiveId(id)) continue;
+    if (seen.has(id)) duplicates.add(id);
+    seen.add(id);
+  }
+  return duplicates;
+}
+
+function uniquelyIdentified(items: Array<{ primitiveId?: string }>): boolean {
+  return (
+    items.every((item) => exactPrimitiveId(item.primitiveId)) &&
+    duplicatePrimitiveIds(items).size === 0
+  );
+}
+
 function finding(
   id: string,
   rule: GeometryRule,
@@ -131,7 +163,7 @@ function detectRightAngleJoints(tracks: NativeTrack[]): RouteGeometryFinding[] {
       !finite(endY) ||
       !Number.isInteger(layer) ||
       !net ||
-      !primitiveId ||
+      !exactPrimitiveId(primitiveId) ||
       (startX === endX && startY === endY)
     )
       return;
@@ -178,8 +210,121 @@ function detectRightAngleJoints(tracks: NativeTrack[]): RouteGeometryFinding[] {
   return result;
 }
 
+/** Copper-only finite line primitives, never schematic wires or a polygon/plane substitute. */
+type CopperSegment = Required<
+  Pick<
+    NativeTrack,
+    'primitiveId' | 'net' | 'layer' | 'startX' | 'startY' | 'endX' | 'endY' | 'width'
+  >
+>;
+
+function validNativeCoordinate(value: unknown): value is number {
+  return finite(value) && Math.abs(value) <= 1_000_000;
+}
+
+function observedCopperSegment(track: NativeTrack): CopperSegment | undefined {
+  if (
+    !exactPrimitiveId(track.primitiveId) ||
+    !exactNativeNet(track.net) ||
+    !Number.isInteger(track.layer)
+  )
+    return undefined;
+  if (!positive(track.width) || track.width > 1_000_000) return undefined;
+  const coords = [track.startX, track.startY, track.endX, track.endY];
+  if (!coords.every(validNativeCoordinate)) return undefined;
+  if (track.startX === track.endX && track.startY === track.endY) return undefined;
+  return track as CopperSegment;
+}
+
+type Point = { x: number; y: number };
+function orient(a: Point, b: Point, c: Point): number {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+function between(a: Point, b: Point, p: Point): boolean {
+  return (
+    p.x >= Math.min(a.x, b.x) &&
+    p.x <= Math.max(a.x, b.x) &&
+    p.y >= Math.min(a.y, b.y) &&
+    p.y <= Math.max(a.y, b.y)
+  );
+}
+function oppositeSides(a: number, b: number): boolean {
+  return (a > 0 && b < 0) || (a < 0 && b > 0);
+}
+function lineSegmentsIntersect(a: Point, b: Point, c: Point, d: Point): boolean {
+  const abC = orient(a, b, c),
+    abD = orient(a, b, d);
+  const cdA = orient(c, d, a),
+    cdB = orient(c, d, b);
+  if (oppositeSides(abC, abD) && oppositeSides(cdA, cdB)) return true;
+  return (
+    (abC === 0 && between(a, b, c)) ||
+    (abD === 0 && between(a, b, d)) ||
+    (cdA === 0 && between(c, d, a)) ||
+    (cdB === 0 && between(c, d, b))
+  );
+}
+function pointToSegmentDistance(point: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x,
+    dy = b.y - a.y;
+  const t = Math.max(
+    0,
+    Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy)),
+  );
+  return Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy);
+}
+function minimumCenterDistanceMil(a: CopperSegment, b: CopperSegment): number {
+  const a0 = { x: a.startX, y: a.startY },
+    a1 = { x: a.endX, y: a.endY };
+  const b0 = { x: b.startX, y: b.startY },
+    b1 = { x: b.endX, y: b.endY };
+  if (lineSegmentsIntersect(a0, a1, b0, b1)) return 0;
+  return Math.min(
+    pointToSegmentDistance(a0, b0, b1),
+    pointToSegmentDistance(a1, b0, b1),
+    pointToSegmentDistance(b0, a0, a1),
+    pointToSegmentDistance(b1, a0, a1),
+  );
+}
+
+/** Only a demonstrated two-segment geometric overlap is a WARNING.
+ * All other net clearances (including pads/fills/keepouts) stay UNKNOWN.
+ */
+function reviewObservedTrackOverlaps(tracks: NativeTrack[]): RouteGeometryFinding[] {
+  const segments = tracks.map(observedCopperSegment).filter((s): s is CopperSegment => !!s);
+  const findings: RouteGeometryFinding[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const a = segments[i];
+    if (!a) continue;
+    for (let j = i + 1; j < segments.length; j++) {
+      const b = segments[j];
+      if (!b) continue;
+      if (a.net === b.net || a.layer !== b.layer || a.primitiveId === b.primitiveId) continue;
+      const gapMil = minimumCenterDistanceMil(a, b) - (a.width + b.width) / 2;
+      if (gapMil > 0) continue;
+      const ids = [a.primitiveId, b.primitiveId].sort();
+      findings.push({
+        ...finding(
+          'copper-overlap:' + JSON.stringify([a.layer, ...ids]),
+          'OBSERVED_TRACK_COPPER_OVERLAP',
+          'WARNING',
+          'Two different-net native copper line widths overlap/touch in observed same-layer geometry; inspect native DRC. This does not certify all other clearances.',
+          ids,
+        ),
+        net: a.net,
+        other_net: b.net,
+        layer: a.layer,
+        observed_edge_gap_mm: gapMil * MIL_TO_MM,
+      });
+    }
+  }
+  return findings;
+}
+
 function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
   const findings: RouteGeometryFinding[] = [];
+  const duplicateIds = duplicatePrimitiveIds(input.tracks);
+  const reportedDuplicates = new Set<string>();
   if (!input.tracksAvailable || input.tracks.length === 0) {
     findings.push(
       finding(
@@ -190,19 +335,27 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
       ),
     );
   }
+  // Stale payload rows cannot be used as measured geometry after the
+  // source collection was explicitly marked unavailable.
+  if (!input.tracksAvailable) return findings;
   input.tracks.forEach((track, index) => {
     const id = track.primitiveId || String(index);
-    if (
-      !positive(track.width) ||
-      !finite(track.startX) ||
-      !finite(track.startY) ||
-      !finite(track.endX) ||
-      !finite(track.endY) ||
-      !Number.isInteger(track.layer) ||
-      !track.net ||
-      !track.primitiveId ||
-      (track.startX === track.endX && track.startY === track.endY)
-    ) {
+    if (duplicateIds.has(id)) {
+      if (!reportedDuplicates.has(id)) {
+        findings.push(
+          finding(
+            'track:' + id + ':ambiguous-identity',
+            'TRACK_GEOMETRY_UNAVAILABLE',
+            'UNKNOWN',
+            'Duplicate native track primitive identity cannot support attributable geometry findings.',
+            [id],
+          ),
+        );
+        reportedDuplicates.add(id);
+      }
+      return;
+    }
+    if (!observedCopperSegment(track)) {
       findings.push({
         ...finding(
           'track:' + id + ':missing-geometry',
@@ -232,14 +385,79 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
       });
     }
   });
-  if (input.intent === 'high-speed') findings.push(...detectRightAngleJoints(input.tracks));
+  const uniquelyIdentifiedTracks = input.tracks.filter(
+    (track) => !duplicateIds.has(track.primitiveId ?? ''),
+  );
+  findings.push(...reviewObservedTrackOverlaps(uniquelyIdentifiedTracks));
+  if (input.intent === 'high-speed')
+    findings.push(
+      ...detectRightAngleJoints(
+        uniquelyIdentifiedTracks.filter((track) => observedCopperSegment(track) !== undefined),
+      ),
+    );
   return findings;
+}
+
+/** Distinct native layer codes at the same exact via center are only
+ * evidence of a possible transition, not via barrel or plane connectivity.
+ */
+function reviewViaLayerTransitionCandidates(input: RouteGeometryInput): RouteGeometryFinding[] {
+  if (!input.tracksAvailable || !input.viasAvailable) return [];
+  const duplicateTracks = duplicatePrimitiveIds(input.tracks);
+  const segments = input.tracks
+    .filter((track) => !duplicateTracks.has(track.primitiveId ?? ''))
+    .map(observedCopperSegment)
+    .filter((s): s is CopperSegment => !!s);
+  return input.vias.flatMap((via) => {
+    if (
+      !exactPrimitiveId(via.primitiveId) ||
+      !exactNativeNet(via.net) ||
+      !validNativeCoordinate(via.x) ||
+      !validNativeCoordinate(via.y) ||
+      !positive(via.diameter) ||
+      !positive(via.holeDiameter) ||
+      via.holeDiameter >= via.diameter
+    )
+      return [];
+    if (input.vias.filter((item) => item.primitiveId === via.primitiveId).length !== 1) return [];
+    const touching = segments.filter(
+      (segment) =>
+        segment.net === via.net &&
+        ((segment.startX === via.x && segment.startY === via.y) ||
+          (segment.endX === via.x && segment.endY === via.y)),
+    );
+    const layers = [...new Set(touching.map((segment) => segment.layer))].sort((a, b) => a - b);
+    if (
+      layers.length < 2 ||
+      new Set(touching.map((segment) => segment.primitiveId)).size !== touching.length
+    )
+      return [];
+    const ids = [via.primitiveId, ...touching.map((segment) => segment.primitiveId)].sort();
+    return [
+      {
+        ...finding(
+          'via-transition:' + via.primitiveId,
+          'VIA_LAYER_TRANSITION_CANDIDATE',
+          'UNKNOWN',
+          'Same-net native track endpoints on distinct layer codes meet the observed via center; via span, actual copper connection and return path are unverified.',
+          ids,
+        ),
+        net: via.net,
+        position_mil: { x: via.x, y: via.y },
+        native_layers: layers,
+      },
+    ];
+  });
 }
 
 function reviewVias(input: RouteGeometryInput): RouteGeometryFinding[] {
   const findings: RouteGeometryFinding[] = [];
-  for (const [index, via] of input.vias.entries()) {
-    const id = via.primitiveId || String(index);
+  // An unavailable or identity-ambiguous via row cannot provide a
+  // trustworthy primitive-attributed drill-to-land warning.
+  const duplicateIds = duplicatePrimitiveIds(input.vias);
+  for (const via of input.viasAvailable ? input.vias : []) {
+    const id = via.primitiveId;
+    if (!exactPrimitiveId(id) || duplicateIds.has(id)) continue;
     if (positive(via.holeDiameter) && positive(via.diameter) && via.holeDiameter >= via.diameter) {
       findings.push({
         ...finding(
@@ -270,10 +488,13 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
     input.tracksAvailable &&
     input.viasAvailable &&
     input.trackCount === input.tracks.length &&
-    input.viaCount === input.vias.length;
+    input.viaCount === input.vias.length &&
+    uniquelyIdentified(input.tracks) &&
+    uniquelyIdentified(input.vias);
   const findings = [
     ...reviewTracks(input),
     ...reviewVias(input),
+    ...reviewViaLayerTransitionCandidates(input),
     finding(
       'coverage:planes',
       'REFERENCE_PLANE_UNVERIFIED',
@@ -293,7 +514,7 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
         'coverage:pagination',
         'NATIVE_COLLECTION_INCOMPLETE',
         'UNKNOWN',
-        'At least one native primitive collection is missing, incomplete or exceeds the bounded read window.',
+        'At least one native primitive collection is missing, incomplete, has ambiguous primitive identities or exceeds the bounded read window.',
       ),
     );
   const rank = { WARNING: 0, ADVISORY: 1, UNKNOWN: 2 };
@@ -338,6 +559,7 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
       'Read-only native primitive snapshot, not atomic across tracks and vias.',
       'Coordinates are native PCB mils; widths converted using 0.0254 mm per mil.',
       'Right-angle turns are style guidance only; no unconditional 90-degree failure.',
+      'Native via layer codes and coincident endpoints cannot verify via span, copper continuity, or a return-current path.',
       'Native pours, zones, copper fill continuity, return-current paths and DRC clearances are unverified.',
       'A caller-supplied width limit is not a verified fabricator specification.',
     ],

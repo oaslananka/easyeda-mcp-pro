@@ -43,6 +43,15 @@ describe('versioned manufacturer process observations (not fabrication approval)
     });
     expect(result.fabrication_approval).toBe(false);
     expect(result.manual_review_required).toBe(true);
+    expect(result.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          profile_reference: ref.source,
+          profile_revision: ref.revision,
+          measurement_evidence: expect.stringMatching(/^(caller_supplied_unverified|unavailable)$/),
+        }),
+      ]),
+    );
     expect(result.source).toEqual({
       manufacturer: ref.manufacturer,
       process: ref.process,
@@ -53,6 +62,43 @@ describe('versioned manufacturer process observations (not fabrication approval)
       true,
     );
     expect(result.unknown_workflows.join(' ')).toMatch(/mounting-hole semantics/i);
+  });
+
+  it('attributes each observed metric to its own data evidence and the declared factory revision', () => {
+    const profile = {
+      ...ref,
+      revision: 'hypothetical-process-rev-B',
+      source: 'Manufacturer process limits: hypothetical issue #846 example',
+      limits: { maximumBoardWidthMm: 80, minimumAnnularRingMm: 0.15 },
+    };
+    const review = reviewManufacturerProfile(
+      profile,
+      { widthMm: 100, hasOutline: true },
+      'native_partial_unverified',
+    );
+    expect(review.status).toBe('WARNING');
+    expect(review.findings).toEqual([
+      expect.objectContaining({
+        id: 'minimumAnnularRingMm',
+        status: 'UNKNOWN',
+        units: 'mm',
+        profile_reference: profile.source,
+        profile_revision: profile.revision,
+        measurement_evidence: 'unavailable',
+      }),
+      expect.objectContaining({
+        id: 'maximumBoardWidthMm',
+        status: 'WARNING',
+        units: 'mm',
+        source_field: 'widthMm',
+        actual: 100,
+        profile_reference: profile.source,
+        profile_revision: profile.revision,
+        measurement_evidence: 'native_partial_unverified',
+      }),
+    ]);
+    expect(review.findings[0]).not.toHaveProperty('actual');
+    expect(review.fabrication_approval).toBe(false);
   });
 
   it('does not compare measurements against corrupt process limits', () => {
@@ -86,7 +132,7 @@ describe('versioned manufacturer process observations (not fabrication approval)
         ...ref,
         limits: { minimumFinishedDrillMm: 0.2, maximumBoardWidthMm: 80, minimumFiducialCount: 2 },
       },
-      { minDrillMm: 0.1, widthMm: 50, fiducialCount: 2 },
+      { minDrillMm: 0.1, widthMm: 50, fiducialCount: 2, hasOutline: true },
       'native_partial_unverified',
     );
     expect(result.status).toBe('WARNING');
@@ -117,6 +163,93 @@ describe('versioned manufacturer process observations (not fabrication approval)
     expect(result.findings.every((x) => x.actual === undefined)).toBe(true);
   });
 
+  it('treats unverified native outline status as unknown even with numeric canvas extents', () => {
+    const profile = {
+      ...ref,
+      limits: {
+        maximumBoardWidthMm: 20,
+        maximumBoardHeightMm: 20,
+        minimumFinishedDrillMm: 0.3,
+      },
+    };
+    const data: PcbConstraintInput = { widthMm: 50, heightMm: 40, minDrillMm: 0.2 };
+    const native = reviewManufacturerProfile(profile, data, 'native_partial_unverified');
+    expect(native.findings[0]).toMatchObject({
+      id: 'minimumFinishedDrillMm',
+      status: 'WARNING',
+      actual: 0.2,
+      measurement_evidence: 'native_partial_unverified',
+    });
+    for (const finding of native.findings.slice(1)) {
+      expect(finding).toMatchObject({
+        status: 'UNKNOWN',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      });
+      expect(finding).not.toHaveProperty('actual');
+      expect(finding.reason).toMatch(/outline.*unverified/i);
+    }
+    expect(native.fabrication_approval).toBe(false);
+
+    // A caller's own dimensional declaration retains prior comparison behavior,
+    // but is still not a confirmed manufacturing approval.
+    const supplied = reviewManufacturerProfile(profile, data, 'caller_supplied_unverified');
+    expect(supplied.findings.slice(1).map((finding) => finding.comparison)).toEqual([
+      'ABOVE_DECLARED_LIMIT',
+      'ABOVE_DECLARED_LIMIT',
+    ]);
+    expect(supplied.fabrication_approval).toBe(false);
+  });
+
+  it('does not compare canvas extents as manufactured dimensions without a board outline', () => {
+    const profile = {
+      ...ref,
+      limits: {
+        maximumBoardWidthMm: 100,
+        maximumBoardHeightMm: 50,
+        minimumFinishedDrillMm: 0.3,
+      },
+    };
+    const result = reviewManufacturerProfile(
+      profile,
+      { hasOutline: false, widthMm: 60, heightMm: 40, minDrillMm: 0.2 },
+      'native_partial_unverified',
+    );
+    const [drill, width, height] = result.findings;
+    expect(drill).toMatchObject({
+      id: 'minimumFinishedDrillMm',
+      status: 'WARNING',
+      actual: 0.2,
+      measurement_evidence: 'native_partial_unverified',
+    });
+    for (const measurement of [width, height]) {
+      expect(measurement).toMatchObject({
+        status: 'UNKNOWN',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      });
+      expect(measurement).not.toHaveProperty('actual');
+      expect(measurement?.reason).toContain('board outline is explicitly absent');
+    }
+    expect(result.fabrication_approval).toBe(false);
+    expect(result.manual_review_required).toBe(true);
+
+    const withOutline = reviewManufacturerProfile(
+      profile,
+      { hasOutline: true, widthMm: 60, heightMm: 40, minDrillMm: 0.2 },
+      'native_partial_unverified',
+    );
+    expect(withOutline.findings[1]).toMatchObject({
+      comparison: 'WITHIN_DECLARED_LIMIT',
+      actual: 60,
+    });
+    expect(withOutline.findings[2]).toMatchObject({
+      comparison: 'WITHIN_DECLARED_LIMIT',
+      actual: 40,
+    });
+    expect(withOutline.fabrication_approval).toBe(false);
+  });
+
   it('does not claim critical-net completeness with duplicates or blank inventories', () => {
     const input = { ...ref, limits: { minimumCriticalNetTestpointRatio: 0.5 } };
     for (const boardData of [
@@ -128,6 +261,55 @@ describe('versioned manufacturer process observations (not fabrication approval)
       const result = reviewManufacturerProfile(input, boardData, 'caller_supplied_unverified');
       expect(result.status).toBe('UNKNOWN');
       expect(result.findings[0]?.actual).toBeUndefined();
+    }
+  });
+
+  it('counts only exact critical net identity, never a case-folded test-point match', () => {
+    const profile = { ...ref, limits: { minimumCriticalNetTestpointRatio: 0.75 } };
+    const mismatch = reviewManufacturerProfile(
+      profile,
+      { criticalNetNames: ['IO', 'GND'], testPointNets: ['io', 'GND'] },
+      'caller_supplied_unverified',
+    );
+    expect(mismatch.findings[0]).toMatchObject({
+      id: 'minimumCriticalNetTestpointRatio',
+      actual: 0.5,
+      status: 'WARNING',
+      comparison: 'BELOW_DECLARED_LIMIT',
+      measurement_evidence: 'caller_supplied_unverified',
+    });
+    expect(mismatch.fabrication_approval).toBe(false);
+
+    const exact = reviewManufacturerProfile(
+      profile,
+      { criticalNetNames: ['IO', 'GND'], testPointNets: ['IO', 'GND', 'GND'] },
+      'caller_supplied_unverified',
+    );
+    expect(exact.findings[0]).toMatchObject({
+      actual: 1,
+      status: 'UNKNOWN',
+      comparison: 'WITHIN_DECLARED_LIMIT',
+    });
+  });
+
+  it('fails closed for blank, whitespace-padded and colliding declared net names', () => {
+    const profile = { ...ref, limits: { minimumCriticalNetTestpointRatio: 0.8 } };
+    const cases: PcbConstraintInput[] = [
+      { criticalNetNames: ['IO '], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO'], testPointNets: [' IO'] },
+      { criticalNetNames: ['IO', ''], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO'], testPointNets: [''] },
+      { criticalNetNames: ['IO', 'io'], testPointNets: ['IO'] },
+    ];
+    for (const board of cases) {
+      const result = reviewManufacturerProfile(profile, board, 'caller_supplied_unverified');
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      });
+      expect(result.findings[0]).not.toHaveProperty('actual');
+      expect(result.fabrication_approval).toBe(false);
     }
   });
 

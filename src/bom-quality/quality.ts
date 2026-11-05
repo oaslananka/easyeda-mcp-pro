@@ -508,7 +508,7 @@ export async function generateBomQualityReport(
       }
 
       // Check: missing MPN
-      if (config.requireMpn && !entry.mpn && !entry.manufacturer) {
+      if (config.requireMpn && !entry.mpn?.trim()) {
         issues.push(missingMpnIssue(entry.reference));
       }
 

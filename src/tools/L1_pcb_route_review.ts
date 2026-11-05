@@ -43,6 +43,7 @@ const differentialPairSchema = z
     minEdgeGapMm: z.number().finite().nonnegative().optional(),
     maxEdgeGapMm: z.number().finite().positive().optional(),
     targetImpedanceOhms: z.number().finite().positive().optional(),
+    constraintSource: z.string().trim().min(3).max(200).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.positiveNet === value.negativeNet) {
@@ -65,6 +66,15 @@ const differentialPairSchema = z
     }
   });
 
+const exactFootprintNameSchema = z
+  .string()
+  .min(1)
+  .max(180)
+  .refine((value) => value === value.trim(), {
+    message:
+      'Expected footprint name must exactly match its native identity without surrounding whitespace.',
+  });
+
 const placementRelationSchema = z
   .object({
     first: exactNetSchema.describe('Exact native PCB component designator, e.g. U1.'),
@@ -81,6 +91,10 @@ const placementRelationSchema = z
     requireSameLayer: z.boolean().optional(),
     firstRotationDeg: z.number().finite().optional(),
     rotationToleranceDeg: z.number().finite().min(0).max(180).optional(),
+    secondRotationDeg: z.number().finite().optional(),
+    secondRotationToleranceDeg: z.number().finite().min(0).max(180).optional(),
+    firstFootprintName: exactFootprintNameSchema.optional(),
+    secondFootprintName: exactFootprintNameSchema.optional(),
     constraintSource: z.string().trim().min(3).max(200).optional(),
   })
   .superRefine((value, ctx) => {
@@ -89,6 +103,13 @@ const placementRelationSchema = z
         code: 'custom',
         path: ['second'],
         message: 'Two distinct component designators are required.',
+      });
+    }
+    if (value.secondRotationToleranceDeg !== undefined && value.secondRotationDeg === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['secondRotationToleranceDeg'],
+        message: 'Declare the second component rotation target first.',
       });
     }
     if (value.rotationToleranceDeg !== undefined && value.firstRotationDeg === undefined) {
@@ -101,7 +122,10 @@ const placementRelationSchema = z
     if (
       (value.maxCenterDistanceMm !== undefined ||
         value.requireSameLayer === true ||
-        value.firstRotationDeg !== undefined) &&
+        value.firstRotationDeg !== undefined ||
+        value.secondRotationDeg !== undefined ||
+        value.firstFootprintName !== undefined ||
+        value.secondFootprintName !== undefined) &&
       !value.constraintSource
     ) {
       ctx.addIssue({
@@ -186,9 +210,11 @@ const findingSchema = z.object({
   id: z.string(),
   rule_id: z.enum([
     'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM',
+    'OBSERVED_TRACK_COPPER_OVERLAP',
     'TRACK_GEOMETRY_UNAVAILABLE',
     'RIGHT_ANGLE_STYLE_REVIEW',
     'VIA_ANNULAR_GEOMETRY',
+    'VIA_LAYER_TRANSITION_CANDIDATE',
     'VIA_CURRENT_CAPACITY_UNKNOWN',
     'REFERENCE_PLANE_UNVERIFIED',
     'COPPER_CLEARANCE_UNVERIFIED',
@@ -197,8 +223,11 @@ const findingSchema = z.object({
   status: z.enum(['WARNING', 'ADVISORY', 'UNKNOWN']),
   message: z.string(),
   net: z.string().optional(),
+  other_net: z.string().optional(),
   layer: z.number().optional(),
+  native_layers: z.array(z.number()).optional(),
   primitive_ids: z.array(z.string()),
+  observed_edge_gap_mm: z.number().optional(),
   position_mil: z.object({ x: z.number(), y: z.number() }).optional(),
   width_mm: z.number().optional(),
   threshold_mm: z.number().optional(),
@@ -230,6 +259,7 @@ const differentialPairResultSchema = z.object({
     })
     .nullable(),
   target_impedance_ohms: z.number().optional(),
+  constraint_source: z.string().nullable(),
   impedance_status: z.literal('UNKNOWN'),
   evidence: z.literal('native_segments_not_field_solver_or_full_route'),
   length_units: z.literal('mm'),
@@ -277,7 +307,13 @@ const placementReviewSchema = z.object({
         declared_max_center_distance_mm: z.number().optional(),
         native_layers: z.array(z.number()).optional(),
         first_rotation_deg: z.number().optional(),
+        second_rotation_deg: z.number().optional(),
         declared_first_rotation_deg: z.number().optional(),
+        declared_second_rotation_deg: z.number().optional(),
+        first_footprint_name: z.string().optional(),
+        second_footprint_name: z.string().optional(),
+        declared_first_footprint_name: z.string().optional(),
+        declared_second_footprint_name: z.string().optional(),
         constraint_source: z.string().optional(),
         reasons: z.array(z.string()),
         electrical_loop_status: z.literal('UNKNOWN'),

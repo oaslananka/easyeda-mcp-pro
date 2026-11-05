@@ -365,6 +365,49 @@ describe('production review rules', () => {
     expect(result.warnings.some((w) => w.code === 'PCB_COMPONENT_SPACING_VIOLATION')).toBe(true);
   });
 
+  it('rejects impossible polarized-component mark inventories as UNKNOWN', () => {
+    const invalidCounts = [
+      { polarizedComponentCount: 1, polarityMarkCount: 2 },
+      { polarizedComponentCount: 0, polarityMarkCount: 1 },
+      { polarizedComponentCount: 4, polarityMarkCount: 7 },
+    ];
+    for (const counts of invalidCounts) {
+      const result = validatePcbConstraints(makeInput(counts));
+      expect(result.unknownChecks).toContainEqual({
+        area: 'Polarity marks',
+        missingFields: ['polarizedComponentCount', 'polarityMarkCount'],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.warnings.some((w) => w.code === 'PCB_POLARITY_MARK_MISSING')).toBe(false);
+      expect(result.summary.unknown).toBeGreaterThan(0);
+    }
+    const incomplete = validatePcbConstraints(
+      makeInput({
+        polarizedComponentCount: 4,
+        polarityMarkCount: undefined,
+      }),
+    );
+    expect(incomplete.unknownChecks).toContainEqual({
+      area: 'Polarity marks',
+      missingFields: ['polarityMarkCount'],
+    });
+    const lower = validatePcbConstraints(
+      makeInput({
+        polarizedComponentCount: 4,
+        polarityMarkCount: 3,
+      }),
+    );
+    expect(lower.warnings.some((w) => w.code === 'PCB_POLARITY_MARK_MISSING')).toBe(true);
+    const equal = validatePcbConstraints(
+      makeInput({
+        polarizedComponentCount: 4,
+        polarityMarkCount: 4,
+      }),
+    );
+    expect(equal.unknownChecks.some((c) => c.area === 'Polarity marks')).toBe(false);
+    expect(equal.warnings.some((w) => w.code === 'PCB_POLARITY_MARK_MISSING')).toBe(false);
+  });
+
   it('warns when critical nets lack testpoint coverage', () => {
     const result = validatePcbConstraints(
       makeInput({
@@ -375,6 +418,46 @@ describe('production review rules', () => {
     const warn = result.warnings.find((w) => w.code === 'PCB_TESTPOINT_COVERAGE_LOW');
     expect(warn).toBeDefined();
     expect(warn!.details?.missingCriticalNets).toEqual(['RESET', 'SWDIO', 'SWCLK']);
+  });
+
+  it('matches native test-point nets exactly instead of folding case', () => {
+    const mismatch = validatePcbConstraints(
+      makeInput({ criticalNetNames: ['IO', 'GND'], testPointNets: ['io', 'GND'] }),
+    );
+    const warning = mismatch.warnings.find((w) => w.code === 'PCB_TESTPOINT_COVERAGE_LOW');
+    expect(warning).toBeDefined();
+    expect(warning?.details).toMatchObject({
+      coverageRatio: 0.5,
+      missingCriticalNets: ['IO'],
+    });
+    expect(mismatch.summary.failed).toBeGreaterThan(0);
+    const exact = validatePcbConstraints(
+      makeInput({ criticalNetNames: ['IO', 'GND'], testPointNets: ['IO', 'GND', 'GND'] }),
+    );
+    expect(exact.warnings.some((w) => w.code === 'PCB_TESTPOINT_COVERAGE_LOW')).toBe(false);
+    expect(exact.unknownChecks.some((item) => item.area === 'Testpoint coverage')).toBe(false);
+  });
+
+  it('fails closed for malformed or duplicate critical-net inventories', () => {
+    const variants: Array<Pick<PcbConstraintInput, 'criticalNetNames' | 'testPointNets'>> = [
+      { criticalNetNames: ['IO '], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO'], testPointNets: [' IO'] },
+      { criticalNetNames: ['IO', ''], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO'], testPointNets: [''] },
+      { criticalNetNames: ['IO', 'io'], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO', 'IO'], testPointNets: ['IO'] },
+    ];
+    for (const entry of variants) {
+      const result = validatePcbConstraints(makeInput(entry));
+      expect(result.unknownChecks).toContainEqual({
+        area: 'Testpoint coverage',
+        missingFields: ['criticalNetNames', 'testPointNets'],
+      });
+      expect(result.warnings.some((item) => item.code === 'PCB_TESTPOINT_COVERAGE_LOW')).toBe(
+        false,
+      );
+      expect(result.valid).toBe(false);
+    }
   });
 
   it('rejects missing programming/debug header when required', () => {

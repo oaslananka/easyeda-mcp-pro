@@ -142,6 +142,110 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('reports actual different-net same-layer copper overlap from the existing read-only bridge', async () => {
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listTracks'
+        ? {
+            total: 2,
+            items: [
+              {
+                primitiveId: 'clk-1',
+                net: 'CLK',
+                layer: 1,
+                startX: 0,
+                startY: 0,
+                endX: 100,
+                endY: 0,
+                width: 10,
+              },
+              {
+                primitiveId: 'gnd-1',
+                net: 'GND',
+                layer: 1,
+                startX: 50,
+                startY: -50,
+                endX: 50,
+                endY: 50,
+                width: 10,
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const result = await run();
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'OBSERVED_TRACK_COPPER_OVERLAP',
+        status: 'WARNING',
+        primitive_ids: ['clk-1', 'gnd-1'],
+        net: 'CLK',
+        other_net: 'GND',
+        observed_edge_gap_mm: -0.254,
+      }),
+    );
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'COPPER_CLEARANCE_UNVERIFIED',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('reports a bounded unverified multi-layer via endpoint candidate using existing native reads', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'pcb.listTracks') {
+        return {
+          total: 2,
+          items: [
+            {
+              primitiveId: 'a',
+              net: 'CLK',
+              layer: 1,
+              startX: 0,
+              startY: 0,
+              endX: 100,
+              endY: 0,
+              width: 8,
+            },
+            {
+              primitiveId: 'b',
+              net: 'CLK',
+              layer: 12,
+              startX: 100,
+              startY: 0,
+              endX: 100,
+              endY: 100,
+              width: 8,
+            },
+          ],
+        };
+      }
+      return {
+        total: 1,
+        items: [{ primitiveId: 'via', net: 'CLK', x: 100, y: 0, holeDiameter: 10, diameter: 30 }],
+      };
+    });
+    const result = await run();
+    expect(bridgeCall.mock.calls).toEqual([
+      ['pcb.listTracks', { projectId: 'project-1', limit: 200, offset: 0 }],
+      ['pcb.listVias', { projectId: 'project-1', limit: 200, offset: 0 }],
+    ]);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'VIA_LAYER_TRANSITION_CANDIDATE',
+        status: 'UNKNOWN',
+        net: 'CLK',
+        primitive_ids: ['a', 'b', 'via'],
+        native_layers: [1, 12],
+        position_mil: { x: 100, y: 0 },
+      }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.overall_status).toBe('UNKNOWN');
+  });
+
   it('does not invent a geometry PASS or warn on 90 degrees in general context', async () => {
     const result = await run();
     expect(result.overall_status).toBe('UNKNOWN');
@@ -282,6 +386,31 @@ describe('native PCB route geometry review MCP contract', () => {
         false,
       );
     }
+  });
+
+  it('carries optional datasheet provenance without mistaking a protocol reference for a device limit', async () => {
+    const source = 'Hypothetical part Rev B, Section 3 - example only';
+    const params = {
+      ...pairDeclaration,
+      constraintSource: source,
+    };
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    expect(schema?.safeParse({ projectId: 'project-1', differentialPair: params }).success).toBe(
+      true,
+    );
+    for (const invalid of ['', ' ', 'x'.repeat(201)]) {
+      expect(
+        schema?.safeParse({
+          projectId: 'project-1',
+          differentialPair: { ...params, constraintSource: invalid },
+        }).success,
+      ).toBe(false);
+    }
+    const result = await run({ differentialPair: params });
+    expect(result.differential_pair.constraint_source).toBe(source);
+    expect(result.differential_pair.protocol_guidance.source).not.toEqual(source);
+    const oldClient = await run({ differentialPair: pairDeclaration });
+    expect(oldClient.differential_pair.constraint_source).toBeNull();
   });
 
   it('checks observed parallel differential pair without imposing USB reference thresholds', async () => {
@@ -479,6 +608,135 @@ describe('native PCB route geometry review MCP contract', () => {
         placementRelations: Array.from({ length: 9 }, () => placement),
       }).success,
     ).toBe(false);
+  });
+
+  it('validates second-component rotation provenance and reports native differences', async () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    const relation = {
+      first: 'J1',
+      second: 'D1',
+      kind: 'esd-entry',
+      secondRotationDeg: 350,
+      secondRotationToleranceDeg: 2,
+      constraintSource: 'Example mechanical datasheet Rev B',
+    };
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        placementRelations: [relation],
+      }).success,
+    ).toBe(true);
+    for (const invalid of [
+      { ...relation, secondRotationDeg: undefined },
+      { ...relation, secondRotationToleranceDeg: 181 },
+      { ...relation, constraintSource: undefined },
+    ]) {
+      expect(
+        schema?.safeParse({
+          projectId: 'project-1',
+          placementRelations: [invalid],
+        }).success,
+      ).toBe(false);
+    }
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'pcb.listComponents')
+        return {
+          total: 2,
+          items: [
+            { primitiveId: 'j1', designator: 'J1', x: 0, y: 0, layer: 1, rotation: 0 },
+            { primitiveId: 'd1', designator: 'D1', x: 20, y: 0, layer: 1, rotation: 90 },
+          ],
+        };
+      return { total: 0, items: [] };
+    });
+    const result = await run({ placementRelations: [relation] });
+    expect(result.placement_review.findings[0]).toMatchObject({
+      status: 'WARNING',
+      relation: 'esd-entry',
+      declared_second_rotation_deg: 350,
+      second_rotation_deg: 90,
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(result.engineering_sign_off).toBe(false);
+    expect(bridgeCall).toHaveBeenCalledTimes(3);
+  });
+
+  it('checks exact source-declared native footprint names in the existing read-only response', async () => {
+    const relation = {
+      first: 'U1',
+      second: 'C1',
+      kind: 'decoupling',
+      firstFootprintName: 'QFN-32',
+      secondFootprintName: 'C_0603',
+      constraintSource: 'Example component placement specification Rev B',
+    };
+    const tool = registry.get('easyeda_pcb_route_geometry_review');
+    expect(
+      tool?.inputSchema.safeParse({ projectId: 'project-1', placementRelations: [relation] })
+        .success,
+    ).toBe(true);
+    for (const invalid of [
+      { ...relation, firstFootprintName: ' QFN-32' },
+      { ...relation, firstFootprintName: '' },
+      { ...relation, secondFootprintName: 'C_0603 ' },
+      { ...relation, constraintSource: undefined },
+    ]) {
+      expect(
+        tool?.inputSchema.safeParse({
+          projectId: 'project-1',
+          placementRelations: [invalid],
+        }).success,
+      ).toBe(false);
+    }
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listComponents'
+        ? {
+            total: 2,
+            items: [
+              {
+                primitiveId: 'u1',
+                designator: 'U1',
+                x: 0,
+                y: 0,
+                layer: 1,
+                footprintName: 'QFN-32',
+              },
+              {
+                primitiveId: 'c1',
+                designator: 'C1',
+                x: 50,
+                y: 0,
+                layer: 1,
+                footprintName: 'C_0805',
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const mismatch = await run({ placementRelations: [relation] });
+    expect(mismatch.placement_review.findings[0]).toMatchObject({
+      status: 'WARNING',
+      first_footprint_name: 'QFN-32',
+      second_footprint_name: 'C_0805',
+      declared_second_footprint_name: 'C_0603',
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(mismatch.engineering_sign_off).toBe(false);
+    expect(bridgeCall.mock.calls.map(([method]) => method)).toEqual([
+      'pcb.listTracks',
+      'pcb.listVias',
+      'pcb.listComponents',
+    ]);
+    const inRange = await run({
+      placementRelations: [
+        {
+          ...relation,
+          secondFootprintName: 'C_0805',
+        },
+      ],
+    });
+    expect(inRange.placement_review.findings[0]?.status).toBe('UNKNOWN');
+    expect(inRange.placement_review.engineering_sign_off).toBe(false);
   });
 
   it('reads native component origins once only when relations are requested', async () => {
