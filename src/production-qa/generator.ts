@@ -293,11 +293,23 @@ function generateChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistI
   return checklist;
 }
 
+function mdCell(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n\t\u2028\u2029]+/g, ' ');
+}
+
 function mdTable(rows: string[][]): string {
   if (rows.length === 0) return '';
   const header = rows[0] ?? [];
   const sep = header.map(() => '---');
-  return [header, sep, ...rows.slice(1)].map((row) => `| ${row.join(' | ')} |`).join('\n');
+  return [header, sep, ...rows.slice(1)]
+    .map((row) => `| ${row.map(mdCell).join(' | ')} |`)
+    .join('\n');
 }
 
 function testpointChecklistMarkdown(input: QaBoardInput, checklist: QaChecklistItem[]): string {
