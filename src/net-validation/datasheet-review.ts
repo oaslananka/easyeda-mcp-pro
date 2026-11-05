@@ -98,8 +98,16 @@ function findPinNet(
   );
   if (matched.length > 1) return { status: 'UNKNOWN' };
   const one = matched[0];
-  if (matched.length === 1 && one) return { status: 'CONNECTED', net: one };
-  return { status: 'UNCONNECTED' };
+  if (!one) return { status: 'UNCONNECTED' };
+  // A single matching record is not unique when another net reuses
+  // its ID/name or the record itself repeats the pin node.
+  if (
+    one.nodes.filter((node) => node.deviceRef === componentRef && node.pin === pin).length !== 1 ||
+    nets.some((net) => net !== one && (net.id === one.id || net.name === one.name))
+  ) {
+    return { status: 'UNKNOWN' };
+  }
+  return { status: 'CONNECTED', net: one };
 }
 
 function finding(

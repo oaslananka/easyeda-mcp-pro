@@ -244,6 +244,82 @@ describe('datasheet provenance-bound ERC observations', () => {
     });
   });
 
+  it('fails closed for reused net ID, reused net name and duplicate pin nodes', () => {
+    const constraint = fixtures[0]!.constraint;
+    if (constraint.kind !== 'pin_voltage') throw Error('Missing pin-voltage fixture');
+    const other = { ...nets[1]!, nodes: [...nets[1]!.nodes] };
+    const cases: NetValidationEntry[][] = [
+      [nets[0]!, { ...other, id: nets[0]!.id }, nets[2]!],
+      [nets[0]!, { ...other, name: nets[0]!.name }, nets[2]!],
+      [
+        {
+          ...nets[0]!,
+          nodes: [
+            ...nets[0]!.nodes,
+            {
+              deviceRef: constraint.componentRef,
+              pin: constraint.pin,
+            },
+          ],
+        },
+        other,
+        nets[2]!,
+      ],
+    ];
+    for (const declaredNets of cases) {
+      const result = reviewDatasheetConstraints([constraint], declaredNets, devices);
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+        observed_voltages_v: [],
+      });
+      expect(result.findings[0]?.message).toContain('not uniquely observed');
+      expect(result.engineering_sign_off).toBe(false);
+    }
+    expect(reviewDatasheetConstraints([constraint], nets, devices).findings[0]?.status).toBe(
+      'WARNING',
+    );
+  });
+
+  it('does not infer a support-pin mismatch from reused net identities', () => {
+    const source = fixtures.find((f) => f.constraint.kind === 'required_support')?.constraint;
+    if (source?.kind !== 'required_support') throw Error('Missing support fixture');
+    const constraint = {
+      ...source,
+      componentRef: 'U1',
+      pin: 'VDD',
+      supportRef: 'C4',
+      supportPin: '1',
+    };
+    const declaredDevices: DeviceValidationEntry[] = [
+      ...devices,
+      { id: 'C4', ref: 'C4', pins: [{ pin: '1', electricalType: 'passive' }] },
+    ];
+    const observedNets = [
+      nets[0]!,
+      { ...nets[1]!, nodes: [...nets[1]!.nodes, { deviceRef: 'C4', pin: '1' }] },
+      nets[2]!,
+    ];
+    expect(
+      reviewDatasheetConstraints([constraint], observedNets, declaredDevices).findings[0]?.status,
+    ).toBe('WARNING');
+    for (const net of [
+      { ...observedNets[1]!, id: observedNets[0]!.id },
+      { ...observedNets[1]!, name: observedNets[0]!.name },
+    ]) {
+      const result = reviewDatasheetConstraints(
+        [constraint],
+        [observedNets[0]!, net, observedNets[2]!],
+        declaredDevices,
+      );
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+      });
+      expect(result.findings[0]?.nets).toEqual([]);
+    }
+  });
+
   it('fails closed for repeated component or pin identity in declared inventories', () => {
     const sourceConstraint = fixtures[0]!.constraint;
     const duplicatedDevice = reviewDatasheetConstraints([sourceConstraint], nets, [

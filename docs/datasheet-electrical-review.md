@@ -95,9 +95,12 @@ An observed in-range point remains `UNKNOWN` for electrical certification.
 
 Exact pin references are required in the supplied device inventory before
 the netlist is considered a unique connection observation. A pin mapped to
-multiple nets, an omitted component, missing voltage, incomplete device
+multiple nets, a repeated pin node, a net ID or name reused by another
+net entry, an omitted component, missing voltage, incomplete device
 inventory or absent source revision yields `UNKNOWN` or input validation
-error, never an invented PASS.
+error, never an invented PASS. Duplicate net names are **not** evidence
+of shared electrical connectivity; exact pin-to-net identity must first
+be unambiguous.
 
 The original `passed`, `errors` and `warnings` fields retain the semantic
 ERC contract when this optional review is omitted. When source-declared
