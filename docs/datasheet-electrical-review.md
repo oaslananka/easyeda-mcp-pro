@@ -68,6 +68,18 @@ An observed in-range point remains `UNKNOWN` for electrical certification.
 - `pin_voltage`: compare exact net wiring (`expectedNet`) and explicitly
   declared voltage against minimum/maximum pin or I/O-domain limits. A
   mismatched wired net or observed exceedance is `WARNING`.
+- `io_domain_voltage`: compare an explicitly declared I/O pin and
+  same-device supply pin using numeric net voltages and the
+  caller-declared `maxAboveSupplyV` limit. For example, a hypothetical
+  non-5V-tolerant input may have an upper bound relative to its I/O
+  supply; the tool does **not** assume any device has that limit unless
+  it is declared with an exact part/package/revision source. Exceeding
+  the limit yields `WARNING`; a value within the limit is
+  `UNKNOWN`, not I/O compliance. Missing pin identity, numeric rail
+  data or valid bounds also remains `UNKNOWN`. This is an upper-bound
+  observation only, not proof of logic thresholds, negative-rail ratings,
+  power sequencing, current injection, absolute-maximum suitability or
+  rail tolerance.
 - `intentional_nc`: flag a pin declared NC but actually mapped to a net.
   No observed net remains `UNKNOWN` because a native no-connect marker
   and the correctness of the datasheet declaration were not independently

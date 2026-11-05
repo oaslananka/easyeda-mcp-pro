@@ -244,6 +244,85 @@ describe('datasheet provenance-bound ERC observations', () => {
     });
   });
 
+  it('compares declared I/O-to-supply overvoltage without falsely passing nominal IO', () => {
+    const ref = fixtures[0]!.constraint.reference;
+    const constraint: DatasheetConstraint = {
+      kind: 'io_domain_voltage',
+      componentRef: 'U1',
+      pin: 'GPIO',
+      supplyPin: 'VREF',
+      maxAboveSupplyV: 0.3,
+      reference: ref,
+    };
+    const withSupply = [nets[0]!, nets[1]!, { ...nets[2]!, voltage: 3.3 }];
+    const over = reviewDatasheetConstraints([constraint], withSupply, devices);
+    expect(over.findings[0]).toMatchObject({
+      kind: 'io_domain_voltage',
+      status: 'WARNING',
+      evidence: 'explicit_netlist',
+      pins: ['GPIO', 'VREF'],
+      nets: ['5V', '3V3_NOMINAL'],
+      observed_voltages_v: [
+        { net: '5V', voltage_v: 5 },
+        { net: '3V3_NOMINAL', voltage_v: 3.3 },
+      ],
+      source: ref,
+    });
+    expect(over.engineering_sign_off).toBe(false);
+
+    const within = reviewDatasheetConstraints(
+      [constraint],
+      [{ ...nets[0]!, voltage: 3.6 }, nets[1]!, withSupply[2]!],
+      devices,
+    );
+    expect(within.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'explicit_netlist',
+    });
+    expect(within.findings[0]?.message).toContain('remain unverified');
+
+    const supplyUnknown = reviewDatasheetConstraints([constraint], nets, devices);
+    expect(supplyUnknown.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+      observed_voltages_v: [{ net: '5V', voltage_v: 5 }],
+    });
+    expect(supplyUnknown.findings[0]?.message).toContain('two explicitly declared');
+  });
+
+  it('fails closed on missing I/O pin, invalid domain bounds and reused net IDs', () => {
+    const source = fixtures[0]!.constraint.reference;
+    const base: DatasheetConstraint = {
+      kind: 'io_domain_voltage',
+      componentRef: 'U1',
+      pin: 'GPIO',
+      supplyPin: 'VREF',
+      maxAboveSupplyV: 0.3,
+      reference: source,
+    };
+    const declared = [nets[0]!, nets[1]!, { ...nets[2]!, voltage: 3.3 }];
+    for (const invalid of [
+      { ...base, pin: 'MISSING' },
+      { ...base, supplyPin: 'MISSING' },
+      { ...base, pin: 'VREF' },
+      { ...base, maxAboveSupplyV: -1 },
+      { ...base, maxAboveSupplyV: Number.POSITIVE_INFINITY },
+    ]) {
+      const result = reviewDatasheetConstraints([invalid], declared, devices);
+      expect(result.findings[0]?.status).toBe('UNKNOWN');
+      expect(result.engineering_sign_off).toBe(false);
+    }
+    const duplicate = reviewDatasheetConstraints(
+      [base],
+      [declared[0]!, declared[1]!, { ...declared[2]!, id: declared[0]!.id }],
+      devices,
+    );
+    expect(duplicate.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+    });
+  });
+
   it('fails closed for reused net ID, reused net name and duplicate pin nodes', () => {
     const constraint = fixtures[0]!.constraint;
     if (constraint.kind !== 'pin_voltage') throw Error('Missing pin-voltage fixture');

@@ -442,6 +442,14 @@ function registerDrcErcTools(
       maxVoltageV: z.number().finite().optional(),
     }),
     z.object({
+      kind: z.literal('io_domain_voltage'),
+      componentRef: constrainedRef,
+      pin: constrainedRef,
+      supplyPin: constrainedRef,
+      maxAboveSupplyV: z.number().finite().nonnegative(),
+      reference: referenceSchema,
+    }),
+    z.object({
       kind: z.literal('intentional_nc'),
       componentRef: constrainedRef,
       pin: constrainedRef,
@@ -473,7 +481,13 @@ function registerDrcErcTools(
     findings: z.array(
       z.object({
         id: z.string(),
-        kind: z.enum(['pin_voltage', 'intentional_nc', 'required_support', 'regulator_headroom']),
+        kind: z.enum([
+          'pin_voltage',
+          'io_domain_voltage',
+          'intentional_nc',
+          'required_support',
+          'regulator_headroom',
+        ]),
         status: z.enum(['WARNING', 'UNKNOWN']),
         component_ref: z.string(),
         related_component_ref: z.string().optional(),
@@ -512,6 +526,13 @@ function registerDrcErcTools(
             message: 'Minimum voltage cannot exceed maximum voltage.',
           });
         }
+        if (constraint.kind === 'io_domain_voltage' && constraint.pin === constraint.supplyPin) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['datasheetConstraints', index],
+            message: 'I/O and supply pins must differ.',
+          });
+        }
         if (
           constraint.kind === 'regulator_headroom' &&
           constraint.inputPin === constraint.outputPin
@@ -529,7 +550,7 @@ function registerDrcErcTools(
     name: 'easyeda_semantic_erc_validate',
     title: 'Run semantic ERC validation',
     description:
-      'Run typed semantic ERC over caller-supplied pin/net metadata. Optional exact part/package/revision constraints report source-declared voltage, intentional NC, support-part and headroom evidence; they do not authenticate a datasheet or certify the circuit.',
+      'Run typed semantic ERC over caller-supplied pin/net metadata. Optional exact part/package/revision constraints report source-declared voltage, I/O supply-domain, intentional NC, support-part and headroom evidence; they do not authenticate a datasheet or certify the circuit.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',

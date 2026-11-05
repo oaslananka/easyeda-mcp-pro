@@ -25,6 +25,15 @@ export type DatasheetConstraint =
       maxVoltageV?: number;
     }
   | {
+      kind: 'io_domain_voltage';
+      componentRef: string;
+      pin: string;
+      supplyPin: string;
+      /** Caller-declared maximum I/O voltage above its explicitly stated supply. */
+      maxAboveSupplyV: number;
+      reference: DatasheetReference;
+    }
+  | {
       kind: 'intentional_nc';
       componentRef: string;
       pin: string;
@@ -248,6 +257,74 @@ function reviewPinVoltage(
   );
 }
 
+function invalidIoDomainComparison(
+  constraint: Extract<DatasheetConstraint, { kind: 'io_domain_voltage' }>,
+  differenceV: number,
+): boolean {
+  return (
+    constraint.pin === constraint.supplyPin ||
+    !Number.isFinite(constraint.maxAboveSupplyV) ||
+    constraint.maxAboveSupplyV < 0 ||
+    !Number.isFinite(differenceV)
+  );
+}
+
+function reviewIoDomainVoltage(
+  c: Extract<DatasheetConstraint, { kind: 'io_domain_voltage' }>,
+  index: number,
+  nets: NetValidationEntry[],
+  devices: DeviceValidationEntry[] | undefined,
+): DatasheetFinding {
+  const io = findPinNet(c.componentRef, c.pin, nets, devices);
+  const supply = findPinNet(c.componentRef, c.supplyPin, nets, devices);
+  const observed = [...voltageObservation(io), ...voltageObservation(supply)];
+  const names = [
+    ...(io.status === 'CONNECTED' ? [io.net.name] : []),
+    ...(supply.status === 'CONNECTED' ? [supply.net.name] : []),
+  ];
+  const pins = [c.pin, c.supplyPin];
+  if (io.status !== 'CONNECTED' || supply.status !== 'CONNECTED' || observed.length !== 2) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'Unique I/O and supply pin connections with two explicitly declared numeric net voltages are required.',
+      pins,
+      names,
+      observed,
+    );
+  }
+  const ioVoltage = observed[0]?.voltage_v;
+  const supplyVoltage = observed[1]?.voltage_v;
+  const difference = (ioVoltage ?? Number.NaN) - (supplyVoltage ?? Number.NaN);
+  if (invalidIoDomainComparison(c, difference)) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'The I/O supply pin identity, declared allowance or voltage difference is invalid.',
+      pins,
+      names,
+      observed,
+      'explicit_netlist',
+    );
+  }
+  // 1e-12 V only compensates floating-point rounding, not electrical tolerance.
+  const violated = difference > c.maxAboveSupplyV + 1e-12;
+  return finding(
+    index,
+    c,
+    violated ? 'WARNING' : 'UNKNOWN',
+    violated
+      ? 'Caller-declared I/O voltage exceeds the source-declared supply-relative upper bound.'
+      : 'Declared I/O voltage is within the supply-relative upper bound; logic levels, negative limits, rail tolerance and physical behavior remain unverified.',
+    pins,
+    names,
+    observed,
+    'explicit_netlist',
+  );
+}
+
 function reviewNoConnect(
   c: Extract<DatasheetConstraint, { kind: 'intentional_nc' }>,
   index: number,
@@ -406,6 +483,8 @@ export function reviewDatasheetConstraints(
     switch (constraint.kind) {
       case 'pin_voltage':
         return reviewPinVoltage(constraint, index, nets, devices);
+      case 'io_domain_voltage':
+        return reviewIoDomainVoltage(constraint, index, nets, devices);
       case 'intentional_nc':
         return reviewNoConnect(constraint, index, nets, devices);
       case 'required_support':
