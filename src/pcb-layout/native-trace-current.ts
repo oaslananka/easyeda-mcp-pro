@@ -118,6 +118,9 @@ function nativeNetGeometryComplete(
     trustedNativeIdentity(input.tracks) &&
     matching.length > 0 &&
     matching.every(validSegment) &&
+    // One declared external/internal thermal class cannot be applied to
+    // copper segments observed on multiple native layer codes.
+    new Set(matching.map((track) => track.layer)).size === 1 &&
     ids.every(exactIdentity) &&
     new Set(ids).size === ids.length
   );
@@ -150,7 +153,7 @@ export function reviewNativeTraceCurrent(input: NativeTraceCurrentInput): Native
       id: 'NATIVE_GEOMETRY_UNKNOWN',
       status: 'UNKNOWN',
       message:
-        'Selected-net native geometry is absent, malformed, incomplete or not version-bound; no trace-width verdict is available.',
+        'Selected-net native geometry is absent, malformed, spans multiple native layers, incomplete or not version-bound; no trace-width verdict is available.',
     });
   } else {
     if (minWidth < reference.traceWidthMm) {
@@ -215,6 +218,7 @@ export function reviewNativeTraceCurrent(input: NativeTraceCurrentInput): Native
     limitations: [
       'IPC-2221 is an empirical reference, NOT an IPC-2152 thermal model or guaranteed limit.',
       'Current, layer class, copper weight, temperature rise, environment and manufacturer minimum remain caller declarations; native stackup/finished copper thickness was not verified.',
+      'A single caller-declared thermal layer class cannot be mapped to multiple native copper layer codes; mixed-layer net reviews require separate source-bound layer assumptions.',
       "Native primitive reads are bounded and non-atomic; only the selected net's returned segments were compared, not a verified end-to-end current path.",
       'Via plating, bottlenecks, pours, copper return paths, dissipation and environmental heat transfer remain UNKNOWN.',
       'This read-only review does not run DRC or certify fabrication, electrical safety or thermal adequacy.',
