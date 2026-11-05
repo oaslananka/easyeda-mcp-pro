@@ -32,6 +32,32 @@ function checklistId(prefix: string, value: string): string {
   return `${prefix}-${slug(value)}`;
 }
 
+function exactTestPointReference(ref: string | undefined): ref is string {
+  return typeof ref === 'string' && ref.length > 0 && ref.trim() === ref;
+}
+
+function uniqueChecklistId(base: string, used: Set<string>): string {
+  let id = base;
+  let suffix = 2;
+  while (used.has(id)) id = `${base}-${suffix++}`;
+  used.add(id);
+  return id;
+}
+
+function testpointEvidenceStatus(
+  net: QaCriticalNetInput,
+  duplicate: boolean,
+  missing: boolean,
+): QaChecklistItem['status'] {
+  if (missing) return 'fail';
+  return !duplicate &&
+    net.name.length > 0 &&
+    net.name.trim() === net.name &&
+    exactTestPointReference(net.testPointRef)
+    ? 'pass'
+    : 'review';
+}
+
 function requiredCriticalNets(input: QaBoardInput): QaCriticalNetInput[] {
   return (input.criticalNets ?? []).filter((net) => net.required !== false);
 }
@@ -119,7 +145,7 @@ function assemblyChecklistStatus(component: QaAssemblyComponentInput): 'pass' | 
   return (component.polarized && !component.orientationMark) || !component.side ? 'review' : 'pass';
 }
 
-function generateChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistItem[] {
+function generateTestpointChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistItem[] {
   const checklist: QaChecklistItem[] = [];
   const missingTp = new Set(
     issues
@@ -127,19 +153,38 @@ function generateChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistI
       .map((entry) => String(entry.details?.netName ?? '')),
   );
 
-  for (const net of requiredCriticalNets(input)) {
+  const requiredNets = requiredCriticalNets(input);
+  const netCounts = new Map<string, number>();
+  const usedIds = new Set<string>();
+  for (const net of requiredNets) netCounts.set(net.name, (netCounts.get(net.name) ?? 0) + 1);
+
+  for (const net of requiredNets) {
+    const duplicate = (netCounts.get(net.name) ?? 0) !== 1;
+    const exactNet = !duplicate && net.name.length > 0 && net.name.trim() === net.name;
+    const refValid = exactTestPointReference(net.testPointRef);
+    const verifiedRef = exactNet && refValid ? net.testPointRef : undefined;
     checklist.push({
-      id: checklistId('tp', net.name),
+      id: uniqueChecklistId(checklistId('tp', net.name), usedIds),
       title: `Verify test access for ${net.name}`,
       category: 'testpoint',
       required: true,
-      status: missingTp.has(net.name) ? 'fail' : 'pass',
-      details: net.hasTestPoint
-        ? `Test point: ${net.testPointRef ?? 'declared'}`
-        : 'No test point declared',
-      refs: net.testPointRef ? [net.testPointRef] : undefined,
+      status: testpointEvidenceStatus(net, duplicate, missingTp.has(net.name)),
+      details: !net.hasTestPoint
+        ? 'No test point declared'
+        : !exactNet
+          ? 'Critical net identity is missing or ambiguous; verify test access.'
+          : refValid
+            ? `Declared test point: ${net.testPointRef}`
+            : 'Test point declared without an exact reference; verify test access.',
+      refs: verifiedRef ? [verifiedRef] : undefined,
     });
   }
+
+  return checklist;
+}
+
+function generateChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistItem[] {
+  const checklist = generateTestpointChecklist(input, issues);
 
   for (const component of componentsWithNotes(input)) {
     checklist.push({
@@ -215,16 +260,21 @@ function mdTable(rows: string[][]): string {
 }
 
 function testpointChecklistMarkdown(input: QaBoardInput, checklist: QaChecklistItem[]): string {
+  const testpointItems = checklist.filter((entry) => entry.category === 'testpoint');
   const rows = [
     ['Net', 'Category', 'Required', 'Status', 'Test point'],
-    ...requiredCriticalNets(input).map((net) => {
-      const item = checklist.find((entry) => entry.id === checklistId('tp', net.name));
+    ...requiredCriticalNets(input).map((net, index) => {
+      const item = testpointItems[index];
       return [
         net.name,
         net.category ?? 'custom',
         net.required === false ? 'no' : 'yes',
         item?.status ?? 'review',
-        net.testPointRef ?? (net.hasTestPoint ? 'declared' : 'missing'),
+        exactTestPointReference(net.testPointRef) && item?.status === 'pass'
+          ? net.testPointRef
+          : net.hasTestPoint
+            ? 'unverified'
+            : 'missing',
       ];
     }),
   ];
@@ -259,9 +309,10 @@ function bringupPlanMarkdown(input: QaBoardInput): string {
   );
   const railLines = rails.length
     ? rails
-        .map(
-          (net, index) =>
-            `${index + 1}. Measure ${net.name} at ${net.testPointRef ?? 'declared test point'}.`,
+        .map((net, index) =>
+          exactTestPointReference(net.testPointRef)
+            ? `${index + 1}. Measure ${net.name} at declared point ${net.testPointRef} after verifying accessibility.`
+            : `${index + 1}. Identify and verify test access for ${net.name} before measurement.`,
         )
         .join('\n')
     : '1. Measure all declared power rails and ground references.';

@@ -111,6 +111,56 @@ describe('generateProductionQaArtifacts', () => {
     );
   });
 
+  it('keeps colliding slug net identities distinct in testpoint checklist rows', () => {
+    const report = generateProductionQaArtifacts({
+      projectId: 'slug-collision',
+      criticalNets: [
+        { name: 'VCC+', hasTestPoint: true, testPointRef: 'TP1' },
+        { name: 'VCC-', hasTestPoint: false },
+        { name: 'VCC-2', hasTestPoint: true, testPointRef: 'TP3' },
+      ],
+    });
+    const entries = report.checklist.filter((item) => item.category === 'testpoint');
+    expect(new Set(entries.map((item) => item.id)).size).toBe(3);
+    expect(entries.map((item) => item.status)).toEqual(['pass', 'fail', 'pass']);
+    const md = report.artifacts.find((item) => item.role === 'testpoint-checklist')?.content;
+    expect(md).toContain('| VCC+ | custom | yes | pass | TP1 |');
+    expect(md).toContain('| VCC- | custom | yes | fail | missing |');
+    expect(md).toContain('| VCC-2 | custom | yes | pass | TP3 |');
+    expect(report.passed).toBe(false);
+  });
+
+  it('keeps missing testpoint refs and duplicated exact net names under review', () => {
+    const report = generateProductionQaArtifacts({
+      projectId: 'unverified-test-access',
+      criticalNets: [
+        { name: 'GND', category: 'ground', hasTestPoint: true },
+        { name: 'RESET', hasTestPoint: true, testPointRef: ' TP2' },
+        { name: 'SENSE', hasTestPoint: true, testPointRef: 'TP3' },
+        { name: 'SENSE', hasTestPoint: true, testPointRef: 'TP4' },
+        { name: 'VCC', hasTestPoint: true, testPointRef: 'TP5' },
+      ],
+    });
+    const entries = report.checklist.filter((item) => item.category === 'testpoint');
+    expect(entries.map((item) => item.status)).toEqual([
+      'review',
+      'review',
+      'review',
+      'review',
+      'pass',
+    ]);
+    expect(new Set(entries.map((item) => item.id)).size).toBe(5);
+    expect(entries[1]?.refs).toBeUndefined();
+    expect(entries[2]?.refs).toBeUndefined();
+    const md = report.artifacts.find((item) => item.role === 'testpoint-checklist')?.content ?? '';
+    expect(md).toContain('| GND | ground | yes | review | unverified |');
+    expect(md).toContain('| RESET | custom | yes | review | unverified |');
+    expect(md).toContain('| VCC | custom | yes | pass | TP5 |');
+    expect(report.artifacts.find((item) => item.role === 'bringup-plan')?.content).toContain(
+      'Identify and verify test access for GND before measurement.',
+    );
+  });
+
   it('includes DNP and special handling notes in assembly artifact', () => {
     const report = generateProductionQaArtifacts({
       projectName: 'Factory Demo',
