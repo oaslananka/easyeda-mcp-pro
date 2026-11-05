@@ -111,6 +111,45 @@ describe('native bounded-net trace-current reference', () => {
     );
   });
 
+  it('does not compare mixed native copper layers against one declared thermal layer class', () => {
+    for (const layer of ['external', 'internal'] as const) {
+      const mixed = reviewNativeTraceCurrent({
+        ...baseline,
+        declaration: {
+          ...baseline.declaration,
+          layer,
+          manufacturerMinWidthMm: 0.2,
+        },
+        tracks: [{ ...baseline.tracks[0]!, layer: 2 }, baseline.tracks[1]!, baseline.tracks[2]!],
+      });
+      expect(mixed.geometry_evidence).toBe('unavailable');
+      expect(mixed.status).toBe('UNKNOWN');
+      expect(mixed.observed_narrowest_segment_width_mm).toBeUndefined();
+      expect(mixed.observed_primitive_ids).toEqual([]);
+      expect(mixed.findings).toContainEqual(
+        expect.objectContaining({ id: 'NATIVE_GEOMETRY_UNKNOWN', status: 'UNKNOWN' }),
+      );
+      expect(
+        mixed.findings.some(
+          (finding) =>
+            finding.id === 'THERMAL_REFERENCE_SHORTFALL' ||
+            finding.id === 'FABRICATION_DECLARATION_SHORTFALL',
+        ),
+      ).toBe(false);
+      expect(mixed.limitations.join(' ')).toMatch(/layer/i);
+      expect(mixed.engineering_sign_off).toBe(false);
+    }
+
+    const singleLayer = reviewNativeTraceCurrent({
+      ...baseline,
+      tracks: baseline.tracks.map((track) =>
+        track.net === 'PWR' ? { ...track, layer: 2 } : track,
+      ),
+    });
+    expect(singleLayer.geometry_evidence).toBe('observed_bounded_segments');
+    expect(singleLayer.status).toBe('WARNING');
+  });
+
   it('does not assign a measured current-path width when an unrelated track reuses a native ID', () => {
     const r = reviewNativeTraceCurrent({
       ...baseline,
