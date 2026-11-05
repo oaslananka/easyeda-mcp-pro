@@ -169,10 +169,9 @@ describe('design rule-check operations', () => {
     const { operations, callFirst } = createSubject();
     callFirst.mockResolvedValue([
       { list: [{ type: 'warn', count: 2 }] },
-      { list: [{}], type: 'info', count: 0 },
+      { list: [], type: 'info', count: 0 },
       { title: ['WARN', 'group'], count: 1 },
       { title: 'error group', count: 1 },
-      { count: 'not-numeric' },
     ]);
 
     const result = await operations.runDrc();
@@ -184,6 +183,28 @@ describe('design rule-check operations', () => {
       passed: false,
     });
     expect(result.violations).toHaveLength(3);
+  });
+
+  it('fails closed for malformed native DRC array entries instead of silently ignoring them', async () => {
+    const { operations, callFirst } = createSubject();
+    for (const invalid of [
+      {},
+      { unexpected: true },
+      { count: 'not-numeric' },
+      { type: 'error', count: -1 },
+      { type: 'error', count: 1.5 },
+      { type: 'error', count: Number.NaN },
+      { type: 'error', count: Number.POSITIVE_INFINITY },
+      { list: { unexpected: true } },
+      { list: [{ unknownChild: true }], type: 'info', count: 0 },
+    ]) {
+      callFirst.mockResolvedValueOnce([invalid]);
+      await expect(operations.runDrc()).rejects.toMatchObject({
+        code: 'CONTEXT_UNAVAILABLE',
+        data: { cause: expect.stringContaining('unsupported native rule-check') },
+      });
+    }
+    expect(callFirst).toHaveBeenCalledTimes(9);
   });
 
   it('never converts an unsupported native DRC response into a zero-violation pass', async () => {
@@ -226,6 +247,19 @@ describe('design rule-check operations', () => {
     await expect(operations.runRuleCheck()).resolves.toMatchObject({
       totalViolations: 1,
       passed: true,
+    });
+    expect(callFirst).toHaveBeenCalledTimes(1);
+    expect(callFirst).toHaveBeenCalledWith(['PCB_Drc.check'], true, true, true);
+    expect(logRecoverableError).not.toHaveBeenCalled();
+  });
+
+  it('never turns an invalid PCB DRC into a successful schematic fallback', async () => {
+    const { operations, callFirst, logRecoverableError } = createSubject();
+    callFirst.mockResolvedValueOnce([{ unexpected: true }]).mockResolvedValueOnce([]);
+
+    await expect(operations.runRuleCheck()).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      data: { cause: expect.stringContaining('unsupported native rule-check') },
     });
     expect(callFirst).toHaveBeenCalledTimes(1);
     expect(callFirst).toHaveBeenCalledWith(['PCB_Drc.check'], true, true, true);

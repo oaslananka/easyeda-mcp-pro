@@ -10,6 +10,12 @@ export interface DrcResult {
   passed: boolean;
 }
 
+class UnsupportedNativeRuleCheckResponseError extends Error {
+  constructor(reason: string) {
+    super(`unsupported native rule-check response: ${reason}`);
+  }
+}
+
 export interface FloatingPin {
   primitiveId: string;
   designator: string;
@@ -144,11 +150,29 @@ function hasLeafDetail(obj: Record<string, unknown>): boolean {
   ].some((key) => obj[key] !== undefined);
 }
 
+function validatedNativeNode(item: unknown): Record<string, unknown> | null {
+  if (Array.isArray(item)) {
+    throw new UnsupportedNativeRuleCheckResponseError('nested array finding');
+  }
+  const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+  if (!obj) return null;
+  if (
+    'count' in obj &&
+    (typeof obj.count !== 'number' || !Number.isSafeInteger(obj.count) || obj.count < 0)
+  ) {
+    throw new UnsupportedNativeRuleCheckResponseError('invalid aggregate count');
+  }
+  if ('list' in obj && !Array.isArray(obj.list)) {
+    throw new UnsupportedNativeRuleCheckResponseError('invalid nested finding list');
+  }
+  return obj;
+}
+
 function normalizeNode(item: unknown): {
   violations: Array<Record<string, unknown>>;
   aggregates: Array<{ severity: DrcSeverity; count: number }>;
 } {
-  const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+  const obj = validatedNativeNode(item);
   if (!obj) return { violations: [normalizeViolation(item)], aggregates: [] };
 
   const children = Array.isArray(obj.list) ? obj.list : [];
@@ -161,7 +185,10 @@ function normalizeNode(item: unknown): {
 
   if (hasLeafDetail(obj)) return { violations: [normalizeViolation(obj)], aggregates: [] };
   const aggregate = normalizeAggregate(obj);
-  return { violations: [], aggregates: aggregate ? [aggregate] : [] };
+  if (!aggregate) {
+    throw new UnsupportedNativeRuleCheckResponseError('unrecognized finding node');
+  }
+  return { violations: [], aggregates: [aggregate] };
 }
 
 export function createDesignRuleCheckOperations(
@@ -170,7 +197,7 @@ export function createDesignRuleCheckOperations(
   async function runNative(paths: string[]): Promise<DrcResult> {
     const raw = await dependencies.callFirst(paths, true, true, true);
     if (!Array.isArray(raw)) {
-      throw new Error('unsupported native rule-check response: expected an array of rule findings');
+      throw new UnsupportedNativeRuleCheckResponseError('expected an array of rule findings');
     }
     const normalized = raw.map(normalizeNode);
     const detailed = normalized.flatMap((entry) => entry.violations);
@@ -234,6 +261,14 @@ export function createDesignRuleCheckOperations(
     try {
       return await runNative(['PCB_Drc.check']);
     } catch (error) {
+      if (error instanceof UnsupportedNativeRuleCheckResponseError) {
+        throw dependencies.createBridgeError(
+          'CONTEXT_UNAVAILABLE',
+          'Native PCB DRC returned an unsupported result; schematic ERC cannot verify this PCB.',
+          'Focus a PCB document and inspect the native DRC API response before retrying.',
+          { cause: dependencies.errorMessage(error) },
+        );
+      }
       pcbError = error;
       dependencies.logRecoverableError(
         'design.ruleCheck: PCB DRC unavailable; trying schematic ERC/DRC',
