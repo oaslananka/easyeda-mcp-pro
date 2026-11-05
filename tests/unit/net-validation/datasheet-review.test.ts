@@ -118,6 +118,42 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(missing.findings[0]?.message).toMatch(/no numeric/i);
   });
 
+  it('does not compare one regulator pin against itself as separate input/output evidence', () => {
+    const base = fixtures[6]!.constraint;
+    if (base.kind !== 'regulator_headroom') throw new Error('Fixture contract changed');
+    for (const pin of ['IN', 'OUT']) {
+      for (const minHeadroomV of [0, 0.5]) {
+        const result = reviewDatasheetConstraints(
+          [{ ...base, inputPin: pin, outputPin: pin, minHeadroomV }],
+          nets,
+          devices,
+        );
+        expect(result.findings[0]).toMatchObject({
+          status: 'UNKNOWN',
+          evidence: 'incomplete_or_ambiguous',
+          pins: [pin, pin],
+          observed_voltages_v: [],
+        });
+        expect(result.findings[0]?.message).toMatch(/distinct|same pin|invalid/i);
+        expect(result.findings[0]?.message).not.toMatch(/below|meets/);
+        expect(result.engineering_sign_off).toBe(false);
+      }
+    }
+    // Two different pins intentionally tied to one net remain a concrete
+    // zero-headroom observation; do not discard that discrepancy.
+    const sharedInputNet: NetValidationEntry[] = [
+      { ...nets[0]!, nodes: [...nets[0]!.nodes, { deviceRef: 'U2', pin: 'OUT' }] },
+      { ...nets[1]!, nodes: [] },
+      nets[2]!,
+    ];
+    const tied = reviewDatasheetConstraints(
+      [{ ...base, minHeadroomV: 0.5 }],
+      sharedInputNet,
+      devices,
+    );
+    expect(tied.findings[0]?.status).toBe('WARNING');
+  });
+
   it('rejects invalid regulator headroom constraints and handles exact arithmetic boundaries', () => {
     const constraint = fixtures[6]!.constraint;
     if (constraint.kind !== 'regulator_headroom') throw new Error('Fixture contract changed');

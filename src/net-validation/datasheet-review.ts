@@ -461,12 +461,26 @@ function reviewSupport(
   };
 }
 
+function invalidRegulatorHeadroomLimit(minHeadroomV: number, margin: number): boolean {
+  return !Number.isFinite(minHeadroomV) || minHeadroomV < 0 || !Number.isFinite(margin);
+}
+
 function reviewHeadroom(
   c: Extract<DatasheetConstraint, { kind: 'regulator_headroom' }>,
   index: number,
   nets: NetValidationEntry[],
   devices: DeviceValidationEntry[] | undefined,
 ): DatasheetFinding {
+  if (c.inputPin === c.outputPin) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'Regulator input and output must identify distinct pins; one pin cannot establish a voltage margin.',
+      [c.inputPin, c.outputPin],
+      [],
+    );
+  }
   const input = findPinNet(c.componentRef, c.inputPin, nets, devices);
   const output = findPinNet(c.componentRef, c.outputPin, nets, devices);
   const observed = [...voltageObservation(input), ...voltageObservation(output)];
@@ -491,7 +505,7 @@ function reviewHeadroom(
     throw new Error('Unreachable: declared input/output voltages were not observed');
   }
   const margin = inputVoltage - outputVoltage;
-  if (!Number.isFinite(c.minHeadroomV) || c.minHeadroomV < 0 || !Number.isFinite(margin)) {
+  if (invalidRegulatorHeadroomLimit(c.minHeadroomV, margin)) {
     return finding(
       index,
       c,
