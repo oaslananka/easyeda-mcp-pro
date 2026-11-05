@@ -99,16 +99,18 @@ An observed in-range point remains `UNKNOWN` for electrical certification.
   pull, decoupling or protection part. Such self-support remains
   \`UNKNOWN\` even when its pins share a net.
   Presence of a designator does not prove electrical
-  Presence of a designator does not prove electrical
   connection, values, location, or adequacy. Absence from the supplied
   device list is a candidate finding, not certified absence from the
   live board, because the supplied list may be partial. Both remain
   `UNKNOWN` for physical compliance until source-bound live proof.
 - `regulator_headroom`: compare input and output **numeric net voltages**
-  on the declared regulator pins with a caller-supplied `minHeadroomV`.
-  Insufficient margin yields `WARNING`. Load-dependent dropout,
-  temperature, transient and current constraints require separate
-  evidence from the existing `easyeda_power_tree_analyze`.
+  on two distinct, exact regulator pins with a caller-supplied `minHeadroomV`.
+  Declaring one pin as both input and output leaves headroom `UNKNOWN`,
+  without reporting the same voltage as two independent measurements.
+  Two distinct pins tied to the same net still indicate a real
+  declared zero-margin shortfall. Load-dependent dropout, temperature,
+  transient and current constraints require separate evidence from
+  `easyeda_power_tree_analyze`.
 
 Every net ID and name, and every device ID and designator, must be exact,
 nonblank and **globally unique** across its respective supplied inventory.
