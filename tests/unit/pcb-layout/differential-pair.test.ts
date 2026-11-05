@@ -191,6 +191,106 @@ describe('source-backed native differential-pair evidence', () => {
     }
   });
 
+  it('does not compare duplicate native track identities across the two declared nets', () => {
+    const tracks = [a('reused', 'P', 0, 0, 100, 0), a('reused', 'N', 0, 20, 100, 20)];
+    const result = reviewDifferentialPair(
+      { ...declared, maxSkewMm: 0.1, minEdgeGapMm: 0.1 },
+      tracks,
+      [],
+      true,
+    );
+    expect(result.paths.positive.coverage).toBe('AMBIGUOUS');
+    expect(result.paths.negative.coverage).toBe('AMBIGUOUS');
+    expect(result.skew.status).toBe('UNKNOWN');
+    expect(result.spacing).toMatchObject({ status: 'UNKNOWN', sample_count: 0 });
+    expect(result.skew.observed_mm).toBeUndefined();
+    expect(result.spacing.observed_mm).toBeUndefined();
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('rejects padded native identities and invalid geometry from pair measurements', () => {
+    const valid = a('n', 'N', 0, 20, 100, 20);
+    for (const broken of [
+      { ...a('p', 'P', 0, 0, 100, 0), primitiveId: ' p ' },
+      { ...a('p', 'P', 0, 0, 100, 0), net: ' P ' },
+      { ...a('p', 'P', 0, 0, 100, 0), endX: 1e308 },
+      { ...a('p', 'P', 0, 0, 100, 0), width: 1e308 },
+    ]) {
+      const declaredNets = {
+        ...declared,
+        positiveNet: broken.net,
+        maxSkewMm: 0.1,
+        maxEdgeGapMm: 1,
+      };
+      const result = reviewDifferentialPair(declaredNets, [broken, valid], [], true);
+      expect(result.paths.positive.coverage).not.toBe('OBSERVED_SINGLE_CHAIN');
+      expect(result.skew.status).toBe('UNKNOWN');
+      expect(result.spacing.status).toBe('UNKNOWN');
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('does not trust duplicate via primitive identities when comparing pair paths', () => {
+    const tracks = [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 0, 20, 100, 20)];
+    const vias: NativeVia[] = [
+      { primitiveId: 'via-dup', net: 'OTHER', x: 10, y: 10, diameter: 30, holeDiameter: 10 },
+      { primitiveId: 'via-dup', net: 'OTHER2', x: 20, y: 10, diameter: 30, holeDiameter: 10 },
+    ];
+    const result = reviewDifferentialPair(
+      { ...declared, maxSkewMm: 0.1, minEdgeGapMm: 0.1 },
+      tracks,
+      vias,
+      true,
+    );
+    expect(result.paths.positive.coverage).toBe('AMBIGUOUS');
+    expect(result.paths.negative.coverage).toBe('AMBIGUOUS');
+    expect(result.skew.status).toBe('UNKNOWN');
+    expect(result.spacing.status).toBe('UNKNOWN');
+  });
+
+  it('does not treat a repeated or malformed declared net name as a differential pair', () => {
+    const tracks = [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 0, 20, 100, 20)];
+    for (const names of [
+      { positiveNet: 'P', negativeNet: 'P' },
+      { positiveNet: ' P ', negativeNet: 'N' },
+      { positiveNet: '', negativeNet: 'N' },
+    ]) {
+      const result = reviewDifferentialPair(
+        { ...declared, ...names, maxSkewMm: 0.25, minEdgeGapMm: 0.15 },
+        tracks,
+        [],
+        true,
+      );
+      expect(result.paths.positive.coverage).toBe('AMBIGUOUS');
+      expect(result.paths.negative.coverage).toBe('AMBIGUOUS');
+      expect(result.skew.status).toBe('UNKNOWN');
+      expect(result.spacing.status).toBe('UNKNOWN');
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('rejects invalid numeric skew and spacing declarations instead of a within-limit verdict', () => {
+    const tracks = [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 0, 20, 100, 20)];
+    for (const maxSkewMm of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const result = reviewDifferentialPair({ ...declared, maxSkewMm }, tracks, [], true);
+      expect(result.skew.status).toBe('UNKNOWN');
+      expect(result.skew.declared_limit_mm).toBeUndefined();
+      expect(result.skew.note).toMatch(/invalid/i);
+    }
+    for (const bounds of [
+      { minEdgeGapMm: -0.1 },
+      { minEdgeGapMm: Number.NaN },
+      { maxEdgeGapMm: Number.POSITIVE_INFINITY },
+      { minEdgeGapMm: 0.4, maxEdgeGapMm: 0.2 },
+    ]) {
+      const result = reviewDifferentialPair({ ...declared, ...bounds }, tracks, [], true);
+      expect(result.spacing.status).toBe('UNKNOWN');
+      expect(result.spacing.sample_count).toBe(0);
+      expect(result.spacing.observed_mm).toBeUndefined();
+      expect(result.spacing.note).toMatch(/invalid/i);
+    }
+  });
+
   it('nonparallel or nonoverlapping segments cannot manufacture spacing evidence', () => {
     const cases = [
       [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 200, 20, 300, 20)],

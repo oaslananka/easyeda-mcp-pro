@@ -81,20 +81,32 @@ type Geometry = NativeTrack & {
   width: number;
 };
 
+function exactNativeIdentity(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
+}
+
+function uniqueNativePrimitiveIds(items: Array<{ primitiveId?: string }>): boolean {
+  const ids = items.map((item) => item.primitiveId);
+  return ids.every(exactNativeIdentity) && new Set(ids).size === ids.length;
+}
+
+function nativeCopperCoordinate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1_000_000;
+}
+
 function isGeometry(track: NativeTrack): track is Geometry {
   return (
-    typeof track.primitiveId === 'string' &&
-    track.primitiveId.length > 0 &&
-    typeof track.net === 'string' &&
-    track.net.length > 0 &&
+    exactNativeIdentity(track.primitiveId) &&
+    exactNativeIdentity(track.net) &&
     Number.isInteger(track.layer) &&
-    Number.isFinite(track.startX) &&
-    Number.isFinite(track.startY) &&
-    Number.isFinite(track.endX) &&
-    Number.isFinite(track.endY) &&
+    nativeCopperCoordinate(track.startX) &&
+    nativeCopperCoordinate(track.startY) &&
+    nativeCopperCoordinate(track.endX) &&
+    nativeCopperCoordinate(track.endY) &&
     typeof track.width === 'number' &&
     Number.isFinite(track.width) &&
     track.width > 0 &&
+    track.width <= 1_000_000 &&
     (track.startX !== track.endX || track.startY !== track.endY)
   );
 }
@@ -212,33 +224,30 @@ function parallelGapSamples(positive: Geometry[], negative: Geometry[]): number[
   return gaps;
 }
 
-function spacingReview(
-  tracks: NativeTrack[],
-  declaration: DifferentialPairDeclaration,
-  complete: boolean,
+function ambiguousNativeIdentity(path: PairNetLength): PairNetLength {
+  return {
+    net: path.net,
+    segment_count: path.segment_count,
+    primitive_ids: path.primitive_ids,
+    coverage: 'AMBIGUOUS',
+  };
+}
+
+function invalidSpacingLimits(lower: number | undefined, upper: number | undefined): boolean {
+  return (
+    (lower !== undefined && (!Number.isFinite(lower) || lower < 0)) ||
+    (upper !== undefined && (!Number.isFinite(upper) || upper < 0)) ||
+    (lower !== undefined && upper !== undefined && lower > upper)
+  );
+}
+
+function sampledSpacingAssessment(
+  gaps: number[],
+  lower: number | undefined,
+  upper: number | undefined,
 ): DifferentialPairReview['spacing'] {
-  const unknown = (note: string): DifferentialPairReview['spacing'] => ({
-    status: 'UNKNOWN',
-    note,
-    sample_count: 0,
-  });
-  if (!complete) return unknown('Native track/via collections are unavailable or incomplete.');
-  const positive = tracks.filter((track) => track.net === declaration.positiveNet);
-  const negative = tracks.filter((track) => track.net === declaration.negativeNet);
-  if (
-    !positive.length ||
-    !negative.length ||
-    [...positive, ...negative].some((t) => !isGeometry(t))
-  ) {
-    return unknown('Both nets need valid observed segments before measuring spacing.');
-  }
-  const gaps = parallelGapSamples(positive as Geometry[], negative as Geometry[]);
-  if (!gaps.length)
-    return unknown('No overlapping same-layer parallel segment samples are available.');
-  const minimum = Math.min(...gaps),
-    maximum = Math.max(...gaps);
-  const lower = declaration.minEdgeGapMm;
-  const upper = declaration.maxEdgeGapMm;
+  const minimum = Math.min(...gaps);
+  const maximum = Math.max(...gaps);
   const outside =
     (lower !== undefined && minimum < lower - NUMERIC_TOLERANCE_MM) ||
     (upper !== undefined && maximum > upper + NUMERIC_TOLERANCE_MM);
@@ -257,11 +266,44 @@ function spacingReview(
   };
 }
 
+function spacingReview(
+  tracks: NativeTrack[],
+  declaration: DifferentialPairDeclaration,
+  complete: boolean,
+): DifferentialPairReview['spacing'] {
+  const unknown = (note: string): DifferentialPairReview['spacing'] => ({
+    status: 'UNKNOWN',
+    note,
+    sample_count: 0,
+  });
+  if (!complete) return unknown('Native track/via collections are unavailable or incomplete.');
+  const lower = declaration.minEdgeGapMm;
+  const upper = declaration.maxEdgeGapMm;
+  if (invalidSpacingLimits(lower, upper))
+    return unknown('Caller-declared spacing limits are invalid or inverted.');
+  const positive = tracks.filter((track) => track.net === declaration.positiveNet);
+  const negative = tracks.filter((track) => track.net === declaration.negativeNet);
+  if (
+    !positive.length ||
+    !negative.length ||
+    [...positive, ...negative].some((t) => !isGeometry(t))
+  ) {
+    return unknown('Both nets need valid observed segments before measuring spacing.');
+  }
+  const gaps = parallelGapSamples(positive as Geometry[], negative as Geometry[]);
+  if (!gaps.length)
+    return unknown('No overlapping same-layer parallel segment samples are available.');
+  return sampledSpacingAssessment(gaps, lower, upper);
+}
+
 function skewReview(
   positive: PairNetLength,
   negative: PairNetLength,
   limit: number | undefined,
 ): PairMeasurement {
+  if (limit !== undefined && (!Number.isFinite(limit) || limit < 0)) {
+    return { status: 'UNKNOWN', note: 'Caller-declared skew limit is invalid.' };
+  }
   if (
     positive.coverage !== 'OBSERVED_SINGLE_CHAIN' ||
     negative.coverage !== 'OBSERVED_SINGLE_CHAIN' ||
@@ -294,6 +336,30 @@ function skewReview(
   };
 }
 
+function sourceBoundPairPaths(
+  declaration: DifferentialPairDeclaration,
+  tracks: NativeTrack[],
+  vias: NativeVia[],
+  complete: boolean,
+): { positive: PairNetLength; negative: PairNetLength; trustedIds: boolean } {
+  const trustedIds =
+    uniqueNativePrimitiveIds(tracks) &&
+    uniqueNativePrimitiveIds(vias) &&
+    exactNativeIdentity(declaration.positiveNet) &&
+    exactNativeIdentity(declaration.negativeNet) &&
+    declaration.positiveNet !== declaration.negativeNet;
+  const netListSupported = complete && tracks.length > 0;
+  const observedPositive = netLength(declaration.positiveNet, tracks, vias, netListSupported);
+  const observedNegative = netLength(declaration.negativeNet, tracks, vias, netListSupported);
+  return {
+    positive:
+      complete && !trustedIds ? ambiguousNativeIdentity(observedPositive) : observedPositive,
+    negative:
+      complete && !trustedIds ? ambiguousNativeIdentity(observedNegative) : observedNegative,
+    trustedIds,
+  };
+}
+
 export function reviewDifferentialPair(
   declaration: DifferentialPairDeclaration,
   tracks: NativeTrack[],
@@ -302,11 +368,14 @@ export function reviewDifferentialPair(
 ): DifferentialPairReview {
   // A native getter can report an empty list when its primitive class is unavailable.
   // Without any observed tracks, absence of a named pair is not proven.
-  const netListSupported = complete && tracks.length > 0;
-  const positive = netLength(declaration.positiveNet, tracks, vias, netListSupported);
-  const negative = netLength(declaration.negativeNet, tracks, vias, netListSupported);
+  const { positive, negative, trustedIds } = sourceBoundPairPaths(
+    declaration,
+    tracks,
+    vias,
+    complete,
+  );
   const skew = skewReview(positive, negative, declaration.maxSkewMm);
-  const spacing = spacingReview(tracks, declaration, complete);
+  const spacing = spacingReview(tracks, declaration, complete && trustedIds);
   const guidance =
     declaration.protocol === 'custom' ? null : lookupProtocolRouting(declaration.protocol);
   const findings: DifferentialPairReview['findings'] = [];
@@ -381,7 +450,7 @@ export function reviewDifferentialPair(
       'Reference impedance and protocol guidance never substitute a source-bound stackup model or field solver.',
       'Only explicit device/datasheet-specific caller limits can produce a skew or spacing warning; their claimed source is reported separately and remains unverified.',
       'Via transitions, layer discontinuities, pads, coupled impedance and plane return paths require additional native evidence.',
-      'PCB snapshot is not atomic; missing primitive types and editor/runtime mismatch fail closed.',
+      'PCB snapshot is not atomic; missing/duplicated native primitive IDs, malformed copper geometry and editor/runtime mismatch fail closed.',
     ],
     engineering_sign_off: false,
   };

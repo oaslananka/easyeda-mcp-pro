@@ -205,6 +205,23 @@ universal threshold. Protocol references originate from the canonical
 `src/design-rules/protocol-routing.ts` catalog, shared with
 `easyeda_design_rules_lookup`; the model does not recreate the standard.
 
+Both declared pair net names must be **distinct, exact, nonblank identities**.
+A missing, padded or identical pair name leaves skew and spacing **UNKNOWN**,
+rather than comparing the same copper path against itself. Caller-declared
+skew/spacing limits must be finite and nonnegative; an inverted spacing
+interval cannot establish a within-limit reference.
+
+Differential-pair measurements require exact, nonblank native primitive IDs
+that remain unique across the **entire observed track inventory**, and
+unique IDs across observed vias. A repeated or padded identity produces
+ambiguous source evidence, with skew/spacing **UNKNOWN** even if two
+displayed net rows appear plausible. Native segment nets must be exact,
+copper widths positive and bounded, and all coordinates finite within
+the supported native range; malformed observations cannot establish a
+length or within-limit spacing verdict. Neither this check nor the
+native reader verifies a physical pad, electrical return path or full
+device-to-connector signal route.
+
 The optional `differential_pair` result reports both native net identities,
 observed segment counts/primitive IDs, physical length in **mm**, and
 the observed length difference. A bounded `OBSERVED_SINGLE_CHAIN` means
