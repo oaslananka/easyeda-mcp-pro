@@ -94,6 +94,11 @@ An observed in-range point remains `UNKNOWN` for electrical certification.
   the other terminal, component function/value, location, and physical
   behavior are not independently verified. Duplicate component or pin
   identities are ambiguous and never produce a false mismatch.
+  The support reference must identify a **different component** from the
+  target; repeating the target itself does not establish an external
+  pull, decoupling or protection part. Such self-support remains
+  \`UNKNOWN\` even when its pins share a net.
+  Presence of a designator does not prove electrical
   Presence of a designator does not prove electrical
   connection, values, location, or adequacy. Absence from the supplied
   device list is a candidate finding, not certified absence from the
@@ -104,6 +109,15 @@ An observed in-range point remains `UNKNOWN` for electrical certification.
   Insufficient margin yields `WARNING`. Load-dependent dropout,
   temperature, transient and current constraints require separate
   evidence from the existing `easyeda_power_tree_analyze`.
+
+Every net ID and name, and every device ID and designator, must be exact,
+nonblank and **globally unique** across its respective supplied inventory.
+A conflicting ID on an otherwise unrelated device or net makes source
+attribution ambiguous for the entire caller-supplied snapshot, rather than
+proving an exact pin/rail measurement on one apparently unaffected device.
+The review retains \`UNKNOWN\` without observed voltages or invented electrical
+conformity; this is a conservative input-integrity check, not evidence that
+a duplicate exists in the live EasyEDA project.
 
 Exact pin references are required in the supplied device inventory before
 the netlist is considered a unique connection observation. A pin mapped to

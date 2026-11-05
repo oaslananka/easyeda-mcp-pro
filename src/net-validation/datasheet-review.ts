@@ -90,12 +90,34 @@ type PinLookup =
   | { status: 'UNCONNECTED' }
   | { status: 'UNKNOWN' };
 
+function uniqueExactIdentities(values: string[]): boolean {
+  return (
+    values.every(
+      (value) => typeof value === 'string' && value.length > 0 && value.trim() === value,
+    ) && new Set(values).size === values.length
+  );
+}
+
+function sourceIdentityUnambiguous(
+  nets: NetValidationEntry[],
+  devices: DeviceValidationEntry[] | undefined,
+): boolean {
+  return (
+    devices !== undefined &&
+    uniqueExactIdentities(nets.map((net) => net.id)) &&
+    uniqueExactIdentities(nets.map((net) => net.name)) &&
+    uniqueExactIdentities(devices.map((device) => device.id)) &&
+    uniqueExactIdentities(devices.map((device) => device.ref))
+  );
+}
+
 function findPinNet(
   componentRef: string,
   pin: string,
   nets: NetValidationEntry[],
   devices: DeviceValidationEntry[] | undefined,
 ): PinLookup {
+  if (!sourceIdentityUnambiguous(nets, devices)) return { status: 'UNKNOWN' };
   const matchedDevices = devices?.filter((device) => device.ref === componentRef);
   if (
     matchedDevices?.length !== 1 ||
@@ -373,15 +395,43 @@ function supportMessage(
     : 'One or both exact pin connections are missing or ambiguous; support topology cannot be established.';
 }
 
+function findSupportPin(
+  c: Extract<DatasheetConstraint, { kind: 'required_support' }>,
+  nets: NetValidationEntry[],
+  devices: DeviceValidationEntry[] | undefined,
+): PinLookup | undefined {
+  return c.supportPin === undefined
+    ? undefined
+    : findPinNet(c.supportRef, c.supportPin, nets, devices);
+}
+
+function unverifiedSelfSupport(
+  c: Extract<DatasheetConstraint, { kind: 'required_support' }>,
+  index: number,
+): DatasheetFinding {
+  return {
+    ...finding(
+      index,
+      c,
+      'UNKNOWN',
+      'The same component cannot independently evidence its own declared external support; select a distinct support part.',
+      [c.pin],
+      [],
+    ),
+    related_component_ref: c.supportRef,
+    ...(c.supportPin === undefined ? {} : { related_pin: c.supportPin }),
+  };
+}
+
 function reviewSupport(
   c: Extract<DatasheetConstraint, { kind: 'required_support' }>,
   index: number,
   nets: NetValidationEntry[],
   devices: DeviceValidationEntry[] | undefined,
 ): DatasheetFinding {
+  if (c.componentRef === c.supportRef) return unverifiedSelfSupport(c, index);
   const target = findPinNet(c.componentRef, c.pin, nets, devices);
-  const support =
-    c.supportPin === undefined ? undefined : findPinNet(c.supportRef, c.supportPin, nets, devices);
+  const support = findSupportPin(c, nets, devices);
   const names = [
     ...(target.status === 'CONNECTED' ? [target.net.name] : []),
     ...(support?.status === 'CONNECTED' ? [support.net.name] : []),
@@ -406,12 +456,8 @@ function reviewSupport(
         ? 'explicit_netlist'
         : 'incomplete_or_ambiguous',
     ),
-    ...(c.supportPin === undefined
-      ? {}
-      : {
-          related_component_ref: c.supportRef,
-          related_pin: c.supportPin,
-        }),
+    related_component_ref: c.supportRef,
+    ...(c.supportPin === undefined ? {} : { related_pin: c.supportPin }),
   };
 }
 

@@ -182,6 +182,62 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(result.findings[0]?.nets).toEqual([]);
   });
 
+  it('rejects global native device ID collisions and unrelated duplicate net identifiers', () => {
+    const c = fixtures[0]!.constraint;
+    const poisonedDevices: DeviceValidationEntry[] = [
+      ...devices,
+      { id: 'U1', ref: 'J9', pins: [{ pin: 'SENSE', electricalType: 'input' }] },
+    ];
+    const unrelated: NetValidationEntry = {
+      id: 'three',
+      name: 'AUX',
+      type: 'signal',
+      nodes: [{ deviceRef: 'J9', pin: 'SENSE' }],
+    };
+    for (const [inventory, componentInventory] of [
+      [nets, poisonedDevices],
+      [[...nets, unrelated], devices],
+      [[...nets, { ...unrelated, id: 'aux', name: '  AUX  ' }], devices],
+      [nets, [...devices, { id: ' J9 ', ref: 'J9' }]],
+    ] as const) {
+      const result = reviewDatasheetConstraints([c], inventory, componentInventory);
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+        observed_voltages_v: [],
+        nets: [],
+      });
+      expect(result.findings[0]?.message).toMatch(/unique|ambiguous/i);
+    }
+    const original = reviewDatasheetConstraints([c], nets, devices);
+    expect(original.findings[0]?.status).toBe('WARNING');
+  });
+
+  it('does not claim the target component or pin is its own external support', () => {
+    const reference = fixtures[0]!.constraint.reference;
+    for (const supportPin of ['VDD', 'GPIO', undefined]) {
+      const c: DatasheetConstraint = {
+        kind: 'required_support',
+        componentRef: 'U1',
+        pin: 'VDD',
+        supportRef: 'U1',
+        ...(supportPin === undefined ? {} : { supportPin }),
+        function: 'decoupling',
+        reference,
+      };
+      const result = reviewDatasheetConstraints([c], nets, devices);
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+        related_component_ref: 'U1',
+        observed_voltages_v: [],
+      });
+      expect(result.findings[0]?.message).toMatch(/same component|self-support/i);
+      expect(result.findings[0]?.message).not.toMatch(/Both explicitly named pins share/);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('flags exact support-pin net mismatch without inventing a matching-net PASS', () => {
     const support = fixtures.find((f) => f.constraint.kind === 'required_support')?.constraint;
     if (support?.kind !== 'required_support') throw new Error('Missing required-support fixture');
