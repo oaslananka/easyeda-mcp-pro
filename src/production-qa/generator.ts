@@ -141,8 +141,25 @@ function generateIssues(input: QaBoardInput): QaIssue[] {
   return issues;
 }
 
-function assemblyChecklistStatus(component: QaAssemblyComponentInput): 'pass' | 'review' {
-  return (component.polarized && !component.orientationMark) || !component.side ? 'review' : 'pass';
+function assemblyRefCounts(input: QaBoardInput): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const component of input.components ?? []) {
+    counts.set(component.ref, (counts.get(component.ref) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function trustedAssemblyRef(ref: string, counts: Map<string, number>): boolean {
+  return ref.length > 0 && ref.trim() === ref && counts.get(ref) === 1;
+}
+
+function assemblyChecklistStatus(
+  component: QaAssemblyComponentInput,
+  trustedRef: boolean,
+): 'pass' | 'review' {
+  return !trustedRef || (component.polarized && !component.orientationMark) || !component.side
+    ? 'review'
+    : 'pass';
 }
 
 function makeTestpointChecklistItem(
@@ -205,15 +222,19 @@ function generateTestpointChecklist(input: QaBoardInput, issues: QaIssue[]): QaC
 
 function generateChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistItem[] {
   const checklist = generateTestpointChecklist(input, issues);
+  const usedIds = new Set(checklist.map((item) => item.id));
+  const refCounts = assemblyRefCounts(input);
 
   for (const component of componentsWithNotes(input)) {
+    const trustedRef = trustedAssemblyRef(component.ref, refCounts);
     checklist.push({
-      id: checklistId('asm', component.ref),
+      id: uniqueChecklistId(checklistId('asm', component.ref), usedIds),
       title: `Assembly note for ${component.ref}`,
       category: 'assembly',
       required: Boolean(component.polarized || component.specialHandling),
-      status: assemblyChecklistStatus(component),
+      status: assemblyChecklistStatus(component, trustedRef),
       details: [
+        trustedRef ? undefined : 'Component reference ambiguous; verify native identity',
         component.value ? `Value: ${component.value}` : undefined,
         component.footprint ? `Footprint: ${component.footprint}` : undefined,
         component.polarized ? 'Orientation-sensitive' : undefined,
@@ -223,7 +244,7 @@ function generateChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistI
       ]
         .filter(Boolean)
         .join('; '),
-      refs: [component.ref],
+      refs: trustedRef ? [component.ref] : undefined,
     });
   }
 
@@ -302,6 +323,7 @@ function testpointChecklistMarkdown(input: QaBoardInput, checklist: QaChecklistI
 }
 
 function assemblyNotesMarkdown(input: QaBoardInput): string {
+  const refCounts = assemblyRefCounts(input);
   const rows = [
     ['Ref', 'Value', 'Footprint', 'Side', 'Note'],
     ...componentsWithNotes(input).map((component) => [
@@ -314,6 +336,9 @@ function assemblyNotesMarkdown(input: QaBoardInput): string {
           ? `Orientation mark: ${component.orientationMark ? 'yes' : 'missing'}`
           : undefined,
         component.doNotPopulate ? 'DNP' : undefined,
+        trustedAssemblyRef(component.ref, refCounts)
+          ? undefined
+          : 'Component reference ambiguous; verify identity',
         component.specialHandling,
       ]
         .filter(Boolean)
