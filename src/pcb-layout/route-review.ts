@@ -111,6 +111,29 @@ function positive(value: unknown): value is number {
   return finite(value) && value > 0;
 }
 
+function exactPrimitiveId(id: string | undefined): id is string {
+  return typeof id === 'string' && id.length > 0 && id.trim() === id;
+}
+
+function duplicatePrimitiveIds(items: Array<{ primitiveId?: string }>): Set<string> {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const item of items) {
+    const id = item.primitiveId;
+    if (!exactPrimitiveId(id)) continue;
+    if (seen.has(id)) duplicates.add(id);
+    seen.add(id);
+  }
+  return duplicates;
+}
+
+function uniquelyIdentified(items: Array<{ primitiveId?: string }>): boolean {
+  return (
+    items.every((item) => exactPrimitiveId(item.primitiveId)) &&
+    duplicatePrimitiveIds(items).size === 0
+  );
+}
+
 function finding(
   id: string,
   rule: GeometryRule,
@@ -136,7 +159,7 @@ function detectRightAngleJoints(tracks: NativeTrack[]): RouteGeometryFinding[] {
       !finite(endY) ||
       !Number.isInteger(layer) ||
       !net ||
-      !primitiveId ||
+      !exactPrimitiveId(primitiveId) ||
       (startX === endX && startY === endY)
     )
       return;
@@ -196,7 +219,8 @@ function validNativeCoordinate(value: unknown): value is number {
 }
 
 function observedCopperSegment(track: NativeTrack): CopperSegment | undefined {
-  if (!track.primitiveId || !track.net || !Number.isInteger(track.layer)) return undefined;
+  if (!exactPrimitiveId(track.primitiveId) || !track.net || !Number.isInteger(track.layer))
+    return undefined;
   if (!positive(track.width) || track.width > 1_000_000) return undefined;
   const coords = [track.startX, track.startY, track.endX, track.endY];
   if (!coords.every(validNativeCoordinate)) return undefined;
@@ -291,6 +315,8 @@ function reviewObservedTrackOverlaps(tracks: NativeTrack[]): RouteGeometryFindin
 
 function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
   const findings: RouteGeometryFinding[] = [];
+  const duplicateIds = duplicatePrimitiveIds(input.tracks);
+  const reportedDuplicates = new Set<string>();
   if (!input.tracksAvailable || input.tracks.length === 0) {
     findings.push(
       finding(
@@ -306,6 +332,21 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
   if (!input.tracksAvailable) return findings;
   input.tracks.forEach((track, index) => {
     const id = track.primitiveId || String(index);
+    if (duplicateIds.has(id)) {
+      if (!reportedDuplicates.has(id)) {
+        findings.push(
+          finding(
+            'track:' + id + ':ambiguous-identity',
+            'TRACK_GEOMETRY_UNAVAILABLE',
+            'UNKNOWN',
+            'Duplicate native track primitive identity cannot support attributable geometry findings.',
+            [id],
+          ),
+        );
+        reportedDuplicates.add(id);
+      }
+      return;
+    }
     if (!observedCopperSegment(track)) {
       findings.push({
         ...finding(
@@ -336,9 +377,12 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
       });
     }
   });
-  if (input.tracksAvailable) findings.push(...reviewObservedTrackOverlaps(input.tracks));
-  if (input.tracksAvailable && input.intent === 'high-speed')
-    findings.push(...detectRightAngleJoints(input.tracks));
+  const uniquelyIdentifiedTracks = input.tracks.filter(
+    (track) => !duplicateIds.has(track.primitiveId ?? ''),
+  );
+  findings.push(...reviewObservedTrackOverlaps(uniquelyIdentifiedTracks));
+  if (input.intent === 'high-speed')
+    findings.push(...detectRightAngleJoints(uniquelyIdentifiedTracks));
   return findings;
 }
 
@@ -347,10 +391,14 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
  */
 function reviewViaLayerTransitionCandidates(input: RouteGeometryInput): RouteGeometryFinding[] {
   if (!input.tracksAvailable || !input.viasAvailable) return [];
-  const segments = input.tracks.map(observedCopperSegment).filter((s): s is CopperSegment => !!s);
+  const duplicateTracks = duplicatePrimitiveIds(input.tracks);
+  const segments = input.tracks
+    .filter((track) => !duplicateTracks.has(track.primitiveId ?? ''))
+    .map(observedCopperSegment)
+    .filter((s): s is CopperSegment => !!s);
   return input.vias.flatMap((via) => {
     if (
-      !via.primitiveId ||
+      !exactPrimitiveId(via.primitiveId) ||
       !via.net ||
       !validNativeCoordinate(via.x) ||
       !validNativeCoordinate(via.y) ||
@@ -392,10 +440,12 @@ function reviewViaLayerTransitionCandidates(input: RouteGeometryInput): RouteGeo
 
 function reviewVias(input: RouteGeometryInput): RouteGeometryFinding[] {
   const findings: RouteGeometryFinding[] = [];
-  // An unavailable via reader cannot supply a trustworthy drill/land
-  // warning, even if a stale caller payload happens to contain rows.
-  for (const [index, via] of (input.viasAvailable ? input.vias : []).entries()) {
-    const id = via.primitiveId || String(index);
+  // An unavailable or identity-ambiguous via row cannot provide a
+  // trustworthy primitive-attributed drill-to-land warning.
+  const duplicateIds = duplicatePrimitiveIds(input.vias);
+  for (const via of input.viasAvailable ? input.vias : []) {
+    const id = via.primitiveId;
+    if (!exactPrimitiveId(id) || duplicateIds.has(id)) continue;
     if (positive(via.holeDiameter) && positive(via.diameter) && via.holeDiameter >= via.diameter) {
       findings.push({
         ...finding(
@@ -426,7 +476,9 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
     input.tracksAvailable &&
     input.viasAvailable &&
     input.trackCount === input.tracks.length &&
-    input.viaCount === input.vias.length;
+    input.viaCount === input.vias.length &&
+    uniquelyIdentified(input.tracks) &&
+    uniquelyIdentified(input.vias);
   const findings = [
     ...reviewTracks(input),
     ...reviewVias(input),
@@ -450,7 +502,7 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
         'coverage:pagination',
         'NATIVE_COLLECTION_INCOMPLETE',
         'UNKNOWN',
-        'At least one native primitive collection is missing, incomplete or exceeds the bounded read window.',
+        'At least one native primitive collection is missing, incomplete, has ambiguous primitive identities or exceeds the bounded read window.',
       ),
     );
   const rank = { WARNING: 0, ADVISORY: 1, UNKNOWN: 2 };

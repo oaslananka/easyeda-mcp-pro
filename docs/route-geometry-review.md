@@ -24,6 +24,13 @@ fabricator's design rules, or physical current/EMC validation.
   warnings and right-angle advisories. Valid measurements from the
   _other_ available collection remain reportable with incomplete
   coverage and never establish a geometry or manufacturing pass.
+- Native primitive IDs must be present, unpadded and **unique within
+  each track/via inventory**. Duplicated track identities are excluded
+  from width, overlap, corner and via-transition attribution; duplicated
+  or absent via identities cannot yield an annular-geometry warning.
+  Such an inventory sets `collection_complete=false` and reports
+  `NATIVE_COLLECTION_INCOMPLETE=UNKNOWN`. Independent primitives
+  with unique identities may still report genuine observed warnings.
 
 - `minWidthMm` is a **caller-supplied** constraint, not proof of an active
   DRC or manufacturer minimum. The tool warns on observed segments narrower

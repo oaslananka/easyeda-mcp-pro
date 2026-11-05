@@ -248,6 +248,100 @@ describe('bounded native route geometry evidence', () => {
     expect(withViasOnly.input_evidence.collection_complete).toBe(false);
   });
 
+  it('fails closed on duplicated track IDs without inventing source-attributed geometry warnings', () => {
+    const a = track('duplicate', 0, 0, 100, 0, 2);
+    const b = { ...track('duplicate', 50, -40, 50, 40), net: 'GND' };
+    const result = review({
+      tracks: [a, b],
+      minWidthMm: 0.2,
+      intent: 'high-speed',
+    });
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.input_evidence.collection_complete).toBe(false);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:duplicate:ambiguous-identity',
+        status: 'UNKNOWN',
+        rule_id: 'TRACK_GEOMETRY_UNAVAILABLE',
+      }),
+    );
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'NATIVE_COLLECTION_INCOMPLETE',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.findings.some((f) => f.status === 'WARNING' || f.status === 'ADVISORY')).toBe(
+      false,
+    );
+    expect(result.engineering_sign_off).toBe(false);
+
+    const withUnique = review({
+      tracks: [a, b, track('unique', 0, 200, 100, 200, 2)],
+      minWidthMm: 0.2,
+    });
+    expect(
+      withUnique.findings
+        .filter((f) => f.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM')
+        .map((f) => f.primitive_ids),
+    ).toEqual([['unique']]);
+    expect(withUnique.input_evidence.collection_complete).toBe(false);
+  });
+
+  it('does not trust duplicate or absent via identities for annular geometry', () => {
+    const bad = {
+      primitiveId: 'via-duplicate',
+      net: 'DATA+',
+      x: 100,
+      y: 0,
+      holeDiameter: 35,
+      diameter: 30,
+    };
+    const ambiguous = review({ tracks: [], vias: [bad, { ...bad, net: 'GND' }] });
+    expect(ambiguous.input_evidence.collection_complete).toBe(false);
+    expect(ambiguous.overall_status).toBe('UNKNOWN');
+    expect(ambiguous.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+    expect(ambiguous.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'NATIVE_COLLECTION_INCOMPLETE',
+        status: 'UNKNOWN',
+      }),
+    );
+    const mixed = review({
+      tracks: [],
+      vias: [bad, { ...bad }, { ...bad, primitiveId: 'real-unique' }],
+    });
+    expect(
+      mixed.findings
+        .filter((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')
+        .map((f) => f.primitive_ids),
+    ).toEqual([['real-unique']]);
+
+    const missing = review({ tracks: [], vias: [{ ...bad, primitiveId: undefined }] });
+    expect(missing.input_evidence.collection_complete).toBe(false);
+    expect(missing.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+  });
+
+  it('does not infer a via transition when a track ID collides away from the candidate', () => {
+    const front = track('same', 0, 0, 100, 0);
+    const back = { ...track('back', 100, 0, 100, 80), layer: 12 };
+    const duplicateAway = { ...track('same', 300, 300, 400, 300), net: 'OTHER' };
+    const via = { primitiveId: 'via', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 };
+    const ambiguous = review({ tracks: [front, back, duplicateAway], vias: [via] });
+    expect(ambiguous.input_evidence.collection_complete).toBe(false);
+    expect(ambiguous.findings.some((f) => f.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+      false,
+    );
+    const exact = review({ tracks: [front, back], vias: [via] });
+    expect(exact.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'VIA_LAYER_TRANSITION_CANDIDATE',
+        status: 'UNKNOWN',
+        native_layers: [1, 12],
+      }),
+    );
+  });
+
   it('reports an actual native segment narrower than the caller-supplied minimum', () => {
     const result = review({
       tracks: [track('narrow-1', 0, 0, 100, 0, 4)],
