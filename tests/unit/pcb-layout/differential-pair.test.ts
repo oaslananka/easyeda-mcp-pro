@@ -304,6 +304,32 @@ describe('source-backed native differential-pair evidence', () => {
     }
   });
 
+  it('reports touching pair copper as a warning even with only a maximum gap limit', () => {
+    const tracks = [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 0, 8, 100, 8)];
+    const result = reviewDifferentialPair({ ...declared, maxEdgeGapMm: 0.4 }, tracks, [], true);
+    expect(result.spacing.status).toBe('WARNING');
+    expect(result.spacing.observed_mm).toBeCloseTo(-0.0508, 6);
+    expect(result.findings.some((item) => item.id === 'pair:spacing')).toBe(true);
+  });
+
+  it('flags parallel copper contact even without a caller gap limit', () => {
+    for (const separation of [8, 10]) {
+      const tracks = [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 0, separation, 100, separation)];
+      const result = reviewDifferentialPair(declared, tracks, [], true);
+      expect(result.spacing.status).toBe('WARNING');
+      expect(result.spacing.note).toMatch(/touch or overlap/);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('does not label other-layer coincidence as physical copper contact', () => {
+    const p = a('p', 'P', 0, 0, 100, 0);
+    const n = { ...a('n', 'N', 0, 0, 100, 0), layer: 2 };
+    const result = reviewDifferentialPair({ ...declared, maxEdgeGapMm: 0.5 }, [p, n], [], true);
+    expect(result.spacing.status).toBe('UNKNOWN');
+    expect(result.spacing.sample_count).toBe(0);
+  });
+
   it('explicit max-edge-spacing violation is a warning, not an impedance verdict', () => {
     const result = reviewDifferentialPair(
       { ...declared, maxEdgeGapMm: 0.1 },
