@@ -193,6 +193,59 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('reports a bounded unverified multi-layer via endpoint candidate using existing native reads', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'pcb.listTracks') {
+        return {
+          total: 2,
+          items: [
+            {
+              primitiveId: 'a',
+              net: 'CLK',
+              layer: 1,
+              startX: 0,
+              startY: 0,
+              endX: 100,
+              endY: 0,
+              width: 8,
+            },
+            {
+              primitiveId: 'b',
+              net: 'CLK',
+              layer: 12,
+              startX: 100,
+              startY: 0,
+              endX: 100,
+              endY: 100,
+              width: 8,
+            },
+          ],
+        };
+      }
+      return {
+        total: 1,
+        items: [{ primitiveId: 'via', net: 'CLK', x: 100, y: 0, holeDiameter: 10, diameter: 30 }],
+      };
+    });
+    const result = await run();
+    expect(bridgeCall.mock.calls).toEqual([
+      ['pcb.listTracks', { projectId: 'project-1', limit: 200, offset: 0 }],
+      ['pcb.listVias', { projectId: 'project-1', limit: 200, offset: 0 }],
+    ]);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'VIA_LAYER_TRANSITION_CANDIDATE',
+        status: 'UNKNOWN',
+        net: 'CLK',
+        primitive_ids: ['a', 'b', 'via'],
+        native_layers: [1, 12],
+        position_mil: { x: 100, y: 0 },
+      }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.overall_status).toBe('UNKNOWN');
+  });
+
   it('does not invent a geometry PASS or warn on 90 degrees in general context', async () => {
     const result = await run();
     expect(result.overall_status).toBe('UNKNOWN');

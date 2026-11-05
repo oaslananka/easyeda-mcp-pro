@@ -196,6 +196,58 @@ describe('bounded native route geometry evidence', () => {
     expect(result.limitations).toContainEqual(expect.stringContaining('caller-supplied width'));
   });
 
+  it('observes coincident same-net via endpoints across two raw native layer codes without a connectivity PASS', () => {
+    const a = track('front', 0, 0, 100, 0);
+    const b = { ...track('other-code', 100, 0, 100, 120), layer: 12 };
+    const result = review({
+      tracks: [a, b],
+      vias: [{ primitiveId: 'v1', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 }],
+    });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'via-transition:v1',
+        rule_id: 'VIA_LAYER_TRANSITION_CANDIDATE',
+        status: 'UNKNOWN',
+        primitive_ids: ['front', 'other-code', 'v1'],
+        net: 'DATA+',
+        position_mil: { x: 100, y: 0 },
+        native_layers: [1, 12],
+      }),
+    );
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'REFERENCE_PLANE_UNVERIFIED',
+        status: 'UNKNOWN',
+      }),
+    );
+  });
+
+  it('does not infer a via transition from unrelated or incomplete native identities', () => {
+    const front = track('front', 0, 0, 100, 0);
+    const back = { ...track('back', 100, 0, 100, 120), layer: 2 };
+    const via = { primitiveId: 'v', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 };
+    const variants: Array<Partial<RouteGeometryInput>> = [
+      { tracks: [front, { ...back, net: 'GND' }], vias: [via] },
+      { tracks: [front, { ...back, startX: 100.001 }], vias: [via] },
+      { tracks: [front, { ...back, layer: 1 }], vias: [via] },
+      { tracks: [front, { ...back, width: undefined }], vias: [via] },
+      { tracks: [front, { ...back, primitiveId: 'front' }], vias: [via] },
+      { tracks: [front, back], vias: [{ ...via, holeDiameter: 35 }] },
+      { tracks: [front, back], vias: [{ ...via, x: Number.NaN }] },
+      { tracks: [front, back], vias: [via, { ...via }] },
+      { tracks: [front, back], vias: [via], tracksAvailable: false },
+      { tracks: [front, back], vias: [via], viasAvailable: false },
+    ];
+    for (const variant of variants) {
+      const finding = review(variant).findings.find(
+        (item) => item.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE',
+      );
+      expect(finding).toBeUndefined();
+    }
+  });
+
   it('flags physically contradictory via land/drill diameter without claiming current rating', () => {
     const result = review({
       tracks: [],

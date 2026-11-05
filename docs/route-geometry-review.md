@@ -41,7 +41,18 @@ fabricator's design rules, or physical current/EMC validation.
 Findings include stable identifiers, affected primitive IDs, the net/layer
 when known, original junction coordinates, and the width/constraint that
 triggered the warning. An invalid or physically contradictory via
-drill-to-pad diameter may produce a warning. **Via current carrying
+drill-to-pad diameter may produce a warning. **When an observed same-net via center exactly matches native track
+endpoints carrying the same net on **two or more distinct native layer
+codes**, the tool emits `VIA_LAYER_TRANSITION_CANDIDATE=UNKNOWN` with
+the via/track primitive IDs, net name, center coordinate and raw layer
+codes. Missing or duplicate identities, malformed via dimensions and
+incomplete segment geometry cannot establish this observation. Raw
+layer codes are not treated as verified copper layers, and a coincident
+endpoint does not prove a plated via connection, electrical continuity
+or an adequate high-frequency return path. No via movement or DRC
+execution occurs.
+
+Via current carrying
 capacity is not calculated**, because plated barrel thickness, via layer
 span, current sharing and heat transfer are unverified.
 

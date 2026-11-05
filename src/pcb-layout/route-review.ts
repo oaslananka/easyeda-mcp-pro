@@ -35,6 +35,7 @@ export type GeometryRule =
   | 'TRACK_GEOMETRY_UNAVAILABLE'
   | 'RIGHT_ANGLE_STYLE_REVIEW'
   | 'VIA_ANNULAR_GEOMETRY'
+  | 'VIA_LAYER_TRANSITION_CANDIDATE'
   | 'VIA_CURRENT_CAPACITY_UNKNOWN'
   | 'REFERENCE_PLANE_UNVERIFIED'
   | 'COPPER_CLEARANCE_UNVERIFIED'
@@ -48,6 +49,7 @@ export interface RouteGeometryFinding {
   net?: string;
   other_net?: string;
   layer?: number;
+  native_layers?: number[];
   primitive_ids: string[];
   observed_edge_gap_mm?: number;
   position_mil?: { x: number; y: number };
@@ -337,6 +339,54 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
   return findings;
 }
 
+/** Distinct native layer codes at the same exact via center are only
+ * evidence of a possible transition, not via barrel or plane connectivity.
+ */
+function reviewViaLayerTransitionCandidates(input: RouteGeometryInput): RouteGeometryFinding[] {
+  if (!input.tracksAvailable || !input.viasAvailable) return [];
+  const segments = input.tracks.map(observedCopperSegment).filter((s): s is CopperSegment => !!s);
+  return input.vias.flatMap((via) => {
+    if (
+      !via.primitiveId ||
+      !via.net ||
+      !validNativeCoordinate(via.x) ||
+      !validNativeCoordinate(via.y) ||
+      !positive(via.diameter) ||
+      !positive(via.holeDiameter) ||
+      via.holeDiameter >= via.diameter
+    )
+      return [];
+    if (input.vias.filter((item) => item.primitiveId === via.primitiveId).length !== 1) return [];
+    const touching = segments.filter(
+      (segment) =>
+        segment.net === via.net &&
+        ((segment.startX === via.x && segment.startY === via.y) ||
+          (segment.endX === via.x && segment.endY === via.y)),
+    );
+    const layers = [...new Set(touching.map((segment) => segment.layer))].sort((a, b) => a - b);
+    if (
+      layers.length < 2 ||
+      new Set(touching.map((segment) => segment.primitiveId)).size !== touching.length
+    )
+      return [];
+    const ids = [via.primitiveId, ...touching.map((segment) => segment.primitiveId)].sort();
+    return [
+      {
+        ...finding(
+          'via-transition:' + via.primitiveId,
+          'VIA_LAYER_TRANSITION_CANDIDATE',
+          'UNKNOWN',
+          'Same-net native track endpoints on distinct layer codes meet the observed via center; via span, actual copper connection and return path are unverified.',
+          ids,
+        ),
+        net: via.net,
+        position_mil: { x: via.x, y: via.y },
+        native_layers: layers,
+      },
+    ];
+  });
+}
+
 function reviewVias(input: RouteGeometryInput): RouteGeometryFinding[] {
   const findings: RouteGeometryFinding[] = [];
   for (const [index, via] of input.vias.entries()) {
@@ -375,6 +425,7 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
   const findings = [
     ...reviewTracks(input),
     ...reviewVias(input),
+    ...reviewViaLayerTransitionCandidates(input),
     finding(
       'coverage:planes',
       'REFERENCE_PLANE_UNVERIFIED',
@@ -439,6 +490,7 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
       'Read-only native primitive snapshot, not atomic across tracks and vias.',
       'Coordinates are native PCB mils; widths converted using 0.0254 mm per mil.',
       'Right-angle turns are style guidance only; no unconditional 90-degree failure.',
+      'Native via layer codes and coincident endpoints cannot verify via span, copper continuity, or a return-current path.',
       'Native pours, zones, copper fill continuity, return-current paths and DRC clearances are unverified.',
       'A caller-supplied width limit is not a verified fabricator specification.',
     ],
