@@ -206,7 +206,10 @@ function generateTestpointChecklist(input: QaBoardInput, issues: QaIssue[]): QaC
   const netCounts = new Map<string, number>();
   const refCounts = new Map<string, number>();
   const usedIds = new Set<string>();
-  for (const net of requiredNets) {
+  // Optional critical-net rows still represent declared physical net/test-pad
+  // identities. Excluding them from collision checks can falsely attribute a
+  // shared test-point reference to a required net.
+  for (const net of input.criticalNets ?? []) {
     netCounts.set(net.name, (netCounts.get(net.name) ?? 0) + 1);
     if (net.hasTestPoint && exactTestPointReference(net.testPointRef)) {
       refCounts.set(net.testPointRef, (refCounts.get(net.testPointRef) ?? 0) + 1);

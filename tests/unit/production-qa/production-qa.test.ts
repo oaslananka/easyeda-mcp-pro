@@ -187,6 +187,42 @@ describe('generateProductionQaArtifacts', () => {
     expect(report.passed).toBe(true); // No hard errors; reviewer sign-off remains separate.
   });
 
+  it('does not trust a required net test point reused by an optional declared net', () => {
+    const report = generateProductionQaArtifacts({
+      projectId: 'optional-net-shared-testpoint',
+      criticalNets: [
+        { name: 'GND', category: 'ground', hasTestPoint: true, testPointRef: 'TP1' },
+        {
+          name: 'AUX',
+          category: 'custom',
+          required: false,
+          hasTestPoint: true,
+          testPointRef: 'TP1',
+        },
+        { name: '3V3', category: 'power', hasTestPoint: true, testPointRef: 'TP2' },
+      ],
+    });
+    const entries = report.checklist.filter((item) => item.category === 'testpoint');
+    expect(entries).toHaveLength(2);
+    expect(entries.map((item) => item.title)).toEqual([
+      'Verify test access for GND',
+      'Verify test access for 3V3',
+    ]);
+    expect(entries.map((item) => item.status)).toEqual(['review', 'pass']);
+    expect(entries[0]?.refs).toBeUndefined();
+    expect(entries[0]?.details).toMatch(/reused across critical nets/);
+    expect(report.summary.criticalNetCount).toBe(2);
+    expect(report.artifacts.find((item) => item.role === 'testpoint-checklist')?.content).toContain(
+      '| GND | ground | yes | review | unverified |',
+    );
+    expect(report.artifacts.find((item) => item.role === 'bringup-plan')?.content).toContain(
+      'Identify and verify test access for GND before measurement.',
+    );
+    expect(report.artifacts.find((item) => item.role === 'qa-manifest')?.content).toContain(
+      'Test point reference reused across critical nets',
+    );
+  });
+
   it('keeps ambiguous assembly references under review with unique checklist IDs', () => {
     const report = generateProductionQaArtifacts({
       projectId: 'assembly-identities',
