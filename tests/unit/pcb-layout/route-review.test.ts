@@ -161,6 +161,93 @@ describe('bounded native route geometry evidence', () => {
     ).toBe(false);
   });
 
+  it('never emits measured geometry warnings from explicitly unavailable native collections', () => {
+    const narrow = track('narrow', 0, 0, 100, 0, 2);
+    const colliding = { ...track('collision', 50, -30, 50, 30, 10), net: 'GND' };
+    const impossibleVia = {
+      primitiveId: 'via-bad',
+      net: 'DATA+',
+      x: 100,
+      y: 0,
+      holeDiameter: 40,
+      diameter: 20,
+    };
+    const stale = review({
+      tracks: [narrow, colliding],
+      vias: [impossibleVia],
+      tracksAvailable: false,
+      viasAvailable: false,
+      minWidthMm: 0.2,
+      intent: 'high-speed',
+    });
+    expect(stale.overall_status).toBe('UNKNOWN');
+    expect(stale.input_evidence).toMatchObject({
+      tracks: 'unavailable',
+      vias: 'unavailable',
+      collection_complete: false,
+    });
+    expect(stale.findings.some((f) => f.status === 'WARNING' || f.status === 'ADVISORY')).toBe(
+      false,
+    );
+    expect(stale.findings.map((f) => f.rule_id)).toEqual(
+      expect.arrayContaining([
+        'TRACK_GEOMETRY_UNAVAILABLE',
+        'NATIVE_COLLECTION_INCOMPLETE',
+        'VIA_CURRENT_CAPACITY_UNKNOWN',
+        'REFERENCE_PLANE_UNVERIFIED',
+        'COPPER_CLEARANCE_UNVERIFIED',
+      ]),
+    );
+    expect(stale.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+    expect(stale.findings.some((f) => f.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM')).toBe(
+      false,
+    );
+    expect(stale.findings.some((f) => f.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP')).toBe(false);
+    expect(stale.findings.some((f) => f.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(false);
+    expect(stale.engineering_sign_off).toBe(false);
+  });
+
+  it('uses only a source-available collection, never stale rows in the other collection', () => {
+    const narrow = track('narrow', 0, 0, 100, 0, 2);
+    const badVia = {
+      primitiveId: 'via-bad',
+      net: 'DATA+',
+      x: 100,
+      y: 0,
+      holeDiameter: 40,
+      diameter: 20,
+    };
+    const withTracksOnly = review({
+      tracks: [narrow],
+      vias: [badVia],
+      viasAvailable: false,
+      minWidthMm: 0.2,
+    });
+    expect(
+      withTracksOnly.findings.some((f) => f.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'),
+    ).toBe(true);
+    expect(withTracksOnly.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+    expect(withTracksOnly.input_evidence.collection_complete).toBe(false);
+
+    const withViasOnly = review({
+      tracks: [narrow],
+      tracksAvailable: false,
+      vias: [badVia],
+      minWidthMm: 0.2,
+    });
+    expect(
+      withViasOnly.findings.some((f) => f.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'),
+    ).toBe(false);
+    expect(withViasOnly.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'VIA_ANNULAR_GEOMETRY',
+        status: 'WARNING',
+        primitive_ids: ['via-bad'],
+      }),
+    );
+    expect(withViasOnly.input_evidence.collection_complete).toBe(false);
+  });
+
   it('reports an actual native segment narrower than the caller-supplied minimum', () => {
     const result = review({
       tracks: [track('narrow-1', 0, 0, 100, 0, 4)],

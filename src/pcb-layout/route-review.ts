@@ -301,6 +301,9 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
       ),
     );
   }
+  // Stale payload rows cannot be used as measured geometry after the
+  // source collection was explicitly marked unavailable.
+  if (!input.tracksAvailable) return findings;
   input.tracks.forEach((track, index) => {
     const id = track.primitiveId || String(index);
     if (!observedCopperSegment(track)) {
@@ -389,7 +392,9 @@ function reviewViaLayerTransitionCandidates(input: RouteGeometryInput): RouteGeo
 
 function reviewVias(input: RouteGeometryInput): RouteGeometryFinding[] {
   const findings: RouteGeometryFinding[] = [];
-  for (const [index, via] of input.vias.entries()) {
+  // An unavailable via reader cannot supply a trustworthy drill/land
+  // warning, even if a stale caller payload happens to contain rows.
+  for (const [index, via] of (input.viasAvailable ? input.vias : []).entries()) {
     const id = via.primitiveId || String(index);
     if (positive(via.holeDiameter) && positive(via.diameter) && via.holeDiameter >= via.diameter) {
       findings.push({

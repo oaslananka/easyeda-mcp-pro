@@ -19,6 +19,12 @@ fabricator's design rules, or physical current/EMC validation.
 - Reads are individually identity-protected but **not an atomic board
   snapshot**. An empty collection can also indicate an unsupported native
   primitive getter, so it never proves a clean board.
+- If a native track or via collection is **unavailable**, any rows
+  supplied alongside that unavailable result are ignored for measured
+  warnings and right-angle advisories. Valid measurements from the
+  _other_ available collection remain reportable with incomplete
+  coverage and never establish a geometry or manufacturing pass.
+
 - `minWidthMm` is a **caller-supplied** constraint, not proof of an active
   DRC or manufacturer minimum. The tool warns on observed segments narrower
   than that input; not observing such a warning is **not** a verified pass.
