@@ -222,6 +222,10 @@ function validNativeCoordinate(value: unknown): value is number {
   return finite(value) && Math.abs(value) <= 1_000_000;
 }
 
+function validNativeViaDiameter(value: unknown): value is number {
+  return positive(value) && value <= 1_000_000;
+}
+
 function observedCopperSegment(track: NativeTrack): CopperSegment | undefined {
   if (
     !exactPrimitiveId(track.primitiveId) ||
@@ -414,8 +418,8 @@ function reviewViaLayerTransitionCandidates(input: RouteGeometryInput): RouteGeo
       !exactNativeNet(via.net) ||
       !validNativeCoordinate(via.x) ||
       !validNativeCoordinate(via.y) ||
-      !positive(via.diameter) ||
-      !positive(via.holeDiameter) ||
+      !validNativeViaDiameter(via.diameter) ||
+      !validNativeViaDiameter(via.holeDiameter) ||
       via.holeDiameter >= via.diameter
     )
       return [];
@@ -458,7 +462,11 @@ function reviewVias(input: RouteGeometryInput): RouteGeometryFinding[] {
   for (const via of input.viasAvailable ? input.vias : []) {
     const id = via.primitiveId;
     if (!exactPrimitiveId(id) || duplicateIds.has(id)) continue;
-    if (positive(via.holeDiameter) && positive(via.diameter) && via.holeDiameter >= via.diameter) {
+    if (
+      validNativeViaDiameter(via.holeDiameter) &&
+      validNativeViaDiameter(via.diameter) &&
+      via.holeDiameter >= via.diameter
+    ) {
       findings.push({
         ...finding(
           'via:' + id + ':geometry',
@@ -468,7 +476,10 @@ function reviewVias(input: RouteGeometryInput): RouteGeometryFinding[] {
           [id],
         ),
         net: via.net,
-        position_mil: finite(via.x) && finite(via.y) ? { x: via.x, y: via.y } : undefined,
+        position_mil:
+          validNativeCoordinate(via.x) && validNativeCoordinate(via.y)
+            ? { x: via.x, y: via.y }
+            : undefined,
       });
     }
   }
