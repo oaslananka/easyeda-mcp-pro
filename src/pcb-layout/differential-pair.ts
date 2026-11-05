@@ -248,21 +248,27 @@ function sampledSpacingAssessment(
 ): DifferentialPairReview['spacing'] {
   const minimum = Math.min(...gaps);
   const maximum = Math.max(...gaps);
+  // A distinct-net same-layer copper contact is unsafe even if only a
+  // maximum spacing limit was declared (or no limits were supplied).
+  const copperContact = minimum <= 0;
   const outside =
     (lower !== undefined && minimum < lower - NUMERIC_TOLERANCE_MM) ||
     (upper !== undefined && maximum > upper + NUMERIC_TOLERANCE_MM);
   return {
-    status: outside
-      ? 'WARNING'
-      : lower !== undefined || upper !== undefined
-        ? 'WITHIN_DECLARED_LIMIT_REFERENCE'
-        : 'UNKNOWN',
+    status:
+      copperContact || outside
+        ? 'WARNING'
+        : lower !== undefined || upper !== undefined
+          ? 'WITHIN_DECLARED_LIMIT_REFERENCE'
+          : 'UNKNOWN',
     observed_mm: minimum,
     observed_max_mm: maximum,
     sample_count: gaps.length,
-    note: outside
-      ? 'Observed parallel segment gap lies outside the caller-declared spacing range.'
-      : 'Only sampled overlapping parallel segments were compared; other coupling and reference-plane regions remain unverified.',
+    note: copperContact
+      ? 'Observed same-layer different-net parallel copper widths touch or overlap; inspect native DRC. Full route clearance remains unverified.'
+      : outside
+        ? 'Observed parallel segment gap lies outside the caller-declared spacing range.'
+        : 'Only sampled overlapping parallel segments were compared; other coupling and reference-plane regions remain unverified.',
   };
 }
 
