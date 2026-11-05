@@ -30,6 +30,11 @@ fabricator's design rules, or physical current/EMC validation.
   geometry or ambiguous net identity produces \`UNKNOWN\`, not a geometry
   warning or style advisory. A misleading 90° bend from an invalid-width
   segment is excluded even when its endpoints appear connected.
+- Via measurements additionally require an exact native net, finite bounded center
+  coordinates, and positive bounded hole/copper diameters. An untrustworthy
+  field yields `VIA_GEOMETRY_UNAVAILABLE=UNKNOWN`, not an annular warning;
+  it also marks `collection_complete=false` even when the item count matches.
+  Physically contradictory but attributable drill/land dimensions still warn.
 - Native primitive IDs must be present, unpadded and **unique within
   each track/via inventory**. Duplicated track identities are excluded
   from width, overlap, corner and via-transition attribution; duplicated
