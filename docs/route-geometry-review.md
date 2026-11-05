@@ -125,6 +125,15 @@ It emits `WARNING` only for a real observed narrower segment relative to
 the stated empirical or manufacturer reference. **Even if the observed
 width is larger, result remains `UNKNOWN`**, never a current-carrying PASS.
 
+Native trace-width measurements require exact nonblank net/primitive IDs,
+globally unique primitive IDs across the entire returned track collection,
+bounded finite coordinates and positive bounded native segment widths. This
+prevents attributing the same native track to two nets or treating malformed
+net labels as measured copper. An invalid (nonpositive or nonfinite)
+caller-declared manufacturer minimum is explicitly reported as
+\`FABRICATION_DECLARATION_INVALID=UNKNOWN\`, not silently treated as a
+verified process limit.
+
 The comparison fails closed if the active project/focus/native reader fails,
 if the read is truncated or malformed, if the named net is absent, or if
 source versions are unavailable. The returned width is **not** an observed

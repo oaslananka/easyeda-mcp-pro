@@ -49,6 +49,7 @@ export interface NativeTraceCurrentResult {
       | 'NATIVE_GEOMETRY_UNKNOWN'
       | 'THERMAL_REFERENCE_SHORTFALL'
       | 'FABRICATION_DECLARATION_SHORTFALL'
+      | 'FABRICATION_DECLARATION_INVALID'
       | 'THERMAL_ADEQUACY_UNKNOWN'
       | 'VIA_CURRENT_UNKNOWN';
     status: 'WARNING' | 'UNKNOWN';
@@ -63,21 +64,40 @@ function sourceVersion(value: string | null | undefined): string | null {
   return version && !INVALID_VERSIONS.has(version.toLowerCase()) ? version : null;
 }
 
+function exactIdentity(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
+}
+
+function boundedCoordinate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1_000_000;
+}
+
+function trustedNativeIdentity(tracks: NativeTrack[]): boolean {
+  const ids = tracks.map((track) => track.primitiveId);
+  return (
+    ids.every(exactIdentity) &&
+    tracks.every((track) => exactIdentity(track.net)) &&
+    new Set(ids).size === ids.length
+  );
+}
+
+function validManufacturerMinimum(width: number | undefined): boolean {
+  return width === undefined || (Number.isFinite(width) && width > 0);
+}
+
 function validSegment(track: NativeTrack): boolean {
   return (
-    !!track.primitiveId &&
+    exactIdentity(track.primitiveId) &&
+    exactIdentity(track.net) &&
     Number.isInteger(track.layer) &&
     typeof track.width === 'number' &&
     Number.isFinite(track.width) &&
     track.width > 0 &&
-    typeof track.startX === 'number' &&
-    Number.isFinite(track.startX) &&
-    typeof track.startY === 'number' &&
-    Number.isFinite(track.startY) &&
-    typeof track.endX === 'number' &&
-    Number.isFinite(track.endX) &&
-    typeof track.endY === 'number' &&
-    Number.isFinite(track.endY) &&
+    track.width <= 1_000_000 &&
+    boundedCoordinate(track.startX) &&
+    boundedCoordinate(track.startY) &&
+    boundedCoordinate(track.endX) &&
+    boundedCoordinate(track.endY) &&
     (track.startX !== track.endX || track.startY !== track.endY)
   );
 }
@@ -94,9 +114,11 @@ function nativeNetGeometryComplete(
     input.trackCount === input.tracks.length &&
     easyeda !== null &&
     extension !== null &&
+    exactIdentity(input.declaration.net) &&
+    trustedNativeIdentity(input.tracks) &&
     matching.length > 0 &&
     matching.every(validSegment) &&
-    ids.every((id): id is string => typeof id === 'string' && id.trim().length > 0) &&
+    ids.every(exactIdentity) &&
     new Set(ids).size === ids.length
   );
 }
@@ -148,6 +170,7 @@ export function reviewNativeTraceCurrent(input: NativeTraceCurrentInput): Native
     }
     if (
       declaration.manufacturerMinWidthMm !== undefined &&
+      validManufacturerMinimum(declaration.manufacturerMinWidthMm) &&
       minWidth < declaration.manufacturerMinWidthMm
     ) {
       findings.push({
@@ -157,6 +180,15 @@ export function reviewNativeTraceCurrent(input: NativeTraceCurrentInput): Native
           'Observed segment width is below the caller-declared manufacturer minimum; the fabricator process itself is unverified.',
       });
     }
+  }
+
+  if (!validManufacturerMinimum(declaration.manufacturerMinWidthMm)) {
+    findings.push({
+      id: 'FABRICATION_DECLARATION_INVALID',
+      status: 'UNKNOWN',
+      message:
+        'Caller-declared manufacturer minimum must be finite and positive; process capability remains unverified.',
+    });
   }
 
   findings.push({

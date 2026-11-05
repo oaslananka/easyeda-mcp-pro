@@ -111,6 +111,56 @@ describe('native bounded-net trace-current reference', () => {
     );
   });
 
+  it('does not assign a measured current-path width when an unrelated track reuses a native ID', () => {
+    const r = reviewNativeTraceCurrent({
+      ...baseline,
+      tracks: [
+        baseline.tracks[0]!,
+        baseline.tracks[1]!,
+        { ...baseline.tracks[2], primitiveId: 't1' },
+      ],
+    });
+    expect(r.geometry_evidence).toBe('unavailable');
+    expect(r.observed_narrowest_segment_width_mm).toBeUndefined();
+    expect(r.observed_primitive_ids).toEqual([]);
+    expect(r.findings.some((finding) => finding.id === 'THERMAL_REFERENCE_SHORTFALL')).toBe(false);
+  });
+
+  it('rejects padded net identities and malformed bounds instead of reporting measured thermal results', () => {
+    for (const override of [
+      { declaration: { ...baseline.declaration, net: ' PWR ' } },
+      { tracks: [{ ...baseline.tracks[0], primitiveId: ' t2 ' }, ...baseline.tracks.slice(1)] },
+      { tracks: [{ ...baseline.tracks[0], net: ' PWR ' }, ...baseline.tracks.slice(1)] },
+      { tracks: [{ ...baseline.tracks[0], endX: 1e308 }, ...baseline.tracks.slice(1)] },
+      { tracks: [{ ...baseline.tracks[0], width: 1e308 }, ...baseline.tracks.slice(1)] },
+    ]) {
+      const r = reviewNativeTraceCurrent({ ...baseline, ...override });
+      expect(r.geometry_evidence).toBe('unavailable');
+      expect(r.observed_narrowest_segment_width_mm).toBeUndefined();
+      expect(r.observed_primitive_ids).toEqual([]);
+      expect(r.status).toBe('UNKNOWN');
+      expect(r.findings).toContainEqual(
+        expect.objectContaining({ id: 'NATIVE_GEOMETRY_UNKNOWN', status: 'UNKNOWN' }),
+      );
+    }
+  });
+
+  it('marks a malformed declared manufacturer process minimum explicitly unverified', () => {
+    for (const limit of [-0.1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const r = reviewNativeTraceCurrent({
+        ...baseline,
+        declaration: { ...baseline.declaration, manufacturerMinWidthMm: limit },
+      });
+      expect(r.findings).toContainEqual(
+        expect.objectContaining({ id: 'FABRICATION_DECLARATION_INVALID', status: 'UNKNOWN' }),
+      );
+      expect(r.findings.some((finding) => finding.id === 'FABRICATION_DECLARATION_SHORTFALL')).toBe(
+        false,
+      );
+      expect(r.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('uses explicit inner/outer copper inputs as declarations, not observed stackup facts', () => {
     const outer = reviewNativeTraceCurrent(baseline);
     const inner = reviewNativeTraceCurrent({
