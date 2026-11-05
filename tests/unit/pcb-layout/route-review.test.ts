@@ -126,6 +126,38 @@ describe('bounded native route geometry evidence', () => {
     expect(result.findings.some((f) => f.other_net === 'LAYER')).toBe(false);
   });
 
+  it('rejects invalid native layer codes before measured width, overlap and complete inventory claims', () => {
+    const valid = track('valid', 0, 0, 100, 0, 10);
+    for (const layer of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, 1e308]) {
+      const invalid = {
+        ...track('bad-layer', 50, -50, 50, 50, 2),
+        layer,
+        net: 'GND',
+      };
+      const result = review({ tracks: [valid, invalid], minWidthMm: 0.2, intent: 'high-speed' });
+      expect(result.input_evidence.collection_complete).toBe(false);
+      expect(result.findings).toContainEqual(
+        expect.objectContaining({
+          id: 'track:bad-layer:missing-geometry',
+          rule_id: 'TRACK_GEOMETRY_UNAVAILABLE',
+          status: 'UNKNOWN',
+          primitive_ids: ['bad-layer'],
+        }),
+      );
+      expect(result.findings).toContainEqual(
+        expect.objectContaining({ rule_id: 'NATIVE_COLLECTION_INCOMPLETE', status: 'UNKNOWN' }),
+      );
+      expect(
+        result.findings.some(
+          (item) =>
+            item.primitive_ids.includes('bad-layer') &&
+            (item.status === 'WARNING' || item.status === 'ADVISORY'),
+        ),
+      ).toBe(false);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('treats implausible and overflowing native coordinates as missing geometry', () => {
     const valid = track('valid', 0, 0, 100, 0);
     const invalid = { ...track('far-out', 0, 0, 10, 10), net: 'GND', startX: 1e308 };
