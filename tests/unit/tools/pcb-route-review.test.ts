@@ -661,6 +661,84 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(bridgeCall).toHaveBeenCalledTimes(3);
   });
 
+  it('checks exact source-declared native footprint names in the existing read-only response', async () => {
+    const relation = {
+      first: 'U1',
+      second: 'C1',
+      kind: 'decoupling',
+      firstFootprintName: 'QFN-32',
+      secondFootprintName: 'C_0603',
+      constraintSource: 'Example component placement specification Rev B',
+    };
+    const tool = registry.get('easyeda_pcb_route_geometry_review');
+    expect(
+      tool?.inputSchema.safeParse({ projectId: 'project-1', placementRelations: [relation] })
+        .success,
+    ).toBe(true);
+    for (const invalid of [
+      { ...relation, firstFootprintName: ' QFN-32' },
+      { ...relation, firstFootprintName: '' },
+      { ...relation, secondFootprintName: 'C_0603 ' },
+      { ...relation, constraintSource: undefined },
+    ]) {
+      expect(
+        tool?.inputSchema.safeParse({
+          projectId: 'project-1',
+          placementRelations: [invalid],
+        }).success,
+      ).toBe(false);
+    }
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listComponents'
+        ? {
+            total: 2,
+            items: [
+              {
+                primitiveId: 'u1',
+                designator: 'U1',
+                x: 0,
+                y: 0,
+                layer: 1,
+                footprintName: 'QFN-32',
+              },
+              {
+                primitiveId: 'c1',
+                designator: 'C1',
+                x: 50,
+                y: 0,
+                layer: 1,
+                footprintName: 'C_0805',
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const mismatch = await run({ placementRelations: [relation] });
+    expect(mismatch.placement_review.findings[0]).toMatchObject({
+      status: 'WARNING',
+      first_footprint_name: 'QFN-32',
+      second_footprint_name: 'C_0805',
+      declared_second_footprint_name: 'C_0603',
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(mismatch.engineering_sign_off).toBe(false);
+    expect(bridgeCall.mock.calls.map(([method]) => method)).toEqual([
+      'pcb.listTracks',
+      'pcb.listVias',
+      'pcb.listComponents',
+    ]);
+    const inRange = await run({
+      placementRelations: [
+        {
+          ...relation,
+          secondFootprintName: 'C_0805',
+        },
+      ],
+    });
+    expect(inRange.placement_review.findings[0]?.status).toBe('UNKNOWN');
+    expect(inRange.placement_review.engineering_sign_off).toBe(false);
+  });
+
   it('reads native component origins once only when relations are requested', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'pcb.listComponents')

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "observationDate": "2026-11-05",
+  "kind": "read-only-exact-native-footprint-declaration-observation",
+  "runtime": {
+    "editor": "EasyEDA Pro Web 3.2.209",
+    "extensionVersion": "1.9.0",
+    "bakedDispatcher": "de7e9xc35bx92a6",
+    "focusedPcbProjectVerified": true,
+    "nativeComponentListComplete": true,
+    "nativeComponentCount": 3
+  },
+  "source": {
+    "fixture": "owner-controlled disposable LED indicator PCB",
+    "projectUuidWithheld": true,
+    "documentUuidWithheld": true,
+    "partReferenceAndFootprintNamesWithheld": true,
+    "constraintSource": "Synthetic test-only declarations based on native observed names; no manufacturer mechanical drawing authenticated",
+    "noNativeDesignMutation": true,
+    "noExport": true,
+    "noVendorContact": true
+  },
+  "test": {
+    "expectedNamesEqualObserved": {
+      "placementStatus": "UNKNOWN",
+      "nativeFootprintEvidence": "native_component_origins"
+    },
+    "syntheticWrongSecondName": {
+      "placementStatus": "WARNING",
+      "observedExactNamePreserved": true
+    },
+    "nativeMethod": "pcb.listComponents",
+    "bridgeReadsRemainReadOnly": true,
+    "allowedResultStatuses": ["WARNING", "UNKNOWN"]
+  },
+  "limitations": [
+    "The expected names in this acceptance are based on observed native data and synthetic mismatch; neither was independently verified against a device package drawing.",
+    "A matching native footprint name remains UNKNOWN, not evidence of actual land-pattern dimensions, pinout, placement side, nozzle access or pick-and-place orientation.",
+    "Only two components from one disposable PCB were checked. Other editor releases and assembled boards were not qualified.",
+    "The read is non-atomic and no EasyEDA PCB design write, save, DRC, ERC, export or factory order occurred."
+  ],
+  "fabricationApproval": false,
+  "assemblyApproval": false
+}

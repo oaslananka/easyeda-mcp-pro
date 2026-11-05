@@ -172,6 +172,25 @@ revision-stable assembly consistency, physical package/footprint
 compatibility, pick-and-place accuracy, verified supplier MPN
 authenticity or manufacturing approval.
 
+## Read-only native footprint declaration comparison
+
+On 5 November 2026 a focused disposable EasyEDA Pro Web 3.2.209 PCB
+was checked against optional, explicitly sourced `firstFootprintName`
+and `secondFootprintName` declarations in the existing read-only
+`easyeda_pcb_route_geometry_review` placement relationship input.
+The observed native component collection was complete (3 items).
+A comparison against test-only names copied from the source returned
+`UNKNOWN`; an intentionally incorrect second expected name returned
+`WARNING`, without any approval or design mutation.
+
+The [sanitized source-bound acceptance](./evidence/easyeda-live/2026-11-05-easyeda-3.2.209-v1.9.0-native-846-footprint-declaration-review.json)
+does not expose the original part numbers, designators, project
+identifiers or footprint names. Its expectation was **synthetic,
+not a manufacturer datasheet requirement**. This checks only exact
+footprint-name equality, not pad dimensions, physical package,
+assembly side, pick-and-place orientation or manufacturer capability.
+Missing native identity remains `UNKNOWN`.
+
 ## Remaining evidence and user review
 
 Do not claim complete board pass unless actual geometry,

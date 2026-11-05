@@ -28,6 +28,9 @@ export interface PlacementRelation {
   rotationToleranceDeg?: number;
   secondRotationDeg?: number;
   secondRotationToleranceDeg?: number;
+  /** Exact expected native footprint name from a caller's assembly source. */
+  firstFootprintName?: string;
+  secondFootprintName?: string;
   constraintSource?: string;
 }
 
@@ -45,6 +48,10 @@ export interface PlacementFinding {
   second_rotation_deg?: number;
   declared_first_rotation_deg?: number;
   declared_second_rotation_deg?: number;
+  first_footprint_name?: string;
+  second_footprint_name?: string;
+  declared_first_footprint_name?: string;
+  declared_second_footprint_name?: string;
   constraint_source?: string;
   reasons: string[];
   electrical_loop_status: 'UNKNOWN';
@@ -183,6 +190,37 @@ function applySecondRotationConstraint(
   }
 }
 
+function compareNativeFootprint(
+  expected: string | undefined,
+  nativeName: string | undefined,
+  componentOrder: 'first' | 'second',
+  finding: PlacementFinding,
+  warnings: string[],
+): void {
+  if (expected === undefined) return;
+  if (!expected || expected !== expected.trim()) {
+    finding.reasons.push('Caller-declared ' + componentOrder + ' footprint name is invalid.');
+    return;
+  }
+  if (componentOrder === 'first') finding.declared_first_footprint_name = expected;
+  else finding.declared_second_footprint_name = expected;
+  if (!nativeName || nativeName !== nativeName.trim()) {
+    finding.reasons.push(
+      'Native ' + componentOrder + ' footprint identity is missing or ambiguous.',
+    );
+    return;
+  }
+  if (componentOrder === 'first') finding.first_footprint_name = nativeName;
+  else finding.second_footprint_name = nativeName;
+  if (expected !== nativeName) {
+    warnings.push(
+      'Native ' +
+        componentOrder +
+        ' footprint name differs from the declared exact footprint identity.',
+    );
+  }
+}
+
 function compareComponentOrigins(
   relation: PlacementRelation,
   first: NativePlaced,
@@ -203,6 +241,14 @@ function compareComponentOrigins(
   }
   applyRotationConstraint(relation, first, base, reasons);
   applySecondRotationConstraint(relation, second, base, reasons);
+  compareNativeFootprint(relation.firstFootprintName, first.footprintName, 'first', base, reasons);
+  compareNativeFootprint(
+    relation.secondFootprintName,
+    second.footprintName,
+    'second',
+    base,
+    reasons,
+  );
   if (reasons.length) base.status = 'WARNING';
   base.reasons.push(...reasons);
   base.reasons.push(
@@ -279,6 +325,7 @@ export function reviewPlacementRelations(
       'Native component origins are not PCB pad locations or actual routed current-path distances.',
       'No pad/net topology or copper loop/plane continuity was verified; decoupling, buck and ESD loop adequacy remain UNKNOWN.',
       'Rotation and native layer are reported without inferring top/bottom orientation from an undocumented layer number.',
+      'Exact footprint name comparison is not verification of package dimensions, land pattern, pad alignment or manufacturer authenticity.',
       'Numeric distance/angle limits and their source are caller-supplied and not verified device datasheet constraints.',
       'Read-only bounded non-atomic PCB component snapshot; missing native component getters can return an empty list.',
     ],

@@ -66,6 +66,15 @@ const differentialPairSchema = z
     }
   });
 
+const exactFootprintNameSchema = z
+  .string()
+  .min(1)
+  .max(180)
+  .refine((value) => value === value.trim(), {
+    message:
+      'Expected footprint name must exactly match its native identity without surrounding whitespace.',
+  });
+
 const placementRelationSchema = z
   .object({
     first: exactNetSchema.describe('Exact native PCB component designator, e.g. U1.'),
@@ -84,6 +93,8 @@ const placementRelationSchema = z
     rotationToleranceDeg: z.number().finite().min(0).max(180).optional(),
     secondRotationDeg: z.number().finite().optional(),
     secondRotationToleranceDeg: z.number().finite().min(0).max(180).optional(),
+    firstFootprintName: exactFootprintNameSchema.optional(),
+    secondFootprintName: exactFootprintNameSchema.optional(),
     constraintSource: z.string().trim().min(3).max(200).optional(),
   })
   .superRefine((value, ctx) => {
@@ -112,7 +123,9 @@ const placementRelationSchema = z
       (value.maxCenterDistanceMm !== undefined ||
         value.requireSameLayer === true ||
         value.firstRotationDeg !== undefined ||
-        value.secondRotationDeg !== undefined) &&
+        value.secondRotationDeg !== undefined ||
+        value.firstFootprintName !== undefined ||
+        value.secondFootprintName !== undefined) &&
       !value.constraintSource
     ) {
       ctx.addIssue({
@@ -297,6 +310,10 @@ const placementReviewSchema = z.object({
         second_rotation_deg: z.number().optional(),
         declared_first_rotation_deg: z.number().optional(),
         declared_second_rotation_deg: z.number().optional(),
+        first_footprint_name: z.string().optional(),
+        second_footprint_name: z.string().optional(),
+        declared_first_footprint_name: z.string().optional(),
+        declared_second_footprint_name: z.string().optional(),
         constraint_source: z.string().optional(),
         reasons: z.array(z.string()),
         electrical_loop_status: z.literal('UNKNOWN'),

@@ -269,6 +269,16 @@ explicit caller-provided `constraintSource` is required; it remains
 Supported relation contexts: `decoupling`, `switching-loop`, `crystal`,
 `esd-entry`, `feedback`, and `sensitive-adjacency`. Rotation comparison
 supports `firstRotationDeg` and `rotationToleranceDeg` with wraparound. It also supports `secondRotationDeg` and `secondRotationToleranceDeg` to check the second footprint independently; both comparisons use observed native rotation and caller-supplied tolerances, never inferred ESD, crystal, or power-loop compliance. If a required rotation is missing, the relationship remains `UNKNOWN` unless another independent declared limit already produces a `WARNING`. Duplicate native primitive identity across two named components is invalid evidence, not proof of their separation.
+The optional `firstFootprintName` and `secondFootprintName` fields
+compare **exact native PCB footprint names** against an explicitly
+declared, sourced expectation. A mismatch is a `WARNING`; a matching
+name remains `UNKNOWN` because this is not a physical package,
+pad/pinout, library-revision or assembly side/orientation
+certification. Absent or malformed native footprint names are
+`UNKNOWN`, not invented mismatches or passes. The existing
+`pcb.listComponents` read is reused without a new bridge capability
+or design write.
+
 `requireSameLayer` compares **native layer numbers only**; the tool does
 not assume undocumented native layer codes prove top/bottom assembly side.
 

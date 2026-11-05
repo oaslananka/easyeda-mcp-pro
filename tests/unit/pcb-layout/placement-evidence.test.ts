@@ -42,6 +42,74 @@ describe('read-only origin-based placement relationship observations', () => {
     expect(a.coordinate_unit).toBe('mil');
   });
 
+  it('compares caller-declared native footprint identities without claiming assembly approval', () => {
+    const relation: PlacementRelation = {
+      first: 'U1',
+      second: 'C1',
+      kind: 'decoupling',
+      firstFootprintName: 'QFN-32',
+      secondFootprintName: 'C_0603',
+      constraintSource: 'Hypothetical assembly drawing Rev B',
+    };
+    const components: NativePlacement[] = [
+      { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1, footprintName: 'QFN-32' },
+      { primitiveId: 'c1', designator: 'C1', x: 15, y: 0, layer: 1, footprintName: 'C_0603' },
+    ];
+    const aligned = reviewPlacementRelations([relation], components, 2, true);
+    expect(aligned.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'native_component_origins',
+      first_footprint_name: 'QFN-32',
+      second_footprint_name: 'C_0603',
+      declared_first_footprint_name: 'QFN-32',
+      declared_second_footprint_name: 'C_0603',
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(aligned.engineering_sign_off).toBe(false);
+    expect(aligned.limitations.join(' ')).toMatch(/package dimensions/);
+
+    const mismatch = reviewPlacementRelations(
+      [
+        {
+          ...relation,
+          firstFootprintName: 'QFN-48',
+          secondFootprintName: 'c_0603',
+        },
+      ],
+      components,
+      2,
+      true,
+    );
+    expect(mismatch.status).toBe('WARNING');
+    expect(mismatch.findings[0]?.status).toBe('WARNING');
+    expect(mismatch.findings[0]?.reasons.join(' ')).toMatch(/first footprint name differs/);
+    expect(mismatch.findings[0]?.reasons.join(' ')).toMatch(/second footprint name differs/);
+    expect(mismatch.findings[0]?.first_footprint_name).toBe('QFN-32');
+  });
+
+  it('fails closed when native footprint evidence is absent or caller identity is invalid', () => {
+    const components: NativePlacement[] = [
+      { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1 },
+      { primitiveId: 'c1', designator: 'C1', x: 15, y: 0, layer: 1, footprintName: ' C_0603' },
+    ];
+    const base: PlacementRelation = {
+      first: 'U1',
+      second: 'C1',
+      kind: 'sensitive-adjacency',
+      firstFootprintName: 'QFN-32',
+      secondFootprintName: 'C_0603',
+      constraintSource: 'Hypothetical assembly source',
+    };
+    for (const relation of [base, { ...base, firstFootprintName: ' QFN-32 ' }]) {
+      const result = reviewPlacementRelations([relation], components, 2, true);
+      expect(result.status).toBe('UNKNOWN');
+      expect(result.findings[0]?.first_footprint_name).toBeUndefined();
+      expect(result.findings[0]?.second_footprint_name).toBeUndefined();
+      expect(result.findings[0]?.reasons.join(' ')).toMatch(/missing or ambiguous|invalid/);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('does not manufacture distance evidence from missing identity or non-finite coordinates', () => {
     const relation: PlacementRelation = {
       first: 'U1',
