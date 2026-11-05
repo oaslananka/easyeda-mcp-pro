@@ -308,6 +308,7 @@ function registerBomSourcingTools(
           lcsc?: string;
           quantity?: number;
           manufacturer?: string;
+          mpn?: string;
         }>;
 
         if (!bomEntries?.length) {
@@ -348,7 +349,7 @@ function registerBomSourcingTools(
           value: e.value,
           footprint: e.footprint,
           lcsc: e.lcsc,
-          mpn: undefined as string | undefined,
+          mpn: typeof e.mpn === 'string' && e.mpn.trim() ? e.mpn.trim() : undefined,
           manufacturer: e.manufacturer,
           quantity: e.quantity ?? 0,
           source: 'bridge' as const,

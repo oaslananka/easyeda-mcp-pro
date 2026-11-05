@@ -2178,6 +2178,7 @@ describe('createDispatcher', () => {
         lcsc: 'C17513',
         quantity: 2,
         manufacturer: 'Example',
+        mpn: 'RES-1K',
       },
     ]);
     await expect(dispatcher.dispatch('bom.validate', {})).resolves.toEqual({
@@ -2230,7 +2231,8 @@ describe('createDispatcher', () => {
     await expect(dispatcher.dispatch('bom.generate', { groupBy: 'footprint' })).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ reference: 'R1', footprint: 'R0603' }),
-        expect.objectContaining({ reference: 'R2, R3', footprint: '' }),
+        expect.objectContaining({ reference: 'R2', footprint: '', value: '1k' }),
+        expect.objectContaining({ reference: 'R3', footprint: '', value: '' }),
       ]),
     );
     await expect(dispatcher.dispatch('bom.generate', { groupBy: 'value' })).resolves.toEqual(
@@ -2240,6 +2242,64 @@ describe('createDispatcher', () => {
         expect.objectContaining({ reference: 'R3', value: '' }),
       ]),
     );
+  });
+
+  it('preserves BOM manufacturer part identity and separates same-value distinct packages', async () => {
+    const makePart = (id: string, footprint: string, mpn: string) => ({
+      getState_PrimitiveId: () => id,
+      getState_ComponentType: () => 'part',
+      getState_Component: () => ({ uuid: id + '-device', libraryUuid: 'lib', name: 'RES' }),
+      getState_Designator: () => id,
+      getState_Name: () => '10k',
+      getState_Footprint: () => ({ name: footprint }),
+      getState_SupplierId: () => 'C12345',
+      getState_Manufacturer: () => 'Vishay',
+      getState_ManufacturerId: () => mpn,
+      getState_OtherProperty: () => ({}),
+    });
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: {
+          getAll: async () => [
+            makePart('R1', '0603', 'MPN-0603'),
+            makePart('R2', '0805', 'MPN-0805'),
+            makePart('R3', '0603', 'MPN-0603'),
+            makePart('R4', '0603', 'MPN-OTHER'),
+          ],
+        },
+      }),
+    );
+    for (const groupBy of ['value', 'lcsc', 'footprint']) {
+      const result = (await dispatcher.dispatch('bom.generate', { groupBy })) as Array<{
+        reference: string;
+        footprint: string;
+        mpn?: string;
+        quantity: number;
+      }>;
+      expect(result).toHaveLength(3);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            reference: 'R1, R3',
+            quantity: 2,
+            footprint: '0603',
+            mpn: 'MPN-0603',
+          }),
+          expect.objectContaining({
+            reference: 'R2',
+            quantity: 1,
+            footprint: '0805',
+            mpn: 'MPN-0805',
+          }),
+          expect.objectContaining({
+            reference: 'R4',
+            quantity: 1,
+            footprint: '0603',
+            mpn: 'MPN-OTHER',
+          }),
+        ]),
+      );
+    }
   });
 
   // PCB readback: field names below are the getState_* getters observed live

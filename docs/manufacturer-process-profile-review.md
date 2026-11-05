@@ -143,7 +143,16 @@ are available, including component placement and actual rotation
 with the chosen package. Testpoint physical accessibility,
 programming pins, fiducials, tooling holes, polarity, BOM-to-MPN
 package/footprint mapping, pick-and-place and manufacturing outputs
-need direct source-bound checks.
+need direct source-bound checks. The `bom.generate` read-only route now
+preserves a source-observed `manufacturerId` as the BOM `mpn`
+field and keeps differently identified MPN, manufacturer, LCSC,
+footprint and value combinations as **separate BOM lines**, even when
+the requested display grouping is `value`, `lcsc` or `footprint`.
+The `easyeda_bom_quality_report` carries that MPN into sourcing
+assessment. An observed **manufacturer name alone is not an MPN**
+and must not suppress missing-part-number review. This protects
+identity only: no supplier/catalog mapping, package compatibility
+or physical assembly readiness is authenticated by BOM grouping.
 
 A real EasyEDA Pro read-only disposable PCB acceptance must record
 the exact editor and extension versions, focused project, native

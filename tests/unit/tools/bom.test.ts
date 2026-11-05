@@ -179,7 +179,14 @@ describe('BOM Tools Sourcing & Validate', () => {
     it('returns formatted entries on success', async () => {
       const tool = registry.get('easyeda_bom_generate');
       bridgeCall.mockResolvedValue([
-        { reference: 'R1', value: '10k', footprint: '0603', lcsc: 'C1', quantity: 2 },
+        {
+          reference: 'R1',
+          value: '10k',
+          footprint: '0603',
+          lcsc: 'C1',
+          quantity: 2,
+          mpn: 'MPN-0603',
+        },
       ]);
 
       const result = await tool?.handler(context, {
@@ -194,7 +201,13 @@ describe('BOM Tools Sourcing & Validate', () => {
         groupBy: 'value',
       });
       expect(result.total_entries).toBe(1);
-      expect(result.entries[0]).toMatchObject({ reference: 'R1', value: '10k', quantity: 2 });
+      expect(result.entries[0]).toMatchObject({
+        reference: 'R1',
+        value: '10k',
+        quantity: 2,
+        mpn: 'MPN-0603',
+      });
+      expect(tool?.outputSchema.safeParse(result).success).toBe(true);
     });
 
     it('returns not_available when the bridge call fails', async () => {
@@ -401,6 +414,43 @@ describe('BOM Tools Sourcing & Validate', () => {
       expect(result.total_entries).toBe(1);
       expect(result.entries).toHaveLength(1);
       expect(result.entries[0].reference).toBe('R1');
+    });
+
+    it('preserves an explicitly observed manufacturer part number through quality review', async () => {
+      const tool = registry.get('easyeda_bom_quality_report');
+      bridgeCall.mockResolvedValue([
+        {
+          reference: 'U1',
+          value: 'MCU',
+          footprint: 'QFN32',
+          quantity: 1,
+          mpn: 'ACTUAL-QFN32',
+          manufacturer: 'ExampleSemi',
+        },
+        {
+          reference: 'U2',
+          value: 'MCU',
+          footprint: 'QFN32',
+          quantity: 1,
+          manufacturer: 'ExampleSemi',
+        },
+      ]);
+      context.vendors = { lcsc: null, jlcpcb: null, mouser: null, digikey: null };
+      const result = await tool?.handler(context, { projectId: 'proj-1' });
+      expect(bridgeCall).toHaveBeenCalledWith('bom.generate', {
+        projectId: 'proj-1',
+        format: 'json',
+        groupBy: 'value',
+      });
+      expect(result.total_entries).toBe(2);
+      expect(result.entries[0]).toMatchObject({ reference: 'U1', mpn: 'ACTUAL-QFN32' });
+      expect(result.entries[0].issues.map((i: { type: string }) => i.type)).not.toContain(
+        'missing_mpn',
+      );
+      expect(result.entries[1].issues.map((i: { type: string }) => i.type)).toContain(
+        'missing_mpn',
+      );
+      expect(tool?.outputSchema.safeParse(result).success).toBe(true);
     });
 
     it('returns not_available when the bridge call fails', async () => {

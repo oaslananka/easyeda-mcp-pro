@@ -135,9 +135,22 @@ async function validateNetlist(dependencies: ReadOnlyOperationsDependencies): Pr
 }
 
 function bomGroupKey(component: any, groupBy: unknown): string {
-  if (groupBy === 'lcsc') return component.lcsc || component.value;
-  if (groupBy === 'footprint') return component.footprint || 'no-footprint';
-  return component.value || 'no-value';
+  const primary =
+    groupBy === 'lcsc'
+      ? component.lcsc || component.value
+      : groupBy === 'footprint'
+        ? component.footprint || 'no-footprint'
+        : component.value || 'no-value';
+  // A display grouping preference must never silently combine BOM parts
+  // with distinct footprints, manufacturer part numbers or vendor IDs.
+  return JSON.stringify([
+    primary,
+    component.value || '',
+    component.footprint || '',
+    component.lcsc || '',
+    component.manufacturer || '',
+    component.manufacturerId || '',
+  ]);
 }
 
 function createBomGroup(component: any) {
@@ -147,6 +160,7 @@ function createBomGroup(component: any) {
     footprint: component.footprint,
     lcsc: component.lcsc,
     manufacturer: component.manufacturer,
+    mpn: component.manufacturerId || undefined,
     quantity: 0,
   };
 }
@@ -176,6 +190,7 @@ async function generateBom(
     lcsc: group.lcsc,
     quantity: group.quantity,
     manufacturer: group.manufacturer,
+    mpn: group.mpn,
   }));
 }
 

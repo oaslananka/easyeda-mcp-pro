@@ -59,6 +59,7 @@ function registerBomCoreTools(
           lcsc: z.string().optional(),
           quantity: z.number().int().nonnegative(),
           manufacturer: z.string().optional(),
+          mpn: z.string().optional(),
         }),
       ),
       total_entries: z.number().int().nonnegative(),
@@ -79,6 +80,7 @@ function registerBomCoreTools(
           lcsc?: string;
           quantity?: number;
           manufacturer?: string;
+          mpn?: string;
         }>;
         const validEntries = (entries ?? []).filter((entry) => entry.reference?.trim());
         return {
@@ -92,6 +94,7 @@ function registerBomCoreTools(
             lcsc: e.lcsc,
             quantity: e.quantity ?? 0,
             manufacturer: e.manufacturer,
+            mpn: e.mpn,
           })),
           total_entries: validEntries.length,
         };
