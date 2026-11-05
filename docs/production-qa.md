@@ -47,8 +47,8 @@ Assembly placement side comes only from the caller-declared component metadata. 
 
 Critical-net testpoint rows preserve exact net identities even if different names
 normalize to the same checklist slug. A declared test point without a nonblank,
-exact reference or with a duplicate/ambiguous net identity remains **review /
-unverified**, never checklist `pass`. All such inputs are caller-supplied, not
+exact reference, a repeated testpoint reference across critical nets, or a
+duplicate/ambiguous net identity remains **review / unverified**, never checklist `pass`. All such inputs are caller-supplied, not
 independent proof of physical access. Bring-up instructions do not invent a
 test-point position when a reference is missing.
 

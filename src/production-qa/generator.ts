@@ -145,6 +145,38 @@ function assemblyChecklistStatus(component: QaAssemblyComponentInput): 'pass' | 
   return (component.polarized && !component.orientationMark) || !component.side ? 'review' : 'pass';
 }
 
+function makeTestpointChecklistItem(
+  net: QaCriticalNetInput,
+  netCounts: Map<string, number>,
+  refCounts: Map<string, number>,
+  missingTp: Set<string>,
+  usedIds: Set<string>,
+): QaChecklistItem {
+  const duplicate = (netCounts.get(net.name) ?? 0) !== 1;
+  const exactNet = !duplicate && net.name.length > 0 && net.name.trim() === net.name;
+  const testPointRef = net.testPointRef;
+  const refValid = exactTestPointReference(testPointRef);
+  const duplicateRef = refValid && (refCounts.get(testPointRef) ?? 0) > 1;
+  const verifiedRef = exactNet && refValid && !duplicateRef ? testPointRef : undefined;
+  return {
+    id: uniqueChecklistId(checklistId('tp', net.name), usedIds),
+    title: `Verify test access for ${net.name}`,
+    category: 'testpoint',
+    required: true,
+    status: testpointEvidenceStatus(net, duplicate || duplicateRef, missingTp.has(net.name)),
+    details: !net.hasTestPoint
+      ? 'No test point declared'
+      : !exactNet
+        ? 'Critical net identity is missing or ambiguous; verify test access.'
+        : duplicateRef
+          ? 'Test point reference reused across critical nets; verify physical access.'
+          : refValid
+            ? `Declared test point: ${net.testPointRef}`
+            : 'Test point declared without an exact reference; verify test access.',
+    refs: verifiedRef ? [verifiedRef] : undefined,
+  };
+}
+
 function generateTestpointChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistItem[] {
   const checklist: QaChecklistItem[] = [];
   const missingTp = new Set(
@@ -155,29 +187,17 @@ function generateTestpointChecklist(input: QaBoardInput, issues: QaIssue[]): QaC
 
   const requiredNets = requiredCriticalNets(input);
   const netCounts = new Map<string, number>();
+  const refCounts = new Map<string, number>();
   const usedIds = new Set<string>();
-  for (const net of requiredNets) netCounts.set(net.name, (netCounts.get(net.name) ?? 0) + 1);
+  for (const net of requiredNets) {
+    netCounts.set(net.name, (netCounts.get(net.name) ?? 0) + 1);
+    if (net.hasTestPoint && exactTestPointReference(net.testPointRef)) {
+      refCounts.set(net.testPointRef, (refCounts.get(net.testPointRef) ?? 0) + 1);
+    }
+  }
 
   for (const net of requiredNets) {
-    const duplicate = (netCounts.get(net.name) ?? 0) !== 1;
-    const exactNet = !duplicate && net.name.length > 0 && net.name.trim() === net.name;
-    const refValid = exactTestPointReference(net.testPointRef);
-    const verifiedRef = exactNet && refValid ? net.testPointRef : undefined;
-    checklist.push({
-      id: uniqueChecklistId(checklistId('tp', net.name), usedIds),
-      title: `Verify test access for ${net.name}`,
-      category: 'testpoint',
-      required: true,
-      status: testpointEvidenceStatus(net, duplicate, missingTp.has(net.name)),
-      details: !net.hasTestPoint
-        ? 'No test point declared'
-        : !exactNet
-          ? 'Critical net identity is missing or ambiguous; verify test access.'
-          : refValid
-            ? `Declared test point: ${net.testPointRef}`
-            : 'Test point declared without an exact reference; verify test access.',
-      refs: verifiedRef ? [verifiedRef] : undefined,
-    });
+    checklist.push(makeTestpointChecklistItem(net, netCounts, refCounts, missingTp, usedIds));
   }
 
   return checklist;
@@ -303,14 +323,15 @@ function assemblyNotesMarkdown(input: QaBoardInput): string {
   return `# Assembly Notes\n\n${mdTable(rows)}\n`;
 }
 
-function bringupPlanMarkdown(input: QaBoardInput): string {
-  const rails = requiredCriticalNets(input).filter(
-    (net) => net.category === 'power' || net.category === 'ground',
-  );
+function bringupPlanMarkdown(input: QaBoardInput, checklist: QaChecklistItem[]): string {
+  const testpointItems = checklist.filter((entry) => entry.category === 'testpoint');
+  const rails = requiredCriticalNets(input)
+    .map((net, index) => ({ net, status: testpointItems[index]?.status }))
+    .filter(({ net }) => net.category === 'power' || net.category === 'ground');
   const railLines = rails.length
     ? rails
-        .map((net, index) =>
-          exactTestPointReference(net.testPointRef)
+        .map(({ net, status }, index) =>
+          status === 'pass' && exactTestPointReference(net.testPointRef)
             ? `${index + 1}. Measure ${net.name} at declared point ${net.testPointRef} after verifying accessibility.`
             : `${index + 1}. Identify and verify test access for ${net.name} before measurement.`,
         )
@@ -359,7 +380,7 @@ function generateArtifacts(
       filename: `${base}-bringup-plan.md`,
       fileType: 'markdown',
       role: 'bringup-plan',
-      content: bringupPlanMarkdown(input),
+      content: bringupPlanMarkdown(input, checklist),
       required: true,
     },
     {

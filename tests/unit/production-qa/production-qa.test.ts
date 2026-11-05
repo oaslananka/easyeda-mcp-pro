@@ -161,6 +161,32 @@ describe('generateProductionQaArtifacts', () => {
     );
   });
 
+  it('does not treat a shared testpoint reference as verified access to two nets', () => {
+    const report = generateProductionQaArtifacts({
+      projectId: 'shared-pad-ref',
+      criticalNets: [
+        { name: 'GND', category: 'ground', hasTestPoint: true, testPointRef: 'TP1' },
+        { name: '3V3', category: 'power', hasTestPoint: true, testPointRef: 'TP1' },
+        { name: 'RESET', category: 'reset', hasTestPoint: true, testPointRef: 'TP2' },
+      ],
+    });
+    const rows = report.checklist.filter((item) => item.category === 'testpoint');
+    expect(rows.map((item) => item.status)).toEqual(['review', 'review', 'pass']);
+    expect(rows[0]?.refs).toBeUndefined();
+    expect(rows[1]?.refs).toBeUndefined();
+    expect(rows[0]?.details).toContain('reused across critical nets');
+    const table = report.artifacts.find((item) => item.role === 'testpoint-checklist')?.content;
+    expect(table).toContain('| GND | ground | yes | review | unverified |');
+    expect(table).toContain('| 3V3 | power | yes | review | unverified |');
+    expect(table).toContain('| RESET | reset | yes | pass | TP2 |');
+    const bringup = report.artifacts.find((item) => item.role === 'bringup-plan')?.content;
+    expect(bringup).toContain('Identify and verify test access for GND before measurement.');
+    expect(bringup).toContain('Identify and verify test access for 3V3 before measurement.');
+    expect(bringup).not.toContain('Measure GND at declared point TP1');
+    expect(bringup).not.toContain('Measure 3V3 at declared point TP1');
+    expect(report.passed).toBe(true); // No hard errors; reviewer sign-off remains separate.
+  });
+
   it('includes DNP and special handling notes in assembly artifact', () => {
     const report = generateProductionQaArtifacts({
       projectName: 'Factory Demo',
