@@ -57,7 +57,12 @@ Available comparisons include:
 - Maximum supported board width and height.
 - Minimum reported fiducial and tooling-hole counts.
 - Ratio of marked polarized components and ratio of explicitly
-  identified critical nets that have named test points.
+  identified critical nets that have named test points. Test-point
+  coverage uses **exact declared net names**: `IO` is not automatically
+  the same net as `io`. Blank or whitespace-padded names and ambiguous
+  duplicate critical-net inventories yield `UNKNOWN` instead of
+  fabricated test coverage. Repeated test points on the same exact net
+  can contribute only once.
 - Explicit programming header requirement.
 
 These are **declared board summary metrics**. They do not establish

@@ -177,6 +177,55 @@ describe('versioned manufacturer process observations (not fabrication approval)
     }
   });
 
+  it('counts only exact critical net identity, never a case-folded test-point match', () => {
+    const profile = { ...ref, limits: { minimumCriticalNetTestpointRatio: 0.75 } };
+    const mismatch = reviewManufacturerProfile(
+      profile,
+      { criticalNetNames: ['IO', 'GND'], testPointNets: ['io', 'GND'] },
+      'caller_supplied_unverified',
+    );
+    expect(mismatch.findings[0]).toMatchObject({
+      id: 'minimumCriticalNetTestpointRatio',
+      actual: 0.5,
+      status: 'WARNING',
+      comparison: 'BELOW_DECLARED_LIMIT',
+      measurement_evidence: 'caller_supplied_unverified',
+    });
+    expect(mismatch.fabrication_approval).toBe(false);
+
+    const exact = reviewManufacturerProfile(
+      profile,
+      { criticalNetNames: ['IO', 'GND'], testPointNets: ['IO', 'GND', 'GND'] },
+      'caller_supplied_unverified',
+    );
+    expect(exact.findings[0]).toMatchObject({
+      actual: 1,
+      status: 'UNKNOWN',
+      comparison: 'WITHIN_DECLARED_LIMIT',
+    });
+  });
+
+  it('fails closed for blank, whitespace-padded and colliding declared net names', () => {
+    const profile = { ...ref, limits: { minimumCriticalNetTestpointRatio: 0.8 } };
+    const cases: PcbConstraintInput[] = [
+      { criticalNetNames: ['IO '], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO'], testPointNets: [' IO'] },
+      { criticalNetNames: ['IO', ''], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO'], testPointNets: [''] },
+      { criticalNetNames: ['IO', 'io'], testPointNets: ['IO'] },
+    ];
+    for (const board of cases) {
+      const result = reviewManufacturerProfile(profile, board, 'caller_supplied_unverified');
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      });
+      expect(result.findings[0]).not.toHaveProperty('actual');
+      expect(result.fabrication_approval).toBe(false);
+    }
+  });
+
   it('does not infer good assembly access from merely asserted programming header', () => {
     const result = reviewManufacturerProfile(
       {

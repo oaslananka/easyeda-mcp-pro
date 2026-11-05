@@ -230,15 +230,18 @@ function ratioFinding(
   };
 }
 function countUniqueNames(data: PcbConstraintInput): { numerator?: number; denominator?: number } {
-  if (!data.criticalNetNames || !data.testPointNets) return {};
-  const required = new Set(
-    data.criticalNetNames.map((n) => n.trim().toUpperCase()).filter(Boolean),
-  );
-  const observed = new Set(data.testPointNets.map((n) => n.trim().toUpperCase()).filter(Boolean));
-  if (required.size === 0 || required.size !== data.criticalNetNames.length) return {};
+  const required = data.criticalNetNames;
+  const testPoints = data.testPointNets;
+  if (!required?.length || !testPoints) return {};
+  // Exact native net names are identities, not case-insensitive labels.
+  // Reject ambiguous declared inventories instead of fabricating coverage
+  // through trimming or case folding.
+  if ([...required, ...testPoints].some((name) => !name || name.trim() !== name)) return {};
+  if (new Set(required.map((name) => name.toUpperCase())).size !== required.length) return {};
+  const observed = new Set(testPoints);
   return {
-    numerator: [...required].filter((n) => observed.has(n)).length,
-    denominator: required.size,
+    numerator: required.filter((name) => observed.has(name)).length,
+    denominator: required.length,
   };
 }
 
