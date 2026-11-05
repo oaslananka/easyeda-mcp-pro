@@ -343,6 +343,40 @@ describe('read-only origin-based placement relationship observations', () => {
     }
   });
 
+  it('withholds observed placement attribution for unsafe or negative native layer identities', () => {
+    const relation: PlacementRelation = {
+      first: 'U1',
+      second: 'C1',
+      kind: 'decoupling',
+      maxCenterDistanceMm: 1,
+      requireSameLayer: true,
+    };
+    const base: NativePlacement[] = [
+      { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1 },
+      { primitiveId: 'c1', designator: 'C1', x: 500, y: 0, layer: 1 },
+    ];
+    for (const layer of [1e20, Number.MAX_SAFE_INTEGER + 1, -1]) {
+      const observed = reviewPlacementRelations(
+        [relation],
+        [base[0]!, { ...base[1]!, layer }],
+        2,
+        true,
+      );
+      expect(observed.status).toBe('UNKNOWN');
+      expect(observed.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'caller_declared_unverified',
+        primitive_ids: [],
+        electrical_loop_status: 'UNKNOWN',
+      });
+      expect(observed.findings[0]?.measured_center_distance_mm).toBeUndefined();
+      expect(observed.findings[0]?.native_layers).toBeUndefined();
+    }
+    const valid = reviewPlacementRelations([relation], base, 2, true);
+    expect(valid.status).toBe('WARNING');
+    expect(valid.findings[0]?.measured_center_distance_mm).toBeCloseTo(12.7, 5);
+  });
+
   it('does not trust duplicate or malformed designators anywhere in the native inventory', () => {
     const relation: PlacementRelation = {
       first: 'U1',

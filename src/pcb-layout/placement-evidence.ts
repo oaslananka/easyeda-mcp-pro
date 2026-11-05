@@ -92,7 +92,8 @@ function validComponent(component: NativePlacement | undefined): component is Na
     Number.isFinite(component.y) &&
     Math.abs(component.x as number) <= 1_000_000 &&
     Math.abs(component.y as number) <= 1_000_000 &&
-    Number.isInteger(component.layer)
+    Number.isSafeInteger(component.layer) &&
+    (component.layer as number) >= 0
   );
 }
 

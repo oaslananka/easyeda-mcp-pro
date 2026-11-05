@@ -90,6 +90,51 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(result.findings.map((item) => item.status)).not.toContain('PASS');
   });
 
+  it('withholds source-specific electrical claims for incomplete or malformed datasheet citations', () => {
+    const reference = fixtures[0]!.constraint.reference;
+    const cases: DatasheetConstraint[] = [
+      fixtures[0]!.constraint,
+      fixtures[4]!.constraint,
+      fixtures[5]!.constraint,
+      fixtures[6]!.constraint,
+      {
+        kind: 'io_domain_voltage',
+        componentRef: 'U1',
+        pin: 'GPIO',
+        supplyPin: 'VREF',
+        maxAboveSupplyV: 0.3,
+        reference,
+      },
+    ];
+    const badReferences = [
+      { ...reference, partNumber: '' },
+      { ...reference, package: '  ' },
+      { ...reference, revision: ' rev-A ' },
+      { ...reference, source: '' },
+      { ...reference, section: '\t' },
+      { ...reference, revision: 123 as unknown as string },
+    ];
+    for (const constraint of cases) {
+      for (const invalidReference of badReferences) {
+        const result = reviewDatasheetConstraints(
+          [{ ...constraint, reference: invalidReference }],
+          nets,
+          devices,
+        );
+        expect(result.findings[0]).toMatchObject({
+          status: 'UNKNOWN',
+          evidence: 'incomplete_or_ambiguous',
+          observed_voltages_v: [],
+        });
+        expect(result.findings[0]?.message).toMatch(/datasheet|reference|provenance/i);
+        expect(result.engineering_sign_off).toBe(false);
+      }
+    }
+    expect(reviewDatasheetConstraints([fixtures[0]!.constraint], nets, devices).status).toBe(
+      'WARNING',
+    );
+  });
+
   it('rejects corrupt or contradictory caller pin-voltage constraints without a false in-range statement', () => {
     const pin = fixtures[0]!.constraint;
     if (pin.kind !== 'pin_voltage') throw new Error('Fixture contract changed');
