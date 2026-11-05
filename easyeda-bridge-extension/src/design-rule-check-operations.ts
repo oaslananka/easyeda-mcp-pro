@@ -169,7 +169,10 @@ export function createDesignRuleCheckOperations(
 ): DesignRuleCheckOperations {
   async function runNative(paths: string[]): Promise<DrcResult> {
     const raw = await dependencies.callFirst(paths, true, true, true);
-    const normalized = (Array.isArray(raw) ? raw : []).map(normalizeNode);
+    if (!Array.isArray(raw)) {
+      throw new Error('unsupported native rule-check response: expected an array of rule findings');
+    }
+    const normalized = raw.map(normalizeNode);
     const detailed = normalized.flatMap((entry) => entry.violations);
     const aggregates = normalized.flatMap((entry) => entry.aggregates);
     const violations = [

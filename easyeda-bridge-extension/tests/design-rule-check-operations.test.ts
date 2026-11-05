@@ -186,10 +186,30 @@ describe('design rule-check operations', () => {
     expect(result.violations).toHaveLength(3);
   });
 
-  it('treats a non-array native response as an empty successful check', async () => {
+  it('never converts an unsupported native DRC response into a zero-violation pass', async () => {
     const { operations, callFirst } = createSubject();
-    callFirst.mockResolvedValue({ unexpected: true });
+    for (const unexpected of [
+      undefined,
+      null,
+      true,
+      '',
+      { unexpected: true },
+      { totalViolations: 0, violations: [] },
+    ]) {
+      callFirst.mockResolvedValueOnce(unexpected);
+      await expect(operations.runDrc()).rejects.toMatchObject({
+        code: 'CONTEXT_UNAVAILABLE',
+        data: {
+          cause: expect.stringContaining('unsupported native rule-check response'),
+        },
+      });
+    }
+    expect(callFirst).toHaveBeenCalledTimes(6);
+  });
 
+  it('accepts an actual empty array as a valid zero-finding native DRC response', async () => {
+    const { operations, callFirst } = createSubject();
+    callFirst.mockResolvedValue([]);
     await expect(operations.runDrc()).resolves.toEqual({
       violations: [],
       totalViolations: 0,
