@@ -696,6 +696,15 @@ const RULE_EVIDENCE: RuleEvidence[] = [
       i.polarizedComponentCount === 0
         ? ['polarizedComponentCount']
         : ['polarizedComponentCount', 'polarityMarkCount'],
+    // Each claimed mark must belong to a distinct polarized component.
+    // Counts above the inventory cannot establish coverage, including
+    // the declared zero-polarized-component case.
+    invalid: (i) =>
+      i.polarizedComponentCount !== undefined &&
+      i.polarityMarkCount !== undefined &&
+      i.polarityMarkCount > i.polarizedComponentCount
+        ? ['polarizedComponentCount', 'polarityMarkCount']
+        : [],
     skip: (i) => i.polarizedComponentCount === 0,
   },
   { area: 'Component spacing', fields: fields('componentSpacingViolationCount') },

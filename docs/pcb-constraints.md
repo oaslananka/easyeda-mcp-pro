@@ -246,6 +246,14 @@ Default recommendation: at least `0.25mm` copper-to-edge clearance.
 | `PCB_COMPONENT_SPACING_VIOLATION`       | warning  | 20     |
 | `PCB_TESTPOINT_COVERAGE_LOW`            | warning  | 21     |
 
+Polarity-mark inventory counts must be internally consistent: when
+`polarityMarkCount` exceeds `polarizedComponentCount`, even if the
+latter is zero, the polarity check is `UNKNOWN` rather than an invented
+coverage pass. A lower mark count continues to raise
+`PCB_POLARITY_MARK_MISSING`. Equal counts are only a _caller-reported
+count comparison_; individual components, pin-1 markings, actual
+silkscreen visibility and assembly readability remain unverified.
+
 The critical-net testpoint check compares exact declared net identities:
 `IO` and `io` are **not** assumed to share electrical connectivity.
 Blank or whitespace-padded names and duplicated/case-colliding critical

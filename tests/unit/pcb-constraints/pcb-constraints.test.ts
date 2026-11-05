@@ -365,6 +365,49 @@ describe('production review rules', () => {
     expect(result.warnings.some((w) => w.code === 'PCB_COMPONENT_SPACING_VIOLATION')).toBe(true);
   });
 
+  it('rejects impossible polarized-component mark inventories as UNKNOWN', () => {
+    const invalidCounts = [
+      { polarizedComponentCount: 1, polarityMarkCount: 2 },
+      { polarizedComponentCount: 0, polarityMarkCount: 1 },
+      { polarizedComponentCount: 4, polarityMarkCount: 7 },
+    ];
+    for (const counts of invalidCounts) {
+      const result = validatePcbConstraints(makeInput(counts));
+      expect(result.unknownChecks).toContainEqual({
+        area: 'Polarity marks',
+        missingFields: ['polarizedComponentCount', 'polarityMarkCount'],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.warnings.some((w) => w.code === 'PCB_POLARITY_MARK_MISSING')).toBe(false);
+      expect(result.summary.unknown).toBeGreaterThan(0);
+    }
+    const incomplete = validatePcbConstraints(
+      makeInput({
+        polarizedComponentCount: 4,
+        polarityMarkCount: undefined,
+      }),
+    );
+    expect(incomplete.unknownChecks).toContainEqual({
+      area: 'Polarity marks',
+      missingFields: ['polarityMarkCount'],
+    });
+    const lower = validatePcbConstraints(
+      makeInput({
+        polarizedComponentCount: 4,
+        polarityMarkCount: 3,
+      }),
+    );
+    expect(lower.warnings.some((w) => w.code === 'PCB_POLARITY_MARK_MISSING')).toBe(true);
+    const equal = validatePcbConstraints(
+      makeInput({
+        polarizedComponentCount: 4,
+        polarityMarkCount: 4,
+      }),
+    );
+    expect(equal.unknownChecks.some((c) => c.area === 'Polarity marks')).toBe(false);
+    expect(equal.warnings.some((w) => w.code === 'PCB_POLARITY_MARK_MISSING')).toBe(false);
+  });
+
   it('warns when critical nets lack testpoint coverage', () => {
     const result = validatePcbConstraints(
       makeInput({
