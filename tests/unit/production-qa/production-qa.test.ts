@@ -187,6 +187,44 @@ describe('generateProductionQaArtifacts', () => {
     expect(report.passed).toBe(true); // No hard errors; reviewer sign-off remains separate.
   });
 
+  it('keeps ambiguous assembly references under review with unique checklist IDs', () => {
+    const report = generateProductionQaArtifacts({
+      projectId: 'assembly-identities',
+      components: [
+        { ref: 'D1', polarized: true, orientationMark: true, side: 'top' },
+        { ref: 'D1', doNotPopulate: true, side: 'bottom' },
+        { ref: 'D-2', specialHandling: 'Hand solder', side: 'top' },
+        { ref: 'D+2', specialHandling: 'Hand solder', side: 'bottom' },
+        { ref: ' J2 ', doNotPopulate: true, side: 'top' },
+        { ref: 'R7', doNotPopulate: true, side: 'bottom' },
+        { ref: 'R7' }, // No note requested, but still conflicts with R7's identity.
+      ],
+    });
+    const assembly = report.checklist.filter((item) => item.category === 'assembly');
+    expect(assembly).toHaveLength(6);
+    expect(new Set(assembly.map((item) => item.id)).size).toBe(6);
+    expect(assembly.map((item) => item.status)).toEqual([
+      'review',
+      'review',
+      'pass',
+      'pass',
+      'review',
+      'review',
+    ]);
+    for (const index of [0, 1, 4, 5]) {
+      expect(assembly[index]?.refs).toBeUndefined();
+      expect(assembly[index]?.details).toMatch(/ambiguous|unverified/i);
+    }
+    const md = report.artifacts.find((artifact) => artifact.role === 'assembly-notes')?.content;
+    expect(md).toContain('Component reference ambiguous');
+    expect(md).toContain('| D-2 |');
+    expect(md).toContain('| D+2 |');
+    expect(report.artifacts.find((artifact) => artifact.role === 'qa-manifest')?.content).toContain(
+      'Component reference',
+    );
+    expect(report.passed).toBe(true); // package validation is not physical assembly approval
+  });
+
   it('includes DNP and special handling notes in assembly artifact', () => {
     const report = generateProductionQaArtifacts({
       projectName: 'Factory Demo',

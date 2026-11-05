@@ -12,6 +12,8 @@ The tool is read-only. It generates Markdown and JSON artifacts from board metad
 
 Assembly placement side comes only from the caller-declared component metadata. When omitted, the assembly notes display **unverified** (not an assumed top-side placement), and the affected assembly checklist item remains **review** until confirmed. This is metadata completeness, not independent native placement or pick-and-place proof. The report's `passed` field only means no generated hard-error issues; required human-review checklist items and physical fabrication/assembly approval remain separate.
 
+Assembly component references must be exact, nonblank and unique across the entire caller-declared inventory, including parts without assembly notes. Reused or malformed references remain **review** with no trusted checklist ref; different references that normalize to the same slug receive unique checklist IDs. Generated assembly notes mark ambiguous identities, but do not certify that caller data matches a live board.
+
 ## Generated artifacts
 
 | Role                      | Filename pattern               | Purpose                                         |
