@@ -343,6 +343,38 @@ describe('read-only origin-based placement relationship observations', () => {
     }
   });
 
+  it('does not trust duplicate or malformed designators anywhere in the native inventory', () => {
+    const relation: PlacementRelation = {
+      first: 'U1',
+      second: 'C1',
+      kind: 'decoupling',
+      maxCenterDistanceMm: 1,
+      constraintSource: 'Caller assembly limit',
+    };
+    const components: NativePlacement[] = [
+      { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1 },
+      { primitiveId: 'c1', designator: 'C1', x: 200, y: 0, layer: 1 },
+      { primitiveId: 'r1', designator: 'R1', x: 100, y: 0, layer: 1 },
+      { primitiveId: 'r2', designator: 'R2', x: 100, y: 50, layer: 1 },
+    ];
+    for (const designator of ['R1', ' R2 ', '']) {
+      const inventory = [...components.slice(0, 3), { ...components[3], designator }];
+      const result = reviewPlacementRelations([relation], inventory, inventory.length, true);
+      expect(result.input_evidence.collection_complete).toBe(false);
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'caller_declared_unverified',
+        primitive_ids: [],
+      });
+      expect(result.findings[0]?.measured_center_distance_mm).toBeUndefined();
+      expect(result.engineering_sign_off).toBe(false);
+    }
+    const valid = reviewPlacementRelations([relation], components, components.length, true);
+    expect(valid.input_evidence.collection_complete).toBe(true);
+    expect(valid.findings[0]?.measured_center_distance_mm).toBeCloseTo(5.08, 6);
+    expect(valid.findings[0]?.status).toBe('WARNING');
+  });
+
   it('compares rotation modulo 360 but requires explicitly declared limits', () => {
     const data: NativePlacement[] = [
       { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1, rotation: -10 },

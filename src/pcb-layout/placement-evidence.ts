@@ -309,11 +309,20 @@ export function reviewPlacementRelations(
   // components. A reused or malformed ID can otherwise attribute an unrelated
   // part's origin, rotation or footprint to the requested assembly relation.
   const ids = components.map((component) => component.primitiveId);
+  const designators = components.map((component) => component.designator);
   const identitiesUnique =
     ids.every((id) => typeof id === 'string' && id.length > 0 && id.trim() === id) &&
     new Set(ids).size === ids.length;
+  const designatorsUnique =
+    designators.every(
+      (name) => typeof name === 'string' && name.length > 0 && name.trim() === name,
+    ) && new Set(designators).size === designators.length;
   const complete =
-    available && components.length > 0 && nativeTotal === components.length && identitiesUnique;
+    available &&
+    components.length > 0 &&
+    nativeTotal === components.length &&
+    identitiesUnique &&
+    designatorsUnique;
   const findings = relations.map((relation, index) =>
     inspectRelation(relation, components, complete, index),
   );

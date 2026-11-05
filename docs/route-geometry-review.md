@@ -250,6 +250,13 @@ then, the deterministic tests demonstrate software behavior only.
 
 ## Component-origin placement relationships (optional)
 
+Native component enumeration must contain unique, exact, nonblank primitive IDs
+**and designators across the entire bounded inventory**, including parts not
+named in a requested relation. Missing/padded/reused designators make
+'collection_complete=false' and leave placement distances **UNKNOWN**;
+a selected pair cannot be attributed safely from an ambiguous component
+inventory. This does not verify physical pads or component packages.
+
 The same read-only MCP tool supports up to eight `placementRelations` in a
 single request, using the existing `pcb.listComponents` native reader. It
 enumerates **at most 200** focused-PCB components and records native
