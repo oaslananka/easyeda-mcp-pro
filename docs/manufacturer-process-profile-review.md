@@ -54,7 +54,10 @@ Available comparisons include:
 
 - Finished/mechanical minimum drill, minimum annular ring, minimum
   solder-mask web, and minimum copper-to-board-edge separation.
-- Maximum supported board width and height.
+- Maximum supported board width and height. If the board outline is
+  explicitly absent (`hasOutline: false`), reported canvas dimensions
+  cannot establish a manufactured board size and those comparisons
+  remain `UNKNOWN` even when width/height are finite.
 - Minimum reported fiducial and tooling-hole counts.
 - Ratio of marked polarized components and ratio of explicitly
   identified critical nets that have named test points. Test-point
@@ -104,6 +107,32 @@ blocked pending review. Existing production review behavior and
 fields are preserved when no profile is supplied. This additional
 result distinguishes requested process constraints from generic
 repository engineering advisories or EasyEDA editor DRC results.
+
+## Representative source-bound, read-only PCB acceptance
+
+On 5 November 2026, a focused disposable EasyEDA Pro Web 3.2.209 PCB
+was queried using extension 1.9.0 without any design mutation,
+save, export or native DRC/ ERC operation. Its native summary exposed
+an outlined board measuring **21.59 × 16.51 mm**, with an observed
+minimum drill of **1.1 mm**. Its detailed layer stackup remained
+unavailable even though a two-layer count was reported.
+
+The existing `easyeda_pcb_production_review` tool was run **without
+caller-supplied board data** against a clearly **hypothetical**, not
+manufacturer-authenticated profile: maximum width 20 mm, maximum
+height 18 mm and minimum drill 0.8 mm, plus unobservable annular ring,
+test-point coverage and programming access limits. The native width
+comparison produced `WARNING`; the height and drill values produced
+`WITHIN_DECLARED_LIMIT` comparisons whose status is still `UNKNOWN`.
+Metrics missing from the native reader remained `UNKNOWN` without a
+fabricated `actual` value. `gateMode: block` returned `blocked: true`
+and `fabrication_approval: false`.
+
+The sanitized [read-only acceptance evidence](./evidence/easyeda-live/2026-11-05-easyeda-3.2.209-v1.9.0-native-846-production-review.json)
+records units, individual source fields, declared profile revision and
+missing data. **These example limits are not the real capabilities of
+any fab; this test is not permission to order boards or proof of
+fabrication readiness.**
 
 ## Remaining evidence and user review
 
