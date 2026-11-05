@@ -154,6 +154,31 @@ and must not suppress missing-part-number review. This protects
 identity only: no supplier/catalog mapping, package compatibility
 or physical assembly readiness is authenticated by BOM grouping.
 
+### BOM MPN source-preservation acceptance
+
+On 5 November 2026, the original installed EasyEDA Pro Web 3.2.209
+extension (1.9.0, baked dispatcher `de7e9xc35bx92a6`) exposed
+**three source-native manufacturer IDs** in the focused disposable
+schematic component inventory but **zero MPNs** in its three generated
+BOM entries. The verified local 1.9.0 package was then imported
+through EasyEDA's Extensions Manager and a **new editor test tab**
+loaded the exact `d7db8xef8bx53c6` dispatcher. The same
+source-matched schematic now yielded **three MPN-bearing BOM rows
+out of three**, with the native references, quantities and footprint
+identities consistent. The server's read-only
+`easyeda_bom_generate` tool also returned three entries and
+**three MPNs**, with total quantity three.
+
+The sanitized [native BOM acceptance evidence](./evidence/easyeda-live/2026-11-05-easyeda-3.2.209-v1.9.0-native-846-bom-mpn.json)
+records both dispatcher IDs, the verified local package hash, result
+counts and limitations without publishing the project's document IDs
+or actual MPN values. The fixture has **distinct** component values,
+so grouping conflicts involving _equal_ values and _different_
+MPNs/footprints remain **automated-test evidence**, not live
+acceptance. Neither supplier MPN authenticity nor assembly readiness
+is established. Existing open editor tabs may still use their
+earlier loaded dispatcher until restarted.
+
 A real EasyEDA Pro read-only disposable PCB acceptance must record
 the exact editor and extension versions, focused project, native
 method/response, evidence source and measurement units. Model
