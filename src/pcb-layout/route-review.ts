@@ -162,7 +162,7 @@ function detectRightAngleJoints(tracks: NativeTrack[]): RouteGeometryFinding[] {
       !finite(startY) ||
       !finite(endX) ||
       !finite(endY) ||
-      !Number.isInteger(layer) ||
+      !validNativeLayerCode(layer) ||
       !net ||
       !exactPrimitiveId(primitiveId) ||
       (startX === endX && startY === endY)
@@ -219,6 +219,10 @@ type CopperSegment = Required<
   >
 >;
 
+function validNativeLayerCode(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
 function validNativeCoordinate(value: unknown): value is number {
   return finite(value) && Math.abs(value) <= 1_000_000;
 }
@@ -246,7 +250,7 @@ function observedCopperSegment(track: NativeTrack): CopperSegment | undefined {
   if (
     !exactPrimitiveId(track.primitiveId) ||
     !exactNativeNet(track.net) ||
-    !Number.isInteger(track.layer)
+    !validNativeLayerCode(track.layer)
   )
     return undefined;
   if (!positive(track.width) || track.width > 1_000_000) return undefined;

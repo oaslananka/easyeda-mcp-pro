@@ -142,6 +142,60 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('treats invalid native layer identifiers as unavailable through the MCP tool', async () => {
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listTracks'
+        ? {
+            total: 2,
+            items: [
+              {
+                primitiveId: 'valid',
+                net: 'DATA+',
+                layer: 1,
+                startX: 0,
+                startY: 0,
+                endX: 100,
+                endY: 0,
+                width: 10,
+              },
+              {
+                primitiveId: 'bad',
+                net: 'GND',
+                layer: -1,
+                startX: 50,
+                startY: -50,
+                endX: 50,
+                endY: 50,
+                width: 2,
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const result = await run({ minWidthMm: 0.2, intent: 'high-speed' });
+    expect(result.input_evidence.collection_complete).toBe(false);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:bad:missing-geometry',
+        rule_id: 'TRACK_GEOMETRY_UNAVAILABLE',
+        status: 'UNKNOWN',
+        primitive_ids: ['bad'],
+      }),
+    );
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({ rule_id: 'NATIVE_COLLECTION_INCOMPLETE', status: 'UNKNOWN' }),
+    );
+    expect(
+      result.findings.some(
+        (item: { primitive_ids: string[]; status: string }) =>
+          item.primitive_ids.includes('bad') &&
+          (item.status === 'WARNING' || item.status === 'ADVISORY'),
+      ),
+    ).toBe(false);
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
+  });
+
   it('reports actual different-net same-layer copper overlap from the existing read-only bridge', async () => {
     bridgeCall.mockImplementation(async (method: string) =>
       method === 'pcb.listTracks'
