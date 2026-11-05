@@ -163,6 +163,55 @@ describe('versioned manufacturer process observations (not fabrication approval)
     expect(result.findings.every((x) => x.actual === undefined)).toBe(true);
   });
 
+  it('does not compare canvas extents as manufactured dimensions without a board outline', () => {
+    const profile = {
+      ...ref,
+      limits: {
+        maximumBoardWidthMm: 100,
+        maximumBoardHeightMm: 50,
+        minimumFinishedDrillMm: 0.3,
+      },
+    };
+    const result = reviewManufacturerProfile(
+      profile,
+      { hasOutline: false, widthMm: 60, heightMm: 40, minDrillMm: 0.2 },
+      'native_partial_unverified',
+    );
+    const [drill, width, height] = result.findings;
+    expect(drill).toMatchObject({
+      id: 'minimumFinishedDrillMm',
+      status: 'WARNING',
+      actual: 0.2,
+      measurement_evidence: 'native_partial_unverified',
+    });
+    for (const measurement of [width, height]) {
+      expect(measurement).toMatchObject({
+        status: 'UNKNOWN',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      });
+      expect(measurement).not.toHaveProperty('actual');
+      expect(measurement?.reason).toContain('board outline is explicitly absent');
+    }
+    expect(result.fabrication_approval).toBe(false);
+    expect(result.manual_review_required).toBe(true);
+
+    const withOutline = reviewManufacturerProfile(
+      profile,
+      { hasOutline: true, widthMm: 60, heightMm: 40, minDrillMm: 0.2 },
+      'native_partial_unverified',
+    );
+    expect(withOutline.findings[1]).toMatchObject({
+      comparison: 'WITHIN_DECLARED_LIMIT',
+      actual: 60,
+    });
+    expect(withOutline.findings[2]).toMatchObject({
+      comparison: 'WITHIN_DECLARED_LIMIT',
+      actual: 40,
+    });
+    expect(withOutline.fabrication_approval).toBe(false);
+  });
+
   it('does not claim critical-net completeness with duplicates or blank inventories', () => {
     const input = { ...ref, limits: { minimumCriticalNetTestpointRatio: 0.5 } };
     for (const boardData of [
