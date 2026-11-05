@@ -152,6 +152,26 @@ The prior BOM and PCB reads were not one atomic design snapshot, so
 the full BOM/footprint join remains **UNKNOWN**. No manufacturing or
 assembly sign-off was performed.
 
+## Representative BOM–PCB footprint identity reconciliation
+
+A separate source-bound, read-only comparison on 5 November 2026
+matched a focused disposable EasyEDA Pro Web 3.2.209 PCB component
+inventory to the same project's schematic native component list and
+the updated 1.9.0 `bom.generate` output. All **3/3** references,
+schematic/BOM footprint names, schematic/PCB footprint names,
+BOM/PCB footprint names and source-observed native manufacturer IDs
+versus BOM MPNs matched; no unmatched PCB-only reference was found.
+
+The [sanitized comparison evidence](./evidence/easyeda-live/2026-11-05-easyeda-3.2.209-v1.9.0-native-846-bom-pcb-footprint-join.json)
+records the different baked dispatcher fingerprints, exact project
+focus checks, match counts and missing guarantees. The PCB and
+schematic reads were **not atomic**; a final PCB recheck was
+inconclusive because the Bridge connected to a non-PCB-focused
+browser session. Do **not** interpret the name matches as
+revision-stable assembly consistency, physical package/footprint
+compatibility, pick-and-place accuracy, verified supplier MPN
+authenticity or manufacturing approval.
+
 ## Remaining evidence and user review
 
 Do not claim complete board pass unless actual geometry,

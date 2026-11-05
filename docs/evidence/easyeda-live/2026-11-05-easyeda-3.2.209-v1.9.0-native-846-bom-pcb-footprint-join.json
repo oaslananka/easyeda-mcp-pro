@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "observationDate": "2026-11-05",
+  "kind": "non-atomic-read-only-bom-schematic-pcb-identity-comparison",
+  "implementationCommit": "4e52556809868e5ccc9be2e828c2377ee162f98a",
+  "runtime": {
+    "editor": "EasyEDA Pro Web 3.2.209",
+    "extensionVersion": "1.9.0",
+    "initialPcbBakedDispatcher": "de7e9xc35bx92a6",
+    "schematicBakedDispatcher": "d7db8xef8bx53c6",
+    "activeSourceProjectMatchedAcrossReads": true,
+    "pcbAndSchematicFocusIndependentlyVerified": true,
+    "oneAtomicProjectSnapshot": false,
+    "finalPcbReadbackAccepted": false
+  },
+  "source": {
+    "fixture": "owner-controlled disposable LED-indicator project",
+    "projectUuidWithheld": true,
+    "documentUuidsWithheld": true,
+    "nativePartNumbersWithheld": true,
+    "exactFootprintNamesWithheld": true,
+    "coordinatesAndPrimitiveIdsWithheld": true,
+    "methods": ["pcb.listComponents", "schematic.listComponents", "bom.generate"],
+    "sameVerifiedProjectScope": true,
+    "nativeDesignMutations": 0,
+    "saves": 0,
+    "exports": 0,
+    "externalSupplierQueries": 0,
+    "fabricationOrders": 0
+  },
+  "observations": {
+    "initialPcbComponents": 3,
+    "schematicComponents": 3,
+    "bomGroupedRows": 3,
+    "expandedBomReferences": 3,
+    "allReferencesPresentOnBothSides": true,
+    "schematicBomFootprintNamesMatching": 3,
+    "schematicPcbFootprintNamesMatching": 3,
+    "bomPcbFootprintNamesMatching": 3,
+    "bomMpnMatchingNativeManufacturerId": 3,
+    "pcbPlacementMetadataComplete": 3,
+    "additionalPcbOnlyReferences": 0,
+    "duplicateSchematicOrBomDesignators": false,
+    "mismatchCount": 0
+  },
+  "remainingUnverified": [
+    "Schematic and PCB live reads were non-atomic and no common immutable design revision was available.",
+    "A subsequent PCB recheck could not be attributed to the focused PCB due multiple browser extension sessions; stable-revision readback was not accepted.",
+    "Exact footprint-name correspondence does not certify manufacturer device package dimensions, pinout, native footprint library version, pad compatibility or BOM supplier authenticity.",
+    "Native manufacturerId-to-BOM MPN name matches do not authenticate real supplier catalogue or datasheet records.",
+    "BOM / PCB values and three real parts are distinct; identical value differing package or MPN was covered only by deterministic tests.",
+    "Pick-and-place side/orientation mapping, assembly access, stencil, fiducial geometry and factory process compliance remain unverified."
+  ],
+  "safety": {
+    "electricalApproval": false,
+    "manufacturingApproval": false,
+    "pickPlaceApproval": false
+  },
+  "result": "IDENTITIES_AND_FOOTPRINT_NAMES_MATCH_IN_REPRESENTATIVE_NON_ATOMIC_READ_ONLY_OBSERVATION"
+}
