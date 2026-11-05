@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "observationDate": "2026-11-05",
+  "kind": "source-bound-read-only-pcb-component-assembly-inventory",
+  "runtime": {
+    "editor": "EasyEDA Pro Web 3.2.209",
+    "extensionVersion": "1.9.0",
+    "activeBakedDispatcher": "de7e9xc35bx92a6",
+    "sourceProjectAndFocusedPcbMatched": true,
+    "documentType": 3
+  },
+  "source": {
+    "fixture": "owner-controlled disposable LED-indicator PCB",
+    "projectUuidWithheld": true,
+    "documentUuidWithheld": true,
+    "primitiveIdsAndCoordinatesWithheld": true,
+    "nativeMethod": "pcb.listComponents",
+    "projectScopeReadOnly": true,
+    "designMutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0,
+    "nativeDrcOrErcCalls": 0,
+    "supplierQueriesOrOrders": 0
+  },
+  "observation": {
+    "nativeTotal": 3,
+    "returnedCount": 3,
+    "collectionComplete": true,
+    "uniquePrimitiveIdCount": 3,
+    "designators": ["LED1", "R1", "U1"],
+    "componentsWithFootprintNames": 3,
+    "componentsWithFootprintUuids": 3,
+    "componentsWithFiniteCoordinates": 3,
+    "componentsWithFiniteRotations": 3,
+    "nativeLayerCodes": [1],
+    "componentsWithRecognizedLayerCode1Or2": 3
+  },
+  "limitations": [
+    "Native component origin, footprint name, primitive identity, orientation and layer code are observed metadata, not proof of pick-and-place coordinate/rotation convention or assembly-side signoff.",
+    "No mapping to exact manufacturer datasheet, physical package dimensions, courtyard, solder-mask, solder-paste stencil or pick-and-place export was verified.",
+    "The focused PCB read and the previous source-matched schematic BOM MPN observation are non-atomic; this result does not claim a verified cross-document reference-to-MPN-to-footprint join.",
+    "Raw native layer code 1 was observed; assembly layer interpretation and library-footprint orientation were not independently verified.",
+    "No user design write, save, export, vendor contact, factory request, payment or manufacturing order was performed."
+  ],
+  "engineeringSignOff": false,
+  "fabricationApproval": false
+}

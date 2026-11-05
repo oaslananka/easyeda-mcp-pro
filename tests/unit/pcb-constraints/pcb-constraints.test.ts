@@ -377,6 +377,46 @@ describe('production review rules', () => {
     expect(warn!.details?.missingCriticalNets).toEqual(['RESET', 'SWDIO', 'SWCLK']);
   });
 
+  it('matches native test-point nets exactly instead of folding case', () => {
+    const mismatch = validatePcbConstraints(
+      makeInput({ criticalNetNames: ['IO', 'GND'], testPointNets: ['io', 'GND'] }),
+    );
+    const warning = mismatch.warnings.find((w) => w.code === 'PCB_TESTPOINT_COVERAGE_LOW');
+    expect(warning).toBeDefined();
+    expect(warning?.details).toMatchObject({
+      coverageRatio: 0.5,
+      missingCriticalNets: ['IO'],
+    });
+    expect(mismatch.summary.failed).toBeGreaterThan(0);
+    const exact = validatePcbConstraints(
+      makeInput({ criticalNetNames: ['IO', 'GND'], testPointNets: ['IO', 'GND', 'GND'] }),
+    );
+    expect(exact.warnings.some((w) => w.code === 'PCB_TESTPOINT_COVERAGE_LOW')).toBe(false);
+    expect(exact.unknownChecks.some((item) => item.area === 'Testpoint coverage')).toBe(false);
+  });
+
+  it('fails closed for malformed or duplicate critical-net inventories', () => {
+    const variants: Array<Pick<PcbConstraintInput, 'criticalNetNames' | 'testPointNets'>> = [
+      { criticalNetNames: ['IO '], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO'], testPointNets: [' IO'] },
+      { criticalNetNames: ['IO', ''], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO'], testPointNets: [''] },
+      { criticalNetNames: ['IO', 'io'], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO', 'IO'], testPointNets: ['IO'] },
+    ];
+    for (const entry of variants) {
+      const result = validatePcbConstraints(makeInput(entry));
+      expect(result.unknownChecks).toContainEqual({
+        area: 'Testpoint coverage',
+        missingFields: ['criticalNetNames', 'testPointNets'],
+      });
+      expect(result.warnings.some((item) => item.code === 'PCB_TESTPOINT_COVERAGE_LOW')).toBe(
+        false,
+      );
+      expect(result.valid).toBe(false);
+    }
+  });
+
   it('rejects missing programming/debug header when required', () => {
     const result = validatePcbConstraints(
       makeInput({ requiresProgrammingHeader: true, hasProgrammingHeader: false }),

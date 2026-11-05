@@ -134,6 +134,24 @@ missing data. **These example limits are not the real capabilities of
 any fab; this test is not permission to order boards or proof of
 fabrication readiness.**
 
+## Source-bound read-only PCB placement inventory
+
+A separate 5 November 2026 EasyEDA Pro Web 3.2.209 read of the
+same disposable fixture PCB used the existing `pcb.listComponents`
+reader, with the focused PCB and project identity independently
+matched. All **3/3 PCB components** had distinct native primitive
+IDs, named footprints, footprint UUIDs, finite native coordinates and
+rotations, with raw layer code **1**. The [sanitized assembly inventory](./evidence/easyeda-live/2026-11-05-easyeda-3.2.209-v1.9.0-native-846-assembly-inventory.json)
+records aggregate observations, not private coordinates or project
+identifiers.
+
+This observation establishes available assembly _metadata_, not
+pick-and-place output, source-matched BOM-to-PCB MPN/package validity,
+side/rotation convention, courtyard geometry or nozzle/rework access.
+The prior BOM and PCB reads were not one atomic design snapshot, so
+the full BOM/footprint join remains **UNKNOWN**. No manufacturing or
+assembly sign-off was performed.
+
 ## Remaining evidence and user review
 
 Do not claim complete board pass unless actual geometry,

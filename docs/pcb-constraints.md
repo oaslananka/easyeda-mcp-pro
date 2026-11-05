@@ -245,8 +245,18 @@ Default recommendation: at least `0.25mm` copper-to-edge clearance.
 | `PCB_POLARITY_MARK_MISSING`             | warning  | 19     |
 | `PCB_COMPONENT_SPACING_VIOLATION`       | warning  | 20     |
 | `PCB_TESTPOINT_COVERAGE_LOW`            | warning  | 21     |
-| `PCB_PROGRAMMING_HEADER_MISSING`        | error    | 22     |
-| `PCB_FAB_NOTES_MISSING`                 | warning  | 23     |
+
+The critical-net testpoint check compares exact declared net identities:
+`IO` and `io` are **not** assumed to share electrical connectivity.
+Blank or whitespace-padded names and duplicated/case-colliding critical
+net inventories produce `UNKNOWN` in `unknownChecks` instead of a
+fabricated coverage pass or a guessed missing-net warning. Repeated
+testpoint observations on a single exact net count only once. The
+result remains a declared-name comparison, not proof of probe
+accessibility or fabrication readiness.
+
+| `PCB_PROGRAMMING_HEADER_MISSING` | error | 22 |
+| `PCB_FAB_NOTES_MISSING` | warning | 23 |
 
 ## Usage
 

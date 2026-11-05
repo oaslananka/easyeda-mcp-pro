@@ -43,8 +43,16 @@ const MIN_SMT_FIDUCIAL_COUNT = 3;
 const MIN_TOOLING_HOLE_COUNT = 2;
 const MIN_TESTPOINT_COVERAGE_RATIO = 0.8;
 
-function normalizedNetName(name: string): string {
-  return name.trim().toUpperCase();
+/** Exact net names are identities. An incomplete or ambiguous caller
+ * inventory cannot establish physical test-point coverage.
+ */
+function ambiguousTestpointInventory(input: PcbConstraintInput): boolean {
+  const required = input.criticalNetNames ?? [];
+  const observed = input.testPointNets ?? [];
+  return (
+    [...required, ...observed].some((name) => !name || name.trim() !== name) ||
+    new Set(required.map((name) => name.toUpperCase())).size !== required.length
+  );
 }
 
 // ── Rule: missing board outline ────────────────────────────────────────────
@@ -531,9 +539,10 @@ function checkComponentSpacing(input: PcbConstraintInput): PcbConstraintIssue[] 
 // ── Production review: testpoint coverage ──────────────────────────────────
 
 function checkTestpointCoverage(input: PcbConstraintInput): PcbConstraintIssue[] {
-  const criticalNets = [...new Set((input.criticalNetNames ?? []).map(normalizedNetName))];
+  const criticalNets = input.criticalNetNames ?? [];
   if (criticalNets.length === 0) return [];
-  const testPointNets = new Set((input.testPointNets ?? []).map(normalizedNetName));
+  // This rule runs only for unambiguous inventories (see evidence gate).
+  const testPointNets = new Set(input.testPointNets ?? []);
   const missing = criticalNets.filter((net) => !testPointNets.has(net));
   const coverage = (criticalNets.length - missing.length) / criticalNets.length;
 
@@ -598,6 +607,8 @@ type InputField = keyof PcbConstraintInput;
 interface RuleEvidence {
   area: string;
   fields: (input: PcbConstraintInput) => InputField[];
+  /** Present but ambiguous source fields also require explicit review. */
+  invalid?: (input: PcbConstraintInput) => InputField[];
   skip?: (input: PcbConstraintInput) => boolean;
 }
 
@@ -694,6 +705,7 @@ const RULE_EVIDENCE: RuleEvidence[] = [
       i.criticalNetNames?.length === 0
         ? ['criticalNetNames']
         : ['criticalNetNames', 'testPointNets'],
+    invalid: (i) => (ambiguousTestpointInventory(i) ? ['criticalNetNames', 'testPointNets'] : []),
     skip: (i) => i.criticalNetNames?.length === 0,
   },
   {
@@ -777,8 +789,9 @@ export function validatePcbConstraints(input: PcbConstraintInput): PcbConstraint
     const missing = evidence
       .fields(input)
       .filter((field) => input[field] === undefined || input[field] === null);
+    if (missing.length === 0) missing.push(...(evidence.invalid?.(input) ?? []));
     if (missing.length > 0) {
-      unknownChecks.push({ area: evidence.area, missingFields: missing });
+      unknownChecks.push({ area: evidence.area, missingFields: [...new Set(missing)] });
       continue;
     }
     if (evidence.skip?.(input)) {
