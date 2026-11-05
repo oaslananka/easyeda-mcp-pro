@@ -115,6 +115,10 @@ function exactPrimitiveId(id: string | undefined): id is string {
   return typeof id === 'string' && id.length > 0 && id.trim() === id;
 }
 
+function exactNativeNet(net: string | undefined): net is string {
+  return typeof net === 'string' && net.length > 0 && net.trim() === net;
+}
+
 function duplicatePrimitiveIds(items: Array<{ primitiveId?: string }>): Set<string> {
   const seen = new Set<string>();
   const duplicates = new Set<string>();
@@ -219,7 +223,11 @@ function validNativeCoordinate(value: unknown): value is number {
 }
 
 function observedCopperSegment(track: NativeTrack): CopperSegment | undefined {
-  if (!exactPrimitiveId(track.primitiveId) || !track.net || !Number.isInteger(track.layer))
+  if (
+    !exactPrimitiveId(track.primitiveId) ||
+    !exactNativeNet(track.net) ||
+    !Number.isInteger(track.layer)
+  )
     return undefined;
   if (!positive(track.width) || track.width > 1_000_000) return undefined;
   const coords = [track.startX, track.startY, track.endX, track.endY];
@@ -382,7 +390,11 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
   );
   findings.push(...reviewObservedTrackOverlaps(uniquelyIdentifiedTracks));
   if (input.intent === 'high-speed')
-    findings.push(...detectRightAngleJoints(uniquelyIdentifiedTracks));
+    findings.push(
+      ...detectRightAngleJoints(
+        uniquelyIdentifiedTracks.filter((track) => observedCopperSegment(track) !== undefined),
+      ),
+    );
   return findings;
 }
 
@@ -399,7 +411,7 @@ function reviewViaLayerTransitionCandidates(input: RouteGeometryInput): RouteGeo
   return input.vias.flatMap((via) => {
     if (
       !exactPrimitiveId(via.primitiveId) ||
-      !via.net ||
+      !exactNativeNet(via.net) ||
       !validNativeCoordinate(via.x) ||
       !validNativeCoordinate(via.y) ||
       !positive(via.diameter) ||

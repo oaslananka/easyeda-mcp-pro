@@ -161,6 +161,71 @@ describe('bounded native route geometry evidence', () => {
     ).toBe(false);
   });
 
+  it('does not infer a high-speed corner from a native segment with missing copper width', () => {
+    const valid = track('valid', 0, 0, 100, 0);
+    const incomplete = { ...track('incomplete', 100, 0, 100, 100), width: undefined };
+    const result = review({ tracks: [valid, incomplete], intent: 'high-speed' });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:incomplete:missing-geometry',
+        rule_id: 'TRACK_GEOMETRY_UNAVAILABLE',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.findings.some((item) => item.rule_id === 'RIGHT_ANGLE_STYLE_REVIEW')).toBe(false);
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('excludes padded or blank native net labels from measured track and via claims', () => {
+    const valid = track('valid', 0, 0, 100, 0, 10);
+    const invalidNet = { ...track('bad-net', 50, -40, 50, 40, 2), net: ' GND ' };
+    const via = {
+      primitiveId: 'via',
+      net: ' DATA+ ',
+      x: 100,
+      y: 0,
+      holeDiameter: 10,
+      diameter: 30,
+    };
+    const otherLayer = { ...track('layer', 100, 0, 100, 80), layer: 2 };
+    const result = review({
+      tracks: [valid, invalidNet, otherLayer],
+      vias: [via],
+      intent: 'high-speed',
+      minWidthMm: 0.2,
+    });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        id: 'track:bad-net:missing-geometry',
+        rule_id: 'TRACK_GEOMETRY_UNAVAILABLE',
+        status: 'UNKNOWN',
+      }),
+    );
+    expect(result.findings.some((item) => item.rule_id === 'OBSERVED_TRACK_COPPER_OVERLAP')).toBe(
+      false,
+    );
+    expect(
+      result.findings.some((item) => item.rule_id === 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'),
+    ).toBe(false);
+    expect(result.findings.some((item) => item.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+      false,
+    );
+
+    const padded = review({
+      tracks: [
+        { ...track('top', 0, 0, 100, 0), net: ' DATA+ ' },
+        { ...track('bottom', 100, 0, 100, 100), net: ' DATA+ ', layer: 12 },
+      ],
+      vias: [via],
+    });
+    expect(padded.findings.some((item) => item.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+      false,
+    );
+    expect(
+      padded.findings.filter((item) => item.rule_id === 'TRACK_GEOMETRY_UNAVAILABLE'),
+    ).toHaveLength(2);
+  });
+
   it('never emits measured geometry warnings from explicitly unavailable native collections', () => {
     const narrow = track('narrow', 0, 0, 100, 0, 2);
     const colliding = { ...track('collision', 50, -30, 50, 30, 10), net: 'GND' };
