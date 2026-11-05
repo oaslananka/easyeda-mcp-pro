@@ -225,6 +225,48 @@ describe('generateProductionQaArtifacts', () => {
     expect(report.passed).toBe(true); // package validation is not physical assembly approval
   });
 
+  it('escapes caller-controlled Markdown cells without changing JSON evidence', () => {
+    const report = generateProductionQaArtifacts({
+      projectId: 'markdown-inventory',
+      criticalNets: [
+        { name: 'POWER|A', category: 'power', hasTestPoint: true, testPointRef: 'TP1|TEST' },
+      ],
+      components: [
+        {
+          ref: 'D|1',
+          value: 'LED|green',
+          side: 'bottom',
+          specialHandling: 'Verify supply\n| fake | pass |<script>alert(1)</script>',
+        },
+      ],
+    });
+    const artifact = (role: string) =>
+      report.artifacts.find((item) => item.role === role)?.content ?? '';
+    const testpoints = artifact('testpoint-checklist');
+    const assembly = artifact('assembly-notes');
+    const checklist = artifact('production-qa-checklist');
+    expect(testpoints).toContain('POWER\\|A');
+    expect(testpoints).toContain('TP1\\|TEST');
+    expect(assembly).toContain('D\\|1');
+    expect(assembly).toContain('LED\\|green');
+    expect(assembly).toContain('Verify supply');
+    expect(assembly).toContain('&lt;script&gt;');
+    expect(assembly).not.toContain('<script>');
+    for (const markdown of [testpoints, assembly, checklist]) {
+      const rows = markdown.split('\n').filter((line) => line.startsWith('| '));
+      const delimiterCount = rows[0]!.replace(/\\\|/g, '').split('|').length;
+      expect(
+        rows.every((row) => row.replace(/\\\|/g, '').split('|').length === delimiterCount),
+      ).toBe(true);
+    }
+    const manifest = JSON.parse(artifact('qa-manifest')) as {
+      projectId: string;
+      checklist: unknown[];
+    };
+    expect(manifest.projectId).toBe('markdown-inventory');
+    expect(manifest.checklist).toEqual(report.checklist);
+  });
+
   it('includes DNP and special handling notes in assembly artifact', () => {
     const report = generateProductionQaArtifacts({
       projectName: 'Factory Demo',

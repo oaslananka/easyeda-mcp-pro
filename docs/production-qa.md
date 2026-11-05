@@ -47,6 +47,8 @@ Assembly component references must be exact, nonblank and unique across the enti
 }
 ```
 
+Generated Markdown table cells escape caller-supplied pipes, raw HTML and line breaks so component labels, testpoint names and handling instructions cannot create extra columns/rows or executable markup. The JSON QA manifest keeps the original values for source attribution.
+
 Critical-net testpoint rows preserve exact net identities even if different names
 normalize to the same checklist slug. A declared test point without a nonblank,
 exact reference, a repeated testpoint reference across critical nets, or a
