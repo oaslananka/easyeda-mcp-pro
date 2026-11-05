@@ -531,6 +531,46 @@ describe('bounded native route geometry evidence', () => {
     ).toBe(true);
   });
 
+  it('withholds measured via findings and complete inventory on untrustworthy net, center or dimensions', () => {
+    const front = track('front', 0, 0, 100, 0);
+    const back = { ...track('back', 100, 0, 100, 100), layer: 12 };
+    const via = {
+      primitiveId: 'v-bad',
+      net: 'DATA+',
+      x: 100,
+      y: 0,
+      holeDiameter: 40,
+      diameter: 30,
+    };
+    const invalid = [
+      { ...via, net: ' DATA+ ' },
+      { ...via, net: undefined },
+      { ...via, x: Number.POSITIVE_INFINITY },
+      { ...via, y: 1e308 },
+      { ...via, holeDiameter: undefined },
+      { ...via, diameter: 1e308 },
+    ];
+    for (const candidate of invalid) {
+      const result = review({ tracks: [front, back], vias: [candidate] });
+      expect(result.input_evidence.collection_complete).toBe(false);
+      expect(result.overall_status).toBe('UNKNOWN');
+      expect(result.findings).toContainEqual(
+        expect.objectContaining({
+          id: 'via:v-bad:missing-geometry',
+          rule_id: 'VIA_GEOMETRY_UNAVAILABLE',
+          status: 'UNKNOWN',
+          primitive_ids: ['v-bad'],
+        }),
+      );
+      expect(result.findings.map((f) => f.rule_id)).toContain('NATIVE_COLLECTION_INCOMPLETE');
+      expect(result.findings.some((f) => f.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+      expect(result.findings.some((f) => f.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+        false,
+      );
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('flags physically contradictory via land/drill diameter without claiming current rating', () => {
     const result = review({
       tracks: [],

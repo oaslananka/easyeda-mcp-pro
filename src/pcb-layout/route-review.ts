@@ -35,6 +35,7 @@ export type GeometryRule =
   | 'TRACK_GEOMETRY_UNAVAILABLE'
   | 'RIGHT_ANGLE_STYLE_REVIEW'
   | 'VIA_ANNULAR_GEOMETRY'
+  | 'VIA_GEOMETRY_UNAVAILABLE'
   | 'VIA_LAYER_TRANSITION_CANDIDATE'
   | 'VIA_CURRENT_CAPACITY_UNKNOWN'
   | 'REFERENCE_PLANE_UNVERIFIED'
@@ -226,6 +227,21 @@ function validNativeViaDiameter(value: unknown): value is number {
   return positive(value) && value <= 1_000_000;
 }
 
+type AttributableVia = Required<
+  Pick<NativeVia, 'primitiveId' | 'net' | 'x' | 'y' | 'holeDiameter' | 'diameter'>
+>;
+
+function hasAttributableViaGeometry(via: NativeVia): via is AttributableVia {
+  return (
+    exactPrimitiveId(via.primitiveId) &&
+    exactNativeNet(via.net) &&
+    validNativeCoordinate(via.x) &&
+    validNativeCoordinate(via.y) &&
+    validNativeViaDiameter(via.holeDiameter) &&
+    validNativeViaDiameter(via.diameter)
+  );
+}
+
 function observedCopperSegment(track: NativeTrack): CopperSegment | undefined {
   if (
     !exactPrimitiveId(track.primitiveId) ||
@@ -413,16 +429,7 @@ function reviewViaLayerTransitionCandidates(input: RouteGeometryInput): RouteGeo
     .map(observedCopperSegment)
     .filter((s): s is CopperSegment => !!s);
   return input.vias.flatMap((via) => {
-    if (
-      !exactPrimitiveId(via.primitiveId) ||
-      !exactNativeNet(via.net) ||
-      !validNativeCoordinate(via.x) ||
-      !validNativeCoordinate(via.y) ||
-      !validNativeViaDiameter(via.diameter) ||
-      !validNativeViaDiameter(via.holeDiameter) ||
-      via.holeDiameter >= via.diameter
-    )
-      return [];
+    if (!hasAttributableViaGeometry(via) || via.holeDiameter >= via.diameter) return [];
     if (input.vias.filter((item) => item.primitiveId === via.primitiveId).length !== 1) return [];
     const touching = segments.filter(
       (segment) =>
@@ -462,11 +469,20 @@ function reviewVias(input: RouteGeometryInput): RouteGeometryFinding[] {
   for (const via of input.viasAvailable ? input.vias : []) {
     const id = via.primitiveId;
     if (!exactPrimitiveId(id) || duplicateIds.has(id)) continue;
-    if (
-      validNativeViaDiameter(via.holeDiameter) &&
-      validNativeViaDiameter(via.diameter) &&
-      via.holeDiameter >= via.diameter
-    ) {
+    if (!hasAttributableViaGeometry(via)) {
+      findings.push({
+        ...finding(
+          'via:' + id + ':missing-geometry',
+          'VIA_GEOMETRY_UNAVAILABLE',
+          'UNKNOWN',
+          'Native via net, center, drill or copper diameter is missing or untrustworthy.',
+          [id],
+        ),
+        ...(exactNativeNet(via.net) ? { net: via.net } : {}),
+      });
+      continue;
+    }
+    if (via.holeDiameter >= via.diameter) {
       findings.push({
         ...finding(
           'via:' + id + ':geometry',
@@ -476,10 +492,7 @@ function reviewVias(input: RouteGeometryInput): RouteGeometryFinding[] {
           [id],
         ),
         net: via.net,
-        position_mil:
-          validNativeCoordinate(via.x) && validNativeCoordinate(via.y)
-            ? { x: via.x, y: via.y }
-            : undefined,
+        position_mil: { x: via.x, y: via.y },
       });
     }
   }
@@ -501,7 +514,9 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
     input.trackCount === input.tracks.length &&
     input.viaCount === input.vias.length &&
     uniquelyIdentified(input.tracks) &&
-    uniquelyIdentified(input.vias);
+    uniquelyIdentified(input.vias) &&
+    input.tracks.every((track) => observedCopperSegment(track) !== undefined) &&
+    input.vias.every(hasAttributableViaGeometry);
   const findings = [
     ...reviewTracks(input),
     ...reviewVias(input),
