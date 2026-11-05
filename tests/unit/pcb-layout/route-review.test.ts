@@ -494,6 +494,43 @@ describe('bounded native route geometry evidence', () => {
     }
   });
 
+  it('withholds native via geometry claims for unbounded positive drill or land dimensions', () => {
+    const front = track('front', 0, 0, 100, 0);
+    const back = { ...track('back', 100, 0, 100, 100), layer: 12 };
+    const via = {
+      primitiveId: 'via',
+      net: 'DATA+',
+      x: 100,
+      y: 0,
+      holeDiameter: 10,
+      diameter: 30,
+    };
+    const invalid = [
+      { ...via, diameter: 1e308 },
+      { ...via, holeDiameter: 1e308, diameter: 1e308 },
+      { ...via, holeDiameter: 1e308, diameter: 1e307 },
+    ];
+    for (const bad of invalid) {
+      const observed = review({ tracks: [front, back], vias: [bad] });
+      expect(
+        observed.findings.some((item) => item.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE'),
+      ).toBe(false);
+      expect(observed.findings.some((item) => item.rule_id === 'VIA_ANNULAR_GEOMETRY')).toBe(false);
+      expect(observed.engineering_sign_off).toBe(false);
+    }
+    const valid = review({ tracks: [front, back], vias: [via] });
+    expect(valid.findings.some((item) => item.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+      true,
+    );
+    const physicallyContradictory = review({
+      tracks: [],
+      vias: [{ ...via, holeDiameter: 35 }],
+    });
+    expect(
+      physicallyContradictory.findings.some((item) => item.rule_id === 'VIA_ANNULAR_GEOMETRY'),
+    ).toBe(true);
+  });
+
   it('flags physically contradictory via land/drill diameter without claiming current rating', () => {
     const result = review({
       tracks: [],
