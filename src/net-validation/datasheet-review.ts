@@ -111,6 +111,33 @@ function sourceIdentityUnambiguous(
   );
 }
 
+function exactReferenceIdentity(reference: DatasheetReference | undefined): boolean {
+  // These are caller-provided identifiers, NOT independent authentication.
+  const fields = [
+    reference?.partNumber,
+    reference?.package,
+    reference?.revision,
+    reference?.source,
+    reference?.section,
+  ];
+  return fields.every(
+    (value) => typeof value === 'string' && value.length > 0 && value.trim() === value,
+  );
+}
+
+function declaredConstraintPins(constraint: DatasheetConstraint): string[] {
+  switch (constraint.kind) {
+    case 'pin_voltage':
+    case 'intentional_nc':
+    case 'required_support':
+      return [constraint.pin];
+    case 'io_domain_voltage':
+      return [constraint.pin, constraint.supplyPin];
+    case 'regulator_headroom':
+      return [constraint.inputPin, constraint.outputPin];
+  }
+}
+
 function findPinNet(
   componentRef: string,
   pin: string,
@@ -540,6 +567,16 @@ export function reviewDatasheetConstraints(
   devices: DeviceValidationEntry[] | undefined,
 ): DatasheetReview {
   const findings = constraints.map((constraint, index) => {
+    if (!exactReferenceIdentity(constraint.reference)) {
+      return finding(
+        index,
+        constraint,
+        'UNKNOWN',
+        'Datasheet reference provenance is incomplete or malformed: exact part number, package, revision, source and section are required before a caller-supplied electrical constraint can be compared.',
+        declaredConstraintPins(constraint),
+        [],
+      );
+    }
     switch (constraint.kind) {
       case 'pin_voltage':
         return reviewPinVoltage(constraint, index, nets, devices);
