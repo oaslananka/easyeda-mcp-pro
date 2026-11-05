@@ -79,6 +79,38 @@ describe('generateProductionQaArtifacts', () => {
     expect(report.checklist.find((item) => item.id === 'programming-access')?.status).toBe('fail');
   });
 
+  it('does not invent a top-side placement when assembly side is missing', () => {
+    const report = generateProductionQaArtifacts({
+      projectId: 'unverified-side',
+      components: [
+        { ref: 'D1', polarized: true, orientationMark: true },
+        { ref: 'R99', doNotPopulate: true },
+        { ref: 'J2', side: 'bottom', specialHandling: 'Hand assemble' },
+      ],
+    });
+
+    const assembly = report.artifacts.find((artifact) => artifact.role === 'assembly-notes');
+    const lines = assembly?.content.split('\n') ?? [];
+    expect(lines.find((line) => line.includes('| D1 |'))).toContain('| unverified |');
+    expect(lines.find((line) => line.includes('| R99 |'))).toContain('| unverified |');
+    expect(lines.find((line) => line.includes('| J2 |'))).toContain('| bottom |');
+    expect(report.checklist.find((item) => item.id === 'asm-d1')).toMatchObject({
+      status: 'review',
+      required: true,
+    });
+    expect(report.checklist.find((item) => item.id === 'asm-r99')).toMatchObject({
+      status: 'review',
+      required: false,
+    });
+    expect(report.checklist.find((item) => item.id === 'asm-j2')?.status).toBe('pass');
+    expect(report.checklist.find((item) => item.id === 'asm-d1')?.details).toContain(
+      'Side: unverified',
+    );
+    expect(report.artifacts.find((artifact) => artifact.role === 'qa-manifest')?.content).toContain(
+      'Side: unverified',
+    );
+  });
+
   it('includes DNP and special handling notes in assembly artifact', () => {
     const report = generateProductionQaArtifacts({
       projectName: 'Factory Demo',

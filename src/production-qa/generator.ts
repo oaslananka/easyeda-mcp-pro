@@ -115,6 +115,10 @@ function generateIssues(input: QaBoardInput): QaIssue[] {
   return issues;
 }
 
+function assemblyChecklistStatus(component: QaAssemblyComponentInput): 'pass' | 'review' {
+  return (component.polarized && !component.orientationMark) || !component.side ? 'review' : 'pass';
+}
+
 function generateChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistItem[] {
   const checklist: QaChecklistItem[] = [];
   const missingTp = new Set(
@@ -143,13 +147,13 @@ function generateChecklist(input: QaBoardInput, issues: QaIssue[]): QaChecklistI
       title: `Assembly note for ${component.ref}`,
       category: 'assembly',
       required: Boolean(component.polarized || component.specialHandling),
-      status: component.polarized && !component.orientationMark ? 'review' : 'pass',
+      status: assemblyChecklistStatus(component),
       details: [
         component.value ? `Value: ${component.value}` : undefined,
         component.footprint ? `Footprint: ${component.footprint}` : undefined,
         component.polarized ? 'Orientation-sensitive' : undefined,
         component.doNotPopulate ? 'DNP' : undefined,
-        component.side ? `Side: ${component.side}` : undefined,
+        component.side ? `Side: ${component.side}` : 'Side: unverified',
         component.specialHandling,
       ]
         .filter(Boolean)
@@ -234,7 +238,7 @@ function assemblyNotesMarkdown(input: QaBoardInput): string {
       component.ref,
       component.value ?? '',
       component.footprint ?? '',
-      component.side ?? 'top',
+      component.side ?? 'unverified',
       [
         component.polarized
           ? `Orientation mark: ${component.orientationMark ? 'yes' : 'missing'}`
