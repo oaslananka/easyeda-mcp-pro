@@ -57,7 +57,11 @@ Available comparisons include:
 - Maximum supported board width and height. If the board outline is
   explicitly absent (`hasOutline: false`), reported canvas dimensions
   cannot establish a manufactured board size and those comparisons
-  remain `UNKNOWN` even when width/height are finite.
+  remain `UNKNOWN` even when width/height are finite. For native partial
+  reads, **missing outline evidence** (`hasOutline` not `true`) also
+  leaves dimensions `UNKNOWN`; a native canvas extent is not a verified
+  fabricated-board dimension. Caller-supplied dimensions retain their
+  declared comparison semantics without implying fabrication approval.
 - Minimum reported fiducial and tooling-hole counts.
 - Ratio of marked polarized components and ratio of explicitly
   identified critical nets that have named test points. Test-point

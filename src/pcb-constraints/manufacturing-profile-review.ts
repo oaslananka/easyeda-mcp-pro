@@ -170,17 +170,32 @@ function ratioFindingReason(
     : 'Caller-reported feature coverage meets its declared threshold, but inventory completeness and physical accessibility are unverified.';
 }
 
-function missingOutlineForBoardSize(rule: Rule, data: PcbConstraintInput): boolean {
-  return data.hasOutline === false && (rule.field === 'widthMm' || rule.field === 'heightMm');
+function missingOutlineForBoardSize(
+  rule: Rule,
+  data: PcbConstraintInput,
+  source: ManufacturingProfileReview['input_evidence'],
+): boolean {
+  if (rule.field !== 'widthMm' && rule.field !== 'heightMm') return false;
+  // A native getter can return canvas extents even when it has not
+  // established that the PCB has a manufactured board outline.
+  return (
+    data.hasOutline === false ||
+    (source === 'native_partial_unverified' && data.hasOutline !== true)
+  );
 }
 
-function compareNumeric(rule: Rule, limit: number, data: PcbConstraintInput): ProfileComparison {
+function compareNumeric(
+  rule: Rule,
+  limit: number,
+  data: PcbConstraintInput,
+  source: ManufacturingProfileReview['input_evidence'],
+): ProfileComparison {
   const validLimit = validReportedScalar(limit, rule.units);
   const candidate = data[rule.field];
   // A board with an explicitly absent outline has no verified board-size
   // boundary. Do not compare a canvas/extents width or height against a
   // fabrication maximum, even if the caller supplied a finite number.
-  const outlineMissing = missingOutlineForBoardSize(rule, data);
+  const outlineMissing = missingOutlineForBoardSize(rule, data, source);
   const numeric =
     !outlineMissing && typeof candidate === 'number' && validReportedScalar(candidate, rule.units)
       ? candidate
@@ -206,7 +221,9 @@ function compareNumeric(rule: Rule, limit: number, data: PcbConstraintInput): Pr
     units: rule.units,
     source_field: rule.field,
     reason: outlineMissing
-      ? 'The board outline is explicitly absent; reported dimensions cannot establish manufactured board size.'
+      ? data.hasOutline === false
+        ? 'The board outline is explicitly absent; reported dimensions cannot establish manufactured board size.'
+        : 'The native board outline is unverified; reported canvas extents cannot establish manufactured board size.'
       : numericFindingReason(validLimit, numeric, violate),
   };
 }
@@ -320,7 +337,7 @@ export function reviewManufacturerProfile(
   const comparisons = [
     ...NUMERIC_RULES.flatMap((rule) => {
       const limit = profile.limits[rule.id];
-      return typeof limit === 'number' ? [compareNumeric(rule, limit, boardData)] : [];
+      return typeof limit === 'number' ? [compareNumeric(rule, limit, boardData, source)] : [];
     }),
     ...manualFindings(profile, boardData),
   ];

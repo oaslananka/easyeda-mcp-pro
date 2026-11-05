@@ -73,7 +73,7 @@ describe('versioned manufacturer process observations (not fabrication approval)
     };
     const review = reviewManufacturerProfile(
       profile,
-      { widthMm: 100 },
+      { widthMm: 100, hasOutline: true },
       'native_partial_unverified',
     );
     expect(review.status).toBe('WARNING');
@@ -132,7 +132,7 @@ describe('versioned manufacturer process observations (not fabrication approval)
         ...ref,
         limits: { minimumFinishedDrillMm: 0.2, maximumBoardWidthMm: 80, minimumFiducialCount: 2 },
       },
-      { minDrillMm: 0.1, widthMm: 50, fiducialCount: 2 },
+      { minDrillMm: 0.1, widthMm: 50, fiducialCount: 2, hasOutline: true },
       'native_partial_unverified',
     );
     expect(result.status).toBe('WARNING');
@@ -161,6 +161,44 @@ describe('versioned manufacturer process observations (not fabrication approval)
     expect(result.status).toBe('UNKNOWN');
     expect(result.findings.every((x) => x.comparison === 'UNKNOWN')).toBe(true);
     expect(result.findings.every((x) => x.actual === undefined)).toBe(true);
+  });
+
+  it('treats unverified native outline status as unknown even with numeric canvas extents', () => {
+    const profile = {
+      ...ref,
+      limits: {
+        maximumBoardWidthMm: 20,
+        maximumBoardHeightMm: 20,
+        minimumFinishedDrillMm: 0.3,
+      },
+    };
+    const data: PcbConstraintInput = { widthMm: 50, heightMm: 40, minDrillMm: 0.2 };
+    const native = reviewManufacturerProfile(profile, data, 'native_partial_unverified');
+    expect(native.findings[0]).toMatchObject({
+      id: 'minimumFinishedDrillMm',
+      status: 'WARNING',
+      actual: 0.2,
+      measurement_evidence: 'native_partial_unverified',
+    });
+    for (const finding of native.findings.slice(1)) {
+      expect(finding).toMatchObject({
+        status: 'UNKNOWN',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      });
+      expect(finding).not.toHaveProperty('actual');
+      expect(finding.reason).toMatch(/outline.*unverified/i);
+    }
+    expect(native.fabrication_approval).toBe(false);
+
+    // A caller's own dimensional declaration retains prior comparison behavior,
+    // but is still not a confirmed manufacturing approval.
+    const supplied = reviewManufacturerProfile(profile, data, 'caller_supplied_unverified');
+    expect(supplied.findings.slice(1).map((finding) => finding.comparison)).toEqual([
+      'ABOVE_DECLARED_LIMIT',
+      'ABOVE_DECLARED_LIMIT',
+    ]);
+    expect(supplied.fabrication_approval).toBe(false);
   });
 
   it('does not compare canvas extents as manufactured dimensions without a board outline', () => {
