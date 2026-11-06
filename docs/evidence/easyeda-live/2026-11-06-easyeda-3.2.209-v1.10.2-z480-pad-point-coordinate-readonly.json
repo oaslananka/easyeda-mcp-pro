@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "kind": "native-pad-coordinate-point-hit-source-bound-readonly",
+  "observedAt": "2026-11-06T20:52:08Z",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "baselineMainCommit": "db2761252e289ea408a26cfac9c26bb829c3d032",
+    "easyedaEditor": "3.2.209",
+    "installedBridgeAndExtension": "1.10.2",
+    "nativeBridgeRegistryMatched": true,
+    "apiContract": "PCB_Document.getPrimitiveAtPoint(x,y); PCB_PrimitivePad.get(primitiveIds); project/document native introspection",
+    "apiIsBetaPreview": true
+  },
+  "scope": {
+    "fixtureAlias": "Z480_DISPOSABLE_TEST",
+    "ownerControlledDisposableFixture": true,
+    "projectAndPcbDocumentMatchedBeforeAndAfter": true,
+    "sourcePadInventoryCount": 83,
+    "sourcePadSampleNet": "GND",
+    "sampleSize": 3,
+    "rawNativePrimitiveIdsAndCoordinatesRedacted": true,
+    "pcbDocumentWritePerformed": false,
+    "saveExportOrManufacturingRequestPerformed": false
+  },
+  "probe": {
+    "nativePadCenterPointLookup": {
+      "coordinateInput": "unaltered PCB_PrimitivePad.getState_X/Y",
+      "lookups": 3,
+      "returnedSamePrimitiveId": 3,
+      "otherOrMissing": 0,
+      "errors": 0
+    },
+    "scaledPadCenterPointLookup": {
+      "coordinateInput": "0.1 multiplied by each same PCB_PrimitivePad.getState_X/Y",
+      "lookups": 3,
+      "returnedSamePrimitiveId": 0,
+      "otherOrMissing": 3,
+      "errors": 0
+    }
+  },
+  "interpretation": {
+    "nativePadToDocumentPointInputMapping": "OBSERVED_FOR_3_OF_83_PADS",
+    "polygonSourceToNativePadCoordinateConversion": "UNKNOWN",
+    "nativeCopperToPadElectricalConnectivity": "UNKNOWN",
+    "returnCurrentReferencePlaneContinuity": "UNKNOWN",
+    "engineeringSignOff": false,
+    "limits": [
+      "Native point lookup independently corroborates use of pad X/Y values in document hit testing; it does not independently calibrate the separate complex polygon source coordinate representation.",
+      "Only three GND pads were sampled; point hit testing may select another overlapping primitive according to UI rules and must not replace native geometry or DRC checks.",
+      "The observation does not validate the prior exploratory 0.1/no-Y-inversion transform for copper polygon analysis.",
+      "The queried EasyEDA native getter is beta and the sequence of source reads is not atomic.",
+      "No source-calibrated pad shape, annulus, plated barrel, thermal spoke, point-to-copper connectivity, reference return loop, stackup or fabrication proof was obtained.",
+      "No PCB geometry mutation or manufacturing communication took place."
+    ],
+    "relatedIssues": [840, 480],
+    "issue840RemainsOpen": true
+  },
+  "references": [
+    "https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_document.getprimitiveatpoint.html",
+    "https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_primitivepad.get.html",
+    "https://prodocs.easyeda.com/en/format/pcb/shape/"
+  ]
+}
