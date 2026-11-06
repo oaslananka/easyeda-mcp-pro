@@ -92,8 +92,9 @@ function validComponent(component: NativePlacement | undefined): component is Na
     Number.isFinite(component.y) &&
     Math.abs(component.x as number) <= 1_000_000 &&
     Math.abs(component.y as number) <= 1_000_000 &&
-    Number.isSafeInteger(component.layer) &&
-    (component.layer as number) >= 0
+    // The EasyEDA Pro TPCB_LayersOfComponent API defines only TOP=1 and BOTTOM=2.
+    // Other layer IDs cannot support a source-attributed component placement.
+    (component.layer === 1 || component.layer === 2)
   );
 }
 
@@ -323,7 +324,8 @@ export function reviewPlacementRelations(
     components.length > 0 &&
     nativeTotal === components.length &&
     identitiesUnique &&
-    designatorsUnique;
+    designatorsUnique &&
+    components.every(validComponent);
   const findings = relations.map((relation, index) =>
     inspectRelation(relation, components, complete, index),
   );
@@ -342,7 +344,7 @@ export function reviewPlacementRelations(
     limitations: [
       'Native component origins are not PCB pad locations or actual routed current-path distances.',
       'No pad/net topology or copper loop/plane continuity was verified; decoupling, buck and ESD loop adequacy remain UNKNOWN.',
-      'Rotation and native layer are reported without inferring top/bottom orientation from an undocumented layer number.',
+      'Native top/bottom component placement layer codes (1/2) do not prove the rendered board-view orientation.',
       'Exact footprint name comparison is not verification of package dimensions, land pattern, pad alignment or manufacturer authenticity.',
       'Numeric distance/angle limits and their source are caller-supplied and not verified device datasheet constraints.',
       'Read-only bounded non-atomic PCB component snapshot; missing native component getters can return an empty list.',
