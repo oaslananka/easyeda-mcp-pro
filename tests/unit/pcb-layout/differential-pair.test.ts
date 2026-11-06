@@ -213,6 +213,44 @@ describe('source-backed native differential-pair evidence', () => {
     }
   });
 
+  it('withholds skew from overlapping same-net segments that masquerade as a single chain', () => {
+    // Both segments share the origin, so endpoint-degree checks alone read
+    // this as a chain even though 50 mil of copper is counted twice.
+    const tracks = [
+      a('p-long', 'P', 0, 0, 100, 0),
+      a('p-overlap', 'P', 0, 0, 50, 0),
+      a('n', 'N', 0, 20, 100, 20),
+    ];
+    const result = reviewDifferentialPair({ ...declared, maxSkewMm: 0.1 }, tracks, [], true);
+    expect(result.paths.positive.coverage).toBe('AMBIGUOUS');
+    expect(result.paths.positive.observed_length_mm).toBeUndefined();
+    expect(result.paths.negative.coverage).toBe('OBSERVED_SINGLE_CHAIN');
+    expect(result.skew.status).toBe('UNKNOWN');
+    expect(result.skew.observed_mm).toBeUndefined();
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('withholds skew for self-crossing or interior-touching single-net chains', () => {
+    const negative = a('n', 'N', 0, 20, 100, 20);
+    const chains = [
+      [a('p1', 'P', 0, 0, 100, 100), a('p2', 'P', 100, 100, 0, 100), a('p3', 'P', 0, 100, 100, 0)],
+      [a('p1', 'P', 0, 0, 100, 0), a('p2', 'P', 100, 0, 150, 50), a('p3', 'P', 150, 50, 50, 0)],
+    ];
+    for (const chain of chains) {
+      const result = reviewDifferentialPair(
+        { ...declared, maxSkewMm: 0.2 },
+        [...chain, negative],
+        [],
+        true,
+      );
+      expect(result.paths.positive.coverage).toBe('AMBIGUOUS');
+      expect(result.paths.positive.observed_length_mm).toBeUndefined();
+      expect(result.skew.status).toBe('UNKNOWN');
+      expect(result.skew.observed_mm).toBeUndefined();
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('does not compare duplicate native track identities across the two declared nets', () => {
     const tracks = [a('reused', 'P', 0, 0, 100, 0), a('reused', 'N', 0, 20, 100, 20)];
     const result = reviewDifferentialPair(
