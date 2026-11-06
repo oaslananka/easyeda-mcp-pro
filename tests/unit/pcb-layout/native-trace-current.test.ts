@@ -63,6 +63,22 @@ describe('native bounded-net trace-current reference', () => {
     );
   });
 
+  it('does not issue thermal width findings for non-copper native PCB lines', () => {
+    for (const layer of [3, 12, 13, 71]) {
+      const result = reviewNativeTraceCurrent({
+        ...baseline,
+        tracks: baseline.tracks.map((item) => (item.net === 'PWR' ? { ...item, layer } : item)),
+      });
+      expect(result.status).toBe('UNKNOWN');
+      expect(result.geometry_evidence).toBe('unavailable');
+      expect(result.observed_narrowest_segment_width_mm).toBeUndefined();
+      expect(result.findings).toContainEqual(
+        expect.objectContaining({ id: 'NATIVE_GEOMETRY_UNKNOWN', status: 'UNKNOWN' }),
+      );
+      expect(result.findings.some((f) => f.id === 'THERMAL_REFERENCE_SHORTFALL')).toBe(false);
+    }
+  });
+
   it('never issues a thermal PASS even for generously wide actual segments', () => {
     const r = reviewNativeTraceCurrent({
       ...baseline,

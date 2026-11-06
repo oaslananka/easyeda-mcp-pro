@@ -1,5 +1,5 @@
 import { calculateTraceWidth, type ConductorLayer } from '../design-rules/trace-width.js';
-import type { NativeTrack } from './route-review.js';
+import { nativeCopperLayerCode, type NativeTrack } from './route-review.js';
 
 const MIL_TO_MM = 0.0254;
 const INVALID_VERSIONS = new Set([
@@ -89,7 +89,7 @@ function validSegment(track: NativeTrack): boolean {
   return (
     exactIdentity(track.primitiveId) &&
     exactIdentity(track.net) &&
-    Number.isInteger(track.layer) &&
+    nativeCopperLayerCode(track.layer) &&
     typeof track.width === 'number' &&
     Number.isFinite(track.width) &&
     track.width > 0 &&

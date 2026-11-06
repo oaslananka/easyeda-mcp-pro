@@ -162,7 +162,7 @@ function detectRightAngleJoints(tracks: NativeTrack[]): RouteGeometryFinding[] {
       !finite(startY) ||
       !finite(endX) ||
       !finite(endY) ||
-      !validNativeLayerCode(layer) ||
+      !nativeCopperLayerCode(layer) ||
       !net ||
       !exactPrimitiveId(primitiveId) ||
       (startX === endX && startY === endY)
@@ -219,8 +219,16 @@ type CopperSegment = Required<
   >
 >;
 
-function validNativeLayerCode(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+/** Documented EasyEDA Pro copper IDs: TOP 1, BOTTOM 2, INNER_1..INNER_30 15..44.
+ * MULTI (12), silk, mechanical, mask, and custom layers are not copper evidence.
+ * These IDs do not establish that a particular inner layer exists in the board stack.
+ */
+export function nativeCopperLayerCode(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    (value === 1 || value === 2 || (value >= 15 && value <= 44))
+  );
 }
 
 function validNativeCoordinate(value: unknown): value is number {
@@ -250,7 +258,7 @@ function observedCopperSegment(track: NativeTrack): CopperSegment | undefined {
   if (
     !exactPrimitiveId(track.primitiveId) ||
     !exactNativeNet(track.net) ||
-    !validNativeLayerCode(track.layer)
+    !nativeCopperLayerCode(track.layer)
   )
     return undefined;
   if (!positive(track.width) || track.width > 1_000_000) return undefined;
@@ -385,7 +393,7 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
           'track:' + id + ':missing-geometry',
           'TRACK_GEOMETRY_UNAVAILABLE',
           'UNKNOWN',
-          'Native segment width, endpoints, layer, net or primitive identity is missing.',
+          'Native copper segment width, endpoints, copper-layer code, net or primitive identity is unsupported or missing.',
           [id],
         ),
         net: track.net,
