@@ -31,6 +31,7 @@ export interface NativeVia {
 export type GeometryStatus = 'WARNING' | 'ADVISORY' | 'UNKNOWN';
 export type GeometryRule =
   | 'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM'
+  | 'TRACE_CLEARANCE_BELOW_CONTEXT_MINIMUM'
   | 'OBSERVED_TRACK_COPPER_OVERLAP'
   | 'TRACK_GEOMETRY_UNAVAILABLE'
   | 'RIGHT_ANGLE_STYLE_REVIEW'
@@ -92,6 +93,7 @@ export interface RouteGeometryInput {
   viasAvailable: boolean;
   intent: 'general' | 'high-speed';
   minWidthMm?: number;
+  minClearanceMm?: number;
 }
 
 type Endpoint = {
@@ -322,7 +324,10 @@ function minimumCenterDistanceMil(a: CopperSegment, b: CopperSegment): number {
 /** Only a demonstrated two-segment geometric overlap is a WARNING.
  * All other net clearances (including pads/fills/keepouts) stay UNKNOWN.
  */
-function reviewObservedTrackOverlaps(tracks: NativeTrack[]): RouteGeometryFinding[] {
+function reviewObservedTrackOverlaps(
+  tracks: NativeTrack[],
+  minClearanceMm?: number,
+): RouteGeometryFinding[] {
   const segments = tracks.map(observedCopperSegment).filter((s): s is CopperSegment => !!s);
   const findings: RouteGeometryFinding[] = [];
   for (let i = 0; i < segments.length; i++) {
@@ -333,8 +338,28 @@ function reviewObservedTrackOverlaps(tracks: NativeTrack[]): RouteGeometryFindin
       if (!b) continue;
       if (a.net === b.net || a.layer !== b.layer || a.primitiveId === b.primitiveId) continue;
       const gapMil = minimumCenterDistanceMil(a, b) - (a.width + b.width) / 2;
-      if (gapMil > 0) continue;
       const ids = [a.primitiveId, b.primitiveId].sort();
+      if (gapMil > 0) {
+        const gapMm = gapMil * MIL_TO_MM;
+        // A declared limit is advisory source context, not an active native
+        // DRC/fabricator specification. Tolerance only handles numeric noise.
+        if (minClearanceMm === undefined || gapMm + 1e-9 >= minClearanceMm) continue;
+        findings.push({
+          ...finding(
+            'copper-clearance:' + JSON.stringify([a.layer, ...ids]),
+            'TRACE_CLEARANCE_BELOW_CONTEXT_MINIMUM',
+            'WARNING',
+            'Observed different-net line edge gap is below a caller-declared minimum; active DRC, pads, keepouts, pours and fabrication rules are unverified.',
+            ids,
+          ),
+          net: a.net,
+          other_net: b.net,
+          layer: a.layer,
+          observed_edge_gap_mm: gapMm,
+          threshold_mm: minClearanceMm,
+        });
+        continue;
+      }
       findings.push({
         ...finding(
           'copper-overlap:' + JSON.stringify([a.layer, ...ids]),
@@ -420,7 +445,7 @@ function reviewTracks(input: RouteGeometryInput): RouteGeometryFinding[] {
   const uniquelyIdentifiedTracks = input.tracks.filter(
     (track) => !duplicateIds.has(track.primitiveId ?? ''),
   );
-  findings.push(...reviewObservedTrackOverlaps(uniquelyIdentifiedTracks));
+  findings.push(...reviewObservedTrackOverlaps(uniquelyIdentifiedTracks, input.minClearanceMm));
   if (input.intent === 'high-speed')
     findings.push(
       ...detectRightAngleJoints(
@@ -599,7 +624,7 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
       'Right-angle turns are style guidance only; no unconditional 90-degree failure.',
       'Native via layer codes and coincident endpoints cannot verify via span, copper continuity, or a return-current path.',
       'Native pours, zones, copper fill continuity, return-current paths and DRC clearances are unverified.',
-      'A caller-supplied width limit is not a verified fabricator specification.',
+      'A caller-supplied width or edge-clearance minimum is not a verified native DRC or fabricator specification.',
     ],
     engineering_sign_off: false,
   };

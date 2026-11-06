@@ -2176,14 +2176,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter            | Type                          | Required | Description                                                                                                                      |
-| -------------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `projectId`          | `string`                      | Yes      |                                                                                                                                  |
-| `intent`             | `'general'` \| `'high-speed'` | Yes      |                                                                                                                                  |
-| `minWidthMm`         | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.                              |
-| `differentialPair`   | `object (optional)`           | No       |                                                                                                                                  |
-| `placementRelations` | `object[] (optional)`         | No       |                                                                                                                                  |
-| `traceCurrent`       | `object (optional)`           | No       | Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass. |
+| Parameter            | Type                          | Required | Description                                                                                                                                  |
+| -------------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`          | `string`                      | Yes      |                                                                                                                                              |
+| `intent`             | `'general'` \| `'high-speed'` | Yes      |                                                                                                                                              |
+| `minWidthMm`         | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.                                          |
+| `minClearanceMm`     | `number (optional)`           | No       | Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit. |
+| `differentialPair`   | `object (optional)`           | No       |                                                                                                                                              |
+| `placementRelations` | `object[] (optional)`         | No       |                                                                                                                                              |
+| `traceCurrent`       | `object (optional)`           | No       | Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass.             |
 
 ### Output Format
 

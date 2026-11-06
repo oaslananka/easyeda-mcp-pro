@@ -108,6 +108,61 @@ describe('bounded native route geometry evidence', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('compares measured positive same-layer edge gaps only with a caller-declared clearance', () => {
+    const a = track('a', 0, 0, 100, 0, 10);
+    const b = { ...track('b', 0, 13, 100, 13, 10), net: 'GND' };
+    const original = review({ tracks: [a, b] });
+    expect(original.overall_status).toBe('UNKNOWN');
+    expect(
+      original.findings.some((f) => f.rule_id === 'TRACE_CLEARANCE_BELOW_CONTEXT_MINIMUM'),
+    ).toBe(false);
+
+    const below = review({ tracks: [a, b], minClearanceMm: 0.1 });
+    const warning = below.findings.find(
+      (f) => f.rule_id === 'TRACE_CLEARANCE_BELOW_CONTEXT_MINIMUM',
+    );
+    expect(warning).toMatchObject({
+      status: 'WARNING',
+      net: 'DATA+',
+      other_net: 'GND',
+      layer: 1,
+      primitive_ids: ['a', 'b'],
+      threshold_mm: 0.1,
+    });
+    expect(warning?.observed_edge_gap_mm).toBeCloseTo(0.0762, 8);
+    expect(below.overall_status).toBe('WARNING');
+    expect(below.findings).toContainEqual(
+      expect.objectContaining({ rule_id: 'COPPER_CLEARANCE_UNVERIFIED', status: 'UNKNOWN' }),
+    );
+    expect(below.engineering_sign_off).toBe(false);
+
+    for (const clearance of [0.05, 0.0762]) {
+      const within = review({ tracks: [a, b], minClearanceMm: clearance });
+      expect(
+        within.findings.some((f) => f.rule_id === 'TRACE_CLEARANCE_BELOW_CONTEXT_MINIMUM'),
+      ).toBe(false);
+      expect(within.overall_status).toBe('UNKNOWN');
+    }
+  });
+
+  it('does not attribute caller-clearance warnings to other nets, layers or stale geometry', () => {
+    const a = track('a', 0, 0, 100, 0, 10);
+    const b = { ...track('b', 0, 13, 100, 13, 10), net: 'GND' };
+    for (const patch of [
+      { tracks: [a, { ...b, layer: 2 }] },
+      { tracks: [a, { ...b, net: 'DATA+' }] },
+      { tracks: [a, { ...b, layer: 12 }] },
+      { tracks: [a, { ...b, width: undefined }] },
+      { tracks: [a, b], tracksAvailable: false },
+    ]) {
+      const result = review({ ...patch, minClearanceMm: 0.1 });
+      expect(
+        result.findings.some((f) => f.rule_id === 'TRACE_CLEARANCE_BELOW_CONTEXT_MINIMUM'),
+      ).toBe(false);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('detects parallel and end-cap overlap but not far or separate-layer segments', () => {
     const a = track('a', 0, 0, 100, 0, 10);
     const b = { ...track('b', 30, 8, 90, 8, 10), net: 'GND' };
