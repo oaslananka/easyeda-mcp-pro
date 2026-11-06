@@ -126,6 +126,48 @@ describe('bounded native route geometry evidence', () => {
     expect(result.findings.some((f) => f.other_net === 'LAYER')).toBe(false);
   });
 
+  it('withholds copper findings for EasyEDA Pro silkscreen, multi and mechanical layers', () => {
+    for (const nonCopperLayer of [3, 4, 11, 12, 13, 14, 45, 71]) {
+      const tracks = [
+        { ...track('one', 0, 0, 100, 0, 2), layer: nonCopperLayer },
+        { ...track('two', 50, -40, 50, 40, 2), layer: nonCopperLayer, net: 'GND' },
+      ];
+      const result = review({ tracks, minWidthMm: 0.2, intent: 'high-speed' });
+      expect(result.overall_status).toBe('UNKNOWN');
+      expect(result.input_evidence.collection_complete).toBe(false);
+      expect(
+        result.findings.filter((f) => f.rule_id === 'TRACK_GEOMETRY_UNAVAILABLE'),
+      ).toHaveLength(2);
+      expect(result.findings.some((f) => f.status === 'WARNING' || f.status === 'ADVISORY')).toBe(
+        false,
+      );
+      expect(result.findings).toContainEqual(
+        expect.objectContaining({ rule_id: 'NATIVE_COLLECTION_INCOMPLETE', status: 'UNKNOWN' }),
+      );
+    }
+  });
+
+  it('never treats the MULTI layer as proof of a copper via transition', () => {
+    const front = track('front', 0, 0, 100, 0);
+    const multi = { ...track('multi', 100, 0, 100, 100), layer: 12 };
+    const via = { primitiveId: 'via', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 };
+    const unknown = review({ tracks: [front, multi], vias: [via] });
+    expect(unknown.input_evidence.collection_complete).toBe(false);
+    expect(unknown.findings.some((f) => f.rule_id === 'VIA_LAYER_TRANSITION_CANDIDATE')).toBe(
+      false,
+    );
+    const verifiedCodes = review({
+      tracks: [front, { ...multi, layer: 15 }],
+      vias: [via],
+    });
+    expect(verifiedCodes.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'VIA_LAYER_TRANSITION_CANDIDATE',
+        native_layers: [1, 15],
+      }),
+    );
+  });
+
   it('rejects invalid native layer codes before measured width, overlap and complete inventory claims', () => {
     const valid = track('valid', 0, 0, 100, 0, 10);
     for (const layer of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, 1e308]) {
@@ -246,7 +288,7 @@ describe('bounded native route geometry evidence', () => {
     const padded = review({
       tracks: [
         { ...track('top', 0, 0, 100, 0), net: ' DATA+ ' },
-        { ...track('bottom', 100, 0, 100, 100), net: ' DATA+ ', layer: 12 },
+        { ...track('bottom', 100, 0, 100, 100), net: ' DATA+ ', layer: 2 },
       ],
       vias: [via],
     });
@@ -421,7 +463,7 @@ describe('bounded native route geometry evidence', () => {
 
   it('does not infer a via transition when a track ID collides away from the candidate', () => {
     const front = track('same', 0, 0, 100, 0);
-    const back = { ...track('back', 100, 0, 100, 80), layer: 12 };
+    const back = { ...track('back', 100, 0, 100, 80), layer: 2 };
     const duplicateAway = { ...track('same', 300, 300, 400, 300), net: 'OTHER' };
     const via = { primitiveId: 'via', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 };
     const ambiguous = review({ tracks: [front, back, duplicateAway], vias: [via] });
@@ -434,7 +476,7 @@ describe('bounded native route geometry evidence', () => {
       expect.objectContaining({
         rule_id: 'VIA_LAYER_TRANSITION_CANDIDATE',
         status: 'UNKNOWN',
-        native_layers: [1, 12],
+        native_layers: [1, 2],
       }),
     );
   });
@@ -476,7 +518,7 @@ describe('bounded native route geometry evidence', () => {
 
   it('observes coincident same-net via endpoints across two raw native layer codes without a connectivity PASS', () => {
     const a = track('front', 0, 0, 100, 0);
-    const b = { ...track('other-code', 100, 0, 100, 120), layer: 12 };
+    const b = { ...track('other-code', 100, 0, 100, 120), layer: 2 };
     const result = review({
       tracks: [a, b],
       vias: [{ primitiveId: 'v1', net: 'DATA+', x: 100, y: 0, holeDiameter: 10, diameter: 30 }],
@@ -489,7 +531,7 @@ describe('bounded native route geometry evidence', () => {
         primitive_ids: ['front', 'other-code', 'v1'],
         net: 'DATA+',
         position_mil: { x: 100, y: 0 },
-        native_layers: [1, 12],
+        native_layers: [1, 2],
       }),
     );
     expect(result.overall_status).toBe('UNKNOWN');
@@ -528,7 +570,7 @@ describe('bounded native route geometry evidence', () => {
 
   it('withholds native via geometry claims for unbounded positive drill or land dimensions', () => {
     const front = track('front', 0, 0, 100, 0);
-    const back = { ...track('back', 100, 0, 100, 100), layer: 12 };
+    const back = { ...track('back', 100, 0, 100, 100), layer: 2 };
     const via = {
       primitiveId: 'via',
       net: 'DATA+',
@@ -565,7 +607,7 @@ describe('bounded native route geometry evidence', () => {
 
   it('withholds measured via findings and complete inventory on untrustworthy net, center or dimensions', () => {
     const front = track('front', 0, 0, 100, 0);
-    const back = { ...track('back', 100, 0, 100, 100), layer: 12 };
+    const back = { ...track('back', 100, 0, 100, 100), layer: 2 };
     const via = {
       primitiveId: 'v-bad',
       net: 'DATA+',

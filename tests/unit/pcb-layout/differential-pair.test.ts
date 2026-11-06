@@ -79,6 +79,28 @@ describe('source-backed native differential-pair evidence', () => {
     expect(result.findings.map((finding) => finding.status)).not.toContain('PASS');
   });
 
+  it('withholds differential-pair length and spacing evidence from non-copper lines', () => {
+    for (const layer of [3, 12, 13, 71]) {
+      const result = reviewDifferentialPair(
+        declared,
+        [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 0, 20, 100, 20)].map((segment) => ({
+          ...segment,
+          layer,
+        })),
+        [],
+        true,
+      );
+      expect(result.status).toBe('UNKNOWN');
+      expect(result.paths.positive.coverage).toBe('AMBIGUOUS');
+      expect(result.paths.negative.coverage).toBe('AMBIGUOUS');
+      expect(result.paths.positive.observed_length_mm).toBeUndefined();
+      expect(result.paths.negative.observed_length_mm).toBeUndefined();
+      expect(result.spacing.observed_mm).toBeUndefined();
+      expect(result.skew.observed_mm).toBeUndefined();
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
   it('observed geometric length and edge gap use native mil-to-mm conversion', () => {
     const r = reviewDifferentialPair(cases[0]!.declaration, cases[0]!.tracks, [], true);
     expect(r.paths.positive.observed_length_mm).toBeCloseTo(25.4, 5);

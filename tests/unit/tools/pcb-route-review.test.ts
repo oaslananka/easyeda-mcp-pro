@@ -266,7 +266,7 @@ describe('native PCB route geometry review MCP contract', () => {
             {
               primitiveId: 'b',
               net: 'CLK',
-              layer: 12,
+              layer: 2,
               startX: 100,
               startY: 0,
               endX: 100,
@@ -292,7 +292,7 @@ describe('native PCB route geometry review MCP contract', () => {
         status: 'UNKNOWN',
         net: 'CLK',
         primitive_ids: ['a', 'b', 'via'],
-        native_layers: [1, 12],
+        native_layers: [1, 2],
         position_mil: { x: 100, y: 0 },
       }),
     );

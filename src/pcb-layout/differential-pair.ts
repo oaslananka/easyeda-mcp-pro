@@ -1,5 +1,5 @@
 import { lookupProtocolRouting, type ProtocolKey } from '../design-rules/protocol-routing.js';
-import type { NativeTrack, NativeVia } from './route-review.js';
+import { nativeCopperLayerCode, type NativeTrack, type NativeVia } from './route-review.js';
 
 const MIL_TO_MM = 0.0254;
 // Unit conversions and subtraction of large path lengths can differ by a
@@ -98,7 +98,7 @@ function isGeometry(track: NativeTrack): track is Geometry {
   return (
     exactNativeIdentity(track.primitiveId) &&
     exactNativeIdentity(track.net) &&
-    Number.isInteger(track.layer) &&
+    nativeCopperLayerCode(track.layer) &&
     nativeCopperCoordinate(track.startX) &&
     nativeCopperCoordinate(track.startY) &&
     nativeCopperCoordinate(track.endX) &&
