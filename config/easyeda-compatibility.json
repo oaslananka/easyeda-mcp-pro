@@ -4,6 +4,121 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-06-v1-10-2-source-bound-native-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-11-06T08:00:06Z",
+      "reviewBy": "2027-02-02",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "41.2.1",
+        "chromiumVersion": "146.0.7680.188",
+        "electronVersionProvenance": "Upstream/reference Electron version inherited from same-device documented runtime; not independently measured from current vendor-fork executable.",
+        "chromiumVersionProvenance": "Upstream/reference Chromium version inherited from same-device documented runtime; not independently measured from current vendor-fork executable."
+      },
+      "server": {
+        "validationPackageVersion": "1.10.2",
+        "releaseContainingFixes": "1.10.2",
+        "commit": "eccb6730fdb6b317124a71608ca3635c49a5bf40",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "5618af688016f4260d8c91fd2c9e8750c38147ad",
+            "src/bridge": "501d1d8d813b8f4932fcf12e1822aa4fb650a58e",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "a828fcf02d846802a53cc8839b957cefa2f7defb",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.10.2",
+        "loaderReportedVersion": "1.10.2",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "eee1634ec2fdb076",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "d8b95xcc1ex0488",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "26dbb7b60213fa2e93231c546761b61f3333f6a1018aec0c53320cf4732da05c",
+        "packageSizeBytes": 200991
+      },
+      "fixture": {
+        "project": "Owner-controlled disposable native EasyEDA project; native project and document UUIDs withheld",
+        "pcb": "Focused source-bound PCB document, 1 component, 0 tracks/vias/fills/regions, 27 native layers; physical stackup unavailable and board outline absent",
+        "schematic": "Not exercised under this exact v1.10.2 candidate",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1102-20261106-native-install-restart",
+          "name": "Exact source candidate imported and native desktop fully restarted",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact PR #915 candidate 200991-byte .eext (SHA-256 26dbb7b60213fa2e93231c546761b61f3333f6a1018aec0c53320cf4732da05c) imported using native Extension Manager; Installed displays v1.10.2 and enabled. Full EasyEDA Pro desktop restart performed.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/915#issuecomment-6680121243"
+          ]
+        },
+        {
+          "id": "v1102-20261106-loaded-dispatcher",
+          "name": "Native runtime handshake, loader and baked dispatcher identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "After full native editor restart, exact-source BridgeManager over loopback reported EasyEDA Pro 3.2.209, extension 1.10.2, registry hash eee1634ec2fdb076. Independent system.loaderStatus returned loaderVersion 1.10.2, activeDispatcher baked, dispatcher build d8b95xcc1ex0488, 73 methods and hotSwapEnabled=false.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/915#issuecomment-6680121243"
+          ]
+        },
+        {
+          "id": "v1102-20261106-disposable-pcb-source-bound-readonly",
+          "name": "Exact-project scoped native PCB source reads and repeated evidence",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Focused owner-controlled disposable PCB project and PCB document UUID-parent identity matched; two repeated native calls to listComponents/tracks/vias/fills/regions and listLayers/getStackup/getDimensions were stable: 1 component, 0 tracks/vias/fills/regions, 27 layers; physical stackup not available, board outline false. No design mutation requested.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/915#issuecomment-6680121243"
+          ]
+        },
+        {
+          "id": "v1102-20261106-wrong-project-rejected",
+          "name": "Foreign project UUID rejected by native PCB reader",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "An intentionally foreign project UUID passed to pcb.listComponents was rejected with current-project-uuid-mismatch; no foreign project records returned. Native UUIDs withheld from the published evidence.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/915#issuecomment-6680121243"
+          ]
+        },
+        {
+          "id": "v1102-20261106-unexercised-electrical-write-and-schematic",
+          "name": "Unverified physical, write-path and schematic acceptance",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "Test fixture is sparse and cannot validate trace paths, differential skew, reference-plane return continuity, native copper-zone writes, DRC/ERC, schematic readback, current/thermal, stackup or fabrication. All such engineering conclusions remain UNKNOWN, engineering_sign_off=false.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/915#issuecomment-6680121243"
+          ],
+          "limitation": "No design write/save/export/production sign-off, no independently recovered installed-archive digest, no physical return-plane/PCB route acceptance."
+        }
+      ],
+      "knownLimitations": [
+        "Only the native Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209 runtime was exercised; CI package validation on Windows/macOS is not equivalent native acceptance.",
+        "The exact candidate .eext source build SHA-256 and size were verified before import; native Extension Manager and runtime loader version/dispatcher build match, but the installed archive could not be independently read back byte-for-byte.",
+        "The disposable board has no track, via, copper pour, reference-plane/return path, physical stackup or usable board outline; no electrical, thermal, differential-pair skew or manufacturing claims can be derived.",
+        "No schematic-page acceptance, design create/modify/delete, project save/export, DRC/ERC, physical current loop, native copper-zone write or rollback-after-write was tested. The acceptance is strictly read-only.",
+        "The bridge method registry hash is sourced from the server handshake; no independent native method-list digest was measured.",
+        "The full EasyEDA Pro build suffix 8a704eab is inherited from earlier same-installation native evidence: the present GUI and bridge independently identify only 3.2.209. Electron 41.2.1 and Chromium 146.0.7680.188 are documented reference versions, not independently measured from the vendor-fork binary in this acceptance."
+      ]
+    },
+    {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-06-v1-10-0-source-bound-native-readonly",
       "status": "live-validated",
       "validatedAt": "2026-11-06T04:46:23Z",
