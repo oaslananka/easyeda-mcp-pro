@@ -10,6 +10,12 @@ export interface DrcResult {
   passed: boolean;
 }
 
+class InvalidDrcError extends Error {
+  constructor(reason: string) {
+    super(`unsupported native rule-check response: ${reason}`);
+  }
+}
+
 export interface FloatingPin {
   primitiveId: string;
   designator: string;
@@ -36,14 +42,14 @@ export interface DesignRuleCheckOperations {
   runSchematicCheck(): Promise<DrcResult>;
 }
 
-function normalizeSeverity(raw: string): DrcSeverity {
+function toSeverity(raw: string): DrcSeverity {
   const value = raw.toLowerCase();
   if (value.includes('fatal') || value.includes('error')) return 'error';
   if (value.includes('warn')) return 'warning';
   return 'info';
 }
 
-function scalarString(value: unknown): string | undefined {
+function asScalar(value: unknown): string | undefined {
   return typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'boolean' ||
@@ -52,22 +58,22 @@ function scalarString(value: unknown): string | undefined {
     : undefined;
 }
 
-function joinScalarValues(values: unknown[]): string {
+function scalarParts(values: unknown[]): string {
   return values
-    .map(scalarString)
+    .map(asScalar)
     .filter((value): value is string => value !== undefined)
     .join(' ');
 }
 
-function firstScalarValue(values: unknown[]): string {
+function firstScalar(values: unknown[]): string {
   for (const value of values) {
-    const scalar = scalarString(value);
+    const scalar = asScalar(value);
     if (scalar !== undefined) return scalar;
   }
   return 'unknown';
 }
 
-function normalizeViolation(item: unknown): Record<string, unknown> {
+function toViolation(item: unknown): Record<string, unknown> {
   const obj: Record<string, unknown> = item && typeof item === 'object' ? { ...item } : {};
   const explanation =
     obj.explanation && typeof obj.explanation === 'object'
@@ -75,7 +81,7 @@ function normalizeViolation(item: unknown): Record<string, unknown> {
       : undefined;
   const message =
     obj.message ?? obj.msg ?? obj.description ?? obj.text ?? obj.detail ?? explanation ?? item;
-  const severitySource = joinScalarValues([
+  const severitySource = scalarParts([
     obj.level,
     obj.severity,
     obj.type,
@@ -92,7 +98,7 @@ function normalizeViolation(item: unknown): Record<string, unknown> {
     position = obj.location as Record<string, unknown>;
   }
   return {
-    rule: firstScalarValue([
+    rule: firstScalar([
       obj.rule,
       obj.ruleName,
       obj.ruleTypeName,
@@ -101,9 +107,9 @@ function normalizeViolation(item: unknown): Record<string, unknown> {
       obj.type,
     ]),
     description: typeof message === 'string' ? message : JSON.stringify(message),
-    severity: normalizeSeverity(severitySource),
-    net: obj.net ?? obj.netName ?? undefined,
-    component: obj.component ?? obj.ref ?? obj.designator ?? obj.primitiveId ?? undefined,
+    severity: toSeverity(severitySource),
+    net: obj.net ?? obj.netName,
+    component: obj.component ?? obj.ref ?? obj.designator ?? obj.primitiveId,
     location:
       typeof position.x === 'number' && typeof position.y === 'number'
         ? { x: position.x, y: position.y, layer: obj.layer as string | undefined }
@@ -111,12 +117,12 @@ function normalizeViolation(item: unknown): Record<string, unknown> {
   };
 }
 
-function normalizeAggregate(
+function toAggregate(
   obj: Record<string, unknown>,
 ): { severity: DrcSeverity; count: number } | null {
   if (typeof obj.count !== 'number') return null;
-  const title = Array.isArray(obj.title) ? joinScalarValues(obj.title) : obj.title;
-  const source = joinScalarValues([
+  const title = Array.isArray(obj.title) ? scalarParts(obj.title) : obj.title;
+  const source = scalarParts([
     obj.type,
     obj.severity,
     obj.level,
@@ -125,10 +131,10 @@ function normalizeAggregate(
     obj.name,
     title,
   ]);
-  return { severity: normalizeSeverity(source), count: obj.count };
+  return { severity: toSeverity(source), count: obj.count };
 }
 
-function hasLeafDetail(obj: Record<string, unknown>): boolean {
+function hasDetail(obj: Record<string, unknown>): boolean {
   return [
     'message',
     'msg',
@@ -144,46 +150,65 @@ function hasLeafDetail(obj: Record<string, unknown>): boolean {
   ].some((key) => obj[key] !== undefined);
 }
 
-function normalizeNode(item: unknown): {
+function asNativeNode(item: unknown): Record<string, unknown> | null {
+  if (Array.isArray(item)) {
+    throw new InvalidDrcError('nested array');
+  }
+  const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+  if (!obj) return null;
+  if (
+    'count' in obj &&
+    (typeof obj.count !== 'number' || !Number.isSafeInteger(obj.count) || obj.count < 0)
+  ) {
+    throw new InvalidDrcError('invalid count');
+  }
+  if ('list' in obj && !Array.isArray(obj.list)) {
+    throw new InvalidDrcError('invalid list');
+  }
+  return obj;
+}
+
+function toNode(item: unknown): {
   violations: Array<Record<string, unknown>>;
   aggregates: Array<{ severity: DrcSeverity; count: number }>;
 } {
-  const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
-  if (!obj) return { violations: [normalizeViolation(item)], aggregates: [] };
+  const obj = asNativeNode(item);
+  if (!obj) return { violations: [toViolation(item)], aggregates: [] };
 
   const children = Array.isArray(obj.list) ? obj.list : [];
   if (children.length > 0) {
-    const normalized = children.map(normalizeNode);
-    const violations = normalized.flatMap((entry) => entry.violations);
-    const aggregates = normalized.flatMap((entry) => entry.aggregates);
-    if (violations.length > 0 || aggregates.length > 0) return { violations, aggregates };
+    const nodes = children.map(toNode);
+    const violations = nodes.flatMap((entry) => entry.violations);
+    const aggregates = nodes.flatMap((entry) => entry.aggregates);
+    return { violations, aggregates };
   }
 
-  if (hasLeafDetail(obj)) return { violations: [normalizeViolation(obj)], aggregates: [] };
-  const aggregate = normalizeAggregate(obj);
-  return { violations: [], aggregates: aggregate ? [aggregate] : [] };
+  if (hasDetail(obj)) return { violations: [toViolation(obj)], aggregates: [] };
+  const aggregate = toAggregate(obj);
+  if (!aggregate) {
+    throw new InvalidDrcError('unknown node');
+  }
+  return { violations: [], aggregates: [aggregate] };
 }
 
 export function createDesignRuleCheckOperations(
-  dependencies: DesignRuleCheckDependencies,
+  deps: DesignRuleCheckDependencies,
 ): DesignRuleCheckOperations {
   async function runNative(paths: string[]): Promise<DrcResult> {
-    const raw = await dependencies.callFirst(paths, true, true, true);
+    const raw = await deps.callFirst(paths, true, true, true);
     if (!Array.isArray(raw)) {
-      throw new Error('unsupported native rule-check response: expected an array of rule findings');
+      throw new InvalidDrcError('expected findings array');
     }
-    const normalized = raw.map(normalizeNode);
-    const detailed = normalized.flatMap((entry) => entry.violations);
-    const aggregates = normalized.flatMap((entry) => entry.aggregates);
+    const nodes = raw.map(toNode);
+    const detailed = nodes.flatMap((entry) => entry.violations);
+    const aggregates = nodes.flatMap((entry) => entry.aggregates);
     const violations = [
       ...detailed,
       ...aggregates
         .filter((entry) => entry.count > 0)
         .map((entry) => ({
           rule: 'aggregate',
-          description:
-            `${entry.count} ${entry.severity}(s) reported by EasyEDA's native design/electrical rule ` +
-            'check. Per-violation detail is only shown in EasyEDA Pro when the API returns aggregate counts.',
+          description: `${entry.count} native ${entry.severity}(s); individual details unavailable.`,
           severity: entry.severity,
         })),
     ];
@@ -219,8 +244,8 @@ export function createDesignRuleCheckOperations(
       return await runNative(paths);
     } catch (error) {
       const message = `Focus a ${document} document, then retry ${method}.`;
-      throw dependencies.createBridgeError('CONTEXT_UNAVAILABLE', message, message, {
-        cause: dependencies.errorMessage(error),
+      throw deps.createBridgeError('CONTEXT_UNAVAILABLE', message, message, {
+        cause: deps.errorMessage(error),
       });
     }
   }
@@ -234,8 +259,16 @@ export function createDesignRuleCheckOperations(
     try {
       return await runNative(['PCB_Drc.check']);
     } catch (error) {
+      if (error instanceof InvalidDrcError) {
+        throw deps.createBridgeError(
+          'CONTEXT_UNAVAILABLE',
+          'Native PCB DRC returned an unsupported result; schematic ERC cannot verify this PCB.',
+          'Focus a PCB document and inspect the native DRC API response before retrying.',
+          { cause: deps.errorMessage(error) },
+        );
+      }
       pcbError = error;
-      dependencies.logRecoverableError(
+      deps.logRecoverableError(
         'design.ruleCheck: PCB DRC unavailable; trying schematic ERC/DRC',
         error,
       );
@@ -243,13 +276,13 @@ export function createDesignRuleCheckOperations(
     try {
       return await runNative(['SCH_Drc.check']);
     } catch (schematicError) {
-      throw dependencies.createBridgeError(
+      throw deps.createBridgeError(
         'CONTEXT_UNAVAILABLE',
         'No active PCB or schematic canvas is available for design.ruleCheck.',
         'Open and focus a PCB or schematic document, then retry.',
         {
-          pcbCause: dependencies.errorMessage(pcbError),
-          schematicCause: dependencies.errorMessage(schematicError),
+          pcbCause: deps.errorMessage(pcbError),
+          schematicCause: deps.errorMessage(schematicError),
         },
       );
     }
@@ -258,7 +291,7 @@ export function createDesignRuleCheckOperations(
   async function runErc(): ReturnType<DesignRuleCheckOperations['runErc']> {
     const result = await runFocusedNative(['SCH_Drc.check'], 'schematic', 'design.erc');
     try {
-      const { floatingPins } = await dependencies.findFloatingPins();
+      const { floatingPins } = await deps.findFloatingPins();
       return {
         ...result,
         inferredFloatingPins: floatingPins,
@@ -268,7 +301,7 @@ export function createDesignRuleCheckOperations(
             : ('native_aggregate_only' as const),
       };
     } catch (error) {
-      dependencies.logRecoverableError('design.erc: floating-pin inference failed', error);
+      deps.logRecoverableError('design.erc: floating-pin inference failed', error);
       return {
         ...result,
         inferredFloatingPins: [],
