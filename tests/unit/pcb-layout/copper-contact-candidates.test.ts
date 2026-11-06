@@ -107,6 +107,28 @@ describe('read-only native copper pad center candidates', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('treats a curved native ARC inner contour as a cutout, not an electrical disconnection', () => {
+    const circle = [40, 50, 'ARC', 180, 60, 50, 'ARC', 180, 40, 50];
+    const result = review({
+      pouredRegions: [{ fill: true, path: { complexPolygon: [rectangle[0], circle] } }],
+      pads: [pad('arc-hole', 50, -50), pad('filled-area', 20, -20)],
+    });
+    expect(result.pads).toEqual([
+      {
+        primitiveId: 'arc-hole',
+        status: 'UNKNOWN',
+        reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
+      },
+      {
+        primitiveId: 'filled-area',
+        status: 'CENTER_OVERLAP_CANDIDATE',
+        reason: 'NOT_ELECTRICAL_CONTACT_PROOF',
+      },
+    ]);
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.overall_status).toBe('UNKNOWN');
+  });
+
   it('discretizes supported ARC sweeps as geometry candidates without electrical sign-off', () => {
     const semicircle = [[0, 0, 'ARC', 180, 20, 0, 'L', 0, 0]];
     const result = review({
