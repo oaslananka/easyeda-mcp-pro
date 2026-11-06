@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "kind": "z480-native-pour-parent-and-poured-source-readonly-nonzero-ambiguity",
+  "observedAt": "2026-11-06T21:32:42Z",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "baselineMain": "1539c00ffe5d6be351aa94012d7db15d7a6c51fb",
+    "editorVersion": "3.2.209",
+    "bridgeAndExtensionVersion": "1.10.2",
+    "methodRegistryMatched": true,
+    "projectPcbIdentityMatchedBeforeAndAfter": true,
+    "fixtureAlias": "Z480_DISPOSABLE_TEST",
+    "rawProjectAndPrimitiveIdsOmitted": true
+  },
+  "nativeInventory": {
+    "pourCount": 1,
+    "pouredCount": 1,
+    "linkedPourAndPoured": true,
+    "net": "GND",
+    "layer": 1,
+    "pourPouredSubregions": 74,
+    "nativeFillTrue": 1,
+    "nativeFillFalse": 73,
+    "filledComplexPolygonContours": 36,
+    "padCount": 83,
+    "gndMultilayerPads": 20
+  },
+  "parentPourSource": {
+    "geometry": "unrotated native R rectangle",
+    "nativeCoordinateBounds": {
+      "xMin": -88.5827,
+      "xMax": 3198.8141,
+      "yMin": -2440.945,
+      "yMax": 88.6424
+    }
+  },
+  "pouredFilledSource": {
+    "geometry": "outer L polygon with 35 declared inner contours, including ARC commands",
+    "sourceCoordinateBounds": {
+      "xMin": 1.41,
+      "xMax": 313.55063,
+      "yMin": -234.81047,
+      "yMax": -1.41
+    }
+  },
+  "relationshipAssessment": {
+    "candidateScale": 0.1,
+    "invertedY": false,
+    "parentNativeBoundsExpressedAtCandidateScale": {
+      "xMin": -8.85827,
+      "xMax": 319.88141,
+      "yMin": -244.0945,
+      "yMax": 8.86424
+    },
+    "pouredOuterWithinParentBoundsAtCandidateScale": true,
+    "sourceScaleAndYIndependentlyCalibrated": false,
+    "interpretation": "The bounds are numerically consistent with a 0.1 scale and can differ due to clipping/clearance; this does not independently prove the coordinate transform or physical copper geometry."
+  },
+  "conservativeScreen": {
+    "sourceFillRuleDocumented": "nonzero",
+    "outerAndDeclaredInnerContours": 36,
+    "diagnostic": "NONZERO_FILL_RULE_NOT_INDEPENDENTLY_VALIDATED",
+    "gndCentersInDeclaredInnerContoursUnderExploratoryTransform": 20,
+    "positiveCenterOverlapCandidates": 0,
+    "actualCopperHoleCountProven": false,
+    "actualElectricalDisconnectionProven": false,
+    "aggregateStatus": "UNKNOWN",
+    "engineeringSignOff": false,
+    "interpretation": "Declared inner-source ring is not asserted to be an actual empty native copper region when holes overlap/nest under nonzero winding."
+  },
+  "limits": [
+    "The prior reported CENTER_IN_NATIVE_COPPER_CUTOUT diagnosis was too strong in overlapping/nested contours; the new source-only CENTER_IN_DECLARED_INNER_CONTOUR replaces it, without rewriting historical evidence.",
+    "Native nonzero winding semantics are documented; independent native engine verification was unavailable. PCB_MathPolygon.discretize previously returned Not implemented.",
+    "Native coordinates are non-atomic beta API reads; only the disposable Z480 board was queried.",
+    "No pad footprint/plating/thermal contact, native DRC, reference-plane current path, impedance or manufacturing approval was established.",
+    "No native PCB writes, pour rebuild, save/export, vendor tickets, email or manufacturer submission."
+  ],
+  "acceptance": {
+    "readOnlyNativeSourceInventory": "OBSERVED",
+    "candidateScale": "EXPLORATORY_ONLY",
+    "independentSourceTransform": "UNKNOWN",
+    "nonzeroFillExactElectricalEffect": "UNKNOWN",
+    "padCopperElectricalContact": "UNKNOWN",
+    "referenceReturnCurrent": "UNKNOWN",
+    "engineeringSignOff": false,
+    "issue840RemainsOpen": true
+  },
+  "referenceUrls": [
+    "https://prodocs.easyeda.com/en/api/reference/pro-api.ipcb_complexpolygon.html",
+    "https://prodocs.easyeda.com/en/format/pcb/shape/",
+    "https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_document.getprimitiveatpoint.html"
+  ]
+}

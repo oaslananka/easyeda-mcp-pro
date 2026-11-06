@@ -209,14 +209,16 @@ function onContourBoundary(target: Point, contour: readonly Point[]): boolean {
 }
 
 function insideFilledContours(center: Point, contours: readonly Point[][]): boolean {
-  // Native EasyEDA complex polygons use the first contour as the outer frame
-  // and ALL subsequent contours as subtractive holes. Even-odd toggling across
-  // overlapping/nested holes can fabricate a positive copper candidate.
+  // Candidate screen, NOT an implementation of native EasyEDA's nonzero fill
+  // rule. The documented first ring is an outer boundary; subsequent rings
+  // are declared inner contours. If the point is in any inner contour,
+  // withhold candidates because nested/overlapping holes may have nonzero
+  // winding and could be filled according to the native engine.
   const outer = contours[0];
   return (
     !!outer &&
     insideRing(center, outer) &&
-    !contours.slice(1).some((hole) => insideRing(center, hole))
+    !contours.slice(1).some((inner) => insideRing(center, inner))
   );
 }
 
@@ -293,13 +295,14 @@ function resultForPad(
   if (contours.some((contour) => onContourBoundary(center, contour)))
     return unknown('CENTER_ON_NATIVE_COPPER_BOUNDARY');
   if (!insideFilledContours(center, contours)) {
-    // EasyEDA's complex polygon defines the first contour as the outer
-    // boundary and subsequent contours as holes. Being in a hole cannot
-    // establish either copper absence at the pad edge or electrical disconnection.
+    // The source declares subsequent contours as inner rings, but EasyEDA's
+    // nonzero winding rule can re-fill overlapping/nested rings. This result
+    // means only that the point is inside a declared source contour; it does
+    // not prove a hole in the native filled copper or electrical disconnection.
     const outer = contours[0];
     return unknown(
       outer && insideRing(center, outer)
-        ? 'CENTER_IN_NATIVE_COPPER_CUTOUT'
+        ? 'CENTER_IN_DECLARED_INNER_CONTOUR'
         : 'CENTER_NOT_INSIDE_FILLED_POLYGON',
     );
   }
@@ -362,6 +365,8 @@ export function reviewCopperPadCenterCandidates(
     output.filledRegionCount = polygon.count;
     output.contourCount = polygon.contours.length;
     if (polygon.count === 0) output.diagnostics.push('NO_NATIVE_FILLED_REGIONS');
+    if (polygon.contours.length > 1)
+      output.diagnostics.push('NONZERO_FILL_RULE_NOT_INDEPENDENTLY_VALIDATED');
   }
   if (!validTransform(input.transform)) output.diagnostics.push('UNVERIFIED_COORDINATE_TRANSFORM');
   if (
