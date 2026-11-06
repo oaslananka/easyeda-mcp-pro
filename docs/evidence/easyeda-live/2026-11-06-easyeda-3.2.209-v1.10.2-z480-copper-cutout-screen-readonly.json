@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "kind": "bounded-native-pcb-copper-cutout-center-screen",
+  "observedAt": "2026-11-06T20:03:42Z",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "checkedBaseMain": "ba001487c128b088d3fc80974c90621f5e7132b4",
+    "nativeEditorVersion": "3.2.209",
+    "bridgeAndExtensionVersion": "1.10.2",
+    "nativeRuntimeRegistryMatched": true,
+    "sourceReviewMethod": "reviewCopperPadCenterCandidates from the task-scoped source branch",
+    "sourceMethodKind": "pure read-only candidate screen; no public MCP tool integration"
+  },
+  "fixture": {
+    "disposableProjectAlias": "Z480_DISPOSABLE_TEST",
+    "projectDocumentIdentityConfirmedBeforeAndAfter": true,
+    "nativeProjectIdRedacted": true,
+    "primitiveIdsAndPadPositionsRedacted": true,
+    "nativeDesignWritePerformed": false,
+    "workspacePrivatePathsOmitted": true
+  },
+  "nativeCollections": {
+    "pourBoundaryCount": 1,
+    "pouredCount": 1,
+    "pouredParentMatchesPourBoundary": true,
+    "net": "GND",
+    "copperLayer": 1,
+    "subregionCount": 74,
+    "nativeFillTrueCount": 1,
+    "nativeFillFalseCount": 73,
+    "filledComplexPolygonContours": 36,
+    "padPrimitiveCount": 83,
+    "gndPadPrimitiveCount": 20,
+    "gndPadLayerCode": 12,
+    "gndPadLayerMeaning": "MULTI"
+  },
+  "exploratoryNativeScreen": {
+    "candidateTransform": {
+      "scale": 0.1,
+      "invertY": false,
+      "provenance": "EXPLORATORY_NOT_INDEPENDENTLY_CALIBRATED"
+    },
+    "otherTransformAssumptionsExplored": [
+      {
+        "scale": 1,
+        "invertY": false
+      },
+      {
+        "scale": 1,
+        "invertY": true
+      },
+      {
+        "scale": 0.1,
+        "invertY": true
+      },
+      {
+        "scale": 10,
+        "invertY": false
+      },
+      {
+        "scale": 10,
+        "invertY": true
+      }
+    ],
+    "gndPadCentersWithinOuterContour": 20,
+    "gndPadCentersWithinExactlyTwoContours": 20,
+    "nativeContoursWithAnyGndPadCenter": 18,
+    "nativeFilledContourCount": 36,
+    "gndPadCenterOutcomeReason": "CENTER_IN_NATIVE_COPPER_CUTOUT",
+    "gndPadCentersWithThatOutcome": 20,
+    "centerOverlapCandidates": 0,
+    "nativeGetterIdentityDoubleChecked": true,
+    "noSuppliedTransformCandidateCount": 0,
+    "noSuppliedTransformDiagnostic": "UNVERIFIED_COORDINATE_TRANSFORM",
+    "overallStatus": "UNKNOWN",
+    "engineeringSignOff": false
+  },
+  "interpretationLimits": [
+    "Scale and Y-axis mapping were explored from native source geometry but have not been independently accepted or calibrated. No physical distance or connectivity is asserted.",
+    "EasyEDA complex polygons encode one outer boundary followed by inner holes. The pad-center location in a native cutout is an observation about the sampled center point, not proof of actual pad-edge metal isolation.",
+    "Pad shapes and plated-through barrels may contact a poured region through footprints or narrow thermal ties that do not contain the pad center. No such contact graph was computed.",
+    "ARC discretization is bounded and approximate; border-adjacent candidate points require separate conservative tolerance and native acceptance.",
+    "One filled copper region and 73 fill=false records do not imply 74 conductive areas.",
+    "Native getter operations are version-sensitive/beta and the multiple read calls do not form an atomic snapshot.",
+    "No DRC clearance, return-current path, impedance, layer-stackup, thermal/current rating or manufacturing readiness was proven.",
+    "No native PCB mutation, copper rebuild, save, export, fabrication/supplier sendout, or provider support outreach took place."
+  ],
+  "acceptance": {
+    "sourceBoundPourAndPadRead": "OBSERVED",
+    "nativeCenterCutoutPattern": "OBSERVED_UNDER_EXPLORATORY_TRANSFORM",
+    "coordinateTransformIndependentlyCalibrated": false,
+    "padEdgeCopperContact": "UNKNOWN",
+    "continuousReferenceReturnCurrentPath": "UNKNOWN",
+    "electricalAndManufacturingSignoff": "UNKNOWN",
+    "engineeringSignOff": false,
+    "issueNumber": 840,
+    "issueRemainsOpen": true
+  },
+  "referenceUrls": [
+    "https://prodocs.easyeda.com/en/format/pcb/shape/",
+    "https://prodocs.easyeda.com/en/api/reference/pro-api.ipcb_primitivepouredpourfill.html",
+    "https://prodocs.easyeda.com/en/api/reference/pro-api.ipcb_primitivepad.html"
+  ]
+}
