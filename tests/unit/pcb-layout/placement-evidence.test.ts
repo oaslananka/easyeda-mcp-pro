@@ -377,6 +377,46 @@ describe('read-only origin-based placement relationship observations', () => {
     expect(valid.findings[0]?.measured_center_distance_mm).toBeCloseTo(12.7, 5);
   });
 
+  it('does not attribute component placement to unsupported native device layer codes', () => {
+    // EasyEDA TPCB_LayersOfComponent is TOP=1 or BOTTOM=2; 0, silk,
+    // mechanical and inner copper layer codes cannot prove component side.
+    const components: NativePlacement[] = [
+      { primitiveId: 'u1', designator: 'U1', x: 0, y: 0, layer: 1 },
+      { primitiveId: 'c1', designator: 'C1', x: 500, y: 0, layer: 2 },
+    ];
+    const relation: PlacementRelation = {
+      first: 'U1',
+      second: 'C1',
+      kind: 'decoupling',
+      maxCenterDistanceMm: 1,
+      requireSameLayer: true,
+    };
+    for (const layer of [0, 3, 12, 15, 44, 999]) {
+      const result = reviewPlacementRelations(
+        [relation],
+        [components[0]!, { ...components[1]!, layer }],
+        2,
+        true,
+      );
+      expect(result.input_evidence.collection_complete).toBe(false);
+      expect(result.status).toBe('UNKNOWN');
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'caller_declared_unverified',
+        primitive_ids: [],
+        electrical_loop_status: 'UNKNOWN',
+      });
+      expect(result.findings[0]?.native_layers).toBeUndefined();
+      expect(result.findings[0]?.measured_center_distance_mm).toBeUndefined();
+      expect(result.engineering_sign_off).toBe(false);
+    }
+    // Valid board-side codes still support a measured, source-declared warning.
+    const valid = reviewPlacementRelations([relation], components, 2, true);
+    expect(valid.input_evidence.collection_complete).toBe(true);
+    expect(valid.status).toBe('WARNING');
+    expect(valid.findings[0]?.native_layers).toEqual([1, 2]);
+  });
+
   it('does not trust duplicate or malformed designators anywhere in the native inventory', () => {
     const relation: PlacementRelation = {
       first: 'U1',
