@@ -254,7 +254,17 @@ function resultForPad(
   if (!validTransform(transform)) return unknown('UNVERIFIED_COORDINATE_TRANSFORM');
   const center = padCenterInPolygonCoordinates(data, transform);
   if (!center) return unknown('INVALID_PAD_CENTER');
-  if (!insideFilledContours(center, contours)) return unknown('CENTER_NOT_INSIDE_FILLED_POLYGON');
+  if (!insideFilledContours(center, contours)) {
+    // EasyEDA's complex polygon defines the first contour as the outer
+    // boundary and subsequent contours as holes. Being in a hole cannot
+    // establish either copper absence at the pad edge or electrical disconnection.
+    const outer = contours[0];
+    return unknown(
+      outer && insideRing(center, outer)
+        ? 'CENTER_IN_NATIVE_COPPER_CUTOUT'
+        : 'CENTER_NOT_INSIDE_FILLED_POLYGON',
+    );
+  }
   return {
     primitiveId,
     status: 'CENTER_OVERLAP_CANDIDATE',

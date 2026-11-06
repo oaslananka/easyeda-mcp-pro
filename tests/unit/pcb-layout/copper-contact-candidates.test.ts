@@ -65,8 +65,68 @@ describe('read-only native copper pad center candidates', () => {
     expect(result.candidates.map((item) => item.primitiveId)).toEqual(['surrounding']);
     expect(result.pads.find((item) => item.primitiveId === 'in-hole')).toMatchObject({
       status: 'UNKNOWN',
-      reason: 'CENTER_NOT_INSIDE_FILLED_POLYGON',
+      reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
     });
+  });
+
+  it('separates a known inner cutout from a pad center outside the pour boundary', () => {
+    const result = review({
+      pouredRegions: [
+        {
+          fill: true,
+          path: {
+            complexPolygon: [rectangle[0], [40, 40, 'L', 60, 40, 60, 60, 40, 60]],
+          },
+        },
+      ],
+      pads: [
+        pad('center-in-cutout', 50, -50),
+        pad('outside-outer', 120, -20),
+        pad('inside-copper', 20, -20),
+      ],
+    });
+    expect(result.pads).toEqual([
+      {
+        primitiveId: 'center-in-cutout',
+        status: 'UNKNOWN',
+        reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
+      },
+      {
+        primitiveId: 'outside-outer',
+        status: 'UNKNOWN',
+        reason: 'CENTER_NOT_INSIDE_FILLED_POLYGON',
+      },
+      {
+        primitiveId: 'inside-copper',
+        status: 'CENTER_OVERLAP_CANDIDATE',
+        reason: 'NOT_ELECTRICAL_CONTACT_PROOF',
+      },
+    ]);
+    expect(result.candidates.map((item) => item.primitiveId)).toEqual(['inside-copper']);
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('treats a curved native ARC inner contour as a cutout, not an electrical disconnection', () => {
+    const circle = [40, 50, 'ARC', 180, 60, 50, 'ARC', 180, 40, 50];
+    const result = review({
+      pouredRegions: [{ fill: true, path: { complexPolygon: [rectangle[0], circle] } }],
+      pads: [pad('arc-hole', 50, -50), pad('filled-area', 20, -20)],
+    });
+    expect(result.pads).toEqual([
+      {
+        primitiveId: 'arc-hole',
+        status: 'UNKNOWN',
+        reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
+      },
+      {
+        primitiveId: 'filled-area',
+        status: 'CENTER_OVERLAP_CANDIDATE',
+        reason: 'NOT_ELECTRICAL_CONTACT_PROOF',
+      },
+    ]);
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.overall_status).toBe('UNKNOWN');
   });
 
   it('discretizes supported ARC sweeps as geometry candidates without electrical sign-off', () => {
