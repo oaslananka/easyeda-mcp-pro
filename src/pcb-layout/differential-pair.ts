@@ -121,6 +121,54 @@ function geometrySample(track: Geometry): Sample {
   };
 }
 
+type XY = { x: number; y: number };
+
+/** Native mil coordinates: an endpoint touching another segment's interior
+ * or a proper crossing creates a second copper path, not a simple chain.
+ */
+function cross(a: XY, b: XY, c: XY): number {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function onSegmentInterior(point: XY, start: XY, end: XY): boolean {
+  if (cross(start, end, point) !== 0) return false;
+  const projection =
+    (point.x - start.x) * (end.x - start.x) + (point.y - start.y) * (end.y - start.y);
+  const lengthSquared = (end.x - start.x) ** 2 + (end.y - start.y) ** 2;
+  return projection > 0 && projection < lengthSquared;
+}
+
+function intersectsOutsideSharedEndpoints(a: Geometry, b: Geometry): boolean {
+  const a0 = { x: a.startX, y: a.startY },
+    a1 = { x: a.endX, y: a.endY };
+  const b0 = { x: b.startX, y: b.startY },
+    b1 = { x: b.endX, y: b.endY };
+  if (
+    onSegmentInterior(a0, b0, b1) ||
+    onSegmentInterior(a1, b0, b1) ||
+    onSegmentInterior(b0, a0, a1) ||
+    onSegmentInterior(b1, a0, a1)
+  )
+    return true;
+  const sideA = cross(a0, a1, b0),
+    sideB = cross(a0, a1, b1);
+  const sideC = cross(b0, b1, a0),
+    sideD = cross(b0, b1, a1);
+  return sideA * sideB < 0 && sideC * sideD < 0;
+}
+
+function hasInteriorCopperJunction(tracks: Geometry[]): boolean {
+  for (let i = 0; i < tracks.length; i++) {
+    const first = tracks[i];
+    if (!first) continue;
+    for (let j = i + 1; j < tracks.length; j++) {
+      const second = tracks[j];
+      if (second && intersectsOutsideSharedEndpoints(first, second)) return true;
+    }
+  }
+  return false;
+}
+
 function isSingleUnbranchedChain(segments: Sample[]): boolean {
   const adjacency = new Map<string, number[]>();
   segments.forEach((segment, index) => {
@@ -173,6 +221,9 @@ function netLength(
   const segments = (matching as Geometry[]).map(geometrySample);
   const layers = new Set(segments.map((sample) => sample.layer));
   if (layers.size !== 1) return { ...base, coverage: 'AMBIGUOUS' };
+  // Endpoint connectivity alone misses overlapping copper or paths that
+  // double back through a segment interior, overcounting length and skew.
+  if (hasInteriorCopperJunction(matching as Geometry[])) return { ...base, coverage: 'AMBIGUOUS' };
   if (!isSingleUnbranchedChain(segments)) return { ...base, coverage: 'AMBIGUOUS' };
   const mil = segments.reduce((sum, segment) => sum + segment.lengthMil, 0);
   return {
