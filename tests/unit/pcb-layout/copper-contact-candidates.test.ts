@@ -147,4 +147,167 @@ describe('read-only native copper pad center candidates', () => {
       ),
     ).toBe(true);
   });
+
+  it('rejects missing, oversized and malformed native region collections', () => {
+    const invalid = [
+      null,
+      Array.from({ length: 257 }, () => ({ fill: false })),
+      [null],
+      [{ fill: 'true', path: { complexPolygon: rectangle } }],
+      [{ fill: true }],
+      [{ fill: true, path: { complexPolygon: [] } }],
+      [{ fill: true, path: { complexPolygon: [rectangle[0], null] } }],
+      [{ fill: true, path: { complexPolygon: [rectangle[0], '[MaxDepth]'] } }],
+    ];
+    for (const pouredRegions of invalid) {
+      const result = review({ pouredRegions });
+      expect(result.diagnostics).toContain('UNSUPPORTED_POLYGON_SOURCE');
+      expect(result.candidates).toEqual([]);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('rejects truncated coordinates, nonfinite points and missing line segments', () => {
+    const invalidContours = [
+      [NaN, 0, 'L', 10, 0, 10, 10],
+      [0, 0, 'L', 10, 0, NaN, 10],
+      [0, 0, 'L', 10, 0, Infinity, 10],
+      [0, 0, 'L', 10],
+      [0, 0, 'L', 'ARC', 90, 10, 10],
+      [0, 0, 'L', 10, 0],
+      [0, 0, 'L', 10, 0, 10, 10, 'ARC', 180],
+    ];
+    for (const contour of invalidContours) {
+      const result = review({
+        pouredRegions: [{ fill: true, path: { complexPolygon: [contour] } }],
+      });
+      expect(result.diagnostics).toContain('UNSUPPORTED_POLYGON_SOURCE');
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
+  it('rejects arc sweeps that cannot define a bounded finite circular segment', () => {
+    for (const [sweep, endX, endY] of [
+      [Infinity, 20, 0],
+      [NaN, 20, 0],
+      [0, 20, 0],
+      [360, 20, 0],
+      [-360, 20, 0],
+      [180, 0, 0],
+      [180, Infinity, 0],
+    ]) {
+      const result = review({
+        pouredRegions: [
+          { fill: true, path: { complexPolygon: [[0, 0, 'ARC', sweep, endX, endY, 'L', 0, 0]] } },
+        ],
+      });
+      expect(result.diagnostics).toContain('UNSUPPORTED_POLYGON_SOURCE');
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
+  it('fails closed if curved contours would exceed the bounded discretization budget', () => {
+    const arcs = Array.from({ length: 1200 }, (_, i) => [
+      'ARC',
+      180,
+      i % 2 === 0 ? 20 : 0,
+      0,
+    ]).flat();
+    const result = review({
+      pouredRegions: [{ fill: true, path: { complexPolygon: [[0, 0, ...arcs]] } }],
+    });
+    expect(result.diagnostics).toContain('UNSUPPORTED_POLYGON_SOURCE');
+    expect(result.candidates).toEqual([]);
+  });
+
+  it('rejects a combined polygon token budget even if individual rings are small enough', () => {
+    const line = [0, 0, 'L', ...Array.from({ length: 15_000 }, (_, i) => (i % 2 === 0 ? i : 10))];
+    const result = review({
+      pouredRegions: [{ fill: true, path: { complexPolygon: [line, line] } }],
+    });
+    expect(result.diagnostics).toContain('UNSUPPORTED_POLYGON_SOURCE');
+    expect(result.candidates).toEqual([]);
+  });
+
+  it('returns UNKNOWN for unavailable, malformed and oversized native pad inventories', () => {
+    for (const pads of [
+      null,
+      'bad',
+      Array.from({ length: 257 }, (_, i) => pad(String(i), 1, -1)),
+    ]) {
+      const result = review({ pads });
+      expect(result.diagnostics).toContain('INVALID_OR_OVERSIZED_PAD_COLLECTION');
+      expect(result.pads).toEqual([]);
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
+  it('rejects missing source net and invalid copper-layer identities', () => {
+    for (const pourNet of ['', ' GND', 'GND ']) {
+      const result = review({ pourNet });
+      expect(result.diagnostics).toContain('UNVERIFIED_POUR_IDENTITY');
+      expect(result.candidates).toEqual([]);
+    }
+    for (const pourLayer of [-1, NaN, 0, 71]) {
+      const result = review({ pourLayer });
+      expect(result.diagnostics).toContain('UNVERIFIED_POUR_IDENTITY');
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
+  it('rejects malformed coordinate transforms instead of guessing a conversion', () => {
+    for (const transform of [
+      { scale: 0, invertY: true, source: 'measured' },
+      { scale: -1, invertY: true, source: 'measured' },
+      { scale: Infinity, invertY: true, source: 'measured' },
+      { scale: 1_000_001, invertY: true, source: 'measured' },
+      { scale: 1, invertY: true, source: '' },
+      { scale: 1, invertY: true, source: '  ' },
+      { scale: 1, invertY: true, source: 'x'.repeat(201) },
+      { scale: 1, invertY: 'true', source: 'measured' },
+    ]) {
+      const result = review({
+        transform: transform as Parameters<typeof review>[0]['transform'],
+      });
+      expect(result.diagnostics).toContain('UNVERIFIED_COORDINATE_TRANSFORM');
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
+  it('reports unsupported pad centers and IDs without claiming any contact', () => {
+    const result = review({
+      pads: [
+        pad('', 25, -25),
+        pad(' padded ', 25, -25),
+        pad('missing-x', 25, -25, { x: undefined }),
+        pad('nonfinite-y', 25, -25, { y: Number.NaN }),
+        pad('wrong-shape', 25, -25, { pad: ['TRAPEZOID', 10, 10] }),
+        pad('invalid-width', 25, -25, { pad: ['ELLIPSE', -1, 10] }),
+        pad('unsupported-net', 25, -25, { net: undefined }),
+        pad('unsupported-layer', 25, -25, { layer: undefined }),
+        pad('unplated', 25, -25, { metallization: false }),
+      ],
+    });
+    expect(result.candidates).toEqual([]);
+    expect(result.pads.map((item) => item.reason)).toEqual([
+      'INVALID_PAD_ID',
+      'INVALID_PAD_ID',
+      'INVALID_PAD_CENTER',
+      'INVALID_PAD_CENTER',
+      'UNVERIFIED_PAD_SHAPE',
+      'UNVERIFIED_PAD_SHAPE',
+      'NET_DOES_NOT_MATCH_POUR',
+      'UNVERIFIED_PAD_COPPER_LAYER',
+      'UNVERIFIED_PLATING_OR_THERMAL_CONTACT',
+    ]);
+  });
+
+  it('preserves existing result distinctions when a filled region is absent or malformed', () => {
+    const malformed = review({ pouredRegions: [{ fill: true, path: { complexPolygon: null } }] });
+    const empty = review({ pouredRegions: [{ fill: false }] });
+    expect(malformed.pads.every((item) => item.reason === 'UNSUPPORTED_POLYGON_SOURCE')).toBe(true);
+    expect(empty.pads.every((item) => item.reason === 'NO_NATIVE_FILLED_REGIONS')).toBe(true);
+    expect(malformed.overall_status).toBe('UNKNOWN');
+    expect(empty.overall_status).toBe('UNKNOWN');
+  });
 });
