@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "recordId": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-06-v1-10-2-source-bound-native-readonly",
+  "status": "live-validated",
+  "validatedAt": "2026-11-06T08:00:06Z",
+  "candidate": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "commit": "eccb6730fdb6b317124a71608ca3635c49a5bf40",
+    "version": "1.10.2",
+    "sourceTrees": {
+      "easyeda-bridge-extension/src": "5618af688016f4260d8c91fd2c9e8750c38147ad",
+      "src/bridge": "501d1d8d813b8f4932fcf12e1822aa4fb650a58e",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "a828fcf02d846802a53cc8839b957cefa2f7defb",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "runtime": {
+    "easyedaVersion": "3.2.209",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-42-generic",
+    "nodeVersion": "24.22.1",
+    "serverVersion": "1.10.2",
+    "extensionVersion": "1.10.2",
+    "extensionBuildId": "d8b95xcc1ex0488",
+    "methodRegistryHash": "eee1634ec2fdb076",
+    "bridgeCapabilities": 73,
+    "hotSwapEnabled": false,
+    "easyedaFullBuildReference": "3.2.209.8a704eab (build suffix from previous same-installation native record; current GUI/bridge show 3.2.209)",
+    "electronReference": "41.2.1 (not independently measured)",
+    "chromiumReference": "146.0.7680.188 (not independently measured)"
+  },
+  "package": {
+    "name": "easyeda-bridge-extension.eext",
+    "sizeBytes": 200991,
+    "sha256": "26dbb7b60213fa2e93231c546761b61f3333f6a1018aec0c53320cf4732da05c",
+    "installedVia": "native Extension Manager; enabled; full application restart",
+    "installedArchiveSha256IndependentlyReadBack": false,
+    "activeDispatcherBuildMatchesPackage": true
+  },
+  "fixture": {
+    "disposable": true,
+    "readOnly": true,
+    "nativeProjectIdentityVerified": true,
+    "nativeProjectIdExposed": false,
+    "pcb": {
+      "focused": true,
+      "componentCount": 1,
+      "trackCount": 0,
+      "viaCount": 0,
+      "fillCount": 0,
+      "regionCount": 0,
+      "layerCount": 27,
+      "physicalStackup": "unavailable",
+      "boardOutline": "unavailable",
+      "repeatedStableReads": 2,
+      "wrongProjectRejected": true,
+      "routeReview": "UNKNOWN",
+      "engineeringSignOff": false
+    },
+    "schematic": "not exercised for exact 1.10.2 candidate"
+  },
+  "noDesignMutation": true,
+  "outsideScope": [
+    "DRC/ERC",
+    "create/modify/delete",
+    "save/export",
+    "actual poured copper and reference-plane connectivity",
+    "differential route/skew measurements",
+    "thermal/fabrication signoff",
+    "independent installed-archive digest"
+  ],
+  "publicEvidence": "https://github.com/oaslananka/easyeda-mcp-pro/pull/915#issuecomment-6680121243"
+}
