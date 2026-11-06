@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "kind": "bounded-native-copper-pad-topology-observation",
+  "validatedAt": "2026-11-06T18:17:37Z",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "mainCommit": "98a45837e4c54c4db0b1bc04b008ab05d28fa45a",
+    "publishedVersion": "1.10.2",
+    "nativeEasyedaVersion": "3.2.209",
+    "bridgeVersion": "1.10.2",
+    "dispatcherBuildId": "d8b95xcc1ex0488",
+    "system": "native EasyEDA Pro on Ubuntu 24.04.5 LTS x86_64"
+  },
+  "fixture": {
+    "name": "Z480_DISPOSABLE_TEST",
+    "ownerControlledDisposable": true,
+    "focusedNativeProjectAndPcbDocumentMatch": true,
+    "nativeProjectAndPrimitiveIdsRedacted": true,
+    "readOnly": true
+  },
+  "observed": {
+    "nativePour": {
+      "boundaryPrimitiveCount": 1,
+      "pouredPrimitiveCount": 1,
+      "pouredParentReferencesSourceBoundary": true,
+      "netName": "GND",
+      "nativeLayerCode": 1,
+      "nativeLayerMeaning": "top copper",
+      "fillMethod": "SOLID",
+      "preserveIslands": false,
+      "netNamePresentInNativeNetInventory": true,
+      "nativeNetInventoryCount": 17,
+      "pouredSubregionCount": 74,
+      "filledSubregionCount": 1,
+      "unfilledSubregionCount": 73,
+      "subregionsWithPathObjectCount": 74
+    },
+    "nativeFilledPolygon": {
+      "filledRegionComplexPolygonContourCount": 36,
+      "lineCommandCount": 134,
+      "arcCommandCount": 364,
+      "numericTokenCount": 2136,
+      "sourceReadDepth": 14,
+      "truncatedWhenUsingLowerBridgeDepth": true,
+      "coordinatesWereAvailableAtDepth14": true,
+      "pointInCopperOrPadConnectivityComputed": false
+    },
+    "nativePads": {
+      "allPadIds": 83,
+      "padObjectsRead": 83,
+      "nativeLayerCodeCounts": {
+        "12": 83
+      },
+      "multiLayerPadCode": 12,
+      "gndPadCount": 20,
+      "gndTopFilteredIdCount": 0,
+      "gndBottomFilteredIdCount": 0,
+      "filteredPadQueryCaveat": "Filtering pad records by top=1 or bottom=2 excludes native MULTI=12 pads. Zero filtered GND pads does not prove there are no GND pads."
+    },
+    "nativeRoutes": {
+      "lineOrTrackCount": 98,
+      "gndNetTrackCount": 0,
+      "viaCount": 0,
+      "routeReviewOverallStatus": "UNKNOWN",
+      "engineeringSignOff": false
+    }
+  },
+  "sourceValidation": {
+    "nativeGetterCallsOnly": [
+      "DMT_Project.getCurrentProjectInfo",
+      "DMT_SelectControl.getCurrentDocumentInfo",
+      "PCB_PrimitivePour.getAllPrimitiveId",
+      "PCB_PrimitivePoured.getAllPrimitiveId",
+      "PCB_PrimitivePour.get",
+      "PCB_PrimitivePoured.get",
+      "PCB_PrimitivePad.getAllPrimitiveId",
+      "PCB_PrimitivePad.get",
+      "PCB_Net.getAllNetName",
+      "pcb.listTracks",
+      "pcb.listVias"
+    ],
+    "focusedProjectCheckedBeforeAndAfterNativeReads": true,
+    "pouredAssociationAndSubregionSummaryRepeatedConsistently": true,
+    "padIdentityCoverage": "All 83 returned IDs resolved to 83 pad objects in three bounded batches.",
+    "physicalConnectivityValidated": false,
+    "requiresWriteConfirmation": false,
+    "mutationPerformed": false
+  },
+  "limits": [
+    "The API endpoint is a beta preview and is not an independent manufacturing-grade geometry or connectivity proof.",
+    "The ONE fill=true subregion contains 36 contours and ARC commands; its 73 fill=false sibling subregions cannot be counted as conductive copper.",
+    "An association between Pour and Poured and matching net names does not prove electrical continuity or pad-to-plane contact.",
+    "A MULTI-layer pad is not proof of top-copper pad contact: pad shape, hole plating, thermals, polygon cutouts and physical connection require separate native evidence.",
+    "The complex polygon was recovered with bounded depth 14, but no arc discretization, inner-hole subtraction, pad footprint intersection or DRC was performed.",
+    "Multiple native reads were not an atomic PCB snapshot. No change/readback transaction was executed.",
+    "No claimed source-bound return-current loop, reference plane coverage, impedance, thermal/current safety, fabricator clearance, DRC or manufacturing sign-off.",
+    "No copper-region create/update/delete, save, export, production design write, supplier contact or release promotion took place."
+  ],
+  "acceptance": {
+    "nativePourAndPouredAssociation": "OBSERVED",
+    "nativePadAndNetInventory": "OBSERVED",
+    "padToCopperContact": "UNKNOWN",
+    "sourceBoundReturnCurrentPath": "UNKNOWN",
+    "copperContinuity": "UNKNOWN",
+    "electricalOrManufacturingReadiness": "UNKNOWN",
+    "engineeringSignOff": false,
+    "issueStatus": "OPEN",
+    "relatedIssues": [840, 480]
+  },
+  "publicVendorReferences": [
+    "https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_primitivepad.getallprimitiveid.html",
+    "https://prodocs.easyeda.com/en/api/reference/pro-api.ipcb_primitivepouredpourfill.html",
+    "https://prodocs.easyeda.com/en/format/pcb/shape/"
+  ]
+}
