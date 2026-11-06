@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.10.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.9.0...easyeda-mcp-pro-v1.10.0) (2026-11-06)
+
+
+### Features
+
+* **engineering:** strengthen source-bound PCB and schematic reviews ([#895](https://github.com/oaslananka/easyeda-mcp-pro/issues/895)) ([2c35a3d](https://github.com/oaslananka/easyeda-mcp-pro/commit/2c35a3d274bad5c7cf7cde79a207286103f9aaa5))
+* **pcb:** review native net widths against declared current reference ([#893](https://github.com/oaslananka/easyeda-mcp-pro/issues/893)) ([4220a0d](https://github.com/oaslananka/easyeda-mcp-pro/commit/4220a0dde3c2e6fba74cc287ae7b0aedaa15926d))
+
+
+### Bug Fixes
+
+* **dfm:** escape caller-controlled Markdown in production QA artifacts ([#898](https://github.com/oaslananka/easyeda-mcp-pro/issues/898)) ([936ebdb](https://github.com/oaslananka/easyeda-mcp-pro/commit/936ebdb000fd410ef06491a62ee970357027ef17))
+* **dfm:** preserve assembly reference identity in QA handoff ([#897](https://github.com/oaslananka/easyeda-mcp-pro/issues/897)) ([45dd50d](https://github.com/oaslananka/easyeda-mcp-pro/commit/45dd50d2bc9c90de30ce8c8e6672a50ec33ad976))
+* **drc:** fail closed on malformed native findings and unsafe PCB fallback ([#907](https://github.com/oaslananka/easyeda-mcp-pro/issues/907)) ([1a5fcb1](https://github.com/oaslananka/easyeda-mcp-pro/commit/1a5fcb19e3ce969ffc44e7289380d89ef9dc507e))
+* **drc:** reject unsupported native rule-check responses ([#906](https://github.com/oaslananka/easyeda-mcp-pro/issues/906)) ([3e159b4](https://github.com/oaslananka/easyeda-mcp-pro/commit/3e159b40e4adfb235613e22c2f91c1b4c5dcfea7))
+* **engineering:** reject untrustworthy native layer and datasheet identities ([#903](https://github.com/oaslananka/easyeda-mcp-pro/issues/903)) ([8f95f73](https://github.com/oaslananka/easyeda-mcp-pro/commit/8f95f73d4fb559e95e46369de8be39a3ef4c1439))
+* **erc:** reject reused regulator headroom pin ([#896](https://github.com/oaslananka/easyeda-mcp-pro/issues/896)) ([926c580](https://github.com/oaslananka/easyeda-mcp-pro/commit/926c580adeeba45999de89cdfa7c9c2fd71a8606))
+* **pcb:** check declared same-layer copper clearances ([#909](https://github.com/oaslananka/easyeda-mcp-pro/issues/909)) ([ee16c69](https://github.com/oaslananka/easyeda-mcp-pro/commit/ee16c692816896eabdcccba0af6ebed97a0e80c8))
+* **pcb:** flag observed differential-pair copper contact ([#899](https://github.com/oaslananka/easyeda-mcp-pro/issues/899)) ([4a5cc36](https://github.com/oaslananka/easyeda-mcp-pro/commit/4a5cc364e5a9e5c607af9ad0734a7b429d416c97))
+* **pcb:** reject implausible native VIA dimensions in evidence review ([#901](https://github.com/oaslananka/easyeda-mcp-pro/issues/901)) ([4ed8ff4](https://github.com/oaslananka/easyeda-mcp-pro/commit/4ed8ff4a08ecef803b2131f4a9acb8d58bcb68d0))
+* **pcb:** reject invalid native layer IDs in geometry evidence ([#905](https://github.com/oaslananka/easyeda-mcp-pro/issues/905)) ([cbf9f2b](https://github.com/oaslananka/easyeda-mcp-pro/commit/cbf9f2b0892139eb9178572e79111e4efeb9b6ef))
+* **pcb:** reject untrustworthy native via observations ([#904](https://github.com/oaslananka/easyeda-mcp-pro/issues/904)) ([d6b6b87](https://github.com/oaslananka/easyeda-mcp-pro/commit/d6b6b8760b1d6bd15fecc32e59ed49e6e2dc461f))
+* **pcb:** restrict route evidence to documented copper layers ([#908](https://github.com/oaslananka/easyeda-mcp-pro/issues/908)) ([39fad34](https://github.com/oaslananka/easyeda-mcp-pro/commit/39fad345f7db657781bce8c1c7009178c842a9ae))
+* **pcb:** withhold single-layer thermal verdict on mixed native layers ([#900](https://github.com/oaslananka/easyeda-mcp-pro/issues/900)) ([ba11619](https://github.com/oaslananka/easyeda-mcp-pro/commit/ba11619231b3e0dcf466ff71a6a3e8a48dd617f7))
+* **qa:** catch test-point collisions with optional critical nets ([#902](https://github.com/oaslananka/easyeda-mcp-pro/issues/902)) ([3a832f1](https://github.com/oaslananka/easyeda-mcp-pro/commit/3a832f1c16a3a2a7f8cf8ff890bc6fea0628a4e4))
+
 ## [1.9.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.8.1...easyeda-mcp-pro-v1.9.0) (2026-11-04)
 
 
