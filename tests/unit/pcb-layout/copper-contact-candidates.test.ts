@@ -50,7 +50,7 @@ describe('read-only native copper pad center candidates', () => {
     expect(result.candidates.map((c) => c.primitiveId)).toEqual(['scaled']);
   });
 
-  it('respects inner copper holes via even-odd parity', () => {
+  it('withholds candidates at centers inside native declared inner contours', () => {
     const result = review({
       pouredRegions: [
         {
@@ -65,13 +65,13 @@ describe('read-only native copper pad center candidates', () => {
     expect(result.candidates.map((item) => item.primitiveId)).toEqual(['surrounding']);
     expect(result.pads.find((item) => item.primitiveId === 'in-hole')).toMatchObject({
       status: 'UNKNOWN',
-      reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
+      reason: 'CENTER_IN_DECLARED_INNER_CONTOUR',
     });
   });
 
-  it('subtracts the union of overlapping native holes instead of toggling holes into copper', () => {
+  it('withholds candidates in overlapping declared contours under unverified nonzero winding', () => {
     // EasyEDA complexPolygon: first contour is outer, EVERY following contour
-    // is an inner hole. Two overlapping hole contours must not create an island.
+    // is declared inner. Native nonzero winding may refill overlaps; do not infer copper.
     const result = review({
       pouredRegions: [
         {
@@ -94,14 +94,15 @@ describe('read-only native copper pad center candidates', () => {
     });
     expect(result.candidates.map((item) => item.primitiveId)).toEqual(['real-copper']);
     expect(result.pads.slice(0, 3).map((item) => item.reason)).toEqual([
-      'CENTER_IN_NATIVE_COPPER_CUTOUT',
-      'CENTER_IN_NATIVE_COPPER_CUTOUT',
-      'CENTER_IN_NATIVE_COPPER_CUTOUT',
+      'CENTER_IN_DECLARED_INNER_CONTOUR',
+      'CENTER_IN_DECLARED_INNER_CONTOUR',
+      'CENTER_IN_DECLARED_INNER_CONTOUR',
     ]);
     expect(result.engineering_sign_off).toBe(false);
+    expect(result.diagnostics).toContain('NONZERO_FILL_RULE_NOT_INDEPENDENTLY_VALIDATED');
   });
 
-  it('does not convert a hole fully nested inside another hole into copper', () => {
+  it('returns UNKNOWN within nested native inner contours even if nonzero may fill', () => {
     const result = review({
       pouredRegions: [
         {
@@ -120,7 +121,7 @@ describe('read-only native copper pad center candidates', () => {
     expect(result.candidates).toEqual([]);
     expect(result.pads[0]).toMatchObject({
       status: 'UNKNOWN',
-      reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
+      reason: 'CENTER_IN_DECLARED_INNER_CONTOUR',
     });
   });
 
@@ -168,7 +169,7 @@ describe('read-only native copper pad center candidates', () => {
       {
         primitiveId: 'center-in-cutout',
         status: 'UNKNOWN',
-        reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
+        reason: 'CENTER_IN_DECLARED_INNER_CONTOUR',
       },
       {
         primitiveId: 'outside-outer',
@@ -196,7 +197,7 @@ describe('read-only native copper pad center candidates', () => {
       {
         primitiveId: 'arc-hole',
         status: 'UNKNOWN',
-        reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
+        reason: 'CENTER_IN_DECLARED_INNER_CONTOUR',
       },
       {
         primitiveId: 'filled-area',
