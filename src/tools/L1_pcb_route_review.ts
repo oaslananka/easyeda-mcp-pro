@@ -157,6 +157,14 @@ const inputSchema = z.object({
     .describe(
       'Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.',
     ),
+  minClearanceMm: z
+    .number()
+    .finite()
+    .positive()
+    .optional()
+    .describe(
+      'Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit.',
+    ),
   differentialPair: differentialPairSchema.optional(),
   placementRelations: z.array(placementRelationSchema).min(1).max(8).optional(),
   traceCurrent: nativeTraceCurrentDeclarationSchema
@@ -210,6 +218,7 @@ const findingSchema = z.object({
   id: z.string(),
   rule_id: z.enum([
     'TRACE_WIDTH_BELOW_CONTEXT_MINIMUM',
+    'TRACE_CLEARANCE_BELOW_CONTEXT_MINIMUM',
     'OBSERVED_TRACK_COPPER_OVERLAP',
     'TRACK_GEOMETRY_UNAVAILABLE',
     'RIGHT_ANGLE_STYLE_REVIEW',
@@ -532,8 +541,15 @@ export function registerPcbRouteReviewTools(
     inputSchema,
     outputSchema,
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, intent, minWidthMm, differentialPair, placementRelations, traceCurrent } =
-        inputSchema.parse(params);
+      const {
+        projectId,
+        intent,
+        minWidthMm,
+        minClearanceMm,
+        differentialPair,
+        placementRelations,
+        traceCurrent,
+      } = inputSchema.parse(params);
       const sourceMismatch =
         ctx.bridge.registryMismatch === true || ctx.bridge.extensionVersionMismatch === true;
       const route = await collectRouteEvidence(ctx, projectId, sourceMismatch);
@@ -556,6 +572,7 @@ export function registerPcbRouteReviewTools(
         viasAvailable,
         intent,
         minWidthMm,
+        minClearanceMm,
       });
       const pair =
         differentialPair === undefined

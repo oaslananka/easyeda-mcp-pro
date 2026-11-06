@@ -94,6 +94,64 @@ describe('native PCB route geometry review MCP contract', () => {
     );
   });
 
+  it('validates and evaluates a caller-declared minimum copper clearance without extra reads', async () => {
+    const tool = registry.get('easyeda_pcb_route_geometry_review');
+    for (const value of [0, -1, Number.POSITIVE_INFINITY, Number.NaN, '0.1']) {
+      expect(
+        tool?.inputSchema.safeParse({ projectId: 'project-1', minClearanceMm: value }).success,
+      ).toBe(false);
+    }
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listTracks'
+        ? {
+            total: 2,
+            items: [
+              {
+                primitiveId: 'a',
+                net: 'CLK',
+                layer: 1,
+                startX: 0,
+                startY: 0,
+                endX: 100,
+                endY: 0,
+                width: 10,
+              },
+              {
+                primitiveId: 'b',
+                net: 'GND',
+                layer: 1,
+                startX: 0,
+                startY: 13,
+                endX: 100,
+                endY: 13,
+                width: 10,
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const result = await run({ minClearanceMm: 0.1 });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'TRACE_CLEARANCE_BELOW_CONTEXT_MINIMUM',
+        status: 'WARNING',
+        primitive_ids: ['a', 'b'],
+        net: 'CLK',
+        other_net: 'GND',
+        threshold_mm: 0.1,
+      }),
+    );
+    expect(result.overall_status).toBe('WARNING');
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({ rule_id: 'COPPER_CLEARANCE_UNVERIFIED', status: 'UNKNOWN' }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+    expect(bridgeCall.mock.calls).toEqual([
+      ['pcb.listTracks', { projectId: 'project-1', limit: 200, offset: 0 }],
+      ['pcb.listVias', { projectId: 'project-1', limit: 200, offset: 0 }],
+    ]);
+  });
+
   it('reads only a bounded active-project list of tracks and vias', async () => {
     const result = await run({ intent: 'high-speed', minWidthMm: 0.2 });
     expect(bridgeCall.mock.calls).toEqual([
