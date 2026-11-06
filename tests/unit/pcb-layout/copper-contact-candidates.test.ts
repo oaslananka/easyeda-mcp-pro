@@ -69,6 +69,85 @@ describe('read-only native copper pad center candidates', () => {
     });
   });
 
+  it('subtracts the union of overlapping native holes instead of toggling holes into copper', () => {
+    // EasyEDA complexPolygon: first contour is outer, EVERY following contour
+    // is an inner hole. Two overlapping hole contours must not create an island.
+    const result = review({
+      pouredRegions: [
+        {
+          fill: true,
+          path: {
+            complexPolygon: [
+              rectangle[0],
+              [30, 30, 'L', 70, 30, 70, 70, 30, 70],
+              [40, 40, 'L', 80, 40, 80, 80, 40, 80],
+            ],
+          },
+        },
+      ],
+      pads: [
+        pad('overlap-of-holes', 50, -50),
+        pad('in-first-only', 35, -35),
+        pad('in-second-only', 75, -75),
+        pad('real-copper', 15, -15),
+      ],
+    });
+    expect(result.candidates.map((item) => item.primitiveId)).toEqual(['real-copper']);
+    expect(result.pads.slice(0, 3).map((item) => item.reason)).toEqual([
+      'CENTER_IN_NATIVE_COPPER_CUTOUT',
+      'CENTER_IN_NATIVE_COPPER_CUTOUT',
+      'CENTER_IN_NATIVE_COPPER_CUTOUT',
+    ]);
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('does not convert a hole fully nested inside another hole into copper', () => {
+    const result = review({
+      pouredRegions: [
+        {
+          fill: true,
+          path: {
+            complexPolygon: [
+              rectangle[0],
+              [20, 20, 'L', 80, 20, 80, 80, 20, 80],
+              [35, 35, 'L', 65, 35, 65, 65, 35, 65],
+            ],
+          },
+        },
+      ],
+      pads: [pad('nested-hole', 50, -50)],
+    });
+    expect(result.candidates).toEqual([]);
+    expect(result.pads[0]).toMatchObject({
+      status: 'UNKNOWN',
+      reason: 'CENTER_IN_NATIVE_COPPER_CUTOUT',
+    });
+  });
+
+  it('does not claim a center exactly on a native outer or hole boundary is inside copper', () => {
+    const result = review({
+      pouredRegions: [
+        {
+          fill: true,
+          path: { complexPolygon: [rectangle[0], [40, 40, 'L', 60, 40, 60, 60, 40, 60]] },
+        },
+      ],
+      pads: [
+        pad('on-outer-top', 50, 0),
+        pad('on-outer-right', 100, -20),
+        pad('on-hole-left', 40, -50),
+        pad('on-hole-top', 50, -40),
+        pad('clear-copper', 20, -20),
+      ],
+    });
+    expect(result.candidates.map((item) => item.primitiveId)).toEqual(['clear-copper']);
+    expect(
+      result.pads.slice(0, 4).every((item) => item.reason === 'CENTER_ON_NATIVE_COPPER_BOUNDARY'),
+    ).toBe(true);
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('separates a known inner cutout from a pad center outside the pour boundary', () => {
     const result = review({
       pouredRegions: [

@@ -179,9 +179,45 @@ function insideRing(target: Point, vertices: readonly Point[]): boolean {
   return contained;
 }
 
+function onSegment(pointToCheck: Point, start: Point, end: Point): boolean {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  // At large/native-unsupported coordinates, treat uncertain boundaries
+  // conservatively rather than asserting that the center is inside copper.
+  if (!Number.isFinite(length)) return true;
+  const tolerance =
+    1e-9 * Math.max(1, Math.abs(start.x), Math.abs(start.y), Math.abs(end.x), Math.abs(end.y));
+  if (length === 0)
+    return Math.hypot(pointToCheck.x - start.x, pointToCheck.y - start.y) <= tolerance;
+  const projection =
+    ((pointToCheck.x - start.x) * dx + (pointToCheck.y - start.y) * dy) / (length * length);
+  if (projection < 0 || projection > 1 || !Number.isFinite(projection)) return false;
+  return (
+    Math.hypot(
+      pointToCheck.x - (start.x + projection * dx),
+      pointToCheck.y - (start.y + projection * dy),
+    ) <= tolerance
+  );
+}
+
+function onContourBoundary(target: Point, contour: readonly Point[]): boolean {
+  return contour.some((vertex, index) => {
+    const previous = contour[(index + contour.length - 1) % contour.length];
+    return previous ? onSegment(target, previous, vertex) : true;
+  });
+}
+
 function insideFilledContours(center: Point, contours: readonly Point[][]): boolean {
-  // The native complex polygon uses an even-odd fill rule for inner cutouts.
-  return contours.reduce((inside, contour) => inside !== insideRing(center, contour), false);
+  // Native EasyEDA complex polygons use the first contour as the outer frame
+  // and ALL subsequent contours as subtractive holes. Even-odd toggling across
+  // overlapping/nested holes can fabricate a positive copper candidate.
+  const outer = contours[0];
+  return (
+    !!outer &&
+    insideRing(center, outer) &&
+    !contours.slice(1).some((hole) => insideRing(center, hole))
+  );
 }
 
 function validTransform(
@@ -254,6 +290,8 @@ function resultForPad(
   if (!validTransform(transform)) return unknown('UNVERIFIED_COORDINATE_TRANSFORM');
   const center = padCenterInPolygonCoordinates(data, transform);
   if (!center) return unknown('INVALID_PAD_CENTER');
+  if (contours.some((contour) => onContourBoundary(center, contour)))
+    return unknown('CENTER_ON_NATIVE_COPPER_BOUNDARY');
   if (!insideFilledContours(center, contours)) {
     // EasyEDA's complex polygon defines the first contour as the outer
     // boundary and subsequent contours as holes. Being in a hole cannot
