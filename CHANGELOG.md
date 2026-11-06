@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.10.1...easyeda-mcp-pro-v1.10.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **pcb:** reject overlapping and self-intersecting differential routes ([#914](https://github.com/oaslananka/easyeda-mcp-pro/issues/914)) ([784e84f](https://github.com/oaslananka/easyeda-mcp-pro/commit/784e84f7191b2454409c8d422b35e3356c7ac73a))
+
 ## [1.10.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.10.0...easyeda-mcp-pro-v1.10.1) (2026-11-06)
 
 
