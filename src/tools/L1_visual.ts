@@ -132,6 +132,77 @@ function normalizeCanvasRegion(region: CanvasRegion): CanvasRegion {
   return normalized;
 }
 
+/**
+ * EasyEDA Pro 3.2.206 has been observed returning zoomTo viewport extents
+ * one tenth of the requested PCB mil coordinates, despite its documented
+ * same-unit API. Reconcile against an explicitly requested center instead
+ * of assuming this undocumented scaling across canvas types and versions.
+ * An unchecked/native rectangle is retained but marked unverified.
+ */
+function normalizeLocatedViewport(
+  raw: { left?: number; right?: number; top?: number; bottom?: number },
+  x?: number,
+  y?: number,
+):
+  | {
+      left: number;
+      right: number;
+      top: number;
+      bottom: number;
+      viewport_unit: 'document' | 'unverified';
+      coordinate_alignment: 'verified' | 'unverified';
+      viewport_scale_applied?: number;
+    }
+  | undefined {
+  const { left, right, top, bottom } = raw;
+  if (
+    typeof left !== 'number' ||
+    typeof right !== 'number' ||
+    typeof top !== 'number' ||
+    typeof bottom !== 'number' ||
+    ![left, right, top, bottom].every(Number.isFinite) ||
+    left === right ||
+    top === bottom
+  ) {
+    return undefined;
+  }
+
+  const centerX = (left + right) / 2;
+  const centerY = (top + bottom) / 2;
+  const matches = (factor: number): boolean => {
+    const axes = [
+      ...(x === undefined ? [] : [[centerX, x]]),
+      ...(y === undefined ? [] : [[centerY, y]]),
+    ];
+    return (
+      axes.length > 0 &&
+      axes.every(([center, requested]) => {
+        if (center === undefined || requested === undefined) return false;
+        const tolerance = Math.max(0.01, Math.abs(requested) * 0.00001);
+        return Math.abs(center * factor - requested) <= tolerance;
+      })
+    );
+  };
+
+  const matchesNative = matches(1);
+  const matchesTenfold = matches(10);
+  // For origin-only requests both factors fit: never guess the viewport unit.
+  const verified = matchesNative !== matchesTenfold;
+  const factor = verified && matchesTenfold ? 10 : 1;
+  const result = {
+    left: left * factor,
+    right: right * factor,
+    top: top * factor,
+    bottom: bottom * factor,
+    viewport_unit: verified ? ('document' as const) : ('unverified' as const),
+    coordinate_alignment: verified ? ('verified' as const) : ('unverified' as const),
+    ...(verified ? { viewport_scale_applied: factor } : {}),
+  };
+  return [result.left, result.right, result.top, result.bottom].every(Number.isFinite)
+    ? result
+    : undefined;
+}
+
 function registerVisualTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -342,9 +413,10 @@ function registerVisualTools(
     name: 'easyeda_canvas_locate',
     title: 'Zoom canvas to coordinate',
     description:
-      'Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning ' +
-      'the resulting viewport rectangle. Useful to frame a location before calling ' +
-      "easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.",
+      'Zoom canvas to x/y (PCB/footprint: mil; schematic/symbol: 0.01 inch). ' +
+      'scaleRatio 200 means 200%. Returned viewport bounds use requested document units ' +
+      'only when center-based 1x/10x scaling is verified; otherwise the unit is unverified. ' +
+      "Changes the user's viewport.",
     profile: 'core',
     evidence: ['pro-api-types'],
     risk: 'low',
@@ -356,9 +428,9 @@ function registerVisualTools(
       idempotentHint: false,
     },
     inputSchema: z.object({
-      x: z.number().optional(),
-      y: z.number().optional(),
-      scaleRatio: z.number().positive().optional(),
+      x: z.number().finite().optional(),
+      y: z.number().finite().optional(),
+      scaleRatio: z.number().finite().positive().optional(),
       tabId: z.string().optional(),
     }),
     outputSchema: z.object({
@@ -367,6 +439,9 @@ function registerVisualTools(
       right: z.number().optional(),
       top: z.number().optional(),
       bottom: z.number().optional(),
+      viewport_unit: z.enum(['document', 'unverified']).optional(),
+      coordinate_alignment: z.enum(['verified', 'unverified']).optional(),
+      viewport_scale_applied: z.number().optional(),
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
@@ -388,13 +463,15 @@ function registerVisualTools(
             error: 'EasyEDA could not zoom to the requested coordinate.',
           };
         }
-        return {
-          located: true,
-          left: rect.left,
-          right: rect.right,
-          top: rect.top,
-          bottom: rect.bottom,
-        };
+        const viewport = normalizeLocatedViewport(rect, x, y);
+        if (!viewport) {
+          return {
+            located: false,
+            not_available: true,
+            error: 'EasyEDA returned invalid or non-finite viewport bounds.',
+          };
+        }
+        return { located: true, ...viewport };
       } catch (err) {
         return {
           located: false,

@@ -311,7 +311,88 @@ describe('Visual Tools', () => {
         scaleRatio: 2,
         tabId: undefined,
       });
-      expect(result).toMatchObject({ located: true, left: 0, right: 10, top: 0, bottom: 10 });
+      expect(result).toMatchObject({
+        located: true,
+        left: 0,
+        right: 10,
+        top: 0,
+        bottom: 10,
+        viewport_unit: 'document',
+        coordinate_alignment: 'verified',
+        viewport_scale_applied: 1,
+      });
+    });
+
+    it('normalizes the observed PCB ten-mil viewport to the requested mil center', async () => {
+      const tool = registry.get('easyeda_canvas_locate');
+      bridgeCall.mockResolvedValue({
+        left: 353.75,
+        right: 579.25,
+        top: 28.36,
+        bottom: -94.36,
+      });
+
+      const result = await tool?.handler(context, { x: 4665, y: -330, scaleRatio: 14 });
+
+      expect(result).toMatchObject({
+        located: true,
+        left: 3537.5,
+        right: 5792.5,
+        top: 283.6,
+        bottom: -943.6,
+        viewport_unit: 'document',
+        coordinate_alignment: 'verified',
+        viewport_scale_applied: 10,
+      });
+      expect(((result?.left as number) + (result?.right as number)) / 2).toBe(4665);
+      expect(((result?.top as number) + (result?.bottom as number)) / 2).toBe(-330);
+    });
+
+    it('preserves already same-unit zoom results without scaling', async () => {
+      const tool = registry.get('easyeda_canvas_locate');
+      bridgeCall.mockResolvedValue({ left: 100, right: 300, top: 100, bottom: -300 });
+
+      const result = await tool?.handler(context, { x: 200, y: -100 });
+      expect(result).toMatchObject({
+        located: true,
+        left: 100,
+        right: 300,
+        viewport_unit: 'document',
+        coordinate_alignment: 'verified',
+        viewport_scale_applied: 1,
+      });
+    });
+
+    it('does not infer units from origin-only, missing, or inconsistent viewport centers', async () => {
+      const tool = registry.get('easyeda_canvas_locate');
+      bridgeCall.mockResolvedValue({ left: -50, right: 50, top: 40, bottom: -40 });
+
+      const origin = await tool?.handler(context, { x: 0, y: 0 });
+      expect(origin).toMatchObject({
+        located: true,
+        viewport_unit: 'unverified',
+        coordinate_alignment: 'unverified',
+      });
+      expect(origin).not.toHaveProperty('viewport_scale_applied');
+
+      const missing = await tool?.handler(context, {});
+      expect(missing).toMatchObject({ viewport_unit: 'unverified' });
+
+      const inconsistent = await tool?.handler(context, { x: 12345, y: -678 });
+      expect(inconsistent).toMatchObject({ viewport_unit: 'unverified' });
+    });
+
+    it.each([
+      { left: NaN, right: 12, top: 5, bottom: 0 },
+      { left: 0, right: Number.POSITIVE_INFINITY, top: 5, bottom: 0 },
+      { left: 4, right: 4, top: 5, bottom: 0 },
+      { left: 0, right: 10, top: 5, bottom: 5 },
+      { left: 0, right: undefined, top: 5, bottom: 0 },
+    ])('does not claim a valid viewport for malformed native bounds: %o', async (raw) => {
+      const tool = registry.get('easyeda_canvas_locate');
+      bridgeCall.mockResolvedValue(raw);
+      const result = await tool?.handler(context, { x: 5, y: 5 });
+      expect(result).toMatchObject({ located: false, not_available: true });
     });
 
     it('reports not_available when EasyEDA cannot zoom to the coordinate (returns false)', async () => {

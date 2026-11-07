@@ -24,7 +24,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_bridge_status`                            | `core`         | `low`    | Check EasyEDA Pro bridge connection status, version, and capabilities.                                                                                                                                                                                                                                                        |
 | `easyeda_canvas_capture`                           | `core`         | `low`    | Capture the visible EasyEDA schematic/PCB canvas as PNG. Captures the given tab or last-focused tab. Oversized PNGs are downsampled without cropping and report original/final dimensions.                                                                                                                                    |
 | `easyeda_canvas_capture_region`                    | `core`         | `low`    | Zoom to a rectangular document/canvas region and capture it as PNG. This moves the visible viewport. Oversized PNGs are downsampled without cropping, preserving the complete requested region.                                                                                                                               |
-| `easyeda_canvas_locate`                            | `core`         | `low`    | Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.                                                                  |
+| `easyeda_canvas_locate`                            | `core`         | `low`    | Zoom canvas to x/y (PCB/footprint: mil; schematic/symbol: 0.01 inch). scaleRatio 200 means 200%. Returned viewport bounds use requested document units only when center-based 1x/10x scaling is verified; otherwise the unit is unverified. Changes the user's viewport.                                                      |
 | `easyeda_catalog_list`                             | `pro`          | `low`    | List devices cached by easyeda_catalog_verify_device, with their validation status and provenance. Optionally filter by status (resolved/partial/unresolved). This is a local cache only — never redistributed.                                                                                                               |
 | `easyeda_catalog_verify_device`                    | `pro`          | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.                          |
 | `easyeda_component_probe`                          | `dev`          | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                                          |
@@ -681,7 +681,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Zoom the EasyEDA canvas to a coordinate/scale (document/canvas coordinates), returning the resulting viewport rectangle. Useful to frame a location before calling easyeda_canvas_capture, or standalone to navigate the user's view to a point of interest.
+> Zoom canvas to x/y (PCB/footprint: mil; schematic/symbol: 0.01 inch). scaleRatio 200 means 200%. Returned viewport bounds use requested document units only when center-based 1x/10x scaling is verified; otherwise the unit is unverified. Changes the user's viewport.
 
 ### Input Parameters
 
@@ -703,6 +703,9 @@ Returns a JSON object matching the schema:
   right: number(optional);
   top: number(optional);
   bottom: number(optional);
+  viewport_unit: 'document' | 'unverified'(optional);
+  coordinate_alignment: 'verified' | 'unverified'(optional);
+  viewport_scale_applied: number(optional);
   not_available: boolean(optional);
   error: string(optional);
 }
