@@ -430,13 +430,13 @@ async function readBoundedCollection(
   // during geometry review; never claim coverage beyond this bounded budget.
   const maxRows = method === 'pcb.listTracks' ? MAX_ROUTE_TRACKS : MAX_ROUTE_VIAS;
   const items: Array<NativeTrack | NativeVia> = [];
-  let total: number | undefined;
+  let total = 0;
   while (items.length < maxRows) {
     const offset = items.length;
     const limit = Math.min(WINDOW, maxRows - offset);
     const data = await ctx.bridge.call(method, { projectId, limit, offset });
     const parsed = (method === 'pcb.listTracks' ? trackListSchema : viaListSchema).parse(data);
-    if (total !== undefined && parsed.total !== total) {
+    if (offset > 0 && parsed.total !== total) {
       throw new Error(method + ': native total changed across native pages');
     }
     total = parsed.total;
@@ -446,7 +446,7 @@ async function readBoundedCollection(
     items.push(...parsed.items);
     if (items.length === total || parsed.items.length < limit) break;
   }
-  return { total: total ?? 0, items: items as NativeTrack[] | NativeVia[] };
+  return { total, items: items as NativeTrack[] | NativeVia[] };
 }
 
 async function collectRouteEvidence(ctx: ToolContext, projectId: string, sourceMismatch: boolean) {

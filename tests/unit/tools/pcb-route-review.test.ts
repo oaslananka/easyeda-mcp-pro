@@ -284,6 +284,50 @@ describe('native PCB route geometry review MCP contract', () => {
     );
   });
 
+  it('rejects native pages reporting fewer primitives than they actually return', async () => {
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listTracks'
+        ? {
+            total: 1,
+            items: [
+              {
+                primitiveId: 't1',
+                net: 'N',
+                layer: 1,
+                startX: 0,
+                startY: 0,
+                endX: 30,
+                endY: 0,
+                width: 8,
+              },
+              {
+                primitiveId: 't2',
+                net: 'N',
+                layer: 1,
+                startX: 40,
+                startY: 0,
+                endX: 70,
+                endY: 0,
+                width: 8,
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const result = await run();
+    expect(result.input_evidence).toMatchObject({
+      tracks: 'unavailable',
+      collection_complete: false,
+    });
+    expect(result.errors).toEqual([
+      expect.stringContaining('native total is smaller than returned item count'),
+    ]);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({ rule_id: 'NATIVE_COLLECTION_INCOMPLETE', status: 'UNKNOWN' }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('stops at the route source budget without claiming the remainder was checked', async () => {
     bridgeCall.mockImplementation(
       async (method: string, params: { limit: number; offset: number }) => {
