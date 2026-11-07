@@ -351,17 +351,100 @@ describe('source-backed native differential-pair evidence', () => {
     }
   });
 
-  it('nonparallel or nonoverlapping segments cannot manufacture spacing evidence', () => {
+  it('nonparallel, noncontacting, or different-layer segments cannot manufacture a passing gap', () => {
     const cases = [
       [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 200, 20, 300, 20)],
-      [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 50, -50, 50, 50)],
-      [a('p', 'P', 0, 0, 100, 0), { ...a('n', 'N', 0, 20, 100, 20), layer: 2 }],
+      [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 150, -50, 150, 50)],
+      [a('p', 'P', 0, 0, 100, 0), { ...a('n', 'N', 0, 0, 100, 0), layer: 2 }],
     ];
     for (const tracks of cases) {
       const result = reviewDifferentialPair({ ...declared, minEdgeGapMm: 0.2 }, tracks, [], true);
       expect(result.spacing.status).toBe('UNKNOWN');
       expect(result.spacing.sample_count).toBe(0);
+      expect(result.spacing.observed_contact_count ?? 0).toBe(0);
     }
+  });
+
+  it.each([
+    ['perpendicular crossing', a('p', 'P', 0, 0, 100, 0), a('n', 'N', 50, -50, 50, 50)],
+    ['T-junction', a('p', 'P', 0, 0, 100, 0), a('n', 'N', 50, 0, 50, 80)],
+    ['endpoint contact', a('p', 'P', 0, 0, 100, 0), a('n', 'N', 100, 0, 160, 80)],
+    ['near-endpoint width overlap', a('p', 'P', 0, 0, 100, 0), a('n', 'N', 106, 6, 150, 45)],
+  ])('warns for %s without a parallel sample or declared limit', (_label, p, n) => {
+    const result = reviewDifferentialPair(declared, [p, n], [], true);
+    expect(result.status).toBe('WARNING');
+    expect(result.spacing.status).toBe('WARNING');
+    expect(result.spacing.sample_count).toBe(0);
+    expect(result.spacing.observed_contact_count).toBe(1);
+    expect(result.spacing.observed_mm).toBeLessThanOrEqual(0);
+    expect(result.spacing.observed_max_mm).toBeUndefined();
+    expect(result.spacing.note).toMatch(/2D/);
+    expect(result.findings.some((entry) => entry.id === 'pair:spacing')).toBe(true);
+    expect(result.impedance_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('crossing evidence overrides otherwise within-limit parallel samples', () => {
+    const tracks = [
+      a('p1', 'P', 0, 0, 100, 0),
+      a('p2', 'P', 100, 0, 100, 100),
+      a('n1', 'N', 0, 20, 100, 20),
+    ];
+    const result = reviewDifferentialPair(
+      { ...declared, minEdgeGapMm: 0.15, maxEdgeGapMm: 0.5 },
+      tracks,
+      [],
+      true,
+    );
+    expect(result.spacing).toMatchObject({
+      status: 'WARNING',
+      sample_count: 1,
+      observed_contact_count: 1,
+    });
+    expect(result.spacing.observed_mm).toBeLessThan(0);
+    expect(result.spacing.observed_max_mm).toBeCloseTo(0.254, 5);
+    expect(result.skew.status).toBe('UNKNOWN');
+    expect(result.paths.positive.coverage).toBe('OBSERVED_SINGLE_CHAIN');
+    expect(result.impedance_status).toBe('UNKNOWN');
+  });
+
+  it('withholds copper contact claims from incomplete or invalid native inventories', () => {
+    const crossing = [a('p', 'P', 0, 0, 100, 0), a('n', 'N', 50, -50, 50, 50)];
+    const fixtures = [
+      { tracks: crossing, complete: false },
+      { tracks: [crossing[0]!, { ...crossing[1]!, primitiveId: 'p' }], complete: true },
+      { tracks: [crossing[0]!, { ...crossing[1]!, layer: 12 }], complete: true },
+      { tracks: [crossing[0]!, { ...crossing[1]!, startX: Number.NaN }], complete: true },
+    ];
+    for (const { tracks, complete } of fixtures) {
+      const result = reviewDifferentialPair(declared, tracks, [], complete);
+      expect(result.spacing.status).toBe('UNKNOWN');
+      expect(result.spacing.observed_contact_count).toBeUndefined();
+      expect(result.spacing.observed_mm).toBeUndefined();
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('bounds parallel-gap summary memory for a large native inventory', () => {
+    const tracks = [
+      ...Array.from({ length: 500 }, (_, i) => a('p' + i, 'P', 0, 0, 100, 0)),
+      ...Array.from({ length: 500 }, (_, i) => a('n' + i, 'N', 0, 20, 100, 20)),
+    ];
+    const result = reviewDifferentialPair(
+      { ...declared, minEdgeGapMm: 0.2, maxEdgeGapMm: 0.4 },
+      tracks,
+      [],
+      true,
+    );
+    expect(result.spacing).toMatchObject({
+      status: 'WITHIN_DECLARED_LIMIT_REFERENCE',
+      sample_count: 250_000,
+      observed_contact_count: 0,
+    });
+    expect(result.paths.positive.coverage).toBe('AMBIGUOUS');
+    expect(result.paths.negative.coverage).toBe('AMBIGUOUS');
+    expect(result.skew.status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
   });
 
   it('reports touching pair copper as a warning even with only a maximum gap limit', () => {

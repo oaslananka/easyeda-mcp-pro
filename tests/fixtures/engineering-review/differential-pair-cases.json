@@ -199,9 +199,9 @@
       "maxSkewMm": 0.2
     },
     "expected": {
-      "status": "UNKNOWN",
+      "status": "WARNING",
       "skew": "UNKNOWN",
-      "spacing": "UNKNOWN",
+      "spacing": "WARNING",
       "positiveCoverage": "AMBIGUOUS",
       "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
     }

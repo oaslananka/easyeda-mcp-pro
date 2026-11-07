@@ -307,7 +307,10 @@ function pointToSegmentDistance(point: Point, a: Point, b: Point): number {
   );
   return Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy);
 }
-function minimumCenterDistanceMil(a: CopperSegment, b: CopperSegment): number {
+/** Source-backed shortest native 2D segment centerline distance, in mil.
+ * A geometric observation only: no pad, via, pour or physical net connectivity proof.
+ */
+export function minimumCenterDistanceMil(a: CopperSegment, b: CopperSegment): number {
   const a0 = { x: a.startX, y: a.startY },
     a1 = { x: a.endX, y: a.endY };
   const b0 = { x: b.startX, y: b.startY },

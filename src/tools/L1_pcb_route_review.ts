@@ -281,6 +281,7 @@ const differentialPairResultSchema = z.object({
   spacing: measurementSchema.extend({
     observed_max_mm: z.number().optional(),
     sample_count: z.number().int().nonnegative(),
+    observed_contact_count: z.number().int().nonnegative().optional(),
   }),
   findings: z.array(
     z.object({
