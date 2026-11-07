@@ -7,6 +7,7 @@ import {
   ErrorCodes,
   remoteRiskForTool,
   sideEffectForTool,
+  getRequiredToolScopes,
 } from '../../../src/tools/registry.js';
 import { type ToolDefinition, type ToolContext } from '../../../src/tools/types.js';
 import { registerBuiltinTools } from '../../../src/tools/register.js';
@@ -848,6 +849,8 @@ describe('ToolRegistry', () => {
     });
     expect(remoteRiskForTool(read!)).toBe('read');
     expect(remoteRiskForTool(write!)).toBe('destructive');
+    expect(getRequiredToolScopes(read!)).toEqual(['api:read']);
+    expect(getRequiredToolScopes(write!)).toEqual(['api:write']);
     const bridgeCall = vi.fn().mockResolvedValue({
       path: 'PCB_PrimitiveVia.getAll',
       result: [{ state: { PrimitiveId: 'via-a' } }],

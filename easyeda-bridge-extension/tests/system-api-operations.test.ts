@@ -78,6 +78,14 @@ describe('system API operations', () => {
       false,
     );
     expect(dependencies.callAllowedApi).not.toHaveBeenCalled();
+    await expect(
+      operations.apiRead({
+        path: 123,
+        args: 'unexpected',
+        includeMethods: true,
+      }),
+    ).resolves.toEqual({ path: '', args: [] });
+    expect(dependencies.callReadOnlyApi).toHaveBeenLastCalledWith('', [], undefined, true);
   });
 
   it('preserves api.execute validation, eda injection, and normalized result shape', async () => {
