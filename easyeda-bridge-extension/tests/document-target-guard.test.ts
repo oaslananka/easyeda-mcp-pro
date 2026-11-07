@@ -12,13 +12,22 @@ function makeDispatcher(focusedUuid: string, type = 3) {
   const modifySchematic = vi.fn(async () => true);
   const getCurrentDocumentInfo = vi.fn(async () => ({
     uuid: focusedUuid,
-    name: type === 3 ? 'Production PCB' : 'Schematic page',
     documentType: type,
     parentProjectUuid: 'project-1',
   }));
   const global = {
     DMT_SelectControl: { getCurrentDocumentInfo },
     DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'project-1' }) },
+    DMT_Pcb: {
+      getCurrentPcbInfo: async () => ({
+        uuid: focusedUuid,
+        name: 'Production PCB',
+        parentProjectUuid: 'project-1',
+      }),
+    },
+    DMT_Schematic: {
+      getCurrentSchematicPageInfo: async () => ({ uuid: focusedUuid, name: 'Schematic page' }),
+    },
     PCB_PrimitiveLine: { create: mutateTrack, delete: deleteLine },
     SCH_PrimitiveComponent: { modify: modifySchematic },
   };
@@ -117,14 +126,28 @@ describe('document target verification edge cases', () => {
   function scopedReaders(documentInfo: unknown, projectInfo: unknown = { uuid: 'project-1' }) {
     const getCurrentDocumentInfo = vi.fn(async () => documentInfo);
     const getCurrentProjectInfo = vi.fn(async () => projectInfo);
+    const doc = documentInfo as Record<string, unknown> | null;
+    const getCurrentPcbInfo = vi.fn(async () => ({
+      uuid: doc?.uuid,
+      name: 'Known PCB',
+      parentProjectUuid: doc?.parentProjectUuid,
+    }));
+    const getCurrentSchematicPageInfo = vi.fn(async () => ({
+      uuid: doc?.uuid,
+      name: 'Known schematic page',
+    }));
     return {
       readFirstPath: <T>(paths: readonly string[]): T | undefined => {
         if (paths[0] === 'DMT_SelectControl') return { getCurrentDocumentInfo } as T;
         if (paths[0] === 'DMT_Project') return { getCurrentProjectInfo } as T;
+        if (paths[0] === 'DMT_Pcb') return { getCurrentPcbInfo } as T;
+        if (paths[0] === 'DMT_Schematic') return { getCurrentSchematicPageInfo } as T;
         return undefined;
       },
       getCurrentDocumentInfo,
       getCurrentProjectInfo,
+      getCurrentPcbInfo,
+      getCurrentSchematicPageInfo,
     };
   }
   const focused = {
@@ -190,7 +213,7 @@ describe('document target verification edge cases', () => {
     expect(reader.getCurrentDocumentInfo).toHaveBeenCalledOnce();
   });
 
-  it('accepts a matching schematic page and returns its identity without an optional name', async () => {
+  it('accepts a matching schematic page and resolves its native page name', async () => {
     const reader = scopedReaders({
       uuid: 'page-2',
       documentType: 1,
@@ -204,7 +227,11 @@ describe('document target verification edge cases', () => {
       reader.readFirstPath,
       errorFactory,
     );
-    expect(result).toEqual({ uuid: 'page-2', documentType: 'schematic' });
+    expect(result).toEqual({
+      uuid: 'page-2',
+      name: 'Known schematic page',
+      documentType: 'schematic',
+    });
   });
 
   it('rejects a focused schematic when the expected PCB UUID happens to match', async () => {
@@ -265,8 +292,81 @@ describe('document target verification edge cases', () => {
     ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
   });
 
+  it.each([
+    [
+      { uuid: 'different-board', name: 'Unexpected PCB', parentProjectUuid: 'project-1' },
+      'uuid changed',
+    ],
+    [
+      { uuid: 'expected-board', name: 'Known PCB', parentProjectUuid: 'different-project' },
+      'project changed',
+    ],
+    [{ uuid: 'expected-board', name: '', parentProjectUuid: 'project-1' }, 'empty native name'],
+    [{ uuid: 'expected-board', name: '  ', parentProjectUuid: 'project-1' }, 'blank native name'],
+    [null, 'native getter returned null'],
+  ])('fails closed on native PCB identity disagreement: %s (%s)', async (native) => {
+    const reader = scopedReaders(focused);
+    reader.getCurrentPcbInfo.mockResolvedValueOnce(native as never);
+    await expect(
+      assertExpectedDocument(
+        'pcb.addTrack',
+        { expectedPcbUuid: 'expected-board' },
+        reader.readFirstPath,
+        errorFactory,
+      ),
+    ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+  });
+
+  it('rejects native metadata read errors after confirming selected document', async () => {
+    const reader = scopedReaders(focused);
+    reader.getCurrentPcbInfo.mockRejectedValueOnce(new Error('native read failed'));
+    await expect(
+      assertExpectedDocument(
+        'pcb.addTrack',
+        { expectedPcbUuid: 'expected-board' },
+        reader.readFirstPath,
+        errorFactory,
+      ),
+    ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+  });
+
+  it('refuses a guard if the focused document has no native PCB metadata method', async () => {
+    const reader = scopedReaders(focused);
+    const originalRead = reader.readFirstPath;
+    const withoutPcbGetter = <T>(paths: readonly string[]): T | undefined =>
+      paths[0] === 'DMT_Pcb' ? undefined : originalRead<T>(paths);
+    await expect(
+      assertExpectedDocument(
+        'pcb.addTrack',
+        { expectedPcbUuid: 'expected-board' },
+        withoutPcbGetter,
+        errorFactory,
+      ),
+    ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+  });
+
+  it('refuses a focused schematic page if native page metadata refers to a different page', async () => {
+    const reader = scopedReaders({
+      uuid: 'schematic-one',
+      documentType: 1,
+      parentProjectUuid: 'project-1',
+    });
+    reader.getCurrentSchematicPageInfo.mockResolvedValueOnce({
+      uuid: 'schematic-other',
+      name: 'Other page',
+    });
+    await expect(
+      assertExpectedDocument(
+        'schematic.modifyPrimitive',
+        { expectedSchematicPageUuid: 'schematic-one' },
+        reader.readFirstPath,
+        errorFactory,
+      ),
+    ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+  });
+
   it('does not attach evidence to arrays, scalars or absent targets', () => {
-    const evidence = { uuid: 'expected-board', documentType: 'pcb' as const };
+    const evidence = { uuid: 'expected-board', name: 'Known PCB', documentType: 'pcb' as const };
     expect(withTargetDocumentEvidence([1, 2], evidence)).toEqual([1, 2]);
     expect(withTargetDocumentEvidence('ok', evidence)).toBe('ok');
     expect(withTargetDocumentEvidence({ count: 1 })).toEqual({ count: 1 });
