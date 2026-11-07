@@ -48,6 +48,23 @@ describe('PCB constraint tools', () => {
     expect(registry.get('easyeda_pcb_production_review')).toBeDefined();
   });
 
+  it('uses independent caller-supplied stackup counts only to detect a real mismatch', async () => {
+    const tool = registry.get('easyeda_pcb_production_review');
+    const result = await tool?.handler(context, {
+      projectId: 'explicit-stackup-evidence',
+      boardData: {
+        layerCount: 6,
+        stackupCopperLayerCount: 4,
+        hasLayerStack: true,
+      },
+    });
+    expect(result?.errors).toContainEqual(
+      expect.objectContaining({ code: 'PCB_LAYER_COUNT_MISMATCH', severity: 'error' }),
+    );
+    expect(result?.passed).toBe(false);
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_pcb_production_review returns severity-ranked production findings', async () => {
     const tool = registry.get('easyeda_pcb_production_review');
     expect(tool).toBeDefined();

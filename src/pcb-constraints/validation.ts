@@ -128,30 +128,30 @@ function checkMissingStackup(input: PcbConstraintInput): PcbConstraintIssue[] {
 
 // ── Rule: layer count mismatch ─────────────────────────────────────────────
 
-const MAX_LAYERS_WITHOUT_STACKUP = 2;
-
 function checkLayerCountMismatch(input: PcbConstraintInput): PcbConstraintIssue[] {
-  const issues: PcbConstraintIssue[] = [];
-
   if (
-    input.layerCount &&
-    input.layerCount > MAX_LAYERS_WITHOUT_STACKUP &&
-    input.hasLayerStack === false
+    input.layerCount === undefined ||
+    input.stackupCopperLayerCount === undefined ||
+    input.layerCount === input.stackupCopperLayerCount
   ) {
-    issues.push(
-      pcbError(
-        'PCB_LAYER_COUNT_MISMATCH',
-        `Board has ${input.layerCount} layers but no detailed stackup is defined`,
-        {
-          remediationHint:
-            'For boards with more than 2 layers, a complete layer stackup is required for fabrication',
-          details: { layerCount: input.layerCount },
-        },
-      ),
-    );
+    return [];
   }
-
-  return issues;
+  // Missing manufacturer-controlled stackup is unverified, not a mismatch.
+  // Only two independently observed copper-layer counts can contradict.
+  return [
+    pcbError(
+      'PCB_LAYER_COUNT_MISMATCH',
+      `Board has ${input.layerCount} copper layers, but the supplied stackup defines ${input.stackupCopperLayerCount}`,
+      {
+        remediationHint:
+          'Reconcile the board copper-layer count with the documented manufacturing stackup.',
+        details: {
+          layerCount: input.layerCount,
+          stackupCopperLayerCount: input.stackupCopperLayerCount,
+        },
+      },
+    ),
+  ];
 }
 
 // ── Rule: missing mounting holes ───────────────────────────────────────────
@@ -627,10 +627,11 @@ const RULE_EVIDENCE: RuleEvidence[] = [
   {
     area: 'Layer count',
     fields: (i) =>
-      i.layerCount !== undefined && i.layerCount <= 2
+      (i.layerCount === undefined || i.layerCount <= 2) && i.stackupCopperLayerCount === undefined
         ? ['layerCount']
-        : ['layerCount', 'hasLayerStack'],
-    skip: (i) => i.layerCount !== undefined && i.layerCount <= 2,
+        : ['layerCount', 'stackupCopperLayerCount'],
+    skip: (i) =>
+      i.layerCount !== undefined && i.layerCount <= 2 && i.stackupCopperLayerCount === undefined,
   },
   { area: 'Mounting holes', fields: fields('mountingHoleCount') },
   { area: 'Net classes', fields: fields('hasNetClasses') },
@@ -763,7 +764,7 @@ const RULES: RuleFn[] = [
  *   1. Missing outline         — error  if board outline is not defined
  *   2. Outline too small       — warning if dimensions are below 5mm
  *   3. Missing stackup         — warning if no detailed layer stack
- *   4. Layer count mismatch    — error  if >2 layers without stackup
+ *   4. Layer count mismatch    — error only when independently observed counts disagree
  *   5. Missing mounting holes  — warning if zero mounting holes
  *   6. Missing net classes     — warning if no routing rules
  *   7. Invalid clearance       — warning if net classes but no clearance rules

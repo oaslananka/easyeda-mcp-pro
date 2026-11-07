@@ -430,10 +430,19 @@ describe('board inspection operations', () => {
         pcb_PrimitivePad: {
           getAll: async () => [
             { getState_Hole: () => null, getState_Metallization: () => true },
-            { getState_Hole: () => ['ROUND', 43.308], getState_Metallization: () => true },
-            { getState_Hole: () => ['SLOT', 30, 60], getState_Metallization: () => false },
+            {
+              getState_Layer: () => 12,
+              getState_Hole: () => ['ROUND', 43.308],
+              getState_Metallization: () => true,
+            },
+            {
+              getState_Layer: () => 12,
+              getState_Hole: () => ['SLOT', 30, 60],
+              getState_Metallization: () => false,
+            },
           ],
         },
+        pcb_PrimitiveVia: { getAll: async () => [] },
       },
     );
 
@@ -449,6 +458,140 @@ describe('board inspection operations', () => {
       unknownFields: [],
       areaMm2: 120,
       hasOutline: true,
+    });
+  });
+
+  it('excludes SMD pad phantom holes and includes actual native via drill diameters', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'six-layer-pcb' }) } },
+      {
+        pcb_PrimitivePad: {
+          getAll: async () => [
+            { getState_Layer: () => 1, getState_Hole: () => ['ROUND', 0.66144] },
+            {
+              getState_Layer: () => 12,
+              getState_Hole: () => ['ROUND', 20],
+              getState_Metallization: () => true,
+            },
+          ],
+        },
+        pcb_PrimitiveVia: {
+          getAll: async () => [
+            { getState_HoleDiameter: () => 8 },
+            { getState_HoleDiameter: () => 12 },
+          ],
+        },
+      },
+    );
+
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      drilledPadCount: 1,
+      platedDrillPadCount: 1,
+      unplatedDrillPadCount: 0,
+      minDrillMm: 0.2032,
+      unknownFields: [],
+    });
+  });
+
+  it('keeps board minimum drill unknown when native via inventory cannot be read', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'no-via-api' }) } },
+      {
+        pcb_PrimitivePad: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 12,
+              getState_Hole: () => ['ROUND', 20],
+              getState_Metallization: () => true,
+            },
+          ],
+        },
+      },
+    );
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      drilledPadCount: 1,
+      minDrillMm: undefined,
+      unknownFields: ['minDrillMm'],
+    });
+  });
+
+  it('does not fabricate a minimum drill from an invalid native via or an unclassified pad', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'untrusted-drill-input' }) } },
+      {
+        pcb_PrimitivePad: {
+          getAll: async () => [{ getState_Hole: () => ['ROUND', 5] }],
+        },
+        pcb_PrimitiveVia: {
+          getAll: async () => [{ getState_HoleDiameter: () => -1 }],
+        },
+      },
+    );
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      drilledPadCount: undefined,
+      minDrillMm: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
+    });
+  });
+
+  it.each([
+    { label: 'unrecognized drill shape', hole: ['OBLONG', 20] },
+    { label: 'zero-diameter drill', hole: ['ROUND', 0] },
+  ])('marks drilled pad state unknown for $label', async ({ hole }) => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'invalid-pad-hole' }) } },
+      {
+        pcb_PrimitivePad: {
+          getAll: async () => [{ getState_Layer: () => 12, getState_Hole: () => hole }],
+        },
+        pcb_PrimitiveVia: { getAll: async () => [] },
+      },
+    );
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      minDrillMm: undefined,
+      drilledPadCount: undefined,
+      unknownFields: [
+        'drilledPadCount',
+        'platedDrillPadCount',
+        'unplatedDrillPadCount',
+        'minDrillMm',
+      ],
+    });
+  });
+
+  it.each([
+    { label: 'malformed native via inventory', getAll: async () => ({ invalid: true }) },
+    {
+      label: 'failed native via inventory',
+      getAll: async () => Promise.reject(new Error('via reader offline')),
+    },
+  ])('does not infer a minimum drill from $label', async ({ getAll }) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'via-evidence-missing' }) } },
+      {
+        pcb_PrimitivePad: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 12,
+              getState_Hole: () => ['ROUND', 30],
+              getState_Metallization: () => true,
+            },
+          ],
+        },
+        pcb_PrimitiveVia: { getAll },
+      },
+    );
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      drilledPadCount: 1,
+      platedDrillPadCount: 1,
+      minDrillMm: undefined,
+      unknownFields: ['minDrillMm'],
     });
   });
 
@@ -487,8 +630,9 @@ describe('board inspection operations', () => {
       {
         pcb_PrimitiveLine: { getAll: async () => [] },
         pcb_PrimitivePad: {
-          getAll: async () => [{ getState_Hole: () => ['ROUND', 25] }],
+          getAll: async () => [{ getState_Layer: () => 12, getState_Hole: () => ['ROUND', 25] }],
         },
+        pcb_PrimitiveVia: { getAll: async () => [] },
       },
     );
 
