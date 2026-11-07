@@ -126,6 +126,124 @@ describe('versioned manufacturer process observations (not fabrication approval)
     }
   });
 
+  it('compares caller-sourced trace width and signed copper gap without a fabricated DFM pass', () => {
+    const profile = {
+      ...ref,
+      limits: { minimumTraceWidthMm: 0.15, minimumTrackGapMm: 0.16 },
+    };
+    const under = reviewManufacturerProfile(
+      profile,
+      { minObservedTraceWidthMm: 0.12, minObservedCopperGapMm: -0.08 },
+      'caller_supplied_unverified',
+    );
+    expect(under.status).toBe('WARNING');
+    expect(under.findings).toEqual([
+      expect.objectContaining({
+        id: 'minimumTraceWidthMm',
+        source_field: 'minObservedTraceWidthMm',
+        status: 'WARNING',
+        actual: 0.12,
+        comparison: 'BELOW_DECLARED_LIMIT',
+        measurement_evidence: 'caller_supplied_unverified',
+      }),
+      expect.objectContaining({
+        id: 'minimumTrackGapMm',
+        source_field: 'minObservedCopperGapMm',
+        status: 'WARNING',
+        actual: -0.08,
+        comparison: 'BELOW_DECLARED_LIMIT',
+        measurement_evidence: 'caller_supplied_unverified',
+      }),
+    ]);
+    expect(under.limitations.join(' ')).toMatch(/complete native trace inventory/);
+    expect(under.fabrication_approval).toBe(false);
+
+    const within = reviewManufacturerProfile(
+      profile,
+      { minObservedTraceWidthMm: 0.2, minObservedCopperGapMm: 0.25 },
+      'caller_supplied_unverified',
+    );
+    expect(within.status).toBe('UNKNOWN');
+    expect(within.findings).toEqual([
+      expect.objectContaining({ comparison: 'WITHIN_DECLARED_LIMIT', status: 'UNKNOWN' }),
+      expect.objectContaining({ comparison: 'WITHIN_DECLARED_LIMIT', status: 'UNKNOWN' }),
+    ]);
+    expect(within.fabrication_approval).toBe(false);
+  });
+
+  it('fails closed when a track/space minimum is missing, malformed, or not native-sourced', () => {
+    const profile = {
+      ...ref,
+      limits: { minimumTraceWidthMm: 0.15, minimumTrackGapMm: 0.15 },
+    };
+    const missing = reviewManufacturerProfile(profile, {}, 'native_partial_unverified');
+    expect(missing.status).toBe('UNKNOWN');
+    expect(missing.findings).toEqual([
+      expect.objectContaining({
+        id: 'minimumTraceWidthMm',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      }),
+      expect.objectContaining({
+        id: 'minimumTrackGapMm',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      }),
+    ]);
+    expect(missing.findings.every((f) => f.actual === undefined)).toBe(true);
+
+    for (const candidate of [Number.NaN, Number.POSITIVE_INFINITY, -10001]) {
+      const review = reviewManufacturerProfile(
+        profile,
+        { minObservedTraceWidthMm: -1, minObservedCopperGapMm: candidate },
+        'caller_supplied_unverified',
+      );
+      expect(review.findings.map((f) => f.comparison)).toEqual(['UNKNOWN', 'UNKNOWN']);
+      expect(review.findings.every((f) => f.actual === undefined)).toBe(true);
+    }
+
+    const corruptLimit = reviewManufacturerProfile(
+      { ...profile, limits: { minimumTrackGapMm: Number.NaN } },
+      { minObservedCopperGapMm: -0.1 },
+      'caller_supplied_unverified',
+    );
+    expect(corruptLimit.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      comparison: 'UNKNOWN',
+    });
+    expect(corruptLimit.findings[0]?.reason).toMatch(/invalid/i);
+  });
+
+  it('refuses testpoint coverage from casefold-ambiguous native net names', () => {
+    const profile = { ...ref, limits: { minimumCriticalNetTestpointRatio: 0.5 } };
+    for (const names of [
+      ['IO', 'io'],
+      ['VCC', 'vcc', 'GND'],
+    ]) {
+      const review = reviewManufacturerProfile(
+        profile,
+        { criticalNetNames: ['IO', 'GND'], testPointNets: names },
+        'caller_supplied_unverified',
+      );
+      expect(review.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      });
+      expect(review.findings[0]?.actual).toBeUndefined();
+    }
+    const repeatedExact = reviewManufacturerProfile(
+      profile,
+      { criticalNetNames: ['IO', 'GND'], testPointNets: ['IO', 'IO', 'GND'] },
+      'caller_supplied_unverified',
+    );
+    expect(repeatedExact.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      comparison: 'WITHIN_DECLARED_LIMIT',
+      actual: 1,
+    });
+  });
+
   it('explicitly distinguishes process violations from within-declared bounds', () => {
     const result = reviewManufacturerProfile(
       {

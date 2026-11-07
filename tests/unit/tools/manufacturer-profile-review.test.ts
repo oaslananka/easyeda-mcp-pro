@@ -108,6 +108,107 @@ describe('optional source-aware manufacturing profile on existing production rev
     expect(tool.outputSchema.parse(result)).toEqual(result);
   });
 
+  it('validates source-bound trace/space limits, signed overlap and output provenance', async () => {
+    const { tool, ctx, bridge } = setup();
+    const params = {
+      projectId: 'hypothetical-traces',
+      gateMode: 'block',
+      manufacturerProfile: {
+        ...manufacturerProfile,
+        limits: { minimumTraceWidthMm: 0.15, minimumTrackGapMm: 0.12 },
+      },
+      boardData: {
+        minObservedTraceWidthMm: 0.1,
+        minObservedCopperGapMm: -0.04,
+      },
+    };
+    expect(tool.inputSchema.safeParse(params).success).toBe(true);
+    const result = await tool.handler(ctx, params);
+    expect(bridge).not.toHaveBeenCalled();
+    expect(result.blocked).toBe(true);
+    expect(result.passed).toBe(false);
+    expect(result.manufacturing_profile_review).toMatchObject({
+      status: 'WARNING',
+      fabrication_approval: false,
+      input_evidence: 'caller_supplied_unverified',
+      findings: [
+        {
+          id: 'minimumTraceWidthMm',
+          actual: 0.1,
+          comparison: 'BELOW_DECLARED_LIMIT',
+          measurement_evidence: 'caller_supplied_unverified',
+        },
+        {
+          id: 'minimumTrackGapMm',
+          actual: -0.04,
+          comparison: 'BELOW_DECLARED_LIMIT',
+          measurement_evidence: 'caller_supplied_unverified',
+        },
+      ],
+    });
+    expect(tool.outputSchema.parse(result)).toEqual(result);
+
+    for (const invalid of [
+      { ...params, boardData: { minObservedCopperGapMm: Number.NEGATIVE_INFINITY } },
+      { ...params, boardData: { minObservedCopperGapMm: -10001 } },
+      {
+        ...params,
+        manufacturerProfile: {
+          ...params.manufacturerProfile,
+          limits: { minimumTrackGapMm: -0.1 },
+        },
+      },
+      {
+        ...params,
+        manufacturerProfile: {
+          ...params.manufacturerProfile,
+          limits: { minimumTraceWidthMm: Number.NaN },
+        },
+      },
+    ]) {
+      expect(tool.inputSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
+  it('does not invent native trace/space minima from a sparse board summary', async () => {
+    const { tool, ctx, bridge } = setup();
+    ctx.bridge.connected = true;
+    bridge.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions')
+        return { hasOutline: true, widthMm: 30, minObservedTraceWidthMm: 0.03 };
+      if (method === 'board.listLayers') return [];
+      return {};
+    });
+    const result = await tool.handler(ctx, {
+      projectId: 'native-traces-not-proven',
+      manufacturerProfile: {
+        ...manufacturerProfile,
+        limits: { minimumTraceWidthMm: 0.1, minimumTrackGapMm: 0.1 },
+      },
+    });
+    expect(bridge).toHaveBeenCalledTimes(4);
+    expect(result.manufacturing_profile_review.findings).toEqual([
+      expect.objectContaining({
+        id: 'minimumTraceWidthMm',
+        measurement_evidence: 'unavailable',
+        comparison: 'UNKNOWN',
+        status: 'UNKNOWN',
+      }),
+      expect.objectContaining({
+        id: 'minimumTrackGapMm',
+        measurement_evidence: 'unavailable',
+        comparison: 'UNKNOWN',
+        status: 'UNKNOWN',
+      }),
+    ]);
+    expect(
+      result.manufacturing_profile_review.findings.every(
+        (finding: { actual?: number }) => finding.actual === undefined,
+      ),
+    ).toBe(true);
+    expect(tool.outputSchema.parse(result)).toEqual(result);
+  });
+
   it('uses only sparse native board summary and does not infer holes/assembly completeness', async () => {
     const { tool, ctx, bridge } = setup();
     ctx.bridge.connected = true;

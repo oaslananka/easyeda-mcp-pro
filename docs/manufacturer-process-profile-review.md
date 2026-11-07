@@ -23,6 +23,8 @@ PCB technology without confirming the actual chosen process.
     "widthMm": 60,
     "heightMm": 40,
     "minDrillMm": 0.25,
+    "minObservedTraceWidthMm": 0.12,
+    "minObservedCopperGapMm": 0.11,
     "fiducialCount": 2,
     "toolingHoleCount": 0,
     "criticalNetNames": ["GND", "3V3", "RESET"],
@@ -35,6 +37,8 @@ PCB technology without confirming the actual chosen process.
     "source": "Illustrative, not an actual manufacturer datasheet",
     "limits": {
       "minimumFinishedDrillMm": 0.3,
+      "minimumTraceWidthMm": 0.15,
+      "minimumTrackGapMm": 0.15,
       "maximumBoardWidthMm": 100,
       "minimumFiducialCount": 3,
       "minimumToolingHoleCount": 2,
@@ -54,6 +58,17 @@ Available comparisons include:
 
 - Finished/mechanical minimum drill, minimum annular ring, minimum
   solder-mask web, and minimum copper-to-board-edge separation.
+- Minimum **reported** copper trace width (`minObservedTraceWidthMm`) and
+  minimum **reported** same-layer different-net projected copper edge gap
+  (`minObservedCopperGapMm`), each compared to a source-declared process
+  threshold (`minimumTraceWidthMm` / `minimumTrackGapMm`).
+  A **negative reported edge gap** represents a geometric overlap and warns,
+  not a verified physical short. These optional boardData values are supplied
+  by the caller, **not** inferred from the sparse native board summary. To
+  treat them as whole-board minima requires independent proof of a complete
+  source-bound trace inventory, copper layer coverage, correct unit conversion
+  and native DRC; the tool does not assert such proof. Missing values remain
+  `UNKNOWN`. In-range comparisons are still **not** a manufacturing pass.
 - Maximum supported board width and height. If the board outline is
   explicitly absent (`hasOutline: false`), reported canvas dimensions
   cannot establish a manufactured board size and those comparisons
@@ -66,10 +81,10 @@ Available comparisons include:
 - Ratio of marked polarized components and ratio of explicitly
   identified critical nets that have named test points. Test-point
   coverage uses **exact declared net names**: `IO` is not automatically
-  the same net as `io`. Blank or whitespace-padded names and ambiguous
-  duplicate critical-net inventories yield `UNKNOWN` instead of
-  fabricated test coverage. Repeated test points on the same exact net
-  can contribute only once.
+  the same net as `io`. Blank/whitespace-padded names and case-folding
+  collisions in either the critical-net inventory or the reported testpoint
+  inventory yield `UNKNOWN` instead of fabricated coverage. Multiple
+  testpoints on the same **exact** net remain valid and contribute only once.
 - Explicit programming header requirement.
 
 These are **declared board summary metrics**. They do not establish
@@ -83,8 +98,8 @@ When `boardData` is provided, the evidence class is
 four native board-summary read calls, resulting in
 `native_partial_unverified`. Native dimensional data and a minimum
 observed drill can be available; native mounting-hole classification,
-complete tooling/fiducial/testpoint inventories and fabrication
-package review are **not inferred** from drilled-pad counts.
+complete tooling/fiducial/testpoint inventories, trace-width/space minima
+and fabrication package review are **not inferred** from drilled-pad counts.
 
 The optional `manufacturing_profile_review` returns per-metric
 reported values, declared bounds, units, input field, comparison,
