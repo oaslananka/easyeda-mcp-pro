@@ -545,16 +545,14 @@ async function executeToolWithMetrics(
                 opts?: { timeoutMs?: number; traceparent?: string },
               ): Promise<TResult> => {
                 const bridgeParams = rawRecord(params);
-                const scopeMatches =
-                  method.startsWith('pcb.') ||
-                  method.startsWith('schematic.') ||
-                  method === 'api.call';
+                const pcbMatches = method.startsWith('pcb.') || method === 'api.call';
+                const schematicMatches = method.startsWith('schematic.') || method === 'api.call';
                 const result = await bridge.call<Record<string, unknown>, TResult>(
                   method,
                   {
                     ...bridgeParams,
-                    ...(scopeMatches && expectedPcbUuid !== undefined ? { expectedPcbUuid } : {}),
-                    ...(scopeMatches && expectedSchematicPageUuid !== undefined
+                    ...(pcbMatches && expectedPcbUuid !== undefined ? { expectedPcbUuid } : {}),
+                    ...(schematicMatches && expectedSchematicPageUuid !== undefined
                       ? { expectedSchematicPageUuid }
                       : {}),
                   },

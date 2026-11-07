@@ -1790,6 +1790,7 @@ describe('expected document guard input forwarding #946', () => {
         inputSchema: z.object({ confirmWrite: z.literal(true) }),
         outputSchema: z.object({ ok: z.boolean() }),
         handler: async (ctx) => {
+          await ctx.bridge.call('schematic.listNets', { projectId: 'project-1' });
           await ctx.bridge.call('pcb.addTrack', { netName: 'GND', points: [] });
           return { ok: true };
         },
@@ -1823,6 +1824,11 @@ describe('expected document guard input forwarding #946', () => {
       undefined,
     );
     expect(bridgeCall).toHaveBeenCalledWith('system.getStatus', {});
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'schematic.listNets',
+      { projectId: 'project-1' },
+      undefined,
+    );
     expect(result.structuredContent.targetDocument).toEqual({
       uuid: 'pcb-copy',
       name: 'Copy',
