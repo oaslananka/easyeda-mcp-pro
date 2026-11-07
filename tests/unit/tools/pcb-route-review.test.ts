@@ -1081,6 +1081,130 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.placement_review.findings[0].measured_center_distance_mm).toBeUndefined();
   });
 
+  it('paginates a 202-component board and finds both declared parts beyond the first page', async () => {
+    const items = Array.from({ length: 202 }, (_, index) => ({
+      primitiveId: 'part-' + index,
+      designator: index === 0 ? 'U1' : index === 201 ? 'C1' : 'R' + index,
+      x: index === 201 ? 200 : 0,
+      y: 0,
+      layer: 1,
+      rotation: 0,
+    }));
+    bridgeCall.mockImplementation(
+      async (method: string, params?: { limit?: number; offset?: number }) =>
+        method === 'pcb.listComponents'
+          ? {
+              total: items.length,
+              items: items.slice(
+                params?.offset ?? 0,
+                (params?.offset ?? 0) + (params?.limit ?? 200),
+              ),
+            }
+          : { total: 0, items: [] },
+    );
+    const result = await run({ placementRelations: [placement] });
+    expect(result.placement_review.input_evidence).toMatchObject({
+      components: 'observed',
+      native_total: 202,
+      returned_count: 202,
+      collection_complete: true,
+    });
+    expect(result.placement_review.findings[0]).toMatchObject({
+      evidence: 'native_component_origins',
+      primitive_ids: ['part-0', 'part-201'],
+      measured_center_distance_mm: 5.08,
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(bridgeCall.mock.calls.filter(([method]) => method === 'pcb.listComponents')).toEqual([
+      ['pcb.listComponents', { projectId: 'project-1', limit: 200, offset: 0 }],
+      ['pcb.listComponents', { projectId: 'project-1', limit: 200, offset: 200 }],
+    ]);
+    expect(result.placement_review.engineering_sign_off).toBe(false);
+  });
+
+  it('fails closed when the native component total changes between pages', async () => {
+    const page = Array.from({ length: 200 }, (_, index) => ({
+      primitiveId: 'part-' + index,
+      designator: index === 0 ? 'U1' : 'R' + index,
+      x: index,
+      y: 0,
+      layer: 1,
+    }));
+    bridgeCall.mockImplementation(async (method: string, params?: { offset?: number }) =>
+      method === 'pcb.listComponents'
+        ? params?.offset === 0
+          ? { total: 201, items: page }
+          : { total: 202, items: [{ primitiveId: 'c1', designator: 'C1', x: 0, y: 0, layer: 1 }] }
+        : { total: 0, items: [] },
+    );
+    const result = await run({ placementRelations: [placement] });
+    expect(result.errors.join(' ')).toContain('native total changed across pages');
+    expect(result.placement_review.input_evidence).toMatchObject({
+      components: 'unavailable',
+      collection_complete: false,
+    });
+    expect(result.placement_review.findings[0]?.measured_center_distance_mm).toBeUndefined();
+  });
+
+  it('does not treat a duplicated boundary row as a complete native inventory', async () => {
+    const items = Array.from({ length: 201 }, (_, index) => ({
+      primitiveId: index === 200 ? 'part-0' : 'part-' + index,
+      designator: index === 0 ? 'U1' : index === 200 ? 'C1' : 'R' + index,
+      x: index,
+      y: 0,
+      layer: 1,
+    }));
+    bridgeCall.mockImplementation(
+      async (method: string, params?: { limit?: number; offset?: number }) =>
+        method === 'pcb.listComponents'
+          ? {
+              total: 201,
+              items: items.slice(
+                params?.offset ?? 0,
+                (params?.offset ?? 0) + (params?.limit ?? 200),
+              ),
+            }
+          : { total: 0, items: [] },
+    );
+    const result = await run({ placementRelations: [placement] });
+    expect(result.placement_review.input_evidence).toMatchObject({
+      returned_count: 201,
+      collection_complete: false,
+    });
+    expect(result.placement_review.status).toBe('UNKNOWN');
+    expect(result.placement_review.findings[0]?.measured_center_distance_mm).toBeUndefined();
+  });
+
+  it('stops at the 1200-component budget without falsely completing a larger board', async () => {
+    const all = Array.from({ length: 1_201 }, (_, index) => ({
+      primitiveId: 'part-' + index,
+      designator: index === 0 ? 'U1' : index === 1 ? 'C1' : 'R' + index,
+      x: index,
+      y: 0,
+      layer: 1,
+    }));
+    bridgeCall.mockImplementation(
+      async (method: string, params?: { limit?: number; offset?: number }) =>
+        method === 'pcb.listComponents'
+          ? {
+              total: all.length,
+              items: all.slice(params?.offset ?? 0, (params?.offset ?? 0) + (params?.limit ?? 200)),
+            }
+          : { total: 0, items: [] },
+    );
+    const result = await run({ placementRelations: [placement] });
+    expect(result.placement_review.input_evidence).toMatchObject({
+      native_total: 1201,
+      returned_count: 1200,
+      collection_complete: false,
+    });
+    expect(result.placement_review.findings[0]?.status).toBe('UNKNOWN');
+    expect(result.placement_review.findings[0]?.measured_center_distance_mm).toBeUndefined();
+    const pages = bridgeCall.mock.calls.filter(([method]) => method === 'pcb.listComponents');
+    expect(pages).toHaveLength(6);
+    expect(pages.at(-1)?.[1]).toEqual({ projectId: 'project-1', limit: 200, offset: 1000 });
+  });
+
   it('fails closed when wrong PCB identity or unavailable native component getter prevents read', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'pcb.listComponents') throw new Error('focused PCB project UUID mismatch');
