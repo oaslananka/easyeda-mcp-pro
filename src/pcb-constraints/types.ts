@@ -97,6 +97,8 @@ export interface PcbConstraintInput {
   heightMm?: number;
   /** Number of copper layers. */
   layerCount?: number;
+  /** Independently observed number of copper layers in a stackup, when available. */
+  stackupCopperLayerCount?: number;
   /** Whether the board outline is defined. */
   hasOutline?: boolean;
   /** Whether mounting holes are present. */

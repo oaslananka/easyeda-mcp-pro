@@ -13,6 +13,7 @@ export const pcbBoardDataSchema = z.object({
   widthMm: z.number().nonnegative().optional(),
   heightMm: z.number().nonnegative().optional(),
   layerCount: z.number().int().nonnegative().optional(),
+  stackupCopperLayerCount: z.number().int().min(1).max(32).optional(),
   hasOutline: z.boolean().optional(),
   mountingHoleCount: z.number().int().nonnegative().optional(),
   hasLayerStack: z.boolean().optional(),

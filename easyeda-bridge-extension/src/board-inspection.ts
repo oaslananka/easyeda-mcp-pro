@@ -390,6 +390,7 @@ interface DrillAccumulator {
   minDrillMil: number;
   drillCountKnown: boolean;
   metallizationKnown: boolean;
+  viaDrillKnown: boolean;
 }
 
 type PadDrillState =
@@ -415,6 +416,11 @@ function createUnknownDrillSummary(): DrillSummary {
 async function readPadDrillState(pad: unknown): Promise<PadDrillState> {
   const hole = await readPrimitiveStateResolved(pad, 'Hole');
   if (hole === null) return { status: 'none' };
+  // A stale Hole property on a top/bottom SMD footprint pad is not a drill.
+  // If the pad's layer is unavailable, do not claim a board-wide minimum.
+  const layer = await readPrimitiveStateResolved(pad, 'Layer');
+  if (layer === 1 || layer === 2) return { status: 'none' };
+  if (layer !== 12) return { status: 'unknown' };
   if (!Array.isArray(hole) || (hole[0] !== 'ROUND' && hole[0] !== 'SLOT')) {
     return { status: 'unknown' };
   }
@@ -449,26 +455,51 @@ function addPadDrillState(summary: DrillAccumulator, drill: PadDrillState): void
   }
 }
 
+async function addNativeViaDrills(summary: DrillAccumulator, pcbViaClass: any): Promise<void> {
+  if (typeof pcbViaClass?.getAll !== 'function') {
+    summary.viaDrillKnown = false;
+    return;
+  }
+  try {
+    const vias = await pcbViaClass.getAll();
+    if (!Array.isArray(vias)) {
+      summary.viaDrillKnown = false;
+      return;
+    }
+    for (const via of vias) {
+      const diameterMil = readFiniteNumber(await readPrimitiveStateResolved(via, 'HoleDiameter'));
+      if (diameterMil === undefined || diameterMil <= 0) {
+        summary.viaDrillKnown = false;
+        return;
+      }
+      summary.minDrillMil = Math.min(summary.minDrillMil, diameterMil);
+    }
+  } catch (error) {
+    logRecoverableError('failed to read native via drill metadata', error);
+    summary.viaDrillKnown = false;
+  }
+}
+
 function finalizeDrillSummary(summary: DrillAccumulator): DrillSummary {
   const unknownFields: DrillSummary['unknownFields'] = [];
   if (!summary.drillCountKnown) unknownFields.push('drilledPadCount');
   if (!summary.metallizationKnown) {
     unknownFields.push('platedDrillPadCount', 'unplatedDrillPadCount');
   }
-  if (!summary.drillCountKnown) unknownFields.push('minDrillMm');
+  if (!summary.drillCountKnown || !summary.viaDrillKnown) unknownFields.push('minDrillMm');
   return {
     drilledPadCount: summary.drillCountKnown ? summary.drilledPadCount : undefined,
     platedDrillPadCount: summary.metallizationKnown ? summary.platedDrillPadCount : undefined,
     unplatedDrillPadCount: summary.metallizationKnown ? summary.unplatedDrillPadCount : undefined,
     minDrillMm:
-      summary.drillCountKnown && Number.isFinite(summary.minDrillMil)
+      summary.drillCountKnown && summary.viaDrillKnown && Number.isFinite(summary.minDrillMil)
         ? pcbMilToMm(summary.minDrillMil)
         : undefined,
     unknownFields,
   };
 }
 
-async function readDrillSummary(pcbPadClass: any): Promise<DrillSummary> {
+async function readDrillSummary(pcbPadClass: any, pcbViaClass: any): Promise<DrillSummary> {
   if (typeof pcbPadClass?.getAll !== 'function') return createUnknownDrillSummary();
 
   try {
@@ -482,8 +513,10 @@ async function readDrillSummary(pcbPadClass: any): Promise<DrillSummary> {
       minDrillMil: Infinity,
       drillCountKnown: true,
       metallizationKnown: true,
+      viaDrillKnown: true,
     };
     for (const pad of pads) addPadDrillState(summary, await readPadDrillState(pad));
+    await addNativeViaDrills(summary, pcbViaClass);
     return finalizeDrillSummary(summary);
   } catch (error) {
     logRecoverableError('failed to read PCB pad drill metadata', error);
@@ -638,6 +671,7 @@ export function createBoardInspectionOperations({
     const pcbArcClass = readPath<any>(globalObj, 'pcb_PrimitiveArc');
     const pcbPolylineClass = readPath<any>(globalObj, 'pcb_PrimitivePolyline');
     const pcbPadClass = readPath<any>(globalObj, 'pcb_PrimitivePad');
+    const pcbViaClass = readPath<any>(globalObj, 'pcb_PrimitiveVia');
     const pcbMathPolygonClass = readFirstPath<any>(['PCB_MathPolygon', 'pcb_MathPolygon']);
     const bounds = createEmptyBoundingBox();
 
@@ -649,7 +683,7 @@ export function createBoardInspectionOperations({
     const heightMil = bounds.maxY > bounds.minY ? bounds.maxY - bounds.minY : 0;
     const width = pcbMilToMm(widthMil);
     const height = pcbMilToMm(heightMil);
-    const drillSummary = await readDrillSummary(pcbPadClass);
+    const drillSummary = await readDrillSummary(pcbPadClass, pcbViaClass);
     const hasOutline = width > 0 && height > 0;
 
     return {

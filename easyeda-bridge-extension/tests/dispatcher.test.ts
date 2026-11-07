@@ -1672,7 +1672,11 @@ describe('createDispatcher', () => {
     const padGetAll = vi
       .fn()
       .mockResolvedValueOnce([
-        { getState_Hole: () => ['ROUND', 1], getState_Metallization: () => true },
+        {
+          getState_Layer: () => 12,
+          getState_Hole: () => ['ROUND', 1],
+          getState_Metallization: () => true,
+        },
       ])
       .mockResolvedValueOnce([1, 2]);
     const dispatcher = createDispatcher(
@@ -1681,7 +1685,12 @@ describe('createDispatcher', () => {
         pcb_PrimitiveLine: { getAll: lineGetAll },
         pcb_PrimitiveArc: { getAll: async () => [] },
         pcb_PrimitivePad: { getAll: padGetAll },
-        pcb_PrimitiveVia: { getAll: async () => [1] },
+        pcb_PrimitiveVia: {
+          getAll: vi
+            .fn()
+            .mockResolvedValueOnce([{ getState_HoleDiameter: () => 20 }])
+            .mockResolvedValueOnce([1]),
+        },
         pcb_PrimitivePour: { getAll: async () => [1, 2, 3, 4] },
         pcb_PrimitiveFill: { getAll: async () => [1, 2] },
         pcb_PrimitiveRegion: { getAll: async () => [1, 2, 3] },

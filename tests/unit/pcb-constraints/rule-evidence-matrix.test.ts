@@ -90,9 +90,9 @@ const cases: RuleScenario[] = [
   {
     area: 'Layer count',
     code: 'PCB_LAYER_COUNT_MISMATCH',
-    bad: { layerCount: 3, hasLayerStack: false },
-    edge: { layerCount: 2, hasLayerStack: false },
-    unknown: { layerCount: undefined },
+    bad: { layerCount: 3, stackupCopperLayerCount: 4 },
+    edge: { layerCount: 3, stackupCopperLayerCount: 3 },
+    unknown: { layerCount: 6, hasLayerStack: false, stackupCopperLayerCount: undefined },
   },
   {
     area: 'Mounting holes',

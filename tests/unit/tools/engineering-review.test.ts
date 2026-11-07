@@ -100,6 +100,24 @@ describe('evidence-based engineering review', () => {
     ]);
   });
 
+  it('treats supplier-controlled six-layer stackup as unknown, not a blocking mismatch', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') return { widthMm: 82, heightMm: 54, hasOutline: true };
+      if (method === 'board.getStackup')
+        return { totalLayers: 6, layers: [], available: false, source: 'copper_layer_count_only' };
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getDesignRules') return { available: false };
+      throw new Error('unexpected bridge method ' + method);
+    });
+
+    const result = await run();
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.groups.blocking).not.toContain('pcb:PCB_LAYER_COUNT_MISMATCH:board:1');
+    expect(result.findings.some((f) => f.rule_id === 'PCB_LAYER_COUNT_MISMATCH')).toBe(false);
+    expect(result.findings.some((f) => f.rule_id === 'PCB_MISSING_STACKUP')).toBe(true);
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('treats a wrong-tab or unsupported native response as unknown, never a pass', async () => {
     bridgeCall.mockRejectedValue(new Error('wrong document type'));
     const result = await run();

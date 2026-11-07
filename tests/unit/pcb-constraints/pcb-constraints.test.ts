@@ -68,11 +68,43 @@ describe('validatePcbConstraints', () => {
     expect(result.errors[0].code).toBe(PcbConstraintCodeMap.MISSING_BOARD_OUTLINE.code);
   });
 
-  it('returns valid=false when layer count exceeds 2 without stackup', () => {
+  it('keeps multi-layer count validation unknown without independent stackup count', () => {
     const result = validatePcbConstraints(makeInput({ layerCount: 4, hasLayerStack: false }));
     expect(result.valid).toBe(false);
-    expect(result.errors.length).toBeGreaterThanOrEqual(1);
-    expect(result.errors[0].code).toBe(PcbConstraintCodeMap.LAYER_COUNT_MISMATCH.code);
+    expect(result.errors).toEqual([]);
+    expect(result.unknownChecks).toContainEqual({
+      area: 'Layer count',
+      missingFields: ['stackupCopperLayerCount'],
+    });
+  });
+
+  it('detects only real, independently evidenced layer count mismatches', () => {
+    const mismatch = validatePcbConstraints(
+      makeInput({ layerCount: 6, stackupCopperLayerCount: 4 }),
+    );
+    expect(mismatch.errors).toContainEqual(
+      expect.objectContaining({ code: 'PCB_LAYER_COUNT_MISMATCH', severity: 'error' }),
+    );
+    const matching = validatePcbConstraints(
+      makeInput({ layerCount: 6, stackupCopperLayerCount: 6 }),
+    );
+    expect(matching.errors).toEqual([]);
+    expect(matching.unknownChecks.some((issue) => issue.area === 'Layer count')).toBe(false);
+  });
+
+  it('does not invent a layer-count mismatch for six-layer boards without EasyEDA stackup', () => {
+    const result = validatePcbConstraints(makeInput({ layerCount: 6, hasLayerStack: false }));
+    expect(result.errors).not.toContainEqual(
+      expect.objectContaining({ code: 'PCB_LAYER_COUNT_MISMATCH' }),
+    );
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({ code: 'PCB_MISSING_STACKUP', severity: 'warning' }),
+    );
+    expect(result.unknownChecks).toContainEqual({
+      area: 'Layer count',
+      missingFields: ['stackupCopperLayerCount'],
+    });
+    expect(result.valid).toBe(false);
   });
 
   it('returns valid=true with only missing stackup warning for 2-layer board', () => {
@@ -154,8 +186,8 @@ describe('structural errors', () => {
     expect(err!.remediationHint).toBeTruthy();
   });
 
-  it('rejects mismatched layer count', () => {
-    const result = validatePcbConstraints(makeInput({ layerCount: 4, hasLayerStack: false }));
+  it('rejects independently evidenced mismatched copper-layer counts', () => {
+    const result = validatePcbConstraints(makeInput({ layerCount: 4, stackupCopperLayerCount: 6 }));
     const err = result.errors.find(
       (e) => e.code === PcbConstraintCodeMap.LAYER_COUNT_MISMATCH.code,
     );

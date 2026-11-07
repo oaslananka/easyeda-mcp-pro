@@ -348,7 +348,7 @@ function registerBoardTools(
     name: 'easyeda_board_dimensions',
     title: 'Get board dimensions',
     description:
-      'Get the PCB outline dimensions, native drilled-pad counts and minimum drill diameter. Mounting-hole classification is reported as unknown unless explicit evidence exists.',
+      'Get PCB outline dimensions, drilled-pad counts and minimum drill from verified pad/via inventories. Missing native drill evidence remains unknown; mounting-hole classification requires explicit evidence.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
