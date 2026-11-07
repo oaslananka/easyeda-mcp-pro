@@ -1,8 +1,164 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-06",
+  "lastReviewed": "2026-11-07",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-07-v1-11-0-source-bound-native-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-11-07T09:21:01Z",
+      "reviewBy": "2027-02-05",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "41.2.1",
+        "chromiumVersion": "146.0.7680.188",
+        "electronVersionProvenance": "Same-device previously documented reference; not independently measured from the vendor binary during this session.",
+        "chromiumVersionProvenance": "Same-device previously documented reference; not independently measured from the vendor binary during this session."
+      },
+      "server": {
+        "validationPackageVersion": "1.11.0",
+        "releaseContainingFixes": "1.11.0",
+        "commit": "25dbe64a132e3693d1a5fb5305a72ecbf5594b05",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "054e42e69164ab1e438f79a9e64ef07f2c40e4b0",
+            "src/bridge": "ec51a5465b2d4cf783b4ece6246551edf77c5c77",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "bc00e002db74930703ae1db70aff33660e46df7e",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.11.0",
+        "loaderReportedVersion": "1.11.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "7afd52614d3d7d08",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "dab37x9f6dxf191",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "63ea620487691284feb069d059869d2a6181905a70d067e58c25be75e592c633",
+        "packageSizeBytes": 205227
+      },
+      "fixture": {
+        "project": "Native editor built-in Quick Start project copied into a private, disposable isolated test profile; all project and document UUIDs withheld",
+        "pcb": "Focused read-only copy with 33 components, 98 tracks, 0 vias, 4 fills and 57 layer catalogue entries (NOT 57 copper layers)",
+        "schematic": "Not exercised under this exact 1.11.0 release candidate",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1110-20261107-install",
+          "name": "Source-built candidate imported with real desktop restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The exact PR #919 1.11.0 candidate .eext was 205227 bytes, SHA-256 63ea6204...633, loaded through the native Extension Manager; fully restarted, installed UI shows 1.11.0.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ]
+        },
+        {
+          "id": "v1110-20261107-identity",
+          "name": "Live local handshake, loader and baked dispatcher identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Editor 3.2.209; extension and loader 1.11.0, baked dispatcher dab37x9f6dxf191, 74 methods, hash 7afd52614d3d7d08; hot swap disabled; registry and version mismatch false.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ]
+        },
+        {
+          "id": "v1110-20261107-pcb-lists",
+          "name": "Source-scoped real PCB collections on the disposable board",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Project/document/PCB UUID relationship verified; all 33 components and 98 tracks plus 0 vias and 4 fills returned; dimensions available, 57 layer catalogue entries; no user project accessed.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ]
+        },
+        {
+          "id": "v1110-20261107-negative",
+          "name": "No-focus and foreign-project requests fail closed",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Before a PCB was focused, listComponents/listTracks/getDimensions were rejected and zone preflight blocked; on a focused disposable PCB, intentionally foreign UUID requests were also rejected.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ]
+        },
+        {
+          "id": "v1110-20261107-canvas",
+          "name": "Native viewport tenfold conversion and source MCP tool result",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Observed tenfold native viewport unit offset; source easyeda_canvas_locate applied factor 10 and returned schema-valid verified document-unit center without PCB write.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ]
+        },
+        {
+          "id": "v1110-20261107-route",
+          "name": "Native route and placement observation preserves unknowns",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Source read-only route tool consumed 98 tracks/0 vias and 33 component origins, produced three bounded route findings and one placement relationship; no native errors; overall UNKNOWN and engineering_sign_off false.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ]
+        },
+        {
+          "id": "v1110-20261107-getter",
+          "name": "Reviewed API getter and default compact results",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Source easyeda_api_read returned 33 PCB components without confirmWrite, 29075-byte default body and no __methods fields; includeMethods=true returned 55838 bytes and 33 method fields.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ]
+        },
+        {
+          "id": "v1110-20261107-dfm",
+          "name": "Test-only manufacturing profile blocks approval",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Clearly synthetic profile gave width WARNING, drill within-declared-limit still UNKNOWN, trace/space/testpoints/programming UNKNOWN; blocked true and manufacturing_approval false.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ]
+        },
+        {
+          "id": "v1110-20261107-scope",
+          "name": "Limits of one real read-only desktop acceptance",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "Unverified >200 component pagination, nonrectangular board outlines, via/pad electrical continuity, DRC/ERC, writes, save/export and cross-OS native acceptance.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json"
+          ],
+          "limitation": "Unverified native behavior and manufacturer/electrical approval remain out of scope."
+        }
+      ],
+      "knownLimitations": [
+        "Only one EasyEDA Pro Ubuntu 24.04.5 x86_64 desktop with one copied built-in Quick Start PCB was exercised; other desktop OS and versions are not native-validated here.",
+        "Exact candidate package hash/size were verified before import; the installed archive was not independently read back, although runtime extension/loader/baked dispatcher identity was verified after full application restart.",
+        "The fixture lacks vias, high-count >200 pagination and nonrectangular board outline, so these behaviors remain unaccepted; 57 layer catalogue entries are not copper layers.",
+        "Native reads were sequential rather than an atomic design snapshot; matching source identity across calls does not prove revision-level consistency.",
+        "The synthetic manufacturer profile has no authenticated fabrication process limits. Electrical/copper connectivity, IPC current/thermal, assembly/test access and manufacturing sign-off remain UNKNOWN/false.",
+        "No native DRC/ERC, schematic transaction, create/modify/delete, save/export, client-side native rollback, production project, supplier contact or board order occurred.",
+        "Full EasyEDA build suffix and Electron/Chromium values are inherited reference values, not independently measured in this test. GUI/bridge independently identify EasyEDA 3.2.209."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-06-v1-10-2-source-bound-native-readonly",
       "status": "live-validated",
