@@ -766,6 +766,27 @@ describe('bounded native route geometry evidence', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('bounds overlapping copper warnings on dense native track sets', () => {
+    const tracks = Array.from({ length: 125 }, (_, i) => ({
+      ...track('overlap-' + i, 0, 0, 100, 0, 10),
+      net: 'N-' + i,
+    }));
+    const result = review({ tracks });
+    expect(result.input_evidence.collection_complete).toBe(true);
+    expect(result.coverage.findings_truncated).toBe(true);
+    expect(result.findings).toHaveLength(60);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        rule_id: 'OBSERVED_TRACK_COPPER_OVERLAP',
+        status: 'WARNING',
+      }),
+    );
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({ rule_id: 'COPPER_CLEARANCE_UNVERIFIED', status: 'UNKNOWN' }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('caps findings deterministically and retains warnings in bounded output', () => {
     const tracks = Array.from({ length: 80 }, (_, i) =>
       track('very-narrow-' + i, i * 100, 0, i * 100 + 50, 0, 1),

@@ -200,6 +200,165 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.engineering_sign_off).toBe(false);
   });
 
+  it('reads all tracks and vias across native 200-row pages when within a bounded budget', async () => {
+    const tracks = Array.from({ length: 435 }, (_, i) => ({
+      primitiveId: `track-${i}`,
+      net: 'N',
+      layer: 1,
+      startX: i * 100,
+      startY: 0,
+      endX: i * 100 + 40,
+      endY: 0,
+      width: 10,
+    }));
+    const vias = Array.from({ length: 215 }, (_, i) => ({
+      primitiveId: `via-${i}`,
+      net: 'N',
+      x: i * 100,
+      y: 50,
+      holeDiameter: 10,
+      diameter: 30,
+    }));
+    bridgeCall.mockImplementation(
+      async (method: string, params: { limit: number; offset: number }) => {
+        const rows = method === 'pcb.listTracks' ? tracks : vias;
+        return {
+          total: rows.length,
+          items: rows.slice(params.offset, params.offset + params.limit),
+        };
+      },
+    );
+
+    const result = await run();
+    expect(result.input_evidence.collection_complete).toBe(true);
+    expect(result.coverage).toMatchObject({
+      requested_track_count: 435,
+      returned_track_count: 435,
+      requested_via_count: 215,
+      returned_via_count: 215,
+      findings_truncated: false,
+    });
+    expect(
+      result.findings.some(
+        (finding: { rule_id: string }) => finding.rule_id === 'NATIVE_COLLECTION_INCOMPLETE',
+      ),
+    ).toBe(false);
+    expect(result.engineering_sign_off).toBe(false);
+    expect(
+      bridgeCall.mock.calls
+        .filter(([method]) => method === 'pcb.listTracks')
+        .map(([, args]) => args.offset),
+    ).toEqual([0, 200, 400]);
+    expect(
+      bridgeCall.mock.calls
+        .filter(([method]) => method === 'pcb.listVias')
+        .map(([, args]) => args.offset),
+    ).toEqual([0, 200]);
+  });
+
+  it('does not trust changing native totals between route pages', async () => {
+    bridgeCall.mockImplementation(
+      async (method: string, params: { limit: number; offset: number }) => {
+        if (method === 'pcb.listVias') return { total: 0, items: [] };
+        return {
+          total: params.offset === 0 ? 201 : 202,
+          items: Array.from({ length: params.offset === 0 ? 200 : 1 }, (_, i) => ({
+            primitiveId: `t-${params.offset + i}`,
+            net: 'GND',
+            layer: 1,
+            startX: i * 100,
+            startY: 0,
+            endX: i * 100 + 50,
+            endY: 0,
+            width: 8,
+          })),
+        };
+      },
+    );
+    const result = await run();
+    expect(result.input_evidence.collection_complete).toBe(false);
+    expect(result.input_evidence.tracks).toBe('unavailable');
+    expect(result.errors).toEqual([expect.stringContaining('total changed across native pages')]);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({ rule_id: 'NATIVE_COLLECTION_INCOMPLETE', status: 'UNKNOWN' }),
+    );
+  });
+
+  it('rejects native pages reporting fewer primitives than they actually return', async () => {
+    bridgeCall.mockImplementation(async (method: string) =>
+      method === 'pcb.listTracks'
+        ? {
+            total: 1,
+            items: [
+              {
+                primitiveId: 't1',
+                net: 'N',
+                layer: 1,
+                startX: 0,
+                startY: 0,
+                endX: 30,
+                endY: 0,
+                width: 8,
+              },
+              {
+                primitiveId: 't2',
+                net: 'N',
+                layer: 1,
+                startX: 40,
+                startY: 0,
+                endX: 70,
+                endY: 0,
+                width: 8,
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    const result = await run();
+    expect(result.input_evidence).toMatchObject({
+      tracks: 'unavailable',
+      collection_complete: false,
+    });
+    expect(result.errors).toEqual([
+      expect.stringContaining('native total is smaller than returned item count'),
+    ]);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({ rule_id: 'NATIVE_COLLECTION_INCOMPLETE', status: 'UNKNOWN' }),
+    );
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('stops at the route source budget without claiming the remainder was checked', async () => {
+    bridgeCall.mockImplementation(
+      async (method: string, params: { limit: number; offset: number }) => {
+        if (method === 'pcb.listVias') return { total: 0, items: [] };
+        return {
+          total: 1201,
+          items: Array.from({ length: params.limit }, (_, i) => ({
+            primitiveId: `t-${params.offset + i}`,
+            net: 'N',
+            layer: 1,
+            startX: (params.offset + i) * 100,
+            startY: 0,
+            endX: (params.offset + i) * 100 + 50,
+            endY: 0,
+            width: 10,
+          })),
+        };
+      },
+    );
+    const result = await run();
+    expect(result.input_evidence.collection_complete).toBe(false);
+    expect(result.coverage).toMatchObject({
+      requested_track_count: 1201,
+      returned_track_count: 1200,
+    });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({ rule_id: 'NATIVE_COLLECTION_INCOMPLETE', status: 'UNKNOWN' }),
+    );
+    expect(bridgeCall.mock.calls.filter(([method]) => method === 'pcb.listTracks')).toHaveLength(6);
+  });
+
   it('treats invalid native layer identifiers as unavailable through the MCP tool', async () => {
     bridgeCall.mockImplementation(async (method: string) =>
       method === 'pcb.listTracks'

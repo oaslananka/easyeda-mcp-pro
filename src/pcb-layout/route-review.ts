@@ -334,6 +334,9 @@ function reviewObservedTrackOverlaps(
     const a = segments[i];
     if (!a) continue;
     for (let j = i + 1; j < segments.length; j++) {
+      // The public report retains at most 60 findings. Avoid allocating an
+      // unbounded O(n²) list of overlapping copper findings on dense boards.
+      if (findings.length > MAX_FINDINGS) return findings;
       const b = segments[j];
       if (!b) continue;
       if (a.net === b.net || a.layer !== b.layer || a.primitiveId === b.primitiveId) continue;
@@ -577,7 +580,7 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
         'coverage:pagination',
         'NATIVE_COLLECTION_INCOMPLETE',
         'UNKNOWN',
-        'At least one native primitive collection is missing, incomplete, has ambiguous primitive identities or exceeds the bounded read window.',
+        'At least one native primitive collection is missing, incomplete, has ambiguous primitive identities or exceeds the bounded multi-page read budget.',
       ),
     );
   const rank = { WARNING: 0, ADVISORY: 1, UNKNOWN: 2 };
@@ -619,7 +622,7 @@ export function reviewRouteGeometry(input: RouteGeometryInput): RouteGeometryRes
     },
     findings: visible,
     limitations: [
-      'Read-only native primitive snapshot, not atomic across tracks and vias.',
+      'Read-only native primitive pages, not an atomic snapshot across calls or tracks/vias.',
       'Coordinates are native PCB mils; widths converted using 0.0254 mm per mil.',
       'Right-angle turns are style guidance only; no unconditional 90-degree failure.',
       'Native via layer codes and coincident endpoints cannot verify via span, copper continuity, or a return-current path.',
