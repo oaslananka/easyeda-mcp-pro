@@ -55,6 +55,84 @@ describe('design rule-check operations', () => {
     expect(callFirst).toHaveBeenCalledWith(['PCB_Drc.check'], true, true, true);
   });
 
+  it('does not leak opaque netlist objects when native Import Changes has no explanation', async () => {
+    const { operations, callFirst } = createSubject();
+    callFirst.mockResolvedValue([
+      {
+        name: 'Netlist Error',
+        count: 1,
+        list: [
+          {
+            name: 'Netlist Error',
+            count: 1,
+            list: [
+              {
+                ruleName: 'Import Changes',
+                ruleTypeName: 'Import Changes',
+                errorType: 'Netlist Error',
+                errorObjType: 'Netlist Error',
+                explanation: '',
+                obj1: { typeName: 'Schematic Netlist', uuid: 'private-schematic-id' },
+                obj2: { typeName: 'PCB Netlist', uuid: 'private-pcb-id' },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    const result = await operations.runDrc();
+    expect(result).toMatchObject({
+      passed: false,
+      errorCount: 1,
+      totalViolations: 1,
+      violations: [
+        {
+          rule: 'Import Changes',
+          description: 'Import Changes (native detail unavailable)',
+          severity: 'error',
+        },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain('private-schematic-id');
+    expect(JSON.stringify(result)).not.toContain('private-pcb-id');
+  });
+
+  it('falls back to a rule-only description when native message fields are blank', async () => {
+    const { operations, callFirst } = createSubject();
+    callFirst.mockResolvedValue([
+      {
+        ruleName: 'Missing connection',
+        errorType: 'Netlist Error',
+        message: ' ',
+        explanation: { str: '' },
+      },
+    ]);
+
+    const result = await operations.runDrc();
+    expect(result.violations[0]?.description).toBe(
+      'Missing connection (native detail unavailable)',
+    );
+    expect(result.passed).toBe(false);
+  });
+
+  it('uses a later explicit detail when an earlier native message field is blank', async () => {
+    const { operations, callFirst } = createSubject();
+    callFirst.mockResolvedValue([
+      {
+        ruleName: 'Import Changes',
+        errorType: 'Netlist Error',
+        message: ' ',
+        description: 'Schematic and PCB netlists differ',
+        obj1: { hidden: 'opaque-native-value' },
+      },
+    ]);
+
+    const result = await operations.runDrc();
+    expect(result.violations[0]?.description).toBe('Schematic and PCB netlists differ');
+    expect(JSON.stringify(result)).not.toContain('opaque-native-value');
+  });
+
   it('counts flat aggregate groups without inventing leaf detail', async () => {
     const { operations, callFirst } = createSubject();
     callFirst.mockResolvedValue([

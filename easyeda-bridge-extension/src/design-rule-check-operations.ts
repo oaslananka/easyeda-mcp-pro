@@ -78,9 +78,23 @@ function toViolation(item: unknown): Record<string, unknown> {
   const explanation =
     obj.explanation && typeof obj.explanation === 'object'
       ? (obj.explanation as Record<string, unknown>).str
-      : undefined;
-  const message =
-    obj.message ?? obj.msg ?? obj.description ?? obj.text ?? obj.detail ?? explanation ?? item;
+      : obj.explanation;
+  const message = [obj.message, obj.msg, obj.description, obj.text, obj.detail, explanation].find(
+    (value) => value != null && (typeof value !== 'string' || value.trim().length > 0),
+  );
+  const rule = firstScalar([
+    obj.rule,
+    obj.ruleName,
+    obj.ruleTypeName,
+    obj.errorType,
+    obj.name,
+    obj.type,
+  ]);
+  // Preserve the rule, not opaque native objects, when the vendor omits a message.
+  const detail =
+    message ??
+    (item !== null && typeof item === 'object' ? `${rule} (native detail unavailable)` : item);
+  const description = typeof detail === 'string' ? detail : JSON.stringify(detail);
   const severitySource = scalarParts([
     obj.level,
     obj.severity,
@@ -98,15 +112,8 @@ function toViolation(item: unknown): Record<string, unknown> {
     position = obj.location as Record<string, unknown>;
   }
   return {
-    rule: firstScalar([
-      obj.rule,
-      obj.ruleName,
-      obj.ruleTypeName,
-      obj.errorType,
-      obj.name,
-      obj.type,
-    ]),
-    description: typeof message === 'string' ? message : JSON.stringify(message),
+    rule,
+    description,
     severity: toSeverity(severitySource),
     net: obj.net ?? obj.netName,
     component: obj.component ?? obj.ref ?? obj.designator ?? obj.primitiveId,
