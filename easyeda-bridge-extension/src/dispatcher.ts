@@ -68,6 +68,7 @@ const BUILD_ID =
 const METHOD_LIST: readonly string[] = [
   'api.call',
   'api.execute',
+  'api.read',
   'board.exportGerbers',
   'board.getDimensions',
   'board.getFeatures',
@@ -147,6 +148,7 @@ let callFirst: ApiRuntime['callFirst'];
 let readFirstPath: ApiRuntime['readFirstPath'];
 let inspectApiInventory: ApiRuntime['inspectApiInventory'];
 let callAllowedApi: ApiRuntime['callAllowedApi'];
+let callReadOnlyApi: ApiRuntime['callReadOnlyApi'];
 let boardInspection: BoardInspectionOperations;
 let canvasOperations: CanvasOperations;
 let designRuleCheckOperations: DesignRuleCheckOperations;
@@ -1874,10 +1876,8 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
 }
 
 export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
-  ({ callFirst, readFirstPath, inspectApiInventory, callAllowedApi } = createApiRuntime(
-    toolkit,
-    newBridgeError,
-  ));
+  ({ callFirst, readFirstPath, inspectApiInventory, callAllowedApi, callReadOnlyApi } =
+    createApiRuntime(toolkit, newBridgeError));
   boardInspection = createBoardInspectionOperations({
     readFirstPath,
     getGlobal: () => toolkit.getGlobal(),
@@ -1970,6 +1970,7 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     buildId: BUILD_ID,
     inspectApiInventory,
     callAllowedApi,
+    callReadOnlyApi,
     readFirstPath,
     summarizeWirePrimitive,
     createBridgeError: newBridgeError,

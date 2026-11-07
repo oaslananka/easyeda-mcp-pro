@@ -829,6 +829,60 @@ describe('ToolRegistry', () => {
     expect(registry.getEnabledTools().some((tool) => tool.name === 'easyeda_api_call')).toBe(true);
   });
 
+  it('exposes a lower-privilege API read tool without weakening the write tool', async () => {
+    registry.setProfile('full');
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const read = registry.get('easyeda_api_read');
+    const write = registry.get('easyeda_api_call');
+    expect(read).toMatchObject({
+      profile: 'full',
+      risk: 'low',
+      sideEffect: 'read-only',
+      confirmWrite: false,
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    });
+    expect(write).toMatchObject({
+      risk: 'high',
+      confirmWrite: true,
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    });
+    expect(remoteRiskForTool(read!)).toBe('read');
+    expect(remoteRiskForTool(write!)).toBe('destructive');
+    const bridgeCall = vi.fn().mockResolvedValue({
+      path: 'PCB_PrimitiveVia.getAll',
+      result: [{ state: { PrimitiveId: 'via-a' } }],
+    });
+    const context = mockContext({
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall } as ToolContext['bridge'],
+    });
+    await expect(
+      read?.handler(context, {
+        path: 'PCB_PrimitiveVia.getAll',
+        args: [],
+      }),
+    ).resolves.toMatchObject({ ok: true, result: [{ state: { PrimitiveId: 'via-a' } }] });
+    expect(bridgeCall).toHaveBeenCalledWith('api.read', {
+      path: 'PCB_PrimitiveVia.getAll',
+      args: [],
+    });
+    await expect(
+      read?.handler(context, {
+        path: 'PCB_PrimitiveVia.create',
+        args: [],
+      }),
+    ).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/allowlist/) });
+    await expect(
+      read?.handler(context, {
+        path: 'PCB_PrimitiveVia.getAllAndDelete',
+        args: [],
+      }),
+    ).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/allowlist/) });
+    // The MCP server rejects non-reviewed methods even when the bridge is mocked.
+    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(write?.confirmWrite).toBe(true);
+  });
+
   it('should not register easyeda_execute by default even for dev profile', () => {
     registry.setProfile('dev');
     registerBuiltinTools(registry, TEST_CONFIG);

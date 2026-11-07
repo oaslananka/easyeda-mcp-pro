@@ -4,6 +4,7 @@ import {
   getFunctionNames,
   isAllowedApiClassName,
   isAllowedApiPath,
+  isAllowedReadOnlyApiPath,
   normalizeApiClassName,
   normalizeStandalone,
   normalizeValue,
@@ -49,6 +50,35 @@ describe('API introspection policy', () => {
       'SCH_PrimitiveWire.__proto__',
     ]) {
       expect(isAllowedApiPath(path)).toBe(false);
+    }
+  });
+
+  it('only authorizes explicitly reviewed native read methods', () => {
+    for (const path of [
+      'DMT_Pcb.getCurrentPcbInfo',
+      'dmt_Pcb.getCurrentPcbInfo',
+      'DMT_Project.getCurrentProjectInfo',
+      'PCB_PrimitiveVia.getAll',
+      'pcb_PrimitiveComponent.getAllPinsByPrimitiveId',
+      'PCB_Net.getAllPrimitivesByNet',
+      'SCH_PrimitiveWire.getAll',
+    ]) {
+      expect(isAllowedReadOnlyApiPath(path), path).toBe(true);
+    }
+    for (const path of [
+      'DMT_Pcb.open',
+      'PCB_PrimitiveVia.create',
+      'PCB_PrimitiveVia.getAllAndDelete',
+      'PCB_PrimitiveVia.getState_IsConnected',
+      'PCB_Drc.check',
+      'DMT_Project.save',
+      'PCB_Net.set',
+      'LIB_3DModel.delete',
+      'SYS_Shell.getAll',
+      'PCB_PrimitiveVia.getAll.extra',
+      'PCB_PrimitiveVia.__proto__',
+    ]) {
+      expect(isAllowedReadOnlyApiPath(path), path).toBe(false);
     }
   });
 

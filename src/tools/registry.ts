@@ -109,7 +109,8 @@ const STATIC_GROUP_SCOPES: Partial<Record<ToolDefinition['group'], string[]>> = 
 
 function specialToolScopes(tool: ToolDefinition): string[] | undefined {
   if (tool.name === 'easyeda_execute') return ['bridge:execute'];
-  if (tool.name === 'easyeda_api_call') return [tool.confirmWrite ? 'api:write' : 'api:read'];
+  if (tool.name === 'easyeda_api_call') return ['api:write'];
+  if (tool.name === 'easyeda_api_read') return ['api:read'];
   if (tool.name === 'easyeda_api_inventory' || tool.name === 'easyeda_component_probe') {
     return ['api:read'];
   }

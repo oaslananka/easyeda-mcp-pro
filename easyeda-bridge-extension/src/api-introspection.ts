@@ -54,6 +54,36 @@ export function isAllowedApiPath(path: string): boolean {
   return isAllowedApiClassName(className);
 }
 
+/**
+ * Audited native getters which may be called through the lower-privilege api.read route.
+ * No method-name heuristic: native methods are not assumed pure because of a get/is prefix.
+ * Keep classes/methods explicit until additional versions have read-only evidence.
+ */
+const READ_ONLY_API_METHODS: Readonly<Record<string, readonly string[]>> = {
+  DMT_Project: ['getCurrentProjectInfo'],
+  DMT_SelectControl: ['getCurrentDocumentInfo'],
+  DMT_Pcb: ['getCurrentPcbInfo'],
+  PCB_PrimitiveVia: ['getAll'],
+  PCB_PrimitiveComponent: ['getAll', 'getAllPinsByPrimitiveId'],
+  PCB_PrimitiveLine: ['getAll'],
+  PCB_PrimitiveArc: ['getAll'],
+  PCB_PrimitiveRegion: ['getAll'],
+  PCB_PrimitivePoured: ['getAll'],
+  PCB_PrimitivePour: ['getAll'],
+  PCB_PrimitivePolyline: ['getAll'],
+  PCB_PrimitiveTrack: ['getAll'],
+  PCB_Net: ['getAll', 'getAllPrimitivesByNet'],
+  SCH_PrimitiveComponent: ['getAll'],
+  SCH_PrimitiveWire: ['getAll'],
+};
+
+export function isAllowedReadOnlyApiPath(path: string): boolean {
+  if (!isAllowedApiPath(path)) return false;
+  const [rawClass, method] = path.split('.');
+  const className = normalizeApiClassName(rawClass ?? '');
+  return (READ_ONLY_API_METHODS[className] ?? []).includes(method ?? '');
+}
+
 function getAllPropertyNames(value: unknown): string[] {
   const names: string[] = [];
   let cursor = value;
@@ -99,6 +129,7 @@ function normalizeStateGetters(
   value: object,
   depth: number,
   seen: WeakSet<object>,
+  includeMethods: boolean,
 ): Record<string, JsonValue | undefined> | undefined {
   const getterNames = getFunctionNames(value).filter((name) => name.startsWith('getState_'));
   if (getterNames.length === 0) return undefined;
@@ -112,6 +143,7 @@ function normalizeStateGetters(
         getter.call(value),
         depth - 1,
         seen,
+        includeMethods,
       );
     } catch (error) {
       state[getterName.replace(/^getState_/, '')] = `ERROR: ${String(error)}`;
@@ -120,33 +152,47 @@ function normalizeStateGetters(
   return state;
 }
 
-function normalizeRecordValue(value: object, depth: number, seen: WeakSet<object>): JsonValue {
+function normalizeRecordValue(
+  value: object,
+  depth: number,
+  seen: WeakSet<object>,
+  includeMethods: boolean,
+): JsonValue {
   const output: Record<string, JsonValue | undefined> = {};
   const ctorName = (value as { constructor?: { name?: string } }).constructor?.name;
   if (ctorName && ctorName !== 'Object') output.__class = ctorName;
 
-  const state = normalizeStateGetters(value, depth, seen);
+  const state = normalizeStateGetters(value, depth, seen, includeMethods);
   if (state) output.state = state;
 
-  const methodNames = getFunctionNames(value);
-  if (methodNames.length > 0) output.__methods = methodNames;
+  if (includeMethods) {
+    const methodNames = getFunctionNames(value);
+    if (methodNames.length > 0) output.__methods = methodNames;
+  }
 
   for (const key of Object.keys(value)) {
-    output[key] = normalizeValue((value as Record<string, unknown>)[key], depth - 1, seen);
+    const member = (value as Record<string, unknown>)[key];
+    if (!includeMethods && (key === '__methods' || typeof member === 'function')) continue;
+    output[key] = normalizeValue(member, depth - 1, seen, includeMethods);
   }
   return output;
 }
 
-function normalizeObjectValue(value: object, depth: number, seen: WeakSet<object>): JsonValue {
+function normalizeObjectValue(
+  value: object,
+  depth: number,
+  seen: WeakSet<object>,
+  includeMethods: boolean,
+): JsonValue {
   if (seen.has(value)) return '[Circular]';
   if (depth <= 0) return '[MaxDepth]';
 
   seen.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item) => normalizeValue(item, depth - 1, seen));
+      return value.map((item) => normalizeValue(item, depth - 1, seen, includeMethods));
     }
-    return normalizeRecordValue(value, depth, seen);
+    return normalizeRecordValue(value, depth, seen, includeMethods);
   } finally {
     // Track only the active recursion path. Repeated references are valid data;
     // only a reference back into the current path is a true cycle.
@@ -154,7 +200,12 @@ function normalizeObjectValue(value: object, depth: number, seen: WeakSet<object
   }
 }
 
-export function normalizeValue(value: unknown, depth = 3, seen = new WeakSet<object>()): JsonValue {
+export function normalizeValue(
+  value: unknown,
+  depth = 3,
+  seen = new WeakSet<object>(),
+  includeMethods = true,
+): JsonValue {
   if (value === null) return null;
   if (typeof value === 'string') return value;
   if (typeof value === 'number') return value;
@@ -163,7 +214,7 @@ export function normalizeValue(value: unknown, depth = 3, seen = new WeakSet<obj
   if (typeof value === 'function') return `[Function ${value.name ?? 'anonymous'}]`;
   if (typeof value === 'bigint') return value.toString();
   if (typeof value === 'symbol') return value.toString();
-  return normalizeObjectValue(value, depth, seen);
+  return normalizeObjectValue(value, depth, seen, includeMethods);
 }
 
 export function normalizeStandalone(value: unknown, depth = 4): JsonValue {

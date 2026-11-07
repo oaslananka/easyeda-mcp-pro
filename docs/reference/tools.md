@@ -9,6 +9,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | -------------------------------------------------- | -------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `easyeda_api_call`                                 | `full`         | `high`   | Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. Polygon-typed parameters use explicit $polygon/$complexPolygon tagged arguments. This is not raw JavaScript execution.                                                                                                    |
 | `easyeda_api_inventory`                            | `core`         | `low`    | Inspect the live EasyEDA extension runtime and list available documented API classes, runtime paths, and methods.                                                                                                                                                                                                             |
+| `easyeda_api_read`                                 | `full`         | `low`    | Read audited native getters such as PCB_PrimitiveVia.getAll, without write confirmation. The server and extension independently allowlist paths; unsupported or mutating methods are rejected. Results omit repeated __methods by default; set includeMethods for introspection.                                              |
 | `easyeda_board_design_rules`                       | `core`         | `low`    | Read the active EasyEDA DRC profile and its global safe-spacing matrix. Net-class membership and per-net overrides are reported separately and are not inferred.                                                                                                                                                              |
 | `easyeda_board_dimensions`                         | `core`         | `low`    | Get PCB outline dimensions, drilled-pad counts and minimum drill from verified pad/via inventories. Missing native drill evidence remains unknown; mounting-hole classification requires explicit evidence.                                                                                                                   |
 | `easyeda_board_features`                           | `core`         | `low`    | Get counts of board features. zones counts copper Pour boundaries only; native Fill and Region primitives are reported separately as fills and regions.                                                                                                                                                                       |
@@ -144,12 +145,13 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                                                                                                                                                                                                                          |
-| -------------- | ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `path`         | `string`            | Yes      |                                                                                                                                                                                                                                                                                      |
-| `args`         | `any[]`             | Yes      | Positional EasyEDA API arguments. For documented IPCB_Polygon parameters on PCB_PrimitiveRegion/Pour/Fill/Polyline create or modify and PCB_PrimitiveImage.create, pass {$polygon: [...]} or {$complexPolygon: [[...], ...]}; serialized __class/__methods descriptors are rejected. |
-| `confirmWrite` | `boolean`           | Yes      |                                                                                                                                                                                                                                                                                      |
-| `maxDepth`     | `number (optional)` | No       | Nesting depth of the returned result (default 5); deeper levels come back as "[MaxDepth]". DRC details (PCB_Drc.check with details) need about 8.                                                                                                                                    |
+| Parameter        | Type                | Required | Description                                                                                                                                                                                                                                                                          |
+| ---------------- | ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`           | `string`            | Yes      |                                                                                                                                                                                                                                                                                      |
+| `args`           | `any[]`             | Yes      | Positional EasyEDA API arguments. For documented IPCB_Polygon parameters on PCB_PrimitiveRegion/Pour/Fill/Polyline create or modify and PCB_PrimitiveImage.create, pass {$polygon: [...]} or {$complexPolygon: [[...], ...]}; serialized __class/__methods descriptors are rejected. |
+| `confirmWrite`   | `boolean`           | Yes      |                                                                                                                                                                                                                                                                                      |
+| `includeMethods` | `boolean`           | Yes      | Include native __methods metadata on every serialized object (false by default to avoid duplicate result bloat).                                                                                                                                                                     |
+| `maxDepth`       | `number (optional)` | No       | Nesting depth of the returned result (default 5); deeper levels come back as "[MaxDepth]". DRC details (PCB_Drc.check with details) need about 8.                                                                                                                                    |
 
 ### Output Format
 
@@ -190,6 +192,37 @@ Returns a JSON object matching the schema:
   total: number;
   not_available: boolean (optional);
   error: string (optional);
+}
+```
+
+---
+
+## `easyeda_api_read`
+
+**Profile:** `full` | **Risk Level:** `low`
+
+> Read audited native getters such as PCB_PrimitiveVia.getAll, without write confirmation. The server and extension independently allowlist paths; unsupported or mutating methods are rejected. Results omit repeated __methods by default; set includeMethods for introspection.
+
+### Input Parameters
+
+| Parameter        | Type                                         | Required | Description                                                                                                                                       |
+| ---------------- | -------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `path`           | `string`                                     | Yes      |                                                                                                                                                   |
+| `includeMethods` | `boolean`                                    | Yes      | Include native __methods metadata on every serialized object (false by default to avoid duplicate result bloat).                                  |
+| `maxDepth`       | `number (optional)`                          | No       | Nesting depth of the returned result (default 5); deeper levels come back as "[MaxDepth]". DRC details (PCB_Drc.check with details) need about 8. |
+| `args`           | `string` \| `number` \| `boolean` \| `any[]` | Yes      |                                                                                                                                                   |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  ok: boolean;
+  path: string;
+  resolvedPath: string(optional);
+  result: any(optional);
+  error: string(optional);
 }
 ```
 

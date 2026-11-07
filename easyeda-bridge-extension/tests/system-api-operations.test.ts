@@ -23,6 +23,7 @@ function createDependencies(overrides: Record<string, unknown> = {}) {
     buildId: 'build-test',
     inspectApiInventory: vi.fn(async (filter?: string) => ({ filter })),
     callAllowedApi: vi.fn(async (path: string, args: unknown[]) => ({ path, args })),
+    callReadOnlyApi: vi.fn(async (path: string, args: unknown[]) => ({ path, args })),
     readFirstPath: vi.fn(() => undefined),
     summarizeWirePrimitive: vi.fn((wire: unknown) => ({ wire })),
     createBridgeError: vi.fn((code: string, message: string, suggestion: string) => {
@@ -47,6 +48,7 @@ describe('system API operations', () => {
       'SCH_PrimitiveWire.getAll',
       ['a', 2],
       undefined,
+      false,
     );
   });
 
@@ -59,7 +61,23 @@ describe('system API operations', () => {
       'PCB_Drc.check',
       [true, false, true],
       10,
+      false,
     );
+  });
+
+  it('keeps the read operation separate and forwards the compact default', async () => {
+    const dependencies = createDependencies();
+    const operations = createSystemApiOperations(dependencies);
+    await expect(
+      operations.apiRead({ path: 'PCB_PrimitiveVia.getAll', args: [], maxDepth: 8 }),
+    ).resolves.toMatchObject({ path: 'PCB_PrimitiveVia.getAll', args: [] });
+    expect(dependencies.callReadOnlyApi).toHaveBeenCalledWith(
+      'PCB_PrimitiveVia.getAll',
+      [],
+      8,
+      false,
+    );
+    expect(dependencies.callAllowedApi).not.toHaveBeenCalled();
   });
 
   it('preserves api.execute validation, eda injection, and normalized result shape', async () => {
@@ -152,7 +170,7 @@ describe('system API operation fallbacks', () => {
       path: '',
       args: [],
     });
-    expect(dependencies.callAllowedApi).toHaveBeenCalledWith('', [], undefined);
+    expect(dependencies.callAllowedApi).toHaveBeenCalledWith('', [], undefined, false);
 
     await expect(operations.apiInventory({ filter: 123 })).resolves.toEqual({
       filter: undefined,

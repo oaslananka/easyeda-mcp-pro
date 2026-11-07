@@ -3,6 +3,7 @@ import {
   isAllowedApiClassName,
   isAllowedApiPath,
   normalizeApiClassName,
+  isAllowedReadOnlyApiPath,
   normalizeValue,
   readMember,
   withClassNameVariants,
@@ -33,7 +34,18 @@ export interface ApiRuntime {
   callFirst(paths: readonly string[], ...args: unknown[]): Promise<unknown>;
   readFirstPath<T>(paths: readonly string[]): T | undefined;
   inspectApiInventory(filter?: string): JsonValue;
-  callAllowedApi(path: string, args: readonly unknown[], maxDepth?: number): Promise<unknown>;
+  callAllowedApi(
+    path: string,
+    args: readonly unknown[],
+    maxDepth?: number,
+    includeMethods?: boolean,
+  ): Promise<unknown>;
+  callReadOnlyApi(
+    path: string,
+    args: readonly unknown[],
+    maxDepth?: number,
+    includeMethods?: boolean,
+  ): Promise<unknown>;
 }
 
 export function createApiRuntime(
@@ -205,6 +217,7 @@ export function createApiRuntime(
     path: string,
     args: readonly unknown[],
     maxDepth = 5,
+    includeMethods = false,
   ): Promise<unknown> {
     if (!isAllowedApiPath(path)) {
       throw createBridgeError(
@@ -227,7 +240,12 @@ export function createApiRuntime(
         return {
           path,
           resolvedPath: `${candidate.name}.${candidatePath}`,
-          result: normalizeValue(result, clampApiResultDepth(maxDepth)),
+          result: normalizeValue(
+            result,
+            clampApiResultDepth(maxDepth),
+            new WeakSet<object>(),
+            includeMethods,
+          ),
         };
       }
     }
@@ -239,10 +257,44 @@ export function createApiRuntime(
     );
   }
 
+  async function callReadOnlyApi(
+    path: string,
+    args: readonly unknown[],
+    maxDepth = 5,
+    includeMethods = false,
+  ): Promise<unknown> {
+    if (!isAllowedReadOnlyApiPath(path)) {
+      throw createBridgeError(
+        'UNAUTHORIZED',
+        `Read-only API path is not allowlisted: ${path}`,
+        'Use easyeda_api_inventory to inspect methods, but only reviewed getters are exposed for safe reads.',
+      );
+    }
+    if (
+      !Array.isArray(args) ||
+      args.length > 8 ||
+      !args.every(
+        (arg) =>
+          arg === null ||
+          typeof arg === 'string' ||
+          typeof arg === 'boolean' ||
+          (typeof arg === 'number' && Number.isFinite(arg)),
+      )
+    ) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        'Read-only API arguments must be at most 8 finite JSON scalars.',
+        'Use string/boolean/finite-number/null arguments; no nested objects or polygon descriptors.',
+      );
+    }
+    return callAllowedApi(path, args, maxDepth, includeMethods);
+  }
+
   return {
     callFirst,
     readFirstPath,
     inspectApiInventory,
     callAllowedApi,
+    callReadOnlyApi,
   };
 }
