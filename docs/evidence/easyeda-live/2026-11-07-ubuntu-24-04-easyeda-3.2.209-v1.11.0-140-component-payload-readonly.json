@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "kind": "repeatable-source-bound-real-native-large-component-getter-compactness",
+  "validatedAt": "2026-11-07T10:42:34Z",
+  "issue": 930,
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "stableRelease": "1.11.0",
+    "releaseTag": "easyeda-mcp-pro-v1.11.0",
+    "releaseCommit": "86f824d33ca1a577072c027d790bd4b61c580d3b",
+    "nativeTestedCandidateCommit": "25dbe64a132e3693d1a5fb5305a72ecbf5594b05",
+    "compatibilitySensitiveSourceTreeHashes": {
+      "easyeda-bridge-extension/src": "054e42e69164ab1e438f79a9e64ef07f2c40e4b0",
+      "src/bridge": "ec51a5465b2d4cf783b4ece6246551edf77c5c77",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "bc00e002db74930703ae1db70aff33660e46df7e",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    },
+    "releaseAndLiveCandidateSensitiveTreesEqual": true
+  },
+  "runtime": {
+    "editor": "EasyEDA Pro 3.2.209",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "extensionVersion": "1.11.0",
+    "loaderVersion": "1.11.0",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "extensionPackageSha256": "63ea620487691284feb069d059869d2a6181905a70d067e58c25be75e592c633",
+    "profile": "separate activated owner-local EasyEDA test profile; no personal project usage"
+  },
+  "fixture": {
+    "origin": "EasyEDA Pro built-in 3D Shell Design example, opened from an isolated disposable local copy",
+    "selectedPcb": "3D Shell Example-B",
+    "originalBuiltInExampleSha256": "e27c6f1df6973df1c4de8274e1cb34300195b92469ee5692751e59bd705e91ea",
+    "originalBuiltInExampleUnchanged": true,
+    "disposableCopyOpenedReadOnly": true,
+    "disposableCopyConvertedFromLegacyProjectToV3": true,
+    "personalDesignOpened": false,
+    "pcbWriteCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0
+  },
+  "observations": {
+    "readTool": "easyeda_api_read",
+    "getter": "PCB_PrimitiveComponent.getAll",
+    "nativeComponents": 140,
+    "componentCollection": {
+      "pageLimit": 50,
+      "pageOffsets": [0, 50, 100],
+      "pageSizes": [50, 50, 40],
+      "reportedTotalStable": true,
+      "allNativePrimitiveIdsPresent": true,
+      "allNativePrimitiveIdsDistinct": true,
+      "collectionComplete": true
+    },
+    "compact": {
+      "includeMethods": false,
+      "resultItems": 140,
+      "serializedResultBytes": 124723,
+      "repeatedMethodsFields": 0
+    },
+    "expanded": {
+      "includeMethods": true,
+      "resultItems": 140,
+      "serializedResultBytes": 238263,
+      "repeatedMethodsFields": 140
+    },
+    "bytesSaved": 113540,
+    "reductionPercent": 47.65,
+    "nonMethodDataEqual": true,
+    "comparison": "deep JSON comparison after recursively removing only __methods from expanded data",
+    "stableFocusedNativePcbIdentityBeforeAndAfter": true,
+    "independentFullNativeProbeRuns": 2,
+    "identicalMeasuredResultsAcrossRuns": true,
+    "noConfirmWriteRequired": true,
+    "observedRetainedSampleKeys": [
+      "__class",
+      "state",
+      "primitiveType",
+      "layer",
+      "x",
+      "y",
+      "rotation",
+      "primitiveLock",
+      "addIntoBom",
+      "component",
+      "primitiveId",
+      "footprint",
+      "model3D",
+      "designator"
+    ]
+  },
+  "limits": [
+    "Only one real disposable 140-component PCB and one EasyEDA Pro 3.2.209 Ubuntu instance were measured; payload sizes depend on runtime and maxDepth=2.",
+    "This establishes issue #930 native large (>94) getter collection compactness, but not issue #842 native >200 component paging.",
+    "The built-in example PCB has no production ownership or real fabricator approval; no copper/return-path, electrical, assembly, thermal or DRC/ERC readiness is claimed.",
+    "A source-level check validated the six compatibility-critical tree identities between tested candidate and published release; native GUI does not supply installed archive bytes for independent post-import hashing.",
+    "Native application project/document UUIDs and any account/activation data were excluded from the evidence. No PCB modification or vendor communication occurred."
+  ],
+  "claims": {
+    "issue930ReadOnlyNativePayloadAcceptance": true,
+    "issue842Over200NativePagingAcceptance": false,
+    "pcbElectricalSignOff": false,
+    "manufacturingSignOff": false
+  }
+}
