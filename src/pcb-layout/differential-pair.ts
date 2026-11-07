@@ -1,5 +1,10 @@
 import { lookupProtocolRouting, type ProtocolKey } from '../design-rules/protocol-routing.js';
-import { nativeCopperLayerCode, type NativeTrack, type NativeVia } from './route-review.js';
+import {
+  minimumCenterDistanceMil,
+  nativeCopperLayerCode,
+  type NativeTrack,
+  type NativeVia,
+} from './route-review.js';
 
 const MIL_TO_MM = 0.0254;
 // Unit conversions and subtraction of large path lengths can differ by a
@@ -57,7 +62,13 @@ export interface DifferentialPairReview {
   coordinate_units: 'mil';
   paths: { positive: PairNetLength; negative: PairNetLength };
   skew: PairMeasurement;
-  spacing: PairMeasurement & { observed_max_mm?: number; sample_count: number };
+  spacing: PairMeasurement & {
+    observed_max_mm?: number;
+    /** Number of overlapping, same-layer parallel segment pairs sampled. */
+    sample_count: number;
+    /** Observed different-net 2D copper contacts; not validated electrical shorts. */
+    observed_contact_count?: number;
+  };
   findings: Array<{
     id: string;
     status: 'WARNING' | 'UNKNOWN';
@@ -264,15 +275,38 @@ function parallelEdgeGapMil(a: Geometry, b: Geometry): number | undefined {
   return centreDistance - (a.width + b.width) / 2;
 }
 
-function parallelGapSamples(positive: Geometry[], negative: Geometry[]): number[] {
-  const gaps: number[] = [];
-  for (const a of positive as Geometry[]) {
-    for (const b of negative as Geometry[]) {
-      const gapMil = parallelEdgeGapMil(a, b);
-      if (gapMil !== undefined) gaps.push(gapMil * MIL_TO_MM);
+interface SpacingSamples {
+  minimum?: number;
+  maximum?: number;
+  count: number;
+  /** Distinct pairs of native segments with nonpositive projected copper edge gap. */
+  contactCount: number;
+  minimumContact?: number;
+}
+
+/** Accumulate bounded observations without materializing a quadratic gap array.
+ * Contact screening includes perpendicular crossings and endpoint approaches;
+ * only parallel overlaps count as meaningful differential-pair spacing samples.
+ */
+function collectSpacingSamples(positive: Geometry[], negative: Geometry[]): SpacingSamples {
+  const result: SpacingSamples = { count: 0, contactCount: 0 };
+  for (const a of positive) {
+    for (const b of negative) {
+      if (a.layer !== b.layer) continue;
+      const projectedGapMm = (minimumCenterDistanceMil(a, b) - (a.width + b.width) / 2) * MIL_TO_MM;
+      if (projectedGapMm <= 0) {
+        result.contactCount++;
+        result.minimumContact = Math.min(result.minimumContact ?? Infinity, projectedGapMm);
+      }
+      const parallelGapMil = parallelEdgeGapMil(a, b);
+      if (parallelGapMil === undefined) continue;
+      const gapMm = parallelGapMil * MIL_TO_MM;
+      result.count++;
+      result.minimum = Math.min(result.minimum ?? Infinity, gapMm);
+      result.maximum = Math.max(result.maximum ?? -Infinity, gapMm);
     }
   }
-  return gaps;
+  return result;
 }
 
 function ambiguousNativeIdentity(path: PairNetLength): PairNetLength {
@@ -292,34 +326,50 @@ function invalidSpacingLimits(lower: number | undefined, upper: number | undefin
   );
 }
 
+function spacingSampleStatus(
+  samples: SpacingSamples,
+  lower: number | undefined,
+  upper: number | undefined,
+): Assessment {
+  if (samples.contactCount > 0) return 'WARNING';
+  if (
+    (lower !== undefined &&
+      samples.minimum !== undefined &&
+      samples.minimum < lower - NUMERIC_TOLERANCE_MM) ||
+    (upper !== undefined &&
+      samples.maximum !== undefined &&
+      samples.maximum > upper + NUMERIC_TOLERANCE_MM)
+  )
+    return 'WARNING';
+  if (samples.count > 0 && (lower !== undefined || upper !== undefined))
+    return 'WITHIN_DECLARED_LIMIT_REFERENCE';
+  return 'UNKNOWN';
+}
+
+function spacingSampleNote(status: Assessment, contacts: number): string {
+  if (contacts > 0)
+    return 'Observed same-layer different-net copper track geometries touch or overlap in 2D (including nonparallel crossings); inspect native DRC. Full route clearance remains unverified.';
+  if (status === 'WARNING')
+    return 'Observed parallel segment gap lies outside the caller-declared spacing range.';
+  return 'Only sampled overlapping parallel segments were compared; other coupling and reference-plane regions remain unverified.';
+}
+
 function sampledSpacingAssessment(
-  gaps: number[],
+  samples: SpacingSamples,
   lower: number | undefined,
   upper: number | undefined,
 ): DifferentialPairReview['spacing'] {
-  const minimum = Math.min(...gaps);
-  const maximum = Math.max(...gaps);
-  // A distinct-net same-layer copper contact is unsafe even if only a
-  // maximum spacing limit was declared (or no limits were supplied).
-  const copperContact = minimum <= 0;
-  const outside =
-    (lower !== undefined && minimum < lower - NUMERIC_TOLERANCE_MM) ||
-    (upper !== undefined && maximum > upper + NUMERIC_TOLERANCE_MM);
+  const { minimum, maximum, count, contactCount, minimumContact } = samples;
+  const status = spacingSampleStatus(samples, lower, upper);
   return {
-    status:
-      copperContact || outside
-        ? 'WARNING'
-        : lower !== undefined || upper !== undefined
-          ? 'WITHIN_DECLARED_LIMIT_REFERENCE'
-          : 'UNKNOWN',
-    observed_mm: minimum,
-    observed_max_mm: maximum,
-    sample_count: gaps.length,
-    note: copperContact
-      ? 'Observed same-layer different-net parallel copper widths touch or overlap; inspect native DRC. Full route clearance remains unverified.'
-      : outside
-        ? 'Observed parallel segment gap lies outside the caller-declared spacing range.'
-        : 'Only sampled overlapping parallel segments were compared; other coupling and reference-plane regions remain unverified.',
+    status,
+    ...(minimum === undefined && minimumContact === undefined
+      ? {}
+      : { observed_mm: Math.min(minimum ?? Infinity, minimumContact ?? Infinity) }),
+    ...(maximum === undefined ? {} : { observed_max_mm: maximum }),
+    sample_count: count,
+    observed_contact_count: contactCount,
+    note: spacingSampleNote(status, contactCount),
   };
 }
 
@@ -347,10 +397,12 @@ function spacingReview(
   ) {
     return unknown('Both nets need valid observed segments before measuring spacing.');
   }
-  const gaps = parallelGapSamples(positive as Geometry[], negative as Geometry[]);
-  if (!gaps.length)
-    return unknown('No overlapping same-layer parallel segment samples are available.');
-  return sampledSpacingAssessment(gaps, lower, upper);
+  const samples = collectSpacingSamples(positive as Geometry[], negative as Geometry[]);
+  if (samples.count === 0 && samples.contactCount === 0)
+    return unknown(
+      'No overlapping same-layer parallel segment samples or 2D copper contacts are available.',
+    );
+  return sampledSpacingAssessment(samples, lower, upper);
 }
 
 function skewReview(
@@ -503,7 +555,7 @@ export function reviewDifferentialPair(
     spacing,
     findings,
     limitations: [
-      'Native segment sums and parallel-gap samples do not establish actual end-to-end link topology.',
+      'Native segment sums, parallel-gap samples and 2D projected contact checks do not establish actual end-to-end link topology or a fabricated-board short.',
       'Reference impedance and protocol guidance never substitute a source-bound stackup model or field solver.',
       'Only explicit device/datasheet-specific caller limits can produce a skew or spacing warning; their claimed source is reported separately and remains unverified.',
       'Via transitions, layer discontinuities, pads, coupled impedance and plane return paths require additional native evidence.',

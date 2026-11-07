@@ -254,11 +254,20 @@ the length delta without an electrical pass/fail decision.
 
 For **parallel, overlapping, same-layer** trace segments, the tool samples
 edge-to-edge copper separation (native centerline spacing minus half of
-both line widths). Only those samples are compared against the supplied
-`minEdgeGapMm`/`maxEdgeGapMm`; perpendicular or nonoverlapping paths
-cannot establish spacing. The result includes sample count and observed
-min/max values in mm. It does not infer complete differential coupling
-or spacing continuity from a few samples.
+both line widths). Only those parallel samples can support a
+`WITHIN_DECLARED_LIMIT_REFERENCE` comparison against the supplied
+`minEdgeGapMm`/`maxEdgeGapMm` bounds. Perpendicular or nonoverlapping
+paths cannot establish a **passing** differential spacing comparison.
+Independently, a nonpositive 2D projected copper gap between any two
+same-layer, different-net native trace segments (including perpendicular
+crossings and near endpoint contacts) produces `WARNING` even with no
+numerical spacing limit. The result exposes `observed_contact_count`
+and a measured minimum projected edge gap in mm where observable;
+`sample_count` still counts only the parallel-gap samples. No contact
+warning establishes a verified fabricated-board short, pad/pour topology,
+complete coupling, or spacing continuity. Missing native evidence remains
+`UNKNOWN`; actual native DRC and fabricator clearance review are still
+required.
 
 **Impedance is always UNKNOWN** unless a separate, source-bound dielectric,
 finished-copper and stackup model with justified field-solver/manufacturer
