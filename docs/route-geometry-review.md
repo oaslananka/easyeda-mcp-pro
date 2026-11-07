@@ -299,8 +299,13 @@ inventory. This does not verify physical pads or component packages.
 
 The same read-only MCP tool supports up to eight `placementRelations` in a
 single request, using the existing `pcb.listComponents` native reader. It
-enumerates **at most 200** focused-PCB components and records native
-designator, primitive ID, X/Y origin, rotation and layer. This is a component
+enumerates up to **1,200** focused-PCB components in at most six
+**200-row pages**, recording native designator, primitive ID, X/Y origin,
+rotation and layer. Pagination is optional and occurs only when placement
+relations are requested. Changed reported totals, duplicate IDs/designators
+or incomplete pages cannot prove a complete component inventory. A board
+with more than 1,200 components remains explicitly incomplete; no truncated
+subset produces a sourced placement WARNING. This is a component
 **origin-to-origin** measurement in PCB mils, converted to millimetres.
 It is **not** a pad-to-pad distance, electrical net path, via current,
 copper geometry or closed high-frequency loop measurement.

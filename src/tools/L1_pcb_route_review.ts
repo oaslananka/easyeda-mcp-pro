@@ -20,6 +20,7 @@ import { type ToolContext, type ToolDefinition } from './types.js';
 const WINDOW = 200;
 const MAX_ROUTE_TRACKS = 1_200;
 const MAX_ROUTE_VIAS = 600;
+const MAX_PLACEMENT_COMPONENTS = 1_200;
 
 const projectIdSchema = z
   .string()
@@ -409,16 +410,29 @@ type NativeCollection = {
 };
 
 async function readComponentCollection(ctx: ToolContext, projectId: string) {
-  const response = await ctx.bridge.call('pcb.listComponents', {
-    projectId,
-    limit: WINDOW,
-    offset: 0,
-  });
-  const parsed = componentListSchema.parse(response);
-  if (parsed.total < parsed.items.length) {
-    throw new Error('pcb.listComponents: native total smaller than returned items');
+  // Component inventories over one native page must not be silently discarded.
+  // Each page is a separate live getAll() call, not an atomic snapshot; changed
+  // totals fail closed here and duplicate IDs/designators fail closed in the
+  // placement reviewer. Counts above the budget remain visibly incomplete.
+  const items: z.infer<typeof nativeComponentSchema>[] = [];
+  let total = 0;
+  while (items.length < MAX_PLACEMENT_COMPONENTS) {
+    const offset = items.length;
+    const limit = Math.min(WINDOW, MAX_PLACEMENT_COMPONENTS - offset);
+    const response = await ctx.bridge.call('pcb.listComponents', { projectId, limit, offset });
+    const parsed = componentListSchema.parse(response);
+    if (offset > 0 && parsed.total !== total) {
+      throw new Error('pcb.listComponents: native total changed across pages');
+    }
+    total = parsed.total;
+    if (total < offset + parsed.items.length) {
+      throw new Error('pcb.listComponents: native total smaller than returned items');
+    }
+    items.push(...parsed.items);
+    // A short page cannot prove that a higher reported total was enumerated.
+    if (items.length === total || parsed.items.length < limit) break;
   }
-  return parsed;
+  return { total, items };
 }
 
 async function readBoundedCollection(
