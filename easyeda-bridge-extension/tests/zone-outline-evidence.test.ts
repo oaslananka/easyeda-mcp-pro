@@ -32,6 +32,65 @@ function fixture(overrides: Record<string, unknown> = {}) {
 }
 
 describe('read-only native board rectangle intersection', () => {
+  const lOutline = [0, 0, 'L', 100, 0, 100, -20, 40, -20, 40, -80, 0, -80, 0, 0];
+  const lShape = {
+    getState_Layer: () => 11,
+    getState_Polygon: () => ({ polygon: lOutline }),
+  };
+  it.each([
+    ['inside', { x: 60, y: -2, width: 20, height: 10 }],
+    ['outside', { x: 60, y: -40, width: 20, height: 20 }],
+    ['partial', { x: 20, y: -10, width: 30, height: 30 }],
+    ['partial', { x: -10, y: 10, width: 130, height: 110 }],
+  ] as const)(
+    'reads a closed non-rectangular board with %s intersection',
+    async (relation, rect) => {
+      const { reader } = fixture({ PCB_PrimitivePolyline: { getAll: async () => [lShape] } });
+      await expect(evaluateZoneOutlineEvidence(rect, reader, state)).resolves.toMatchObject({
+        status: 'observed',
+        intersectionVerified: relation !== 'outside',
+        outlineKind: 'closed-polyline',
+        intersection: relation,
+        outline: null,
+      });
+    },
+  );
+  it('uses the shared async source reader used by board_dimensions', async () => {
+    const { reader } = fixture({
+      PCB_PrimitivePolyline: {
+        getAll: async () => [
+          {
+            getState_Layer: async () => 11,
+            getState_Polygon: async () => ({ getSource: async () => lOutline }),
+          },
+        ],
+      },
+    });
+    await expect(
+      evaluateZoneOutlineEvidence({ x: 60, y: -2, width: 20, height: 10 }, reader, state),
+    ).resolves.toMatchObject({ status: 'observed', intersection: 'inside' });
+  });
+  it.each([
+    ['unclosed outline', [0, 0, 'L', 100, 0, 100, -20, 40, -20, 40, -80, 0, -80]],
+    ['self crossing', [0, 0, 'L', 40, -40, 0, -40, 40, 0, 0, 0]],
+    ['curve segment', [0, 0, 'Q', 20, 20, 40, 40, 0, 0]],
+    ['nonfinite vertex', [0, 0, 'L', 40, 0, Number.NaN, -40, 0, -40, 0, 0]],
+  ])('fails closed for %s', async (_reason, source) => {
+    const { reader } = fixture({
+      PCB_PrimitivePolyline: {
+        getAll: async () => [
+          {
+            getState_Layer: () => 11,
+            getState_Polygon: () => ({ polygon: source }),
+          },
+        ],
+      },
+    });
+    await expect(evaluateZoneOutlineEvidence(inside, reader, state)).resolves.toMatchObject({
+      status: 'unsupported-outline',
+      intersectionVerified: false,
+    });
+  });
   it('recognizes the live fixture native negative-Y rectangle', async () => {
     const { reader } = fixture();
     await expect(evaluateZoneOutlineEvidence(inside, reader, state)).resolves.toEqual({

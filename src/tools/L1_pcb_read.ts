@@ -264,7 +264,7 @@ function registerPcbReadTools(
     title: 'Inspect native PCB zone safety prerequisites (read-only)',
     description:
       'Verify the live EasyEDA Pro version, focused PCB, exact net membership, supported copper layer and native zone capabilities. ' +
-      'This is a read-only diagnostic and never authorizes zone writes or validates the complete board outline.',
+      'This is a read-only diagnostic of supported rectangular or simple closed-polyline outlines, never proof of copper continuity or permission for zone writes.',
     profile: 'full',
     evidence: ['runtime-probe', 'pro-api-types'],
     risk: 'low',
@@ -301,23 +301,26 @@ function registerPcbReadTools(
             'intersection-confirmed',
             'outside-board',
             'unsupported-outline',
+            'observed',
             'unavailable',
           ]),
           intersectionVerified: z.boolean(),
           outline: pcbZoneRectangleSchema.nullable(),
+          outlineKind: z.enum(['rectangle', 'closed-polyline']).optional(),
+          intersection: z.enum(['inside', 'partial', 'outside']).optional(),
         })
         .nullable()
         .optional()
         .describe(
           'Null when no rectangle is supplied or there is no active PCB; otherwise ' +
-            'status is intersection-confirmed (one unrotated rectangular board frame ' +
-            'overlaps the candidate), outside-board (no overlap), unsupported-outline ' +
-            '(complex/multiple/rotated frame or additional regions), or unavailable ' +
-            '(identity/native inspection cannot be verified). intersectionVerified is ' +
-            'true only for the single-rectangle overlap case, NOT a clearance, ' +
-            'keepout, board-hole, DRC, or apply authorization. outline is the native ' +
-            'board rectangle {x, y, width, height} or null when unverified. ' +
-            'readyToApply always stays false.',
+            'status is intersection-confirmed/outside-board for a single native rectangle; ' +
+            'observed for one explicitly closed, simple native L polyline with a verified ' +
+            'inside/partial/outside intersection field. unsupported-outline means ambiguous ' +
+            'geometry; unavailable means native identity/inspection was not verified. ' +
+            'intersectionVerified is true for observed inside/partial geometric contact only, ' +
+            'NOT proof of copper fill, keepout clearance, plane continuity, DRC, or apply approval. ' +
+            'outline is the native rectangle only; null for polygons to avoid suggesting that ' +
+            'their bounding box is a board outline. readyToApply always stays false.',
         ),
       readyToApply: z.literal(false),
       blockers: z.array(z.string()),
@@ -355,6 +358,8 @@ function registerPcbReadTools(
               status: string;
               intersectionVerified: boolean;
               outline: z.infer<typeof pcbZoneRectangleSchema> | null;
+              outlineKind?: 'rectangle' | 'closed-polyline';
+              intersection?: 'inside' | 'partial' | 'outside';
             } | null;
             readyToApply: false;
             blockers: string[];

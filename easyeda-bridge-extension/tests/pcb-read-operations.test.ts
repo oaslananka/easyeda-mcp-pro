@@ -768,6 +768,44 @@ describe('native zone preflight', () => {
     });
   });
 
+  it('keeps zone writes disabled on non-rectangular board-outline intersections', async () => {
+    const { operations } = makeOperations({
+      ...base,
+      DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'project' }) },
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => ({
+          documentType: 3,
+          uuid: 'pcb',
+          parentProjectUuid: 'project',
+        }),
+      },
+      PCB_PrimitivePolyline: {
+        getAll: async () => [
+          {
+            getState_Layer: () => 11,
+            getState_Polygon: () => ({
+              polygon: [0, 0, 'L', 100, 0, 100, -20, 40, -20, 40, -80, 0, -80, 0, 0],
+            }),
+          },
+        ],
+      },
+      PCB_PrimitiveLine: { getAll: async () => [] },
+      PCB_PrimitiveArc: { getAll: async () => [] },
+      PCB_PrimitiveRegion: { getAll: async () => [] },
+    });
+    await expect(
+      operations.zonePreflight('GND', 2, { x: 60, y: -2, width: 20, height: 10 }),
+    ).resolves.toMatchObject({
+      boardGeometry: { status: 'observed', intersection: 'inside', outline: null },
+      readyToApply: false,
+      blockers: expect.arrayContaining([
+        'board-outline-and-copper-topology-unverified',
+        'apply-and-rollback-not-implemented',
+      ]),
+    });
+    expect(base.pcb_PrimitivePour.create).not.toHaveBeenCalled();
+    expect(base.pcb_Document.save).not.toHaveBeenCalled();
+  });
   it('validates exact net and active board but never authorizes writes', async () => {
     const { operations } = makeOperations(base);
     const result = await operations.zonePreflight('GND', 2);
