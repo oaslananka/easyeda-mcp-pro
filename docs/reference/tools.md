@@ -145,13 +145,15 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 
 ### Input Parameters
 
-| Parameter        | Type                | Required | Description                                                                                                                                                                                                                                                                          |
-| ---------------- | ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `path`           | `string`            | Yes      |                                                                                                                                                                                                                                                                                      |
-| `args`           | `any[]`             | Yes      | Positional EasyEDA API arguments. For documented IPCB_Polygon parameters on PCB_PrimitiveRegion/Pour/Fill/Polyline create or modify and PCB_PrimitiveImage.create, pass {$polygon: [...]} or {$complexPolygon: [[...], ...]}; serialized __class/__methods descriptors are rejected. |
-| `confirmWrite`   | `boolean`           | Yes      |                                                                                                                                                                                                                                                                                      |
-| `includeMethods` | `boolean`           | Yes      | Include native __methods metadata on every serialized object (false by default to avoid duplicate result bloat).                                                                                                                                                                     |
-| `maxDepth`       | `number (optional)` | No       | Nesting depth of the returned result (default 5); deeper levels come back as "[MaxDepth]". DRC details (PCB_Drc.check with details) need about 8.                                                                                                                                    |
+| Parameter                   | Type                | Required | Description                                                                                                                                                                                                                                                                          |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`                      | `string`            | Yes      |                                                                                                                                                                                                                                                                                      |
+| `args`                      | `any[]`             | Yes      | Positional EasyEDA API arguments. For documented IPCB_Polygon parameters on PCB_PrimitiveRegion/Pour/Fill/Polyline create or modify and PCB_PrimitiveImage.create, pass {$polygon: [...]} or {$complexPolygon: [[...], ...]}; serialized __class/__methods descriptors are rejected. |
+| `confirmWrite`              | `boolean`           | Yes      |                                                                                                                                                                                                                                                                                      |
+| `includeMethods`            | `boolean`           | Yes      | Include native __methods metadata on every serialized object (false by default to avoid duplicate result bloat).                                                                                                                                                                     |
+| `maxDepth`                  | `number (optional)` | No       | Nesting depth of the returned result (default 5); deeper levels come back as "[MaxDepth]". DRC details (PCB_Drc.check with details) need about 8.                                                                                                                                    |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.                                                                                                                                                                                                   |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write.                                                                                                                                                                                                |
 
 ### Output Format
 
@@ -165,6 +167,7 @@ Returns a JSON object matching the schema:
   result: any(optional);
   error: string(optional);
   requires_confirmation: boolean(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -1467,15 +1470,17 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                                                                                                  | Required | Description                                                                                                                                                                                     |
-| -------------- | ----------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `layer`        | `'1'` \| `'2'` \| `'12'` \| `number`                                                                  | Yes      | EasyEDA TPCB_LayersOfRegion layer: TOP=1, BOTTOM=2, MULTI=12, or INNER_1..INNER_30=15..44.                                                                                                      |
-| `polygon`      | `number` \| `string[]` \| `number` \| `string[][]`                                                    | Yes      | One EasyEDA polygon source array, or an array of source arrays for a complex polygon with multiple contours.                                                                                    |
-| `ruleType`     | `'NO_COMPONENTS'` \| `'NO_WIRES'` \| `'NO_FILLS'` \| `'NO_POURS'` \| `'NO_INNER_ELECTRICAL_LAYERS'[]` | Yes      | EPCB_PrimitiveRegionRuleType values to enforce in this region.                                                                                                                                  |
-| `name`         | `string (optional)`                                                                                   | No       | Optional native Region name. EasyEDA Pro 3.2.149 may omit this field on persisted read-back; when requested but not confirmed, the tool fails closed and rolls the Region back.                 |
-| `lineWidth`    | `number (optional)`                                                                                   | No       | Optional native EasyEDA PCB line width. EasyEDA Pro 3.2.149 may normalize this field on persisted read-back; when requested but not confirmed, the tool fails closed and rolls the Region back. |
-| `locked`       | `boolean`                                                                                             | Yes      |                                                                                                                                                                                                 |
-| `confirmWrite` | `'true'`                                                                                              | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                                                                                                   |
+| Parameter                   | Type                                                                                                  | Required | Description                                                                                                                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layer`                     | `'1'` \| `'2'` \| `'12'` \| `number`                                                                  | Yes      | EasyEDA TPCB_LayersOfRegion layer: TOP=1, BOTTOM=2, MULTI=12, or INNER_1..INNER_30=15..44.                                                                                                      |
+| `polygon`                   | `number` \| `string[]` \| `number` \| `string[][]`                                                    | Yes      | One EasyEDA polygon source array, or an array of source arrays for a complex polygon with multiple contours.                                                                                    |
+| `ruleType`                  | `'NO_COMPONENTS'` \| `'NO_WIRES'` \| `'NO_FILLS'` \| `'NO_POURS'` \| `'NO_INNER_ELECTRICAL_LAYERS'[]` | Yes      | EPCB_PrimitiveRegionRuleType values to enforce in this region.                                                                                                                                  |
+| `name`                      | `string (optional)`                                                                                   | No       | Optional native Region name. EasyEDA Pro 3.2.149 may omit this field on persisted read-back; when requested but not confirmed, the tool fails closed and rolls the Region back.                 |
+| `lineWidth`                 | `number (optional)`                                                                                   | No       | Optional native EasyEDA PCB line width. EasyEDA Pro 3.2.149 may normalize this field on persisted read-back; when requested but not confirmed, the tool fails closed and rolls the Region back. |
+| `locked`                    | `boolean`                                                                                             | Yes      |                                                                                                                                                                                                 |
+| `confirmWrite`              | `'true'`                                                                                              | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                                                                                                   |
+| `expectedPcbUuid`           | `string (optional)`                                                                                   | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.                                                                                                              |
+| `expectedSchematicPageUuid` | `string (optional)`                                                                                   | No       | Expected focused schematic page UUID; reject a different focused page before a write.                                                                                                           |
 
 ### Output Format
 
@@ -1490,6 +1495,7 @@ Returns a JSON object matching the schema:
   readBack: object (optional);
   rolledBack: boolean (optional);
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -1503,15 +1509,17 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `layer`        | `number`            | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen                      |
-| `startX`       | `number`            | Yes      |                                                                               |
-| `startY`       | `number`            | Yes      |                                                                               |
-| `endX`         | `number`            | Yes      |                                                                               |
-| `endY`         | `number`            | Yes      |                                                                               |
-| `lineWidth`    | `number (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `layer`                     | `number`            | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen                              |
+| `startX`                    | `number`            | Yes      |                                                                                       |
+| `startY`                    | `number`            | Yes      |                                                                                       |
+| `endX`                      | `number`            | Yes      |                                                                                       |
+| `endY`                      | `number`            | Yes      |                                                                                       |
+| `lineWidth`                 | `number (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1522,6 +1530,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   primitiveId: string(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -1535,22 +1544,24 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                 | Required | Description                                                                   |
-| -------------- | -------------------- | -------- | ----------------------------------------------------------------------------- |
-| `layer`        | `number`             | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen                      |
-| `x`            | `number`             | Yes      |                                                                               |
-| `y`            | `number`             | Yes      |                                                                               |
-| `text`         | `string`             | Yes      |                                                                               |
-| `fontFamily`   | `string (optional)`  | No       |                                                                               |
-| `fontSize`     | `number (optional)`  | No       |                                                                               |
-| `lineWidth`    | `number (optional)`  | No       |                                                                               |
-| `alignMode`    | `number (optional)`  | No       |                                                                               |
-| `rotation`     | `number (optional)`  | No       |                                                                               |
-| `reverse`      | `boolean (optional)` | No       |                                                                               |
-| `expansion`    | `number (optional)`  | No       |                                                                               |
-| `mirror`       | `boolean (optional)` | No       |                                                                               |
-| `locked`       | `boolean (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                 | Required | Description                                                                           |
+| --------------------------- | -------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `layer`                     | `number`             | Yes      | Layer id, e.g. 3 = Top Silkscreen, 4 = Bottom Silkscreen                              |
+| `x`                         | `number`             | Yes      |                                                                                       |
+| `y`                         | `number`             | Yes      |                                                                                       |
+| `text`                      | `string`             | Yes      |                                                                                       |
+| `fontFamily`                | `string (optional)`  | No       |                                                                                       |
+| `fontSize`                  | `number (optional)`  | No       |                                                                                       |
+| `lineWidth`                 | `number (optional)`  | No       |                                                                                       |
+| `alignMode`                 | `number (optional)`  | No       |                                                                                       |
+| `rotation`                  | `number (optional)`  | No       |                                                                                       |
+| `reverse`                   | `boolean (optional)` | No       |                                                                                       |
+| `expansion`                 | `number (optional)`  | No       |                                                                                       |
+| `mirror`                    | `boolean (optional)` | No       |                                                                                       |
+| `locked`                    | `boolean (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)`  | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`  | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1561,6 +1572,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   primitiveId: string(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -1574,13 +1586,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `points`       | `object[]`          | Yes      |                                                                               |
-| `layer`        | `number`            | Yes      |                                                                               |
-| `width`        | `number`            | Yes      |                                                                               |
-| `netName`      | `string (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `points`                    | `object[]`          | Yes      |                                                                                       |
+| `layer`                     | `number`            | Yes      |                                                                                       |
+| `width`                     | `number`            | Yes      |                                                                                       |
+| `netName`                   | `string (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1592,6 +1606,7 @@ Returns a JSON object matching the schema:
   primitiveId: string (optional);
   primitiveIds: string[] (optional);
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -1605,14 +1620,16 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                | Required | Description                                                                   |
-| --------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `x`             | `number`            | Yes      |                                                                               |
-| `y`             | `number`            | Yes      |                                                                               |
-| `outerDiameter` | `number`            | Yes      |                                                                               |
-| `holeSize`      | `number`            | Yes      |                                                                               |
-| `netName`       | `string (optional)` | No       |                                                                               |
-| `confirmWrite`  | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `x`                         | `number`            | Yes      |                                                                                       |
+| `y`                         | `number`            | Yes      |                                                                                       |
+| `outerDiameter`             | `number`            | Yes      |                                                                                       |
+| `holeSize`                  | `number`            | Yes      |                                                                                       |
+| `netName`                   | `string (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1623,6 +1640,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   primitiveId: string(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -1636,21 +1654,23 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                     | Required | Description                                     |
-| --------------- | ------------------------ | -------- | ----------------------------------------------- |
-| `mode`          | `'preview'` \| `'apply'` | Yes      |                                                 |
-| `rectangle`     | `object (optional)`      | No       | Native PCB rectangle. Required in preview mode. |
-| `points`        | `object[] (optional)`    | No       |                                                 |
-| `layer`         | `number`                 | Yes      |                                                 |
-| `netName`       | `string (optional)`      | No       |                                                 |
-| `clearance`     | `number (optional)`      | No       |                                                 |
-| `fillMethod`    | `'solid' (optional)`     | No       |                                                 |
-| `preserveSilos` | `boolean (optional)`     | No       |                                                 |
-| `pourName`      | `string (optional)`      | No       |                                                 |
-| `pourPriority`  | `number (optional)`      | No       |                                                 |
-| `lineWidth`     | `number (optional)`      | No       |                                                 |
-| `locked`        | `boolean (optional)`     | No       |                                                 |
-| `confirmWrite`  | `'true' (optional)`      | No       |                                                 |
+| Parameter                   | Type                     | Required | Description                                                                           |
+| --------------------------- | ------------------------ | -------- | ------------------------------------------------------------------------------------- |
+| `mode`                      | `'preview'` \| `'apply'` | Yes      |                                                                                       |
+| `rectangle`                 | `object (optional)`      | No       | Native PCB rectangle. Required in preview mode.                                       |
+| `points`                    | `object[] (optional)`    | No       |                                                                                       |
+| `layer`                     | `number`                 | Yes      |                                                                                       |
+| `netName`                   | `string (optional)`      | No       |                                                                                       |
+| `clearance`                 | `number (optional)`      | No       |                                                                                       |
+| `fillMethod`                | `'solid' (optional)`     | No       |                                                                                       |
+| `preserveSilos`             | `boolean (optional)`     | No       |                                                                                       |
+| `pourName`                  | `string (optional)`      | No       |                                                                                       |
+| `pourPriority`              | `number (optional)`      | No       |                                                                                       |
+| `lineWidth`                 | `number (optional)`      | No       |                                                                                       |
+| `locked`                    | `boolean (optional)`     | No       |                                                                                       |
+| `confirmWrite`              | `'true' (optional)`      | No       |                                                                                       |
+| `expectedPcbUuid`           | `string (optional)`      | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`      | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1665,6 +1685,7 @@ Returns a JSON object matching the schema:
   preview: object(optional);
   error: string(optional);
   remediation: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -1678,17 +1699,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter               | Type                                                            | Required | Description |
-| ----------------------- | --------------------------------------------------------------- | -------- | ----------- |
-| `projectId`             | `string`                                                        | Yes      |             |
-| `routingNets`           | `'selected'` \| `'selectedComponents'` \| `string[] (optional)` | No       |             |
-| `cornerStyle`           | `'45'` \| `'90' (optional)`                                     | No       |             |
-| `existingPrimitiveMode` | `'keep'` \| `'remove' (optional)`                               | No       |             |
-| `optimization`          | `'completion'` \| `'faster' (optional)`                         | No       |             |
-| `layers`                | `number[] (optional)`                                           | No       |             |
-| `ignoreNets`            | `string[] (optional)`                                           | No       |             |
-| `boardData`             | `object (optional)`                                             | No       |             |
-| `confirmWrite`          | `boolean (optional)`                                            | No       |             |
+| Parameter                   | Type                                                            | Required | Description                                                                           |
+| --------------------------- | --------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`                                                        | Yes      |                                                                                       |
+| `routingNets`               | `'selected'` \| `'selectedComponents'` \| `string[] (optional)` | No       |                                                                                       |
+| `cornerStyle`               | `'45'` \| `'90' (optional)`                                     | No       |                                                                                       |
+| `existingPrimitiveMode`     | `'keep'` \| `'remove' (optional)`                               | No       |                                                                                       |
+| `optimization`              | `'completion'` \| `'faster' (optional)`                         | No       |                                                                                       |
+| `layers`                    | `number[] (optional)`                                           | No       |                                                                                       |
+| `ignoreNets`                | `string[] (optional)`                                           | No       |                                                                                       |
+| `boardData`                 | `object (optional)`                                             | No       |                                                                                       |
+| `confirmWrite`              | `boolean (optional)`                                            | No       |                                                                                       |
+| `expectedPcbUuid`           | `string (optional)`                                             | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`                                             | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1707,6 +1730,7 @@ Returns a JSON object matching the schema:
   summary: string;
   not_available: boolean(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -1810,10 +1834,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type       | Required | Description                                                                   |
-| -------------- | ---------- | -------- | ----------------------------------------------------------------------------- |
-| `primitiveIds` | `string[]` | Yes      |                                                                               |
-| `confirmWrite` | `'true'`   | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `primitiveIds`              | `string[]`          | Yes      |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1826,6 +1852,7 @@ Returns a JSON object matching the schema:
   deleted: string[] (optional);
   notFound: string[] (optional);
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -1899,24 +1926,26 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                          | Type                                                      | Required | Description |
-| ---------------------------------- | --------------------------------------------------------- | -------- | ----------- |
-| `circuitIR`                        | `any`                                                     | Yes      |             |
-| `devices`                          | `object[]`                                                | Yes      |             |
-| `projectId`                        | `string (optional)`                                       | No       |             |
-| `mode`                             | `'preview'` \| `'apply'`                                  | Yes      |             |
-| `board`                            | `object`                                                  | Yes      |             |
-| `anchor`                           | `object`                                                  | Yes      |             |
-| `columns`                          | `number (optional)`                                       | No       |             |
-| `spacingMm`                        | `number (optional)`                                       | No       |             |
-| `minSpacingMm`                     | `number (optional)`                                       | No       |             |
-| `topLayer`                         | `number (optional)`                                       | No       |             |
-| `bottomLayer`                      | `number (optional)`                                       | No       |             |
-| `connectorEdge`                    | `'top'` \| `'bottom'` \| `'left'` \| `'right' (optional)` | No       |             |
-| `connectorEdgeMarginMm`            | `number (optional)`                                       | No       |             |
-| `thermalSpacingBoostMm`            | `number (optional)`                                       | No       |             |
-| `thermalDissipationThresholdWatts` | `number (optional)`                                       | No       |             |
-| `confirmWrite`                     | `boolean (optional)`                                      | No       |             |
+| Parameter                          | Type                                                      | Required | Description                                                                           |
+| ---------------------------------- | --------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `circuitIR`                        | `any`                                                     | Yes      |                                                                                       |
+| `devices`                          | `object[]`                                                | Yes      |                                                                                       |
+| `projectId`                        | `string (optional)`                                       | No       |                                                                                       |
+| `mode`                             | `'preview'` \| `'apply'`                                  | Yes      |                                                                                       |
+| `board`                            | `object`                                                  | Yes      |                                                                                       |
+| `anchor`                           | `object`                                                  | Yes      |                                                                                       |
+| `columns`                          | `number (optional)`                                       | No       |                                                                                       |
+| `spacingMm`                        | `number (optional)`                                       | No       |                                                                                       |
+| `minSpacingMm`                     | `number (optional)`                                       | No       |                                                                                       |
+| `topLayer`                         | `number (optional)`                                       | No       |                                                                                       |
+| `bottomLayer`                      | `number (optional)`                                       | No       |                                                                                       |
+| `connectorEdge`                    | `'top'` \| `'bottom'` \| `'left'` \| `'right' (optional)` | No       |                                                                                       |
+| `connectorEdgeMarginMm`            | `number (optional)`                                       | No       |                                                                                       |
+| `thermalSpacingBoostMm`            | `number (optional)`                                       | No       |                                                                                       |
+| `thermalDissipationThresholdWatts` | `number (optional)`                                       | No       |                                                                                       |
+| `confirmWrite`                     | `boolean (optional)`                                      | No       |                                                                                       |
+| `expectedPcbUuid`                  | `string (optional)`                                       | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid`        | `string (optional)`                                       | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1938,6 +1967,7 @@ Returns a JSON object matching the schema:
   summary: string;
   not_available: boolean (optional);
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -1951,15 +1981,17 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                             | Required | Description                                           |
-| -------------- | -------------------------------- | -------- | ----------------------------------------------------- |
-| `primitiveId`  | `string`                         | Yes      |                                                       |
-| `mode`         | `'preview'` \| `'apply'`         | Yes      |                                                       |
-| `side`         | `'top'` \| `'bottom' (optional)` | No       |                                                       |
-| `xMil`         | `number (optional)`              | No       | Absolute native PCB X coordinate in mils.             |
-| `yMil`         | `number (optional)`              | No       | Absolute native PCB Y coordinate in mils.             |
-| `rotationDeg`  | `number (optional)`              | No       | Component rotation in degrees; normalized modulo 360. |
-| `confirmWrite` | `'true' (optional)`              | No       |                                                       |
+| Parameter                   | Type                             | Required | Description                                                                           |
+| --------------------------- | -------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `primitiveId`               | `string`                         | Yes      |                                                                                       |
+| `mode`                      | `'preview'` \| `'apply'`         | Yes      |                                                                                       |
+| `side`                      | `'top'` \| `'bottom' (optional)` | No       |                                                                                       |
+| `xMil`                      | `number (optional)`              | No       | Absolute native PCB X coordinate in mils.                                             |
+| `yMil`                      | `number (optional)`              | No       | Absolute native PCB Y coordinate in mils.                                             |
+| `rotationDeg`               | `number (optional)`              | No       | Component rotation in degrees; normalized modulo 360.                                 |
+| `confirmWrite`              | `'true' (optional)`              | No       |                                                                                       |
+| `expectedPcbUuid`           | `string (optional)`              | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`              | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -1982,6 +2014,7 @@ Returns a JSON object matching the schema:
   transaction_state: 'active' | 'validated' | 'committed' | 'rolled-back' | 'failed' (optional);
   rolled_back: boolean (optional);
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -1995,11 +2028,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                     | Required | Description |
-| -------------- | ------------------------ | -------- | ----------- |
-| `mode`         | `'preview'` \| `'apply'` | Yes      |             |
-| `placements`   | `object[]`               | Yes      |             |
-| `confirmWrite` | `'true' (optional)`      | No       |             |
+| Parameter                   | Type                     | Required | Description                                                                           |
+| --------------------------- | ------------------------ | -------- | ------------------------------------------------------------------------------------- |
+| `mode`                      | `'preview'` \| `'apply'` | Yes      |                                                                                       |
+| `placements`                | `object[]`               | Yes      |                                                                                       |
+| `confirmWrite`              | `'true' (optional)`      | No       |                                                                                       |
+| `expectedPcbUuid`           | `string (optional)`      | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`      | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2018,6 +2053,7 @@ Returns a JSON object matching the schema:
   atomic: 'false';
   results: object[];
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -2031,14 +2067,16 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type     | Required | Description                                                                   |
-| -------------- | -------- | -------- | ----------------------------------------------------------------------------- |
-| `footprint`    | `string` | Yes      |                                                                               |
-| `x`            | `number` | Yes      |                                                                               |
-| `y`            | `number` | Yes      |                                                                               |
-| `rotation`     | `number` | Yes      |                                                                               |
-| `layer`        | `number` | Yes      |                                                                               |
-| `confirmWrite` | `'true'` | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `footprint`                 | `string`            | Yes      |                                                                                       |
+| `x`                         | `number`            | Yes      |                                                                                       |
+| `y`                         | `number`            | Yes      |                                                                                       |
+| `rotation`                  | `number`            | Yes      |                                                                                       |
+| `layer`                     | `number`            | Yes      |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2050,6 +2088,7 @@ Returns a JSON object matching the schema:
   not_available: boolean(optional);
   error: string(optional);
   remediation: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -2063,19 +2102,21 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                     | Required | Description |
-| -------------- | ------------------------ | -------- | ----------- |
-| `projectId`    | `string (optional)`      | No       |             |
-| `mode`         | `'preview'` \| `'apply'` | Yes      |             |
-| `board`        | `object`                 | Yes      |             |
-| `anchor`       | `object`                 | Yes      |             |
-| `columns`      | `number (optional)`      | No       |             |
-| `spacingMm`    | `number (optional)`      | No       |             |
-| `layer`        | `'1'` \| `'2'`           | Yes      |             |
-| `minSpacingMm` | `number (optional)`      | No       |             |
-| `components`   | `object[]`               | Yes      |             |
-| `keepouts`     | `object[] (optional)`    | No       |             |
-| `confirmWrite` | `boolean (optional)`     | No       |             |
+| Parameter                   | Type                     | Required | Description                                                                           |
+| --------------------------- | ------------------------ | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string (optional)`      | No       |                                                                                       |
+| `mode`                      | `'preview'` \| `'apply'` | Yes      |                                                                                       |
+| `board`                     | `object`                 | Yes      |                                                                                       |
+| `anchor`                    | `object`                 | Yes      |                                                                                       |
+| `columns`                   | `number (optional)`      | No       |                                                                                       |
+| `spacingMm`                 | `number (optional)`      | No       |                                                                                       |
+| `layer`                     | `'1'` \| `'2'`           | Yes      |                                                                                       |
+| `minSpacingMm`              | `number (optional)`      | No       |                                                                                       |
+| `components`                | `object[]`               | Yes      |                                                                                       |
+| `keepouts`                  | `object[] (optional)`    | No       |                                                                                       |
+| `confirmWrite`              | `boolean (optional)`     | No       |                                                                                       |
+| `expectedPcbUuid`           | `string (optional)`      | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`      | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2095,6 +2136,7 @@ Returns a JSON object matching the schema:
   issues: object[];
   summary: string;
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -2147,12 +2189,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                                  | Required | Description                                                                   |
-| -------------- | ------------------------------------- | -------- | ----------------------------------------------------------------------------- |
-| `pourIds`      | `string[] (optional)`                 | No       | Optional existing PCB_PrimitivePour primitive ids to rebuild.                 |
-| `net`          | `string (optional)`                   | No       | Optional exact net-name filter. Combined with pourIds/layer when provided.    |
-| `layer`        | `'1'` \| `'2'` \| `number (optional)` | No       | Optional copper-layer filter: TOP=1, BOTTOM=2, INNER_1..INNER_30=15..44.      |
-| `confirmWrite` | `'true'`                              | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                                  | Required | Description                                                                           |
+| --------------------------- | ------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `pourIds`                   | `string[] (optional)`                 | No       | Optional existing PCB_PrimitivePour primitive ids to rebuild.                         |
+| `net`                       | `string (optional)`                   | No       | Optional exact net-name filter. Combined with pourIds/layer when provided.            |
+| `layer`                     | `'1'` \| `'2'` \| `number (optional)` | No       | Optional copper-layer filter: TOP=1, BOTTOM=2, INNER_1..INNER_30=15..44.              |
+| `confirmWrite`              | `'true'`                              | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)`                   | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`                   | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2169,6 +2213,7 @@ Returns a JSON object matching the schema:
   planeZonesSupported: 'false';
   results: object[];
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -2258,19 +2303,21 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                     | Required | Description |
-| -------------- | ------------------------ | -------- | ----------- |
-| `projectId`    | `string (optional)`      | No       |             |
-| `mode`         | `'preview'` \| `'apply'` | Yes      |             |
-| `board`        | `object (optional)`      | No       |             |
-| `netName`      | `string`                 | Yes      |             |
-| `layer`        | `number`                 | Yes      |             |
-| `widthMm`      | `number`                 | Yes      |             |
-| `waypoints`    | `object[]`               | Yes      |             |
-| `keepouts`     | `object[] (optional)`    | No       |             |
-| `maxLengthMm`  | `number (optional)`      | No       |             |
-| `minWidthMm`   | `number (optional)`      | No       |             |
-| `confirmWrite` | `boolean (optional)`     | No       |             |
+| Parameter                   | Type                     | Required | Description                                                                           |
+| --------------------------- | ------------------------ | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string (optional)`      | No       |                                                                                       |
+| `mode`                      | `'preview'` \| `'apply'` | Yes      |                                                                                       |
+| `board`                     | `object (optional)`      | No       |                                                                                       |
+| `netName`                   | `string`                 | Yes      |                                                                                       |
+| `layer`                     | `number`                 | Yes      |                                                                                       |
+| `widthMm`                   | `number`                 | Yes      |                                                                                       |
+| `waypoints`                 | `object[]`               | Yes      |                                                                                       |
+| `keepouts`                  | `object[] (optional)`    | No       |                                                                                       |
+| `maxLengthMm`               | `number (optional)`      | No       |                                                                                       |
+| `minWidthMm`                | `number (optional)`      | No       |                                                                                       |
+| `confirmWrite`              | `boolean (optional)`     | No       |                                                                                       |
+| `expectedPcbUuid`           | `string (optional)`      | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`      | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2293,6 +2340,7 @@ Returns a JSON object matching the schema:
   issues: object[];
   summary: string;
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -2761,17 +2809,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `centerX`      | `number`            | Yes      |                                                                               |
-| `centerY`      | `number`            | Yes      |                                                                               |
-| `radius`       | `number`            | Yes      |                                                                               |
-| `color`        | `string (optional)` | No       |                                                                               |
-| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                |
-| `lineWidth`    | `number (optional)` | No       |                                                                               |
-| `lineType`     | `number (optional)` | No       |                                                                               |
-| `fillStyle`    | `string (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `centerX`                   | `number`            | Yes      |                                                                                       |
+| `centerY`                   | `number`            | Yes      |                                                                                       |
+| `radius`                    | `number`            | Yes      |                                                                                       |
+| `color`                     | `string (optional)` | No       |                                                                                       |
+| `fillColor`                 | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                        |
+| `lineWidth`                 | `number (optional)` | No       |                                                                                       |
+| `lineType`                  | `number (optional)` | No       |                                                                                       |
+| `fillStyle`                 | `string (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2782,6 +2832,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   circle: any(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -2795,14 +2846,16 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `points`       | `object[]`          | Yes      |                                                                               |
-| `color`        | `string (optional)` | No       |                                                                               |
-| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                |
-| `lineWidth`    | `number (optional)` | No       |                                                                               |
-| `lineType`     | `number (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `points`                    | `object[]`          | Yes      |                                                                                       |
+| `color`                     | `string (optional)` | No       |                                                                                       |
+| `fillColor`                 | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                        |
+| `lineWidth`                 | `number (optional)` | No       |                                                                                       |
+| `lineType`                  | `number (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2813,6 +2866,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   polygon: any(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -2826,20 +2880,22 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `x`            | `number`            | Yes      | Top-left X coordinate                                                         |
-| `y`            | `number`            | Yes      | Top-left Y coordinate                                                         |
-| `width`        | `number`            | Yes      |                                                                               |
-| `height`       | `number`            | Yes      |                                                                               |
-| `cornerRadius` | `number (optional)` | No       |                                                                               |
-| `rotation`     | `number (optional)` | No       |                                                                               |
-| `color`        | `string (optional)` | No       | Border/line color, hex string (e.g. "#FF0000")                                |
-| `fillColor`    | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                |
-| `lineWidth`    | `number (optional)` | No       |                                                                               |
-| `lineType`     | `number (optional)` | No       |                                                                               |
-| `fillStyle`    | `string (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `x`                         | `number`            | Yes      | Top-left X coordinate                                                                 |
+| `y`                         | `number`            | Yes      | Top-left Y coordinate                                                                 |
+| `width`                     | `number`            | Yes      |                                                                                       |
+| `height`                    | `number`            | Yes      |                                                                                       |
+| `cornerRadius`              | `number (optional)` | No       |                                                                                       |
+| `rotation`                  | `number (optional)` | No       |                                                                                       |
+| `color`                     | `string (optional)` | No       | Border/line color, hex string (e.g. "#FF0000")                                        |
+| `fillColor`                 | `string (optional)` | No       | Fill color, hex string, or "none" for unfilled                                        |
+| `lineWidth`                 | `number (optional)` | No       |                                                                                       |
+| `lineType`                  | `number (optional)` | No       |                                                                                       |
+| `fillStyle`                 | `string (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2850,6 +2906,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   rectangle: any(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -2863,20 +2920,22 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                 | Required | Description                                                                   |
-| -------------- | -------------------- | -------- | ----------------------------------------------------------------------------- |
-| `x`            | `number`             | Yes      |                                                                               |
-| `y`            | `number`             | Yes      |                                                                               |
-| `content`      | `string`             | Yes      |                                                                               |
-| `rotation`     | `number (optional)`  | No       |                                                                               |
-| `color`        | `string (optional)`  | No       |                                                                               |
-| `fontName`     | `string (optional)`  | No       |                                                                               |
-| `fontSize`     | `number (optional)`  | No       |                                                                               |
-| `bold`         | `boolean (optional)` | No       |                                                                               |
-| `italic`       | `boolean (optional)` | No       |                                                                               |
-| `underline`    | `boolean (optional)` | No       |                                                                               |
-| `alignMode`    | `number (optional)`  | No       |                                                                               |
-| `confirmWrite` | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                 | Required | Description                                                                           |
+| --------------------------- | -------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `x`                         | `number`             | Yes      |                                                                                       |
+| `y`                         | `number`             | Yes      |                                                                                       |
+| `content`                   | `string`             | Yes      |                                                                                       |
+| `rotation`                  | `number (optional)`  | No       |                                                                                       |
+| `color`                     | `string (optional)`  | No       |                                                                                       |
+| `fontName`                  | `string (optional)`  | No       |                                                                                       |
+| `fontSize`                  | `number (optional)`  | No       |                                                                                       |
+| `bold`                      | `boolean (optional)` | No       |                                                                                       |
+| `italic`                    | `boolean (optional)` | No       |                                                                                       |
+| `underline`                 | `boolean (optional)` | No       |                                                                                       |
+| `alignMode`                 | `number (optional)`  | No       |                                                                                       |
+| `confirmWrite`              | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)`  | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`  | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2887,6 +2946,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   text: any(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -2900,14 +2960,16 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `points`       | `object[]`          | Yes      |                                                                               |
-| `netName`      | `string (optional)` | No       |                                                                               |
-| `color`        | `string (optional)` | No       |                                                                               |
-| `lineWidth`    | `number (optional)` | No       |                                                                               |
-| `lineType`     | `string (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `points`                    | `object[]`          | Yes      |                                                                                       |
+| `netName`                   | `string (optional)` | No       |                                                                                       |
+| `color`                     | `string (optional)` | No       |                                                                                       |
+| `lineWidth`                 | `number (optional)` | No       |                                                                                       |
+| `lineType`                  | `string (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2918,6 +2980,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   wire: any(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -2968,14 +3031,16 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                                                                                                                               | Required | Description |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------- |
-| `projectId`     | `string`                                                                                                                           | Yes      |             |
-| `transactionId` | `string (optional)`                                                                                                                | No       |             |
-| `operations`    | `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object[]` | Yes      |             |
-| `atomic`        | `'true'`                                                                                                                           | Yes      |             |
-| `dryRun`        | `boolean`                                                                                                                          | Yes      |             |
-| `confirmWrite`  | `'true'`                                                                                                                           | Yes      |             |
+| Parameter                   | Type                                                                                                                               | Required | Description                                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`                                                                                                                           | Yes      |                                                                                       |
+| `transactionId`             | `string (optional)`                                                                                                                | No       |                                                                                       |
+| `operations`                | `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object[]` | Yes      |                                                                                       |
+| `atomic`                    | `'true'`                                                                                                                           | Yes      |                                                                                       |
+| `dryRun`                    | `boolean`                                                                                                                          | Yes      |                                                                                       |
+| `confirmWrite`              | `'true'`                                                                                                                           | Yes      |                                                                                       |
+| `expectedPcbUuid`           | `string (optional)`                                                                                                                | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`                                                                                                                | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -2995,6 +3060,7 @@ Returns a JSON object matching the schema:
   error_code: string (optional);
   error: string (optional);
   rollback_error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -3187,14 +3253,16 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`    | `string`            | Yes      | The project/schematic ID                                                      |
-| `primitiveId`  | `string`            | Yes      | The primitive ID of the component                                             |
-| `pinNumber`    | `string`            | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND")          |
-| `netName`      | `string`            | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)                     |
-| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from the pin. Defaults to 10.           |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`            | Yes      | The project/schematic ID                                                              |
+| `primitiveId`               | `string`            | Yes      | The primitive ID of the component                                                     |
+| `pinNumber`                 | `string`            | Yes      | The pin number or pin name on the component (e.g. "1", "VCC", "GND")                  |
+| `netName`                   | `string`            | Yes      | The net name to connect the pin to (e.g. VCC, GND, DATA0)                             |
+| `stubLength`                | `number (optional)` | No       | Length of the wire stub drawn outward from the pin. Defaults to 10.                   |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3208,6 +3276,7 @@ Returns a JSON object matching the schema:
   endpoint: object(optional);
   connection: object(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -3221,13 +3290,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`    | `string`            | Yes      | The project/schematic ID                                                      |
-| `netName`      | `string`            | Yes      | The net name to assign pins to                                                |
-| `pins`         | `object[]`          | Yes      | List of component pins to connect to the net                                  |
-| `stubLength`   | `number (optional)` | No       | Length of the wire stub drawn outward from each pin. Defaults to 10.          |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`            | Yes      | The project/schematic ID                                                              |
+| `netName`                   | `string`            | Yes      | The net name to assign pins to                                                        |
+| `pins`                      | `object[]`          | Yes      | List of component pins to connect to the net                                          |
+| `stubLength`                | `number (optional)` | No       | Length of the wire stub drawn outward from each pin. Defaults to 10.                  |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3242,6 +3313,7 @@ Returns a JSON object matching the schema:
   connections: object[] (optional);
   count: number;
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -3286,15 +3358,17 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type                                                                        | Required | Description                                                                                                                                           |
-| ---------------- | --------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `projectId`      | `string`                                                                    | Yes      | The project/schematic ID                                                                                                                              |
-| `netName`        | `string`                                                                    | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET)                                                                                                      |
-| `x`              | `number`                                                                    | Yes      | X coordinate on the schematic canvas                                                                                                                  |
-| `y`              | `number`                                                                    | Yes      | Y coordinate on the schematic canvas                                                                                                                  |
-| `rotation`       | `number (optional)`                                                         | No       | Rotation in degrees (0, 90, 180, 270)                                                                                                                 |
-| `identification` | `'Power'` \| `'Ground'` \| `'AnalogGround'` \| `'ProtectGround' (optional)` | No       | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
-| `confirmWrite`   | `'true'`                                                                    | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                                                         |
+| Parameter                   | Type                                                                        | Required | Description                                                                                                                                           |
+| --------------------------- | --------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`                                                                    | Yes      | The project/schematic ID                                                                                                                              |
+| `netName`                   | `string`                                                                    | Yes      | The net name to assign (e.g. VCC, GND, TEST_NET)                                                                                                      |
+| `x`                         | `number`                                                                    | Yes      | X coordinate on the schematic canvas                                                                                                                  |
+| `y`                         | `number`                                                                    | Yes      | Y coordinate on the schematic canvas                                                                                                                  |
+| `rotation`                  | `number (optional)`                                                         | No       | Rotation in degrees (0, 90, 180, 270)                                                                                                                 |
+| `identification`            | `'Power'` \| `'Ground'` \| `'AnalogGround'` \| `'ProtectGround' (optional)` | No       | Power-flag identification. When set, places an EasyEDA power/ground flag symbol of this type. When omitted, places a generic named net label instead. |
+| `confirmWrite`              | `'true'`                                                                    | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                                                         |
+| `expectedPcbUuid`           | `string (optional)`                                                         | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.                                                                    |
+| `expectedSchematicPageUuid` | `string (optional)`                                                         | No       | Expected focused schematic page UUID; reject a different focused page before a write.                                                                 |
 
 ### Output Format
 
@@ -3305,6 +3379,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   netFlag: object(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -3318,15 +3393,17 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                                                                                   | Required | Description                                                                   |
-| -------------- | -------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`    | `string`                                                                               | Yes      | The project/schematic ID                                                      |
-| `netName`      | `string`                                                                               | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS)                           |
-| `x`            | `number`                                                                               | Yes      | X coordinate on the schematic canvas                                          |
-| `y`            | `number`                                                                               | Yes      | Y coordinate on the schematic canvas                                          |
-| `portType`     | `'input'` \| `'output'` \| `'bidirectional'` \| `'triState'` \| `'passive' (optional)` | No       | Electrical type of the port                                                   |
-| `rotation`     | `number (optional)`                                                                    | No       | Rotation in degrees (0, 90, 180, 270)                                         |
-| `confirmWrite` | `'true'`                                                                               | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                                                                                   | Required | Description                                                                           |
+| --------------------------- | -------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`                                                                               | Yes      | The project/schematic ID                                                              |
+| `netName`                   | `string`                                                                               | Yes      | The net name for the port (e.g. VCC, GND, DATA_BUS)                                   |
+| `x`                         | `number`                                                                               | Yes      | X coordinate on the schematic canvas                                                  |
+| `y`                         | `number`                                                                               | Yes      | Y coordinate on the schematic canvas                                                  |
+| `portType`                  | `'input'` \| `'output'` \| `'bidirectional'` \| `'triState'` \| `'passive' (optional)` | No       | Electrical type of the port                                                           |
+| `rotation`                  | `number (optional)`                                                                    | No       | Rotation in degrees (0, 90, 180, 270)                                                 |
+| `confirmWrite`              | `'true'`                                                                               | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)`                                                                    | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`                                                                    | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3337,6 +3414,7 @@ Returns a JSON object matching the schema:
   success: boolean;
   netPort: object(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -3350,12 +3428,14 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                | Required | Description                                                                   |
-| --------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `primitiveIds`  | `string[]`          | Yes      |                                                                               |
-| `projectId`     | `string (optional)` | No       | Required when transactionId is supplied; must match the transaction document. |
-| `transactionId` | `string (optional)` | No       | Optional snapshot-backed project transaction ID.                              |
-| `confirmWrite`  | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `primitiveIds`              | `string[]`          | Yes      |                                                                                       |
+| `projectId`                 | `string (optional)` | No       | Required when transactionId is supplied; must match the transaction document.         |
+| `transactionId`             | `string (optional)` | No       | Optional snapshot-backed project transaction ID.                                      |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3368,6 +3448,7 @@ Returns a JSON object matching the schema:
   error_code: string(optional);
   error: string(optional);
   details: Record<string, any>(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -3418,17 +3499,19 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter          | Type                  | Required | Description                                                                   |
-| ------------------ | --------------------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`        | `string`              | Yes      |                                                                               |
-| `allowlist`        | `object (optional)`   | No       |                                                                               |
-| `hardKeepouts`     | `object[] (optional)` | No       |                                                                               |
-| `reservedRegions`  | `object[] (optional)` | No       |                                                                               |
-| `minimumClearance` | `number (optional)`   | No       |                                                                               |
-| `maxMoves`         | `number (optional)`   | No       |                                                                               |
-| `batchSize`        | `number (optional)`   | No       |                                                                               |
-| `dryRun`           | `boolean`             | Yes      |                                                                               |
-| `confirmWrite`     | `'true'`              | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                  | Required | Description                                                                           |
+| --------------------------- | --------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`              | Yes      |                                                                                       |
+| `allowlist`                 | `object (optional)`   | No       |                                                                                       |
+| `hardKeepouts`              | `object[] (optional)` | No       |                                                                                       |
+| `reservedRegions`           | `object[] (optional)` | No       |                                                                                       |
+| `minimumClearance`          | `number (optional)`   | No       |                                                                                       |
+| `maxMoves`                  | `number (optional)`   | No       |                                                                                       |
+| `batchSize`                 | `number (optional)`   | No       |                                                                                       |
+| `dryRun`                    | `boolean`             | Yes      |                                                                                       |
+| `confirmWrite`              | `'true'`              | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)`   | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`   | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3456,6 +3539,7 @@ Returns a JSON object matching the schema:
   transactionState: 'active' | 'validating' | 'validated' | 'committed' | 'rolling-back' | 'rolled-back' | 'failed' | 'expired' (optional);
   errorCode: string (optional);
   error: string (optional);
+  targetDocument: object (optional);
 }
 ```
 
@@ -3509,13 +3593,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter       | Type                  | Required | Description                                                                   |
-| --------------- | --------------------- | -------- | ----------------------------------------------------------------------------- |
-| `primitiveId`   | `string`              | Yes      |                                                                               |
-| `property`      | `Record<string, any>` | Yes      |                                                                               |
-| `projectId`     | `string (optional)`   | No       | Required when transactionId is supplied; must match the transaction document. |
-| `transactionId` | `string (optional)`   | No       | Optional snapshot-backed project transaction ID.                              |
-| `confirmWrite`  | `'true'`              | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                  | Required | Description                                                                           |
+| --------------------------- | --------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `primitiveId`               | `string`              | Yes      |                                                                                       |
+| `property`                  | `Record<string, any>` | Yes      |                                                                                       |
+| `projectId`                 | `string (optional)`   | No       | Required when transactionId is supplied; must match the transaction document.         |
+| `transactionId`             | `string (optional)`   | No       | Optional snapshot-backed project transaction ID.                                      |
+| `confirmWrite`              | `'true'`              | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)`   | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`   | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3529,6 +3615,7 @@ Returns a JSON object matching the schema:
   error_code: string(optional);
   error: string(optional);
   details: Record<string, any>(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -3614,23 +3701,25 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                 | Type                 | Required | Description                                                                   |
-| ------------------------- | -------------------- | -------- | ----------------------------------------------------------------------------- |
-| `deviceItem`              | `object`             | Yes      |                                                                               |
-| `x`                       | `number`             | Yes      |                                                                               |
-| `y`                       | `number`             | Yes      |                                                                               |
-| `subPartName`             | `string (optional)`  | No       |                                                                               |
-| `rotation`                | `number (optional)`  | No       |                                                                               |
-| `mirror`                  | `boolean (optional)` | No       |                                                                               |
-| `addIntoBom`              | `boolean (optional)` | No       |                                                                               |
-| `addIntoPcb`              | `boolean (optional)` | No       |                                                                               |
-| `dryRun`                  | `boolean (optional)` | No       |                                                                               |
-| `verifyAfterWrite`        | `boolean (optional)` | No       |                                                                               |
-| `checkPlacementCollision` | `boolean (optional)` | No       |                                                                               |
-| `collisionRadius`         | `number (optional)`  | No       |                                                                               |
-| `projectId`               | `string (optional)`  | No       | Required when transactionId is supplied; must match the transaction document. |
-| `transactionId`           | `string (optional)`  | No       | Optional snapshot-backed project transaction ID.                              |
-| `confirmWrite`            | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                 | Required | Description                                                                           |
+| --------------------------- | -------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `deviceItem`                | `object`             | Yes      |                                                                                       |
+| `x`                         | `number`             | Yes      |                                                                                       |
+| `y`                         | `number`             | Yes      |                                                                                       |
+| `subPartName`               | `string (optional)`  | No       |                                                                                       |
+| `rotation`                  | `number (optional)`  | No       |                                                                                       |
+| `mirror`                    | `boolean (optional)` | No       |                                                                                       |
+| `addIntoBom`                | `boolean (optional)` | No       |                                                                                       |
+| `addIntoPcb`                | `boolean (optional)` | No       |                                                                                       |
+| `dryRun`                    | `boolean (optional)` | No       |                                                                                       |
+| `verifyAfterWrite`          | `boolean (optional)` | No       |                                                                                       |
+| `checkPlacementCollision`   | `boolean (optional)` | No       |                                                                                       |
+| `collisionRadius`           | `number (optional)`  | No       |                                                                                       |
+| `projectId`                 | `string (optional)`  | No       | Required when transactionId is supplied; must match the transaction document.         |
+| `transactionId`             | `string (optional)`  | No       | Optional snapshot-backed project transaction ID.                                      |
+| `confirmWrite`              | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)`  | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)`  | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3650,6 +3739,7 @@ Returns a JSON object matching the schema:
   error_code: string(optional);
   error: string(optional);
   details: Record<string, any>(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -3839,13 +3929,15 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type      | Required | Description                                                                   |
-| -------------- | --------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`    | `string`  | Yes      | The project/schematic ID                                                      |
-| `primitiveId`  | `string`  | Yes      | The component primitive ID                                                    |
-| `pinNumber`    | `string`  | Yes      | The exact component pin number                                                |
-| `noConnected`  | `boolean` | Yes      | true places the native No Connect marker; false removes it                    |
-| `confirmWrite` | `'true'`  | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`            | Yes      | The project/schematic ID                                                              |
+| `primitiveId`               | `string`            | Yes      | The component primitive ID                                                            |
+| `pinNumber`                 | `string`            | Yes      | The exact component pin number                                                        |
+| `noConnected`               | `boolean`           | Yes      | true places the native No Connect marker; false removes it                            |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3864,6 +3956,7 @@ Returns a JSON object matching the schema:
   verified: boolean(optional);
   error_code: string(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -3877,11 +3970,13 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter        | Type                 | Required | Description                                                                                                           |
-| ---------------- | -------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
-| `fields`         | `object`             | Yes      | Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } } |
-| `showTitleBlock` | `boolean (optional)` | No       | Show/hide the whole title block                                                                                       |
-| `confirmWrite`   | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                         |
+| Parameter                   | Type                 | Required | Description                                                                                                           |
+| --------------------------- | -------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `fields`                    | `object`             | Yes      | Map of title block field name to the sub-fields to change, e.g. { "Company": { "value": "ACME", "showValue": true } } |
+| `showTitleBlock`            | `boolean (optional)` | No       | Show/hide the whole title block                                                                                       |
+| `confirmWrite`              | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.                                         |
+| `expectedPcbUuid`           | `string (optional)`  | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.                                    |
+| `expectedSchematicPageUuid` | `string (optional)`  | No       | Expected focused schematic page UUID; reject a different focused page before a write.                                 |
 
 ### Output Format
 
@@ -3891,6 +3986,7 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 
@@ -3947,10 +4043,12 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter      | Type                | Required | Description                                                                   |
-| -------------- | ------------------- | -------- | ----------------------------------------------------------------------------- |
-| `projectId`    | `string (optional)` | No       |                                                                               |
-| `confirmWrite` | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write. |
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string (optional)` | No       |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
 
 ### Output Format
 
@@ -3962,6 +4060,7 @@ Returns a JSON object matching the schema:
   requested: boolean(optional);
   note: string(optional);
   error: string(optional);
+  targetDocument: object(optional);
 }
 ```
 

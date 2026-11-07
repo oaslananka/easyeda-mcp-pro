@@ -8,6 +8,7 @@ import { nativeScalarString } from './utils.js';
 // baked into the extension script scope and eval'd via AsyncFunction.
 
 import { createApiRuntime, type ApiRuntime } from './api-runtime.js';
+import { assertExpectedDocument, withTargetDocumentEvidence } from './document-target-guard.js';
 import { createDeviceMetadataOperations } from './device-metadata-operations.js';
 import {
   compactPrimitiveSummary,
@@ -1469,8 +1470,14 @@ async function getPinNoConnectApi(
 }
 
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  const targetDocument = await assertExpectedDocument(
+    method,
+    params,
+    readFirstPath,
+    newBridgeError,
+  );
   const domainResult = await domainRouter.tryDispatch(method, params);
-  if (domainResult.handled) return domainResult.value;
+  if (domainResult.handled) return withTargetDocumentEvidence(domainResult.value, targetDocument);
 
   switch (method) {
     case 'schematic.placeComponent': {

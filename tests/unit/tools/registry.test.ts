@@ -1770,3 +1770,100 @@ describe('ToolRegistry remote relay backend', () => {
     expect(routeToolRequest.mock.calls[0]?.[0].identity).toBeUndefined();
   });
 });
+
+describe('expected document guard input forwarding #946', () => {
+  it('forwards a typed expected PCB UUID from the MCP schema to the bridge and exposes the checked target', async () => {
+    const registry = new ToolRegistry();
+    const bridgeCall = vi.fn(async (method: string) =>
+      method === 'system.getStatus'
+        ? { documentTargetGuard: true }
+        : {
+            primitiveIds: ['segment-1'],
+            targetDocument: { uuid: 'pcb-copy', name: 'Copy', documentType: 'pcb' },
+          },
+    );
+    registry.register(
+      createMockTool('easyeda_pcb_add_track', 'core', {
+        group: 'pcb-write',
+        risk: 'high',
+        confirmWrite: true,
+        inputSchema: z.object({ confirmWrite: z.literal(true) }),
+        outputSchema: z.object({ ok: z.boolean() }),
+        handler: async (ctx) => {
+          await ctx.bridge.call('schematic.listNets', { projectId: 'project-1' });
+          await ctx.bridge.call('pcb.addTrack', { netName: 'GND', points: [] });
+          return { ok: true };
+        },
+      }),
+    );
+    const tool = registry.get('easyeda_pcb_add_track')!;
+    expect(
+      tool.inputSchema.safeParse({ confirmWrite: true, expectedPcbUuid: 'pcb-copy' }).success,
+    ).toBe(true);
+    expect(tool.inputSchema.safeParse({ confirmWrite: true, expectedPcbUuid: '' }).success).toBe(
+      false,
+    );
+
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as never,
+      mockContext({ bridge: { connected: true, call: bridgeCall } }),
+    );
+    const result = await handlers.get('easyeda_pcb_add_track')!({
+      confirmWrite: true,
+      expectedPcbUuid: 'pcb-copy',
+    });
+    expect(result.isError).not.toBe(true);
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'pcb.addTrack',
+      {
+        netName: 'GND',
+        points: [],
+        expectedPcbUuid: 'pcb-copy',
+      },
+      undefined,
+    );
+    expect(bridgeCall).toHaveBeenCalledWith('system.getStatus', {});
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'schematic.listNets',
+      { projectId: 'project-1' },
+      undefined,
+    );
+    expect(result.structuredContent.targetDocument).toEqual({
+      uuid: 'pcb-copy',
+      name: 'Copy',
+      documentType: 'pcb',
+    });
+  });
+});
+
+describe('stale extension guard compatibility #946', () => {
+  it('rejects guarded writes if the connected extension does not advertise the guard', async () => {
+    const registry = new ToolRegistry();
+    const bridgeCall = vi.fn(async () => ({ capabilities: ['pcb.addTrack'] }));
+    registry.register(
+      createMockTool('easyeda_pcb_add_track', 'core', {
+        confirmWrite: true,
+        group: 'pcb-write',
+        inputSchema: z.object({ confirmWrite: z.literal(true) }),
+        handler: async (ctx) => {
+          await ctx.bridge.call('pcb.addTrack', {});
+          return { ok: true };
+        },
+      }),
+    );
+    const { server, handlers } = mockMcpServer();
+    registry.registerAllOnServer(
+      server as never,
+      mockContext({ bridge: { connected: true, call: bridgeCall } }),
+    );
+    const result = await handlers.get('easyeda_pcb_add_track')!({
+      expectedPcbUuid: 'copied-board',
+      confirmWrite: true,
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('TARGET_DOCUMENT_GUARD_UNAVAILABLE');
+    expect(bridgeCall).toHaveBeenCalledTimes(1);
+    expect(bridgeCall).toHaveBeenCalledWith('system.getStatus', {});
+  });
+});

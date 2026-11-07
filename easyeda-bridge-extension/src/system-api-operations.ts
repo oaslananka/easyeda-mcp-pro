@@ -280,6 +280,7 @@ export function createSystemApiOperations(
         hasEda: !!edaObject || !!EDAObject,
         hasDMT: 'DMT_Schematic' in globalThis || hasDMTLocal || hasDMTEDA,
         dispatcherBuildId: dependencies.buildId,
+        documentTargetGuard: true,
       };
     },
 
