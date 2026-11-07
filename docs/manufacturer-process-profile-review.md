@@ -260,3 +260,34 @@ the exact editor and extension versions, focused project, native
 method/response, evidence source and measurement units. Model
 guesses or mocked fixtures are not live acceptance. Do not create
 supplier orders or send manufacturing data as part of this review.
+
+## Native 1.11.0 candidate read-only acceptance
+
+On 7 November 2026, an isolated, activated EasyEDA Pro **3.2.209
+desktop** on Ubuntu 24.04.5 LTS loaded the **exact source-built 1.11.0**
+MCP Bridge from [release PR #919](https://github.com/oaslananka/easyeda-mcp-pro/pull/919),
+followed by a full editor restart. The source was the release candidate
+commit `25dbe64`; the fixture was a **read-only local copy** of the
+editor's built-in Quick Start PCB. Native project and focused PCB document
+identities matched before and after the test.
+
+All **33 components**, **98 tracks**, **zero vias** and **four fills** were
+enumerated. The read-only route geometry reviewer returned `UNKNOWN` for
+electrical readiness and `engineering_sign_off: false`. A _synthetic_
+manufacturer profile yielded an observed width `WARNING` but left
+unavailable trace/space, testpoint and programming evidence `UNKNOWN`;
+fabrication approval remained blocked. These test thresholds are **not**
+claims about any fabricator's capabilities.
+
+The same candidate verified fail-closed foreign-project and no-focused-PCB
+reads, source-level `easyeda_canvas_locate` tenfold viewport normalization,
+and `easyeda_api_read` without `confirmWrite`. A 33-component native getter
+produced 29,075 bytes by default (no repeated `__methods`) versus 55,838
+bytes with `includeMethods: true`.
+
+See the [sanitized exact-source native evidence](./evidence/easyeda-live/2026-11-07-ubuntu-24-04-easyeda-3.2.209-v1.11.0-release-919-readonly.json)
+for the actual runtime, source tree hashes, package digest, read-only
+observations, and limitations. No production design, save/export, native
+DRC/ERC, physical copper connectivity, manufacturer clearance qualification
+or fabrication/assembly sign-off was tested. The release still needs
+its independent CI and publication gates.

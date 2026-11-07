@@ -1,0 +1,289 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-source-native-release-candidate-disposable-readonly",
+  "validatedAt": "2026-11-07T09:21:01Z",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "releasePr": 919,
+    "commit": "25dbe64a132e3693d1a5fb5305a72ecbf5594b05",
+    "version": "1.11.0",
+    "sourceTrees": {
+      "easyeda-bridge-extension/src": "054e42e69164ab1e438f79a9e64ef07f2c40e4b0",
+      "src/bridge": "ec51a5465b2d4cf783b4ece6246551edf77c5c77",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "bc00e002db74930703ae1db70aff33660e46df7e",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "runtime": {
+    "editorVersion": "3.2.209",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "nodeVersion": "24.22.1",
+    "isolatedProfile": true,
+    "sandboxHelperActive": true
+  },
+  "extension": {
+    "packageSha256": "63ea620487691284feb069d059869d2a6181905a70d067e58c25be75e592c633",
+    "packageSizeBytes": 205227,
+    "installedVia": "EasyEDA Pro native Extension Manager, full restart",
+    "installedArchiveDigestIndependentlyReadBack": false,
+    "extensionVersion": "1.11.0",
+    "loaderVersion": "1.11.0",
+    "registryMismatch": false,
+    "extensionMismatch": false,
+    "activeDispatcher": "baked",
+    "buildId": "dab37x9f6dxf191",
+    "methodCount": 74,
+    "hotSwapEnabled": false,
+    "hotSwapCompiled": false
+  },
+  "fixture": {
+    "type": "read-only private copy of shipped EasyEDA Quick Start PCB, upgraded from V2 to V3",
+    "existingOwnerProjectUsed": false,
+    "nativeProjectAndDocumentIdsWithheld": true,
+    "focusMatchedBeforeAfter": true,
+    "originalExampleFileUnchanged": true,
+    "designMutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0,
+    "vendorContactCalls": 0
+  },
+  "observations": {
+    "noPcbFocused": {
+      "pcb.listComponents": {
+        "rejected": true,
+        "errorKind": "Error"
+      },
+      "pcb.listTracks": {
+        "rejected": true,
+        "errorKind": "Error"
+      },
+      "board.getDimensions": {
+        "rejected": true,
+        "errorKind": "Error"
+      },
+      "pcb.zonePreflight": {
+        "readyToApply": false,
+        "blocked": true,
+        "blockerCount": 5,
+        "activePcb": false
+      }
+    },
+    "nativeApiClassCount": 84,
+    "focusedIdentity": {
+      "projectGetterPresent": true,
+      "documentGetterPresent": true,
+      "pcbGetterPresent": true,
+      "focusedPcb": true,
+      "projectIdPresent": true,
+      "documentIdPresent": true,
+      "documentProjectMatches": true,
+      "pcbProjectMatches": true
+    },
+    "pcbCollections": {
+      "pcb.listComponents": {
+        "available": true,
+        "reportedTotal": 33,
+        "returnedItems": 33,
+        "pages": 1,
+        "collectionComplete": true,
+        "under1200": true,
+        "componentsWithIds": 33,
+        "hasObservableCoordinates": true
+      },
+      "pcb.listTracks": {
+        "available": true,
+        "reportedTotal": 98,
+        "returnedItems": 98,
+        "pages": 1,
+        "collectionComplete": true,
+        "under1200": true
+      },
+      "pcb.listVias": {
+        "available": true,
+        "reportedTotal": 0,
+        "returnedItems": 0,
+        "pages": 1,
+        "collectionComplete": true,
+        "under1200": true
+      },
+      "pcb.listFills": {
+        "available": true,
+        "reportedTotal": 4,
+        "returnedItems": 4,
+        "pages": 1,
+        "collectionComplete": true,
+        "under1200": true
+      },
+      "pcb.listRegions": {
+        "available": true,
+        "reportedTotal": 0,
+        "returnedItems": 0,
+        "pages": 1,
+        "collectionComplete": true,
+        "under1200": true
+      }
+    },
+    "boardDimensions": {
+      "available": true,
+      "keys": [
+        "widthMm",
+        "heightMm",
+        "shape",
+        "drilledPadCount",
+        "platedDrillPadCount",
+        "unplatedDrillPadCount",
+        "minDrillMm",
+        "unknownFields",
+        "areaMm2",
+        "hasOutline"
+      ]
+    },
+    "layerCatalogueEntryCount": 57,
+    "stackup": {
+      "available": true,
+      "keys": ["totalLayers", "layers", "available", "source"]
+    },
+    "canvas": {
+      "tool": "easyeda_canvas_locate",
+      "located": true,
+      "coordinateAlignment": "verified",
+      "viewportUnit": "document",
+      "viewportScaleApplied": 10,
+      "outputSchemaValid": true,
+      "requestCenterMatched": true
+    },
+    "routeReview": {
+      "name": "easyeda_pcb_route_geometry_review",
+      "outputSchemaValid": true,
+      "bridgeConnected": true,
+      "overallStatus": "UNKNOWN",
+      "trackEvidence": "observed",
+      "viaEvidence": "observed",
+      "collectionComplete": true,
+      "trackCount": 98,
+      "viaCount": 0,
+      "findingsCount": 3,
+      "nativeErrors": 0,
+      "placementEvidence": "observed",
+      "placementReturned": 33,
+      "placementNativeTotal": 33,
+      "placementComplete": true,
+      "placementFindings": 1,
+      "placementOriginMmMeasured": true,
+      "electricalLoopUnknown": true,
+      "engineeringSignOff": false,
+      "placementSignOff": false
+    },
+    "manufacturingReview": {
+      "schemaValid": true,
+      "syntheticLimits": true,
+      "blocked": true,
+      "passed": false,
+      "manufacturingApproval": false,
+      "status": "WARNING",
+      "inputEvidence": "native_partial_unverified",
+      "findings": [
+        {
+          "id": "minimumTraceWidthMm",
+          "status": "UNKNOWN",
+          "comparison": "UNKNOWN",
+          "sourceField": "minObservedTraceWidthMm",
+          "measurementEvidence": "unavailable",
+          "hasActual": false
+        },
+        {
+          "id": "minimumTrackGapMm",
+          "status": "UNKNOWN",
+          "comparison": "UNKNOWN",
+          "sourceField": "minObservedCopperGapMm",
+          "measurementEvidence": "unavailable",
+          "hasActual": false
+        },
+        {
+          "id": "minimumFinishedDrillMm",
+          "status": "UNKNOWN",
+          "comparison": "WITHIN_DECLARED_LIMIT",
+          "sourceField": "minDrillMm",
+          "measurementEvidence": "native_partial_unverified",
+          "hasActual": true
+        },
+        {
+          "id": "maximumBoardWidthMm",
+          "status": "WARNING",
+          "comparison": "ABOVE_DECLARED_LIMIT",
+          "sourceField": "widthMm",
+          "measurementEvidence": "native_partial_unverified",
+          "hasActual": true
+        },
+        {
+          "id": "minimumCriticalNetTestpointRatio",
+          "status": "UNKNOWN",
+          "comparison": "UNKNOWN",
+          "sourceField": "criticalNetNames / testPointNets",
+          "measurementEvidence": "unavailable",
+          "hasActual": false
+        },
+        {
+          "id": "requireProgrammingHeader",
+          "status": "UNKNOWN",
+          "comparison": "UNKNOWN",
+          "sourceField": "hasProgrammingHeader",
+          "measurementEvidence": "unavailable",
+          "hasActual": false
+        }
+      ],
+      "unknownChecks": 19,
+      "manualReviewRequired": true
+    },
+    "auditedGetter": {
+      "invokedWithoutConfirmWrite": true,
+      "ok": true,
+      "resultIsArray": true,
+      "rowCount": 33,
+      "defaultMethodNameOccurrences": 0,
+      "serializedBytes": 29075
+    },
+    "optionalMethods": {
+      "available": true,
+      "rowCount": 33,
+      "methodNameOccurrences": 33,
+      "serializedBytes": 55838,
+      "expandedRelativeToDefault": true
+    },
+    "foreignProjectRejections": {
+      "pcb.listComponents": {
+        "rejected": true,
+        "errorKind": "Error"
+      },
+      "pcb.listTracks": {
+        "rejected": true,
+        "errorKind": "Error"
+      },
+      "board.getDimensions": {
+        "rejected": true,
+        "errorKind": "Error"
+      }
+    },
+    "focusedIdentityStable": true
+  },
+  "limitations": [
+    "Only one isolated EasyEDA Pro 3.2.209 Ubuntu desktop and a copied built-in Quick Start PCB, not independent Windows/macOS/native version acceptance.",
+    "33 components, 98 tracks, zero vias, four fills; no >200-component pagination, differential pair path, reference plane, real PCB via or pad-to-copper electrical connection proof.",
+    "The 57 native layer catalogue entries do not mean 57 copper layers; physical stackup, nonrectangular outline and physical net continuity are unverified.",
+    "Manufacturing limits were explicitly synthetic test data, not a real fabrication house process profile. In-range drill measurements remain UNKNOWN for sign-off.",
+    "Sequential native reads are not atomic; project/document identity remained stable but no persisted design readback transaction was performed.",
+    "The exact candidate .eext was hashed before import. Installed archive bytes could not be independently read back, though native extension loader and dispatcher identity matched after full GUI restart.",
+    "No native DRC/ERC, PCB mutations, saves, exports, schematic BOM/MPN joins, supplier contact, deployment or physical board ordering. Electrical, thermal, assembly and manufacturing readiness remain UNKNOWN.",
+    "This exact-commit evidence does not itself authorize publication or bypass GitHub release provenance, review, CI or registry gates."
+  ],
+  "approval": {
+    "electricalSignOff": false,
+    "engineeringSignOff": false,
+    "fabricationApproval": false,
+    "releasePublished": false
+  }
+}
