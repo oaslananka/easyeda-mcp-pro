@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.11.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.10.2...easyeda-mcp-pro-v1.11.0) (2026-11-07)
+
+
+### Features
+
+* **dfm:** compare source-bound trace width and copper gap limits ([#941](https://github.com/oaslananka/easyeda-mcp-pro/issues/941)) ([fc020ce](https://github.com/oaslananka/easyeda-mcp-pro/commit/fc020ce01ad1d3f12e083958e5bdcaf075ecc7b4))
+* **pcb:** screen native copper/pad center candidates without electrical sign-off ([#918](https://github.com/oaslananka/easyeda-mcp-pro/issues/918)) ([a7aa49b](https://github.com/oaslananka/easyeda-mcp-pro/commit/a7aa49bd3fe14ac837525e929e9dcfa10d00182b))
+
+
+### Bug Fixes
+
+* **api:** add audited read tool and compact native results ([#937](https://github.com/oaslananka/easyeda-mcp-pro/issues/937)) ([fcb69c8](https://github.com/oaslananka/easyeda-mcp-pro/commit/fcb69c8c0eb5dd3ed76d4c712bc3615de898412b))
+* **canvas:** reconcile zoom viewport units with requested center ([#938](https://github.com/oaslananka/easyeda-mcp-pro/issues/938)) ([45859c6](https://github.com/oaslananka/easyeda-mcp-pro/commit/45859c6236870b57e26e774f415b22c05bbfe6fc))
+* **drc:** avoid exposing opaque native netlist details ([#932](https://github.com/oaslananka/easyeda-mcp-pro/issues/932)) ([6fe6eff](https://github.com/oaslananka/easyeda-mcp-pro/commit/6fe6eff7f41aa35196b633efc275019dab954552))
+* **pcb:** classify missing stackup and real via drills correctly ([#934](https://github.com/oaslananka/easyeda-mcp-pro/issues/934)) ([57bd007](https://github.com/oaslananka/easyeda-mcp-pro/commit/57bd007dd3210bdbe7f08fa9872e2981ab769982))
+* **pcb:** distinguish native copper cutout from outside-boundary pad centers ([#921](https://github.com/oaslananka/easyeda-mcp-pro/issues/921)) ([db27612](https://github.com/oaslananka/easyeda-mcp-pro/commit/db2761252e289ea408a26cfac9c26bb829c3d032))
+* **pcb:** flag different-net contact in differential-pair review ([#939](https://github.com/oaslananka/easyeda-mcp-pro/issues/939)) ([81bca9b](https://github.com/oaslananka/easyeda-mcp-pro/commit/81bca9b5771d802b161c7079aa058386b5642f5f))
+* **pcb:** inspect closed nonrectangular outlines in zone preflight ([#936](https://github.com/oaslananka/easyeda-mcp-pro/issues/936)) ([b5a9df2](https://github.com/oaslananka/easyeda-mcp-pro/commit/b5a9df2b407dc8571b88c4d1f8d60afc79b43492))
+* **pcb:** keep declared inner contours UNKNOWN under native nonzero fill ([#923](https://github.com/oaslananka/easyeda-mcp-pro/issues/923)) ([31a2565](https://github.com/oaslananka/easyeda-mcp-pro/commit/31a2565fe1a88e6a58dfebaa4691a39f6d9ea071))
+* **pcb:** paginate bounded native component placement evidence ([#940](https://github.com/oaslananka/easyeda-mcp-pro/issues/940)) ([7b3e723](https://github.com/oaslananka/easyeda-mcp-pro/commit/7b3e7235ccbd7143f9dd4ab165f437cfdac05260))
+* **pcb:** paginate native route review beyond 200 primitives ([#933](https://github.com/oaslananka/easyeda-mcp-pro/issues/933)) ([0ca7d4a](https://github.com/oaslananka/easyeda-mcp-pro/commit/0ca7d4a8a1cccc687460e67efbe606554c9d4341))
+* **pcb:** prevent false copper candidates from overlapping native holes ([#922](https://github.com/oaslananka/easyeda-mcp-pro/issues/922)) ([1539c00](https://github.com/oaslananka/easyeda-mcp-pro/commit/1539c00ffe5d6be351aa94012d7db15d7a6c51fb))
+* **schematic:** make pin read context failures actionable ([#935](https://github.com/oaslananka/easyeda-mcp-pro/issues/935)) ([b9b1309](https://github.com/oaslananka/easyeda-mcp-pro/commit/b9b13094bee7247b43e8a1bc3072652fa3df4ab2))
+
 ## [1.10.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.10.1...easyeda-mcp-pro-v1.10.2) (2026-11-06)
 
 
