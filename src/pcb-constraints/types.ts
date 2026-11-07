@@ -119,6 +119,13 @@ export interface PcbConstraintInput {
   hasTestPads?: boolean;
   /** Whether the drill/NC drill file is present in the manufacturing package. */
   hasDrillFile?: boolean;
+  /** Minimum width across an explicitly enumerated track inventory, mm. Caller-supplied;
+   * the sparse native board summary does not establish complete track geometry. */
+  minObservedTraceWidthMm?: number;
+  /** Minimum projected different-net, same-copper-layer trace-to-trace edge gap, mm.
+   * Negative values mean geometrically overlapping copper, not a proven physical short.
+   * Caller-supplied; the native summary cannot prove the minimum or DRC clearance. */
+  minObservedCopperGapMm?: number;
   /** Minimum copper-to-board-edge clearance observed in mm. */
   minCopperToEdgeMm?: number;
   /** Number of copper-to-edge clearance violations. */

@@ -13,6 +13,8 @@ export interface ManufacturerProfile {
     minimumFinishedDrillMm?: number;
     minimumAnnularRingMm?: number;
     minimumMaskWebMm?: number;
+    minimumTraceWidthMm?: number;
+    minimumTrackGapMm?: number;
     minimumCopperEdgeMm?: number;
     maximumBoardWidthMm?: number;
     maximumBoardHeightMm?: number;
@@ -65,6 +67,20 @@ interface Rule {
   comparison: 'min' | 'max';
 }
 const NUMERIC_RULES: readonly Rule[] = [
+  {
+    id: 'minimumTraceWidthMm',
+    field: 'minObservedTraceWidthMm',
+    category: 'fabrication',
+    units: 'mm',
+    comparison: 'min',
+  },
+  {
+    id: 'minimumTrackGapMm',
+    field: 'minObservedCopperGapMm',
+    category: 'fabrication',
+    units: 'mm',
+    comparison: 'min',
+  },
   {
     id: 'minimumFinishedDrillMm',
     field: 'minDrillMm',
@@ -184,6 +200,14 @@ function missingOutlineForBoardSize(
   );
 }
 
+function validBoardMeasurement(rule: Rule, value: unknown): value is number {
+  if (typeof value !== 'number') return false;
+  // Signed gaps distinguish copper overlap from missing geometry. The
+  // manufacturer minimum itself must remain a positive declared limit.
+  if (rule.id === 'minimumTrackGapMm') return Number.isFinite(value) && Math.abs(value) <= 10_000;
+  return validReportedScalar(value, rule.units);
+}
+
 function compareNumeric(
   rule: Rule,
   limit: number,
@@ -196,10 +220,7 @@ function compareNumeric(
   // boundary. Do not compare a canvas/extents width or height against a
   // fabrication maximum, even if the caller supplied a finite number.
   const outlineMissing = missingOutlineForBoardSize(rule, data, source);
-  const numeric =
-    !outlineMissing && typeof candidate === 'number' && validReportedScalar(candidate, rule.units)
-      ? candidate
-      : undefined;
+  const numeric = !outlineMissing && validBoardMeasurement(rule, candidate) ? candidate : undefined;
   const violate =
     validLimit &&
     numeric !== undefined &&
@@ -265,6 +286,11 @@ function countUniqueNames(data: PcbConstraintInput): { numerator?: number; denom
   // through trimming or case folding.
   if ([...required, ...testPoints].some((name) => !name || name.trim() !== name)) return {};
   if (new Set(required.map((name) => name.toUpperCase())).size !== required.length) return {};
+  // Case-fold collisions among the purported testpoint nets are ambiguous
+  // identities even when an exact spelling also matches a required net.
+  // Duplicate pads for the same exact net remain legitimate.
+  if (new Set(testPoints.map((name) => name.toUpperCase())).size !== new Set(testPoints).size)
+    return {};
   const observed = new Set(testPoints);
   return {
     numerator: required.filter((name) => observed.has(name)).length,
@@ -358,7 +384,7 @@ export function reviewManufacturerProfile(
     input_evidence: source,
     findings,
     unknown_workflows: [
-      'Minimum trace width/space is not in the existing native board-summary response.',
+      'Complete native trace-width/space inventories are not in the sparse board summary; optional caller-declared minima do not verify all traces or a manufacturing DRC pass.',
       'Actual footprint pad/courtyard geometry, assembly side, component rotation and silk/pad overlap require source-specific inspection.',
       'Mounting-hole semantics cannot be inferred from drilled-pad counts.',
       'Testpoint accessibility, fiducial placement, programming pin continuity and tooling usability need actual geometry and assembly readback.',
@@ -368,6 +394,7 @@ export function reviewManufacturerProfile(
     fabrication_approval: false,
     limitations: [
       'Process profile, manufacturer revision and source are caller declarations, not authenticated factory capabilities.',
+      'Caller-reported trace/space minima are only usable when the caller has a separately verified complete native trace inventory and matching units; the tool does not independently audit that provenance.',
       'Board-data summaries are partial and do not prove entire-board geometry, NC drill output, footprint geometry or solder-mask manufacturability.',
       'A within-declared-bound result remains UNKNOWN for fabrication approval; only an observed declared conflict produces WARNING.',
       'This review does not trigger production export, order placement, factory communication or PCB mutation.',
