@@ -134,7 +134,7 @@ function updateBoundingBox(bounds: BoundingBox, x: unknown, y: unknown): void {
   if (finiteY > bounds.maxY) bounds.maxY = finiteY;
 }
 
-async function readPrimitiveStateResolved(value: unknown, key: string): Promise<unknown> {
+export async function readPrimitiveStateResolved(value: unknown, key: string): Promise<unknown> {
   try {
     return await readPrimitiveState(value, key);
   } catch (error) {
@@ -143,7 +143,7 @@ async function readPrimitiveStateResolved(value: unknown, key: string): Promise<
   }
 }
 
-async function primitiveIsOnBoardOutlineResolved(value: unknown): Promise<boolean> {
+export async function primitiveIsOnBoardOutlineResolved(value: unknown): Promise<boolean> {
   if (primitiveIsOnBoardOutline(value)) return true;
   if (isBoardOutlineLayer(await readPrimitiveStateResolved(value, 'Layer'))) return true;
 
@@ -178,7 +178,10 @@ async function addPoints(bounds: BoundingBox, points: unknown): Promise<boolean>
   return points.length > 0;
 }
 
-async function readPolygonSource(polygon: Record<string, unknown>): Promise<unknown[] | undefined> {
+/** Shared native polygon-source reader for dimensions and read-only zone geometry. */
+export async function readBoardPolygonSource(
+  polygon: Record<string, unknown>,
+): Promise<unknown[] | undefined> {
   if (typeof polygon.getSource === 'function') {
     try {
       const source = await polygon.getSource();
@@ -302,7 +305,7 @@ async function addPolygonPoints(
   );
   if (instance.added) return;
 
-  const source = await readPolygonSource(polygon);
+  const source = await readBoardPolygonSource(polygon);
   const staticDiscretize = pcbMathPolygonClass?.discretize;
   const staticAttempt = await tryDiscretize(
     bounds,

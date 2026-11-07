@@ -1,5 +1,11 @@
 // Conservative geometry evidence for the read-only zone preflight.
-// Do not promote this rectangle-only survey to general copper topology approval.
+// A verified board outline is NOT copper topology, keepout, DRC or fabrication approval.
+import {
+  primitiveIsOnBoardOutlineResolved,
+  readBoardPolygonSource,
+  readPrimitiveStateResolved,
+} from './board-inspection.js';
+import { nativeClosedPolyline, polygonRectangleRelation } from './zone-polygon-intersection.js';
 export interface ZoneRectangle {
   x: number;
   y: number;
@@ -8,12 +14,14 @@ export interface ZoneRectangle {
 }
 
 export type ZoneIntersectionStatus =
-  'intersection-confirmed' | 'outside-board' | 'unsupported-outline' | 'unavailable';
+  'intersection-confirmed' | 'outside-board' | 'observed' | 'unsupported-outline' | 'unavailable';
 
 export interface ZoneOutlineEvidence {
   status: ZoneIntersectionStatus;
   intersectionVerified: boolean;
   outline: { x: number; y: number; width: number; height: number } | null;
+  outlineKind?: 'rectangle' | 'closed-polyline';
+  intersection?: 'inside' | 'partial' | 'outside';
 }
 
 type NativeReader = <T>(paths: readonly string[]) => T | undefined;
@@ -92,6 +100,53 @@ async function outlineCollection(readFirstPath: NativeReader, name: string): Pro
   return values;
 }
 
+async function readSingleOutlineSource(
+  readFirstPath: NativeReader,
+  readState: StateReader,
+): Promise<unknown[] | undefined> {
+  const polyline = await outlineCollection(readFirstPath, 'PCB_PrimitivePolyline');
+  const line = await outlineCollection(readFirstPath, 'PCB_PrimitiveLine');
+  const arc = await outlineCollection(readFirstPath, 'PCB_PrimitiveArc');
+  const regions = await outlineCollection(readFirstPath, 'PCB_PrimitiveRegion');
+  // Additional boundary primitives/regions have unverified contour and cutout semantics.
+  if (regions.length > 0) return undefined;
+  for (const primitive of [...line, ...arc]) {
+    if (await primitiveIsOnBoardOutlineResolved(primitive)) return undefined;
+  }
+  const outlines: unknown[] = [];
+  for (const primitive of polyline) {
+    if (await primitiveIsOnBoardOutlineResolved(primitive)) outlines.push(primitive);
+  }
+  if (outlines.length !== 1) return undefined;
+  const polygon =
+    (await readState(outlines[0], 'Polygon')) ??
+    (await readPrimitiveStateResolved(outlines[0], 'Polygon'));
+  if (!polygon || typeof polygon !== 'object') return undefined;
+  return readBoardPolygonSource(polygon as Record<string, unknown>);
+}
+
+function classifyOutline(rectangle: ZoneRectangle, source: unknown): ZoneOutlineEvidence {
+  const bounds = nativeRectangle(source);
+  if (bounds) {
+    const intersects = overlaps(rectangle, bounds);
+    return {
+      status: intersects ? 'intersection-confirmed' : 'outside-board',
+      intersectionVerified: intersects,
+      outline: bounds,
+    };
+  }
+  const vertices = nativeClosedPolyline(source);
+  if (!vertices) return unsupported();
+  const intersection = polygonRectangleRelation(vertices, rectangle);
+  return {
+    status: 'observed',
+    intersectionVerified: intersection !== 'outside',
+    outline: null, // A polygon cannot be represented truthfully by its bounding rectangle.
+    outlineKind: 'closed-polyline',
+    intersection,
+  };
+}
+
 export async function evaluateZoneOutlineEvidence(
   rectangle: ZoneRectangle,
   readFirstPath: NativeReader,
@@ -101,36 +156,10 @@ export async function evaluateZoneOutlineEvidence(
   try {
     const identityBefore = await documentIdentity(readFirstPath);
     if (!identityBefore) return unavailable();
-    const polyline = await outlineCollection(readFirstPath, 'PCB_PrimitivePolyline');
-    const line = await outlineCollection(readFirstPath, 'PCB_PrimitiveLine');
-    const arc = await outlineCollection(readFirstPath, 'PCB_PrimitiveArc');
-    const regions = await outlineCollection(readFirstPath, 'PCB_PrimitiveRegion');
+    const source = await readSingleOutlineSource(readFirstPath, readState);
     const identityAfter = await documentIdentity(readFirstPath);
     if (identityBefore !== identityAfter) return unavailable();
-    // Anything other than ONE board-frame polyline is not a proven solid rectangle.
-    if (
-      line.some((o) => readState(o, 'Layer') === 11) ||
-      arc.some((o) => readState(o, 'Layer') === 11) ||
-      regions.length > 0
-    )
-      return unsupported();
-    const outlines = polyline.filter((o) => readState(o, 'Layer') === 11);
-    if (outlines.length !== 1) return unsupported();
-    const polygon = readState(outlines[0], 'Polygon');
-    if (
-      !polygon ||
-      typeof polygon !== 'object' ||
-      typeof (polygon as { getSource?: unknown }).getSource !== 'function'
-    )
-      return unsupported();
-    const bounds = nativeRectangle((polygon as { getSource: () => unknown }).getSource());
-    if (!bounds) return unsupported();
-    const intersects = overlaps(rectangle, bounds);
-    return {
-      status: intersects ? 'intersection-confirmed' : 'outside-board',
-      intersectionVerified: intersects,
-      outline: bounds,
-    };
+    return classifyOutline(rectangle, source);
   } catch {
     return unavailable();
   }

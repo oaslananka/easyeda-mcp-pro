@@ -34,7 +34,7 @@ describe('capability documentation policy', () => {
     expect(section).toContain("`'top'` \\| `'bottom' (optional)`");
   });
 
-  it('documents native rectangle and non-authorizing board geometry results', () => {
+  it('documents rectangle and closed-polyline board geometry without write authorization', () => {
     const toolsDoc = readFileSync(resolve(repoRoot, 'docs/reference/tools.md'), 'utf8');
     const section = toolsDoc.split('## `easyeda_pcb_zone_preflight`')[1]?.split('\n## `')[0] ?? '';
     for (const expected of [
@@ -49,7 +49,11 @@ describe('capability documentation policy', () => {
       'unavailable',
       'intersectionVerified',
       'keepout',
-      'outline is the native board rectangle',
+      'observed',
+      'closed-polyline',
+      'inside/partial/outside',
+      'outline is the native rectangle only',
+      'null for polygons',
       'readyToApply always stays false',
     ]) {
       expect(section).toContain(expected);
