@@ -9,6 +9,7 @@ export interface SystemApiOperationsDependencies {
   buildId: string;
   inspectApiInventory: ApiRuntime['inspectApiInventory'];
   callAllowedApi: ApiRuntime['callAllowedApi'];
+  callReadOnlyApi: ApiRuntime['callReadOnlyApi'];
   readFirstPath: ApiRuntime['readFirstPath'];
   summarizeWirePrimitive: (wire: unknown) => unknown;
   createBridgeError: (code: string, message: string, suggestion: string, data?: unknown) => Error;
@@ -17,6 +18,7 @@ export interface SystemApiOperationsDependencies {
 
 export interface SystemApiOperations {
   apiCall(params: Record<string, unknown>): Promise<unknown>;
+  apiRead(params: Record<string, unknown>): Promise<unknown>;
   apiExecute(params: Record<string, unknown>): Promise<unknown>;
   apiInventory(params: Record<string, unknown>): Promise<unknown>;
   getStatus(): Promise<unknown>;
@@ -226,6 +228,15 @@ export function createSystemApiOperations(
         typeof params.path === 'string' ? params.path : '',
         Array.isArray(params.args) ? params.args : [],
         params.maxDepth as number | undefined,
+        params.includeMethods === true,
+      );
+    },
+    apiRead(params) {
+      return dependencies.callReadOnlyApi(
+        typeof params.path === 'string' ? params.path : '',
+        Array.isArray(params.args) ? params.args : [],
+        params.maxDepth as number | undefined,
+        params.includeMethods === true,
       );
     },
 

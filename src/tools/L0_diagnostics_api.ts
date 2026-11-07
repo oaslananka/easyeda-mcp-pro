@@ -18,6 +18,12 @@ const apiCallInputSchema = z.object({
       'Positional EasyEDA API arguments. For documented IPCB_Polygon parameters on PCB_PrimitiveRegion/Pour/Fill/Polyline create or modify and PCB_PrimitiveImage.create, pass {$polygon: [...]} or {$complexPolygon: [[...], ...]}; serialized __class/__methods descriptors are rejected.',
     ),
   confirmWrite: z.boolean().default(false),
+  includeMethods: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Include native __methods metadata on every serialized object (false by default to avoid duplicate result bloat).',
+    ),
   maxDepth: z
     .number()
     .int()
@@ -28,6 +34,43 @@ const apiCallInputSchema = z.object({
       'Nesting depth of the returned result (default 5); deeper levels come back as "[MaxDepth]". DRC details (PCB_Drc.check with details) need about 8.',
     ),
 });
+
+// A separate lower-privilege read tool accepts only finite JSON scalars; the
+// extension independently checks the exact native class+method allowlist.
+const apiReadInputSchema = apiCallInputSchema.omit({ confirmWrite: true, args: true }).extend({
+  args: z
+    .array(z.union([z.string(), z.number().finite(), z.boolean(), z.null()]))
+    .max(8)
+    .default([]),
+});
+
+// Defense-in-depth at the MCP boundary: this reviewed list must match the
+// extension's api.read allowlist. Never infer read-only from an arbitrary get* name.
+const READ_ONLY_NATIVE_PATHS = new Set([
+  'DMT_Project.getCurrentProjectInfo',
+  'DMT_SelectControl.getCurrentDocumentInfo',
+  'DMT_Pcb.getCurrentPcbInfo',
+  'PCB_PrimitiveVia.getAll',
+  'PCB_PrimitiveComponent.getAll',
+  'PCB_PrimitiveComponent.getAllPinsByPrimitiveId',
+  'PCB_PrimitiveLine.getAll',
+  'PCB_PrimitiveArc.getAll',
+  'PCB_PrimitiveRegion.getAll',
+  'PCB_PrimitivePoured.getAll',
+  'PCB_PrimitivePour.getAll',
+  'PCB_PrimitivePolyline.getAll',
+  'PCB_PrimitiveTrack.getAll',
+  'PCB_Net.getAll',
+  'PCB_Net.getAllPrimitivesByNet',
+  'SCH_PrimitiveComponent.getAll',
+  'SCH_PrimitiveWire.getAll',
+]);
+
+function isReviewedReadOnlyPath(path: string): boolean {
+  const match = /^([a-z]+)_(.+)\.([A-Za-z][A-Za-z0-9_]*)$/.exec(path);
+  const normalized = match ? `${match[1]?.toUpperCase()}_${match[2]}.${match[3]}` : path;
+  return READ_ONLY_NATIVE_PATHS.has(normalized);
+}
 
 const writeMethodPattern =
   /\.(create[A-Za-z0-9_]*|delete|modify|open|openProject|save|import|export|reorder|remove|update|set|reset|done)$/i;
@@ -339,7 +382,8 @@ function registerDiagnosticsApi(
       requires_confirmation: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { path, args, confirmWrite, maxDepth } = apiCallInputSchema.parse(params);
+      const { path, args, confirmWrite, maxDepth, includeMethods } =
+        apiCallInputSchema.parse(params);
       if (requiresWriteConfirmation(path) && !confirmWrite) {
         return {
           ok: false,
@@ -350,10 +394,10 @@ function registerDiagnosticsApi(
       }
 
       try {
-        const result = await ctx.bridge.call(
-          'api.call',
-          maxDepth === undefined ? { path, args } : { path, args, maxDepth },
-        );
+        const bridgeParams: Record<string, unknown> = { path, args };
+        if (maxDepth !== undefined) bridgeParams.maxDepth = maxDepth;
+        if (includeMethods) bridgeParams.includeMethods = true;
+        const result = await ctx.bridge.call('api.call', bridgeParams);
         const data = result as { path?: string; resolvedPath?: string; result?: unknown };
         if (isEmptyCreateResult(path, data.result)) {
           return {
@@ -374,6 +418,65 @@ function registerDiagnosticsApi(
           ok: false,
           path,
           error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_api_read',
+    title: 'Read EasyEDA API',
+    description:
+      'Read audited native getters such as PCB_PrimitiveVia.getAll, without write confirmation. The server and extension independently allowlist paths; unsupported or mutating methods are rejected. Results omit repeated __methods by default; set includeMethods for introspection.',
+    profile: 'full',
+    evidence: ['runtime-probe', 'pro-api-types', 'official-docs'],
+    risk: 'low',
+    sideEffect: 'read-only',
+    confirmWrite: false,
+    group: 'diagnostics',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: apiReadInputSchema,
+    outputSchema: z.object({
+      ok: z.boolean(),
+      path: z.string(),
+      resolvedPath: z.string().optional(),
+      result: z.unknown().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { path, args, maxDepth, includeMethods } = apiReadInputSchema.parse(params);
+      if (!isReviewedReadOnlyPath(path)) {
+        return {
+          ok: false,
+          path,
+          error: `Native API path is not on the read-only allowlist: ${path}`,
+        };
+      }
+      try {
+        const bridgeParams: Record<string, unknown> = { path, args };
+        if (maxDepth !== undefined) bridgeParams.maxDepth = maxDepth;
+        if (includeMethods) bridgeParams.includeMethods = true;
+        const result = (await ctx.bridge.call('api.read', bridgeParams)) as {
+          path?: string;
+          resolvedPath?: string;
+          result?: unknown;
+        };
+        return {
+          ok: true,
+          path: result.path ?? path,
+          resolvedPath: result.resolvedPath,
+          result: result.result,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          path,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     },

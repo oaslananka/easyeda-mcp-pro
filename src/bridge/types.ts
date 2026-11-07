@@ -36,6 +36,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'system.inspectComponents',
   'system.inspectWires',
   'api.call',
+  'api.read',
   'board.listLayers',
   'board.getStackup',
   'board.getDimensions',

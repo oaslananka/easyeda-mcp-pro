@@ -148,9 +148,80 @@ describe('EasyEDA API runtime', () => {
       result: expect.objectContaining({
         total: 12,
         state: { Name: 'service' },
-        __methods: ['getState_Name'],
       }),
     });
+  });
+
+  it('reduces repetitive native list payloads but preserves data and optional method inspection', async () => {
+    const roots = mutableRoots();
+    const makePrimitive = (index: number) => {
+      const item: Record<string, unknown> = {
+        index,
+        getState_Designator: () => `U${index}`,
+        getState_PrimitiveId: () => `id-${index}`,
+      };
+      for (let i = 0; i < 45; i += 1) item[`method${i}`] = () => undefined;
+      return item;
+    };
+    roots.setEda({
+      PCB_PrimitiveComponent: {
+        getAll: () => Array.from({ length: 94 }, (_, index) => makePrimitive(index)),
+      },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+    const compact = (await runtime.callAllowedApi('PCB_PrimitiveComponent.getAll', [])) as {
+      result: Array<Record<string, unknown>>;
+    };
+    const verbose = (await runtime.callAllowedApi(
+      'PCB_PrimitiveComponent.getAll',
+      [],
+      5,
+      true,
+    )) as { result: Array<Record<string, unknown>> };
+    expect(compact.result).toHaveLength(94);
+    expect(compact.result[47]).toMatchObject({
+      index: 47,
+      state: { Designator: 'U47', PrimitiveId: 'id-47' },
+    });
+    expect(compact.result[47]).not.toHaveProperty('__methods');
+    expect(verbose.result[47].__methods).toContain('method44');
+    expect(JSON.stringify(compact).length).toBeLessThan(JSON.stringify(verbose).length * 0.6);
+  });
+
+  it('checks the read-only native allowlist and scalar arguments inside the extension', async () => {
+    const roots = mutableRoots();
+    const getCurrentPcbInfo = vi.fn(() => ({ name: 'PCB' }));
+    const getAll = vi.fn(() => [1, 2]);
+    const create = vi.fn(() => 'unexpected-write');
+    roots.setEda({
+      DMT_Pcb: { getCurrentPcbInfo },
+      PCB_PrimitiveVia: { getAll, create, getAllAndDelete: create },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+    await expect(runtime.callReadOnlyApi('DMT_Pcb.getCurrentPcbInfo', [])).resolves.toMatchObject({
+      result: { name: 'PCB' },
+    });
+    await expect(runtime.callReadOnlyApi('pcb_PrimitiveVia.getAll', [])).resolves.toMatchObject({
+      result: [1, 2],
+    });
+    for (const path of [
+      'PCB_PrimitiveVia.create',
+      'PCB_PrimitiveVia.getAllAndDelete',
+      'DMT_Pcb.open',
+    ]) {
+      await expect(runtime.callReadOnlyApi(path, [])).rejects.toMatchObject({
+        code: 'UNAUTHORIZED',
+      });
+    }
+    await expect(
+      runtime.callReadOnlyApi('PCB_PrimitiveVia.getAll', [{ payload: 1 }]),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    await expect(
+      runtime.callReadOnlyApi('PCB_PrimitiveVia.getAll', [Infinity]),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(create).not.toHaveBeenCalled();
+    expect(getCurrentPcbInfo).toHaveBeenCalledOnce();
+    expect(getAll).toHaveBeenCalledOnce();
   });
 
   it('materializes tagged polygon arguments inside the bridge before native calls', async () => {

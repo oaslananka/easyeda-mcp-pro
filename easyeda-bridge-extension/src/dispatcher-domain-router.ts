@@ -74,6 +74,7 @@ export function createDispatcherDomainRouter(
     'library.updateDeviceMetadata': (params) =>
       dependencies.deviceMetadataOperations.updateDeviceMetadata(params),
     'api.call': (params) => dependencies.systemApiOperations.apiCall(params),
+    'api.read': (params) => dependencies.systemApiOperations.apiRead(params),
     'api.execute': (params) => dependencies.systemApiOperations.apiExecute(params),
     'board.exportGerbers': (params) => dependencies.exportOperations.exportGerbers(params),
     'board.getDimensions': () => dependencies.boardInspection.getDimensions(),

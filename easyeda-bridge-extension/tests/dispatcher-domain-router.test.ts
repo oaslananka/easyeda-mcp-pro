@@ -194,6 +194,7 @@ function createDependencies() {
       inventoryGetPrice: vi.fn(async () => null),
     },
     systemApiOperations: {
+      apiRead: vi.fn(async (params: Record<string, unknown>) => ({ method: 'api.read', params })),
       apiCall: vi.fn(async (params: Record<string, unknown>) => ({ method: 'api.call', params })),
       apiExecute: vi.fn(async (params: Record<string, unknown>) => ({
         method: 'api.execute',
@@ -219,6 +220,7 @@ function createDependencies() {
 const expectedMethods = [
   'api.call',
   'api.execute',
+  'api.read',
   'board.exportGerbers',
   'board.getDesignRules',
   'board.getDimensions',

@@ -1133,7 +1133,27 @@ describe('createDispatcher', () => {
     expect(result.resolvedPath).toBe('eda.SCH_PrimitiveWire.getAll');
   });
 
-  it('api.call normalization preserves complete arrays, objects, state, and method metadata', async () => {
+  it('routes only allowed read-only getters through api.read', async () => {
+    const getAll = vi.fn(async () => [{ getState_PrimitiveId: () => 'via-01' }]);
+    const create = vi.fn();
+    const dispatcher = createDispatcher(makeToolkit({ PCB_PrimitiveVia: { getAll, create } }));
+    const result = (await dispatcher.dispatch('api.read', {
+      path: 'PCB_PrimitiveVia.getAll',
+      args: [],
+    })) as { result: Array<Record<string, unknown>> };
+    expect(result.result[0]).toMatchObject({ state: { PrimitiveId: 'via-01' } });
+    expect(result.result[0]).not.toHaveProperty('__methods');
+    await expect(
+      dispatcher.dispatch('api.read', {
+        path: 'PCB_PrimitiveVia.create',
+        args: [],
+      }),
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    expect(create).not.toHaveBeenCalled();
+    expect(getAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('api.call defaults to compact state results but allows explicit method inspection', async () => {
     const shared = { marker: 'shared' };
     const introspected: Record<string, unknown> = Object.fromEntries(
       Array.from({ length: 90 }, (_, index) => [`key${index}`, index]),
@@ -1175,7 +1195,15 @@ describe('createDispatcher', () => {
     expect(response.result.items.at(-1)).toBe(150);
     expect(response.result.introspected.key89).toBe(89);
     expect(response.result.introspected.state.Field89).toBe(89);
-    expect(response.result.introspected.__methods).toContain('method129');
+    expect(response.result.introspected.__methods).toBeUndefined();
+    const verbose = (await dispatcher.dispatch('api.call', {
+      path: 'SCH_PrimitiveWire.getAll',
+      args: [],
+      includeMethods: true,
+    })) as {
+      result: { introspected: { __methods: string[] } };
+    };
+    expect(verbose.result.introspected.__methods).toContain('method129');
     expect(response.result.repeatedReferences).toEqual([
       { marker: 'shared' },
       { marker: 'shared' },
