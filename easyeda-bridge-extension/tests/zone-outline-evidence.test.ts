@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { evaluateZoneOutlineEvidence } from '../src/zone-outline-evidence.js';
+import {
+  nativeClosedPolyline,
+  polygonRectangleRelation,
+} from '../src/zone-polygon-intersection.js';
 
 const board = {
   getState_Layer: () => 11,
@@ -208,5 +212,41 @@ describe('read-only native board rectangle intersection', () => {
       status: 'unavailable',
       intersectionVerified: false,
     });
+  });
+});
+
+describe('bounded closed-polyline geometry negative paths', () => {
+  const valid = [0, 0, 'L', 100, 0, 100, -20, 40, -20, 40, -80, 0, -80, 0, 0];
+  it.each([
+    ['missing source', undefined],
+    ['short source', [0, 0, 'L', 10, 0]],
+    ['extra unpaired vertex coordinate', [0, 0, 'L', 10, 0, 0, -10, 0, 0, 50]],
+    ['not a native line', [0, 0, 'Q', 10, 0, 10, -10, 0, 0]],
+    ['string coordinate', [0, 0, 'L', 10, 0, 10, '-10', 0, 0]],
+    ['infinite coordinate', [0, 0, 'L', 10, 0, 10, -Infinity, 0, 0]],
+    ['insufficient distinct vertices', [0, 0, 'L', 10, 0, 0, 0]],
+    ['not explicitly closed', [0, 0, 'L', 10, 0, 10, -10, 0, -10]],
+    ['zero area', [0, 0, 'L', 10, 0, 20, 0, 0, 0]],
+    ['zero length edge', [0, 0, 'L', 10, 0, 10, 0, 10, -10, 0, -10, 0, 0]],
+    ['self intersecting', [0, 0, 'L', 50, -50, 0, -50, 50, 0, 0, 0]],
+    ['nonadjacent edge touching', [0, 0, 'L', 40, 0, 40, -40, 0, -40, 20, -20, 40, -20, 0, 0]],
+    ['over vertex limit', [0, 0, 'L', ...Array.from({ length: 514 }, (_, i) => i)]],
+  ] as const)('rejects %s rather than inferring board shape', (_reason, source) => {
+    expect(nativeClosedPolyline(source)).toBeUndefined();
+  });
+
+  it('classifies an exactly boundary-touching candidate as partial, never fully inside', () => {
+    const points = nativeClosedPolyline(valid);
+    expect(points).toBeDefined();
+    if (!points) return;
+    expect(polygonRectangleRelation(points, { x: 40, y: -20, width: 20, height: 20 })).toBe(
+      'partial',
+    );
+    expect(polygonRectangleRelation(points, { x: 100, y: -5, width: 20, height: 10 })).toBe(
+      'partial',
+    );
+    expect(polygonRectangleRelation(points, { x: 140, y: -40, width: 10, height: 10 })).toBe(
+      'outside',
+    );
   });
 });
