@@ -18,6 +18,8 @@ import {
 import { type ToolContext, type ToolDefinition } from './types.js';
 
 const WINDOW = 200;
+const MAX_ROUTE_TRACKS = 1_200;
+const MAX_ROUTE_VIAS = 600;
 
 const projectIdSchema = z
   .string()
@@ -423,14 +425,28 @@ async function readBoundedCollection(
   projectId: string,
   method: 'pcb.listTracks' | 'pcb.listVias',
 ): Promise<NativeCollection> {
-  // Native readProjectScoped verifies the focused PCB's project and document
-  // identity both before and after the primitive enumeration.
-  const data = await ctx.bridge.call(method, { projectId, limit: WINDOW, offset: 0 });
-  const parsed = (method === 'pcb.listTracks' ? trackListSchema : viaListSchema).parse(data);
-  if (parsed.total < parsed.items.length) {
-    throw new Error(method + ': native total is smaller than returned item count');
+  // Each native enumeration is project/document-scoped, but separate pages are
+  // not atomic. Reject changed totals and let duplicate/invalid ids fail closed
+  // during geometry review; never claim coverage beyond this bounded budget.
+  const maxRows = method === 'pcb.listTracks' ? MAX_ROUTE_TRACKS : MAX_ROUTE_VIAS;
+  const items: Array<NativeTrack | NativeVia> = [];
+  let total: number | undefined;
+  while (items.length < maxRows) {
+    const offset = items.length;
+    const limit = Math.min(WINDOW, maxRows - offset);
+    const data = await ctx.bridge.call(method, { projectId, limit, offset });
+    const parsed = (method === 'pcb.listTracks' ? trackListSchema : viaListSchema).parse(data);
+    if (total !== undefined && parsed.total !== total) {
+      throw new Error(method + ': native total changed across native pages');
+    }
+    total = parsed.total;
+    if (total < offset + parsed.items.length) {
+      throw new Error(method + ': native total is smaller than returned item count');
+    }
+    items.push(...parsed.items);
+    if (items.length === total || parsed.items.length < limit) break;
   }
-  return parsed;
+  return { total: total ?? 0, items: items as NativeTrack[] | NativeVia[] };
 }
 
 async function collectRouteEvidence(ctx: ToolContext, projectId: string, sourceMismatch: boolean) {
@@ -529,7 +545,7 @@ export function registerPcbRouteReviewTools(
     name: 'easyeda_pcb_route_geometry_review',
     title: 'Review observed PCB route geometry and evidence gaps',
     description:
-      'Read bounded native PCB tracks, vias and optionally components; review observed route geometry, declared differential pairs or component-origin placement constraints. Missing electrical paths remain UNKNOWN. Read-only; no DRC or fabrication approval.',
+      'Read native PCB tracks/vias in 200-row pages, bounded at 1200 tracks and 600 vias, plus optional component-origin constraints. Incomplete/non-atomic evidence remains UNKNOWN; no DRC or fabrication approval.',
     profile: 'core',
     evidence: ['runtime-probe', 'inferred'],
     risk: 'low',
