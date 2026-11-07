@@ -38,6 +38,38 @@ export interface StructuredError {
   details?: Record<string, unknown>;
 }
 
+const DOCUMENT_TARGET_CONTROLS = {
+  expectedPcbUuid: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Expected focused PCB document UUID; reject a different focused PCB before a write.'),
+  expectedSchematicPageUuid: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Expected focused schematic page UUID; reject a different focused page before a write.',
+    ),
+};
+
+const DOCUMENT_TARGET_RESULT = z.object({
+  uuid: z.string(),
+  name: z.string().optional(),
+  documentType: z.enum(['pcb', 'schematic']),
+});
+
+function isDocumentWriteTool(tool: ToolDefinition): boolean {
+  return (
+    tool.confirmWrite &&
+    (tool.name.startsWith('easyeda_pcb_') ||
+      tool.name.startsWith('easyeda_schematic_') ||
+      tool.name === 'easyeda_api_call')
+  );
+}
+
 const READ_ALL_SCOPE = 'easyeda:read';
 const WRITE_ALL_SCOPE = 'easyeda:write';
 
@@ -488,14 +520,66 @@ async function executeToolWithMetrics(
   let prepared: PreparedToolContext | undefined;
   try {
     prepared = await contextForRemoteRelay(context, tool, raw, extra, parsed);
-    const result = await tool.handler(prepared.context, parsed);
+    const controls = rawRecord(parsed);
+    const expectedPcbUuid = controls.expectedPcbUuid;
+    const expectedSchematicPageUuid = controls.expectedSchematicPageUuid;
+    const bridge = prepared.context.bridge;
+    if (expectedPcbUuid !== undefined || expectedSchematicPageUuid !== undefined) {
+      const status = rawRecord(await bridge.call('system.getStatus', {}));
+      if (status.documentTargetGuard !== true) {
+        throw new Error(
+          'TARGET_DOCUMENT_GUARD_UNAVAILABLE: active extension does not support focused-document write guards; update and restart the EasyEDA extension. No write attempted.',
+        );
+      }
+    }
+    let targetDocument: unknown;
+    const wrappedContext: ToolContext =
+      expectedPcbUuid !== undefined || expectedSchematicPageUuid !== undefined
+        ? {
+            ...prepared.context,
+            bridge: {
+              ...prepared.context.bridge,
+              call: async <TParams, TResult>(
+                method: string,
+                params?: TParams,
+                opts?: { timeoutMs?: number; traceparent?: string },
+              ): Promise<TResult> => {
+                const bridgeParams = rawRecord(params);
+                const scopeMatches =
+                  method.startsWith('pcb.') ||
+                  method.startsWith('schematic.') ||
+                  method === 'api.call';
+                const result = await bridge.call<Record<string, unknown>, TResult>(
+                  method,
+                  {
+                    ...bridgeParams,
+                    ...(scopeMatches && expectedPcbUuid !== undefined ? { expectedPcbUuid } : {}),
+                    ...(scopeMatches && expectedSchematicPageUuid !== undefined
+                      ? { expectedSchematicPageUuid }
+                      : {}),
+                  },
+                  opts,
+                );
+                if (result && typeof result === 'object' && 'targetDocument' in result) {
+                  targetDocument = result.targetDocument;
+                }
+                return result;
+              },
+            },
+          }
+        : prepared.context;
+    const result = await tool.handler(wrappedContext, parsed);
+    const resultWithTarget =
+      targetDocument && result && typeof result === 'object' && !Array.isArray(result)
+        ? { ...result, targetDocument }
+        : result;
     getGlobalMetricsCollector().recordTimed({
       category: categoryForTool(tool),
       name: tool.name,
       durationMs: Date.now() - startedAt,
       ok: true,
     });
-    return result;
+    return resultWithTarget;
   } catch (err) {
     getGlobalMetricsCollector().recordTimed({
       category: categoryForTool(tool),
@@ -636,7 +720,24 @@ export class ToolRegistry {
     if (this.tools.has(definition.name)) {
       throw new Error(`Tool "${definition.name}" is already registered.`);
     }
-    this.tools.set(definition.name, definition as unknown as ToolDefinition);
+    const normalized = definition as unknown as ToolDefinition;
+    const guarded =
+      isDocumentWriteTool(normalized) && normalized.inputSchema instanceof z.ZodObject;
+    const inputSchema = normalized.inputSchema;
+    const outputSchema = normalized.outputSchema;
+    this.tools.set(
+      definition.name,
+      guarded && inputSchema instanceof z.ZodObject
+        ? {
+            ...normalized,
+            inputSchema: inputSchema.safeExtend(DOCUMENT_TARGET_CONTROLS),
+            outputSchema:
+              outputSchema instanceof z.ZodObject
+                ? outputSchema.safeExtend({ targetDocument: DOCUMENT_TARGET_RESULT.optional() })
+                : outputSchema,
+          }
+        : normalized,
+    );
   }
 
   get(name: string): ToolDefinition | undefined {
