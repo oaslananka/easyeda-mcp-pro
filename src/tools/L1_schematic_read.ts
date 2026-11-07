@@ -32,6 +32,22 @@ import {
   validateUniqueComponentOverrides,
 } from '../schematic-model/index.js';
 
+/** Only classify a wrong tab when the native focused-document getter confirms PCB (3).
+ * A failed or unsupported focus read is not evidence that the caller selected a PCB.
+ * The follow-up getter is read-only and does not switch editor tabs.
+ */
+async function focusedDocumentIsPcb(ctx: ToolContext): Promise<boolean> {
+  try {
+    const reply = await ctx.bridge.call<
+      { path: string; args: unknown[] },
+      { result?: { documentType?: unknown } }
+    >('api.call', { path: 'DMT_SelectControl.getCurrentDocumentInfo', args: [] });
+    return reply?.result?.documentType === 3;
+  } catch {
+    return false;
+  }
+}
+
 const schematicRegionPreferenceSchema = z.enum([
   'upper-left',
   'upper-center',
@@ -1095,6 +1111,8 @@ function registerSchematicReadTools(
       ),
       success: z.boolean(),
       error: z.string().optional(),
+      error_code: z.enum(['CONTEXT_UNAVAILABLE', 'PIN_READ_UNAVAILABLE']).optional(),
+      not_available: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { primitiveId } = params as { primitiveId: string };
@@ -1102,11 +1120,21 @@ function registerSchematicReadTools(
         const pins = await fetchComponentPins(ctx, primitiveId);
         return { primitiveId, pins, success: true };
       } catch (err) {
+        const nativeContextUnavailable =
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          err.code === 'CONTEXT_UNAVAILABLE';
+        const wrongFocus = nativeContextUnavailable || (await focusedDocumentIsPcb(ctx));
         return {
           primitiveId,
           pins: [],
           success: false,
-          error: err instanceof Error ? err.message : String(err),
+          not_available: true,
+          error_code: wrongFocus ? 'CONTEXT_UNAVAILABLE' : 'PIN_READ_UNAVAILABLE',
+          error: wrongFocus
+            ? 'Focus a schematic document containing this component and retry.'
+            : 'Unable to read schematic component pins. Verify the component primitive ID and focus a schematic document before retrying.',
         };
       }
     },

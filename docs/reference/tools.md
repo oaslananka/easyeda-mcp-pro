@@ -3100,6 +3100,8 @@ Returns a JSON object matching the schema:
   pins: object[];
   success: boolean;
   error: string (optional);
+  error_code: 'CONTEXT_UNAVAILABLE' | 'PIN_READ_UNAVAILABLE' (optional);
+  not_available: boolean (optional);
 }
 ```
 

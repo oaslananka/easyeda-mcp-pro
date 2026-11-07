@@ -55,7 +55,16 @@ export async function fetchComponentPins(
   const result = opts
     ? await ctx.bridge.call<{ path: string; args: unknown[] }, unknown>('api.call', params, opts)
     : await ctx.bridge.call<{ path: string; args: unknown[] }, unknown>('api.call', params);
-  const resultObj = result as { result?: Array<Record<string, unknown>> } | undefined;
+  const resultObj = result as
+    { result?: Array<Record<string, unknown>>; success?: boolean; error?: unknown } | undefined;
+  if (
+    resultObj?.success === false ||
+    (typeof resultObj?.error === 'string' && !Array.isArray(resultObj.result))
+  ) {
+    // The native bridge may return a failed envelope instead of throwing.
+    // Never reinterpret it as a successful component with zero pins.
+    throw new Error('Native schematic pin enumeration failed.');
+  }
   const pins = Array.isArray(resultObj?.result) ? resultObj.result : [];
   return pins.map((p: Record<string, unknown>) => {
     const state = p.state as Record<string, unknown> | undefined;
