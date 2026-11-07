@@ -883,6 +883,138 @@ describe('ToolRegistry', () => {
     expect(write?.confirmWrite).toBe(true);
   });
 
+  it('forwards reviewed aliases with compact defaults and explicit deep introspection', async () => {
+    registry.setProfile('full');
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const tool = registry.get('easyeda_api_read');
+    const bridgeCall = vi
+      .fn()
+      .mockResolvedValueOnce({ result: [{ state: { PrimitiveId: 'via-2' } }] })
+      .mockResolvedValueOnce({
+        path: 'dmt_Pcb.getCurrentPcbInfo',
+        resolvedPath: 'eda.dmt_Pcb.getCurrentPcbInfo',
+        result: { pcb: true },
+      });
+    const context = mockContext({
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall } as ToolContext['bridge'],
+    });
+    await expect(
+      tool?.handler(context, { path: 'pcb_PrimitiveVia.getAll' }),
+    ).resolves.toMatchObject({ ok: true, path: 'pcb_PrimitiveVia.getAll' });
+    await expect(
+      tool?.handler(context, {
+        path: 'dmt_Pcb.getCurrentPcbInfo',
+        args: [3, 'layer', true, null],
+        maxDepth: 9,
+        includeMethods: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      path: 'dmt_Pcb.getCurrentPcbInfo',
+      resolvedPath: 'eda.dmt_Pcb.getCurrentPcbInfo',
+      result: { pcb: true },
+    });
+    expect(bridgeCall).toHaveBeenNthCalledWith(1, 'api.read', {
+      path: 'pcb_PrimitiveVia.getAll',
+      args: [],
+    });
+    expect(bridgeCall).toHaveBeenNthCalledWith(2, 'api.read', {
+      path: 'dmt_Pcb.getCurrentPcbInfo',
+      args: [3, 'layer', true, null],
+      maxDepth: 9,
+      includeMethods: true,
+    });
+  });
+
+  it('rejects non-reviewed native methods and malformed arguments before bridge invocation', async () => {
+    registry.setProfile('full');
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const tool = registry.get('easyeda_api_read');
+    const bridgeCall = vi.fn();
+    const context = mockContext({
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall } as ToolContext['bridge'],
+    });
+    for (const path of [
+      'DMT_Project.createProject',
+      'DMT_Project.save',
+      'PCB_PrimitiveVia.getState_Designator',
+      'PCB_PrimitiveVia.getAllAndDelete',
+      'SYS_Shell.exec',
+    ]) {
+      await expect(tool?.handler(context, { path, args: [] })).resolves.toMatchObject({
+        ok: false,
+      });
+    }
+    for (const args of [
+      [{ nested: 'not scalar' }],
+      [Number.NaN],
+      [Infinity],
+      Array.from({ length: 9 }, () => 'x'),
+    ]) {
+      await expect(
+        tool?.handler(context, {
+          path: 'PCB_PrimitiveVia.getAll',
+          args,
+        }),
+      ).rejects.toBeDefined();
+    }
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
+  it('returns explicit error for bridge failure without inventing a successful read', async () => {
+    registry.setProfile('full');
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const tool = registry.get('easyeda_api_read');
+    const bridgeCall = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('native PCB focus unavailable'))
+      .mockRejectedValueOnce('non-Error rejection');
+    const context = mockContext({
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall } as ToolContext['bridge'],
+    });
+    await expect(
+      tool?.handler(context, { path: 'PCB_PrimitiveVia.getAll' }),
+    ).resolves.toMatchObject({ ok: false, error: 'native PCB focus unavailable' });
+    await expect(
+      tool?.handler(context, { path: 'PCB_PrimitiveVia.getAll' }),
+    ).resolves.toMatchObject({ ok: false, error: 'non-Error rejection' });
+    expect(bridgeCall).toHaveBeenCalledTimes(2);
+  });
+
+  it('forwards includeMethods only on explicit opt-in for the high-risk API tool', async () => {
+    registry.setProfile('full');
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const tool = registry.get('easyeda_api_call');
+    const bridgeCall = vi.fn().mockResolvedValue({
+      path: 'SCH_PrimitiveWire.getAll',
+      result: [],
+    });
+    const context = mockContext({
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall } as ToolContext['bridge'],
+    });
+    await tool?.handler(context, { path: 'SCH_PrimitiveWire.getAll', confirmWrite: true });
+    await tool?.handler(context, {
+      path: 'SCH_PrimitiveWire.getAll',
+      confirmWrite: true,
+      maxDepth: 8,
+      includeMethods: true,
+    });
+    expect(bridgeCall).toHaveBeenNthCalledWith(1, 'api.call', {
+      path: 'SCH_PrimitiveWire.getAll',
+      args: [],
+    });
+    expect(bridgeCall).toHaveBeenNthCalledWith(2, 'api.call', {
+      path: 'SCH_PrimitiveWire.getAll',
+      args: [],
+      maxDepth: 8,
+      includeMethods: true,
+    });
+  });
+
   it('should not register easyeda_execute by default even for dev profile', () => {
     registry.setProfile('dev');
     registerBuiltinTools(registry, TEST_CONFIG);
