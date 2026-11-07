@@ -2374,6 +2374,127 @@ describe('Schematic Tools', () => {
       expect(result).toMatchObject({ primitiveId: 'comp-3', pins: [], success: true });
     });
 
+    it('reports CONTEXT_UNAVAILABLE when native pin reads fail with a PCB focused', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockImplementation(async (method: string, params: { path: string }) => {
+        if (method !== 'api.call') throw new Error('unexpected method');
+        if (params.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId')
+          throw new Error('获取器件关联的所有引脚失败');
+        if (params.path === 'DMT_SelectControl.getCurrentDocumentInfo')
+          return { result: { documentType: 3, uuid: 'private-pcb-id' } };
+        throw new Error('unexpected API path');
+      });
+      const result = await tool?.handler(context, { primitiveId: 'part' });
+      expect(result).toMatchObject({
+        primitiveId: 'part',
+        pins: [],
+        success: false,
+        not_available: true,
+        error_code: 'CONTEXT_UNAVAILABLE',
+        error: expect.stringContaining('Focus a schematic'),
+      });
+      expect(JSON.stringify(result)).not.toContain('获取器件关联的所有引脚失败');
+      expect(JSON.stringify(result)).not.toContain('private-pcb-id');
+      expect(bridgeCall).toHaveBeenNthCalledWith(2, 'api.call', {
+        path: 'DMT_SelectControl.getCurrentDocumentInfo',
+        args: [],
+      });
+    });
+
+    it('does not misclassify invalid pins in a verified focused schematic', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockImplementation(async (_method: string, params: { path: string }) =>
+        params.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId'
+          ? Promise.reject(new Error('获取器件关联的所有引脚失败'))
+          : { result: { documentType: 1 } },
+      );
+      const result = await tool?.handler(context, { primitiveId: 'invalid' });
+      expect(result).toMatchObject({
+        success: false,
+        not_available: true,
+        error_code: 'PIN_READ_UNAVAILABLE',
+        error: expect.stringContaining('Verify the component primitive ID'),
+      });
+      expect(JSON.stringify(result)).not.toContain('获取器件关联的所有引脚失败');
+    });
+
+    it('rejects native error envelopes instead of reporting successful empty pins', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockImplementation(async (_method: string, params: { path: string }) =>
+        params.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId'
+          ? { success: false, error: '获取器件关联的所有引脚失败' }
+          : { result: { documentType: 3 } },
+      );
+      const result = await tool?.handler(context, { primitiveId: 'part' });
+      expect(result).toMatchObject({
+        success: false,
+        pins: [],
+        not_available: true,
+        error_code: 'CONTEXT_UNAVAILABLE',
+      });
+    });
+
+    it('does not claim a PCB focus when the document getter is unavailable', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockImplementation(async (_method: string, params: { path: string }) => {
+        if (params.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId')
+          throw new Error('native pins failed');
+        throw new Error('native document getter unavailable');
+      });
+      const result = await tool?.handler(context, { primitiveId: 'part' });
+      expect(result).toMatchObject({
+        success: false,
+        not_available: true,
+        error_code: 'PIN_READ_UNAVAILABLE',
+        error: expect.stringContaining('Verify the component primitive ID'),
+      });
+      expect(JSON.stringify(result)).not.toContain('native pins failed');
+    });
+
+    it('does not claim a PCB focus when native document metadata is empty', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockImplementation(async (_method: string, params: { path: string }) => {
+        if (params.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId')
+          throw new Error('native pins failed');
+        return { result: undefined };
+      });
+      const result = await tool?.handler(context, { primitiveId: 'part' });
+      expect(result).toMatchObject({ success: false, error_code: 'PIN_READ_UNAVAILABLE' });
+    });
+
+    it('rejects a native error-only envelope without guessing a focused context', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockImplementation(async (_method: string, params: { path: string }) =>
+        params.path === 'SCH_PrimitiveComponent.getAllPinsByPrimitiveId'
+          ? { error: 'raw native error string' }
+          : { result: { documentType: 1 } },
+      );
+      const result = await tool?.handler(context, { primitiveId: 'part' });
+      expect(result).toMatchObject({
+        success: false,
+        pins: [],
+        not_available: true,
+        error_code: 'PIN_READ_UNAVAILABLE',
+      });
+      expect(JSON.stringify(result)).not.toContain('raw native error string');
+    });
+
+    it('preserves a native CONTEXT_UNAVAILABLE error without a second native read', async () => {
+      const tool = registry.get('easyeda_schematic_component_pins');
+      bridgeCall.mockRejectedValue(
+        Object.assign(new Error('raw native failure'), { code: 'CONTEXT_UNAVAILABLE' }),
+      );
+      const result = await tool?.handler(context, { primitiveId: 'part' });
+      expect(result).toMatchObject({
+        success: false,
+        not_available: true,
+        error_code: 'CONTEXT_UNAVAILABLE',
+        error: expect.stringContaining('Focus a schematic'),
+      });
+      expect(bridgeCall).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(result)).not.toContain('raw native failure');
+    });
+
     it('returns success=false on bridge error', async () => {
       const tool = registry.get('easyeda_schematic_component_pins');
       bridgeCall.mockRejectedValue(new Error('not found'));
@@ -2384,7 +2505,9 @@ describe('Schematic Tools', () => {
         primitiveId: 'missing',
         pins: [],
         success: false,
-        error: 'not found',
+        not_available: true,
+        error_code: 'PIN_READ_UNAVAILABLE',
+        error: expect.stringContaining('Verify the component primitive ID'),
       });
     });
   });
