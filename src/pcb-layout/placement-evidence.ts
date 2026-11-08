@@ -1,3 +1,5 @@
+import type { NativePadPairDeclaration, NativePadPairFinding } from './placement-pad-evidence.js';
+
 /**
  * Bounded component-origin relationship review using existing native PCB
  * component getters. No pad-to-net, copper loop, or electrical PASS claims.
@@ -21,6 +23,8 @@ export interface PlacementRelation {
   first: string;
   second: string;
   kind: PlacementKind;
+  /** Opt-in, source-declared native pad-to-pad net and geometry observations. */
+  padPairs?: NativePadPairDeclaration[];
   /** Explicit caller-provided numerical limit, not a default rule. */
   maxCenterDistanceMm?: number;
   requireSameLayer?: boolean;
@@ -55,6 +59,7 @@ export interface PlacementFinding {
   constraint_source?: string;
   reasons: string[];
   electrical_loop_status: 'UNKNOWN';
+  pad_pairs?: NativePadPairFinding[];
 }
 
 export interface PlacementReview {

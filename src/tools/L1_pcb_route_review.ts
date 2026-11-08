@@ -8,6 +8,7 @@ import {
   reviewDifferentialPair,
   type DifferentialPairDeclaration,
 } from '../pcb-layout/differential-pair.js';
+import { reviewNativePlacementPadPair } from '../pcb-layout/placement-pad-evidence.js';
 import { type EnvConfig } from '../config/env.js';
 import { reviewNativeTraceCurrent } from '../pcb-layout/native-trace-current.js';
 import {
@@ -78,10 +79,26 @@ const exactFootprintNameSchema = z
       'Expected footprint name must exactly match its native identity without surrounding whitespace.',
   });
 
+const nativePadPairSchema = z.object({
+  firstPin: z
+    .string()
+    .min(1)
+    .max(32)
+    .refine((value) => value === value.trim()),
+  secondPin: z
+    .string()
+    .min(1)
+    .max(32)
+    .refine((value) => value === value.trim()),
+  expectedNet: exactNetSchema,
+  maxCenterDistanceMm: z.number().finite().positive().optional(),
+});
+
 const placementRelationSchema = z
   .object({
     first: exactNetSchema.describe('Exact native PCB component designator, e.g. U1.'),
     second: exactNetSchema.describe('Exact second PCB component designator, e.g. C1.'),
+    padPairs: z.array(nativePadPairSchema).min(1).max(2).optional(),
     kind: z.enum([
       'decoupling',
       'switching-loop',
@@ -127,6 +144,7 @@ const placementRelationSchema = z
         value.requireSameLayer === true ||
         value.firstRotationDeg !== undefined ||
         value.secondRotationDeg !== undefined ||
+        value.padPairs !== undefined ||
         value.firstFootprintName !== undefined ||
         value.secondFootprintName !== undefined) &&
       !value.constraintSource
@@ -331,6 +349,25 @@ const placementReviewSchema = z.object({
         constraint_source: z.string().optional(),
         reasons: z.array(z.string()),
         electrical_loop_status: z.literal('UNKNOWN'),
+        pad_pairs: z
+          .array(
+            z.object({
+              first_pin: z.string(),
+              second_pin: z.string(),
+              expected_net: z.string(),
+              status: z.enum(['WARNING', 'UNKNOWN']),
+              evidence: z.enum(['native_component_pads', 'unavailable']),
+              native_first_net: z.string().optional(),
+              native_second_net: z.string().optional(),
+              native_pad_layer_codes: z.array(z.number()).optional(),
+              measured_pad_center_distance_mm: z.number().finite().nonnegative().optional(),
+              declared_max_pad_center_distance_mm: z.number().finite().positive().optional(),
+              reasons: z.array(z.string()),
+              electrical_loop_status: z.literal('UNKNOWN'),
+            }),
+          )
+          .max(2)
+          .optional(),
       }),
     )
     .max(8),
@@ -524,6 +561,112 @@ async function collectPlacementEvidence(
   return { placementComponents, placementTotal, placementAvailable };
 }
 
+/**
+ * Optional, bounded native component pad reads. A document/project re-focus
+ * before or after the getters invalidates every observation in this request.
+ */
+async function readPlacementPadObservations(
+  ctx: ToolContext,
+  projectId: string,
+  relations: PlacementRelation[],
+  components: NativePlacement[],
+  complete: boolean,
+  errors: string[],
+): Promise<Map<string, unknown>> {
+  const data = new Map<string, unknown>();
+  if (!complete || !ctx.bridge.connected) return data;
+  const declared = relations.filter((r) => r.padPairs?.length);
+  if (!declared.length) return data;
+  const projectAndDocMatch = async () => {
+    const [projectResponse, docResponse] = await Promise.all([
+      ctx.bridge.call('api.read', { path: 'DMT_Project.getCurrentProjectInfo', args: [] }),
+      ctx.bridge.call('api.read', { path: 'DMT_SelectControl.getCurrentDocumentInfo', args: [] }),
+    ]);
+    const project = (projectResponse as { result?: { uuid?: string } }).result;
+    const doc = (
+      docResponse as {
+        result?: { documentType?: number; parentProjectUuid?: string };
+      }
+    ).result;
+    return (
+      project?.uuid === projectId && doc?.documentType === 3 && doc.parentProjectUuid === projectId
+    );
+  };
+  try {
+    if (!(await projectAndDocMatch())) {
+      errors.push('Native project or focused PCB does not match the requested pad review source.');
+      return data;
+    }
+    const wanted = new Set(declared.flatMap((r) => [r.first, r.second]));
+    for (const component of components) {
+      if (!component.designator || !wanted.has(component.designator) || !component.primitiveId)
+        continue;
+      try {
+        const reply = await ctx.bridge.call('api.read', {
+          path: 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId',
+          args: [component.primitiveId],
+          maxDepth: 6,
+        });
+        data.set(component.designator, (reply as { result?: unknown }).result);
+      } catch (error) {
+        errors.push('Native component pad getter unavailable: ' + String(error));
+      }
+    }
+    if (!(await projectAndDocMatch())) {
+      errors.push(
+        'Native project or document changed during pad inventory; observations discarded.',
+      );
+      data.clear();
+    }
+  } catch (error) {
+    errors.push('Native project/document identity could not be verified: ' + String(error));
+    data.clear();
+  }
+  return data;
+}
+
+async function enrichPlacementPadEvidence(
+  ctx: ToolContext,
+  projectId: string,
+  relations: PlacementRelation[],
+  components: NativePlacement[],
+  placement: ReturnType<typeof reviewPlacementRelations>,
+  errors: string[],
+) {
+  if (!relations.some((r) => r.padPairs?.length)) return;
+  const observations = await readPlacementPadObservations(
+    ctx,
+    projectId,
+    relations,
+    components,
+    placement.input_evidence.collection_complete,
+    errors,
+  );
+  for (const [index, relation] of relations.entries()) {
+    const finding = placement.findings[index];
+    if (!finding || !relation.padPairs?.length) continue;
+    const first = components.find((c) => c.designator === relation.first);
+    const second = components.find((c) => c.designator === relation.second);
+    const ids =
+      first?.primitiveId && second?.primitiveId
+        ? { first: first.primitiveId, second: second.primitiveId }
+        : undefined;
+    finding.pad_pairs = relation.padPairs.map((pair) =>
+      reviewNativePlacementPadPair(
+        pair,
+        ids,
+        observations.has(relation.first) && observations.has(relation.second)
+          ? { first: observations.get(relation.first), second: observations.get(relation.second) }
+          : undefined,
+      ),
+    );
+    if (finding.pad_pairs.some((pad) => pad.status === 'WARNING')) {
+      finding.status = 'WARNING';
+      placement.status = 'WARNING';
+    }
+  }
+}
+
 function optionalNativeCurrentReview(
   declaration: z.infer<typeof nativeTraceCurrentDeclarationSchema> | undefined,
   route: Awaited<ReturnType<typeof collectRouteEvidence>>,
@@ -560,14 +703,14 @@ export function registerPcbRouteReviewTools(
     name: 'easyeda_pcb_route_geometry_review',
     title: 'Review observed PCB route geometry and evidence gaps',
     description:
-      'Read native PCB tracks/vias in 200-row pages, bounded at 1200 tracks and 600 vias, plus optional component-origin constraints. Incomplete/non-atomic evidence remains UNKNOWN; no DRC or fabrication approval.',
+      'Read native PCB tracks/vias in 200-row pages, bounded at 1200 tracks and 600 vias, plus opt-in source-declared component-origin/pad-pair observations. Incomplete/non-atomic evidence remains UNKNOWN; no DRC or fabrication approval.',
     profile: 'core',
     evidence: ['runtime-probe', 'inferred'],
     risk: 'low',
     confirmWrite: false,
     sideEffect: 'read-only',
     group: 'pcb-constraints',
-    version: '1.2.0',
+    version: '1.3.0',
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     inputSchema,
     outputSchema,
@@ -630,6 +773,17 @@ export function registerPcbRouteReviewTools(
               placementTotal,
               placementAvailable,
             );
+
+      if (placement && placementRelations) {
+        await enrichPlacementPadEvidence(
+          ctx,
+          projectId,
+          placementRelations as PlacementRelation[],
+          placementComponents,
+          placement,
+          errors,
+        );
+      }
 
       return {
         project_id: projectId,
