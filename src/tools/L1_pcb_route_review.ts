@@ -364,6 +364,17 @@ const placementReviewSchema = z.object({
               declared_max_pad_center_distance_mm: z.number().finite().positive().optional(),
               reasons: z.array(z.string()),
               electrical_loop_status: z.literal('UNKNOWN'),
+              route_chain: z
+                .object({
+                  evidence: z.enum(['observed_exact_endpoint_chain', 'unavailable']),
+                  selection: z.enum(['fewest_segments', 'unavailable']),
+                  primitive_ids: z.array(z.string()),
+                  native_layer: z.number().optional(),
+                  observed_centerline_length_mm: z.number().finite().nonnegative().optional(),
+                  reasons: z.array(z.string()),
+                  electrical_continuity_status: z.literal('UNKNOWN'),
+                })
+                .optional(),
             }),
           )
           .max(2)
@@ -632,6 +643,7 @@ async function enrichPlacementPadEvidence(
   components: NativePlacement[],
   placement: ReturnType<typeof reviewPlacementRelations>,
   errors: string[],
+  routeSource: { tracks: NativeTrack[]; complete: boolean },
 ) {
   if (!relations.some((r) => r.padPairs?.length)) return;
   const observations = await readPlacementPadObservations(
@@ -658,6 +670,7 @@ async function enrichPlacementPadEvidence(
         observations.has(relation.first) && observations.has(relation.second)
           ? { first: observations.get(relation.first), second: observations.get(relation.second) }
           : undefined,
+        routeSource,
       ),
     );
     if (finding.pad_pairs.some((pad) => pad.status === 'WARNING')) {
@@ -703,14 +716,14 @@ export function registerPcbRouteReviewTools(
     name: 'easyeda_pcb_route_geometry_review',
     title: 'Review observed PCB route geometry and evidence gaps',
     description:
-      'Read native PCB tracks/vias in 200-row pages, bounded at 1200 tracks and 600 vias, plus opt-in source-declared component-origin/pad-pair observations. Incomplete/non-atomic evidence remains UNKNOWN; no DRC or fabrication approval.',
+      'Read native PCB tracks/vias in 200-row pages, bounded at 1200 tracks and 600 vias, plus opt-in source-declared component-origin/pad-pair and exact native endpoint-chain observations. Incomplete/non-atomic evidence remains UNKNOWN; no DRC or fabrication approval.',
     profile: 'core',
     evidence: ['runtime-probe', 'inferred'],
     risk: 'low',
     confirmWrite: false,
     sideEffect: 'read-only',
     group: 'pcb-constraints',
-    version: '1.3.0',
+    version: '1.4.0',
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     inputSchema,
     outputSchema,
@@ -782,6 +795,7 @@ export function registerPcbRouteReviewTools(
           placementComponents,
           placement,
           errors,
+          { tracks, complete: geometry.input_evidence.collection_complete },
         );
       }
 

@@ -1,3 +1,9 @@
+import {
+  observeNativePadRouteChain,
+  type NativePadRouteChain,
+} from './placement-pad-route-chain.js';
+import type { NativeTrack } from './route-review.js';
+
 /**
  * Opt-in native component-pad distance screening.
  * A straight-line pad-center distance is not copper routing, plane contact,
@@ -27,6 +33,7 @@ export interface NativePadPairFinding {
   declared_max_pad_center_distance_mm?: number;
   reasons: string[];
   electrical_loop_status: 'UNKNOWN';
+  route_chain?: NativePadRouteChain;
 }
 
 interface ComponentPad {
@@ -86,10 +93,21 @@ function uniquePads(raw: unknown, parentId: string): ComponentPad[] | undefined 
   return pads;
 }
 
+function optionalRouteChain(
+  first: ComponentPad | undefined,
+  second: ComponentPad | undefined,
+  source: { tracks: NativeTrack[]; complete: boolean } | undefined,
+): NativePadRouteChain | undefined {
+  return source
+    ? observeNativePadRouteChain(first, second, source.tracks, source.complete)
+    : undefined;
+}
+
 export function reviewNativePlacementPadPair(
   declaration: NativePadPairDeclaration,
   componentIds: { first: string; second: string } | undefined,
   observations: { first: unknown; second: unknown } | undefined,
+  routeSource?: { tracks: NativeTrack[]; complete: boolean },
 ): NativePadPairFinding {
   const base: NativePadPairFinding = {
     first_pin: declaration.firstPin,
@@ -99,6 +117,7 @@ export function reviewNativePlacementPadPair(
     evidence: 'unavailable',
     reasons: [],
     electrical_loop_status: 'UNKNOWN',
+    route_chain: optionalRouteChain(undefined, undefined, routeSource),
   };
   if (!componentIds || !observations || componentIds.first === componentIds.second) {
     base.reasons.push('Matched native component and pad evidence is unavailable.');
@@ -118,6 +137,7 @@ export function reviewNativePlacementPadPair(
     base.reasons.push('Requested pad number or populated native net is unavailable.');
     return base;
   }
+  base.route_chain = optionalRouteChain(a, b, routeSource);
   base.evidence = 'native_component_pads';
   base.native_first_net = a.net;
   base.native_second_net = b.net;

@@ -305,10 +305,10 @@ rotation and layer. Pagination is optional and occurs only when placement
 relations are requested. Changed reported totals, duplicate IDs/designators
 or incomplete pages cannot prove a complete component inventory. A board
 with more than 1,200 components remains explicitly incomplete; no truncated
-subset produces a sourced placement WARNING. This is a component
-**origin-to-origin** measurement in PCB mils, converted to millimetres.
-It is **not** a pad-to-pad distance, electrical net path, via current,
-copper geometry or closed high-frequency loop measurement.
+subset produces a sourced placement WARNING. The component-origin measurement is **origin-to-origin** in PCB mils,
+converted to millimetres. Separately requested pad-pair evidence can measure
+native pad-center distance; neither measurement is a verified electrical
+net path, via current, copper continuity or high-frequency loop area.
 
 ```json
 {
@@ -319,7 +319,8 @@ copper geometry or closed high-frequency loop measurement.
       "second": "C1",
       "kind": "decoupling",
       "maxCenterDistanceMm": 2.0,
-      "constraintSource": "Example only: verify against the device's actual layout datasheet"
+      "padPairs": [{ "firstPin": "8", "secondPin": "1", "expectedNet": "VCC" }],
+      "constraintSource": "Example only: verify actual pin numbers and limits against the device datasheet"
     },
     {
       "first": "J1",
@@ -369,24 +370,69 @@ collection fails closed to **UNKNOWN**, not `PASS` or a verified missing
 component. Native `getAll()` enumeration is bounded, and separate
 primitive reads are **not an atomic PCB snapshot**.
 
-A verified power/buck loop needs actual pad coordinates, pad-net
-connections, copper/return plane continuity and relevant device-layout
-requirements; those data are **not exposed** by the current
-`pcb.listComponents` read contract.
+## Optional native pad-pair and routed endpoint-chain evidence
 
-A bounded [read-only EasyEDA Web 3.2.209 beta pad experiment](./evidence/easyeda-live/2026-11-04-ubuntu-24-04-easyeda-3.2.209-v1.9.0-pcb-842-beta-pad.json)
-confirmed that `PCB_PrimitivePad.getAll` and
-`PCB_PrimitiveComponent.getAllPinsByPrimitiveId` return six source-matched
-pad identities, parent footprint references, pad/net labels and finite
-coordinates in **one disposable LED PCB**. Two consecutive global reads
-agreed and the pad net labels matched the disposable schematic.
-These native APIs are **beta and not recommended for production** by
-EasyEDA's documentation, so the observation is research evidence only:
-**no production pad reader, power-loop check or electrical approval** was
-added. The observed raw native layer codes `1` and `12` are not
-interpreted as physical copper-layer indices or board sides. Native
-coordinate units/transforms, copper continuity and return paths remain
-unverified. This bounded inspection does not
-claim EMI immunity, SI correctness, safety compliance, autorouting
-or a manufacturing approval. Exact-source live acceptance on a
-disposable EasyEDA PCB remains a separate required milestone.
+A relation may include up to two `padPairs`, each with exact first/second pin
+numbers, exact expected net and, optionally, a **caller-sourced** maximum
+pad-center distance. The requested `constraintSource` is required: a generic
+bypass capacitor millimetre rule must not be inferred. The beta
+`PCB_PrimitiveComponent.getAllPinsByPrimitiveId` getter is used only for
+explicitly requested components in the existing focused, project-verified
+read-only session. Parent component IDs, unique pad numbers, populated
+native nets and finite PCB coordinates are checked; each component is
+bounded at 128 pads. The current project and focused PCB document must
+still match after the getters. Source gaps and malformed/duplicate
+evidence remain `UNKNOWN`.
+
+An opt-in pad-pair finding contains `route_chain` in addition to native
+pad-center geometry. The chain is derived only from the **already collected**
+`pcb.listTracks` snapshot, when the track **and via** inventories are
+complete, identities unique, all segment geometry valid and the board
+within the existing 1,200-track/600-via limit. Segment start/end
+coordinates must match each other and **both native pad centers exactly**
+on one native copper layer and the same exact native net; no tolerance,
+implicit via jump, polygon intersection or crossing-based connection is
+assumed. A pad native layer `12` (`MULTI`) may be a geometrical candidate
+on more than one copper layer, but its plating, actual stack-up and
+electrical contact are not certified.
+
+When this exact bounded evidence exists, `route_chain` reports:
+
+- `evidence: observed_exact_endpoint_chain`, source primitive IDs,
+  `native_layer` and measured `observed_centerline_length_mm`.
+- `selection: fewest_segments`: one deterministic path with the fewest
+  matched segment primitives. It is **not** a proven shortest copper
+  route or total current-loop length.
+- `electrical_continuity_status: UNKNOWN`, with explicit limitations.
+
+If no such exact chain exists, `evidence: unavailable`, empty IDs and
+`UNKNOWN` are returned. **This is not proof that the pins are
+disconnected**: actual tracks can terminate on the pad copper instead
+of its center, or reach a node through vias, polygon pours, arcs, buried
+layers and other unobserved topology. Even with a reported chain,
+the observed 2D centerlines do **not** establish pad metallization,
+via barrels, ground-plane continuity, power-return loop area, EMC,
+DRC or manufacturing approval. The relationship's overall
+`electrical_loop_status` and `engineering_sign_off` remain `UNKNOWN`
+and `false`, respectively. Design-specific source constraints remain
+required for actionable warnings.
+
+The real, isolated EasyEDA Pro 3.2.209/Z480 disposable read-only
+acceptance performed with the matching v1.11.2 source measured
+U3-8/C5-1 `VCC` pad centers at 33.31 mm and U3-4/C5-2 `GND` pad
+centers at 43.88 mm. The historical disposable sample also reported
+a separate `Netlist Error / Import Changes`; **no schematic or PCB was
+modified**. Those observations are native pad geometry, not an
+electrical or DRC PASS. On the same archived native snapshot, the new
+pure endpoint-chain evaluator returned `unavailable` for both VCC and
+GND pin pairs: neither exact-centerline route chain was established.
+This is NOT proof of disconnection, and is not an end-to-end current
+v1.12.0 tool/extension acceptance. The new endpoint-chain implementation
+requires a separately verified matching-version live acceptance;
+deterministic fixtures do not substitute for that milestone.
+
+The EasyEDA native component pad and line getter APIs are still
+[beta](https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_primitivecomponent.getallpinsbyprimitiveid.html)
+[preview interfaces](https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_primitiveline.getall.html).
+If the installed extension and server version do not match,
+native reads fail closed rather than bypassing the version guard.
