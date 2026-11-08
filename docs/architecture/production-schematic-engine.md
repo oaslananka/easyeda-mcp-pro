@@ -69,7 +69,7 @@ The first transaction-aware write is `easyeda_schematic_modify_primitive`. With 
 4. automatically restores the before snapshot when the write or after-read fails;
 5. records the operation for reverse-order rollback.
 
-The extension exposes two controlled bridge methods for this workflow: `schematic.getPrimitiveSnapshot` and `schematic.restorePrimitiveSnapshot`. They support components, net flags/ports, wires, text, circles, and polygons. Restore is routed through the same safe modify logic, including wire-following when a component moves.
+The extension exposes two controlled bridge methods for this workflow: `schematic.getPrimitiveSnapshot` and `schematic.restorePrimitiveSnapshot`. They support components, net flags/ports, wires, text, circles, and polygons. Restore uses the same guarded modify logic. In response to #945, coordinate moves of components with connected or unverifiable wires are refused before mutation; automatic native wire-following is disabled until an exact-source, read-back-verified topology-preserving move implementation is accepted. Snapshot restoration is subject to the same safety guard and may require manual repair if connectivity is unresolved.
 
 Transactions must pass validation before commit. Failed compensation, partial rollback, or expiration with unresolved writes retains the document lock until rollback succeeds. Rollback attempts every unresolved operation in reverse order and verifies the restored snapshot hash.
 

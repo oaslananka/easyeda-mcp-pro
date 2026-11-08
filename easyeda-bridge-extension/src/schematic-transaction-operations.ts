@@ -87,37 +87,23 @@ function pointKey(point: SchematicPoint): string {
   return `${Math.round(point.x * 1000) / 1000},${Math.round(point.y * 1000) / 1000}`;
 }
 
-/**
- * Given a wire's raw `Line` state (flat number[] or [x,y][] pairs), translate
- * only the points matching `targetKeys` by (dx, dy), preserving the original
- * shape. Returns null if nothing matched.
- */
-function shiftWireLine(
-  rawLine: unknown,
-  targetKeys: Set<string>,
-  dx: number,
-  dy: number,
-): { line: unknown } | null {
-  if (!Array.isArray(rawLine) || rawLine.length === 0) return null;
-  let changed = false;
-  if (Array.isArray(rawLine[0])) {
-    const updated = (rawLine as number[][]).map((pair) => {
-      if (!Array.isArray(pair) || pair.length < 2) return pair;
-      const [x, y, ...rest] = pair;
-      if (!targetKeys.has(pointKey({ x, y }))) return pair;
-      changed = true;
-      return [x + dx, y + dy, ...rest];
-    });
-    return changed ? { line: updated } : null;
+/** Inspect actual wire geometry without trying to rewrite wires. The native
+ * modify API can return success while dropping/merging wire segments (#945).
+ * Unknown shapes must not be mistaken for an unconnected schematic. */
+function readWirePoints(rawLine: unknown): SchematicPoint[] | undefined {
+  if (!Array.isArray(rawLine) || rawLine.length < 2) return undefined;
+  const values = Array.isArray(rawLine[0])
+    ? rawLine.map((pair: unknown) => (Array.isArray(pair) && pair.length === 2 ? pair : undefined))
+    : rawLine.length >= 4 && rawLine.length % 2 === 0
+      ? Array.from({ length: rawLine.length / 2 }, (_, i) => [rawLine[i * 2], rawLine[i * 2 + 1]])
+      : [];
+  if (
+    values.length < 2 ||
+    values.some((v) => !v || !v.every((n: unknown) => typeof n === 'number' && Number.isFinite(n)))
+  ) {
+    return undefined;
   }
-  const flat = (rawLine as number[]).slice();
-  for (let i = 0; i + 1 < flat.length; i += 2) {
-    if (!targetKeys.has(pointKey({ x: flat[i], y: flat[i + 1] }))) continue;
-    flat[i] += dx;
-    flat[i + 1] += dy;
-    changed = true;
-  }
-  return changed ? { line: flat } : null;
+  return (values as number[][]).map(([x, y]) => ({ x, y }));
 }
 
 function compactDefinedRecord(input: Record<string, unknown>): Record<string, unknown> {
@@ -192,14 +178,10 @@ function componentMoveOrigin(
   oldY: unknown,
   property: Record<string, unknown>,
 ): SchematicPoint | undefined {
-  const changesCoordinate = typeof property.x === 'number' || typeof property.y === 'number';
-  const differsFromCurrent = property.x !== oldX || property.y !== oldY;
-  if (
-    typeof oldX === 'number' &&
-    typeof oldY === 'number' &&
-    changesCoordinate &&
-    differsFromCurrent
-  ) {
+  const changesCoordinate =
+    (typeof property.x === 'number' && property.x !== oldX) ||
+    (typeof property.y === 'number' && property.y !== oldY);
+  if (typeof oldX === 'number' && typeof oldY === 'number' && changesCoordinate) {
     return { x: oldX, y: oldY };
   }
   return undefined;
@@ -799,6 +781,7 @@ export function createSchematicTransactionOperations(
     return { primitiveId, snapshot: await getSchematicPrimitiveSnapshot(primitiveId) };
   }
 
+  /** No mutation starts until the native pin inventory is complete. */
   async function getComponentPinCoordinates(primitiveId: string): Promise<SchematicPoint[]> {
     let pins: unknown;
     try {
@@ -809,79 +792,105 @@ export function createSchematicTransactionOperations(
         ],
         primitiveId,
       );
-    } catch (e) {
-      logRecoverableError(`failed to read pins for ${primitiveId}`, e);
-      return [];
+    } catch (error) {
+      logRecoverableError(`failed to read pins for ${primitiveId}`, error);
+      throw newBridgeError(
+        'MOVE_CONNECTIVITY_UNVERIFIED',
+        'Cannot verify native pins; move refused.',
+        'Focus the schematic and retry.',
+      );
     }
-    const pinList = Array.isArray(pins) ? pins : [];
+    if (!Array.isArray(pins) || pins.length === 0) {
+      throw newBridgeError(
+        'MOVE_CONNECTIVITY_UNVERIFIED',
+        'Pin inventory incomplete; move refused.',
+        'Verify the component pins.',
+      );
+    }
     const points: SchematicPoint[] = [];
-    for (const pin of pinList) {
+    for (const pin of pins) {
       const point = readPinPoint(pin);
-      if (typeof point.x === 'number' && typeof point.y === 'number') {
-        points.push({ x: point.x, y: point.y });
+      if (
+        typeof point.x !== 'number' ||
+        typeof point.y !== 'number' ||
+        !Number.isFinite(point.x) ||
+        !Number.isFinite(point.y)
+      ) {
+        throw newBridgeError(
+          'MOVE_CONNECTIVITY_UNVERIFIED',
+          'Pin coordinates unknown; move refused.',
+          'Inspect pin geometry in EasyEDA Pro.',
+        );
       }
+      points.push({ x: point.x, y: point.y });
     }
     return points;
   }
 
   /**
-   * After a component has been moved by (dx, dy), find every wire with an
-   * endpoint that was touching one of the component's *old* pin coordinates
-   * (`oldPinPoints`, captured before the move) and translate that endpoint by
-   * the same delta — so the wire keeps following the pin instead of being left
-   * behind at its old absolute coordinate (which orphans it, and risks a new
-   * silent short if the component's new pin position happens to land on
-   * another unrelated primitive). Preserves each wire's net/color/width/style
-   * by re-merging its full current state before writing, matching the
-   * modify-resets-omitted-fields behavior documented on schematic.modifyPrimitive.
+   * Conservative preflight for #945. Native wire.modify reportedly re-routes
+   * nets even when it reports success; do not move a connected component and
+   * then attempt to repair connections using that API. Refuse before ANY write.
+   * Unwired moves remain possible when pin and wire inventories are complete.
    */
-  async function followConnectedWires(
+  async function assertSafeUnwiredMove(
     oldPinPoints: SchematicPoint[],
     dx: number,
     dy: number,
-  ): Promise<{ movedWireIds: string[]; failedWireIds: string[] }> {
-    const outcome = { movedWireIds: [] as string[], failedWireIds: [] as string[] };
-    const schWireClass = readFirstPath<any>(['SCH_PrimitiveWire', 'sch_PrimitiveWire']);
-    if (
-      !schWireClass ||
-      typeof schWireClass.getAll !== 'function' ||
-      typeof schWireClass.modify !== 'function'
-    ) {
-      return outcome;
+  ): Promise<void> {
+    const wireApi = readFirstPath<any>(WIRE_CLASS_PATHS);
+    if (!wireApi || typeof wireApi.getAll !== 'function') {
+      throw newBridgeError(
+        'MOVE_CONNECTIVITY_UNVERIFIED',
+        'Native wire API unavailable; move refused.',
+        'Inspect wires before moving.',
+      );
     }
-
-    const targetKeys = new Set(oldPinPoints.map((p) => pointKey(p)));
-    let wires: unknown[];
+    let wires: unknown;
     try {
-      wires = (await schWireClass.getAll()) || [];
-    } catch (e) {
-      logRecoverableError('failed to read wires while following a component move', e);
-      return outcome;
+      wires = await wireApi.getAll();
+    } catch (error) {
+      logRecoverableError('failed to preflight wires before a component move', error);
+      throw newBridgeError(
+        'MOVE_CONNECTIVITY_UNVERIFIED',
+        'Wire read failed; move refused.',
+        'Inspect connections and retry.',
+      );
     }
-
+    if (!Array.isArray(wires)) {
+      throw newBridgeError(
+        'MOVE_CONNECTIVITY_UNVERIFIED',
+        'Wire inventory incomplete; move refused.',
+        'Inspect wire inventory.',
+      );
+    }
+    const sourcePinKeys = new Set(oldPinPoints.map(pointKey));
+    const destinationPinKeys = new Set(
+      oldPinPoints.map(({ x, y }) => pointKey({ x: x + dx, y: y + dy })),
+    );
     for (const wire of wires) {
-      const shifted = shiftWireLine(safeGetState(wire, 'Line'), targetKeys, dx, dy);
-      if (!shifted) continue;
-      const wireId = extractPrimitiveId(wire);
-      if (!wireId) {
-        outcome.failedWireIds.push('<unknown>');
-        continue;
+      const wirePoints = readWirePoints(safeGetState(wire, 'Line'));
+      if (!wirePoints) {
+        throw newBridgeError(
+          'MOVE_CONNECTIVITY_UNVERIFIED',
+          'Wire geometry unknown; move refused.',
+          'Inspect wire geometry.',
+        );
       }
-      try {
-        await schWireClass.modify(wireId, {
-          line: shifted.line,
-          net: safeGetState(wire, 'Net'),
-          color: safeGetState(wire, 'Color'),
-          lineWidth: safeGetState(wire, 'LineWidth'),
-          lineType: safeGetState(wire, 'LineType'),
-        });
-        outcome.movedWireIds.push(wireId);
-      } catch (e) {
-        logRecoverableError(`failed to follow wire ${wireId} after component move`, e);
-        outcome.failedWireIds.push(wireId);
+      if (
+        wirePoints.some(
+          (p) => sourcePinKeys.has(pointKey(p)) || destinationPinKeys.has(pointKey(p)),
+        )
+      ) {
+        const wireId = extractPrimitiveId(wire);
+        throw newBridgeError(
+          'CONNECTED_COMPONENT_MOVE_UNSAFE',
+          'Connected move blocked: native wire-follow can corrupt nets.',
+          'Place before wiring, or reconnect manually.',
+          { wireId: wireId || '<unknown>' },
+        );
       }
     }
-    return outcome;
   }
 
   async function readModificationCurrent(
@@ -950,21 +959,16 @@ export function createSchematicTransactionOperations(
 
     const { merged, oldX, oldY } = componentModificationProperties(current, property);
     const moveOrigin = componentMoveOrigin(oldX, oldY, property);
-    const oldPinPoints = moveOrigin ? await getComponentPinCoordinates(primitiveId) : [];
-    const result = await primitiveClass.modify(primitiveId, merged);
-    const followResult = { movedWireIds: [] as string[], failedWireIds: [] as string[] };
-
-    if (moveOrigin && oldPinPoints.length > 0) {
-      const dx = (merged.x as number) - moveOrigin.x;
-      const dy = (merged.y as number) - moveOrigin.y;
-      Object.assign(followResult, await followConnectedWires(oldPinPoints, dx, dy));
+    if (moveOrigin) {
+      const pins = await getComponentPinCoordinates(primitiveId);
+      await assertSafeUnwiredMove(
+        pins,
+        (merged.x as number) - moveOrigin.x,
+        (merged.y as number) - moveOrigin.y,
+      );
     }
-
-    return handled({
-      result,
-      followedWireIds: followResult.movedWireIds,
-      wireFollowFailures: followResult.failedWireIds,
-    });
+    const result = await primitiveClass.modify(primitiveId, merged);
+    return handled({ result, followedWireIds: [], wireFollowFailures: [] });
   }
 
   async function tryModifyWire(

@@ -3076,7 +3076,7 @@ describe('createDispatcher', () => {
   });
 
   describe('schematic.modifyPrimitive wire-following', () => {
-    it("translates a wire endpoint that was touching the moved component's old pin coordinate", async () => {
+    it('rejects a connected component move before any component or wire mutation', async () => {
       const modify = vi.fn(async () => true);
       const get = vi.fn(async () => fakeComponent({ X: 100, Y: 100 }));
       const getAllPinsByPrimitiveId = vi.fn(async () => [
@@ -3091,20 +3091,14 @@ describe('createDispatcher', () => {
         }),
       );
 
-      const result = (await dispatcher.dispatch('schematic.modifyPrimitive', {
-        primitiveId: 'comp1',
-        property: { x: 300, y: 300 },
-      })) as { followedWireIds: string[]; wireFollowFailures: string[] };
-
-      expect(modify).toHaveBeenCalledWith('comp1', expect.objectContaining({ x: 300, y: 300 }));
-      // Only the endpoint that was at the pin's old coordinate (100,100) moves;
-      // the wire's other endpoint (150,100), which wasn't touching this pin, stays put.
-      expect(wireModify).toHaveBeenCalledWith(
-        'w1',
-        expect.objectContaining({ line: [300, 300, 150, 100], net: 'NET_A' }),
-      );
-      expect(result.followedWireIds).toEqual(['w1']);
-      expect(result.wireFollowFailures).toEqual([]);
+      await expect(
+        dispatcher.dispatch('schematic.modifyPrimitive', {
+          primitiveId: 'comp1',
+          property: { x: 300, y: 300 },
+        }),
+      ).rejects.toMatchObject({ code: 'CONNECTED_COMPONENT_MOVE_UNSAFE' });
+      expect(modify).not.toHaveBeenCalled();
+      expect(wireModify).not.toHaveBeenCalled();
     });
 
     it('does not touch wires when the modify does not change x/y', async () => {

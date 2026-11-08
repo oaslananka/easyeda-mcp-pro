@@ -987,9 +987,9 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_modify_primitive',
     title: 'Modify schematic primitive',
     description:
-      'Safely modify a schematic primitive while preserving omitted fields. With transactionId and ' +
-      'projectId, capture before/after snapshots and automatically restore the prior state if the ' +
-      'write or post-write read fails. Component moves keep connected wires attached.',
+      'Modify a schematic primitive while preserving omitted fields. With transactionId and projectId, ' +
+      'snapshot and restore after failed writes/read-back. Connected or unverified component moves ' +
+      'fail closed before mutation.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
