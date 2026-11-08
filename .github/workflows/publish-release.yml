@@ -233,13 +233,30 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
       - name: Generate CycloneDX SBOM
-        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          path: .
-          format: cyclonedx-json
-          output-file: sbom.json
-          upload-artifact: false
-          upload-release-assets: false
+        env:
+          GH_TOKEN: ${{ github.token }} # Read-only access to the pinned official Syft release.
+        run: |
+          set -euo pipefail
+          # anchore/sbom-action v0.24.3 resolves Syft v1.54.0 through a release
+          # installer that can fail with GitHub CDN 504. Use that same version
+          # from the official GitHub API, with BOTH immutable checksum pins.
+          syft_dir="$(mktemp -d)"
+          trap 'rm -rf "$syft_dir"' EXIT
+          gh release download v1.54.0 --repo anchore/syft \
+            --pattern syft_1.54.0_checksums.txt \
+            --pattern syft_1.54.0_linux_amd64.tar.gz --dir "$syft_dir"
+          printf '%s  %s\n' \
+            e423344e663d7d14db62e51ddd31e4a5012818ed69e78358391dc487483f839c \
+            "$syft_dir/syft_1.54.0_checksums.txt" | sha256sum --check --status
+          printf '%s  %s\n' \
+            54a87372498168b2d033e876fd41fa4e8035b872699e525a57046e1f2f09c860 \
+            "$syft_dir/syft_1.54.0_linux_amd64.tar.gz" | sha256sum --check --status
+          grep -Fxq \
+            '54a87372498168b2d033e876fd41fa4e8035b872699e525a57046e1f2f09c860  syft_1.54.0_linux_amd64.tar.gz' \
+            "$syft_dir/syft_1.54.0_checksums.txt"
+          tar -xzf "$syft_dir/syft_1.54.0_linux_amd64.tar.gz" -C "$syft_dir" syft
+          "$syft_dir/syft" scan dir:. --output cyclonedx-json=sbom.json
+          test -s sbom.json
 
       - name: Upload SBOM Artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

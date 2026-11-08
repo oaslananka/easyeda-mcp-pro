@@ -452,13 +452,22 @@ describe('repository security tooling policy', () => {
     expect(e2eWaiter).toContain('sanitizeLogFragment(r, 300)');
     expect(e2eWaiter).not.toContain("console.log('%s: %s', method, r.slice(0, 300));");
 
+    expect(releaseWorkflow).toContain('gh release download v1.54.0 --repo anchore/syft');
+    expect(releaseWorkflow).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(releaseWorkflow).toContain('--pattern syft_1.54.0_checksums.txt');
+    expect(releaseWorkflow).toContain('--pattern syft_1.54.0_linux_amd64.tar.gz');
     expect(releaseWorkflow).toContain(
-      'uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c',
+      'e423344e663d7d14db62e51ddd31e4a5012818ed69e78358391dc487483f839c',
     );
-    expect(releaseWorkflow).toContain('format: cyclonedx-json');
-    expect(releaseWorkflow).toContain('output-file: sbom.json');
-    expect(releaseWorkflow).toContain('upload-artifact: false');
-    expect(releaseWorkflow).toContain('upload-release-assets: false');
+    expect(releaseWorkflow).toContain(
+      '54a87372498168b2d033e876fd41fa4e8035b872699e525a57046e1f2f09c860',
+    );
+    expect(releaseWorkflow).toContain('sha256sum --check --status');
+    expect(releaseWorkflow).toContain('scan dir:. --output cyclonedx-json=sbom.json');
+    expect(releaseWorkflow).toContain('test -s sbom.json');
+    expect(releaseWorkflow).toContain('name: Upload SBOM Artifact');
+    expect(releaseWorkflow).toContain('name: Attach Build Provenance (SLSA + Sigstore)');
+    expect(releaseWorkflow).not.toContain('uses: anchore/sbom-action@');
     expect(releaseWorkflow).not.toContain('npx --yes @cyclonedx/cyclonedx-npm');
     expect(benchmarkWorkflow).toContain('pnpm install --frozen-lockfile --ignore-scripts');
   });
