@@ -178,25 +178,25 @@ export async function assertExpectedDocument(
   assertTargetSupportsMethod(method, params, expected, createBridgeError);
   const current = await focusedDocument(readFirstPath, createBridgeError);
   const type = expected.documentType === 'pcb' ? 3 : 1;
+  const name = await verifiedFocusedName(
+    current,
+    current.documentType === 3 ? 'pcb' : 'schematic',
+    readFirstPath,
+    createBridgeError,
+  );
   if (current.uuid !== expected.uuid || current.documentType !== type) {
     throw createBridgeError(
       'TARGET_DOCUMENT_MISMATCH',
-      `Refusing ${method}: expected ${expected.uuid}, focused ${current.uuid} (${current.name ?? 'unnamed'}).`,
+      `Refusing ${method}: expected ${expected.uuid}, focused ${current.uuid} (${name}).`,
       'Focus the intended document or update the expected UUID after a fresh read.',
       {
         expectedUuid: expected.uuid,
         focusedUuid: current.uuid,
-        focusedName: current.name,
+        focusedName: name,
         focusedDocumentType: current.documentType,
       },
     );
   }
-  const name = await verifiedFocusedName(
-    current,
-    expected.documentType,
-    readFirstPath,
-    createBridgeError,
-  );
   return { uuid: current.uuid, name, documentType: expected.documentType };
 }
 
