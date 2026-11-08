@@ -895,18 +895,36 @@ describe('native PCB route geometry review MCP contract', () => {
       secondNet?: string;
       firstParent?: string;
       failPad?: string;
+      switchFocusAfterPads?: boolean;
+      throwOnFocusRecheck?: boolean;
+      extraUnrelatedComponent?: boolean;
     } = {},
   ) {
     const components = [
       { primitiveId: 'native-u3', designator: 'U3', x: 100, y: 0, layer: 1 },
       { primitiveId: 'native-c5', designator: 'C5', x: 0, y: 0, layer: 1 },
+      ...(overrides.extraUnrelatedComponent
+        ? [{ primitiveId: 'native-z9', designator: 'Z9', x: 200, y: 200, layer: 1 }]
+        : []),
     ];
+    let focusChecks = 0;
     bridgeCall.mockImplementation(async (method: string, args: any) => {
       if (method === 'pcb.listTracks' || method === 'pcb.listVias') return { total: 0, items: [] };
-      if (method === 'pcb.listComponents') return { total: 2, items: components };
+      if (method === 'pcb.listComponents') return { total: components.length, items: components };
       if (method === 'api.read') {
-        if (args.path === 'DMT_Project.getCurrentProjectInfo')
-          return { result: { uuid: overrides.projectId ?? 'project-1' } };
+        if (args.path === 'DMT_Project.getCurrentProjectInfo') {
+          focusChecks++;
+          if (overrides.throwOnFocusRecheck && focusChecks === 2)
+            throw new Error('native project focus no longer available');
+          return {
+            result: {
+              uuid:
+                overrides.switchFocusAfterPads && focusChecks === 2
+                  ? 'unrelated-project'
+                  : (overrides.projectId ?? 'project-1'),
+            },
+          };
+        }
         if (args.path === 'DMT_SelectControl.getCurrentDocumentInfo')
           return { result: { parentProjectUuid: 'project-1', documentType: 3 } };
         if (args.path === 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId') {
@@ -1032,6 +1050,52 @@ describe('native PCB route geometry review MCP contract', () => {
       });
       expect(result.engineering_sign_off).toBe(false);
     }
+  });
+
+  it('reads only requested components in a complete inventory with unrelated placements', async () => {
+    mockNativePlacementPads({ extraUnrelatedComponent: true });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.input_evidence).toMatchObject({
+      native_total: 3,
+      returned_count: 3,
+      collection_complete: true,
+    });
+    expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'native_component_pads',
+      measured_pad_center_distance_mm: 2.54,
+    });
+    expect(
+      bridgeCall.mock.calls.filter(
+        ([method, args]) =>
+          method === 'api.read' && args.path === 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId',
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('discards all native pad evidence if the focused PCB changes after pad reads', async () => {
+    mockNativePlacementPads({ switchFocusAfterPads: true });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'unavailable',
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(result.errors.join(' ')).toContain('changed during pad inventory');
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('fails closed when native focus becomes unreadable during the post-read recheck', async () => {
+    mockNativePlacementPads({ throwOnFocusRecheck: true });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'unavailable',
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(result.errors.join(' ')).toContain('identity could not be verified');
+    expect(result.errors.join(' ')).toContain('native project focus no longer available');
+    expect(result.engineering_sign_off).toBe(false);
   });
 
   it('validates second-component rotation provenance and reports native differences', async () => {
