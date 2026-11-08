@@ -1100,6 +1100,47 @@ describe('schematic transaction operations', () => {
     });
   });
 
+  it.each(['missing', 'throwing'])(
+    'refuses a component coordinate update when the native owner getter is %s',
+    async (condition) => {
+      const componentModify = vi.fn();
+      const { operations, callFirst } = createSubject({
+        SCH_PrimitiveComponent: {
+          get:
+            condition === 'missing'
+              ? vi.fn().mockResolvedValue(undefined)
+              : vi.fn().mockRejectedValue(new Error('native getter unavailable')),
+          modify: componentModify,
+        },
+      });
+      callFirst.mockResolvedValue({ fallback: true });
+
+      await expect(operations.modifyPrimitive('cmp-1', { x: 500, y: 400 })).rejects.toMatchObject({
+        code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      });
+      expect(componentModify).not.toHaveBeenCalled();
+      expect(callFirst).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a coordinate change when a component lacks verified original coordinates', async () => {
+    const componentModify = vi.fn();
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          getState_ComponentType: () => 'component',
+          getState_X: () => 300,
+        }),
+        modify: componentModify,
+      },
+    });
+    await expect(operations.modifyPrimitive('cmp-1', { x: 500 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+    });
+    expect(componentModify).not.toHaveBeenCalled();
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
   it('contains owner getter failures and reaches the generic modify fallback', async () => {
     const componentFailure = new Error('component get failed');
     const wireFailure = new Error('wire get failed');
