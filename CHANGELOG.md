@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.11.1...easyeda-mcp-pro-v1.11.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **bridge:** identify focused PCB on document mismatch ([#957](https://github.com/oaslananka/easyeda-mcp-pro/issues/957)) ([a2b03fa](https://github.com/oaslananka/easyeda-mcp-pro/commit/a2b03fab0eca8e60faa4ee96005f685904ed7776))
+
 ## [1.11.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.11.0...easyeda-mcp-pro-v1.11.1) (2026-11-08)
 
 
