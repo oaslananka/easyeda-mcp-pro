@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-11-07
+- **Last reviewed:** 2026-11-08
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.0               | 1.11.0                | 1.11.0            | Live validated  | 2026-11-08 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.0               | 1.11.0                | 1.11.0            | Live validated  | 2026-11-07 | 2027-02-05 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.10.2               | 1.10.2                | 1.10.2            | Live validated  | 2026-11-06 | 2027-02-02 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.10.0               | 1.10.0                | 1.10.0            | Live validated  | 2026-11-06 | 2027-02-02 |
@@ -63,6 +64,53 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-a4576b9-exact-source-native-write-guards
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-a4576b9-exact-source-native-write-guards`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-42-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.22.1`                                                          |
+| Validation package version               | `1.11.0`                                                           |
+| Fix version represented by evidence      | `1.11.0`                                                           |
+| Compatibility-sensitive base commit      | `a4576b9765ceee890cfdcd0ca95d583dad855d97`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.11.0`                                                           |
+| Live-validated extension package SHA-256 | `4aa62d47af1bcd895b2209d090b569a616ae9648a0f1c30e9561bf33e48c794e` |
+| Live-validated extension package size    | `209412 bytes`                                                     |
+| Loader-reported version                  | `1.11.0`                                                           |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `7afd52614d3d7d08`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.11.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                                    | Level  | Status   | Result                                                                                                                                                                                                                                          | Evidence                                                                                                                                                                |
+| ----------------------------------------------------------------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact-main package imported and active dispatcher validated                   | `live` | `passed` | Audited main source a4576b9, 209412-byte .eext SHA-256 4aa62d47...794e; imported through the real Extension Manager and fully restarted; active baked dispatcher d8285x8700xfc9b with matching registry.                                        | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-main-a4576b9-native-945-946.json) |
+| #946 focused-document guard and temporary native PCB write/read-back/rollback | `live` | `passed` | Wrong expected PCB UUID refused with TARGET_DOCUMENT_MISMATCH and no write. Correct disposable PCB accepted one silkscreen text creation; native getter verified the object; deletion restored original primitive inventory. No save or export. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-main-a4576b9-native-945-946.json) |
+| #945 connected schematic component move fails closed                          | `live` | `passed` | A known wired schematic component with 34 wires was refused before mutation (CONNECTED_COMPONENT_MOVE_UNSAFE); component snapshot and wire IDs remained identical. This proves rejection only, NOT topology-preserving movement.                | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-main-a4576b9-native-945-946.json) |
+
+### Known limitations
+
+- Schematic #945 native acceptance validates rejection before mutation only; topology-preserving movement of wired components is NOT implemented or accepted.
+- PCB #946 live mutation coverage is one guarded, temporary, non-copper silkscreen text primitive on a disposable board, not comprehensive PCB copper/component/zone/trace mutation coverage.
+- The silkscreen create/delete was verified through native read-back and primitive inventory equality; the disposable design was deliberately NOT saved or exported. File persistence across editor restart was not checked.
+- The extension archive SHA-256/size was checked before import; an independent byte-for-byte extraction of the installed copy was not performed. Active dispatcher build was checked after normal full restart.
+- This run covers one Ubuntu x86_64 desktop with EasyEDA Pro 3.2.209 only, not the Windows/macOS native desktop applications.
+- No manufacturing readiness, ERC/DRC acceptance, supplier communication, personal design changes, or production hardware claims are made.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-07-v1-11-0-source-bound-native-readonly
 

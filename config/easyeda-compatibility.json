@@ -1,8 +1,101 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-07",
+  "lastReviewed": "2026-11-08",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-a4576b9-exact-source-native-write-guards",
+      "status": "live-validated",
+      "validatedAt": "2026-11-08T04:41:45Z",
+      "reviewBy": "2027-02-06",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Read from isolated EasyEDA Pro desktop process startup log in this session."
+      },
+      "server": {
+        "validationPackageVersion": "1.11.0",
+        "releaseContainingFixes": "1.11.0",
+        "commit": "a4576b9765ceee890cfdcd0ca95d583dad855d97",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "be883c87b89e9c0eb9f9d20f2be2d94f7e28b347",
+            "src/bridge": "ec51a5465b2d4cf783b4ece6246551edf77c5c77",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "968107763d8998d29ca01a10e35c2f37df701fac",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.11.0",
+        "loaderReportedVersion": "1.11.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "7afd52614d3d7d08",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "d8285x8700xfc9b",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "4aa62d47af1bcd895b2209d090b569a616ae9648a0f1c30e9561bf33e48c794e",
+        "packageSizeBytes": 209412
+      },
+      "fixture": {
+        "project": "Separate private disposable copy of built-in Quick Start; UUIDs and local paths withheld",
+        "pcb": "Focused PCB verified; temporary silkscreen created/read/deleted with unchanged primitive inventory",
+        "schematic": "Focused P1 schematic with connected device and 34 wires; unsafe movement rejected before writing",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "native-a4576b9-exact-package",
+          "name": "Exact-main package imported and active dispatcher validated",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Audited main source a4576b9, 209412-byte .eext SHA-256 4aa62d47...794e; imported through the real Extension Manager and fully restarted; active baked dispatcher d8285x8700xfc9b with matching registry.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-main-a4576b9-native-945-946.json"
+          ]
+        },
+        {
+          "id": "native-a4576b9-946-pcb-guard-write-rollback",
+          "name": "#946 focused-document guard and temporary native PCB write/read-back/rollback",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Wrong expected PCB UUID refused with TARGET_DOCUMENT_MISMATCH and no write. Correct disposable PCB accepted one silkscreen text creation; native getter verified the object; deletion restored original primitive inventory. No save or export.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-main-a4576b9-native-945-946.json"
+          ]
+        },
+        {
+          "id": "native-a4576b9-945-connected-move-failclosed",
+          "name": "#945 connected schematic component move fails closed",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "A known wired schematic component with 34 wires was refused before mutation (CONNECTED_COMPONENT_MOVE_UNSAFE); component snapshot and wire IDs remained identical. This proves rejection only, NOT topology-preserving movement.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-main-a4576b9-native-945-946.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Schematic #945 native acceptance validates rejection before mutation only; topology-preserving movement of wired components is NOT implemented or accepted.",
+        "PCB #946 live mutation coverage is one guarded, temporary, non-copper silkscreen text primitive on a disposable board, not comprehensive PCB copper/component/zone/trace mutation coverage.",
+        "The silkscreen create/delete was verified through native read-back and primitive inventory equality; the disposable design was deliberately NOT saved or exported. File persistence across editor restart was not checked.",
+        "The extension archive SHA-256/size was checked before import; an independent byte-for-byte extraction of the installed copy was not performed. Active dispatcher build was checked after normal full restart.",
+        "This run covers one Ubuntu x86_64 desktop with EasyEDA Pro 3.2.209 only, not the Windows/macOS native desktop applications.",
+        "No manufacturing readiness, ERC/DRC acceptance, supplier communication, personal design changes, or production hardware claims are made."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-07-v1-11-0-source-bound-native-readonly",
       "status": "live-validated",
