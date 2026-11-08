@@ -43,7 +43,10 @@ export function createComponentPadConnectionReader({
     await requireActivePcbContext();
     if (!token(componentPrimitiveId) || !token(padNumber))
       throw new Error('Native component/pad identity is required and bounded');
-    const native = readFirstPath<any>(['PCB_PrimitiveComponent', 'pcb_PrimitiveComponent']);
+    const native = readFirstPath<{ getAllPinsByPrimitiveId?: (id: string) => Promise<unknown> }>([
+      'PCB_PrimitiveComponent',
+      'pcb_PrimitiveComponent',
+    ]);
     if (typeof native?.getAllPinsByPrimitiveId !== 'function')
       return missing('native-component-pad-getter-unavailable');
     const pads: unknown = await native.getAllPinsByPrimitiveId(componentPrimitiveId);
