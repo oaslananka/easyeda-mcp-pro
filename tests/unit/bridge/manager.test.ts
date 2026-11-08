@@ -1536,11 +1536,13 @@ describe('BridgeManager - process ownership', () => {
   it('routes bridge calls from a separate local MCP process through the owner relay', async () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-cross-process-'));
     testDataDirs.add(dataDir);
-    const port = await getFreePort();
+    // A released probe port may be claimed by a parallel CI process.
+    // Let the owner bind a fallback and route the follower to the actual port.
+    const candidates = await getFreePortCandidates();
     const config = createTestConfig({
       DATA_DIR: dataDir,
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: candidates,
     });
     const owner = new BridgeManager(config);
     let extension: WebSocket | undefined;
@@ -1548,6 +1550,7 @@ describe('BridgeManager - process ownership', () => {
 
     try {
       await owner.connect();
+      const port = owner.activePort;
       extension = await openSocket(port);
       sendHandshake(extension, {
         extensionVersion: SERVER_VERSION,
