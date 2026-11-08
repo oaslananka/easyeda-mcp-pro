@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.11.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.11.0...easyeda-mcp-pro-v1.11.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **api:** expand reviewed read-only getters with typed focus errors ([#951](https://github.com/oaslananka/easyeda-mcp-pro/issues/951)) ([c591e5b](https://github.com/oaslananka/easyeda-mcp-pro/commit/c591e5bc78b9216877029e437fe226ccdef59546))
+* **bridge:** guard writes by expected focused document UUID ([#947](https://github.com/oaslananka/easyeda-mcp-pro/issues/947)) ([6b31cf6](https://github.com/oaslananka/easyeda-mcp-pro/commit/6b31cf606114a63ee19e6e8bba1924c8eb1baa24))
+* **bridge:** verify focused document name and fail closed on stale identity ([#949](https://github.com/oaslananka/easyeda-mcp-pro/issues/949)) ([fa69d86](https://github.com/oaslananka/easyeda-mcp-pro/commit/fa69d86ee4ad89a40765bb014f682313dbd9dfd5))
+* **schematic:** block component moves touching wire segments ([#953](https://github.com/oaslananka/easyeda-mcp-pro/issues/953)) ([c81529d](https://github.com/oaslananka/easyeda-mcp-pro/commit/c81529d7eee9874b46d779f0a66bbac0cf915d29))
+* **schematic:** fail closed on unverified native coordinate fallbacks ([#955](https://github.com/oaslananka/easyeda-mcp-pro/issues/955)) ([a4576b9](https://github.com/oaslananka/easyeda-mcp-pro/commit/a4576b9765ceee890cfdcd0ca95d583dad855d97)), closes [#945](https://github.com/oaslananka/easyeda-mcp-pro/issues/945)
+* **schematic:** refuse unsafe connected-component moves before mutation ([#950](https://github.com/oaslananka/easyeda-mcp-pro/issues/950)) ([8a3d0eb](https://github.com/oaslananka/easyeda-mcp-pro/commit/8a3d0ebd7a1fc1d72208695bc54e5b4fb3d2e366))
+
 ## [1.11.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.10.2...easyeda-mcp-pro-v1.11.0) (2026-11-07)
 
 
