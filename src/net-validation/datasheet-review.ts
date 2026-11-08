@@ -244,6 +244,13 @@ function pinVoltageConstraintIssue(
   return undefined;
 }
 
+function invalidExpectedNet(expectedNet: string | undefined): boolean {
+  return (
+    expectedNet !== undefined &&
+    (typeof expectedNet !== 'string' || !expectedNet || expectedNet.trim() !== expectedNet)
+  );
+}
+
 function reviewPinVoltage(
   c: Extract<DatasheetConstraint, { kind: 'pin_voltage' }>,
   index: number,
@@ -261,6 +268,17 @@ function reviewPinVoltage(
       'Exact component/pin connection is not uniquely observed in the declared netlist.',
       [c.pin],
       names,
+    );
+  }
+  if (invalidExpectedNet(c.expectedNet)) {
+    return finding(
+      index,
+      c,
+      'UNKNOWN',
+      'Caller-declared expected-net identity is invalid or malformed; no net mismatch can be inferred.',
+      [c.pin],
+      names,
+      measured,
     );
   }
   if (c.expectedNet !== undefined && pin.net.name !== c.expectedNet) {

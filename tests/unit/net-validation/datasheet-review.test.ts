@@ -229,6 +229,27 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(exact.engineering_sign_off).toBe(false);
   });
 
+  it('does not report a rail mismatch from a malformed expected-net identity', () => {
+    const source = fixtures[0]!.constraint;
+    if (source.kind !== 'pin_voltage') throw Error('Missing pin-voltage fixture');
+    for (const expectedNet of ['', '   ', ' 3V3 ', 123 as unknown as string]) {
+      const result = reviewDatasheetConstraints([{ ...source, expectedNet }], nets, devices);
+      expect(result.findings[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'incomplete_or_ambiguous',
+      });
+      expect(result.findings[0]?.message).toMatch(/expected.net|invalid|malformed/i);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+    const actualMismatch = reviewDatasheetConstraints(
+      [{ ...source, expectedNet: '3V3' }],
+      nets,
+      devices,
+    );
+    expect(actualMismatch.findings[0]?.status).toBe('WARNING');
+    expect(actualMismatch.findings[0]?.message).toMatch(/differs/);
+  });
+
   it('does not trust net names alone, or assume a source-declared range was authenticated', () => {
     const constraint = fixtures[7]!.constraint;
     const result = reviewDatasheetConstraints([constraint], nets, devices);
