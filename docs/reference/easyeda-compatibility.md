@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.1               | 1.11.1                | 1.11.1            | Live validated  | 2026-11-08 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.0               | 1.11.0                | 1.11.0            | Live validated  | 2026-11-08 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.0               | 1.11.0                | 1.11.0            | Live validated  | 2026-11-07 | 2027-02-05 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.10.2               | 1.10.2                | 1.10.2            | Live validated  | 2026-11-06 | 2027-02-02 |
@@ -64,6 +65,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-4223563-native-target-name
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-4223563-native-target-name`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-42-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.22.1`                                                          |
+| Validation package version               | `1.11.1`                                                           |
+| Fix version represented by evidence      | `1.11.1`                                                           |
+| Compatibility-sensitive base commit      | `4223563e6173b74eb85a678a9b928fa261b2d204`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.11.1`                                                           |
+| Live-validated extension package SHA-256 | `19612884f163a6c5542ce4a889ac9bed072d89d900f08f89519ef266fb614394` |
+| Live-validated extension package size    | `209408 bytes`                                                     |
+| Loader-reported version                  | `1.11.1`                                                           |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `7afd52614d3d7d08`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.11.1` during this validation.
+
+### Capability evidence
+
+| Capability                                                                    | Level  | Status   | Result                                                                                                                                                                                                                                       | Evidence                                                                                                                                                              |
+| ----------------------------------------------------------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #946 native mismatch error identifies the actual focused PCB by verified name | `live` | `passed` | Expected wrong PCB UUID fails with TARGET_DOCUMENT_MISMATCH naming the real focused PCB. Native selected-document getter lacks a name; the focused DMT_Pcb metadata name is cross-checked before reporting the error. No design mutation.    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-4223563-native-946.json) |
+| #946 nine native mutation dispatcher paths reject a wrong PCB UUID            | `live` | `passed` | Nine registered pcb.* and api.call write paths rejected wrong expected PCB UUID without mutation; component, track, via and text inventories stayed equal to baseline.                                                                       | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-4223563-native-946.json) |
+| #946 correct-target native text write, read-back and rollback                 | `live` | `passed` | One disposable PCB silkscreen text primitive created and read back using the intended UUID; native delete restored the initial inventory. Both successful results echoed the correct target UUID, name and document type; no save or export. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-4223563-native-946.json) |
+
+### Known limitations
+
+- Native acceptance validates 9 registered PCB mutation dispatcher paths against a deliberately non-focused UUID, plus one correct-target temporary PCB text create/get/delete cycle on an isolated disposable board. Compound MCP tool schemas are protected by shared guard forwarding and unit tests; they are not each individually exercised as live native write workflows.
+- An actual pair of copied boards sharing primitive IDs was not created; the native negative-path tests deliberately use an unambiguous wrong UUID on one disposable PCB.
+- No PCB copper/via/zone creation, electrical or mechanical correctness, persisted save, export, manufacturing approval or vendor communication is claimed.
+- Only Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209 was tested; no native Windows/macOS desktop acceptance is claimed.
+- The source-bound build was imported into the isolated EasyEDA extension manager and verified by its active full-restart dispatcher build ID; an independent installed IndexedDB byte-diff was not performed in this run.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-a4576b9-exact-source-native-write-guards
 

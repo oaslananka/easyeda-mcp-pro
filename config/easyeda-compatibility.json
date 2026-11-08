@@ -4,6 +4,97 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-4223563-native-target-name",
+      "status": "live-validated",
+      "validatedAt": "2026-11-08T05:38:03Z",
+      "reviewBy": "2027-02-06",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Read from isolated EasyEDA Pro desktop process startup log in this session."
+      },
+      "server": {
+        "validationPackageVersion": "1.11.1",
+        "releaseContainingFixes": "1.11.1",
+        "commit": "4223563e6173b74eb85a678a9b928fa261b2d204",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "6cef6ac8269f74e6fd3fbf9405e039f51bb39a21",
+            "src/bridge": "ec51a5465b2d4cf783b4ece6246551edf77c5c77",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "968107763d8998d29ca01a10e35c2f37df701fac",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.11.1",
+        "loaderReportedVersion": "1.11.1",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "7afd52614d3d7d08",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "d6036x9054xbe57",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "19612884f163a6c5542ce4a889ac9bed072d89d900f08f89519ef266fb614394",
+        "packageSizeBytes": 209408
+      },
+      "fixture": {
+        "project": "Isolated disposable Quick Start clone; all private IDs and local paths withheld",
+        "pcb": "Native nine wrong-target write guards, temporary PCB text create/readback/delete; baseline restored",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "native-4223563-946-focused-name",
+          "name": "#946 native mismatch error identifies the actual focused PCB by verified name",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Expected wrong PCB UUID fails with TARGET_DOCUMENT_MISMATCH naming the real focused PCB. Native selected-document getter lacks a name; the focused DMT_Pcb metadata name is cross-checked before reporting the error. No design mutation.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-4223563-native-946.json"
+          ]
+        },
+        {
+          "id": "native-4223563-946-wrong-target-mutation-paths",
+          "name": "#946 nine native mutation dispatcher paths reject a wrong PCB UUID",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Nine registered pcb.* and api.call write paths rejected wrong expected PCB UUID without mutation; component, track, via and text inventories stayed equal to baseline.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-4223563-native-946.json"
+          ]
+        },
+        {
+          "id": "native-4223563-946-temporary-write-readback-rollback",
+          "name": "#946 correct-target native text write, read-back and rollback",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "One disposable PCB silkscreen text primitive created and read back using the intended UUID; native delete restored the initial inventory. Both successful results echoed the correct target UUID, name and document type; no save or export.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-4223563-native-946.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Native acceptance validates 9 registered PCB mutation dispatcher paths against a deliberately non-focused UUID, plus one correct-target temporary PCB text create/get/delete cycle on an isolated disposable board. Compound MCP tool schemas are protected by shared guard forwarding and unit tests; they are not each individually exercised as live native write workflows.",
+        "An actual pair of copied boards sharing primitive IDs was not created; the native negative-path tests deliberately use an unambiguous wrong UUID on one disposable PCB.",
+        "No PCB copper/via/zone creation, electrical or mechanical correctness, persisted save, export, manufacturing approval or vendor communication is claimed.",
+        "Only Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209 was tested; no native Windows/macOS desktop acceptance is claimed.",
+        "The source-bound build was imported into the isolated EasyEDA extension manager and verified by its active full-restart dispatcher build ID; an independent installed IndexedDB byte-diff was not performed in this run."
+      ]
+    },
+    {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-a4576b9-exact-source-native-write-guards",
       "status": "live-validated",
       "validatedAt": "2026-11-08T04:41:45Z",

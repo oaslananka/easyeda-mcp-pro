@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "kind": "source-bound-native-focused-document-error-and-write-rollback-acceptance",
+  "validatedAt": "2026-11-08T05:38:03Z",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "commit": "4223563e6173b74eb85a678a9b928fa261b2d204",
+  "runtime": {
+    "editorVersion": "3.2.209.8a704eab",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "extensionVersion": "1.11.1",
+    "dispatcherBuildId": "d6036x9054xbe57",
+    "documentTargetGuard": true,
+    "registryMismatch": false,
+    "extensionVersionMismatch": false,
+    "isolatedProfile": true
+  },
+  "package": {
+    "sha256": "19612884f163a6c5542ce4a889ac9bed072d89d900f08f89519ef266fb614394",
+    "bytes": 209408,
+    "productionHotSwap": false
+  },
+  "fixture": {
+    "source": "disposable local copy of EasyEDA Pro Quick Start",
+    "pcbName": "PCB",
+    "projectAndDocumentUUIDsWithheld": true,
+    "personalProjectTouched": false
+  },
+  "checks": {
+    "wrongTargetPaths": [
+      {
+        "method": "pcb.addText",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      },
+      {
+        "method": "pcb.addTrack",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      },
+      {
+        "method": "pcb.addVia",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      },
+      {
+        "method": "pcb.addSilkscreenLine",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      },
+      {
+        "method": "pcb.addZone",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      },
+      {
+        "method": "pcb.modifyComponent",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      },
+      {
+        "method": "pcb.deleteComponent",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      },
+      {
+        "method": "pcb.rebuildCopper",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      },
+      {
+        "method": "api.call",
+        "wrongDocumentRejected": true,
+        "errorCode": "TARGET_DOCUMENT_MISMATCH"
+      }
+    ],
+    "allWrongTargetPathsRejectedWithoutWrite": true,
+    "focusedNativeNameInMismatchError": true,
+    "expectedWrongTargetError": "TARGET_DOCUMENT_MISMATCH",
+    "correctTargetTemporaryTextCreatedAndReadBack": true,
+    "createEchoMatchesActualFocusedBoard": true,
+    "deleteEchoMatchesActualFocusedBoard": true,
+    "cleanupVerified": true,
+    "finalNativeInventoryEqualBaseline": true,
+    "documentFocusUnchanged": true,
+    "pcbComponentCountBeforeAndAfter": 33,
+    "pcbTrackCountBeforeAndAfter": 98,
+    "pcbViaCountBeforeAndAfter": 0,
+    "successfulNativeMutationCallsForTemporaryTextAndCleanup": 2,
+    "designSaves": 0,
+    "exports": 0,
+    "externalActions": 0
+  },
+  "limitations": [
+    "Native acceptance validates 9 registered PCB mutation dispatcher paths against a deliberately non-focused UUID, plus one correct-target temporary PCB text create/get/delete cycle on an isolated disposable board. Compound MCP tool schemas are protected by shared guard forwarding and unit tests; they are not each individually exercised as live native write workflows.",
+    "An actual pair of copied boards sharing primitive IDs was not created; the native negative-path tests deliberately use an unambiguous wrong UUID on one disposable PCB.",
+    "No PCB copper/via/zone creation, electrical or mechanical correctness, persisted save, export, manufacturing approval or vendor communication is claimed.",
+    "Only Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209 was tested; no native Windows/macOS desktop acceptance is claimed.",
+    "The source-bound build was imported into the isolated EasyEDA extension manager and verified by its active full-restart dispatcher build ID; an independent installed IndexedDB byte-diff was not performed in this run."
+  ]
+}

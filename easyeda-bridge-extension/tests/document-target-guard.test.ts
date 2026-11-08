@@ -78,6 +78,19 @@ describe('target document guard #946', () => {
     expect(deleteLine).not.toHaveBeenCalled();
   });
 
+  it('names the actual focused PCB on wrong-target rejection when the selector lacks a name', async () => {
+    const { dispatcher, mutateTrack } = makeDispatcher('production-board');
+    await expect(dispatcher.dispatch('pcb.addTrack', addTrack)).rejects.toMatchObject({
+      code: 'TARGET_DOCUMENT_MISMATCH',
+      message: expect.stringContaining('Production PCB'),
+      data: expect.objectContaining({
+        focusedUuid: 'production-board',
+        focusedName: 'Production PCB',
+      }),
+    });
+    expect(mutateTrack).not.toHaveBeenCalled();
+  });
+
   it('allows the intended focused PCB and echoes its identity', async () => {
     const { dispatcher, mutateTrack } = makeDispatcher('board-copy');
     const result = await dispatcher.dispatch('pcb.addTrack', addTrack);
