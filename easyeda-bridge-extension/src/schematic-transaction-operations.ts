@@ -83,8 +83,22 @@ function handled(value: unknown): ModifyAttempt {
   return { handled: true, value };
 }
 
-function pointKey(point: SchematicPoint): string {
-  return `${Math.round(point.x * 1000) / 1000},${Math.round(point.y * 1000) / 1000}`;
+/** A pin may touch a wire *between* native vertices (T-junction or stub).
+ * Endpoint-only checks can silently treat that connected pin as unwired.
+ * Keep this conservative: near-contact or non-finite arithmetic refuses moves.
+ */
+function pinTouchesSegment(pin: SchematicPoint, a: SchematicPoint, b: SchematicPoint): boolean {
+  const x = pin.x - a.x;
+  const y = pin.y - a.y;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = Math.hypot(dx, dy);
+  const cross = x * dy - y * dx;
+  const along = x * dx + y * dy;
+  // A zero-length segment conservatively matches every pin, refusing the move.
+  if (!Number.isFinite(length + cross + along)) return true;
+  const edge = 0.001 * length;
+  return Math.abs(cross) <= edge && Math.min(along, length * length - along) >= -edge;
 }
 
 /** Inspect actual wire geometry without trying to rewrite wires. The native
@@ -831,6 +845,7 @@ export function createSchematicTransactionOperations(
    * Conservative preflight for #945. Native wire.modify reportedly re-routes
    * nets even when it reports success; do not move a connected component and
    * then attempt to repair connections using that API. Refuse before ANY write.
+   * Inspect every wire segment, not only vertices: a pin may land at a T-junction.
    * Unwired moves remain possible when pin and wire inventories are complete.
    */
   async function assertSafeUnwiredMove(
@@ -864,10 +879,10 @@ export function createSchematicTransactionOperations(
         'Inspect wire inventory.',
       );
     }
-    const sourcePinKeys = new Set(oldPinPoints.map(pointKey));
-    const destinationPinKeys = new Set(
-      oldPinPoints.map(({ x, y }) => pointKey({ x: x + dx, y: y + dy })),
-    );
+    const candidatePinPoints = [
+      ...oldPinPoints,
+      ...oldPinPoints.map(({ x, y }) => ({ x: x + dx, y: y + dy })),
+    ];
     for (const wire of wires) {
       const wirePoints = readWirePoints(safeGetState(wire, 'Line'));
       if (!wirePoints) {
@@ -878,8 +893,10 @@ export function createSchematicTransactionOperations(
         );
       }
       if (
-        wirePoints.some(
-          (p) => sourcePinKeys.has(pointKey(p)) || destinationPinKeys.has(pointKey(p)),
+        candidatePinPoints.some((pin) =>
+          wirePoints.some(
+            (point, index) => index > 0 && pinTouchesSegment(pin, wirePoints[index - 1], point),
+          ),
         )
       ) {
         const wireId = extractPrimitiveId(wire);
