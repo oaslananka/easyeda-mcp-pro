@@ -991,6 +991,72 @@ describe('schematic transaction operations', () => {
     expect(componentModify).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['source interior', [250, 400, 330, 400], { x: 500, y: 400 }, 280, 400],
+    ['destination interior', [450, 400, 530, 400], { x: 500, y: 400 }, 280, 400],
+    ['diagonal interior', [250, 370, 310, 430], { x: 500, y: 400 }, 280, 400],
+    [
+      'polyline interior',
+      [
+        [100, 100],
+        [250, 400],
+        [330, 400],
+      ],
+      { x: 500, y: 400 },
+      280,
+      400,
+    ],
+    ['near-contact', [250, 400.0003, 330, 400.0003], { x: 500, y: 400 }, 280, 400],
+    ['degenerate wire', [250, 400, 250, 400], { x: 500, y: 400 }, 280, 400],
+  ])(
+    'refuses #945 move when a pin touches a wire segment at %s',
+    async (_scenario, line, next, pinX, pinY) => {
+      const componentModify = vi.fn(async () => true);
+      const wireModify = vi.fn(async () => true);
+      const { operations, callFirst } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_ComponentType: () => 'component',
+            getState_X: () => 300,
+            getState_Y: () => 400,
+          }),
+          modify: componentModify,
+        },
+        SCH_PrimitiveWire: {
+          getAll: vi.fn().mockResolvedValue([{ primitiveId: 'mid-segment-net', line }]),
+          modify: wireModify,
+        },
+      });
+      callFirst.mockResolvedValue([{ getState_X: () => pinX, getState_Y: () => pinY }]);
+      await expect(operations.modifyPrimitive('cmp', next)).rejects.toMatchObject({
+        code: 'CONNECTED_COMPONENT_MOVE_UNSAFE',
+      });
+      expect(componentModify).not.toHaveBeenCalled();
+      expect(wireModify).not.toHaveBeenCalled();
+    },
+  );
+
+  it('permits an unwired move when a pin lies near but outside the wire span', async () => {
+    const componentModify = vi.fn(async () => true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 0, getState_Y: () => 0 }),
+        modify: componentModify,
+      },
+      SCH_PrimitiveWire: {
+        getAll: vi
+          .fn()
+          .mockResolvedValue([{ primitiveId: 'bystander', line: [100, 100, 120, 100] }]),
+      },
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 130, getState_Y: () => 100 }]);
+    await expect(operations.modifyPrimitive('cmp', { x: 5, y: 0 })).resolves.toMatchObject({
+      followedWireIds: [],
+      wireFollowFailures: [],
+    });
+    expect(componentModify).toHaveBeenCalledOnce();
+  });
+
   it('does not require pin/wire inventory for a same-coordinate property edit', async () => {
     const componentModify = vi.fn(async () => true);
     const { operations, callFirst } = createSubject({
