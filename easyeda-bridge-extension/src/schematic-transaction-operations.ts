@@ -187,6 +187,13 @@ function supportsTextModify(primitiveClass: any): boolean {
   );
 }
 
+function hasInvalidTargetCoordinates(property: Record<string, unknown>): boolean {
+  return (
+    (property.x !== undefined && !Number.isFinite(property.x)) ||
+    (property.y !== undefined && !Number.isFinite(property.y))
+  );
+}
+
 function componentMoveOrigin(
   oldX: unknown,
   oldY: unknown,
@@ -955,6 +962,9 @@ export function createSchematicTransactionOperations(
     }
 
     const { merged, oldX, oldY } = componentModificationProperties(current, property);
+    // Non-finite or non-numeric target positions must not bypass the preflight.
+    if (hasInvalidTargetCoordinates(property))
+      failUnverifiedMove('Invalid component target coordinates; move refused.');
     // Unknown native coordinates must not silently skip the connectivity preflight.
     if (
       (property.x !== undefined || property.y !== undefined) &&
