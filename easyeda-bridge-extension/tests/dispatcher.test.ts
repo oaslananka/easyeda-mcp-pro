@@ -1136,7 +1136,14 @@ describe('createDispatcher', () => {
   it('routes only allowed read-only getters through api.read', async () => {
     const getAll = vi.fn(async () => [{ getState_PrimitiveId: () => 'via-01' }]);
     const create = vi.fn();
-    const dispatcher = createDispatcher(makeToolkit({ PCB_PrimitiveVia: { getAll, create } }));
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        PCB_PrimitiveVia: { getAll, create },
+        DMT_SelectControl: {
+          getCurrentDocumentInfo: async () => ({ documentType: 3, uuid: 'pcb-a' }),
+        },
+      }),
+    );
     const result = (await dispatcher.dispatch('api.read', {
       path: 'PCB_PrimitiveVia.getAll',
       args: [],

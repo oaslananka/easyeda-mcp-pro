@@ -886,6 +886,55 @@ describe('ToolRegistry', () => {
     expect(write?.confirmWrite).toBe(true);
   });
 
+  it('allows the specific audited #944 paths and preserves typed wrong-focus errors', async () => {
+    registry.setProfile('full');
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const read = registry.get('easyeda_api_read');
+    const bridgeCall = vi.fn().mockResolvedValue({ result: [{ state: { PrimitiveId: 'pad' } }] });
+    const context = mockContext({
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall } as ToolContext['bridge'],
+    });
+    const paths = [
+      'PCB_PrimitivePad.getAll',
+      'PCB_PrimitivePad.get',
+      'PCB_PrimitivePad.getAllPrimitiveId',
+      'PCB_PrimitiveVia.get',
+      'PCB_PrimitiveVia.getAllPrimitiveId',
+      'PCB_PrimitivePoured.getAllPrimitiveId',
+      'SCH_PrimitiveWire.getAllPrimitiveId',
+      'DMT_Board.getAllBoardsInfo',
+      'DMT_Schematic.getCurrentSchematicPageInfo',
+      'DMT_Schematic.getAllSchematicPagesInfo',
+    ];
+    for (const path of paths) {
+      await expect(read?.handler(context, { path })).resolves.toMatchObject({ ok: true });
+    }
+    expect(bridgeCall).toHaveBeenCalledTimes(paths.length);
+    for (const path of [
+      'PCB_Drc.check',
+      'PCB_PrimitivePad.modify',
+      'DMT_Schematic.createSchematic',
+      'PCB_PrimitivePad.getAllAndDelete',
+    ]) {
+      await expect(read?.handler(context, { path })).resolves.toMatchObject({ ok: false });
+    }
+    expect(bridgeCall).toHaveBeenCalledTimes(paths.length);
+    bridgeCall.mockRejectedValueOnce(
+      Object.assign(new Error('Cannot read PCB: focused document is Sheet A (type 1).'), {
+        code: 'CONTEXT_UNAVAILABLE',
+        data: { focusedName: 'Sheet A', focusedDocumentType: 1 },
+      }),
+    );
+    await expect(
+      read?.handler(context, { path: 'PCB_PrimitivePad.getAll' }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error_code: 'CONTEXT_UNAVAILABLE',
+      details: { focusedName: 'Sheet A', focusedDocumentType: 1 },
+    });
+  });
+
   it('forwards reviewed aliases with compact defaults and explicit deep introspection', async () => {
     registry.setProfile('full');
     registerBuiltinTools(registry, TEST_CONFIG);

@@ -62,6 +62,16 @@ describe('API introspection policy', () => {
       'pcb_PrimitiveComponent.getAllPinsByPrimitiveId',
       'PCB_Net.getAllPrimitivesByNet',
       'SCH_PrimitiveWire.getAll',
+      'SCH_PrimitiveWire.getAllPrimitiveId',
+      'PCB_PrimitivePad.get',
+      'PCB_PrimitivePad.getAll',
+      'PCB_PrimitivePad.getAllPrimitiveId',
+      'PCB_PrimitiveVia.get',
+      'PCB_PrimitiveVia.getAllPrimitiveId',
+      'PCB_PrimitivePoured.getAllPrimitiveId',
+      'DMT_Board.getAllBoardsInfo',
+      'DMT_Schematic.getCurrentSchematicPageInfo',
+      'DMT_Schematic.getAllSchematicPagesInfo',
     ]) {
       expect(isAllowedReadOnlyApiPath(path), path).toBe(true);
     }

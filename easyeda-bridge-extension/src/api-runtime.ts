@@ -257,6 +257,56 @@ export function createApiRuntime(
     );
   }
 
+  async function focusedIdentityForRead(): Promise<Record<string, unknown>> {
+    try {
+      const value = await callFirst(['DMT_SelectControl.getCurrentDocumentInfo']);
+      return isRecord(value) ? value : {};
+    } catch {
+      throw createBridgeError(
+        'CONTEXT_UNAVAILABLE',
+        'Focused EasyEDA document cannot be read.',
+        'Focus the target PCB or schematic first.',
+      );
+    }
+  }
+
+  async function focusedNameForRead(info: Record<string, unknown>): Promise<string> {
+    const type = info.documentType;
+    let native: unknown;
+    try {
+      if (type === 1 || type === 3) {
+        native = await callFirst([
+          type === 1 ? 'DMT_Schematic.getCurrentSchematicPageInfo' : 'DMT_Pcb.getCurrentPcbInfo',
+        ]);
+      }
+    } catch {
+      /* No identity match can be inferred from unavailable metadata. */
+    }
+    const candidate = isRecord(native) && native.uuid === info.uuid ? native.name : undefined;
+    if (typeof candidate === 'string' && candidate.trim()) return candidate;
+    return typeof info.name === 'string' && info.name.trim() ? info.name : 'unknown';
+  }
+
+  async function requireReadDocumentFocus(path: string): Promise<void> {
+    const domain = normalizeApiClassName(path.split('.')[0] ?? '');
+    const expectedType = domain.startsWith('PCB_') ? 3 : domain.startsWith('SCH_') ? 1 : undefined;
+    if (expectedType === undefined) return;
+    const info = await focusedIdentityForRead();
+    const type = info.documentType;
+    if (type === expectedType && typeof info.uuid === 'string' && info.uuid) return;
+    const focusedName = await focusedNameForRead(info);
+    throw createBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      `Cannot read ${domain}: focused document is ${focusedName} (type ${String(type ?? 'unknown')}).`,
+      `Focus a ${expectedType === 3 ? 'PCB' : 'schematic'} document first.`,
+      {
+        focusedName,
+        focusedDocumentType: type ?? null,
+        focusedDocumentUuid: typeof info.uuid === 'string' ? info.uuid : null,
+      },
+    );
+  }
+
   async function callReadOnlyApi(
     path: string,
     args: readonly unknown[],
@@ -287,6 +337,7 @@ export function createApiRuntime(
         'Use string/boolean/finite-number/null arguments; no nested objects or polygon descriptors.',
       );
     }
+    await requireReadDocumentFocus(path);
     return callAllowedApi(path, args, maxDepth, includeMethods);
   }
 

@@ -50,13 +50,22 @@ const READ_ONLY_NATIVE_PATHS = new Set([
   'DMT_Project.getCurrentProjectInfo',
   'DMT_SelectControl.getCurrentDocumentInfo',
   'DMT_Pcb.getCurrentPcbInfo',
+  'DMT_Board.getAllBoardsInfo',
+  'DMT_Schematic.getCurrentSchematicPageInfo',
+  'DMT_Schematic.getAllSchematicPagesInfo',
   'PCB_PrimitiveVia.getAll',
+  'PCB_PrimitiveVia.get',
+  'PCB_PrimitiveVia.getAllPrimitiveId',
+  'PCB_PrimitivePad.getAll',
+  'PCB_PrimitivePad.get',
+  'PCB_PrimitivePad.getAllPrimitiveId',
   'PCB_PrimitiveComponent.getAll',
   'PCB_PrimitiveComponent.getAllPinsByPrimitiveId',
   'PCB_PrimitiveLine.getAll',
   'PCB_PrimitiveArc.getAll',
   'PCB_PrimitiveRegion.getAll',
   'PCB_PrimitivePoured.getAll',
+  'PCB_PrimitivePoured.getAllPrimitiveId',
   'PCB_PrimitivePour.getAll',
   'PCB_PrimitivePolyline.getAll',
   'PCB_PrimitiveTrack.getAll',
@@ -64,12 +73,31 @@ const READ_ONLY_NATIVE_PATHS = new Set([
   'PCB_Net.getAllPrimitivesByNet',
   'SCH_PrimitiveComponent.getAll',
   'SCH_PrimitiveWire.getAll',
+  'SCH_PrimitiveWire.getAllPrimitiveId',
 ]);
 
 function isReviewedReadOnlyPath(path: string): boolean {
   const match = /^([a-z]+)_(.+)\.([A-Za-z][A-Za-z0-9_]*)$/.exec(path);
   const normalized = match ? `${match[1]?.toUpperCase()}_${match[2]}.${match[3]}` : path;
   return READ_ONLY_NATIVE_PATHS.has(normalized);
+}
+
+function readonlyApiError(path: string, error: unknown) {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+  const data = error && typeof error === 'object' && 'data' in error ? error.data : undefined;
+  return {
+    ok: false,
+    path,
+    error: error instanceof Error ? error.message : String(error),
+    ...(code === 'CONTEXT_UNAVAILABLE'
+      ? {
+          error_code: code,
+          ...(data && typeof data === 'object' && !Array.isArray(data)
+            ? { details: data as Record<string, unknown> }
+            : {}),
+        }
+      : {}),
+  };
 }
 
 const writeMethodPattern =
@@ -427,7 +455,7 @@ function registerDiagnosticsApi(
     name: 'easyeda_api_read',
     title: 'Read EasyEDA API',
     description:
-      'Read audited native getters such as PCB_PrimitiveVia.getAll, without write confirmation. The server and extension independently allowlist paths; unsupported or mutating methods are rejected. Results omit repeated __methods by default; set includeMethods for introspection.',
+      'Read explicitly reviewed EasyEDA getters (some beta/version-sensitive) with independent server/extension allowlists and no design writes. PCB/SCH queries require matching document focus; wrong focus reports CONTEXT_UNAVAILABLE. Results omit __methods unless includeMethods is true.',
     profile: 'full',
     evidence: ['runtime-probe', 'pro-api-types', 'official-docs'],
     risk: 'low',
@@ -447,6 +475,8 @@ function registerDiagnosticsApi(
       resolvedPath: z.string().optional(),
       result: z.unknown().optional(),
       error: z.string().optional(),
+      error_code: z.string().optional(),
+      details: z.record(z.string(), z.unknown()).optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { path, args, maxDepth, includeMethods } = apiReadInputSchema.parse(params);
@@ -473,11 +503,7 @@ function registerDiagnosticsApi(
           result: result.result,
         };
       } catch (error) {
-        return {
-          ok: false,
-          path,
-          error: error instanceof Error ? error.message : String(error),
-        };
+        return readonlyApiError(path, error);
       }
     },
   });
