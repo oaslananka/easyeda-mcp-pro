@@ -52,7 +52,8 @@ function validIds(value: unknown): value is NativePadAssociation['connected'] {
       item.primitiveId.length > 0 &&
       item.primitiveId === item.primitiveId.trim() &&
       typeof item.net === 'string' &&
-      (typeof item.nativeType === 'string' || typeof item.nativeType === 'number') &&
+      (typeof item.nativeType === 'string' ||
+        (typeof item.nativeType === 'number' && Number.isFinite(item.nativeType))) &&
       (item.layer === undefined ||
         (typeof item.layer === 'number' && Number.isSafeInteger(item.layer))),
   );
@@ -71,6 +72,7 @@ function decode(
     raw.net !== expectedNet ||
     typeof raw.padPrimitiveId !== 'string' ||
     !raw.padPrimitiveId ||
+    raw.padPrimitiveId !== raw.padPrimitiveId.trim() ||
     !validIds(raw.connected)
   )
     return undefined;
@@ -93,7 +95,7 @@ export function reviewNativePadAssociations(
 ): NativePadAssociationFinding {
   const first = decode(firstRaw, expected.firstComponentId, expected.firstPin, expected.net);
   const second = decode(secondRaw, expected.secondComponentId, expected.secondPin, expected.net);
-  if (!first || !second) {
+  if (!first || !second || first.padPrimitiveId === second.padPrimitiveId) {
     return unavailable('Native focused pad association source is unavailable or inconsistent.');
   }
   const firstIds = first.connected.map((x) => x.primitiveId);
