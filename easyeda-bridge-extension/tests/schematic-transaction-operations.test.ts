@@ -823,26 +823,15 @@ describe('schematic transaction operations', () => {
         x: 10,
         otherProperty: { incoming: 'yes' },
       }),
-    ).resolves.toEqual({ result: { ok: true }, followedWireIds: [], wireFollowFailures: [] });
-    expect(modify).toHaveBeenCalledWith(
-      'cmp-1',
-      expect.objectContaining({
-        x: 10,
-        y: 2,
-        designator: 'U1',
-        otherProperty: { existing: 'yes', incoming: 'yes' },
-      }),
-    );
+    ).rejects.toMatchObject({ code: 'MOVE_CONNECTIVITY_UNVERIFIED' });
+    expect(modify).not.toHaveBeenCalled();
     expect(logRecoverableError).toHaveBeenCalledWith('failed to read pins for cmp-1', pinFailure);
   });
 
-  it('follows nested and flat wire lines while containing unknown and failed wire IDs', async () => {
+  it('rejects malformed native pin or wire inventory before writing', async () => {
     const modifyComponent = vi.fn().mockResolvedValue({ moved: true });
-    const modifyWire = vi.fn(async (id: string) => {
-      if (id === 'bad') throw new Error('wire write failed');
-      return true;
-    });
-    const { operations, callFirst, logRecoverableError } = createSubject({
+    const modifyWire = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
       SCH_PrimitiveComponent: {
         get: vi.fn().mockResolvedValue({
           getState_ComponentType: () => 'component',
@@ -852,56 +841,16 @@ describe('schematic transaction operations', () => {
         modify: modifyComponent,
       },
       SCH_PrimitiveWire: {
-        getAll: vi.fn().mockResolvedValue([
-          { primitiveId: 'not-array', line: 'invalid' },
-          { primitiveId: 'empty', line: [] },
-          { line: [[1], [1, 2, 'extra']] },
-          {
-            primitiveId: 'bad',
-            line: [
-              [9, 9],
-              [1, 2, 'tail'],
-            ],
-          },
-          { primitiveId: 'ok', line: [1, 2, 4, 5], net: 'GND', color: '#000' },
-          {
-            primitiveId: 'none',
-            line: [
-              [9, 9],
-              [8, 8],
-            ],
-          },
-        ]),
+        getAll: vi.fn().mockResolvedValue([{ primitiveId: 'bad', line: [1, 2, 'malformed'] }]),
         modify: modifyWire,
       },
     });
-    callFirst.mockResolvedValue([
-      { getState_X: () => 1, getState_Y: () => 2 },
-      { getState_X: () => 'bad', getState_Y: () => 3 },
-    ]);
-
-    await expect(operations.modifyPrimitive('cmp-1', { x: 10, y: 20 })).resolves.toEqual({
-      result: { moved: true },
-      followedWireIds: ['ok'],
-      wireFollowFailures: ['<unknown>', 'bad'],
+    callFirst.mockResolvedValue([{ getState_X: () => 1, getState_Y: () => 2 }]);
+    await expect(operations.modifyPrimitive('cmp-1', { x: 10, y: 20 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
     });
-    expect(modifyWire).toHaveBeenCalledWith(
-      'bad',
-      expect.objectContaining({
-        line: [
-          [9, 9],
-          [11, 22, 'tail'],
-        ],
-      }),
-    );
-    expect(modifyWire).toHaveBeenCalledWith(
-      'ok',
-      expect.objectContaining({ line: [11, 22, 4, 5], net: 'GND', color: '#000' }),
-    );
-    expect(logRecoverableError).toHaveBeenCalledWith(
-      'failed to follow wire bad after component move',
-      expect.any(Error),
-    );
+    expect(modifyComponent).not.toHaveBeenCalled();
+    expect(modifyWire).not.toHaveBeenCalled();
   });
 
   it('returns a successful component move when no usable wire class exists', async () => {
@@ -918,10 +867,8 @@ describe('schematic transaction operations', () => {
     });
     callFirst.mockResolvedValue([{ getState_X: () => 1, getState_Y: () => 2 }]);
 
-    await expect(operations.modifyPrimitive('cmp-1', { x: 2 })).resolves.toEqual({
-      result: true,
-      followedWireIds: [],
-      wireFollowFailures: [],
+    await expect(operations.modifyPrimitive('cmp-1', { x: 2 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
     });
   });
 
@@ -943,15 +890,121 @@ describe('schematic transaction operations', () => {
     });
     callFirst.mockResolvedValue([{ getState_X: () => 1, getState_Y: () => 2 }]);
 
-    await expect(operations.modifyPrimitive('cmp-1', { y: 3 })).resolves.toEqual({
-      result: true,
+    await expect(operations.modifyPrimitive('cmp-1', { y: 3 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+    });
+    expect(logRecoverableError).toHaveBeenCalledWith(
+      'failed to preflight wires before a component move',
+      wireReadFailure,
+    );
+  });
+
+  it.each([
+    ['horizontal', { x: 500, y: 400 }],
+    ['vertical', { x: 300, y: 300 }],
+  ])('blocks #945 %s move of a 2-pin resistor attached to different nets', async (_axis, next) => {
+    const componentModify = vi.fn(async () => true);
+    const wireModify = vi.fn(async () => true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          getState_ComponentType: () => 'component',
+          getState_X: () => 300,
+          getState_Y: () => 400,
+        }),
+        modify: componentModify,
+      },
+      SCH_PrimitiveWire: {
+        getAll: vi.fn().mockResolvedValue([
+          { primitiveId: 'stub-a', line: [250, 400, 280, 400], net: 'REPRO_A' },
+          { primitiveId: 'stub-b', line: [350, 400, 320, 400], net: 'REPRO_B' },
+        ]),
+        modify: wireModify,
+      },
+    });
+    callFirst.mockResolvedValue([
+      { getState_X: () => 280, getState_Y: () => 400 },
+      { getState_X: () => 320, getState_Y: () => 400 },
+    ]);
+    await expect(operations.modifyPrimitive('R19', next)).rejects.toMatchObject({
+      code: 'CONNECTED_COMPONENT_MOVE_UNSAFE',
+    });
+    expect(componentModify).not.toHaveBeenCalled();
+    expect(wireModify).not.toHaveBeenCalled();
+  });
+
+  it('allows an isolated component move after complete native pin and unrelated wire read', async () => {
+    const componentModify = vi.fn(async () => true);
+    const wireModify = vi.fn(async () => true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          getState_ComponentType: () => 'component',
+          getState_X: () => 300,
+          getState_Y: () => 400,
+        }),
+        modify: componentModify,
+      },
+      SCH_PrimitiveWire: {
+        getAll: vi.fn().mockResolvedValue([
+          {
+            primitiveId: 'unrelated',
+            line: [
+              [900, 900],
+              [1000, 1000],
+            ],
+            net: 'OTHER',
+          },
+        ]),
+        modify: wireModify,
+      },
+    });
+    callFirst.mockResolvedValue([
+      { getState_X: () => 280, getState_Y: () => 400 },
+      { getState_X: () => 320, getState_Y: () => 400 },
+    ]);
+    await expect(operations.modifyPrimitive('R19', { x: 500, y: 400 })).resolves.toMatchObject({
       followedWireIds: [],
       wireFollowFailures: [],
     });
-    expect(logRecoverableError).toHaveBeenCalledWith(
-      'failed to read wires while following a component move',
-      wireReadFailure,
-    );
+    expect(componentModify).toHaveBeenCalledOnce();
+    expect(wireModify).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unwired move that would place a pin on another net endpoint', async () => {
+    const componentModify = vi.fn(async () => true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 0, getState_Y: () => 0 }),
+        modify: componentModify,
+      },
+      SCH_PrimitiveWire: {
+        getAll: vi
+          .fn()
+          .mockResolvedValue([{ primitiveId: 'other-net', line: [100, 100, 110, 100] }]),
+      },
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 0, getState_Y: () => 0 }]);
+    await expect(operations.modifyPrimitive('cmp', { x: 100, y: 100 })).rejects.toMatchObject({
+      code: 'CONNECTED_COMPONENT_MOVE_UNSAFE',
+    });
+    expect(componentModify).not.toHaveBeenCalled();
+  });
+
+  it('does not require pin/wire inventory for a same-coordinate property edit', async () => {
+    const componentModify = vi.fn(async () => true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 100, getState_Y: () => 200 }),
+        modify: componentModify,
+      },
+    });
+    await expect(operations.modifyPrimitive('cmp', { x: 100 })).resolves.toMatchObject({
+      followedWireIds: [],
+      wireFollowFailures: [],
+    });
+    expect(callFirst).not.toHaveBeenCalled();
+    expect(componentModify).toHaveBeenCalledOnce();
   });
 
   it('modifies wire state through the owning class', async () => {
@@ -1212,7 +1265,7 @@ describe('schematic transaction operations', () => {
     });
   });
 
-  it('ignores non-array pin inventories during component movement', async () => {
+  it('rejects non-array pin inventories before moving a component', async () => {
     const { operations, callFirst } = createSubject({
       SCH_PrimitiveComponent: {
         get: vi.fn().mockResolvedValue({
@@ -1224,12 +1277,12 @@ describe('schematic transaction operations', () => {
       },
     });
     callFirst.mockResolvedValue({ not: 'pins' });
-    await expect(operations.modifyPrimitive('cmp-1', { x: 2 })).resolves.toMatchObject({
-      followedWireIds: [],
+    await expect(operations.modifyPrimitive('cmp-1', { x: 2 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
     });
   });
 
-  it('returns no shifted line for a non-matching flat wire and handles null wire inventories', async () => {
+  it('allows unrelated wire geometry but rejects a missing follow-up wire inventory', async () => {
     const { operations, callFirst } = createSubject({
       SCH_PrimitiveComponent: {
         get: vi.fn().mockResolvedValue({
@@ -1252,8 +1305,8 @@ describe('schematic transaction operations', () => {
     await expect(operations.modifyPrimitive('cmp-1', { x: 1 })).resolves.toMatchObject({
       followedWireIds: [],
     });
-    await expect(operations.modifyPrimitive('cmp-1', { y: 1 })).resolves.toMatchObject({
-      followedWireIds: [],
+    await expect(operations.modifyPrimitive('cmp-1', { y: 1 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
     });
   });
 
