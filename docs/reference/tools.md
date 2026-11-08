@@ -9,7 +9,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | -------------------------------------------------- | -------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `easyeda_api_call`                                 | `full`         | `high`   | Controlled call to a documented EasyEDA class method by path, for example SCH_PrimitiveWire.getAll. Polygon-typed parameters use explicit $polygon/$complexPolygon tagged arguments. This is not raw JavaScript execution.                                                                                                    |
 | `easyeda_api_inventory`                            | `core`         | `low`    | Inspect the live EasyEDA extension runtime and list available documented API classes, runtime paths, and methods.                                                                                                                                                                                                             |
-| `easyeda_api_read`                                 | `full`         | `low`    | Read audited native getters such as PCB_PrimitiveVia.getAll, without write confirmation. The server and extension independently allowlist paths; unsupported or mutating methods are rejected. Results omit repeated __methods by default; set includeMethods for introspection.                                              |
+| `easyeda_api_read`                                 | `full`         | `low`    | Read explicitly reviewed EasyEDA getters (some beta/version-sensitive) with independent server/extension allowlists and no design writes. PCB/SCH queries require matching document focus; wrong focus reports CONTEXT_UNAVAILABLE. Results omit __methods unless includeMethods is true.                                     |
 | `easyeda_board_design_rules`                       | `core`         | `low`    | Read the active EasyEDA DRC profile and its global safe-spacing matrix. Net-class membership and per-net overrides are reported separately and are not inferred.                                                                                                                                                              |
 | `easyeda_board_dimensions`                         | `core`         | `low`    | Get PCB outline dimensions, drilled-pad counts and minimum drill from verified pad/via inventories. Missing native drill evidence remains unknown; mounting-hole classification requires explicit evidence.                                                                                                                   |
 | `easyeda_board_features`                           | `core`         | `low`    | Get counts of board features. zones counts copper Pour boundaries only; native Fill and Region primitives are reported separately as fills and regions.                                                                                                                                                                       |
@@ -204,7 +204,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `full` | **Risk Level:** `low`
 
-> Read audited native getters such as PCB_PrimitiveVia.getAll, without write confirmation. The server and extension independently allowlist paths; unsupported or mutating methods are rejected. Results omit repeated __methods by default; set includeMethods for introspection.
+> Read explicitly reviewed EasyEDA getters (some beta/version-sensitive) with independent server/extension allowlists and no design writes. PCB/SCH queries require matching document focus; wrong focus reports CONTEXT_UNAVAILABLE. Results omit __methods unless includeMethods is true.
 
 ### Input Parameters
 
@@ -226,6 +226,8 @@ Returns a JSON object matching the schema:
   resolvedPath: string(optional);
   result: any(optional);
   error: string(optional);
+  error_code: string(optional);
+  details: Record<string, any>(optional);
 }
 ```
 

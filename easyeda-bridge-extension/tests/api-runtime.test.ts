@@ -195,6 +195,9 @@ describe('EasyEDA API runtime', () => {
     const create = vi.fn(() => 'unexpected-write');
     roots.setEda({
       DMT_Pcb: { getCurrentPcbInfo },
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => ({ documentType: 3, uuid: 'pcb-a' }),
+      },
       PCB_PrimitiveVia: { getAll, create, getAllAndDelete: create },
     });
     const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
@@ -222,6 +225,184 @@ describe('EasyEDA API runtime', () => {
     expect(create).not.toHaveBeenCalled();
     expect(getCurrentPcbInfo).toHaveBeenCalledOnce();
     expect(getAll).toHaveBeenCalledOnce();
+  });
+
+  it('reads audited pad, via, schematic, and DMT getters without executing mutations', async () => {
+    const roots = mutableRoots();
+    const padRead = vi.fn(async () => [{ getState_PrimitiveId: () => 'pad-a' }]);
+    const viaIds = vi.fn(async () => ['via-a']);
+    const schIds = vi.fn(async () => ['wire-a']);
+    const boardInfo = vi.fn(async () => [{ name: 'test-board' }]);
+    const pagesInfo = vi.fn(async () => [{ name: 'test-sheet' }]);
+    let focus = 3;
+    roots.setEda({
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => ({ documentType: focus, uuid: 'fixture-doc' }),
+      },
+      DMT_Board: { getAllBoardsInfo: boardInfo },
+      DMT_Schematic: {
+        getCurrentSchematicPageInfo: async () => ({ name: 'test-sheet' }),
+        getAllSchematicPagesInfo: pagesInfo,
+      },
+      PCB_PrimitivePad: {
+        getAll: padRead,
+        get: padRead,
+        getAllPrimitiveId: vi.fn(async () => ['pad-a']),
+      },
+      PCB_PrimitiveVia: { getAllPrimitiveId: viaIds },
+      SCH_PrimitiveWire: { getAllPrimitiveId: schIds },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+    await expect(runtime.callReadOnlyApi('pcb_PrimitivePad.getAll', [])).resolves.toMatchObject({
+      result: [{ state: { PrimitiveId: 'pad-a' } }],
+    });
+    await expect(
+      runtime.callReadOnlyApi('PCB_PrimitivePad.get', ['pad-a']),
+    ).resolves.toHaveProperty('result');
+    await expect(
+      runtime.callReadOnlyApi('PCB_PrimitiveVia.getAllPrimitiveId', []),
+    ).resolves.toMatchObject({ result: ['via-a'] });
+    await expect(runtime.callReadOnlyApi('DMT_Board.getAllBoardsInfo', [])).resolves.toMatchObject({
+      result: [{ name: 'test-board' }],
+    });
+    focus = 1;
+    await expect(
+      runtime.callReadOnlyApi('SCH_PrimitiveWire.getAllPrimitiveId', []),
+    ).resolves.toMatchObject({ result: ['wire-a'] });
+    await expect(
+      runtime.callReadOnlyApi('DMT_Schematic.getAllSchematicPagesInfo', []),
+    ).resolves.toMatchObject({ result: [{ name: 'test-sheet' }] });
+    expect(padRead).toHaveBeenCalledTimes(2);
+    expect(boardInfo).toHaveBeenCalledOnce();
+    expect(pagesInfo).toHaveBeenCalledOnce();
+  });
+
+  it('returns typed document-context errors before any native getter runs', async () => {
+    const roots = mutableRoots();
+    const pcbGet = vi.fn(async () => ['should-not-run']);
+    const schGet = vi.fn(async () => ['should-not-run']);
+    const selector = vi.fn(async () => ({ documentType: 1, uuid: 'sheet-a' }));
+    roots.setEda({
+      DMT_SelectControl: { getCurrentDocumentInfo: selector },
+      DMT_Schematic: {
+        getCurrentSchematicPageInfo: vi.fn(async () => ({ name: 'Sheet A', uuid: 'sheet-a' })),
+      },
+      PCB_PrimitivePad: { getAll: pcbGet },
+      SCH_PrimitiveWire: { getAll: schGet },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: expect.stringContaining('Sheet A'),
+      data: { focusedName: 'Sheet A', focusedDocumentType: 1, focusedDocumentUuid: 'sheet-a' },
+    });
+    expect(pcbGet).not.toHaveBeenCalled();
+    selector.mockResolvedValue({ documentType: 3, uuid: 'pcb-a' });
+    roots.setEda({
+      DMT_SelectControl: { getCurrentDocumentInfo: selector },
+      DMT_Pcb: { getCurrentPcbInfo: async () => ({ name: 'PCB A', uuid: 'pcb-a' }) },
+      PCB_PrimitivePad: { getAll: pcbGet },
+      SCH_PrimitiveWire: { getAll: schGet },
+    });
+    await expect(runtime.callReadOnlyApi('SCH_PrimitiveWire.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: expect.stringContaining('PCB A'),
+    });
+    expect(schGet).not.toHaveBeenCalled();
+    selector.mockResolvedValue({ documentType: 3, uuid: '' });
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+    });
+    expect(pcbGet).not.toHaveBeenCalled();
+    selector.mockResolvedValue({ documentType: 3, uuid: 'pcb-a' });
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).resolves.toHaveProperty(
+      'result',
+    );
+  });
+
+  it('fails closed on unavailable focused identity but permits project metadata reads', async () => {
+    const roots = mutableRoots();
+    const pcbGet = vi.fn();
+    roots.setEda({
+      PCB_PrimitivePad: { getAll: pcbGet },
+      DMT_Board: { getAllBoardsInfo: async () => [] },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+    });
+    expect(pcbGet).not.toHaveBeenCalled();
+    await expect(runtime.callReadOnlyApi('DMT_Board.getAllBoardsInfo', [])).resolves.toMatchObject({
+      result: [],
+    });
+  });
+
+  it('does not trust stale names or malformed focused-document metadata', async () => {
+    const roots = mutableRoots();
+    const readPads = vi.fn(async () => []);
+    const selector = vi.fn();
+    const sheet = vi.fn();
+    roots.setEda({
+      DMT_SelectControl: { getCurrentDocumentInfo: selector },
+      DMT_Schematic: { getCurrentSchematicPageInfo: sheet },
+      PCB_PrimitivePad: { getAll: readPads },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+
+    selector.mockResolvedValueOnce(null);
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      data: { focusedName: 'unknown', focusedDocumentType: null, focusedDocumentUuid: null },
+    });
+
+    selector.mockResolvedValueOnce({ documentType: 7, name: '3D Model' });
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: expect.stringContaining('3D Model'),
+      data: { focusedName: '3D Model', focusedDocumentType: 7, focusedDocumentUuid: null },
+    });
+
+    // A getter failure cannot convert a stale or off-domain document into a PCB.
+    selector.mockResolvedValueOnce({ documentType: 1, uuid: 'sheet-new', name: 'Fallback' });
+    sheet.mockRejectedValueOnce(new Error('page metadata unavailable'));
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: expect.stringContaining('Fallback'),
+    });
+
+    selector.mockResolvedValueOnce({ documentType: 1, uuid: 'sheet-new', name: 'Actual' });
+    sheet.mockResolvedValueOnce({ uuid: 'sheet-old', name: 'Wrong stale sheet' });
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      data: { focusedName: 'Actual', focusedDocumentUuid: 'sheet-new' },
+    });
+
+    selector.mockResolvedValueOnce({ documentType: 1, uuid: 'sheet-new' });
+    sheet.mockResolvedValueOnce(null);
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      data: { focusedName: 'unknown', focusedDocumentUuid: 'sheet-new' },
+    });
+    expect(readPads).not.toHaveBeenCalled();
+  });
+
+  it('rejects a throwing focused-document getter rather than executing a native read', async () => {
+    const roots = mutableRoots();
+    const readWires = vi.fn(async () => []);
+    roots.setEda({
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => {
+          throw new Error('invalid focus');
+        },
+      },
+      SCH_PrimitiveWire: { getAll: readWires },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+    await expect(runtime.callReadOnlyApi('SCH_PrimitiveWire.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: 'Focused EasyEDA document cannot be read.',
+    });
+    expect(readWires).not.toHaveBeenCalled();
   });
 
   it('materializes tagged polygon arguments inside the bridge before native calls', async () => {
