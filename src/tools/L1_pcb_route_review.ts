@@ -819,7 +819,7 @@ export function registerPcbRouteReviewTools(
     confirmWrite: false,
     sideEffect: 'read-only',
     group: 'pcb-constraints',
-    version: '1.5.0',
+    version: '1.5.1',
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     inputSchema,
     outputSchema,

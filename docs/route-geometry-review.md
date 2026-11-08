@@ -385,6 +385,18 @@ bounded at 128 pads. The current project and focused PCB document must
 still match after the getters. Source gaps and malformed/duplicate
 evidence remain `UNKNOWN`.
 
+A pad pair's exact `expectedNet` is part of route-chain **attribution**,
+not merely a warning threshold. When both native pads are observed
+on another net, pad measurements still report the observed net and
+a `WARNING`, but the declared relation's `route_chain` becomes
+`unavailable`, with no source primitive IDs. A geometric path on the
+wrong net cannot be evidence for the declared connection.
+
+Synthetic tests cover near/far VCC/GND decoupling, buck VIN/PGND/SW,
+crystal IN/OUT, ESD top/bottom, rotation and incomplete-read cases.
+These validate the software contract and are **not** live EasyEDA
+hardware acceptance.
+
 An opt-in pad-pair finding contains `route_chain` in addition to native
 pad-center geometry. The chain is derived only from the **already collected**
 `pcb.listTracks` snapshot, when the track **and via** inventories are

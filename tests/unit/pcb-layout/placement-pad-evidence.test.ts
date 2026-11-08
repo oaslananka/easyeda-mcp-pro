@@ -77,6 +77,52 @@ describe('native placement pad evidence is bounded and never a copper-loop pass'
     ).toBe('WARNING');
   });
 
+  it('does not attribute an observed trace on the wrong net to the declared relation', () => {
+    const nativeTracks = [
+      {
+        primitiveId: 'vcc-trace',
+        net: 'VCC',
+        layer: 1,
+        startX: 0,
+        startY: 0,
+        endX: 100,
+        endY: 0,
+        width: 10,
+      },
+    ];
+    const source = { tracks: nativeTracks, complete: true };
+    const accepted = reviewNativePlacementPadPair(declaration, ids, { first, second }, source);
+    expect(accepted.route_chain).toMatchObject({
+      evidence: 'observed_exact_endpoint_chain',
+      primitive_ids: ['vcc-trace'],
+      electrical_continuity_status: 'UNKNOWN',
+    });
+    expect(accepted.status).toBe('UNKNOWN');
+
+    const rejected = reviewNativePlacementPadPair(
+      { ...declaration, expectedNet: 'GND' },
+      ids,
+      { first, second },
+      source,
+    );
+    expect(rejected).toMatchObject({
+      evidence: 'native_component_pads',
+      status: 'WARNING',
+      native_first_net: 'VCC',
+      native_second_net: 'VCC',
+      route_chain: {
+        evidence: 'unavailable',
+        primitive_ids: [],
+        electrical_continuity_status: 'UNKNOWN',
+      },
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(rejected.measured_pad_center_distance_mm).toBeCloseTo(2.54);
+    // Even a wrong-net observation must not turn into a fabricated
+    // electrical disconnection or manufacture acceptance claim.
+    expect(rejected.reasons.join(' ')).toMatch(/nets differ/i);
+  });
+
   it('withholds all measured claims for wrong parent, malformed, missing or duplicate pads', () => {
     for (const data of [
       [],
