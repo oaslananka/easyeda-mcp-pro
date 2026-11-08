@@ -42,9 +42,15 @@ async function freeLoopbackPort(): Promise<number> {
   return address.port;
 }
 
+async function freeLoopbackPortCandidates(count = 3): Promise<number[]> {
+  const ports = new Set<number>();
+  while (ports.size < count) ports.add(await freeLoopbackPort());
+  return [...ports];
+}
+
 function disconnectedLocalTransport(
   modernEnabled: boolean,
-  port: number,
+  ports: readonly number[],
   directory: string,
 ): StdioClientTransport {
   return new StdioClientTransport({
@@ -57,8 +63,8 @@ function disconnectedLocalTransport(
       TRANSPORT: 'stdio',
       MCP_BRIDGE_BACKEND: 'local_bridge',
       MCP_V2_EXPERIMENTAL: String(modernEnabled),
-      BRIDGE_PORT: String(port),
-      BRIDGE_PORT_SCAN: String(port) + '-' + String(port),
+      BRIDGE_PORT: String(ports[0]),
+      BRIDGE_PORT_SCAN: ports.join(','),
       BRIDGE_WAIT_FOR_EDA_MS: '0',
       TOOL_PROFILE: 'core',
       LOG_LEVEL: 'silent',
@@ -103,6 +109,29 @@ describe('stdio protocol interop', () => {
     }
   }, 30_000);
 
+  it('uses a fallback loopback port when the first candidate is already occupied', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'easyeda-mcp-stdio-busy-port-'));
+    const ports = await freeLoopbackPortCandidates();
+    const blocker = createServer();
+    const client = new Client({ name: 'busy-loopback-stdio-test', version: '1.0.0' });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        blocker.once('error', reject);
+        blocker.listen(ports[0], '127.0.0.1', resolve);
+      });
+      await client.connect(disconnectedLocalTransport(false, ports, directory));
+      const status = await client.callTool({ name: 'easyeda_bridge_status', arguments: {} });
+      expect(status.isError).not.toBe(true);
+      expect(status.structuredContent).toMatchObject({ connected: false });
+    } finally {
+      await client.close();
+      await new Promise<void>((resolve, reject) => {
+        blocker.close((error) => (error ? reject(error) : resolve()));
+      });
+      await rm(directory, { recursive: true, force: true, maxRetries: 8, retryDelay: 150 });
+    }
+  }, 45_000);
+
   it.each([false, true])(
     'does not invent PCB findings or approval without a local editor (modern=%s)',
     async (modernEnabled) => {
@@ -112,8 +141,10 @@ describe('stdio protocol interop', () => {
         modernEnabled ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : undefined,
       );
       try {
-        const port = await freeLoopbackPort();
-        await client.connect(disconnectedLocalTransport(modernEnabled, port, directory));
+        // Sampling releases its probe listener before the child binds. Fall back
+        // if another process acquires the first port in the meantime.
+        const ports = await freeLoopbackPortCandidates();
+        await client.connect(disconnectedLocalTransport(modernEnabled, ports, directory));
         if (modernEnabled) {
           expect(client.getNegotiatedProtocolVersion()).toBe('2026-07-28');
         }
