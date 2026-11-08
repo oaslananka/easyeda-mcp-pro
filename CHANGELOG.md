@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.11.2...easyeda-mcp-pro-v1.12.0) (2026-11-08)
+
+
+### Features
+
+* **pcb:** add source-bound native pad evidence to placement review ([#959](https://github.com/oaslananka/easyeda-mcp-pro/issues/959)) ([d52ba9a](https://github.com/oaslananka/easyeda-mcp-pro/commit/d52ba9acb80547396bd3ee9382e3697484203479))
+
 ## [1.11.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.11.1...easyeda-mcp-pro-v1.11.2) (2026-11-08)
 
 

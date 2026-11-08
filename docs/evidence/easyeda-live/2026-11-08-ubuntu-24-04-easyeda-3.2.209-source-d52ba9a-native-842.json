@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "kind": "source-bound-native-pcb-pad-and-route-readonly-acceptance",
+  "validatedAt": "2026-11-08T08:16:54Z",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "commit": "d52ba9acb80547396bd3ee9382e3697484203479",
+  "releaseCandidate": "easyeda-mcp-pro-v1.12.0",
+  "promotionRule": "Stable minor release-managed extensionVersion-only difference from validated source; other compatibility-sensitive paths byte-identical.",
+  "runtime": {
+    "editorVersion": "3.2.209.8a704eab",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-42-generic",
+    "nodeVersion": "24.22.1",
+    "extensionVersion": "1.11.2",
+    "loaderVersion": "1.11.2",
+    "dispatcherBuildId": "d6036x9054xbe57",
+    "methodRegistryHash": "7afd52614d3d7d08",
+    "registryMismatch": false,
+    "extensionVersionMismatch": false,
+    "isolatedProfile": true
+  },
+  "package": {
+    "source": "Immutable GitHub Release asset for easyeda-mcp-pro-v1.11.2, identical to source candidate .eext by full-file comparison",
+    "sha256": "ba9588e0e28f75dc5a8d36143df89e66b43f68ec00d4433b3e93b29c29eda534",
+    "bytes": 209408,
+    "productionHotSwap": false,
+    "installedLoaderVersionVerified": true,
+    "installedIndexedDbBytesVerified": false
+  },
+  "sourceIdentity": {
+    "validatedCommit": "d52ba9acb80547396bd3ee9382e3697484203479",
+    "compatibilitySnapshot": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "ff846fea412920a7a8cfb31ca39e8d7bda7ef722",
+        "src/bridge": "ec51a5465b2d4cf783b4ece6246551edf77c5c77",
+        "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+        "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+        "src/tools": "11ad3256f24bff4c1339e4296b7e4fe1ed6a7e28",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    },
+    "fixtureProjectIdentityMatched": true,
+    "focusedNativePcbVerified": true,
+    "privateDocumentIdentifiersWithheld": true
+  },
+  "fixture": {
+    "source": "Owner-controlled 2026-10-24 disposable Z480 backup imported into dedicated isolated local EasyEDA profile",
+    "originalOwnerDesignChanged": false,
+    "disposable": true,
+    "sourceRef": "Historical read-only test copy",
+    "projectAndDocumentUUIDsWithheld": true
+  },
+  "observations": {
+    "nativeComponentCount": 33,
+    "nativeCopperSegmentCount": 98,
+    "nativeViaCount": 0,
+    "nativeCollectionsComplete": true,
+    "nativeMethodRegistryMatched": true,
+    "nativePadGetter": "PCB_PrimitiveComponent.getAllPinsByPrimitiveId",
+    "observedComponentOriginsDistanceMm": 38.47156112923033,
+    "powerPadPairs": [
+      {
+        "componentPins": ["U3-8", "C5-1"],
+        "observedNativeNet": "VCC",
+        "straightLinePadCenterDistanceMm": 33.30854206695332
+      },
+      {
+        "componentPins": ["U3-4", "C5-2"],
+        "observedNativeNet": "GND",
+        "straightLinePadCenterDistanceMm": 43.88305926530191
+      }
+    ],
+    "contextualHighSpeedRightAngleAdvisories": 9,
+    "overallStatus": "UNKNOWN",
+    "electricalLoopStatus": "UNKNOWN",
+    "referencePlane": "UNVERIFIED",
+    "engineeringSignOff": false
+  },
+  "safety": {
+    "nativeDesignWrites": 0,
+    "nativeSaveCalls": 0,
+    "nativeExports": 0,
+    "vendorOrders": 0,
+    "externalCommunications": 0
+  },
+  "knownLimitations": [
+    "This is current-source read-only native component-pad/route acceptance, not a fresh complete live mutation/rollback, save, export, connection lifecycle or manufacturing workflow test. The running extension contains the unchanged baked dispatcher from the identical official v1.11.2 package.",
+    "The exact release candidate v1.12.0 changes only the managed literal extensionVersion; the current source under test and candidate differ only by this release-managed version field among compatibility-sensitive paths. The checker enforces this exception and no behavioral source drift.",
+    "The historical disposable Z480 PCB has an independent strict DRC Netlist Error / Import Changes due to D2-1 and R5-1 schematic/PCB mismatch; neither a DRC PASS nor circuit correctness is claimed.",
+    "Component-origin distance and pad-center distances do not prove actual copper routing, GND plane contact, return-current loop, decoupling performance, EMC, thermal/impedance or fabrication acceptability; these remain UNKNOWN.",
+    "Native desktop acceptance applies to Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209. Native GUI validation on Windows/macOS was not performed. The extension loader and active registry matched v1.11.2, but installed IndexedDB byte-level comparison was not performed.",
+    "No EasyEDA design write, save, repour, PCB manufacturer export, external vendor communication, purchase or shipping occurred."
+  ]
+}
