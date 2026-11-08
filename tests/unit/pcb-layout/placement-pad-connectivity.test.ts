@@ -49,6 +49,17 @@ describe('native pad associations remain evidence-only', () => {
     expect(result.reasons.join(' ')).toContain('do not prove disconnection');
   });
 
+  it('withholds source-bound associations when different components report one native pad identity', () => {
+    const ambiguousSecond = { ...second, padPrimitiveId: first.padPrimitiveId };
+    expect(reviewNativePadAssociations(first, ambiguousSecond, expected)).toMatchObject({
+      evidence: 'unavailable',
+      first_primitive_ids: [],
+      second_primitive_ids: [],
+      shared_primitive_ids: [],
+      electrical_continuity_status: 'UNKNOWN',
+    });
+  });
+
   it('never accepts spoofed identity, net, missing, too-large or duplicate primitive reads', () => {
     const bad = [
       null,
@@ -56,7 +67,9 @@ describe('native pad associations remain evidence-only', () => {
       { ...first, componentPrimitiveId: 'other' },
       { ...first, padNumber: '7' },
       { ...first, net: 'GND' },
+      { ...first, padPrimitiveId: ' native-pad ' },
       { ...first, connected: [{ ...first.connected[0], net: 'GND' }] },
+      { ...first, connected: [{ ...first.connected[0], nativeType: Number.NaN }] },
       { ...first, connected: [{ ...first.connected[0], nativeType: null }] },
       { ...first, connected: [{ ...first.connected[0], layer: 1.2 }] },
       { ...first, connected: [first.connected[0], first.connected[0]] },
