@@ -52,6 +52,7 @@ function nativePadIdentity(v: Record<string, unknown>, parentId: string): boolea
   return (
     typeof v.primitiveId === 'string' &&
     v.primitiveId.length > 0 &&
+    v.primitiveId === v.primitiveId.trim() &&
     v.parentComponentPrimitiveId === parentId &&
     typeof v.padNumber === 'string' &&
     v.padNumber.length > 0 &&
@@ -117,6 +118,23 @@ function declaredNativeRouteChain(
   return optionalRouteChain(match ? first : undefined, match ? second : undefined, routeSource);
 }
 
+function sharesNativePadPrimitiveId(first: ComponentPad[], second: ComponentPad[]): boolean {
+  // Unique IDs within each component alone cannot detect a reused native
+  // identity returned by two different component getter calls.
+  const firstIds = new Set(first.map((pad) => pad.primitiveId));
+  return second.some((pad) => firstIds.has(pad.primitiveId));
+}
+
+function validatedPadCollections(
+  observations: { first: unknown; second: unknown },
+  componentIds: { first: string; second: string },
+): { first: ComponentPad[]; second: ComponentPad[] } | undefined {
+  const first = uniquePads(observations.first, componentIds.first);
+  const second = uniquePads(observations.second, componentIds.second);
+  if (!first || !second || sharesNativePadPrimitiveId(first, second)) return;
+  return { first, second };
+}
+
 export function reviewNativePlacementPadPair(
   declaration: NativePadPairDeclaration,
   componentIds: { first: string; second: string } | undefined,
@@ -137,16 +155,15 @@ export function reviewNativePlacementPadPair(
     base.reasons.push('Matched native component and pad evidence is unavailable.');
     return base;
   }
-  const first = uniquePads(observations.first, componentIds.first);
-  const second = uniquePads(observations.second, componentIds.second);
-  if (!first || !second) {
+  const pads = validatedPadCollections(observations, componentIds);
+  if (!pads) {
     base.reasons.push(
       'Native component pads are incomplete, duplicated, or have invalid parent/geometry identity.',
     );
     return base;
   }
-  const a = first.find((p) => p.padNumber === declaration.firstPin);
-  const b = second.find((p) => p.padNumber === declaration.secondPin);
+  const a = pads.first.find((p) => p.padNumber === declaration.firstPin);
+  const b = pads.second.find((p) => p.padNumber === declaration.secondPin);
   if (!a || !b || !a.net || !b.net) {
     base.reasons.push('Requested pad number or populated native net is unavailable.');
     return base;
