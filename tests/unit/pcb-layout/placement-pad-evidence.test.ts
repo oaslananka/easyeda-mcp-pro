@@ -128,6 +128,8 @@ describe('native placement pad evidence is bounded and never a copper-loop pass'
       [],
       null,
       [{ ...first[0], parentComponentPrimitiveId: 'other' }],
+      [{ ...first[0], primitiveId: ' component-u/pad8' }],
+      [{ ...first[0], primitiveId: '  ' }],
       [{ ...first[0], x: Number.NaN }],
       [{ ...first[0], x: 2_000_000 }],
       [{ ...first[0], net: ' VCC' }],
@@ -158,6 +160,20 @@ describe('native placement pad evidence is bounded and never a copper-loop pass'
         second,
       }).evidence,
     ).toBe('unavailable');
+  });
+
+  it('withholds a distance for a cross-component native primitive ID collision', () => {
+    const collided = [{ ...second[0], primitiveId: first[0]!.primitiveId }];
+    const finding = evaluate(first, collided);
+    expect(finding).toMatchObject({
+      evidence: 'unavailable',
+      status: 'UNKNOWN',
+      electrical_loop_status: 'UNKNOWN',
+      reasons: [expect.stringContaining('duplicated')],
+    });
+    expect(finding.measured_pad_center_distance_mm).toBeUndefined();
+    expect(finding.native_first_net).toBeUndefined();
+    expect(finding.native_second_net).toBeUndefined();
   });
 
   it('never combines unrelated components or an absent native source', () => {
