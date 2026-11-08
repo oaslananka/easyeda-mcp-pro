@@ -195,6 +195,16 @@ describe('release channel policy', () => {
     expect(publisher).toContain('if-no-files-found: warn');
     expect(publisher).toContain('if: ${{ always() }}');
     expect(publisher).toContain('npm dist-tag add');
+    // A temporary 504 from GitHub's asset CDN must not weaken the pinned
+    // checksum manifest or trigger an unpinned publisher download.
+    expect(publisher).toContain('download_pinned_publisher_asset()');
+    expect(publisher).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(publisher).toContain('gh release download "$MCP_PUBLISHER_VERSION"');
+    expect(publisher).toContain('--repo modelcontextprotocol/registry --pattern "$asset" --dir .');
+    expect(publisher).toContain(
+      'node "$RELEASE_VERIFIER_ROOT/scripts/install-mcp-publisher.mjs" install',
+    );
+    expect(publisher).toContain('--checksums "$MCP_PUBLISHER_CHECKSUMS_ASSET"');
     expect(publisher).toContain('./mcp-publisher publish');
     expect(publisher).toContain('invalid version: cannot publish duplicate version');
     expect(publisher).toContain(

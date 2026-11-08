@@ -399,12 +399,25 @@ jobs:
 
       - name: Install verified mcp-publisher
         if: env.RELEASE_CHANNEL == 'stable'
+        env:
+          GH_TOKEN: ${{ github.token }} # Read-only access to the official public publisher release.
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-            --output "$MCP_PUBLISHER_ASSET" "$MCP_PUBLISHER_ARCHIVE_URL"
-          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-            --output "$MCP_PUBLISHER_CHECKSUMS_ASSET" "$MCP_PUBLISHER_CHECKSUMS_URL"
+          download_pinned_publisher_asset() {
+            local asset="$1" url="$2"
+            if curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+              --retry 1 --retry-all-errors --retry-delay 2 --max-time 35 \
+              --output "$asset" "$url"; then
+              return
+            fi
+            # Official release URL may return transient 504 on GitHub runners.
+            # The repository-owned installer still verifies the exact pinned SHA-256.
+            rm -f -- "$asset"
+            gh release download "$MCP_PUBLISHER_VERSION" \
+              --repo modelcontextprotocol/registry --pattern "$asset" --dir .
+          }
+          download_pinned_publisher_asset "$MCP_PUBLISHER_ASSET" "$MCP_PUBLISHER_ARCHIVE_URL"
+          download_pinned_publisher_asset "$MCP_PUBLISHER_CHECKSUMS_ASSET" "$MCP_PUBLISHER_CHECKSUMS_URL"
           node "$RELEASE_VERIFIER_ROOT/scripts/install-mcp-publisher.mjs" install \
             --policy "$RELEASE_VERIFIER_ROOT/config/mcp-publisher-integrity.json" \
             --os "$(uname -s)" \

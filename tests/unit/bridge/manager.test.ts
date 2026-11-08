@@ -654,16 +654,16 @@ describe('BridgeManager - method registry hash', () => {
 
 describe('BridgeManager - payload size limit', () => {
   it('should reject oversized payload with 4009', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_MAX_PAYLOAD_SIZE: 1024,
     });
     const manager = new BridgeManager(config);
     await manager.connect();
 
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     // Send a message that exceeds the 1024-byte limit
     socket.send('x'.repeat(2048));
 
@@ -673,16 +673,16 @@ describe('BridgeManager - payload size limit', () => {
   });
 
   it('enforces the aggregate limit in UTF-8 bytes rather than UTF-16 string length', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const manager = new BridgeManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
-        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_PORT_SCAN: portCandidates,
         BRIDGE_MAX_PAYLOAD_SIZE: 1024,
       }),
     );
     await manager.connect();
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     const closed = waitForClose(socket);
     for (let seq = 0; seq < 15; seq++) {
       socket.send(
@@ -700,16 +700,16 @@ describe('BridgeManager - payload size limit', () => {
   });
 
   it('accounts for duplicate chunk replacement without an undersized byte budget', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const manager = new BridgeManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
-        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_PORT_SCAN: portCandidates,
         BRIDGE_MAX_PAYLOAD_SIZE: 1024,
       }),
     );
     await manager.connect();
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     const closed = waitForClose(socket);
     socket.send(JSON.stringify({ type: 'chunk', id: 'replacement', seq: 0, total: 12, data: 'x' }));
     for (let seq = 1; seq <= 10; seq++) {
@@ -793,16 +793,16 @@ describe('BridgeManager - payload size limit', () => {
   });
 
   it('should accept payload within limit', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_MAX_PAYLOAD_SIZE: 1024,
     });
     const manager = new BridgeManager(config);
     await manager.connect();
 
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     sendHandshake(socket);
 
     const msg = await waitForMessage(socket);
