@@ -935,6 +935,50 @@ describe('ToolRegistry', () => {
     });
   });
 
+  it('preserves the context error code without inventing invalid native detail objects', async () => {
+    registry.setProfile('full');
+    registerBuiltinTools(registry, TEST_CONFIG);
+    const read = registry.get('easyeda_api_read');
+    const bridgeCall = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error('document unloaded'), {
+          code: 'CONTEXT_UNAVAILABLE',
+          data: null,
+        }),
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error('document missing'), {
+          code: 'CONTEXT_UNAVAILABLE',
+          data: ['not an object'],
+        }),
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error('native runtime crashed'), {
+          code: 'NATIVE_ERROR',
+          data: { internal: 'not public' },
+        }),
+      );
+    const context = mockContext({
+      profile: 'full',
+      bridge: { connected: true, call: bridgeCall } as ToolContext['bridge'],
+    });
+    for (const expected of ['document unloaded', 'document missing']) {
+      const result = await read?.handler(context, { path: 'PCB_PrimitivePad.getAll' });
+      expect(result).toMatchObject({
+        ok: false,
+        error: expected,
+        error_code: 'CONTEXT_UNAVAILABLE',
+      });
+      expect(result).not.toHaveProperty('details');
+    }
+    const unexpected = await read?.handler(context, { path: 'PCB_PrimitivePad.getAll' });
+    expect(unexpected).toMatchObject({ ok: false, error: 'native runtime crashed' });
+    expect(unexpected).not.toHaveProperty('error_code');
+    expect(unexpected).not.toHaveProperty('details');
+    expect(bridgeCall).toHaveBeenCalledTimes(3);
+  });
+
   it('forwards reviewed aliases with compact defaults and explicit deep introspection', async () => {
     registry.setProfile('full');
     registerBuiltinTools(registry, TEST_CONFIG);

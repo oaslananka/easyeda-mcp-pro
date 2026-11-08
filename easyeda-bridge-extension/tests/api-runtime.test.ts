@@ -337,6 +337,74 @@ describe('EasyEDA API runtime', () => {
     });
   });
 
+  it('does not trust stale names or malformed focused-document metadata', async () => {
+    const roots = mutableRoots();
+    const readPads = vi.fn(async () => []);
+    const selector = vi.fn();
+    const sheet = vi.fn();
+    roots.setEda({
+      DMT_SelectControl: { getCurrentDocumentInfo: selector },
+      DMT_Schematic: { getCurrentSchematicPageInfo: sheet },
+      PCB_PrimitivePad: { getAll: readPads },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+
+    selector.mockResolvedValueOnce(null);
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      data: { focusedName: 'unknown', focusedDocumentType: null, focusedDocumentUuid: null },
+    });
+
+    selector.mockResolvedValueOnce({ documentType: 7, name: '3D Model' });
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: expect.stringContaining('3D Model'),
+      data: { focusedName: '3D Model', focusedDocumentType: 7, focusedDocumentUuid: null },
+    });
+
+    // A getter failure cannot convert a stale or off-domain document into a PCB.
+    selector.mockResolvedValueOnce({ documentType: 1, uuid: 'sheet-new', name: 'Fallback' });
+    sheet.mockRejectedValueOnce(new Error('page metadata unavailable'));
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: expect.stringContaining('Fallback'),
+    });
+
+    selector.mockResolvedValueOnce({ documentType: 1, uuid: 'sheet-new', name: 'Actual' });
+    sheet.mockResolvedValueOnce({ uuid: 'sheet-old', name: 'Wrong stale sheet' });
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      data: { focusedName: 'Actual', focusedDocumentUuid: 'sheet-new' },
+    });
+
+    selector.mockResolvedValueOnce({ documentType: 1, uuid: 'sheet-new' });
+    sheet.mockResolvedValueOnce(null);
+    await expect(runtime.callReadOnlyApi('PCB_PrimitivePad.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      data: { focusedName: 'unknown', focusedDocumentUuid: 'sheet-new' },
+    });
+    expect(readPads).not.toHaveBeenCalled();
+  });
+
+  it('rejects a throwing focused-document getter rather than executing a native read', async () => {
+    const roots = mutableRoots();
+    const readWires = vi.fn(async () => []);
+    roots.setEda({
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => {
+          throw new Error('invalid focus');
+        },
+      },
+      SCH_PrimitiveWire: { getAll: readWires },
+    });
+    const runtime = createApiRuntime(roots.toolkit, bridgeError, {});
+    await expect(runtime.callReadOnlyApi('SCH_PrimitiveWire.getAll', [])).rejects.toMatchObject({
+      code: 'CONTEXT_UNAVAILABLE',
+      message: 'Focused EasyEDA document cannot be read.',
+    });
+    expect(readWires).not.toHaveBeenCalled();
+  });
+
   it('materializes tagged polygon arguments inside the bridge before native calls', async () => {
     const roots = mutableRoots();
     const polygon = { kind: 'live-polygon' };
