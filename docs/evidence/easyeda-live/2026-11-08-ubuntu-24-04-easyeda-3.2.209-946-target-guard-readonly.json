@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-committed-source-native-readonly-focused-document-guard-probe",
+  "validatedAt": "2026-11-07T23:53:59Z",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "commit": "baf139d10024ddafd5fc9e518cf332ac873cdecc",
+    "sourceTrees": {
+      "easyeda-bridge-extension/src": "ff113e4474175c45bd5e179a77b1835003c1630b",
+      "src/bridge": "ec51a5465b2d4cf783b4ece6246551edf77c5c77",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "c4489829b083e592792dc0d925e3ec1060f244ad",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    },
+    "sourceVersion": "1.11.0",
+    "releaseVersionPublishedByThisTest": null
+  },
+  "runtime": {
+    "editor": "EasyEDA Pro 3.2.209",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "isolatedEditorProfile": true,
+    "nativeExtensionManagerImportAndFullAppRestart": true,
+    "nativePrivateDisposableFixtureOnly": true,
+    "extensionReportedVersion": "1.11.0",
+    "loaderReportedVersion": "1.11.0",
+    "activeDispatcherBuildId": "d7595xd301x47c2",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "registryMismatch": false,
+    "extensionMismatch": false,
+    "documentTargetGuardAdvertised": true
+  },
+  "extension": {
+    "exactSourceEextSha256": "8e90ec01585240c50b59f2ba2429a4c73c65ca14a7c1c90202585ffa357712c7",
+    "exactSourceEextSizeBytes": 207953,
+    "installedArchiveDigestReadBackIndependently": false,
+    "installedPackageReplacedWhileVersionLabelSame": true,
+    "runtimeBuildIdMatchedInstalledCandidate": true
+  },
+  "fixture": {
+    "type": "private copy of vendor-provided Example 3D Shell PCB B",
+    "projectUuidWithheld": true,
+    "documentUuidAndNameWithheld": true,
+    "originalEprj2Sha256BeforeAndAfter": "0c6ecb6319f270a584cbe125335afec2dcbf1bfcbcce361e0573faa191a3d42b",
+    "originalFixtureUnchanged": true,
+    "ownerProductionDesignTouched": false
+  },
+  "assertions": {
+    "nativeFocusedDocumentAndProjectMatched": true,
+    "pcbNativeMetadataUuidMatched": true,
+    "pcbNativeNamePresent": true,
+    "guardedGetter": {
+      "method": "PCB_PrimitiveComponent.getAll",
+      "readOnly": true,
+      "targetDocumentUuidMatchesFocused": true,
+      "targetDocumentNameMatchesNativePcb": true,
+      "targetDocumentType": "pcb",
+      "nativeComponentsReturned": 140,
+      "normalReadVsGuardedGetterIdentical": true
+    },
+    "wrongExpectedPcbUuid": {
+      "rejected": true,
+      "errorCode": "TARGET_DOCUMENT_MISMATCH",
+      "observedGetterResultsStable": true,
+      "documentFocusStable": true
+    },
+    "writes": 0,
+    "saveCalls": 0,
+    "exportCalls": 0,
+    "primitiveMutationCalls": 0,
+    "externalContacts": 0
+  },
+  "acceptance": {
+    "readOnlyNativeGuardScenario": "passed",
+    "nativeWritesToVerifyAllPcbWriteTools": "not_tested",
+    "schematicNativeWriteGuard": "not_tested",
+    "atomicFocusLock": "not_proven",
+    "releaseCompatibilityGateSatisfied": false,
+    "electricalManufacturingSignoff": false
+  },
+  "limitations": [
+    "This is a live native test of one documented read-only getter invoked through api.call, with correct/wrong expected PCB UUID; no primitive mutation APIs were invoked.",
+    "Server and extension code were source-bound to the exact local commit and rebuilt .eext, but the vendor installed archive cannot be independently extracted byte-for-byte to verify its checksum.",
+    "Matching post-restart dispatcher build ID and documented native APIs verify loaded behavior, not atomic locking against focus change during long async native mutation.",
+    "Schematic page name getter and every PCB write method are still covered by unit/contract tests only; native write acceptance requires separate owner approval.",
+    "This evidence must not be used to bypass a release gate that requires complete native mutation-path validation."
+  ]
+}

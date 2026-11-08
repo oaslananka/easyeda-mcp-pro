@@ -59,7 +59,7 @@ The fastest way to install and configure `easyeda-mcp-pro` for your favorite AI 
    npx easyeda-mcp-pro extension --open
    ```
 
-   _This opens the folder containing the extension package `easyeda-bridge-extension.eext`. Import it via **EasyEDA Pro → Settings → Extensions → Extension Manager**._
+   _This opens the folder containing the extension package `easyeda-bridge-extension.eext`. Import it via **EasyEDA Pro 3.2.209 desktop → Advanced → Extensions Manager…** (older builds may use Settings → Extensions → Extension Manager)._
 
 3. **Connect the bridge:**
    In EasyEDA Pro, click **MCP Bridge → Connect** in the menu bar.
@@ -158,7 +158,7 @@ npx easyeda-mcp-pro extension --copy /path/to/destination
 **Installation steps in EasyEDA Pro:**
 
 1. Open **EasyEDA Pro**.
-2. Go to **Settings** → **Extensions** → **Extension Manager**.
+2. Go to **Advanced** → **Extensions Manager…** (on EasyEDA Pro 3.2.209; older builds may use **Settings** → **Extensions** → **Extension Manager**).
 3. Click **Import Extension** and select the `easyeda-bridge-extension.eext` file.
 4. Ensure **Allow External Interaction** is enabled for the extension.
 5. **Fully quit and reopen EasyEDA Pro** after each import or upgrade. Extension Manager's success message confirms the installed package, **not** replacement of a dispatcher already running in memory.
@@ -698,7 +698,7 @@ The extension build writes `easyeda-bridge-extension.eext` at the repository roo
 It contains `extension.json`, the bundled browser script, and the image assets
 required by EasyEDA Pro.
 
-Installation: Open EasyEDA Pro → **Settings** → **Extensions** → **Extension Manager...** → **Import Extension**, then select the `.eext` file. Make sure **Allow External Interaction** is enabled for the extension.
+Installation: Open EasyEDA Pro → **Advanced** → **Extensions Manager…** (EasyEDA Pro 3.2.209; older builds may use **Settings** → **Extensions** → **Extension Manager**) → **Import Extension**, then select the `.eext` file. Make sure **Allow External Interaction** is enabled for the extension.
 
 For local bridge development, an experimental loopback-only CDP transport is documented in the [CDP Bridge guide](docs/guide/cdp-bridge.md). The extension remains the recommended transport for normal use. Public delivery targets and milestone lifecycle rules are maintained in the [roadmap](docs/ROADMAP.md).
 

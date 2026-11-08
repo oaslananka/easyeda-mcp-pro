@@ -42,7 +42,7 @@ This wizard will guide you through:
 To allow the MCP server to communicate with EasyEDA Pro, you must import the bridge extension:
 
 1. Open **EasyEDA Pro**.
-2. Go to **Settings** → **Extensions** → **Extension Manager...**.
+2. Go to **Advanced** → **Extensions Manager…** (EasyEDA Pro 3.2.209; older builds may use **Settings** → **Extensions** → **Extension Manager**).
 3. Click **Import Extension** and select the `easyeda-bridge-extension.eext` package (which was shown or copied during the `init` command).
 4. Ensure **Allow External Interaction** is checked/enabled for the extension in the manager.
 5. In the top header menu, click **MCP Bridge** → **Connect**.

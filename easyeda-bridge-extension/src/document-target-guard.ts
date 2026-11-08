@@ -3,7 +3,7 @@ import { isRecord } from './utils.js';
 
 export interface TargetDocumentEvidence {
   uuid: string;
-  name?: string;
+  name: string;
   documentType: 'pcb' | 'schematic';
 }
 
@@ -115,6 +115,56 @@ async function focusedDocument(
   };
 }
 
+/** The native focused-document getter exposes identity but not a display name in
+ * EasyEDA Pro 3.2.209. Resolve the focused PCB/page name from its owning DMT
+ * class and cross-check it against the already verified selected document.
+ * A stale or unavailable metadata getter must not turn into a best-effort write. */
+async function verifiedFocusedName(
+  current: FocusedDocument,
+  kind: TargetDocumentEvidence['documentType'],
+  readFirstPath: ApiRuntime['readFirstPath'],
+  createBridgeError: BridgeErrorFactory,
+): Promise<string> {
+  const pcb = kind === 'pcb';
+  const api = readFirstPath<unknown>(
+    pcb ? ['DMT_Pcb', 'dmt_Pcb'] : ['DMT_Schematic', 'dmt_Schematic'],
+  );
+  const method = pcb ? 'getCurrentPcbInfo' : 'getCurrentSchematicPageInfo';
+  const getter = isRecord(api) ? api[method] : undefined;
+  if (typeof getter !== 'function') {
+    throw createBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      `Focused ${kind} name API is unavailable; write refused.`,
+      `Focus the intended ${kind} document in EasyEDA Pro.`,
+    );
+  }
+  let native: unknown;
+  try {
+    native = await getter.call(api);
+  } catch {
+    throw createBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      `Focused ${kind} metadata could not be read; write refused.`,
+      'Reload the intended document and retry.',
+    );
+  }
+  if (
+    !isRecord(native) ||
+    native.uuid !== current.uuid ||
+    (typeof native.parentProjectUuid === 'string' &&
+      native.parentProjectUuid !== current.parentProjectUuid) ||
+    typeof native.name !== 'string' ||
+    !native.name.trim()
+  ) {
+    throw createBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      `Focused ${kind} name/identity could not be cross-verified; write refused.`,
+      'Read the focused document and project again before retrying.',
+    );
+  }
+  return native.name;
+}
+
 /** Primitive IDs may be identical on copied PCBs; verify the caller's selected
  * document against native focus at the extension boundary before a write. */
 export async function assertExpectedDocument(
@@ -141,11 +191,13 @@ export async function assertExpectedDocument(
       },
     );
   }
-  return {
-    uuid: current.uuid,
-    ...(current.name ? { name: current.name } : {}),
-    documentType: expected.documentType,
-  };
+  const name = await verifiedFocusedName(
+    current,
+    expected.documentType,
+    readFirstPath,
+    createBridgeError,
+  );
+  return { uuid: current.uuid, name, documentType: expected.documentType };
 }
 
 export function withTargetDocumentEvidence(

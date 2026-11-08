@@ -57,7 +57,7 @@ const DOCUMENT_TARGET_CONTROLS = {
 
 const DOCUMENT_TARGET_RESULT = z.object({
   uuid: z.string(),
-  name: z.string().optional(),
+  name: z.string(),
   documentType: z.enum(['pcb', 'schematic']),
 });
 

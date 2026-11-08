@@ -116,7 +116,7 @@ To bridge the MCP server with the live EasyEDA Pro layout editor:
    ```
    This opens the folder containing `easyeda-bridge-extension.eext`.
 2. Open **EasyEDA Pro**.
-3. Go to **Settings** → **Extensions** → **Extension Manager**.
+3. Go to **Advanced** → **Extensions Manager…** (EasyEDA Pro 3.2.209; older versions may use **Settings** → **Extensions** → **Extension Manager**).
 4. Click **Import Extension** and select the `easyeda-bridge-extension.eext` file.
 5. In the Extension Manager, verify that **Allow External Interaction** is checked for the imported extension.
 6. **Fully exit and restart EasyEDA Pro** after installing or upgrading the .eext file. Installation success does **not** prove the previously running dispatcher was replaced. Reconnecting or toggling the extension alone may keep stale code active.
