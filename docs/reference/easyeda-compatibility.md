@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.2               | 1.11.2                | 1.11.2            | Live validated  | 2026-11-08 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.1               | 1.11.1                | 1.11.1            | Live validated  | 2026-11-08 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.0               | 1.11.0                | 1.11.0            | Live validated  | 2026-11-08 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.0               | 1.11.0                | 1.11.0            | Live validated  | 2026-11-07 | 2027-02-05 |
@@ -65,6 +66,53 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-d52ba9a-native-pad-readonly
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-d52ba9a-native-pad-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-42-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.22.1`                                                          |
+| Validation package version               | `1.11.2`                                                           |
+| Fix version represented by evidence      | `1.11.2`                                                           |
+| Compatibility-sensitive base commit      | `d52ba9acb80547396bd3ee9382e3697484203479`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.11.2`                                                           |
+| Live-validated extension package SHA-256 | `ba9588e0e28f75dc5a8d36143df89e66b43f68ec00d4433b3e93b29c29eda534` |
+| Live-validated extension package size    | `209408 bytes`                                                     |
+| Loader-reported version                  | `1.11.2`                                                           |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `7afd52614d3d7d08`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.11.2` during this validation.
+
+### Capability evidence
+
+| Capability                                                                                | Level  | Status   | Result                                                                                                                                                                                                                                                                                                | Evidence                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current merged source reads an identity-matched isolated native EasyEDA PCB               | `live` | `passed` | Merged main source d52ba9a connected to actual EasyEDA Pro 3.2.209; v1.11.2 installed package and loader, matching method-registry hash and focus-verified disposable PCB; no mutations or saves.                                                                                                     | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-d52ba9a-native-842.json) |
+| Actual native route and component-owned pad-pair inspection via the registered MCP tool   | `live` | `passed` | Real native bounded PCB inventories 33 components, 98 tracks and zero vias. U3-8/C5-1 VCC and U3-4/C5-2 GND exact component-owned pad/net identities; pad-center straight-line distances 33.31 and 43.88 mm; contextual high-speed advisory-only 90-degree findings. Electrical loop remains UNKNOWN. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-d52ba9a-native-842.json) |
+| Missing copper-return evidence remains UNKNOWN and cannot produce an engineering sign-off | `live` | `passed` | The registered read-only geometry review returned explicit unknown reference-plane, copper-clearance and via-current evidence; engineering_sign_off was false in both general and high-speed modes.                                                                                                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-08-ubuntu-24-04-easyeda-3.2.209-source-d52ba9a-native-842.json) |
+
+### Known limitations
+
+- This is current-source read-only native component-pad/route acceptance, not a fresh complete live mutation/rollback, save, export, connection lifecycle or manufacturing workflow test. The running extension contains the unchanged baked dispatcher from the identical official v1.11.2 package.
+- The exact release candidate v1.12.0 changes only the managed literal extensionVersion; the current source under test and candidate differ only by this release-managed version field among compatibility-sensitive paths. The checker enforces this exception and no behavioral source drift.
+- The historical disposable Z480 PCB has an independent strict DRC Netlist Error / Import Changes due to D2-1 and R5-1 schematic/PCB mismatch; neither a DRC PASS nor circuit correctness is claimed.
+- Component-origin distance and pad-center distances do not prove actual copper routing, GND plane contact, return-current loop, decoupling performance, EMC, thermal/impedance or fabrication acceptability; these remain UNKNOWN.
+- Native desktop acceptance applies to Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209. Native GUI validation on Windows/macOS was not performed. The extension loader and active registry matched v1.11.2, but installed IndexedDB byte-level comparison was not performed.
+- No EasyEDA design write, save, repour, PCB manufacturer export, external vendor communication, purchase or shipping occurred.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-4223563-native-target-name
 
