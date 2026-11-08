@@ -2462,6 +2462,116 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('pcb.listComponentPadConnections reports only source-bound native associated primitives', async () => {
+    const getter = vi.fn(async (_centerOnly: boolean) => [
+      {
+        getState_PrimitiveId: () => 'trace-1',
+        getState_PrimitiveType: () => 3,
+        getState_Net: () => 'VCC',
+        getState_Layer: () => 1,
+      },
+    ]);
+    const pad = {
+      getState_PrimitiveId: () => 'pad-8',
+      getState_ParentComponentPrimitiveId: () => 'U3-id',
+      getState_PadNumber: () => '8',
+      getState_Net: () => 'VCC',
+      getConnectedPrimitives: getter,
+    };
+    const dispatcher = createDispatcher(
+      makeVerifiedPcbToolkit({
+        PCB_PrimitiveComponent: {
+          getAll: async () => [{ getState_PrimitiveId: () => 'U3-id' }],
+          getAllPinsByPrimitiveId: async () => [pad],
+        },
+      }),
+    );
+    const result = await dispatcher.dispatch('pcb.listComponentPadConnections', {
+      ...scopedPcbParams,
+      componentPrimitiveId: 'U3-id',
+      padNumber: '8',
+    });
+    expect(getter).toHaveBeenCalledOnce();
+    expect(getter).toHaveBeenCalledWith(false);
+    expect(result).toEqual({
+      evidence: 'native_reported',
+      componentPrimitiveId: 'U3-id',
+      padPrimitiveId: 'pad-8',
+      padNumber: '8',
+      net: 'VCC',
+      connected: [{ primitiveId: 'trace-1', nativeType: 3, net: 'VCC', layer: 1 }],
+      interpretation: 'native-api-association-only; electrical-continuity-UNKNOWN',
+    });
+  });
+
+  it('never interprets unavailable, wrong-parent or malformed connection evidence as empty', async () => {
+    const validPad = (overrides: Record<string, unknown> = {}) => ({
+      getState_PrimitiveId: () => 'pad-8',
+      getState_ParentComponentPrimitiveId: () => 'U3-id',
+      getState_PadNumber: () => '8',
+      getState_Net: () => 'VCC',
+      getConnectedPrimitives: async () => [],
+      ...overrides,
+    });
+    const cases = [
+      { pad: validPad({ getState_ParentComponentPrimitiveId: () => 'wrong' }) },
+      { pad: validPad({ getConnectedPrimitives: undefined }) },
+      { pad: validPad({ getConnectedPrimitives: async () => [null] }) },
+      {
+        pad: validPad({
+          getConnectedPrimitives: async () => [
+            {
+              getState_PrimitiveId: () => 'via',
+              getState_PrimitiveType: () => 4,
+              getState_Net: () => 'GND',
+            },
+          ],
+        }),
+      },
+      { pad: validPad({ getConnectedPrimitives: async () => Array(129).fill({}) }) },
+    ];
+    for (const { pad } of cases) {
+      const dispatcher = createDispatcher(
+        makeVerifiedPcbToolkit({
+          PCB_PrimitiveComponent: {
+            getAll: async () => [{ getState_PrimitiveId: () => 'U3-id' }],
+            getAllPinsByPrimitiveId: async () => [pad],
+          },
+        }),
+      );
+      const result = await dispatcher.dispatch('pcb.listComponentPadConnections', {
+        ...scopedPcbParams,
+        componentPrimitiveId: 'U3-id',
+        padNumber: '8',
+      });
+      expect(result).toMatchObject({ evidence: 'unavailable' });
+    }
+  });
+
+  it('pad connectivity refuses wrong project focus before touching native component APIs', async () => {
+    const native = vi.fn(async () => []);
+    const dispatcher = createDispatcher(
+      makeVerifiedPcbToolkit({
+        PCB_PrimitiveComponent: { getAll: native },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('pcb.listComponentPadConnections', {
+        projectId: 'not-this-project',
+        componentPrimitiveId: 'U3-id',
+        padNumber: '8',
+      }),
+    ).rejects.toThrow('project identity mismatch');
+    await expect(
+      dispatcher.dispatch('pcb.listComponentPadConnections', {
+        ...scopedPcbParams,
+        componentPrimitiveId: '__proto__',
+        padNumber: '8',
+      }),
+    ).resolves.toMatchObject({ evidence: 'unavailable' });
+    expect(native).not.toHaveBeenCalled();
+  });
+
   it('native PCB list methods reject missing enumeration APIs rather than reporting empty boards', async () => {
     const dispatcher = createDispatcher(makeVerifiedPcbToolkit({}));
     for (const [method, nativeClass] of [

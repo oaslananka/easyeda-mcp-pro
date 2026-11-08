@@ -98,6 +98,7 @@ const METHOD_LIST: readonly string[] = [
   'pcb.addZone',
   'pcb.deleteComponent',
   'pcb.exportRouteContext',
+  'pcb.listComponentPadConnections',
   'pcb.listComponents',
   'pcb.listFills',
   'pcb.listRegions',

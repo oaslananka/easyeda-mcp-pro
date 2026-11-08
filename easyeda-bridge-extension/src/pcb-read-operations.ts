@@ -1,4 +1,5 @@
 import type { ApiRuntime } from './api-runtime.js';
+import { createComponentPadConnectionReader } from './pcb-pad-connection-operations.js';
 import type { BoardInspectionOperations } from './board-inspection.js';
 import { logRecoverableError } from './utils.js';
 import { evaluateZoneOutlineEvidence, type ZoneRectangle } from './zone-outline-evidence.js';
@@ -23,6 +24,7 @@ export interface PcbReadOperations {
   listRegions(limit?: number, offset?: number): Promise<unknown>;
   listTracks(limit?: number, offset?: number): Promise<unknown>;
   listVias(limit?: number, offset?: number): Promise<unknown>;
+  listComponentPadConnections(componentPrimitiveId: string, padNumber: string): Promise<unknown>;
   deletePrimitives(primitiveIds: string[]): Promise<{ deleted: string[]; notFound: string[] }>;
 }
 
@@ -404,6 +406,12 @@ export function createPcbReadOperations({
     return { deleted, notFound: [...remaining] };
   }
 
+  const listComponentPadConnections = createComponentPadConnectionReader({
+    requireActivePcbContext,
+    readFirstPath,
+    readState,
+  });
+
   return {
     zonePreflight,
     readProjectScoped,
@@ -412,6 +420,7 @@ export function createPcbReadOperations({
     listRegions,
     listTracks,
     listVias,
+    listComponentPadConnections,
     deletePrimitives,
   };
 }
