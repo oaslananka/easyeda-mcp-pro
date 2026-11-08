@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "kind": "bounded-native-readonly-getter-allowlist-acceptance",
+  "validatedAt": "2026-11-08",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "codeCommit": "0f91fd3205999c4eed6d208348107b2972a3d0fc",
+    "editorVersion": "3.2.209",
+    "extensionVersion": "1.11.0",
+    "loaderVersion": "1.11.0",
+    "dispatcherBuildId": "dd4b9x750exb90c",
+    "extensionPackageSHA256": "57a564a29fb43683ad408c0c0d7d39fbae93cab7195391c61285a8c9598c10c5"
+  },
+  "environment": {
+    "isolatedDisposableProfiles": true,
+    "os": "Ubuntu 24.04 x86_64",
+    "personalDesignAccess": false,
+    "mutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0,
+    "externalCalls": 0,
+    "registryMismatch": false,
+    "extensionVersionMismatch": false
+  },
+  "pcbFocusReadOnly": {
+    "getters": {
+      "DMT_Board.getAllBoardsInfo": {
+        "ok": true,
+        "count": 0
+      },
+      "DMT_Schematic.getAllSchematicPagesInfo": {
+        "ok": true,
+        "count": 0
+      },
+      "PCB_PrimitivePad.getAll": {
+        "ok": true,
+        "count": 828
+      },
+      "PCB_PrimitivePad.getAllPrimitiveId": {
+        "ok": true,
+        "count": 828
+      },
+      "PCB_PrimitivePad.get": {
+        "ok": true,
+        "objectReturned": true
+      },
+      "PCB_PrimitiveVia.getAllPrimitiveId": {
+        "ok": true,
+        "count": 705
+      },
+      "PCB_PrimitiveVia.get": {
+        "ok": true,
+        "objectReturned": true
+      },
+      "PCB_PrimitivePoured.getAllPrimitiveId": {
+        "ok": true,
+        "count": 8
+      }
+    },
+    "focusUnchanged": true
+  },
+  "schematicFocusReadOnly": {
+    "getters": {
+      "DMT_Schematic.getCurrentSchematicPageInfo": {
+        "ok": true,
+        "objectReturned": true
+      },
+      "SCH_PrimitiveWire.getAllPrimitiveId": {
+        "ok": true,
+        "count": 34
+      }
+    },
+    "wrongFocusNegative": {
+      "method": "PCB_PrimitivePad.getAll",
+      "errorCode": "CONTEXT_UNAVAILABLE",
+      "actualNativePageNamePresentInMessage": true,
+      "getterNotInvokedByExtensionGuard": true
+    },
+    "focusUnchanged": true
+  },
+  "limits": [
+    "Native beta preview getters in EasyEDA Pro are version-sensitive and not manufacturing or physical-connectivity evidence.",
+    "DMT_Board and DMT_Schematic page inventories returned empty arrays with PCB focused; this does not independently prove a populated inventory.",
+    "The extension cannot establish atomic document focus locking from these reads.",
+    "No real write-path, save, export, DRC/DFM pass, manufacturing certification or release 1.11.1 compatibility was accepted.",
+    "The app opened copies of disposable fixtures only; project/document identities and paths are not recorded."
+  ],
+  "acceptance": {
+    "reviewedGettersCovered": true,
+    "typedWrongFocusError": true,
+    "actualFocusedSchematicNameVerified": true,
+    "nativeReadOnlyAcceptance": "PASS",
+    "releaseCompatibilityAcceptance": "NOT_EVALUATED",
+    "manufacturerApproval": false
+  }
+}
