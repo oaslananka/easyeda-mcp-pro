@@ -105,6 +105,18 @@ function optionalRouteChain(
     : undefined;
 }
 
+function declaredNativeRouteChain(
+  first: ComponentPad,
+  second: ComponentPad,
+  expectedNet: string,
+  routeSource: { tracks: NativeTrack[]; complete: boolean } | undefined,
+): NativePadRouteChain | undefined {
+  // Native same-net geometry is only relevant to an exact source-declared
+  // net. A trace on a different net cannot certify this relationship.
+  const match = first.net === expectedNet && second.net === expectedNet;
+  return optionalRouteChain(match ? first : undefined, match ? second : undefined, routeSource);
+}
+
 export function reviewNativePlacementPadPair(
   declaration: NativePadPairDeclaration,
   componentIds: { first: string; second: string } | undefined,
@@ -139,7 +151,7 @@ export function reviewNativePlacementPadPair(
     base.reasons.push('Requested pad number or populated native net is unavailable.');
     return base;
   }
-  base.route_chain = optionalRouteChain(a, b, routeSource);
+  base.route_chain = declaredNativeRouteChain(a, b, declaration.expectedNet, routeSource);
   base.evidence = 'native_component_pads';
   base.native_first_net = a.net;
   base.native_second_net = b.net;
