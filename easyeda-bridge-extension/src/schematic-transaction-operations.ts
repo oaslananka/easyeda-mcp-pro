@@ -912,27 +912,29 @@ export function createSchematicTransactionOperations(
     const incomingOther = property.otherProperty as Record<string, unknown> | undefined;
     const oldX = safeGetState(current, 'X');
     const oldY = safeGetState(current, 'Y');
-    return {
-      oldX,
-      oldY,
-      merged: {
-        x: oldX,
-        y: oldY,
-        rotation: safeGetState(current, 'Rotation'),
-        mirror: safeGetState(current, 'Mirror'),
-        addIntoBom: safeGetState(current, 'AddIntoBom'),
-        addIntoPcb: safeGetState(current, 'AddIntoPcb'),
-        designator: safeGetState(current, 'Designator'),
-        name: safeGetState(current, 'Name'),
-        uniqueId: safeGetState(current, 'UniqueId'),
-        manufacturer: safeGetState(current, 'Manufacturer'),
-        manufacturerId: safeGetState(current, 'ManufacturerId'),
-        supplier: safeGetState(current, 'Supplier'),
-        supplierId: safeGetState(current, 'SupplierId'),
-        ...property,
-        otherProperty: incomingOther ? { ...existingOther, ...incomingOther } : existingOther,
-      },
+    const rotation = safeGetState(current, 'Rotation');
+    const mirror = safeGetState(current, 'Mirror');
+    const merged = {
+      x: oldX,
+      y: oldY,
+      rotation,
+      mirror,
+      addIntoBom: safeGetState(current, 'AddIntoBom'),
+      addIntoPcb: safeGetState(current, 'AddIntoPcb'),
+      designator: safeGetState(current, 'Designator'),
+      name: safeGetState(current, 'Name'),
+      uniqueId: safeGetState(current, 'UniqueId'),
+      manufacturer: safeGetState(current, 'Manufacturer'),
+      manufacturerId: safeGetState(current, 'ManufacturerId'),
+      supplier: safeGetState(current, 'Supplier'),
+      supplierId: safeGetState(current, 'SupplierId'),
+      ...property,
+      otherProperty: incomingOther ? { ...existingOther, ...incomingOther } : existingOther,
     };
+    // Native rotation/mirror remapping is not source-bound verified for wired pins.
+    if (merged.rotation !== rotation || merged.mirror !== mirror)
+      failUnverifiedMove('Unsafe orient');
+    return { oldX, oldY, merged };
   }
 
   async function tryModifyComponent(

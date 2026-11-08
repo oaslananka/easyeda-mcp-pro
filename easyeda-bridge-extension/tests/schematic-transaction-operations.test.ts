@@ -1057,6 +1057,56 @@ describe('schematic transaction operations', () => {
     expect(componentModify).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ['rotation', { rotation: 90 }],
+    ['mirroring', { mirror: true }],
+  ])('refuses #945 unverified component %s without writing', async (_case, property) => {
+    const componentModify = vi.fn(async () => true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          getState_ComponentType: () => 'component',
+          getState_X: () => 300,
+          getState_Y: () => 400,
+          getState_Rotation: () => 0,
+          getState_Mirror: () => false,
+        }),
+        modify: componentModify,
+      },
+      SCH_PrimitiveWire: { getAll: vi.fn().mockResolvedValue([]) },
+    });
+    await expect(operations.modifyPrimitive('cmp', property)).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+    });
+    expect(callFirst).not.toHaveBeenCalled();
+    expect(componentModify).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['rotation', { rotation: 0 }],
+    ['mirroring', { mirror: false }],
+  ])('permits #945 unchanged component %s metadata', async (_case, property) => {
+    const componentModify = vi.fn(async () => true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          getState_ComponentType: () => 'component',
+          getState_X: () => 300,
+          getState_Y: () => 400,
+          getState_Rotation: () => 0,
+          getState_Mirror: () => false,
+        }),
+        modify: componentModify,
+      },
+    });
+    await expect(operations.modifyPrimitive('cmp', property)).resolves.toMatchObject({
+      followedWireIds: [],
+      wireFollowFailures: [],
+    });
+    expect(callFirst).not.toHaveBeenCalled();
+    expect(componentModify).toHaveBeenCalledOnce();
+  });
+
   it('does not require pin/wire inventory for a same-coordinate property edit', async () => {
     const componentModify = vi.fn(async () => true);
     const { operations, callFirst } = createSubject({

@@ -126,6 +126,7 @@ describe('canonical on-demand engineering skill routing', () => {
     const schematicMoveSafety = read('skills/easyeda-workflow/SKILL.md');
     expect(schematicMoveSafety).toContain('Connected component moves fail closed');
     expect(schematicMoveSafety).toContain('CONNECTED_COMPONENT_MOVE_UNSAFE');
+    expect(schematicMoveSafety).toContain('Effective component rotation and mirroring');
     expect(schematicMoveSafety).toContain('MOVE_CONNECTIVITY_UNVERIFIED');
     expect(schematicMoveSafety).toContain('not evidence that any wire followed');
     expect(schematicMoveSafety).not.toContain('attempts to follow its wires');
