@@ -405,11 +405,15 @@ describe('repository security tooling policy', () => {
     expect(releaseWorkflow).toContain('curl --fail --silent --show-error --location');
     expect(releaseWorkflow).toContain("--proto '=https' --tlsv1.2");
     expect(releaseWorkflow).toContain(
-      '--output "$MCP_PUBLISHER_ASSET" "$MCP_PUBLISHER_ARCHIVE_URL"',
+      'download_pinned_publisher_asset "$MCP_PUBLISHER_ASSET" "$MCP_PUBLISHER_ARCHIVE_URL"',
     );
     expect(releaseWorkflow).toContain(
-      '--output "$MCP_PUBLISHER_CHECKSUMS_ASSET" "$MCP_PUBLISHER_CHECKSUMS_URL"',
+      'download_pinned_publisher_asset "$MCP_PUBLISHER_CHECKSUMS_ASSET" "$MCP_PUBLISHER_CHECKSUMS_URL"',
     );
+    expect(releaseWorkflow).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(releaseWorkflow).toContain('gh release download "$MCP_PUBLISHER_VERSION"');
+    expect(releaseWorkflow).toContain('--repo modelcontextprotocol/registry --pattern "$asset"');
+    expect(releaseWorkflow).toContain('--checksums "$MCP_PUBLISHER_CHECKSUMS_ASSET"');
     expect(releaseWorkflow).toContain(
       'node "$RELEASE_VERIFIER_ROOT/scripts/install-mcp-publisher.mjs" install',
     );
