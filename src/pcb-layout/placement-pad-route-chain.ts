@@ -129,8 +129,9 @@ function findEndpointChain(
   const queue = [start];
   const previous = new Map<string, { from: string; edge: Edge }>();
   const visited = new Set([start]);
-  for (let cursor = 0; cursor < queue.length; cursor++) {
-    const node = queue[cursor] as string;
+  // Iterate values directly rather than indexing with a dynamic key.
+  // Appended, unvisited neighbors are visited in FIFO order by for-of.
+  for (const node of queue) {
     if (node === end) break;
     for (const edge of graph.get(node) ?? []) {
       if (visited.has(edge.other)) continue;
@@ -200,12 +201,12 @@ export function observeNativePadRouteChain(
     return chain ? [{ ...chain, layer }] : [];
   });
   candidates.sort(candidateOrder);
-  const candidate = candidates[0];
-  if (!candidate) {
+  if (candidates.length === 0) {
     return unavailable(
       'No exact same-layer, same-net native track endpoint chain joins both pad centers; absent evidence does not prove disconnection.',
     );
   }
+  const candidate = candidates[0] as Candidate;
   return {
     evidence: 'observed_exact_endpoint_chain',
     selection: 'fewest_segments',
