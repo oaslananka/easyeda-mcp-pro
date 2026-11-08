@@ -1123,6 +1123,34 @@ describe('schematic transaction operations', () => {
     },
   );
 
+  it.each([
+    ['x NaN', { x: Number.NaN }],
+    ['x infinity', { x: Number.POSITIVE_INFINITY }],
+    ['y negative infinity', { y: Number.NEGATIVE_INFINITY }],
+    ['x string', { x: '100' }],
+    ['y null', { y: null }],
+  ])(
+    'refuses #945 invalid target coordinate %s before native mutation',
+    async (_case, property) => {
+      const componentModify = vi.fn(async () => true);
+      const { operations, callFirst } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_ComponentType: () => 'component',
+            getState_X: () => 300,
+            getState_Y: () => 400,
+          }),
+          modify: componentModify,
+        },
+      });
+      await expect(operations.modifyPrimitive('cmp', property)).rejects.toMatchObject({
+        code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      });
+      expect(callFirst).not.toHaveBeenCalled();
+      expect(componentModify).not.toHaveBeenCalled();
+    },
+  );
+
   it('refuses a coordinate change when a component lacks verified original coordinates', async () => {
     const componentModify = vi.fn();
     const { operations, callFirst } = createSubject({

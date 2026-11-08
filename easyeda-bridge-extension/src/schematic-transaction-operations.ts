@@ -955,10 +955,13 @@ export function createSchematicTransactionOperations(
     }
 
     const { merged, oldX, oldY } = componentModificationProperties(current, property);
-    // Unknown native coordinates must not silently skip the connectivity preflight.
+    // Both existing and requested coordinates must be finite before any native write.
     if (
       (property.x !== undefined || property.y !== undefined) &&
-      (!Number.isFinite(oldX) || !Number.isFinite(oldY))
+      (!Number.isFinite(oldX) ||
+        !Number.isFinite(oldY) ||
+        !Number.isFinite(merged.x) ||
+        !Number.isFinite(merged.y))
     )
       failUnverifiedMove('Component position or identity unavailable; move refused.');
     const moveOrigin = componentMoveOrigin(oldX, oldY, property);
