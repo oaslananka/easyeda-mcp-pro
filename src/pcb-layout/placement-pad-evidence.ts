@@ -3,6 +3,7 @@ import {
   type NativePadRouteChain,
 } from './placement-pad-route-chain.js';
 import type { NativeTrack } from './route-review.js';
+import type { NativePadAssociationFinding } from './placement-pad-connectivity.js';
 
 /**
  * Opt-in native component-pad distance screening.
@@ -34,6 +35,7 @@ export interface NativePadPairFinding {
   reasons: string[];
   electrical_loop_status: 'UNKNOWN';
   route_chain?: NativePadRouteChain;
+  native_pad_associations?: NativePadAssociationFinding;
 }
 
 interface ComponentPad {

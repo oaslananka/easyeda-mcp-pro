@@ -99,6 +99,11 @@ export function createDispatcherDomainRouter(
     'pcb.addZone': (params) => dependencies.pcbMutationOperations.addZone(params),
     'pcb.deleteComponent': (params) => dependencies.pcbMutationOperations.deleteComponents(params),
     'pcb.exportRouteContext': (params) => dependencies.exportOperations.exportRouteContext(params),
+    'pcb.listComponentPadConnections': (params) =>
+      dependencies.pcbReadOperations.listComponentPadConnections(
+        params.componentPrimitiveId as string,
+        params.padNumber as string,
+      ),
     'pcb.zonePreflight': (params) =>
       params.rectangle === undefined
         ? dependencies.pcbReadOperations.zonePreflight(

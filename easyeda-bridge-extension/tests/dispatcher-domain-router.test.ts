@@ -125,6 +125,13 @@ function createDependencies() {
         limit,
         offset,
       })),
+      listComponentPadConnections: vi.fn(
+        async (componentPrimitiveId: string, padNumber: string) => ({
+          method: 'pad-connections',
+          componentPrimitiveId,
+          padNumber,
+        }),
+      ),
       deletePrimitives: vi.fn(async () => ({ deleted: [], notFound: [] })),
     },
     schematicTransactionOperations: {
@@ -250,6 +257,7 @@ const expectedMethods = [
   'pcb.addZone',
   'pcb.deleteComponent',
   'pcb.exportRouteContext',
+  'pcb.listComponentPadConnections',
   'pcb.listComponents',
   'pcb.listFills',
   'pcb.listRegions',

@@ -313,6 +313,7 @@ net path, via current, copper continuity or high-frequency loop area.
 ```json
 {
   "projectId": "your-exact-native-project-uuid",
+  "includeNativePadContacts": true,
   "placementRelations": [
     {
       "first": "U1",
@@ -416,6 +417,41 @@ DRC or manufacturing approval. The relationship's overall
 `electrical_loop_status` and `engineering_sign_off` remain `UNKNOWN`
 and `false`, respectively. Design-specific source constraints remain
 required for actionable warnings.
+
+## Optional beta native pad-contact associations
+
+The `includeNativePadContacts: true` input (off by default) requests at
+most **four** explicitly declared pad pairs per call. Each pad is read
+through the source-bound, read-only `pcb.listComponentPadConnections`
+bridge route, scoped to the exact native project and focused PCB
+**before and after** the native call. A current-document UUID
+change across two pad reads invalidates the pair.
+
+The native adapter uses official
+[`IPCB_PrimitiveComponentPad.getConnectedPrimitives(false)`](https://prodocs.easyeda.com/en/api/reference/pro-api.ipcb_primitivecomponentpad.getconnectedprimitives.html)
+after verifying the owning component and unique embedded pad.
+`false` asks EasyEDA to report primitives directly touching the pad,
+rather than only pad-center connections. This API is explicitly **beta**:
+support and production behavior are not guaranteed across editor versions.
+Each read returns at most 128 uniquely identified, matching-net
+native primitive IDs/types/layers, or `unavailable` if the native
+getter is absent, throws, changes focus, or returns invalid evidence.
+
+The optional `native_pad_associations` object includes the source IDs
+reported for each pad and their intersection. Both an empty result
+and a shared primitive remain `electrical_continuity_status: UNKNOWN`.
+Neither establishes full-path copper electrical continuity or a lack
+of it. Native-local associations do **not** prove copper-fill/plane
+contact, via plating/spans, return-current paths, EMC, DRC or
+manufacturing readiness. More than four requested pairs returns
+`unavailable` without making additional beta API calls.
+There is no edit/save/export and no general API execution capability.
+
+The current isolated EasyEDA Pro test profile has an old 1.11.2
+extension, while the current server is 1.12.0. This new
+adapter has not yet been accepted end-to-end on a disposable board
+using a matching current-source extension. Deterministic tests are
+not a replacement for that native acceptance.
 
 The real, isolated EasyEDA Pro 3.2.209/Z480 disposable read-only
 acceptance performed with the matching v1.11.2 source measured
