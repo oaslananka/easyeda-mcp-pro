@@ -898,6 +898,7 @@ describe('native PCB route geometry review MCP contract', () => {
       switchFocusAfterPads?: boolean;
       throwOnFocusRecheck?: boolean;
       extraUnrelatedComponent?: boolean;
+      tracks?: Array<Record<string, unknown>>;
     } = {},
   ) {
     const components = [
@@ -909,7 +910,11 @@ describe('native PCB route geometry review MCP contract', () => {
     ];
     let focusChecks = 0;
     bridgeCall.mockImplementation(async (method: string, args: any) => {
-      if (method === 'pcb.listTracks' || method === 'pcb.listVias') return { total: 0, items: [] };
+      if (method === 'pcb.listVias') return { total: 0, items: [] };
+      if (method === 'pcb.listTracks') {
+        const tracks = overrides.tracks ?? [];
+        return { total: tracks.length, items: tracks };
+      }
       if (method === 'pcb.listComponents') return { total: components.length, items: components };
       if (method === 'api.read') {
         if (args.path === 'DMT_Project.getCurrentProjectInfo') {
@@ -1011,6 +1016,82 @@ describe('native PCB route geometry review MCP contract', () => {
       }),
     );
     expect(result.errors).toEqual([]);
+  });
+
+  it('includes bounded exact same-layer route endpoint chain evidence without electrical PASS', async () => {
+    mockNativePlacementPads({
+      tracks: [
+        {
+          primitiveId: 'trace-1',
+          net: 'VCC',
+          layer: 1,
+          startX: 100,
+          startY: 0,
+          endX: 50,
+          endY: 0,
+          width: 10,
+        },
+        {
+          primitiveId: 'trace-2',
+          net: 'VCC',
+          layer: 1,
+          startX: 50,
+          startY: 0,
+          endX: 0,
+          endY: 0,
+          width: 10,
+        },
+      ],
+    });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.findings[0].pad_pairs[0].route_chain).toMatchObject({
+      evidence: 'observed_exact_endpoint_chain',
+      primitive_ids: ['trace-1', 'trace-2'],
+      selection: 'fewest_segments',
+      native_layer: 1,
+      observed_centerline_length_mm: 2.54,
+      electrical_continuity_status: 'UNKNOWN',
+    });
+    expect(result.placement_review.findings[0].pad_pairs[0].electrical_loop_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+    expect(result.overall_status).toBe('UNKNOWN');
+  });
+
+  it('does not infer copper contact when one route primitive is invalid or changes net', async () => {
+    for (const tracks of [
+      [
+        {
+          primitiveId: 'wrong-net',
+          net: 'GND',
+          layer: 1,
+          startX: 100,
+          startY: 0,
+          endX: 0,
+          endY: 0,
+          width: 10,
+        },
+      ],
+      [
+        {
+          primitiveId: 'invalid-width',
+          net: 'VCC',
+          layer: 1,
+          startX: 100,
+          startY: 0,
+          endX: 0,
+          endY: 0,
+          width: 0,
+        },
+      ],
+    ]) {
+      mockNativePlacementPads({ tracks });
+      const result = await run({ placementRelations: [placementPadPair] });
+      expect(result.placement_review.findings[0].pad_pairs[0].route_chain).toMatchObject({
+        evidence: 'unavailable',
+        electrical_continuity_status: 'UNKNOWN',
+      });
+      expect(result.engineering_sign_off).toBe(false);
+    }
   });
 
   it('warns on native pad net mismatch, not a blanket distance default', async () => {
