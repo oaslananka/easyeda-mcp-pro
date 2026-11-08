@@ -881,6 +881,223 @@ describe('native PCB route geometry review MCP contract', () => {
     ).toBe(false);
   });
 
+  const placementPadPair = {
+    first: 'U3',
+    second: 'C5',
+    kind: 'decoupling',
+    constraintSource: 'Real Z480 schematic supply-net declaration, no generic distance limit',
+    padPairs: [{ firstPin: '8', secondPin: '1', expectedNet: 'VCC' }],
+  } as const;
+
+  function mockNativePlacementPads(
+    overrides: {
+      projectId?: string;
+      secondNet?: string;
+      firstParent?: string;
+      failPad?: string;
+      switchFocusAfterPads?: boolean;
+      throwOnFocusRecheck?: boolean;
+      extraUnrelatedComponent?: boolean;
+    } = {},
+  ) {
+    const components = [
+      { primitiveId: 'native-u3', designator: 'U3', x: 100, y: 0, layer: 1 },
+      { primitiveId: 'native-c5', designator: 'C5', x: 0, y: 0, layer: 1 },
+      ...(overrides.extraUnrelatedComponent
+        ? [{ primitiveId: 'native-z9', designator: 'Z9', x: 200, y: 200, layer: 1 }]
+        : []),
+    ];
+    let focusChecks = 0;
+    bridgeCall.mockImplementation(async (method: string, args: any) => {
+      if (method === 'pcb.listTracks' || method === 'pcb.listVias') return { total: 0, items: [] };
+      if (method === 'pcb.listComponents') return { total: components.length, items: components };
+      if (method === 'api.read') {
+        if (args.path === 'DMT_Project.getCurrentProjectInfo') {
+          focusChecks++;
+          if (overrides.throwOnFocusRecheck && focusChecks === 2)
+            throw new Error('native project focus no longer available');
+          return {
+            result: {
+              uuid:
+                overrides.switchFocusAfterPads && focusChecks === 2
+                  ? 'unrelated-project'
+                  : (overrides.projectId ?? 'project-1'),
+            },
+          };
+        }
+        if (args.path === 'DMT_SelectControl.getCurrentDocumentInfo')
+          return { result: { parentProjectUuid: 'project-1', documentType: 3 } };
+        if (args.path === 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId') {
+          if (args.args[0] === overrides.failPad) throw new Error('beta pad getter unavailable');
+          const first = args.args[0] === 'native-u3';
+          return {
+            result: [
+              {
+                primitiveId: first ? 'native-u3/pad8' : 'native-c5/pad1',
+                parentComponentPrimitiveId: first
+                  ? (overrides.firstParent ?? 'native-u3')
+                  : 'native-c5',
+                padNumber: first ? '8' : '1',
+                net: first ? 'VCC' : (overrides.secondNet ?? 'VCC'),
+                x: first ? 100 : 0,
+                y: 0,
+                layer: 12,
+              },
+            ],
+          };
+        }
+      }
+      throw new Error('unexpected bridge call: ' + method);
+    });
+  }
+
+  it('requires source-bound exact pad-pair declarations and rejects implicit limits', () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        placementRelations: [placementPadPair],
+      }).success,
+    ).toBe(true);
+    for (const invalid of [
+      { ...placementPadPair, constraintSource: undefined },
+      { ...placementPadPair, padPairs: [] },
+      { ...placementPadPair, padPairs: [{ firstPin: '', secondPin: '1', expectedNet: 'VCC' }] },
+      { ...placementPadPair, padPairs: [{ firstPin: '8', secondPin: '1', expectedNet: ' VCC' }] },
+      {
+        ...placementPadPair,
+        padPairs: [{ firstPin: '8', secondPin: '1', expectedNet: 'VCC', maxCenterDistanceMm: -1 }],
+      },
+      {
+        ...placementPadPair,
+        padPairs: Array.from({ length: 3 }, () => placementPadPair.padPairs[0]),
+      },
+    ]) {
+      expect(
+        schema?.safeParse({
+          projectId: 'project-1',
+          placementRelations: [invalid],
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('uses real source-guarded native component pads only when specifically requested', async () => {
+    mockNativePlacementPads();
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      electrical_loop_status: 'UNKNOWN',
+      pad_pairs: [
+        {
+          first_pin: '8',
+          second_pin: '1',
+          native_first_net: 'VCC',
+          native_second_net: 'VCC',
+          measured_pad_center_distance_mm: 2.54,
+          native_pad_layer_codes: [12, 12],
+          evidence: 'native_component_pads',
+          status: 'UNKNOWN',
+          electrical_loop_status: 'UNKNOWN',
+        },
+      ],
+    });
+    expect(result.engineering_sign_off).toBe(false);
+    expect(bridgeCall).toHaveBeenCalledWith(
+      'api.read',
+      expect.objectContaining({
+        path: 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId',
+        args: ['native-u3'],
+      }),
+    );
+    expect(result.errors).toEqual([]);
+  });
+
+  it('warns on native pad net mismatch, not a blanket distance default', async () => {
+    mockNativePlacementPads({ secondNet: 'GND' });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.overall_status).toBe('WARNING');
+    expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+      status: 'WARNING',
+      native_second_net: 'GND',
+      electrical_loop_status: 'UNKNOWN',
+    });
+  });
+
+  it('fails closed for native project identity mismatch without reading component pads', async () => {
+    mockNativePlacementPads({ projectId: 'other-project' });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'unavailable',
+    });
+    expect(result.errors.join(' ')).toContain('does not match');
+    expect(
+      bridgeCall.mock.calls.some(
+        ([method, args]) =>
+          method === 'api.read' && args.path === 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId',
+      ),
+    ).toBe(false);
+  });
+
+  it('fails closed when a beta pad getter is unavailable or has a different parent', async () => {
+    for (const bad of [{ failPad: 'native-u3' }, { firstParent: 'different-component' }]) {
+      mockNativePlacementPads(bad);
+      const result = await run({ placementRelations: [placementPadPair] });
+      expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+        status: 'UNKNOWN',
+        evidence: 'unavailable',
+      });
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('reads only requested components in a complete inventory with unrelated placements', async () => {
+    mockNativePlacementPads({ extraUnrelatedComponent: true });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.input_evidence).toMatchObject({
+      native_total: 3,
+      returned_count: 3,
+      collection_complete: true,
+    });
+    expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'native_component_pads',
+      measured_pad_center_distance_mm: 2.54,
+    });
+    expect(
+      bridgeCall.mock.calls.filter(
+        ([method, args]) =>
+          method === 'api.read' && args.path === 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId',
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('discards all native pad evidence if the focused PCB changes after pad reads', async () => {
+    mockNativePlacementPads({ switchFocusAfterPads: true });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'unavailable',
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(result.errors.join(' ')).toContain('changed during pad inventory');
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('fails closed when native focus becomes unreadable during the post-read recheck', async () => {
+    mockNativePlacementPads({ throwOnFocusRecheck: true });
+    const result = await run({ placementRelations: [placementPadPair] });
+    expect(result.placement_review.findings[0].pad_pairs[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'unavailable',
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(result.errors.join(' ')).toContain('identity could not be verified');
+    expect(result.errors.join(' ')).toContain('native project focus no longer available');
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('validates second-component rotation provenance and reports native differences', async () => {
     const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
     const relation = {
