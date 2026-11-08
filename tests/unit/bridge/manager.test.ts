@@ -94,15 +94,19 @@ function sendHandshake(ws: WebSocket, overrides: Record<string, unknown> = {}): 
  * Uses loopback with a BRIDGE_TOKEN so token checks are active but pairing is skipped.
  */
 async function setupSecureConnection(extraConfig: Record<string, unknown> = {}) {
-  const port = await getFreePort();
+  // The sampled port is released before connect() listens. CI workers may
+  // claim it in that interval, so provide fallback candidates and connect
+  // to the actual bound port rather than assuming the first sample survived.
+  const portCandidates = await getFreePortCandidates();
   const config = createTestConfig({
     BRIDGE_HOST: '127.0.0.1',
-    BRIDGE_PORT_SCAN: String(port),
+    BRIDGE_PORT_SCAN: portCandidates,
     BRIDGE_TOKEN: 'test-secret-token',
     ...extraConfig,
   });
   const manager = new BridgeManager(config);
   await manager.connect();
+  const port = manager.activePort;
 
   const socket = await openSocket(port);
   // Send handshake with the correct token
@@ -1015,6 +1019,34 @@ describe('BridgeManager - call() round trip', () => {
       vi.useRealTimers();
       socket.close();
       manager.disconnect('test complete');
+    }
+  });
+
+  it('falls back to an actually bound bridge port when a concurrent process owns the first candidate', async () => {
+    const blockedPort = await getFreePort();
+    const blocker = createServer();
+    await new Promise<void>((resolve, reject) => {
+      blocker.once('error', reject);
+      blocker.listen(blockedPort, '127.0.0.1', resolve);
+    });
+
+    try {
+      const fallbackPorts = await getFreePortCandidates();
+      const { manager, socket, port } = await setupSecureConnection({
+        BRIDGE_PORT_SCAN: `${blockedPort},${fallbackPorts}`,
+      });
+      try {
+        expect(port).toBe(manager.activePort);
+        expect(port).not.toBe(blockedPort);
+        expect(manager.connected).toBe(true);
+      } finally {
+        socket.close();
+        manager.disconnect('test complete');
+      }
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        blocker.close((err) => (err ? reject(err) : resolve()));
+      });
     }
   });
 
