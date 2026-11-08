@@ -795,6 +795,14 @@ export function createSchematicTransactionOperations(
     return { primitiveId, snapshot: await getSchematicPrimitiveSnapshot(primitiveId) };
   }
 
+  function failUnverifiedMove(reason: string): never {
+    throw newBridgeError(
+      'MOVE_CONNECTIVITY_UNVERIFIED',
+      reason,
+      'Inspect the schematic before moving.',
+    );
+  }
+
   /** No mutation starts until the native pin inventory is complete. */
   async function getComponentPinCoordinates(primitiveId: string): Promise<SchematicPoint[]> {
     let pins: unknown;
@@ -808,18 +816,10 @@ export function createSchematicTransactionOperations(
       );
     } catch (error) {
       logRecoverableError(`failed to read pins for ${primitiveId}`, error);
-      throw newBridgeError(
-        'MOVE_CONNECTIVITY_UNVERIFIED',
-        'Cannot verify native pins; move refused.',
-        'Focus the schematic and retry.',
-      );
+      failUnverifiedMove('Cannot verify native pins; move refused.');
     }
     if (!Array.isArray(pins) || pins.length === 0) {
-      throw newBridgeError(
-        'MOVE_CONNECTIVITY_UNVERIFIED',
-        'Pin inventory incomplete; move refused.',
-        'Verify the component pins.',
-      );
+      failUnverifiedMove('Pin inventory incomplete; move refused.');
     }
     const points: SchematicPoint[] = [];
     for (const pin of pins) {
@@ -830,11 +830,7 @@ export function createSchematicTransactionOperations(
         !Number.isFinite(point.x) ||
         !Number.isFinite(point.y)
       ) {
-        throw newBridgeError(
-          'MOVE_CONNECTIVITY_UNVERIFIED',
-          'Pin coordinates unknown; move refused.',
-          'Inspect pin geometry in EasyEDA Pro.',
-        );
+        failUnverifiedMove('Pin coordinates unknown; move refused.');
       }
       points.push({ x: point.x, y: point.y });
     }
@@ -855,29 +851,17 @@ export function createSchematicTransactionOperations(
   ): Promise<void> {
     const wireApi = readFirstPath<any>(WIRE_CLASS_PATHS);
     if (!wireApi || typeof wireApi.getAll !== 'function') {
-      throw newBridgeError(
-        'MOVE_CONNECTIVITY_UNVERIFIED',
-        'Native wire API unavailable; move refused.',
-        'Inspect wires before moving.',
-      );
+      failUnverifiedMove('Native wire API unavailable; move refused.');
     }
     let wires: unknown;
     try {
       wires = await wireApi.getAll();
     } catch (error) {
       logRecoverableError('failed to preflight wires before a component move', error);
-      throw newBridgeError(
-        'MOVE_CONNECTIVITY_UNVERIFIED',
-        'Wire read failed; move refused.',
-        'Inspect connections and retry.',
-      );
+      failUnverifiedMove('Wire read failed; move refused.');
     }
     if (!Array.isArray(wires)) {
-      throw newBridgeError(
-        'MOVE_CONNECTIVITY_UNVERIFIED',
-        'Wire inventory incomplete; move refused.',
-        'Inspect wire inventory.',
-      );
+      failUnverifiedMove('Wire inventory incomplete; move refused.');
     }
     const candidatePinPoints = [
       ...oldPinPoints,
@@ -886,11 +870,7 @@ export function createSchematicTransactionOperations(
     for (const wire of wires) {
       const wirePoints = readWirePoints(safeGetState(wire, 'Line'));
       if (!wirePoints) {
-        throw newBridgeError(
-          'MOVE_CONNECTIVITY_UNVERIFIED',
-          'Wire geometry unknown; move refused.',
-          'Inspect wire geometry.',
-        );
+        failUnverifiedMove('Wire geometry unknown; move refused.');
       }
       if (
         candidatePinPoints.some((pin) =>
@@ -975,6 +955,12 @@ export function createSchematicTransactionOperations(
     }
 
     const { merged, oldX, oldY } = componentModificationProperties(current, property);
+    // Unknown native coordinates must not silently skip the connectivity preflight.
+    if (
+      (property.x !== undefined || property.y !== undefined) &&
+      (!Number.isFinite(oldX) || !Number.isFinite(oldY))
+    )
+      failUnverifiedMove('Component position or identity unavailable; move refused.');
     const moveOrigin = componentMoveOrigin(oldX, oldY, property);
     if (moveOrigin) {
       const pins = await getComponentPinCoordinates(primitiveId);
@@ -1140,6 +1126,9 @@ export function createSchematicTransactionOperations(
       if (attempt.handled) return attempt.value;
     }
 
+    // Do not bypass the component move guard through the untyped native fallback.
+    if (property.x !== undefined || property.y !== undefined)
+      failUnverifiedMove('Component position or identity unavailable; move refused.');
     return callFirst(
       [
         'SCH_PrimitiveComponent.modify',
