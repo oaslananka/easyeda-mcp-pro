@@ -320,6 +320,30 @@ describe('PCB constraint tools', () => {
     expect(data.mountingHoleCount).toBeUndefined();
   });
 
+  it('does not publish zero native canvas extents as a measured PCB size', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') return { widthMm: 0, heightMm: 40, hasOutline: true };
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return { totalLayers: 2, layers: [{ id: 1 }, { id: 2 }] };
+      if (method === 'board.getDesignRules') return { hasClearanceRules: true };
+      throw new Error('unexpected native read');
+    });
+    const native = await fetchBoardDataFromBridge(context, 'pcb-zero-canvas-extent');
+    expect(native.widthMm).toBeUndefined();
+    expect(native.heightMm).toBe(40);
+    const tool = registry.get('easyeda_pcb_production_review');
+    const result = await tool?.handler(context, {
+      projectId: 'pcb-zero-canvas-extent',
+      gateMode: 'warn',
+    });
+    expect(result?.passed).toBe(false);
+    expect(result?.unknown_checks).toContainEqual({
+      area: 'Board dimensions',
+      missingFields: ['widthMm'],
+    });
+    expect(result?.manufacturing_approval).toBeUndefined();
+  });
+
   it('does not manufacture a too-small drill warning from a zero native diameter', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'board.getDimensions')

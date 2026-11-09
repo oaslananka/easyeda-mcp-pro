@@ -621,6 +621,16 @@ const RULE_EVIDENCE: RuleEvidence[] = [
   {
     area: 'Board dimensions',
     fields: fields('widthMm', 'heightMm'),
+    // Zero canvas extents, negative and nonfinite values are not fabricated
+    // board measurements. Keep them UNKNOWN rather than counting a rule pass.
+    invalid: (i) =>
+      i.hasOutline === false
+        ? []
+        : (['widthMm', 'heightMm'] as const).filter(
+            (field) =>
+              i[field] !== undefined &&
+              (typeof i[field] !== 'number' || !Number.isFinite(i[field]) || i[field] <= 0),
+          ),
     skip: (i) => i.hasOutline === false,
   },
   { area: 'Layer stackup', fields: fields('hasLayerStack') },
