@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-11-08
+- **Last reviewed:** 2026-11-09
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.13.0               | 1.13.0                | 1.13.0            | Live validated  | 2026-11-09 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.2               | 1.11.2                | 1.11.2            | Live validated  | 2026-11-08 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.1               | 1.11.1                | 1.11.1            | Live validated  | 2026-11-08 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.0               | 1.11.0                | 1.11.0            | Live validated  | 2026-11-08 | 2027-02-06 |
@@ -66,6 +67,54 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-09-c660492-v1130-schematic-readonly
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-09-c660492-v1130-schematic-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-42-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.22.1`                                                          |
+| Validation package version               | `1.13.0`                                                           |
+| Fix version represented by evidence      | `1.13.0`                                                           |
+| Compatibility-sensitive base commit      | `c660492c4e4d025c4e526c38446fd4fc0339de29`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.13.0`                                                           |
+| Live-validated extension package SHA-256 | `0f92b24d0c96785bb7d290531a557361e8a4e4fa3f065fd0c9d60d28b4ab2e82` |
+| Live-validated extension package size    | `210950 bytes`                                                     |
+| Loader-reported version                  | `1.13.0`                                                           |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `d90e948009f55f20`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.13.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                                                    | Level  | Status    | Result                                                                                                                                                                                                                                                                                                         | Evidence                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------- | ------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact v1.13.0 release candidate imported, restarted, and native identity verified             | `live` | `passed`  | Official EasyEDA Pro 3.2.209 Half Offline Extension Manager installed the exact 210950-byte c660492 package, after full editor restart reported native bridge 1.13.0, 75 dispatcher methods, build dbb5dx5a9ex2c69 and method hash d90e948009f55f20, with no version mismatch.                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-09-ubuntu-24-04-easyeda-3.2.209-v1.13.0-c660492-native-smoke-readonly.json) |
+| Native project-bound six-call read-only smoke with valid scope and failure guard              | `live` | `passed`  | Actual native project UUID matched focused schematic parent. Six read-only calls all passed: status, API inventory, schematic nets, components, BOM and ERC. The initial incorrect display-name projectId caused two safe refusal responses before retesting with actual native UUID. No native write or save. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-09-ubuntu-24-04-easyeda-3.2.209-v1.13.0-c660492-native-smoke-readonly.json) |
+| Real source-matched runtime smoke does not establish PCB electrical or connected move signoff | `live` | `limited` | No PCB copper/return current continuity or connected schematic move/rotation acceptance was carried out on c660492; these remain UNKNOWN and their issues OPEN. No personal design modifications, manufacturing export, or vendor contact.                                                                     | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-09-ubuntu-24-04-easyeda-3.2.209-v1.13.0-c660492-native-smoke-readonly.json) |
+
+### Known limitations
+
+- Only 6 focused real read-only checks were run: system status, API inventory, schematic net/component lists, BOM and ERC. No full behavioral validation of all 75 dispatcher methods.
+- BOM generation and ERC commands returned structured non-error evidence, not an independent sign-off of device, datasheet, connectivity, power quality or DRC correctness.
+- #842 PCB copper/pour/via/pad electrical continuity and actual current-return path remain UNKNOWN; no electrical signoff or manufacturer-ready verdict.
+- #844 device-specific signed datasheet mapping and comprehensive ERC correctness remain OPEN.
+- #945 topology-preserving move/rotation of connected components remains unsupported and OPEN. No native mutation, save, design change or rollback exercised.
+- One Ubuntu 24.04.5 x64 EasyEDA Pro 3.2.209 desktop profile; no real EasyEDA Windows/macOS GUI acceptance. Installed package byte read-back from EasyEDA storage was not independently verified.
+- Source-matched c660492 (PR #964) runtime evidence does not automatically apply to future code changes in compatibility-sensitive paths. Required release CI and publish gates remain independent.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-d52ba9a-native-pad-readonly
 

@@ -1,8 +1,101 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-08",
+  "lastReviewed": "2026-11-09",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-09-c660492-v1130-schematic-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-11-09T00:52:35.725Z",
+      "reviewBy": "2027-02-06",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Verified from the same isolated desktop EasyEDA runtime process launch log."
+      },
+      "server": {
+        "validationPackageVersion": "1.13.0",
+        "releaseContainingFixes": "1.13.0",
+        "commit": "c660492c4e4d025c4e526c38446fd4fc0339de29",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "fe5ee8dce7ab0de1afcf12a0f130ebddcb41e417",
+            "src/bridge": "3eda47dae97ada62470939bffd29db5f754ca7d3",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "b4366066ca94c3481575d2fa3b4b0df40da92487",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.13.0",
+        "loaderReportedVersion": "1.13.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "d90e948009f55f20",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "dbb5dx5a9ex2c69",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "0f92b24d0c96785bb7d290531a557361e8a4e4fa3f065fd0c9d60d28b4ab2e82",
+        "packageSizeBytes": 210950
+      },
+      "fixture": {
+        "project": "Owner-controlled local isolated disposable Z480 example; project/document UUIDs and local paths withheld",
+        "schematic": "Focused schematic page, native project and document parent UUIDs cross-checked",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1130-c660492-installed-handshake",
+          "name": "Exact v1.13.0 release candidate imported, restarted, and native identity verified",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Official EasyEDA Pro 3.2.209 Half Offline Extension Manager installed the exact 210950-byte c660492 package, after full editor restart reported native bridge 1.13.0, 75 dispatcher methods, build dbb5dx5a9ex2c69 and method hash d90e948009f55f20, with no version mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-09-ubuntu-24-04-easyeda-3.2.209-v1.13.0-c660492-native-smoke-readonly.json"
+          ]
+        },
+        {
+          "id": "v1130-c660492-disposable-native-smoke-readonly",
+          "name": "Native project-bound six-call read-only smoke with valid scope and failure guard",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Actual native project UUID matched focused schematic parent. Six read-only calls all passed: status, API inventory, schematic nets, components, BOM and ERC. The initial incorrect display-name projectId caused two safe refusal responses before retesting with actual native UUID. No native write or save.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-09-ubuntu-24-04-easyeda-3.2.209-v1.13.0-c660492-native-smoke-readonly.json"
+          ]
+        },
+        {
+          "id": "v1130-c660492-engineering-acceptance-limits",
+          "name": "Real source-matched runtime smoke does not establish PCB electrical or connected move signoff",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "No PCB copper/return current continuity or connected schematic move/rotation acceptance was carried out on c660492; these remain UNKNOWN and their issues OPEN. No personal design modifications, manufacturing export, or vendor contact.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-09-ubuntu-24-04-easyeda-3.2.209-v1.13.0-c660492-native-smoke-readonly.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Only 6 focused real read-only checks were run: system status, API inventory, schematic net/component lists, BOM and ERC. No full behavioral validation of all 75 dispatcher methods.",
+        "BOM generation and ERC commands returned structured non-error evidence, not an independent sign-off of device, datasheet, connectivity, power quality or DRC correctness.",
+        "#842 PCB copper/pour/via/pad electrical continuity and actual current-return path remain UNKNOWN; no electrical signoff or manufacturer-ready verdict.",
+        "#844 device-specific signed datasheet mapping and comprehensive ERC correctness remain OPEN.",
+        "#945 topology-preserving move/rotation of connected components remains unsupported and OPEN. No native mutation, save, design change or rollback exercised.",
+        "One Ubuntu 24.04.5 x64 EasyEDA Pro 3.2.209 desktop profile; no real EasyEDA Windows/macOS GUI acceptance. Installed package byte read-back from EasyEDA storage was not independently verified.",
+        "Source-matched c660492 (PR #964) runtime evidence does not automatically apply to future code changes in compatibility-sensitive paths. Required release CI and publish gates remain independent."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-08-d52ba9a-native-pad-readonly",
       "status": "live-validated",
