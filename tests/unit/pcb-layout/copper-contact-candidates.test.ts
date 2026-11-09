@@ -259,6 +259,69 @@ describe('read-only native copper pad center candidates', () => {
     expect(onlyStrokes.pads.every((pad) => pad.status === 'UNKNOWN')).toBe(true);
   });
 
+  it('counts source-frame stroke-to-declared-hole-boundary overlap candidates without electrical signoff', () => {
+    const solid = {
+      fill: true,
+      lineWidth: 0,
+      path: {
+        complexPolygon: [rectangle[0], [40, 40, 'L', 60, 40, 60, 60, 40, 60]],
+      },
+    };
+    const stroke = (coordinates: unknown[], width = 1) => ({
+      fill: false,
+      lineWidth: width,
+      path: { complexPolygon: [coordinates] },
+    });
+    const inputs = [
+      stroke([50, 50, 'L', 40.39, 50]),
+      stroke([50, 50, 'L', 59.61, 50]),
+      stroke([50, 50, 'L', 50, 40.39]),
+      stroke([50, 50, 'L', 50, 59.61]),
+      stroke([50, 50, 'L', 41.1, 50]),
+      stroke([10, 10, 'L', 0.1, 10]),
+      stroke([50, 50, 'ARC', 90, 40.39, 50]),
+    ];
+    const result = review({ pouredRegions: [solid, ...inputs], transform: undefined });
+    expect(result.strokedRegionCount).toBe(7);
+    expect(result.strokeFillBoundaryCandidateCount).toBe(4);
+    expect(result.diagnostics).toContain('NATIVE_STROKE_FILL_BOUNDARY_CANDIDATE_ONLY');
+    expect(result.diagnostics).toContain('UNVERIFIED_COORDINATE_TRANSFORM');
+    expect(result.diagnostics).toContain('NATIVE_STROKE_GEOMETRY_NOT_SCREENED');
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+
+    const curvedHole = [40, 50, 'ARC', 180, 60, 50, 'ARC', 180, 40, 50];
+    expect(
+      review({
+        pouredRegions: [
+          { fill: true, lineWidth: 0, path: { complexPolygon: [rectangle[0], curvedHole] } },
+          stroke([50, 50, 'L', 59.61, 50]),
+        ],
+      }).strokeFillBoundaryCandidateCount,
+    ).toBe(1);
+
+    expect(
+      review({ pouredRegions: [solid, stroke([50, 50, 'L', 40.39, 50], 0.1)] })
+        .strokeFillBoundaryCandidateCount,
+    ).toBe(0);
+    expect(
+      review({ pouredRegions: [solid, stroke([50, 50, 'L', 40.39, 50], 1)], pourLayer: -1 })
+        .strokeFillBoundaryCandidateCount,
+    ).toBe(0);
+    expect(
+      review({ pouredRegions: [solid, solid, stroke([50, 50, 'L', 40.39, 50], 1)] })
+        .strokeFillBoundaryCandidateCount,
+    ).toBe(0);
+    expect(
+      review({
+        pouredRegions: [
+          { fill: true, path: { complexPolygon: rectangle } },
+          stroke([50, 50, 'L', 40.39, 50], 1),
+        ],
+      }).strokeFillBoundaryCandidateCount,
+    ).toBe(0);
+  });
+
   it('rejects duplicate native pad IDs and impossible copper layer identities', () => {
     const duplicates = review({ pads: [pad('same', 20, -20), pad('same', 30, -30)] });
     expect(duplicates.candidates).toEqual([]);
