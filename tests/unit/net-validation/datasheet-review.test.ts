@@ -284,6 +284,36 @@ describe('datasheet provenance-bound ERC observations', () => {
     expect(result.findings[0]?.nets).toEqual([]);
   });
 
+  it('keeps unrelated repeated identical native symbols from hiding an exact pin mismatch', () => {
+    // The disposable EasyEDA Pro schematic can return two source records for
+    // the same U3 designator. Both are ambiguous when U3 is reviewed, but a
+    // uniquely identified U1 pin must remain independently reviewable.
+    const repeatedUnrelated: DeviceValidationEntry[] = [
+      ...devices,
+      { id: 'U3', ref: 'U3', pins: [{ pin: '1', electricalType: 'passive' }] },
+      { id: 'U3', ref: 'U3', pins: [{ pin: '2', electricalType: 'passive' }] },
+    ];
+    const targetConstraint = fixtures[0]!.constraint;
+    const target = reviewDatasheetConstraints([targetConstraint], nets, repeatedUnrelated);
+    expect(target.findings[0]).toMatchObject({
+      status: 'WARNING',
+      evidence: 'explicit_netlist',
+      component_ref: 'U1',
+    });
+    expect(target.engineering_sign_off).toBe(false);
+
+    const ambiguous = reviewDatasheetConstraints(
+      [{ ...targetConstraint, componentRef: 'U3', pin: '1' }],
+      [{ id: 'only', name: 'U3_NET', type: 'signal', nodes: [{ deviceRef: 'U3', pin: '1' }] }],
+      repeatedUnrelated,
+    );
+    expect(ambiguous.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      evidence: 'incomplete_or_ambiguous',
+    });
+    expect(ambiguous.engineering_sign_off).toBe(false);
+  });
+
   it('rejects global native device ID collisions and unrelated duplicate net identifiers', () => {
     const c = fixtures[0]!.constraint;
     const poisonedDevices: DeviceValidationEntry[] = [
@@ -301,6 +331,7 @@ describe('datasheet provenance-bound ERC observations', () => {
       [[...nets, unrelated], devices],
       [[...nets, { ...unrelated, id: 'aux', name: '  AUX  ' }], devices],
       [nets, [...devices, { id: ' J9 ', ref: 'J9' }]],
+      [nets, [...devices, { id: 'J9', ref: 'J9' }, { id: 'J9_ALT', ref: 'J9' }]],
     ] as const) {
       const result = reviewDatasheetConstraints([c], inventory, componentInventory);
       expect(result.findings[0]).toMatchObject({
