@@ -215,13 +215,19 @@ function validBoardMeasurement(rule: Rule, value: unknown): value is number {
   return validReportedScalar(value, rule.units);
 }
 
+function validProcessLimit(rule: Rule, limit: number): boolean {
+  // Zero millimetres is not a usable fabrication capability. For count
+  // requirements, zero still means a legitimate optional feature.
+  return validReportedScalar(limit, rule.units) && (rule.units !== 'mm' || limit > 0);
+}
+
 function compareNumeric(
   rule: Rule,
   limit: number,
   data: PcbConstraintInput,
   source: ManufacturingProfileReview['input_evidence'],
 ): ProfileComparison {
-  const validLimit = validReportedScalar(limit, rule.units);
+  const validLimit = validProcessLimit(rule, limit);
   const candidate = data[rule.field];
   // A board with an explicitly absent outline has no verified board-size
   // boundary. Do not compare a canvas/extents width or height against a

@@ -126,6 +126,64 @@ describe('versioned manufacturer process observations (not fabrication approval)
     }
   });
 
+  it('does not issue a fabricated process verdict from zero millimetre limits', () => {
+    const invalidMillimetreLimits = [
+      ['maximumBoardWidthMm', 'widthMm', 60],
+      ['maximumBoardHeightMm', 'heightMm', 40],
+      ['minimumFinishedDrillMm', 'minDrillMm', 0.3],
+      ['minimumTraceWidthMm', 'minObservedTraceWidthMm', 0.2],
+      ['minimumCopperEdgeMm', 'minCopperToEdgeMm', 0.4],
+    ] as const;
+    for (const [limitName, sourceName, actual] of invalidMillimetreLimits) {
+      const profile = { ...ref, limits: { [limitName]: 0 } };
+      const data = { [sourceName]: actual, hasOutline: true };
+      for (const source of ['native_partial_unverified', 'caller_supplied_unverified'] as const) {
+        const review = reviewManufacturerProfile(profile, data, source);
+        expect(review.findings).toEqual([
+          expect.objectContaining({
+            id: limitName,
+            status: 'UNKNOWN',
+            comparison: 'UNKNOWN',
+            declared_limit: 0,
+            reason: expect.stringContaining('invalid'),
+          }),
+        ]);
+        expect(review.fabrication_approval).toBe(false);
+      }
+    }
+
+    // A process may legitimately require zero optional assembly fixtures.
+    const count = reviewManufacturerProfile(
+      { ...ref, limits: { minimumToolingHoleCount: 0 } },
+      { toolingHoleCount: 0 },
+      'caller_supplied_unverified',
+    );
+    expect(count.findings[0]).toMatchObject({
+      id: 'minimumToolingHoleCount',
+      comparison: 'WITHIN_DECLARED_LIMIT',
+      status: 'UNKNOWN',
+      actual: 0,
+    });
+
+    const positive = reviewManufacturerProfile(
+      { ...ref, limits: { maximumBoardWidthMm: 80, minimumFinishedDrillMm: 0.2 } },
+      { widthMm: 90, hasOutline: true, minDrillMm: 0.15 },
+      'caller_supplied_unverified',
+    );
+    expect(positive.findings).toEqual([
+      expect.objectContaining({
+        id: 'minimumFinishedDrillMm',
+        comparison: 'BELOW_DECLARED_LIMIT',
+        status: 'WARNING',
+      }),
+      expect.objectContaining({
+        id: 'maximumBoardWidthMm',
+        comparison: 'ABOVE_DECLARED_LIMIT',
+        status: 'WARNING',
+      }),
+    ]);
+  });
+
   it('does not call zero-sized board dimensions within a declared fabrication maximum', () => {
     const profile = { ...ref, limits: { maximumBoardWidthMm: 80, maximumBoardHeightMm: 60 } };
     for (const source of ['caller_supplied_unverified', 'native_partial_unverified'] as const) {
