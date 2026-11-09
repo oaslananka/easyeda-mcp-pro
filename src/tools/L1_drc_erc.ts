@@ -55,7 +55,12 @@ function mapSemanticIssue(issue: NetValidationIssue) {
 async function extractLiveSemanticNetlist(
   ctx: ToolContext,
   projectId: string,
-): Promise<{ nets: NetValidationEntry[]; devices: DeviceValidationEntry[] }> {
+): Promise<{
+  nets: NetValidationEntry[];
+  devices: DeviceValidationEntry[];
+  pinReadFailures: number;
+  componentInventoryComplete: boolean;
+}> {
   const netsResult = (await ctx.bridge.call('schematic.listNets', { projectId })) as Array<{
     netName?: string;
     nodes?: Array<{ component?: string; pin?: string }>;
@@ -64,9 +69,14 @@ async function extractLiveSemanticNetlist(
     projectId,
     limit: 500,
     offset: 0,
-  })) as { items?: Array<{ primitiveId?: string; reference?: string }> };
+  })) as { total?: number; items?: Array<{ primitiveId?: string; reference?: string }> };
   const components = compsResult?.items ?? [];
+  const componentInventoryComplete =
+    typeof compsResult?.total === 'number'
+      ? compsResult.total === components.length
+      : components.length < 500;
 
+  let pinReadFailures = 0;
   const devices: DeviceValidationEntry[] = [];
   for (const c of components) {
     if (!c.primitiveId || !c.reference) continue;
@@ -74,8 +84,10 @@ async function extractLiveSemanticNetlist(
     try {
       pins = await fetchComponentPins(ctx, c.primitiveId);
     } catch {
-      continue; // best-effort; skip components whose pins can't be read live
+      pinReadFailures++;
+      continue; // ordinary inferred ERC still runs best-effort
     }
+    if (pins.length === 0) pinReadFailures++;
     const devicePins: PinValidationMetadata[] = pins.map((p) => ({
       pin: p.pinNumber,
       name: p.pinName,
@@ -94,7 +106,7 @@ async function extractLiveSemanticNetlist(
     })),
   }));
 
-  return { nets, devices };
+  return { nets, devices, pinReadFailures, componentInventoryComplete };
 }
 
 function registerDrcErcTools(
@@ -476,7 +488,10 @@ function registerDrcErcTools(
   const datasheetReviewSchema = z.object({
     status: z.enum(['WARNING', 'UNKNOWN']),
     source_authenticity: z.literal('CALLER_DECLARED_UNVERIFIED'),
-    netlist_scope: z.literal('CALLER_SUPPLIED_NOT_LIVE_VERIFIED'),
+    netlist_scope: z.enum([
+      'CALLER_SUPPLIED_NOT_LIVE_VERIFIED',
+      'LIVE_BRIDGE_READ_NOT_INDEPENDENTLY_VERIFIED',
+    ]),
     finding_count: z.number().int().nonnegative(),
     findings: z.array(
       z.object({
@@ -546,6 +561,25 @@ function registerDrcErcTools(
       });
     });
 
+  const semanticAutoSchema = z
+    .object({
+      projectId: z.string(),
+      datasheetConstraints: z.array(datasheetConstraintSchema).min(1).max(24).optional(),
+    })
+    .superRefine((input, ctx) => {
+      // Apply the same cross-field constraints as manual ERC.
+      const checked = semanticValidateSchema.safeParse({
+        projectId: input.projectId,
+        nets: [],
+        datasheetConstraints: input.datasheetConstraints,
+      });
+      if (!checked.success) {
+        for (const issue of checked.error.issues) {
+          ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message });
+        }
+      }
+    });
+
   registry.register({
     name: 'easyeda_semantic_erc_validate',
     title: 'Run semantic ERC validation',
@@ -609,23 +643,19 @@ function registerDrcErcTools(
     name: 'easyeda_semantic_erc_auto',
     title: 'Auto-extract netlist and run semantic ERC',
     description:
-      'Extract nets/devices/pins from the LIVE schematic and run semantic ERC — no hand-authored ' +
-      'netlist needed. Net/pin electrical types are INFERRED from naming conventions, not ' +
-      'verified — treat findings as a first-pass signal, not a substitute for semantic_erc_validate.',
+      'Read LIVE nets, devices and pins for semantic ERC. Optional caller-declared datasheet rules compare pin/net identity without source authentication or circuit approval. Pin types remain inferred; incomplete inventories block datasheet review.',
     profile: 'core',
     evidence: ['inferred', 'runtime-probe'],
     risk: 'low',
     confirmWrite: false,
     group: 'drc-erc',
-    version: '1.0.0',
+    version: '1.1.0',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
     },
-    inputSchema: z.object({
-      projectId: z.string(),
-    }),
+    inputSchema: semanticAutoSchema,
     outputSchema: z.object({
       project_id: z.string(),
       passed: z.boolean(),
@@ -636,19 +666,50 @@ function registerDrcErcTools(
       warnings: z.array(semanticIssueSchema),
       inferred_net_count: z.number().int().nonnegative(),
       inferred_device_count: z.number().int().nonnegative(),
+      datasheet_review: datasheetReviewSchema.optional(),
+      electrical_approval: z.literal(false).optional(),
       not_available: z.boolean().optional(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId } = params as { projectId: string };
+      const { projectId, datasheetConstraints } = semanticAutoSchema.parse(params);
       try {
-        const { nets, devices } = await extractLiveSemanticNetlist(ctx, projectId);
+        const { nets, devices, pinReadFailures, componentInventoryComplete } =
+          await extractLiveSemanticNetlist(ctx, projectId);
+        if (
+          datasheetConstraints !== undefined &&
+          (pinReadFailures > 0 || !componentInventoryComplete)
+        ) {
+          throw new Error(
+            'Live schematic component or pin inventory incomplete; no datasheet review.',
+          );
+        }
         const result = validateNets({ nets, devices });
         const errors = result.errors.map(mapSemanticIssue);
         const warnings = result.warnings.map(mapSemanticIssue);
+        const review =
+          datasheetConstraints === undefined
+            ? undefined
+            : reviewDatasheetConstraints(datasheetConstraints, nets, devices);
+        const datasheet =
+          review === undefined
+            ? undefined
+            : {
+                ...review,
+                netlist_scope: 'LIVE_BRIDGE_READ_NOT_INDEPENDENTLY_VERIFIED' as const,
+                limitations: [
+                  ...review.limitations.map((message) =>
+                    message.replace(
+                      'Caller-supplied device and pin inventories',
+                      'Live-extracted device and pin inventories',
+                    ),
+                  ),
+                  'Live bridge data is not an independent electrical/netlist verification, even when all components are readable.',
+                ],
+              };
         return {
           project_id: projectId,
-          passed: result.valid,
+          passed: result.valid && (datasheet === undefined || datasheet.status !== 'WARNING'),
           error_count: errors.length,
           warning_count: warnings.length,
           total_issues: errors.length + warnings.length,
@@ -656,6 +717,9 @@ function registerDrcErcTools(
           warnings,
           inferred_net_count: nets.length,
           inferred_device_count: devices.length,
+          ...(datasheet === undefined
+            ? {}
+            : { datasheet_review: datasheet, electrical_approval: false }),
         };
       } catch (err) {
         return {
@@ -668,6 +732,7 @@ function registerDrcErcTools(
           warnings: [],
           inferred_net_count: 0,
           inferred_device_count: 0,
+          ...(datasheetConstraints === undefined ? {} : { electrical_approval: false }),
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
         };

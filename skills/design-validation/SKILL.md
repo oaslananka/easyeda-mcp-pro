@@ -45,10 +45,14 @@ focused document → exact component/datasheet → schematic/ERC → power and
 placement → routed PCB/DRC → source-versioned DFM/DFT → documented human
 review. Select only requested phases; do not load unrelated standard catalogs.
 
-- The existing `easyeda_semantic_erc_validate` can accept caller-declared
-  `datasheetConstraints` for exact part/package/revision and pin/rail evidence.
-  Native ERC is aggregate; the declared review is neither a live EasyEDA
-  readback nor independent datasheet authentication.
+- Both read-only semantic ERC tools accept optional caller-declared
+  datasheetConstraints for exact part/package/revision pin/rail checks.
+  Prefer easyeda_semantic_erc_auto with the focused live schematic: it
+  extracts nets/pins itself, without manual netlist assembly, and reports
+  LIVE_BRIDGE_READ_NOT_INDEPENDENTLY_VERIFIED scope. Incomplete native pin
+  enumeration or component paging makes a datasheet request unavailable,
+  rather than clean. Use easyeda_semantic_erc_validate for caller-provided
+  netlists. Neither tool authenticates a datasheet or approves the circuit.
 - `easyeda_design_rules_lookup` has on-demand `trace-current-review`,
   `protocol-routing`, `decoupling`, `dfm-checklist` and
   `isolation-emc-review` topics; distinguish guidance from measured facts.
@@ -74,7 +78,7 @@ review. Select only requested phases; do not load unrelated standard catalogs.
 ### Schematic validation
 
 - `easyeda_erc_run` — native ERC is coarse (per-severity aggregate counts only, e.g. "1 warning"); it does not natively report which pin/net/component is affected. This tool supplements it with `inferred_floating_pins`/`detail_source` (best-effort, located via netlist inference) — treat `detail_source: 'native_aggregate_only'` as a signal that no itemized detail is available for that run.
-- `easyeda_semantic_erc_auto` — extracts nets/devices/pins from the _live_ schematic and runs semantic ERC without a hand-authored netlist. Electrical types are inferred from pin/net naming conventions, not verified against EasyEDA's own metadata (which is unreliably populated — a passive part's pins can report a native type like "IN"). Prefer this over `easyeda_semantic_erc_validate` when the goal is validating what's actually drawn, not a hypothetical netlist.
+- `easyeda_semantic_erc_auto` — extracts nets/devices/pins from the _live_ schematic and runs semantic ERC without a hand-authored netlist. Electrical types are inferred from pin/net naming conventions, not verified against EasyEDA's own metadata (which is unreliably populated — a passive part's pins can report a native type like "IN"). Prefer this over `easyeda_semantic_erc_validate` when the goal is validating what's actually drawn, not a hypothetical netlist. Optional source-declared datasheetConstraints use live net/pin evidence without authenticating datasheets; incomplete native inventories fail closed.
 - `easyeda_semantic_erc_validate` — same rule engine as `..._auto`, but takes a fully hand-authored `nets`/`devices` structure. Use when the schematic isn't drawn yet, or when inferred classification isn't trustworthy enough for the check being run.
 - `easyeda_schematic_validate_netlist`
 - `easyeda_schematic_verify_write`
