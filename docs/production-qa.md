@@ -97,3 +97,42 @@ Example policy:
 ```
 
 If a required QA role is missing, export manifest validation fails before the package is considered complete.
+
+## Manual 3D enclosure and assembly review (EasyEDA Pro 3.2.209)
+
+**Before ordering or marking a PCB assembly review complete**, open the **focused PCB**
+inside EasyEDA Pro and select **View → 3D Preview**. The official editor also
+provides **Tools → 3D Model Manager** to inspect component-model bindings.
+This is a **manual checkpoint**, not a capability of
+`easyeda_production_qa_artifacts`, `easyeda_canvas_capture` or a generated
+fabrication manifest. A 2D Component Shape layer image cannot establish 3D
+body dimensions or enclosure clearance.
+
+1. Check the **top and bottom** of the board, and identify components that have
+   no model or an obviously mismatched model, transform or mounting side.
+2. Compare actual component body heights, connector mating/cable exit directions,
+   fastener/keepout clearances and any enclosure constraints against the
+   **appropriate manufacturer mechanical drawing**. Inspect relevant viewing
+   angles; an attractive 3D rendering alone is not dimensional evidence.
+3. Record the **board revision, EasyEDA version, model identities/revisions**,
+   source drawing pages, reviewer, and results. A missing model, unverified
+   mounting offset or unavailable enclosure model remains **UNKNOWN / needs
+   review**, never `pass`.
+4. Do not mark the mechanical or assembly checklist approved until a human
+   reviewer has resolved the applicable unknowns. Keep the generated QA
+   manifest's `passed` value separate from human mechanical/fabrication sign-off.
+
+### Why there is no automatic 3D capture claim
+
+The [official 3D Preview guide](https://prodocs.easyeda.com/en/pcb/view-preview-3d/)
+describes the editor's manual 3D workflow. Current extension documentation also
+lists `PCB_RayTracerEngine` methods including `exportImage()` and
+`getSceneElements()`, but marks them **BETA**; its documented scene elements
+contain an ID, name and transform, **not independently verified body bounds**.
+The [official ray-tracing API reference](https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_raytracerengine.html)
+does not establish a stable, available 3D capture or per-component height
+contract on supported **EasyEDA Pro 3.2.209**. It must not be silently used as a
+production feature. Until a compatible stable API is available and validated on
+an actual disposable PCB, automatic 3D collision/height/side checks remain
+**not available**. Track the missing capability in
+[issue #931](https://github.com/oaslananka/easyeda-mcp-pro/issues/931).

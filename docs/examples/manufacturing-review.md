@@ -12,9 +12,11 @@ graph TD
     B --> C{Any violations?}
     C -- Yes --> D[Examine violations and report to user]
     C -- No --> E[Verify Board Features easyeda_board_features]
-    E --> F[Export Gerbers easyeda_export_gerbers]
-    F --> G[Generate BOM easyeda_bom_generate]
-    G --> H[Final Package Ready]
+    E --> F{Manual 3D and enclosure review complete?}
+    F -- No --> G[Record UNKNOWN and hold handoff]
+    F -- Yes --> H[Export Gerbers easyeda_export_gerbers]
+    H --> I[Generate BOM easyeda_bom_generate]
+    I --> J[Package for human sign-off]
 ```
 
 ---
@@ -54,7 +56,21 @@ Before exporting, verify that board stackups and mounting holes match manufactur
 
 ---
 
-## 3. Export Fabrication Files
+## 3. Inspect the PCB in 3D (human checkpoint)
+
+Open the focused PCB in EasyEDA Pro and select **View → 3D Preview**. Verify
+both board sides, actual bound component models, body height and connector
+or enclosure clearance using the relevant manufacturer drawings. Missing
+models or unmeasured mechanical constraints are **UNKNOWN**, not a passed
+check. Follow the [manual 3D enclosure and assembly review](../production-qa.md).
+
+The current MCP canvas capture is **2D only**; it must not be reported as a
+verified 3D collision or enclosure-fit analysis. Resolve the unknowns before
+manufacturing handoff.
+
+---
+
+## 4. Export Fabrication Files
 
 Once checks pass, export the production deliverables:
 
