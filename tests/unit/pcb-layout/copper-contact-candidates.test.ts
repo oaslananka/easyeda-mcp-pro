@@ -233,6 +233,32 @@ describe('read-only native copper pad center candidates', () => {
     expect(result.diagnostics).toContain('UNSUPPORTED_POLYGON_SOURCE');
   });
 
+  it('reports unreviewed native stroke regions without implying electrical contact', () => {
+    const region = { fill: true, lineWidth: 0, path: { complexPolygon: rectangle } };
+    const nativeStrokes = Array.from({ length: 73 }, (_, index) => ({
+      fill: false,
+      lineWidth: 1,
+      path: { complexPolygon: [[index + 1, 0, 'L', index + 2, 0]] },
+    }));
+    const result = review({ pouredRegions: [region, ...nativeStrokes] });
+    expect(result.filledRegionCount).toBe(1);
+    expect(result.strokedRegionCount).toBe(73);
+    expect(result.diagnostics).toContain('NATIVE_STROKE_GEOMETRY_NOT_SCREENED');
+    expect(result.overall_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+    expect(
+      result.candidates.every((candidate) => candidate.reason === 'NOT_ELECTRICAL_CONTACT_PROOF'),
+    ).toBe(true);
+
+    const onlyStrokes = review({ pouredRegions: nativeStrokes });
+    expect(onlyStrokes.strokedRegionCount).toBe(73);
+    expect(onlyStrokes.filledRegionCount).toBe(0);
+    expect(onlyStrokes.diagnostics).toContain('NO_NATIVE_FILLED_REGIONS');
+    expect(onlyStrokes.diagnostics).toContain('NATIVE_STROKE_GEOMETRY_NOT_SCREENED');
+    expect(onlyStrokes.candidates).toEqual([]);
+    expect(onlyStrokes.pads.every((pad) => pad.status === 'UNKNOWN')).toBe(true);
+  });
+
   it('rejects duplicate native pad IDs and impossible copper layer identities', () => {
     const duplicates = review({ pads: [pad('same', 20, -20), pad('same', 30, -30)] });
     expect(duplicates.candidates).toEqual([]);
