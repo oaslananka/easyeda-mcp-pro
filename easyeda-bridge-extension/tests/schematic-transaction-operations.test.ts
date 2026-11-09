@@ -1219,6 +1219,29 @@ describe('schematic transaction operations', () => {
     });
   });
 
+  it.each([
+    ['rotate', { rotation: 90 }],
+    ['mirror', { mirror: true }],
+  ])(
+    'refuses #945 untyped %s when component identity cannot be verified',
+    async (_action, property) => {
+      const nativeModify = vi.fn(async () => true);
+      const { operations, callFirst } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue(undefined),
+          modify: nativeModify,
+        },
+      });
+      callFirst.mockResolvedValue({ fallback: true });
+
+      await expect(operations.modifyPrimitive('cmp-1', property)).rejects.toMatchObject({
+        code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      });
+      expect(callFirst).not.toHaveBeenCalled();
+      expect(nativeModify).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(['missing', 'throwing'])(
     'refuses a component coordinate update when the native owner getter is %s',
     async (condition) => {
