@@ -126,6 +126,44 @@ describe('versioned manufacturer process observations (not fabrication approval)
     }
   });
 
+  it('does not call zero-sized board dimensions within a declared fabrication maximum', () => {
+    const profile = { ...ref, limits: { maximumBoardWidthMm: 80, maximumBoardHeightMm: 60 } };
+    for (const source of ['caller_supplied_unverified', 'native_partial_unverified'] as const) {
+      const zero = reviewManufacturerProfile(
+        profile,
+        { widthMm: 0, heightMm: 0, hasOutline: true },
+        source,
+      );
+      expect(zero.findings).toEqual([
+        expect.objectContaining({
+          id: 'maximumBoardWidthMm',
+          comparison: 'UNKNOWN',
+          status: 'UNKNOWN',
+          measurement_evidence: 'unavailable',
+        }),
+        expect.objectContaining({
+          id: 'maximumBoardHeightMm',
+          comparison: 'UNKNOWN',
+          status: 'UNKNOWN',
+          measurement_evidence: 'unavailable',
+        }),
+      ]);
+      expect(zero.findings.every((finding) => finding.actual === undefined)).toBe(true);
+      expect(zero.fabrication_approval).toBe(false);
+      expect(zero.manual_review_required).toBe(true);
+    }
+    const valid = reviewManufacturerProfile(
+      profile,
+      { widthMm: 50, heightMm: 40, hasOutline: true },
+      'caller_supplied_unverified',
+    );
+    expect(valid.findings.map((finding) => finding.comparison)).toEqual([
+      'WITHIN_DECLARED_LIMIT',
+      'WITHIN_DECLARED_LIMIT',
+    ]);
+    expect(valid.fabrication_approval).toBe(false);
+  });
+
   it('compares caller-sourced trace width and signed copper gap without a fabricated DFM pass', () => {
     const profile = {
       ...ref,

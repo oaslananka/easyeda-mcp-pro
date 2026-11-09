@@ -202,6 +202,9 @@ function missingOutlineForBoardSize(
 
 function validBoardMeasurement(rule: Rule, value: unknown): value is number {
   if (typeof value !== 'number') return false;
+  // A manufactured board cannot have a zero-width or zero-height outline.
+  // Do not mistake a missing-size sentinel for a value within a factory maximum.
+  if ((rule.field === 'widthMm' || rule.field === 'heightMm') && value <= 0) return false;
   // Signed gaps distinguish copper overlap from missing geometry. The
   // manufacturer minimum itself must remain a positive declared limit.
   if (rule.id === 'minimumTrackGapMm') return Number.isFinite(value) && Math.abs(value) <= 10_000;
