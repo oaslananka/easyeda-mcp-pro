@@ -164,6 +164,31 @@ describe('versioned manufacturer process observations (not fabrication approval)
     expect(valid.fabrication_approval).toBe(false);
   });
 
+  it('does not infer a drilled hole or factory violation from a zero diameter sentinel', () => {
+    const profile = { ...ref, limits: { minimumFinishedDrillMm: 0.2 } };
+    for (const source of ['native_partial_unverified', 'caller_supplied_unverified'] as const) {
+      const report = reviewManufacturerProfile(profile, { minDrillMm: 0 }, source);
+      expect(report.findings[0]).toMatchObject({
+        id: 'minimumFinishedDrillMm',
+        status: 'UNKNOWN',
+        comparison: 'UNKNOWN',
+        measurement_evidence: 'unavailable',
+      });
+      expect(report.findings[0]).not.toHaveProperty('actual');
+      expect(report.fabrication_approval).toBe(false);
+    }
+    const measured = reviewManufacturerProfile(
+      profile,
+      { minDrillMm: 0.1 },
+      'native_partial_unverified',
+    );
+    expect(measured.findings[0]).toMatchObject({
+      status: 'WARNING',
+      comparison: 'BELOW_DECLARED_LIMIT',
+      actual: 0.1,
+    });
+  });
+
   it('compares caller-sourced trace width and signed copper gap without a fabricated DFM pass', () => {
     const profile = {
       ...ref,
