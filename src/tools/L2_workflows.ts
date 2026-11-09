@@ -810,6 +810,16 @@ async function runWorkflow(
 ) {
   const plan = planWorkflowBlock(input, transactionPrefix);
   extraIssues(plan);
+  for (const component of input.components ?? []) {
+    if (!component.subPartName) continue;
+    pushIssue(plan, {
+      code: 'SUBPART_PLACEMENT_UNVERIFIED',
+      severity: 'error',
+      message: `Multi-unit subPartName placement for ${component.ref} is not verified.`,
+      remediationHint:
+        'Use the EasyEDA editor to place the units and verify shared reference, package and BOM.',
+    });
+  }
   const blocked = plan.issues.some((entry) => entry.severity === 'error');
   const base = {
     project_id: plan.projectId,

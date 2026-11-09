@@ -319,7 +319,10 @@ const placeComponentInputSchema = z
     deviceItem: deviceItemSchema,
     x: z.number(),
     y: z.number(),
-    subPartName: z.string().optional(),
+    subPartName: z
+      .string()
+      .optional()
+      .describe('Unsupported: multi-unit placement is unverified; preview/apply fail closed.'),
     rotation: z.number().optional(),
     mirror: z.boolean().optional(),
     addIntoBom: z.boolean().optional(),
@@ -624,8 +627,18 @@ function registerSchematicWriteTools(
     handler: async (ctx: ToolContext, params: unknown) => {
       const p = placeComponentInputSchema.parse(params);
       try {
-        const shouldReadBefore = Boolean(
-          p.dryRun || p.verifyAfterWrite || p.checkPlacementCollision,
+        if (p.subPartName) {
+          return {
+            success: false,
+            error_code: 'SUBPART_PLACEMENT_UNVERIFIED',
+            error:
+              'Multi-unit subPartName placement is not verified in this MCP bridge. ' +
+              'Use the EasyEDA editor to place the required units, then verify a shared ' +
+              'reference, package and BOM entry before continuing.',
+          };
+        }
+        const shouldReadBefore = [p.dryRun, p.verifyAfterWrite, p.checkPlacementCollision].some(
+          Boolean,
         );
         const beforeComponents = shouldReadBefore
           ? await readSchematicComponentsForVerification(ctx)
