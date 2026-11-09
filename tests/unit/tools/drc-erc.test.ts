@@ -499,6 +499,152 @@ describe('DRC/ERC Tools', () => {
     );
   });
 
+  it('applies optional source-declared datasheet checks to native pins without electrical approval', async () => {
+    const tool = registry.get('easyeda_semantic_erc_auto');
+    if (!tool) throw new Error('auto ERC not registered');
+    const reference = {
+      partNumber: 'TEST_ONLY',
+      package: 'UNVERIFIED',
+      revision: 'UNKNOWN',
+      source: 'Synthetic constraint; not an authenticated datasheet',
+      section: 'Control',
+    };
+    bridgeCall.mockImplementation(async (method: string, params?: unknown) => {
+      if (method === 'schematic.listNets')
+        return [
+          { netName: 'VBUS', nodes: [{ component: 'U1', pin: '1' }] },
+          { netName: 'GND', nodes: [{ component: 'U3', pin: '2' }] },
+        ];
+      if (method === 'schematic.listComponents')
+        return {
+          total: 3,
+          items: [
+            { primitiveId: 'u1-id', reference: 'U1' },
+            { primitiveId: 'u3-left', reference: 'U3' },
+            { primitiveId: 'u3-right', reference: 'U3' },
+          ],
+        };
+      if (method === 'api.call') {
+        const id = (params as { args: [string] }).args[0];
+        return {
+          result: [{ pinNumber: id === 'u1-id' ? '1' : '2', pinName: 'PASSIVE', x: 0, y: 0 }],
+        };
+      }
+      throw new Error('Unexpected bridge method: ' + method);
+    });
+    const constraints = [
+      { kind: 'pin_voltage', componentRef: 'U1', pin: '1', expectedNet: 'VCC', reference },
+      { kind: 'intentional_nc', componentRef: 'U3', pin: '2', reference },
+    ];
+    const result = await tool.handler(context, {
+      projectId: 'proj-auto-source',
+      datasheetConstraints: constraints,
+    });
+    expect(result).toMatchObject({
+      project_id: 'proj-auto-source',
+      passed: false,
+      inferred_net_count: 2,
+      inferred_device_count: 3,
+      electrical_approval: false,
+      datasheet_review: {
+        status: 'WARNING',
+        netlist_scope: 'LIVE_BRIDGE_READ_NOT_INDEPENDENTLY_VERIFIED',
+        source_authenticity: 'CALLER_DECLARED_UNVERIFIED',
+        engineering_sign_off: false,
+        findings: [
+          { status: 'WARNING', component_ref: 'U1', evidence: 'explicit_netlist' },
+          { status: 'UNKNOWN', component_ref: 'U3', evidence: 'incomplete_or_ambiguous' },
+        ],
+      },
+    });
+    expect(tool.outputSchema.parse(result)).toEqual(result);
+    expect(bridgeCall).not.toHaveBeenCalledWith(
+      expect.stringMatching(/write|modify|save|export/i),
+      expect.anything(),
+    );
+  });
+
+  it.each([
+    [
+      'truncated native component page',
+      { total: 3, items: [{ primitiveId: 'u1', reference: 'U1' }] },
+      false,
+    ],
+    [
+      'failed native pin fetch',
+      { total: 1, items: [{ primitiveId: 'u1', reference: 'U1' }] },
+      true,
+    ],
+  ] as const)(
+    'fails closed for %s instead of falsely verifying live datasheet rules',
+    async (_label, componentPage, failPins) => {
+      const tool = registry.get('easyeda_semantic_erc_auto');
+      if (!tool) throw new Error('auto ERC not registered');
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'schematic.listNets')
+          return [{ netName: '5V', nodes: [{ component: 'U1', pin: '1' }] }];
+        if (method === 'schematic.listComponents') return componentPage;
+        if (method === 'api.call') {
+          if (failPins) throw new Error('Native pin read failed');
+          return { result: [{ pinNumber: '1', pinName: 'VIN' }] };
+        }
+        throw new Error('Unexpected bridge method: ' + method);
+      });
+      const result = await tool.handler(context, {
+        projectId: 'native-incomplete',
+        datasheetConstraints: [
+          {
+            kind: 'pin_voltage',
+            componentRef: 'U1',
+            pin: '1',
+            expectedNet: '3V3',
+            reference: {
+              partNumber: 'CONTROL',
+              package: 'CONTROL',
+              revision: 'CONTROL',
+              source: 'Not an authenticated datasheet',
+              section: 'control',
+            },
+          },
+        ],
+      });
+      expect(result).toMatchObject({
+        passed: false,
+        not_available: true,
+        electrical_approval: false,
+        error: expect.stringMatching(/component or pin inventory incomplete/),
+      });
+      expect(result).not.toHaveProperty('datasheet_review');
+      expect(tool.outputSchema.parse(result)).toEqual(result);
+    },
+  );
+
+  it('rejects malformed auto datasheet constraints at the schema boundary', () => {
+    const tool = registry.get('easyeda_semantic_erc_auto');
+    if (!tool) throw new Error('auto ERC not registered');
+    const constraint = {
+      kind: 'pin_voltage',
+      componentRef: 'U1',
+      pin: '1',
+      minVoltageV: 5,
+      maxVoltageV: 3,
+      reference: {
+        partNumber: 'CONTROL',
+        package: 'CONTROL',
+        revision: 'CONTROL',
+        source: 'Not authenticated',
+        section: 'test',
+      },
+    };
+    expect(
+      tool.inputSchema.safeParse({ projectId: 'proj', datasheetConstraints: [constraint] }).success,
+    ).toBe(false);
+    expect(
+      tool.inputSchema.safeParse({ projectId: 'proj', datasheetConstraints: [] }).success,
+    ).toBe(false);
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_semantic_erc_auto merges imported and native power aliases', async () => {
     const tool = registry.get('easyeda_semantic_erc_auto');
     expect(tool).toBeDefined();

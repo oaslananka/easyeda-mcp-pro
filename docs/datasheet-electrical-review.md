@@ -1,10 +1,51 @@
 # Source-declared electrical and datasheet review
 
-The existing read-only `easyeda_semantic_erc_validate` MCP tool accepts an
-optional `datasheetConstraints` array of up to 24 exact-part constraints.
-This is **not** a datasheet fetcher or a complete design approval. It reuses
-the existing netlist and semantic ERC model without running native editor
-mutations, changing power-tree formulas, or adding an MCP tool.
+The two existing read-only semantic ERC tools accept optional
+datasheetConstraints (up to 24 caller-declared exact-part constraints):
+
+- easyeda_semantic_erc_auto: provide a projectId and optional source constraints;
+  the bridge reads the focused live schematic nets and pins.
+- easyeda_semantic_erc_validate: provide full caller-supplied nets and devices
+  for a snapshot not retrieved from the current editor.
+
+Neither tool authenticates datasheet sources, measures voltage, certifies
+the circuit, or performs native design writes.
+
+## Short live-schematic invocation
+
+When the desired schematic is focused in EasyEDA Pro, the auto tool needs no
+hand-built netlist. This **hypothetical, unauthenticated** control is
+illustrative; real review requires exact part/package/revision evidence.
+
+```json
+{
+  "projectId": "your-live-project-id",
+  "datasheetConstraints": [
+    {
+      "kind": "pin_voltage",
+      "componentRef": "U1",
+      "pin": "VDD",
+      "expectedNet": "3V3",
+      "reference": {
+        "partNumber": "EXAMPLE-ONLY",
+        "package": "EXAMPLE-PACKAGE",
+        "revision": "EXAMPLE-REV",
+        "source": "Not authenticated - illustrative input only",
+        "section": "Illustrative power pin"
+      }
+    }
+  ]
+}
+```
+
+The result uses netlist_scope LIVE_BRIDGE_READ_NOT_INDEPENDENTLY_VERIFIED;
+live bridge reads are not independent electrical connection evidence. The
+source authenticity stays CALLER_DECLARED_UNVERIFIED and the engineering
+sign-off is always false. When native component paging or pin fetch is
+incomplete, requested datasheet review fails closed with not_available=true,
+passed=false, electrical_approval=false, not an invented clean result.
+Without datasheetConstraints the existing inferred semantic ERC output stays
+unchanged. Net names do not supply measured voltage.
 
 ## Evidence contract
 
