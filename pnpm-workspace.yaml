@@ -11,7 +11,7 @@ blockExoticSubdeps: true
 
 overrides:
   fast-uri: 3.1.9
-  hono: 4.13.16
+  hono: 4.13.17
   '@hono/node-server': 2.1.6
   body-parser: 2.4.0
   vite: 7.3.7
