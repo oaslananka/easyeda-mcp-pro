@@ -51,7 +51,11 @@ function ambiguousTestpointInventory(input: PcbConstraintInput): boolean {
   const observed = input.testPointNets ?? [];
   return (
     [...required, ...observed].some((name) => !name || name.trim() !== name) ||
-    new Set(required.map((name) => name.toUpperCase())).size !== required.length
+    new Set(required.map((name) => name.toUpperCase())).size !== required.length ||
+    // Duplicate test pads for the same exact net are legitimate. Two
+    // different spellings that collide case-insensitively are not identities
+    // we can resolve from this caller-declared inventory alone.
+    new Set(observed.map((name) => name.toUpperCase())).size !== new Set(observed).size
   );
 }
 

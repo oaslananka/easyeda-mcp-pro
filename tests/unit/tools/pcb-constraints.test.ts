@@ -478,6 +478,22 @@ describe('PCB constraint tools', () => {
     ).toBe(true);
   });
 
+  it('does not pass ambiguous case-colliding testpoint nets via MCP', async () => {
+    const tool = registry.get('easyeda_pcb_constraint_check');
+    const result = await tool?.handler(context, {
+      projectId: 'pcb-net-identity-collision',
+      boardData: { criticalNetNames: ['IO', 'GND'], testPointNets: ['IO', 'io', 'GND'] },
+    });
+    expect(result?.valid).toBe(false);
+    expect(result?.unknown_checks).toContainEqual({
+      area: 'Testpoint coverage',
+      missingFields: ['criticalNetNames', 'testPointNets'],
+    });
+    expect(result?.warnings).not.toContainEqual(
+      expect.objectContaining({ code: 'PCB_TESTPOINT_COVERAGE_LOW' }),
+    );
+  });
+
   it('easyeda_pcb_constraint_check validates explicit board data', async () => {
     const tool = registry.get('easyeda_pcb_constraint_check');
     expect(tool).toBeDefined();
