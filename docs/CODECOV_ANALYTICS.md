@@ -60,6 +60,17 @@ On 2026-10-05, the existing-copper rebuild path added explicit runtime capabilit
 
 On 2026-11-03, native PCB drill inspection and active DRC spacing-profile reads increased the current deterministic build to 310,895 bytes for `index.js`, 248,309 bytes for `dispatcher.js`, and 206,179 bytes for the packaged `.eext`. The `index.js` ratchet is unchanged; the measured dispatcher and package ratchets are 248,314 and 206,184 bytes (5-byte deterministic margins). The added read-only inspection capability is the measured cause. These remain bounded byte budgets, not permission for unreviewed growth; any further increase requires another measured ratchet review.
 
+On 2026-11-10, issue #995's narrowly scoped read-only `LIB_Device.get` metadata
+query added a typed library sub-part inspection tool without enabling unverified
+multi-unit placement. Measured deterministic builds against protected
+`main@80b4118d`: packaged `.eext` **210,948 → 211,697 bytes**, `index.js`
+**331,654 → 333,198 bytes**, `dispatcher.js` **269,136 → 270,680 bytes**.
+The reviewed ratchets are **211,702 / 333,203 / 270,685 bytes** respectively
+(5-byte deterministic margins). This is a measured additive read-only feature,
+not a blanket ceiling increase or permission to bypass size gates; future
+growth still fails closed. Actual EasyEDA runtime sub-part data and shared BOM
+semantics require independent live acceptance.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

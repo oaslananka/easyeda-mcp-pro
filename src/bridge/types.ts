@@ -75,5 +75,6 @@ export const EasyedaApiMethodSchema = z.enum([
   'canvas.captureRegion',
   'canvas.locate',
   'library.getDeviceByLcscId',
+  'library.getDeviceSubParts',
   'library.updateDeviceMetadata',
 ]);

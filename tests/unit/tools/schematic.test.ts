@@ -2126,6 +2126,46 @@ describe('Schematic Tools', () => {
     });
   });
 
+  describe('easyeda_schematic_device_subparts', () => {
+    it('returns #995 live-declared subpart names and package reference as metadata only', async () => {
+      const tool = registry.get('easyeda_schematic_device_subparts');
+      expect(tool).toBeDefined();
+      bridgeCall.mockResolvedValue({
+        deviceUuid: '70a09759383a4d13b9f66aa2bf10f850',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        name: 'OPA2333AIDR',
+        subPartNames: ['A', 'B'],
+        multiUnit: true,
+        declaredFootprintUuid: 'fp-1',
+        evidenceScope: 'library-metadata',
+      });
+      const result = await tool?.handler(context, {
+        deviceUuid: '70a09759383a4d13b9f66aa2bf10f850',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+      });
+      expect(bridgeCall).toHaveBeenCalledWith('library.getDeviceSubParts', {
+        deviceUuid: '70a09759383a4d13b9f66aa2bf10f850',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+      });
+      expect(result).toMatchObject({
+        sub_part_names: ['A', 'B'],
+        multi_unit: true,
+        declared_footprint_uuid: 'fp-1',
+        evidence_scope: 'library-metadata',
+      });
+    });
+    it('refuses unverifiable #995 subpart lookup without inventing A/B parts', async () => {
+      const tool = registry.get('easyeda_schematic_device_subparts');
+      bridgeCall.mockResolvedValue({ not_available: true, reason: 'SUBPART_METADATA_UNAVAILABLE' });
+      const result = await tool?.handler(context, {
+        deviceUuid: '70a09759383a4d13b9f66aa2bf10f850',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+      });
+      expect(result).toMatchObject({ not_available: true });
+      expect(result).not.toHaveProperty('sub_part_names');
+    });
+  });
+
   describe('easyeda_schematic_search_device', () => {
     it('returns devices found by the bridge', async () => {
       const tool = registry.get('easyeda_schematic_search_device');

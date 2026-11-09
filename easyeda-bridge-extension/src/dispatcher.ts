@@ -90,6 +90,7 @@ const METHOD_LIST: readonly string[] = [
   'inventory.getPrice',
   'inventory.search',
   'library.getDeviceByLcscId',
+  'library.getDeviceSubParts',
   'library.updateDeviceMetadata',
   'pcb.addSilkscreenLine',
   'pcb.addText',

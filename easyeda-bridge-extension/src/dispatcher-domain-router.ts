@@ -127,6 +127,8 @@ export function createDispatcherDomainRouter(
     'inventory.search': () => dependencies.readOnlyOperations.inventorySearch(),
     'library.getDeviceByLcscId': (params) =>
       dependencies.readOnlyOperations.getDeviceByLcscId(params),
+    'library.getDeviceSubParts': (params) =>
+      dependencies.readOnlyOperations.getDeviceSubParts(params),
     'schematic.deletePrimitive': (params) =>
       dependencies.schematicTransactionOperations.deletePrimitives(params.primitiveIds),
     'schematic.getNetDetail': (params) => dependencies.readOnlyOperations.getNetDetail(params),

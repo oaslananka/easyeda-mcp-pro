@@ -54,6 +54,7 @@ export interface ReadOnlyOperations {
   getPinNoConnect(params: Record<string, unknown>): Promise<unknown>;
   validateNetlist(params?: Record<string, unknown>): Promise<unknown>;
   getDeviceByLcscId(params: Record<string, unknown>): Promise<unknown>;
+  getDeviceSubParts(params: Record<string, unknown>): Promise<unknown>;
   generateBom(params: Record<string, unknown>): Promise<unknown>;
   validateBom(): Promise<unknown>;
   inventorySearch(): Promise<unknown>;
@@ -294,6 +295,45 @@ export function createReadOnlyOperations(
       const lcscId = String(params.lcscId ?? '');
       const libraryUuid = typeof params.libraryUuid === 'string' ? params.libraryUuid : undefined;
       return dependencies.callFirst(['LIB_Device.getByLcscIds'], [lcscId], libraryUuid, false);
+    },
+
+    async getDeviceSubParts(params) {
+      const deviceUuid = String(params.deviceUuid ?? '');
+      const libraryUuid = String(params.libraryUuid ?? '');
+      const raw = await dependencies.callFirst(
+        ['LIB_Device.get', 'lib_Device.get'],
+        deviceUuid,
+        libraryUuid,
+      );
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return { not_available: true, reason: 'DEVICE_NOT_FOUND' };
+      }
+      const device = raw as Record<string, unknown>;
+      if (device.uuid !== deviceUuid || device.libraryUuid !== libraryUuid) {
+        return { not_available: true, reason: 'LIBRARY_SOURCE_MISMATCH' };
+      }
+      const subPartNames = device.subPartNames;
+      if (
+        !Array.isArray(subPartNames) ||
+        !subPartNames.every((part) => typeof part === 'string' && part.length > 0)
+      ) {
+        return { not_available: true, reason: 'SUBPART_METADATA_UNAVAILABLE' };
+      }
+      const association = device.association;
+      const declaredFootprintUuid =
+        association && typeof association === 'object' && !Array.isArray(association)
+          ? (association as Record<string, unknown>).footprintUuid
+          : undefined;
+      return {
+        deviceUuid,
+        libraryUuid,
+        name: typeof device.name === 'string' ? device.name : undefined,
+        subPartNames,
+        multiUnit: subPartNames.length > 1,
+        declaredFootprintUuid:
+          typeof declaredFootprintUuid === 'string' ? declaredFootprintUuid : undefined,
+        evidenceScope: 'library-metadata',
+      };
     },
 
     async generateBom(params) {

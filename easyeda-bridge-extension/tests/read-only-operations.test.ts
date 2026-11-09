@@ -189,6 +189,53 @@ describe('read-only dispatcher operations', () => {
     );
   });
 
+  it('reads #995 exact library subparts without any design mutation', async () => {
+    const callFirst = vi.fn(async () => ({
+      uuid: 'dev-1',
+      libraryUuid: 'lib-1',
+      name: 'OPA2333AIDR',
+      subPartNames: ['A', 'B'],
+      association: { footprintUuid: 'footprint-1' },
+    }));
+    const ops = createReadOnlyOperations(createDependencies({ callFirst }) as any);
+    const result = await ops.getDeviceSubParts({ deviceUuid: 'dev-1', libraryUuid: 'lib-1' });
+
+    expect(callFirst).toHaveBeenCalledExactlyOnceWith(
+      ['LIB_Device.get', 'lib_Device.get'],
+      'dev-1',
+      'lib-1',
+    );
+    expect(result).toEqual({
+      deviceUuid: 'dev-1',
+      libraryUuid: 'lib-1',
+      name: 'OPA2333AIDR',
+      subPartNames: ['A', 'B'],
+      multiUnit: true,
+      declaredFootprintUuid: 'footprint-1',
+      evidenceScope: 'library-metadata',
+    });
+  });
+
+  it('does not misrepresent missing #995 subpart metadata as a verified single-part device', async () => {
+    const callFirst = vi.fn(async () => ({ uuid: 'dev-2', libraryUuid: 'lib-1', name: 'Unknown' }));
+    const ops = createReadOnlyOperations(createDependencies({ callFirst }) as any);
+    await expect(
+      ops.getDeviceSubParts({ deviceUuid: 'dev-2', libraryUuid: 'lib-1' }),
+    ).resolves.toMatchObject({ not_available: true, reason: 'SUBPART_METADATA_UNAVAILABLE' });
+  });
+
+  it('refuses #995 a library getter that returns another device identity', async () => {
+    const callFirst = vi.fn(async () => ({
+      uuid: 'wrong-device',
+      libraryUuid: 'lib-1',
+      subPartNames: ['A', 'B'],
+    }));
+    const ops = createReadOnlyOperations(createDependencies({ callFirst }) as any);
+    await expect(
+      ops.getDeviceSubParts({ deviceUuid: 'dev-1', libraryUuid: 'lib-1' }),
+    ).resolves.toMatchObject({ not_available: true, reason: 'LIBRARY_SOURCE_MISMATCH' });
+  });
+
   it('builds netlist validation output and surfaces inferred/native warnings', async () => {
     const floatingPins = [{ primitiveId: 'u2', designator: 'U2', pinNumber: '3' }];
     const dependencies = createDependencies({

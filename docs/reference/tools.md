@@ -102,6 +102,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_create_net_flag`                | `core`         | `medium` | Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/ProtectGround) it places a power-flag symbol binding to a coincident pin (use for VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire stubs sharing one netName.                                            |
 | `easyeda_schematic_create_net_port`                | `core`         | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                                               |
 | `easyeda_schematic_delete_primitive`               | `core`         | `medium` | Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported transactional delete kinds fail before mutation. Without transactionId the write is standalone.                                       |
+| `easyeda_schematic_device_subparts`                | `core`         | `low`    | Read the exact sub-part names and declared footprint from a device library record. Use the UUIDs returned by search_device. This is read-only metadata: it does not place units, prove shared designators, pin connectivity, or a single BOM component.                                                                       |
 | `easyeda_schematic_layout_autofix`                 | `pro`          | `low`    | Detect title-block overlap, page-boundary overflow, and component-overlap violations from real rendered bounds, and propose cosmetic-only moves that resolve them. Read-only preview only (requiresConfirmWrite=true, no writes) -- confirmWrite apply with connectivity-fingerprint rollback is tracked separately (#273).   |
 | `easyeda_schematic_layout_autofix_apply`           | `pro`          | `high`   | Apply the layout-autofix cosmetic moves in a snapshot-backed transaction, re-verifying a connectivity fingerprint after every write batch. Any unintended electrical change or write failure rolls the transaction back and is reported, never thrown. dryRun:true previews only.                                             |
 | `easyeda_schematic_layout_qa`                      | `pro`          | `low`    | Run a normalized post-write QA pass combining runtime DRC/ERC, expected component/pin topology, rendered primitive bounds, title-block and page constraints, wiring/grouping checks, and connectivity fingerprints, with optional full-page visual evidence. Critical geometry or connectivity findings always block commit.  |
@@ -3452,6 +3453,39 @@ Returns a JSON object matching the schema:
   error: string(optional);
   details: Record<string, any>(optional);
   targetDocument: object(optional);
+}
+```
+
+---
+
+## `easyeda_schematic_device_subparts`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Read the exact sub-part names and declared footprint from a device library record. Use the UUIDs returned by search_device. This is read-only metadata: it does not place units, prove shared designators, pin connectivity, or a single BOM component.
+
+### Input Parameters
+
+| Parameter     | Type     | Required | Description                          |
+| ------------- | -------- | -------- | ------------------------------------ |
+| `deviceUuid`  | `string` | Yes      | Exact device UUID from search_device |
+| `libraryUuid` | `string` | Yes      | Exact source library UUID            |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  device_uuid: string;
+  library_uuid: string;
+  name: string (optional);
+  sub_part_names: string[] (optional);
+  multi_unit: boolean (optional);
+  declared_footprint_uuid: string (optional);
+  evidence_scope: 'library-metadata' (optional);
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
