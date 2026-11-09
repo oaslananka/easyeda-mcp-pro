@@ -259,6 +259,41 @@ describe('PCB constraint tools', () => {
     expect(data.mountingHoleCount).toBeUndefined();
   });
 
+  it('does not manufacture a too-small drill warning from a zero native diameter', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions')
+        return { widthMm: 60, heightMm: 40, hasOutline: true, minDrillMm: 0, drilledPadCount: 0 };
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return { totalLayers: 2, layers: [{ id: 1 }, { id: 2 }] };
+      if (method === 'board.getDesignRules') return { hasClearanceRules: true };
+      throw new Error(`unexpected method ${method}`);
+    });
+
+    const native = await fetchBoardDataFromBridge(context, 'pcb-zero-native-drill');
+    expect(native.minDrillMm).toBeUndefined();
+    const tool = registry.get('easyeda_pcb_production_review');
+    const result = await tool?.handler(context, {
+      projectId: 'pcb-zero-native-drill',
+      manufacturerProfile: {
+        manufacturer: 'Hypothetical Example',
+        process: 'Two-layer prototype',
+        revision: 'test-v1',
+        source: 'Unverified example capability data',
+        limits: { minimumFinishedDrillMm: 0.2 },
+      },
+    });
+    expect(
+      result?.warnings.some((item: { code: string }) => item.code === 'PCB_DRILL_TOO_SMALL'),
+    ).toBe(false);
+    expect(result?.manufacturing_profile_review?.findings[0]).toMatchObject({
+      id: 'minimumFinishedDrillMm',
+      comparison: 'UNKNOWN',
+      status: 'UNKNOWN',
+      measurement_evidence: 'unavailable',
+    });
+    expect(result?.manufacturing_approval).toBe(false);
+  });
+
   it('easyeda_pcb_production_review tolerates partial bridge failures via Promise.allSettled', async () => {
     const tool = registry.get('easyeda_pcb_production_review');
     bridgeCall.mockImplementation(async (method: string) => {

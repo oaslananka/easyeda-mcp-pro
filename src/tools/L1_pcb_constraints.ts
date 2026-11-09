@@ -164,6 +164,10 @@ function measuredNonnegative(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
+function measuredPositive(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 function measuredCount(value: unknown, minimum = 0): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value >= minimum
     ? value
@@ -243,7 +247,7 @@ export async function fetchBoardEvidenceFromBridge(
       heightMm: measuredNonnegative(dimensions.heightMm),
       hasOutline: typeof dimensions.hasOutline === 'boolean' ? dimensions.hasOutline : undefined,
       mountingHoleCount: measuredCount(dimensions.mountingHoleCount),
-      minDrillMm: measuredNonnegative(dimensions.minDrillMm),
+      minDrillMm: measuredPositive(dimensions.minDrillMm),
       hasClearanceRules:
         typeof designRules.hasClearanceRules === 'boolean'
           ? designRules.hasClearanceRules
