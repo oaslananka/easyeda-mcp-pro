@@ -260,14 +260,14 @@ function endpointNearDeclaredHole(
   contours: readonly Point[][],
   halfWidth: number,
 ) {
-  const outer = contours[0];
-  if (!outer || !insideRing(endpoint, outer)) return false;
+  const outer = contours.at(0);
+  if (outer === undefined || !insideRing(endpoint, outer)) return false;
   return contours.slice(1).some(
     (hole) =>
       insideRing(endpoint, hole) &&
       hole.some((vertex, index) => {
-        const next = hole[(index + 1) % hole.length];
-        return next && segmentDistance(endpoint, vertex, next) < halfWidth;
+        const next = hole.at((index + 1) % hole.length);
+        return next !== undefined && segmentDistance(endpoint, vertex, next) < halfWidth;
       }),
   );
 }
