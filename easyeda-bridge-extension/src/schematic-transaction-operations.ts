@@ -1117,20 +1117,19 @@ export function createSchematicTransactionOperations(
     primitiveId: string,
     property: Record<string, unknown>,
   ): Promise<unknown> {
-    const handlers = [
+    for (const handler of [
       tryModifyComponent,
       tryModifyWire,
       tryModifyText,
       tryModifyCircle,
       tryModifyPolygon,
-    ];
-    for (const handler of handlers) {
+    ]) {
       const attempt = await handler(primitiveId, property);
       if (attempt.handled) return attempt.value;
     }
 
-    // Do not bypass the component move guard through the untyped native fallback.
-    if (property.x !== undefined || property.y !== undefined)
+    // Unknown primitive identity must not bypass component position/orientation guards.
+    if (['x', 'y', 'rotation', 'mirror'].some((key) => key in property))
       failUnverifiedMove('Component position or identity unavailable; move refused.');
     return callFirst(
       [
