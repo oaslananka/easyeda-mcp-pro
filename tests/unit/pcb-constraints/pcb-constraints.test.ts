@@ -134,6 +134,27 @@ describe('validatePcbConstraints', () => {
 });
 
 describe('unknown evidence and rule accounting', () => {
+  it.each([
+    ['widthMm', 0],
+    ['heightMm', 0],
+    ['widthMm', -1],
+    ['heightMm', Number.POSITIVE_INFINITY],
+  ] as const)('treats nonpositive or nonfinite %s=%s as unavailable dimensions', (field, value) => {
+    const result = validatePcbConstraints(makeInput({ [field]: value }));
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).not.toContainEqual(
+      expect.objectContaining({ code: 'PCB_OUTLINE_TOO_SMALL' }),
+    );
+    expect(result.unknownChecks).toContainEqual({
+      area: 'Board dimensions',
+      missingFields: [field],
+    });
+    expect(buildConstraintReport(makeInput({ [field]: value }), result).verdict).toBe(
+      'needs-review',
+    );
+  });
+
   it('never labels an entirely unknown board as passed', () => {
     const result = validatePcbConstraints({});
     expect(result.valid).toBe(false);

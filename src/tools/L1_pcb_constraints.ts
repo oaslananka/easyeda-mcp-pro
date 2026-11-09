@@ -160,10 +160,6 @@ function resolvedObject(result: PromiseSettledResult<unknown>): Record<string, u
   return result.value as Record<string, unknown>;
 }
 
-function measuredNonnegative(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
-}
-
 function measuredPositive(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
@@ -243,8 +239,8 @@ export async function fetchBoardEvidenceFromBridge(
   }));
   return {
     data: {
-      widthMm: measuredNonnegative(dimensions.widthMm),
-      heightMm: measuredNonnegative(dimensions.heightMm),
+      widthMm: measuredPositive(dimensions.widthMm),
+      heightMm: measuredPositive(dimensions.heightMm),
       hasOutline: typeof dimensions.hasOutline === 'boolean' ? dimensions.hasOutline : undefined,
       mountingHoleCount: measuredCount(dimensions.mountingHoleCount),
       minDrillMm: measuredPositive(dimensions.minDrillMm),
