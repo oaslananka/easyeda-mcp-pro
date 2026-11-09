@@ -121,7 +121,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_validate_netlist`               | `core`         | `low`    | Validate inferred nets/floating pins and cross-check native ERC. Only native noConnected=true excludes a pin; unavailable/malformed state stays visible. `valid` requires clean inference and zero native errors. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149.                           |
 | `easyeda_schematic_verify_write`                   | `core`         | `low`    | Read back schematic state after an agent-authored write. Returns component-count delta evidence and optional netlist validation so agents can confirm a placement or connection before continuing.                                                                                                                            |
 | `easyeda_schematic_wires`                          | `core`         | `low`    | List wire segments with primitiveId, coordinates, net, color, and style; paginate past 50 with offset. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. primitiveId is required by delete_primitive/modify_primitive.                                                                        |
-| `easyeda_semantic_erc_auto`                        | `core`         | `low`    | Extract nets/devices/pins from the LIVE schematic and run semantic ERC — no hand-authored netlist needed. Net/pin electrical types are INFERRED from naming conventions, not verified — treat findings as a first-pass signal, not a substitute for semantic_erc_validate.                                                    |
+| `easyeda_semantic_erc_auto`                        | `core`         | `low`    | Read LIVE nets, devices and pins for semantic ERC. Optional caller-declared datasheet rules compare pin/net identity without source authentication or circuit approval. Pin types remain inferred; incomplete inventories block datasheet review.                                                                             |
 | `easyeda_semantic_erc_validate`                    | `core`         | `medium` | Run typed semantic ERC over caller-supplied pin/net metadata. Optional exact part/package/revision constraints report source-declared voltage, I/O supply-domain, intentional NC, support-part and headroom evidence; they do not authenticate a datasheet or certify the circuit.                                            |
 | `easyeda_simulate_operating_point`                 | `pro`          | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice operating-point (.op) simulation, optionally checking rail node voltages against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                       |
 | `easyeda_simulate_transient`                       | `pro`          | `low`    | Translate a typed circuit description into a SPICE deck and run an offline ngspice transient (.tran) simulation, optionally checking the final rail voltage against a spec. Read-only, local-only. Reports a capability gap rather than failing when ngspice is absent.                                                       |
@@ -4185,13 +4185,14 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Extract nets/devices/pins from the LIVE schematic and run semantic ERC — no hand-authored netlist needed. Net/pin electrical types are INFERRED from naming conventions, not verified — treat findings as a first-pass signal, not a substitute for semantic_erc_validate.
+> Read LIVE nets, devices and pins for semantic ERC. Optional caller-declared datasheet rules compare pin/net identity without source authentication or circuit approval. Pin types remain inferred; incomplete inventories block datasheet review.
 
 ### Input Parameters
 
-| Parameter   | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
-| `projectId` | `string` | Yes      |             |
+| Parameter              | Type                                                                  | Required | Description |
+| ---------------------- | --------------------------------------------------------------------- | -------- | ----------- |
+| `projectId`            | `string`                                                              | Yes      |             |
+| `datasheetConstraints` | `object` \| `object` \| `object` \| `object` \| `object[] (optional)` | No       |             |
 
 ### Output Format
 
@@ -4208,6 +4209,8 @@ Returns a JSON object matching the schema:
   warnings: object[];
   inferred_net_count: number;
   inferred_device_count: number;
+  datasheet_review: object (optional);
+  electrical_approval: 'false' (optional);
   not_available: boolean (optional);
   error: string (optional);
 }
