@@ -146,6 +146,67 @@ describe('PCB constraint tools', () => {
     expect(bridgeCall).not.toHaveBeenCalled();
   });
 
+  it('does not label a fully observed board with a known fabrication warning as passed', async () => {
+    const tool = registry.get('easyeda_pcb_production_review');
+    const complete = {
+      widthMm: 60,
+      heightMm: 40,
+      hasOutline: true,
+      layerCount: 2,
+      mountingHoleCount: 2,
+      hasLayerStack: true,
+      hasNetClasses: true,
+      hasClearanceRules: true,
+      hasPlacementZones: true,
+      hasKeepoutAreas: true,
+      hasFiducials: true,
+      hasHighVoltage: false,
+      manufacturingProcess: 'standard',
+      hasQuantity: true,
+      hasDrillFile: true,
+      minCopperToEdgeMm: 1,
+      minDrillMm: 0.762,
+      minAnnularRingMm: 0.4,
+      minSolderMaskSliverMm: 0.3,
+      silkscreenOverPadCount: 0,
+      smtComponentCount: 0,
+      polarizedComponentCount: 0,
+      componentSpacingViolationCount: 0,
+      criticalNetNames: [],
+      requiresProgrammingHeader: false,
+      hasFabricationNotes: true,
+    };
+
+    // All evidence is explicitly supplied: this must test a real warning,
+    // not a result already withheld because another rule is UNKNOWN.
+    const clean = await tool?.handler(context, {
+      projectId: 'complete-known-fixture',
+      boardData: complete,
+      gateMode: 'warn',
+    });
+    expect(clean?.summary.unknown).toBe(0);
+    expect(clean?.errors).toEqual([]);
+    expect(clean?.warnings).toEqual([]);
+    expect(clean?.passed).toBe(true);
+
+    for (const mode of ['warn', 'block', 'off'] as const) {
+      const result = await tool?.handler(context, {
+        projectId: 'complete-known-fixture',
+        boardData: { ...complete, hasFabricationNotes: false },
+        gateMode: mode,
+      });
+      expect(result?.summary.unknown).toBe(0);
+      expect(result?.errors).toEqual([]);
+      expect(result?.warnings).toContainEqual(
+        expect.objectContaining({ code: 'PCB_FAB_NOTES_MISSING', severity: 'warning' }),
+      );
+      expect(result?.summary.failed).toBe(1);
+      expect(result?.passed).toBe(false);
+      expect(result?.blocked).toBe(mode === 'block');
+    }
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_pcb_production_review blocks in block mode when errors exist', async () => {
     const tool = registry.get('easyeda_pcb_production_review');
     const result = await tool?.handler(context, {
