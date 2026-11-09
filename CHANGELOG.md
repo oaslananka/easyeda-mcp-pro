@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.13.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.12.0...easyeda-mcp-pro-v1.13.0) (2026-11-09)
+
+
+### Features
+
+* **pcb:** add bounded read-only native pad contact evidence ([#966](https://github.com/oaslananka/easyeda-mcp-pro/issues/966)) ([ac7cfbc](https://github.com/oaslananka/easyeda-mcp-pro/commit/ac7cfbca918bdae0a4ec2576347bc10da39ba827))
+* **pcb:** surface bounded native pad endpoint-chain candidates ([#963](https://github.com/oaslananka/easyeda-mcp-pro/issues/963)) ([52a5789](https://github.com/oaslananka/easyeda-mcp-pro/commit/52a5789b59b88b2d61fca05fd2b6b913adf65ac6))
+
+
+### Bug Fixes
+
+* **bridge:** reject invalid schematic component coordinates ([#971](https://github.com/oaslananka/easyeda-mcp-pro/issues/971)) ([a89d3a8](https://github.com/oaslananka/easyeda-mcp-pro/commit/a89d3a8e4320bcfba09aae433c0edad1e7e70bc6))
+* **bridge:** withhold unverified schematic rotation and mirror edits ([#973](https://github.com/oaslananka/easyeda-mcp-pro/issues/973)) ([c0bd1e3](https://github.com/oaslananka/easyeda-mcp-pro/commit/c0bd1e3cdadb7ac1d9b6d2c904039fd9c829a9cb))
+* **erc:** reject malformed datasheet expected-net identities ([#976](https://github.com/oaslananka/easyeda-mcp-pro/issues/976)) ([e2cfd79](https://github.com/oaslananka/easyeda-mcp-pro/commit/e2cfd791f922106a4041a6f80538105ede4240d6))
+* **pcb:** fail closed on wrong-net routed-pad evidence ([#967](https://github.com/oaslananka/easyeda-mcp-pro/issues/967)) ([fa08710](https://github.com/oaslananka/easyeda-mcp-pro/commit/fa0871081abb08c09155ea0eebb906dab9347c21))
+* **pcb:** reject ambiguous cross-component pad identities ([#968](https://github.com/oaslananka/easyeda-mcp-pro/issues/968)) ([cc608c0](https://github.com/oaslananka/easyeda-mcp-pro/commit/cc608c01794699b700428f3d92a23300f36ea6b1))
+* **pcb:** reject reused native pad association identities ([#975](https://github.com/oaslananka/easyeda-mcp-pro/issues/975)) ([563edb8](https://github.com/oaslananka/easyeda-mcp-pro/commit/563edb8e7bc04f3e1c749a9a9f99be8792ccec0a))
+
 ## [1.12.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.11.2...easyeda-mcp-pro-v1.12.0) (2026-11-08)
 
 

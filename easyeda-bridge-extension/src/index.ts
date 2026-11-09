@@ -48,7 +48,7 @@ declare const __MCP_DEV_HOTSWAP__: boolean | undefined;
 // Single source for the extension version; sync-versions.mjs patches the
 // literal below (first `extensionVersion: '...'` match in this file).
 const EXTENSION_INFO = {
-  extensionVersion: '1.12.0', // x-release-please-version
+  extensionVersion: '1.13.0', // x-release-please-version
 };
 
 // Safe accessors for optional EasyEDA Pro runtime globals.
