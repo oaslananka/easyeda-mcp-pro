@@ -38,6 +38,8 @@ export interface CopperCenterReview {
   filledRegionCount: number;
   /** Native positive-width stroke regions omitted from filled-polygon center screening. */
   strokedRegionCount: number;
+  /** Source-frame stroke endpoint / declared inner-boundary proximity; never electrical contact proof. */
+  strokeFillBoundaryCandidateCount: number;
   contourCount: number;
   diagnostics: string[];
   candidates: CopperPadCenterOutcome[];
@@ -241,6 +243,78 @@ function insideFilledContours(center: Point, contours: readonly Point[][]): bool
   );
 }
 
+/** Return approximate centerline-to-contour distance in the native poured source frame. */
+function segmentDistance(target: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const squaredLength = dx * dx + dy * dy;
+  if (!Number.isFinite(squaredLength) || squaredLength <= 0) return Number.POSITIVE_INFINITY;
+  const projection = ((target.x - a.x) * dx + (target.y - a.y) * dy) / squaredLength;
+  if (!Number.isFinite(projection)) return Number.POSITIVE_INFINITY;
+  const t = Math.max(0, Math.min(1, projection));
+  return Math.hypot(target.x - a.x - t * dx, target.y - a.y - t * dy);
+}
+
+function endpointNearDeclaredHole(
+  endpoint: Point,
+  contours: readonly Point[][],
+  halfWidth: number,
+) {
+  const outer = contours[0];
+  if (!outer || !insideRing(endpoint, outer)) return false;
+  return contours.slice(1).some(
+    (hole) =>
+      insideRing(endpoint, hole) &&
+      hole.some((vertex, index) => {
+        const next = hole[(index + 1) % hole.length];
+        return next && segmentDistance(endpoint, vertex, next) < halfWidth;
+      }),
+  );
+}
+
+function simpleNativeLine(path: unknown): readonly [Point, Point] | undefined {
+  if (!path || typeof path !== 'object') return;
+  const complex = (path as Record<string, unknown>).complexPolygon;
+  const ring = Array.isArray(complex) && complex.length === 1 ? complex[0] : undefined;
+  if (!Array.isArray(ring) || ring.length !== 5 || ring[2] !== 'L') return;
+  const start = point(ring[0], ring[1]);
+  const end = point(ring[3], ring[4]);
+  if (!start || !end || Math.hypot(start.x - end.x, start.y - end.y) === 0) return;
+  return [start, end];
+}
+
+function nativeStrokeLine(
+  region: unknown,
+): { endpoints: readonly [Point, Point]; width: number } | undefined {
+  if (!region || typeof region !== 'object' || Array.isArray(region)) return;
+  const data = region as Record<string, unknown>;
+  const width = data.lineWidth;
+  if (data.fill !== false || typeof width !== 'number' || !Number.isFinite(width) || width <= 0)
+    return;
+  const endpoints = simpleNativeLine(data.path);
+  return endpoints ? { endpoints, width } : undefined;
+}
+
+/**
+ * Conservative geometry candidates in the common poured-source coordinate frame.
+ * Does not establish native fill winding, real copper contact or GND return reachability.
+ */
+function countStrokeFillBoundaryCandidates(regions: unknown, contours: readonly Point[][]): number {
+  if (!Array.isArray(regions) || regions.length > MAX_REGIONS || contours.length < 2) return 0;
+  let candidates = 0;
+  for (const region of regions) {
+    const stroke = nativeStrokeLine(region);
+    if (!stroke) continue;
+    const [start, end] = stroke.endpoints;
+    if (
+      endpointNearDeclaredHole(start, contours, stroke.width / 2) ||
+      endpointNearDeclaredHole(end, contours, stroke.width / 2)
+    )
+      candidates++;
+  }
+  return candidates;
+}
+
 function validTransform(
   transform: CopperCenterTransform | undefined,
 ): transform is CopperCenterTransform {
@@ -374,6 +448,7 @@ export function reviewCopperPadCenterCandidates(
     engineering_sign_off: false,
     filledRegionCount: 0,
     strokedRegionCount: 0,
+    strokeFillBoundaryCandidateCount: 0,
     contourCount: 0,
     diagnostics: [],
     candidates: [],
@@ -399,6 +474,14 @@ export function reviewCopperPadCenterCandidates(
     !nativeCopperLayerCode(input.pourLayer)
   )
     output.diagnostics.push('UNVERIFIED_POUR_IDENTITY');
+  if (polygon?.count === 1 && !output.diagnostics.includes('UNVERIFIED_POUR_IDENTITY')) {
+    output.strokeFillBoundaryCandidateCount = countStrokeFillBoundaryCandidates(
+      input.pouredRegions,
+      polygon.contours,
+    );
+    if (output.strokeFillBoundaryCandidateCount > 0)
+      output.diagnostics.push('NATIVE_STROKE_FILL_BOUNDARY_CANDIDATE_ONLY');
+  }
   if (!Array.isArray(input.pads) || input.pads.length > MAX_PADS) {
     output.diagnostics.push('INVALID_OR_OVERSIZED_PAD_COLLECTION');
     return output;
