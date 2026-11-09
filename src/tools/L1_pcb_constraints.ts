@@ -420,7 +420,10 @@ function registerPcbConstraintTools(
                   ? 'native_partial_unverified'
                   : 'caller_supplied_unverified',
               );
-        const passed = result.valid && profileReview === undefined;
+        // Production readiness cannot be called passed while even an advisory
+        // issue remains to be reviewed. The base constraint valid contract
+        // still distinguishes blocking errors from warnings independently.
+        const passed = result.valid && warnings.length === 0 && profileReview === undefined;
 
         return {
           project_id: projectId,
