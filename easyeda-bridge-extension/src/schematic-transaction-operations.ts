@@ -245,20 +245,18 @@ export function createSchematicTransactionOperations(
     primitiveId: string,
     property: Record<string, unknown>,
   ): Promise<unknown> {
+    // Net markers cannot change electrical attachment without a native
+    // pin/network read-back. Reuse the component orientation guard.
+    const { merged, oldX, oldY } = componentModificationProperties(current, property);
+    if (merged.x !== oldX || merged.y !== oldY) {
+      failUnverifiedMove('Net marker move unsafe.');
+    }
     const c = current as Record<string, (arg?: unknown) => unknown>;
     const applied: Record<string, unknown> = {};
-    const setIf = (key: string, setter: string) => {
-      const v = property[key];
-      if (v !== undefined && typeof c[setter] === 'function') {
-        c[setter](v);
-        applied[key] = v;
-      }
-    };
-    setIf('x', 'setState_X');
-    setIf('y', 'setState_Y');
-    setIf('rotation', 'setState_Rotation');
-    setIf('mirror', 'setState_Mirror');
-    setIf('net', 'setState_Net');
+    if (property.net !== undefined && typeof c.setState_Net === 'function') {
+      c.setState_Net(property.net);
+      applied.net = property.net;
+    }
     if (typeof c.done === 'function') {
       await c.done();
     }

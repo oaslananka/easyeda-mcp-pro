@@ -154,15 +154,60 @@ describe('schematic transaction operations', () => {
       }),
     ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
   });
-  it('mutates net flags through low-level setters and records only applied fields', async () => {
-    const setX = vi.fn();
-    const setRotation = vi.fn();
+  it.each([
+    ['netflag', { x: 12 }],
+    ['netflag', { y: 21 }],
+    ['netflag', { rotation: 90 }],
+    ['netflag', { mirror: true }],
+    ['netport', { x: 12 }],
+    ['netport', { y: 21 }],
+    ['netport', { rotation: 90 }],
+    ['netport', { mirror: true }],
+  ] as const)(
+    'rejects #945 %s connection-marker topology mutation %j before any setter or done',
+    async (kind, property) => {
+      const setX = vi.fn(),
+        setY = vi.fn(),
+        setRotation = vi.fn(),
+        setMirror = vi.fn();
+      const setNet = vi.fn(),
+        done = vi.fn().mockResolvedValue(undefined);
+      const modify = vi.fn();
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_ComponentType: () => kind,
+            getState_X: () => 10,
+            getState_Y: () => 20,
+            getState_Rotation: () => 0,
+            getState_Mirror: () => false,
+            setState_X: setX,
+            setState_Y: setY,
+            setState_Rotation: setRotation,
+            setState_Mirror: setMirror,
+            setState_Net: setNet,
+            done,
+          }),
+          modify,
+        },
+      });
+      await expect(operations.modifyPrimitive('marker-1', property)).rejects.toMatchObject({
+        code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      });
+      for (const setter of [setX, setY, setRotation, setMirror, setNet, done, modify])
+        expect(setter).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps intentional net-name updates allowed on an unmoved net flag', async () => {
     const setNet = vi.fn();
     const done = vi.fn().mockResolvedValue(undefined);
     const current = {
       getState_ComponentType: () => 'netflag',
-      setState_X: setX,
-      setState_Rotation: setRotation,
+      getState_X: () => 10,
+      getState_Y: () => 20,
+      getState_Rotation: () => 0,
+      getState_Mirror: () => false,
       setState_Net: setNet,
       done,
     };
@@ -170,41 +215,65 @@ describe('schematic transaction operations', () => {
       SCH_PrimitiveComponent: { get: vi.fn().mockResolvedValue(current), modify: vi.fn() },
     });
 
-    await expect(
-      operations.modifyPrimitive('flag-1', {
-        x: 12,
-        y: undefined,
-        rotation: 90,
-        mirror: true,
-        net: 'GND',
-      }),
-    ).resolves.toEqual({
+    await expect(operations.modifyPrimitive('flag-1', { net: 'GND' })).resolves.toEqual({
       primitiveId: 'flag-1',
       componentType: 'netflag',
-      applied: { x: 12, rotation: 90, net: 'GND' },
+      applied: { net: 'GND' },
     });
-    expect(setX).toHaveBeenCalledWith(12);
-    expect(setRotation).toHaveBeenCalledWith(90);
     expect(setNet).toHaveBeenCalledWith('GND');
-    expect(done).toHaveBeenCalledTimes(1);
+    expect(done).toHaveBeenCalledOnce();
   });
 
-  it('supports net-port mutation when done and some setters are unavailable', async () => {
-    const setY = vi.fn();
-    const current = {
-      getState_ComponentType: () => 'netport',
-      setState_Y: setY,
-    };
+  it('allows same-valued net-port positioning without changing electrical placement', async () => {
+    const setX = vi.fn(),
+      setY = vi.fn(),
+      setRotation = vi.fn(),
+      setMirror = vi.fn();
     const { operations } = createSubject({
-      SCH_PrimitiveComponent: { get: vi.fn().mockResolvedValue(current), modify: vi.fn() },
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          getState_ComponentType: () => 'netport',
+          getState_X: () => 10,
+          getState_Y: () => 20,
+          getState_Rotation: () => 0,
+          getState_Mirror: () => false,
+          setState_X: setX,
+          setState_Y: setY,
+          setState_Rotation: setRotation,
+          setState_Mirror: setMirror,
+        }),
+        modify: vi.fn(),
+      },
     });
-
-    await expect(operations.modifyPrimitive('port-1', { y: 44, mirror: true })).resolves.toEqual({
+    await expect(
+      operations.modifyPrimitive('port-1', { x: 10, y: 20, rotation: 0, mirror: false }),
+    ).resolves.toMatchObject({
       primitiveId: 'port-1',
       componentType: 'netport',
-      applied: { y: 44 },
     });
-    expect(setY).toHaveBeenCalledWith(44);
+    for (const setter of [setX, setY, setRotation, setMirror]) {
+      expect(setter).not.toHaveBeenCalled();
+    }
+  });
+
+  it('rejects missing native net-marker coordinates before a setter even when requested', async () => {
+    const setter = vi.fn();
+    const done = vi.fn();
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          getState_ComponentType: () => 'netflag',
+          setState_X: setter,
+          done,
+        }),
+        modify: vi.fn(),
+      },
+    });
+    await expect(operations.modifyPrimitive('flag-1', { x: 10 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+    });
+    expect(setter).not.toHaveBeenCalled();
+    expect(done).not.toHaveBeenCalled();
   });
 
   it('continues to a class alias when an earlier snapshot getter throws', async () => {
