@@ -36,6 +36,8 @@ export interface CopperCenterReview {
   overall_status: 'UNKNOWN';
   engineering_sign_off: false;
   filledRegionCount: number;
+  /** Native positive-width stroke regions omitted from filled-polygon center screening. */
+  strokedRegionCount: number;
   contourCount: number;
   diagnostics: string[];
   candidates: CopperPadCenterOutcome[];
@@ -163,6 +165,23 @@ function nativeFilledContours(
     contours = parsed;
   }
   return { contours, count: filledCount };
+}
+
+/** Stroked pour regions (e.g. thermals) are native copper geometry, not
+ * filled polygons. Count them separately without inferring contact or a net path.
+ */
+function countUnscreenedStrokedRegions(regions: unknown): number {
+  if (!Array.isArray(regions) || regions.length > MAX_REGIONS) return 0;
+  return regions.filter((value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const region = value as Record<string, unknown>;
+    return (
+      region.fill === false &&
+      typeof region.lineWidth === 'number' &&
+      Number.isFinite(region.lineWidth) &&
+      region.lineWidth > 0
+    );
+  }).length;
 }
 
 function insideRing(target: Point, vertices: readonly Point[]): boolean {
@@ -354,11 +373,16 @@ export function reviewCopperPadCenterCandidates(
     overall_status: 'UNKNOWN',
     engineering_sign_off: false,
     filledRegionCount: 0,
+    strokedRegionCount: 0,
     contourCount: 0,
     diagnostics: [],
     candidates: [],
     pads: [],
   };
+  output.strokedRegionCount = countUnscreenedStrokedRegions(input.pouredRegions);
+  if (output.strokedRegionCount > 0) {
+    output.diagnostics.push('NATIVE_STROKE_GEOMETRY_NOT_SCREENED');
+  }
   const polygon = nativeFilledContours(input.pouredRegions);
   if (!polygon) output.diagnostics.push('UNSUPPORTED_POLYGON_SOURCE');
   else {
