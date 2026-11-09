@@ -3709,7 +3709,7 @@ Returns a JSON object matching the schema:
 | `deviceItem`                | `object`             | Yes      |                                                                                       |
 | `x`                         | `number`             | Yes      |                                                                                       |
 | `y`                         | `number`             | Yes      |                                                                                       |
-| `subPartName`               | `string (optional)`  | No       |                                                                                       |
+| `subPartName`               | `string (optional)`  | No       | Unsupported: multi-unit placement is unverified; preview/apply fail closed.           |
 | `rotation`                  | `number (optional)`  | No       |                                                                                       |
 | `mirror`                    | `boolean (optional)` | No       |                                                                                       |
 | `addIntoBom`                | `boolean (optional)` | No       |                                                                                       |

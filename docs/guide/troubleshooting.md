@@ -40,6 +40,29 @@ If you receive errors like `Bridge not connected` during tool execution:
 
 ---
 
+## Multi-unit schematic symbols return SUBPART_PLACEMENT_UNVERIFIED
+
+If `easyeda_schematic_place_component` is given `subPartName` (for example
+`OPA2333AIDR.1`), **both preview (`dryRun`) and apply** refuse the request
+before reading or changing the schematic. Compound schematic workflows
+(`easyeda_workflow_place_block` and `easyeda_workflow_connector_breakout`)
+also mark such plans blocked before performing any operation. This is intentional: while the
+[EasyEDA Pro beta API documents a `subPartName` argument](https://prodocs.easyeda.com/en/api/reference/pro-api.sch_primitivecomponent.create.html),
+this MCP bridge has not verified correct selection, shared component identity,
+pins, package, and BOM handling for multi-unit devices in a native EasyEDA
+session. A dry-run success must not promise a later write will work.
+
+For now, open the schematic in the **EasyEDA Pro editor** and place the
+remaining symbol units using the editor's multi-part component workflow.
+Inspect the resulting pins and designators, then check that all sections map
+to the intended shared package and **one BOM component** before wiring or
+manufacturing. Do **not** approximate a multi-part device by placing
+independent full devices with separate reference designators; that can produce
+duplicate package/BOM entries. The automated MCP multi-unit workflow remains
+unsupported until native source-matched read-back acceptance is available.
+
+---
+
 ## 3. Node.js Version Error
 
 The MCP server supports Node.js **24.x**. Repository automation is pinned to **24.22.1**, and local pnpm workflows require exactly **11.28.8**.

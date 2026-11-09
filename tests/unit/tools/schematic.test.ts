@@ -842,6 +842,29 @@ describe('Schematic Tools', () => {
     });
   });
 
+  it.each([
+    ['dry-run', { dryRun: true }],
+    ['standalone apply', {}],
+    ['transactional apply', { projectId: 'project-1', transactionId: 'tx-subpart-1' }],
+  ])('refuses #995 unsupported subPartName before %s reads or writes', async (_flow, options) => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 100,
+      y: 200,
+      subPartName: 'OPA2333AIDR.1',
+      confirmWrite: true,
+      ...options,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error_code: 'SUBPART_PLACEMENT_UNVERIFIED',
+      error: expect.stringContaining('EasyEDA editor'),
+    });
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_schematic_place_component should call bridge and return success', async () => {
     const tool = registry.get('easyeda_schematic_place_component');
     bridgeCall.mockResolvedValue({ componentId: 'comp-123' });

@@ -10,7 +10,8 @@ export type WorkflowIssueCode =
   | 'WORKFLOW_DUPLICATE_NET_PORT'
   | 'WORKFLOW_PIN_COLLISION'
   | 'WORKFLOW_SAFE_REGION'
-  | 'WORKFLOW_POST_WRITE_QA';
+  | 'WORKFLOW_POST_WRITE_QA'
+  | 'SUBPART_PLACEMENT_UNVERIFIED';
 
 export interface WorkflowIssue {
   code: WorkflowIssueCode;

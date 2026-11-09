@@ -1100,6 +1100,59 @@ describe('Workflow Tools', () => {
     });
   });
 
+  it.each([
+    ['place_block', 'preview'],
+    ['place_block', 'apply'],
+    ['connector_breakout', 'preview'],
+    ['connector_breakout', 'apply'],
+  ] as const)(
+    'blocks #995 multi-unit %s %s before any bridge operations',
+    async (workflow, mode) => {
+      const toolName =
+        workflow === 'place_block'
+          ? 'easyeda_workflow_place_block'
+          : 'easyeda_workflow_connector_breakout';
+      const payload =
+        workflow === 'place_block'
+          ? {
+              components: [
+                {
+                  ref: 'U1',
+                  role: 'dual amplifier',
+                  deviceItem,
+                  subPartName: 'OPA2333AIDR.1',
+                  pinConnections: [{ pin: '1', netName: 'VCC' }],
+                },
+              ],
+            }
+          : {
+              connectorRef: 'J1',
+              connector: deviceItem,
+              subPartName: 'OPA2333AIDR.1',
+              pins: [{ pin: '1', netName: 'VCC' }],
+            };
+      const result = (await registry.get(toolName)?.handler(context, {
+        projectId: 'proj-1',
+        mode,
+        anchor: { x: 0, y: 0 },
+        confirmWrite: true,
+        ...payload,
+      })) as any;
+
+      expect(result).toMatchObject({
+        success: false,
+        blocked: true,
+        applied: false,
+      });
+      expect(result.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'SUBPART_PLACEMENT_UNVERIFIED', severity: 'error' }),
+        ]),
+      );
+      expect(bridgeCall).not.toHaveBeenCalled();
+    },
+  );
+
   describe('collision reconcile', () => {
     it('nudges a newly-placed component clear of a pin-coordinate collision and still applies', async () => {
       let placed1Pos = { x: 0, y: 0 };
