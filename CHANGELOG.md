@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.13.0...easyeda-mcp-pro-v1.13.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **pcb:** disclose unscreened native copper strokes ([#981](https://github.com/oaslananka/easyeda-mcp-pro/issues/981)) ([d3c827f](https://github.com/oaslananka/easyeda-mcp-pro/commit/d3c827f47ce419b2377ca388918ae2f4523ae8b3))
+* **pcb:** report native stroke-to-fill boundary candidates ([#983](https://github.com/oaslananka/easyeda-mcp-pro/issues/983)) ([502db49](https://github.com/oaslananka/easyeda-mcp-pro/commit/502db493b57dec772189528b6d06c913eb9fe9fd))
+
 ## [1.13.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.12.0...easyeda-mcp-pro-v1.13.0) (2026-11-09)
 
 
