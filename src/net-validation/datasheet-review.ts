@@ -102,13 +102,32 @@ function sourceIdentityUnambiguous(
   nets: NetValidationEntry[],
   devices: DeviceValidationEntry[] | undefined,
 ): boolean {
-  return (
-    devices !== undefined &&
-    uniqueExactIdentities(nets.map((net) => net.id)) &&
-    uniqueExactIdentities(nets.map((net) => net.name)) &&
-    uniqueExactIdentities(devices.map((device) => device.id)) &&
-    uniqueExactIdentities(devices.map((device) => device.ref))
-  );
+  if (
+    devices === undefined ||
+    !uniqueExactIdentities(nets.map((net) => net.id)) ||
+    !uniqueExactIdentities(nets.map((net) => net.name))
+  )
+    return false;
+  const refsById = new Map<string, string>();
+  const idsByRef = new Map<string, string>();
+  for (const { id, ref } of devices) {
+    if (
+      typeof id !== 'string' ||
+      !id.trim() ||
+      id.trim() !== id ||
+      typeof ref !== 'string' ||
+      !ref.trim() ||
+      ref.trim() !== ref ||
+      (refsById.has(id) && refsById.get(id) !== ref) ||
+      (idsByRef.has(ref) && idsByRef.get(ref) !== id)
+    )
+      return false;
+    refsById.set(id, ref);
+    idsByRef.set(ref, id);
+  }
+  // Identical repeated ID/reference pairs do not invalidate unrelated pins;
+  // findPinNet still refuses a target with multiple matching device records.
+  return true;
 }
 
 function exactReferenceIdentity(reference: DatasheetReference | undefined): boolean {
