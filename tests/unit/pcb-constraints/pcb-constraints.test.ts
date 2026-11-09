@@ -499,6 +499,8 @@ describe('production review rules', () => {
       { criticalNetNames: ['IO'], testPointNets: [''] },
       { criticalNetNames: ['IO', 'io'], testPointNets: ['IO'] },
       { criticalNetNames: ['IO', 'IO'], testPointNets: ['IO'] },
+      { criticalNetNames: ['IO', 'GND'], testPointNets: ['IO', 'io', 'GND'] },
+      { criticalNetNames: ['IO', 'GND'], testPointNets: ['io', 'IO'] },
     ];
     for (const entry of variants) {
       const result = validatePcbConstraints(makeInput(entry));
