@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "kind": "source-bound-release-candidate-native-schematic-readonly",
+  "validatedAt": "2026-11-09T00:52:35.725Z",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "releasePr": 964,
+    "commit": "c660492c4e4d025c4e526c38446fd4fc0339de29",
+    "compatibilitySnapshot": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "fe5ee8dce7ab0de1afcf12a0f130ebddcb41e417",
+        "src/bridge": "3eda47dae97ada62470939bffd29db5f754ca7d3",
+        "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+        "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+        "src/tools": "b4366066ca94c3481575d2fa3b4b0df40da92487",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "runtime": {
+    "editorVersion": "3.2.209.8a704eab",
+    "platform": "Ubuntu 24.04.5 LTS",
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "nodeVersion": "24.22.1",
+    "isolatedDesktopProfile": true,
+    "editorRestartAfterImport": true
+  },
+  "extension": {
+    "packageVersion": "1.13.0",
+    "loaderHandshakeVersion": "1.13.0",
+    "bridgeContractVersion": "1.0.0",
+    "packageSizeBytes": 210950,
+    "packageSha256": "0f92b24d0c96785bb7d290531a557361e8a4e4fa3f065fd0c9d60d28b4ab2e82",
+    "installedVia": "Official EasyEDA Pro native Extensions Manager import, then full process restart",
+    "installedManagerVerified": true,
+    "sourceMatchedPackageBuiltAndVerified": true,
+    "independentInstalledArchiveByteReadback": false,
+    "runtimeBakedDispatcherBuildId": "dbb5dx5a9ex2c69",
+    "methodRegistryHash": "d90e948009f55f20",
+    "methodCount": 75,
+    "versionMismatch": false
+  },
+  "fixture": {
+    "type": "Owner-controlled isolated disposable Z480 EasyEDA schematic and PCB test project",
+    "currentProjectAndSchematicParentUuidMatched": true,
+    "actualProjectAndDocumentIdsWithheld": true,
+    "sourceSpecificOriginalProjectUnchangedSha256": "0939cec78271140c739476ffcb420f54750746b7b377cabcb368c46032b21d88",
+    "projectSaveCalls": 0,
+    "designMutationCalls": 0,
+    "exportsOrManufacturingCalls": 0
+  },
+  "liveNativeReadOnlyChecks": {
+    "status": "passed",
+    "count": 6,
+    "passed": 6,
+    "failed": 0,
+    "writeEnabled": false,
+    "checks": [
+      {
+        "id": "system_status",
+        "method": "system.getStatus",
+        "status": "passed",
+        "mutates": false
+      },
+      {
+        "id": "api_inventory",
+        "method": "system.apiInventory",
+        "status": "passed",
+        "mutates": false
+      },
+      {
+        "id": "schematic_nets",
+        "method": "schematic.listNets",
+        "status": "passed",
+        "mutates": false
+      },
+      {
+        "id": "schematic_components",
+        "method": "schematic.listComponents",
+        "status": "passed",
+        "mutates": false
+      },
+      {
+        "id": "bom_generate",
+        "method": "bom.generate",
+        "status": "passed",
+        "mutates": false
+      },
+      {
+        "id": "erc_check",
+        "method": "design.erc",
+        "status": "passed",
+        "mutates": false
+      }
+    ]
+  },
+  "initialNegativeScopeProbe": {
+    "invalidCallerProjectIdWasDisplayNameRatherThanNativeUuid": true,
+    "schematicListNetsRefused": true,
+    "schematicListComponentsRefused": true,
+    "reason": "current-project-uuid-mismatch",
+    "noCrossProjectDataReturned": true,
+    "subsequentRealNativeUuidAndFocusedParentMatch": true
+  },
+  "knownLimitations": [
+    "Only 6 focused real read-only checks were run: system status, API inventory, schematic net/component lists, BOM and ERC. No full behavioral validation of all 75 dispatcher methods.",
+    "BOM generation and ERC commands returned structured non-error evidence, not an independent sign-off of device, datasheet, connectivity, power quality or DRC correctness.",
+    "#842 PCB copper/pour/via/pad electrical continuity and actual current-return path remain UNKNOWN; no electrical signoff or manufacturer-ready verdict.",
+    "#844 device-specific signed datasheet mapping and comprehensive ERC correctness remain OPEN.",
+    "#945 topology-preserving move/rotation of connected components remains unsupported and OPEN. No native mutation, save, design change or rollback exercised.",
+    "One Ubuntu 24.04.5 x64 EasyEDA Pro 3.2.209 desktop profile; no real EasyEDA Windows/macOS GUI acceptance. Installed package byte read-back from EasyEDA storage was not independently verified.",
+    "Source-matched c660492 (PR #964) runtime evidence does not automatically apply to future code changes in compatibility-sensitive paths. Required release CI and publish gates remain independent."
+  ]
+}
