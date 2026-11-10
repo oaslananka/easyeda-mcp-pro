@@ -126,7 +126,7 @@ export interface PcbConstraintInput {
    * Negative values mean geometrically overlapping copper, not a proven physical short.
    * Caller-supplied; the native summary cannot prove the minimum or DRC clearance. */
   minObservedCopperGapMm?: number;
-  /** Minimum copper-to-board-edge clearance observed in mm. */
+  /** Minimum copper-to-board-edge clearance observed in mm; negative denotes geometric overlap, not verified native DRC. */
   minCopperToEdgeMm?: number;
   /** Number of copper-to-edge clearance violations. */
   copperToEdgeViolationCount?: number;

@@ -292,6 +292,37 @@ describe('versioned manufacturer process observations (not fabrication approval)
     expect(within.fabrication_approval).toBe(false);
   });
 
+  it('warns when reported copper extends beyond the board edge and a positive factory edge gap was declared', () => {
+    const profile = { ...ref, limits: { minimumCopperEdgeMm: 0.2 } };
+    for (const source of ['caller_supplied_unverified', 'native_partial_unverified'] as const) {
+      const review = reviewManufacturerProfile(
+        profile,
+        { minCopperToEdgeMm: -0.08, hasOutline: true },
+        source,
+      );
+      expect(review.status).toBe('WARNING');
+      expect(review.findings[0]).toMatchObject({
+        id: 'minimumCopperEdgeMm',
+        actual: -0.08,
+        status: 'WARNING',
+        comparison: 'BELOW_DECLARED_LIMIT',
+        measurement_evidence: source,
+      });
+      expect(review.fabrication_approval).toBe(false);
+    }
+    const malformed = reviewManufacturerProfile(
+      profile,
+      { minCopperToEdgeMm: -10_001, hasOutline: true },
+      'caller_supplied_unverified',
+    );
+    expect(malformed.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      comparison: 'UNKNOWN',
+      measurement_evidence: 'unavailable',
+    });
+    expect(malformed.findings[0]).not.toHaveProperty('actual');
+  });
+
   it('fails closed when a track/space minimum is missing, malformed, or not native-sourced', () => {
     const profile = {
       ...ref,

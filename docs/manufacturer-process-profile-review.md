@@ -57,7 +57,10 @@ and fractions from 0 to 1 for marking/test coverage.
 Available comparisons include:
 
 - Finished/mechanical minimum drill, minimum annular ring, minimum
-  solder-mask web, and minimum copper-to-board-edge separation.
+  solder-mask web, and minimum copper-to-board-edge separation. A finite
+  **negative reported copper-to-board-edge clearance** is a geometric overlap
+  and warns against a declared positive edge-clearance minimum; this is
+  caller-reported context, **not** independently verified native DRC evidence.
 - Minimum **reported** copper trace width (`minObservedTraceWidthMm`) and
   minimum **reported** same-layer different-net projected copper edge gap
   (`minObservedCopperGapMm`), each compared to a source-declared process
