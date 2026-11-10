@@ -3703,6 +3703,218 @@ describe('createDispatcher', () => {
       expect(remove).toHaveBeenCalledWith('wrong-unit-1');
     });
 
+    function groupedNativeFixture(
+      options: {
+        inventory?: unknown;
+        missingMethod?: boolean;
+        noCreatedId?: boolean;
+        nativeSource?: Record<string, unknown>;
+        modifyFails?: boolean;
+        readbackMismatch?: boolean;
+        deleteFails?: boolean;
+        deleteThrows?: boolean;
+      } = {},
+    ) {
+      const deviceItem = { uuid: 'dev-1', libraryUuid: 'lib-1' };
+      const request = {
+        deviceItem,
+        x: 100,
+        y: 200,
+        subPartName: 'OPA2333AIDR.2',
+        designator: 'U995',
+        uniqueId: 'gge9950',
+      };
+      const source = options.nativeSource ?? {
+        uuid: 'native-1',
+        name: 'OPA2333AIDR',
+        libraryUuid: 'lib-1',
+      };
+      const created = fakeComponent({
+        SubPartName: request.subPartName,
+        Component: source,
+      });
+      if (!options.noCreatedId) created.getState_PrimitiveId = () => 'placed-new';
+      const create = vi.fn(async () => created);
+      const modify = vi.fn(async () => (options.modifyFails ? false : true));
+      let deleted = false;
+      const remove = vi.fn(async () => {
+        if (options.deleteThrows) throw new Error('rollback unavailable');
+        deleted = options.deleteFails !== true;
+        return deleted;
+      });
+      const get = vi.fn(async () => {
+        if (deleted) return undefined;
+        return fakeComponent({
+          SubPartName: options.readbackMismatch ? 'OPA2333AIDR.1' : request.subPartName,
+          Designator: request.designator,
+          UniqueId: request.uniqueId,
+          Component: source,
+        });
+      });
+      const nativeClass: Record<string, unknown> = {
+        create,
+        getAll: vi.fn(async () => options.inventory ?? []),
+        get,
+        modify,
+        delete: remove,
+      };
+      if (options.missingMethod) delete nativeClass.delete;
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          LIB_Device: {
+            get: vi.fn(async () => ({
+              ...deviceItem,
+              name: 'OPA2333AIDR',
+              subPartNames: ['OPA2333AIDR.1', 'OPA2333AIDR.2'],
+            })),
+          },
+          SCH_PrimitiveComponent: nativeClass,
+        }),
+      );
+      return { request, dispatcher, create, modify, remove };
+    }
+
+    it('links an existing first unit to the second unit when their native devices agree', async () => {
+      const existing = fakeComponent({
+        Designator: 'U995',
+        UniqueId: 'gge9950',
+        SubPartName: 'OPA2333AIDR.1',
+        Component: { uuid: 'native-1', name: 'OPA2333AIDR', libraryUuid: 'lib-1' },
+      });
+      const fixture = groupedNativeFixture({ inventory: [existing] });
+      await expect(
+        fixture.dispatcher.dispatch('schematic.placeComponent', fixture.request),
+      ).resolves.toBeDefined();
+      expect(fixture.modify).toHaveBeenCalledWith('placed-new', {
+        designator: 'U995',
+        uniqueId: 'gge9950',
+      });
+      expect(fixture.remove).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        'conflicting reference',
+        {
+          Designator: 'U996',
+          UniqueId: 'gge9950',
+          SubPartName: 'OPA2333AIDR.1',
+          Component: { uuid: 'native-1', name: 'OPA2333AIDR', libraryUuid: 'lib-1' },
+        },
+      ],
+      [
+        'conflicting identity',
+        {
+          Designator: 'U995',
+          UniqueId: 'other-identity',
+          SubPartName: 'OPA2333AIDR.1',
+          Component: { uuid: 'native-1', name: 'OPA2333AIDR', libraryUuid: 'lib-1' },
+        },
+      ],
+      [
+        'different library',
+        {
+          Designator: 'U995',
+          UniqueId: 'gge9950',
+          SubPartName: 'OPA2333AIDR.1',
+          Component: { uuid: 'native-1', name: 'OPA2333AIDR', libraryUuid: 'other-library' },
+        },
+      ],
+      [
+        'different device name',
+        {
+          Designator: 'U995',
+          UniqueId: 'gge9950',
+          SubPartName: 'OPA2333AIDR.1',
+          Component: { uuid: 'native-1', name: 'Different device', libraryUuid: 'lib-1' },
+        },
+      ],
+      [
+        'missing device source',
+        { Designator: 'U995', UniqueId: 'gge9950', SubPartName: 'OPA2333AIDR.1' },
+      ],
+    ])('rejects %s before creating a new physical unit', async (_name, state) => {
+      const fixture = groupedNativeFixture({ inventory: [fakeComponent(state)] });
+      await expect(
+        fixture.dispatcher.dispatch('schematic.placeComponent', fixture.request),
+      ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+      expect(fixture.create).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the native inventory is not an array', async () => {
+      const fixture = groupedNativeFixture({ inventory: { unavailable: true } });
+      await expect(
+        fixture.dispatcher.dispatch('schematic.placeComponent', fixture.request),
+      ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+      expect(fixture.create).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when native rollback/readback capability is missing', async () => {
+      const fixture = groupedNativeFixture({ missingMethod: true });
+      await expect(
+        fixture.dispatcher.dispatch('schematic.placeComponent', fixture.request),
+      ).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+      expect(fixture.create).not.toHaveBeenCalled();
+    });
+
+    it('reports an ambiguous write without retry when native create lacks an ID', async () => {
+      const fixture = groupedNativeFixture({ noCreatedId: true });
+      await expect(
+        fixture.dispatcher.dispatch('schematic.placeComponent', fixture.request),
+      ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+      expect(fixture.create).toHaveBeenCalledTimes(1);
+      expect(fixture.modify).not.toHaveBeenCalled();
+    });
+
+    it('rolls back a unit whose physical native device disagrees with the existing one', async () => {
+      const existing = fakeComponent({
+        Designator: 'U995',
+        UniqueId: 'gge9950',
+        SubPartName: 'OPA2333AIDR.1',
+        Component: { uuid: 'native-1', name: 'OPA2333AIDR', libraryUuid: 'lib-1' },
+      });
+      const fixture = groupedNativeFixture({
+        inventory: [existing],
+        nativeSource: { uuid: 'different-physical-id', name: 'OPA2333AIDR', libraryUuid: 'lib-1' },
+      });
+      await expect(
+        fixture.dispatcher.dispatch('schematic.placeComponent', fixture.request),
+      ).rejects.toMatchObject({ code: 'SUBPART_READBACK_FAILED', data: { rolledBack: true } });
+      expect(fixture.remove).toHaveBeenCalledWith('placed-new');
+    });
+
+    it.each([
+      ['failed native modify', { modifyFails: true }],
+      ['wrong native identity readback', { readbackMismatch: true }],
+      ['rollback did not remove primitive', { modifyFails: true, deleteFails: true }],
+      ['rollback operation threw', { modifyFails: true, deleteThrows: true }],
+    ])('reports %s without false success', async (_case, options) => {
+      const fixture = groupedNativeFixture(options);
+      await expect(
+        fixture.dispatcher.dispatch('schematic.placeComponent', fixture.request),
+      ).rejects.toMatchObject({
+        code: 'SUBPART_READBACK_FAILED',
+        data: {
+          primitiveId: 'placed-new',
+          rolledBack: !options.deleteFails && !options.deleteThrows,
+        },
+      });
+      expect(fixture.remove).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects physical identity parameters without a requested subpart', async () => {
+      const fixture = groupedNativeFixture();
+      await expect(
+        fixture.dispatcher.dispatch('schematic.placeComponent', {
+          deviceItem: fixture.request.deviceItem,
+          x: 10,
+          y: 20,
+          designator: 'U995',
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+      expect(fixture.create).not.toHaveBeenCalled();
+    });
+
     it('places normally when subPartName is omitted', async () => {
       const create = vi.fn(async () => ({ primitiveId: 'comp1' }));
       const get = vi.fn(async () => ({ uuid: 'dev-1', libraryUuid: 'lib-1' }));

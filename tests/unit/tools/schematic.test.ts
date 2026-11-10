@@ -1073,6 +1073,74 @@ describe('Schematic Tools', () => {
     });
   });
 
+  it.each([
+    [{ designator: 'U997' }],
+    [{ uniqueId: 'gge9970' }],
+    [{ designator: 'U997', uniqueId: 'gge9970' }],
+  ])(
+    'rejects unpaired identity parameters without a subpart before any bridge call',
+    async (extra) => {
+      const tool = registry.get('easyeda_schematic_place_component');
+      const result = await tool?.handler(context, {
+        deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+        x: 100,
+        y: 200,
+        confirmWrite: true,
+        ...extra,
+      });
+      expect(result).toMatchObject({ success: false, error_code: 'SUBPART_LINK_REQUIRED' });
+      expect(bridgeCall).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['no native ID', { result: { componentId: 'unlinked' } }],
+    ['previously existing native ID', { before: [{ primitiveId: 'placed-1' }] }],
+    ['native ID not present in readback', { after: [{ primitiveId: 'other' }] }],
+    ['wrong linked designator', { after: [{ primitiveId: 'placed-1', reference: 'U999' }] }],
+    ['wrong linked uniqueId', { after: [{ primitiveId: 'placed-1', uniqueId: 'wrong-id' }] }],
+    [
+      'wrong linked subpart',
+      { after: [{ primitiveId: 'placed-1', subPartName: 'OPA2333AIDR.2' }] },
+    ],
+    ['wrong native X', { after: [{ primitiveId: 'placed-1', x: 999 }] }],
+    ['wrong native Y', { after: [{ primitiveId: 'placed-1', y: 999 }] }],
+  ])('rejects a false native subpart confirmation: %s', async (_case, options) => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    const expected = {
+      primitiveId: 'placed-1',
+      reference: 'U997',
+      uniqueId: 'gge9970',
+      subPartName: 'OPA2333AIDR.1',
+      x: 1400,
+      y: 900,
+    };
+    const after =
+      'after' in options && options.after ? [{ ...expected, ...options.after[0] }] : [expected];
+    bridgeCall.mockResolvedValueOnce(('before' in options && options.before) || []);
+    bridgeCall.mockResolvedValueOnce(
+      ('result' in options && options.result) || { primitiveId: 'placed-1' },
+    );
+    bridgeCall.mockResolvedValueOnce(after);
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 1400,
+      y: 900,
+      subPartName: 'OPA2333AIDR.1',
+      designator: 'U997',
+      uniqueId: 'gge9970',
+      verifyAfterWrite: true,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      unconfirmed: true,
+      error_code: 'POST_WRITE_READBACK_UNCONFIRMED',
+      verification: { readback_available: true, identity_confirmed: false },
+    });
+    expect(bridgeCall).toHaveBeenCalledTimes(3);
+  });
+
   it('easyeda_schematic_add_wire should call bridge and return success', async () => {
     const tool = registry.get('easyeda_schematic_add_wire');
     bridgeCall.mockResolvedValue({ wireId: 'wire-123' });
