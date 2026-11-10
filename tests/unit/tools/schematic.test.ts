@@ -2012,13 +2012,14 @@ describe('Schematic Tools', () => {
       expect(result?.note).toContain('confirmation dialog');
     });
 
-    it('defaults sync requested to true when the bridge omits synced', async () => {
+    it('does not claim a sync request when bridge acknowledgement is missing', async () => {
       const tool = registry.get('easyeda_schematic_sync_to_pcb');
       bridgeCall.mockResolvedValue({});
 
       const result = await tool?.handler(context, { confirmWrite: true });
 
-      expect(result).toMatchObject({ success: true, requested: true });
+      expect(result).toMatchObject({ success: false, requested: false });
+      expect(result?.error).toContain('did not confirm');
     });
 
     it('preserves a false sync request result from the bridge', async () => {
@@ -2027,7 +2028,8 @@ describe('Schematic Tools', () => {
 
       const result = await tool?.handler(context, { projectId: 'proj-123', confirmWrite: true });
 
-      expect(result).toMatchObject({ success: true, requested: false });
+      expect(result).toMatchObject({ success: false, requested: false });
+      expect(result?.error).toContain('did not confirm');
     });
 
     it('reports failure when the schematic tab is not focused', async () => {

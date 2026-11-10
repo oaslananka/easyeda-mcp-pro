@@ -2069,7 +2069,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         );
       }
       const result = await callFirst(['SCH_Document.importChanges', 'sch_Document.importChanges']);
-      return { synced: result !== false };
+      // A missing or non-true native result does not establish that the import
+      // confirmation dialog opened. It never proves the PCB sync completed.
+      return { synced: result === true };
     }
     default:
       throw newBridgeError(

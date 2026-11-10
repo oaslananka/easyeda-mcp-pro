@@ -1051,6 +1051,22 @@ describe('createDispatcher', () => {
     expect(result).toEqual({ synced: true });
   });
 
+  it.each([undefined, false, null])(
+    'schematic.syncToPcb does not report a request for native result %s',
+    async (nativeResult) => {
+      const importChanges = vi.fn(async () => nativeResult);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          DMT_Schematic: { getCurrentSchematicInfo: async () => ({ uuid: 'sch-1' }) },
+          SCH_Document: { importChanges },
+        }),
+      );
+      const result = await dispatcher.dispatch('schematic.syncToPcb', {});
+      expect(importChanges).toHaveBeenCalledOnce();
+      expect(result).toEqual({ synced: false });
+    },
+  );
+
   it('schematic.syncToPcb refuses when the schematic tab is not focused', async () => {
     const importChanges = vi.fn(async () => true);
     const dispatcher = createDispatcher(
