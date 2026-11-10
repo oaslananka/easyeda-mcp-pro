@@ -544,6 +544,7 @@ Returns a JSON object matching the schema:
   total_parts: number;
   missing_lcsc: string[];
   invalid_lcsc: string[];
+  unverified_lcsc: string[] (optional);
   obsolete: string[];
   valid_count: number;
   validated: boolean;

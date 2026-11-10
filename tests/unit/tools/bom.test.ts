@@ -129,13 +129,13 @@ describe('BOM Tools Sourcing & Validate', () => {
     expect(result.keyless_sourcing_enabled).toBe(false);
   });
 
-  it('easyeda_bom_validate should categorize missing, invalid, and obsolete parts', async () => {
+  it('easyeda_bom_validate distinguishes missing, unverified, obsolete and verified parts', async () => {
     const tool = registry.get('easyeda_bom_validate');
     expect(tool).toBeDefined();
 
     bridgeCall.mockResolvedValue([
       { reference: 'R1', value: '10k' }, // Missing LCSC
-      { reference: 'C1', value: '100nF', lcsc: 'C99999' }, // Invalid
+      { reference: 'C1', value: '100nF', lcsc: 'C99999' }, // Keyless snapshot unknown
       { reference: 'U1', value: 'MCU', lcsc: 'C55555' }, // Obsolete
       { reference: 'Q1', value: 'MOSFET', lcsc: 'C11111' }, // Valid
     ]);
@@ -147,7 +147,7 @@ describe('BOM Tools Sourcing & Validate', () => {
       if (lcscCode === 'C11111') {
         return { lcsc: 'C11111', discontinued: false, stock: 100 };
       }
-      return null; // C99999 is invalid
+      return null; // No match in the keyless in-stock snapshot
     });
 
     const result = await tool?.handler(context, {
@@ -158,10 +158,125 @@ describe('BOM Tools Sourcing & Validate', () => {
     expect(result.project_id).toBe('proj-123');
     expect(result.total_parts).toBe(4);
     expect(result.missing_lcsc).toContain('R1');
-    expect(result.invalid_lcsc).toContain('C1');
+    expect(result.invalid_lcsc).toEqual([]);
+    expect(result.unverified_lcsc).toContain('C1');
     expect(result.obsolete).toContain('U1');
     expect(result.valid_count).toBe(1);
-    expect(result.validated).toBe(true);
+    expect(result.validated).toBe(false);
+  });
+
+  it('never claims supplier validation when no LCSC client is connected', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    context.vendors.lcsc = null;
+    bridgeCall.mockResolvedValue([
+      { reference: 'U1', value: 'AMP', lcsc: 'C12345' },
+      { reference: 'R1', value: '10k' },
+    ]);
+
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+
+    expect(result).toMatchObject({
+      validated: false,
+      valid_count: 0,
+      total_parts: 2,
+      unverified_lcsc: ['U1'],
+      missing_lcsc: ['R1'],
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('treats missing keyless snapshot matches as unverified, not nonexistent parts', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue([{ reference: 'U1', value: 'AMP', lcsc: 'C99999' }]);
+    getPartDetailMock.mockResolvedValue(null);
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      validated: false,
+      valid_count: 0,
+      invalid_lcsc: [],
+      unverified_lcsc: ['U1'],
+    });
+  });
+
+  it('distinguishes supplier timeouts from proof of invalid part numbers', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue([{ reference: 'U1', value: 'AMP', lcsc: 'C12345' }]);
+    getPartDetailMock.mockRejectedValue(new Error('supplier timeout'));
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      validated: false,
+      valid_count: 0,
+      invalid_lcsc: [],
+      unverified_lcsc: ['U1'],
+    });
+  });
+
+  it('refuses a supplier result identifying a different LCSC part', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue([{ reference: 'U1', value: 'AMP', lcsc: 'C12345' }]);
+    getPartDetailMock.mockResolvedValue({ lcsc: 'C99999', discontinued: false });
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      validated: false,
+      valid_count: 0,
+      unverified_lcsc: ['U1'],
+    });
+  });
+
+  it('validates only when every supplied LCSC ID is confirmed by the same supplier', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue([
+      { reference: 'U1', value: 'AMP', lcsc: 'C12345' },
+      { reference: 'R1', value: '10k', lcsc: 'C98765' },
+    ]);
+    getPartDetailMock.mockImplementation(async (code: string) => ({
+      lcsc: code,
+      discontinued: false,
+    }));
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      validated: true,
+      total_parts: 2,
+      valid_count: 2,
+      unverified_lcsc: [],
+      invalid_lcsc: [],
+      obsolete: [],
+    });
+    expect(getPartDetailMock).toHaveBeenCalledTimes(2);
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('does not claim supplier verification when every part lacks a supplier code', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue([{ reference: 'R1', value: '10k' }]);
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      validated: false,
+      missing_lcsc: ['R1'],
+      valid_count: 0,
+    });
+    expect(getPartDetailMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the bridge returns a non-list BOM payload', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue({ quantity: 10, message: 'not a BOM list' });
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      not_available: true,
+      validated: false,
+      total_parts: 0,
+      valid_count: 0,
+    });
+    expect(getPartDetailMock).not.toHaveBeenCalled();
+  });
+
+  it('does not claim an empty BOM was supplier validated', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue([]);
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({ total_parts: 0, valid_count: 0, validated: false });
+    expect(getPartDetailMock).not.toHaveBeenCalled();
   });
 
   it('easyeda_bom_validate should return not_available when the bridge call fails', async () => {
