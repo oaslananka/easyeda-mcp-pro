@@ -2000,16 +2000,57 @@ describe('Schematic Tools', () => {
       expect(tool).toBeDefined();
       expect(tool?.confirmWrite).toBe(true);
 
-      bridgeCall.mockResolvedValue({ synced: true });
+      bridgeCall.mockImplementation(async (method: string) =>
+        method === 'schematic.listComponents' ? { items: [], total: 0 } : { synced: true },
+      );
 
       const result = await tool?.handler(context, {
         projectId: 'proj-123',
         confirmWrite: true,
       });
 
-      expect(bridgeCall).toHaveBeenCalledWith('schematic.syncToPcb', { projectId: 'proj-123' });
+      expect(bridgeCall).toHaveBeenNthCalledWith(1, 'schematic.listComponents', {
+        projectId: 'proj-123',
+        limit: 1,
+        offset: 0,
+        scope: 'focused',
+      });
+      expect(bridgeCall).toHaveBeenNthCalledWith(2, 'schematic.syncToPcb', {
+        projectId: 'proj-123',
+      });
       expect(result).toMatchObject({ success: true, requested: true });
       expect(result?.note).toContain('confirmation dialog');
+    });
+
+    it('rejects a wrong focused project before sending a native PCB sync request', async () => {
+      const tool = registry.get('easyeda_schematic_sync_to_pcb');
+      bridgeCall.mockRejectedValueOnce(
+        new Error('Schematic project identity mismatch: current-project-uuid-mismatch'),
+      );
+
+      const result = await tool?.handler(context, {
+        projectId: 'different-project',
+        confirmWrite: true,
+      });
+
+      expect(result).toMatchObject({ success: false });
+      expect(result?.error).toContain('project identity mismatch');
+      expect(bridgeCall).toHaveBeenCalledTimes(1);
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.syncToPcb', expect.anything());
+    });
+
+    it('refuses an unverified schematic read before opening native import', async () => {
+      const tool = registry.get('easyeda_schematic_sync_to_pcb');
+      bridgeCall.mockResolvedValueOnce({ not_available: true });
+
+      const result = await tool?.handler(context, {
+        projectId: 'some-project',
+        confirmWrite: true,
+      });
+
+      expect(result).toMatchObject({ success: false });
+      expect(result?.error).toContain('Unable to verify');
+      expect(bridgeCall).toHaveBeenCalledTimes(1);
     });
 
     it('does not claim a sync request when bridge acknowledgement is missing', async () => {
@@ -2024,7 +2065,9 @@ describe('Schematic Tools', () => {
 
     it('preserves a false sync request result from the bridge', async () => {
       const tool = registry.get('easyeda_schematic_sync_to_pcb');
-      bridgeCall.mockResolvedValue({ synced: false });
+      bridgeCall.mockImplementation(async (method: string) =>
+        method === 'schematic.listComponents' ? { items: [], total: 0 } : { synced: false },
+      );
 
       const result = await tool?.handler(context, { projectId: 'proj-123', confirmWrite: true });
 
