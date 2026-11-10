@@ -189,6 +189,115 @@ describe('read-only dispatcher operations', () => {
     );
   });
 
+  it('reads #995 exact library subparts without any design mutation', async () => {
+    const callFirst = vi.fn(async () => ({
+      uuid: 'dev-1',
+      libraryUuid: 'lib-1',
+      name: 'OPA2333AIDR',
+      subPartNames: ['A', 'B'],
+      association: { footprintUuid: 'footprint-1' },
+    }));
+    const ops = createReadOnlyOperations(createDependencies({ callFirst }) as any);
+    const result = await ops.getDeviceSubParts({ deviceUuid: 'dev-1', libraryUuid: 'lib-1' });
+
+    expect(callFirst).toHaveBeenCalledExactlyOnceWith(
+      ['LIB_Device.get', 'lib_Device.get'],
+      'dev-1',
+      'lib-1',
+    );
+    expect(result).toEqual({
+      deviceUuid: 'dev-1',
+      libraryUuid: 'lib-1',
+      name: 'OPA2333AIDR',
+      subPartNames: ['A', 'B'],
+      multiUnit: true,
+      declaredFootprintUuid: 'footprint-1',
+      evidenceScope: 'library-metadata',
+    });
+  });
+
+  it('does not misrepresent missing #995 subpart metadata as a verified single-part device', async () => {
+    const callFirst = vi.fn(async () => ({ uuid: 'dev-2', libraryUuid: 'lib-1', name: 'Unknown' }));
+    const ops = createReadOnlyOperations(createDependencies({ callFirst }) as any);
+    await expect(
+      ops.getDeviceSubParts({ deviceUuid: 'dev-2', libraryUuid: 'lib-1' }),
+    ).resolves.toMatchObject({ not_available: true, reason: 'SUBPART_METADATA_UNAVAILABLE' });
+  });
+
+  it('refuses #995 a library getter that returns another device identity', async () => {
+    const callFirst = vi.fn(async () => ({
+      uuid: 'wrong-device',
+      libraryUuid: 'lib-1',
+      subPartNames: ['A', 'B'],
+    }));
+    const ops = createReadOnlyOperations(createDependencies({ callFirst }) as any);
+    await expect(
+      ops.getDeviceSubParts({ deviceUuid: 'dev-1', libraryUuid: 'lib-1' }),
+    ).resolves.toMatchObject({ not_available: true, reason: 'LIBRARY_SOURCE_MISMATCH' });
+  });
+
+  it.each([
+    ['missing device', undefined, 'DEVICE_NOT_FOUND'],
+    ['array response', [], 'DEVICE_NOT_FOUND'],
+    ['string response', 'untrusted', 'DEVICE_NOT_FOUND'],
+    [
+      'wrong library',
+      { uuid: 'dev-1', libraryUuid: 'wrong-lib', subPartNames: ['A'] },
+      'LIBRARY_SOURCE_MISMATCH',
+    ],
+    [
+      'non-array units',
+      { uuid: 'dev-1', libraryUuid: 'lib-1', subPartNames: 'A' },
+      'SUBPART_METADATA_UNAVAILABLE',
+    ],
+    [
+      'mixed units',
+      { uuid: 'dev-1', libraryUuid: 'lib-1', subPartNames: ['A', 42] },
+      'SUBPART_METADATA_UNAVAILABLE',
+    ],
+    [
+      'empty unit name',
+      { uuid: 'dev-1', libraryUuid: 'lib-1', subPartNames: ['A', ''] },
+      'SUBPART_METADATA_UNAVAILABLE',
+    ],
+  ])('does not turn #995 %s into success', async (_, raw, reason) => {
+    const callFirst = vi.fn(async () => raw);
+    const ops = createReadOnlyOperations(createDependencies({ callFirst }) as any);
+    await expect(
+      ops.getDeviceSubParts({ deviceUuid: 'dev-1', libraryUuid: 'lib-1' }),
+    ).resolves.toMatchObject({ not_available: true, reason });
+    expect(callFirst).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['no association', undefined, undefined],
+    ['invalid association', ['not-a-map'], undefined],
+    ['non-string footprint', { footprintUuid: 42 }, undefined],
+    ['valid footprint', { footprintUuid: 'foot-2' }, 'foot-2'],
+  ])(
+    'reports #995 single-unit source metadata with %s',
+    async (_, association, expectedFootprint) => {
+      const callFirst = vi.fn(async () => ({
+        uuid: 'dev-1',
+        libraryUuid: 'lib-1',
+        name: 42,
+        subPartNames: [],
+        association,
+      }));
+      const ops = createReadOnlyOperations(createDependencies({ callFirst }) as any);
+      await expect(
+        ops.getDeviceSubParts({ deviceUuid: 'dev-1', libraryUuid: 'lib-1' }),
+      ).resolves.toMatchObject({
+        deviceUuid: 'dev-1',
+        libraryUuid: 'lib-1',
+        subPartNames: [],
+        multiUnit: false,
+        declaredFootprintUuid: expectedFootprint,
+        evidenceScope: 'library-metadata',
+      });
+    },
+  );
+
   it('builds netlist validation output and surfaces inferred/native warnings', async () => {
     const floatingPins = [{ primitiveId: 'u2', designator: 'U2', pinNumber: '3' }];
     const dependencies = createDependencies({

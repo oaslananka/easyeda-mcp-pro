@@ -192,6 +192,10 @@ function createDependencies() {
         method: 'library.getDeviceByLcscId',
         params,
       })),
+      getDeviceSubParts: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'library.getDeviceSubParts',
+        params,
+      })),
       generateBom: vi.fn(async (params: Record<string, unknown>) => ({
         method: 'bom.generate',
         params,
@@ -249,6 +253,7 @@ const expectedMethods = [
   'inventory.getPrice',
   'inventory.search',
   'library.getDeviceByLcscId',
+  'library.getDeviceSubParts',
   'library.updateDeviceMetadata',
   'pcb.addSilkscreenLine',
   'pcb.addText',
@@ -565,6 +570,7 @@ describe('createDispatcherDomainRouter', () => {
       'schematic.primitiveBounds',
       'schematic.searchDevice',
       'library.getDeviceByLcscId',
+      'library.getDeviceSubParts',
       'bom.generate',
     ];
     for (const readOnlyMethod of readOnlyMethods) {

@@ -90,6 +90,17 @@ const searchDeviceInputSchema = z.object({
     ),
 });
 
+const deviceSubPartsInputSchema = z.object({
+  deviceUuid: z
+    .string()
+    .regex(/^[a-f0-9]{32}$/i)
+    .describe('Exact device UUID from search_device'),
+  libraryUuid: z
+    .string()
+    .regex(/^[a-f0-9]{32}$/i)
+    .describe('Exact source library UUID'),
+});
+
 const readConsistencySchema = z.object({
   stable: z.boolean(),
   attempts: z.number().int().positive(),
@@ -767,6 +778,78 @@ function registerSchematicReadTools(
           total: 0,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_schematic_device_subparts',
+    title: 'Read device subparts',
+    description:
+      'Read the exact sub-part names and declared footprint from a device library record. ' +
+      'Use the UUIDs returned by search_device. This is read-only metadata: it does not ' +
+      'place units, prove shared designators, pin connectivity, or a single BOM component.',
+    profile: 'core',
+    evidence: ['official-docs'],
+    risk: 'low',
+    confirmWrite: false,
+    group: 'schematic',
+    version: '1.0.0',
+    annotations: { readOnlyHint: true, idempotentHint: true },
+    inputSchema: deviceSubPartsInputSchema,
+    outputSchema: z.object({
+      device_uuid: z.string(),
+      library_uuid: z.string(),
+      name: z.string().optional(),
+      sub_part_names: z.array(z.string()).optional(),
+      multi_unit: z.boolean().optional(),
+      declared_footprint_uuid: z.string().optional(),
+      evidence_scope: z.literal('library-metadata').optional(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { deviceUuid, libraryUuid } = deviceSubPartsInputSchema.parse(params);
+      try {
+        const result = (await ctx.bridge.call('library.getDeviceSubParts', {
+          deviceUuid,
+          libraryUuid,
+        })) as Record<string, unknown> | undefined;
+        if (
+          !result ||
+          result.not_available ||
+          !Array.isArray(result.subPartNames) ||
+          !result.subPartNames.every((name) => typeof name === 'string' && name.length > 0)
+        ) {
+          return {
+            device_uuid: deviceUuid,
+            library_uuid: libraryUuid,
+            not_available: true,
+            error:
+              typeof result?.reason === 'string'
+                ? result.reason
+                : 'Device subpart metadata unavailable',
+          };
+        }
+        return {
+          device_uuid: deviceUuid,
+          library_uuid: libraryUuid,
+          name: typeof result.name === 'string' ? result.name : undefined,
+          sub_part_names: result.subPartNames,
+          multi_unit: result.subPartNames.length > 1,
+          declared_footprint_uuid:
+            typeof result.declaredFootprintUuid === 'string'
+              ? result.declaredFootprintUuid
+              : undefined,
+          evidence_scope: 'library-metadata' as const,
+        };
+      } catch (error) {
+        return {
+          device_uuid: deviceUuid,
+          library_uuid: libraryUuid,
+          not_available: true,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     },

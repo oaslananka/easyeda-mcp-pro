@@ -109,6 +109,7 @@ const VERSION_DRIFT_READ_ONLY_METHODS = new Set<string>([
   'canvas.captureRegion',
   'canvas.locate',
   'library.getDeviceByLcscId',
+  'library.getDeviceSubParts',
 ]);
 
 function isVersionDriftSafeBridgeMethod(method: string, hotSwapEnabled: boolean): boolean {

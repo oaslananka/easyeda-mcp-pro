@@ -556,11 +556,11 @@ The server registers profile-gated tools according to the active `TOOL_PROFILE`.
 
 | Profile        | Registered tools |
 | -------------- | ---------------: |
-| `core`         |               77 |
-| `pro`          |              104 |
-| `full`         |              121 |
-| `dev`          |              126 |
-| `experimental` |              127 |
+| `core`         |               78 |
+| `pro`          |              105 |
+| `full`         |              122 |
+| `dev`          |              127 |
+| `experimental` |              128 |
 
 <!-- capability-counts:end -->
 
