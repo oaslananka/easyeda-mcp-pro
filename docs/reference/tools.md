@@ -65,6 +65,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_place_batch`                          | `full`         | `high`   | Compact placement results for up to 64 existing PCB components. Each apply executes the existing transactional component transform and checks native read-back. Stops at the first failure; previous successful placements are NOT rolled back as a group. Use smaller batches as needed.                                     |
 | `easyeda_pcb_place_component`                      | `full`         | `high`   | Direct PCB component creation is unavailable because the verified EasyEDA runtime does not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in the schematic, sync to PCB, confirm the native dialog, then reposition it with easyeda_pcb_modify_component.                                   |
 | `easyeda_pcb_place_component_group`                | `full`         | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                         |
+| `easyeda_pcb_pours`                                | `core`         | `low`    | Read native PCB copper Pour boundaries and associated Poured fills: IDs, net, layer and fill count. Missing, unsupported and mismatched beta API results stay distinct from verified associations. Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.                                            |
 | `easyeda_pcb_production_review`                    | `core`         | `medium` | Review PCB DFM/DFA/DFT findings with optional caller-declared manufacturer process limits. Missing native measurements remain UNKNOWN; no fabrication approval or ordering action.                                                                                                                                            |
 | `easyeda_pcb_rebuild_copper`                       | `full`         | `high`   | Rebuild existing copper with beta native API and Poured read-back. Requires confirmWrite; not transactional. Undefined after PCB edits? See per-pour recovery hint; save and reopen the PCB tab, verify IDs/geometry, never bypass reconciliation lock. PlaneZone unsupported.                                                |
 | `easyeda_pcb_regions`                              | `core`         | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                             |
@@ -2143,6 +2144,36 @@ Returns a JSON object matching the schema:
   summary: string;
   error: string (optional);
   targetDocument: object (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_pours`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Read native PCB copper Pour boundaries and associated Poured fills: IDs, net, layer and fill count. Missing, unsupported and mismatched beta API results stay distinct from verified associations. Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.
+
+### Input Parameters
+
+| Parameter   | Type     | Required | Description                         |
+| ----------- | -------- | -------- | ----------------------------------- |
+| `projectId` | `string` | Yes      | Exact focused EasyEDA project UUID. |
+| `limit`     | `number` | Yes      |                                     |
+| `offset`    | `number` | Yes      |                                     |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  pours: object[];
+  total: number;
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 

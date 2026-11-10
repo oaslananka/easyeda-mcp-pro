@@ -102,6 +102,7 @@ const VERSION_DRIFT_READ_ONLY_METHODS = new Set<string>([
   'pcb.zonePreflight',
   'pcb.listComponents',
   'pcb.listFills',
+  'pcb.listPours',
   'pcb.listRegions',
   'pcb.listTracks',
   'pcb.listVias',

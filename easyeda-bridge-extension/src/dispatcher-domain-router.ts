@@ -62,6 +62,7 @@ export function createDispatcherDomainRouter(
   const pcbListRoutes: DomainRoute[] = Object.entries({
     'pcb.listComponents': dependencies.pcbReadOperations.listComponents,
     'pcb.listFills': dependencies.pcbReadOperations.listFills,
+    'pcb.listPours': dependencies.pcbReadOperations.listPours,
     'pcb.listRegions': dependencies.pcbReadOperations.listRegions,
     'pcb.listTracks': dependencies.pcbReadOperations.listTracks,
     'pcb.listVias': dependencies.pcbReadOperations.listVias,

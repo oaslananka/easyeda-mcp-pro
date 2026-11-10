@@ -33,6 +33,92 @@ afterEach(() => {
 });
 
 describe('PCB read operations', () => {
+  it('reads a Pour and its native associated copper without mutating the board', async () => {
+    const getCopperRegion = vi.fn(async () => ({
+      getState_PrimitiveId: () => 'e336',
+      getState_PourPrimitiveId: () => 'e336',
+      getState_PourFills: () => [{ fill: true }, { fill: false }],
+    }));
+    const { operations, requireActivePcbContext } = makeOperations({
+      PCB_PrimitivePour: {
+        getAll: async () => [
+          {
+            getState_PrimitiveId: () => 'e336',
+            getState_Net: () => 'GND',
+            getState_Layer: () => 1,
+            getState_PourFillMethod: () => 'solid',
+            getState_PourName: () => 'GND pour',
+            getState_PrimitiveLock: () => false,
+            getCopperRegion,
+          },
+        ],
+      },
+    });
+
+    await expect(operations.listPours()).resolves.toEqual({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'e336',
+          net: 'GND',
+          layer: 1,
+          fillMethod: 'solid',
+          pourName: 'GND pour',
+          locked: false,
+          copperLinkStatus: 'present',
+          pouredId: 'e336',
+          fillRecordCount: 2,
+        },
+      ],
+    });
+    expect(getCopperRegion).toHaveBeenCalledOnce();
+    expect(requireActivePcbContext).toHaveBeenCalledOnce();
+  });
+
+  it('keeps missing, unsupported, and mismatched native copper readbacks distinct', async () => {
+    const { operations } = makeOperations({
+      PCB_PrimitivePour: {
+        getAll: async () => [
+          { getState_PrimitiveId: () => 'missing', getCopperRegion: async () => undefined },
+          { getState_PrimitiveId: () => 'unsupported' },
+          {
+            getState_PrimitiveId: () => 'mismatch',
+            getCopperRegion: async () => ({
+              getState_PrimitiveId: () => 'another-pour',
+              getState_PourPrimitiveId: () => 'another-pour',
+              getState_PourFills: () => [{ fill: true }],
+            }),
+          },
+          {
+            getState_PrimitiveId: () => 'failed',
+            getCopperRegion: async () => {
+              throw Error('beta API failed');
+            },
+          },
+        ],
+      },
+    });
+    const result = (await operations.listPours()) as { items: Array<Record<string, unknown>> };
+    expect(result.total).toBe(4);
+    expect(result.items.map((item) => item.copperLinkStatus)).toEqual([
+      'absent',
+      'unavailable',
+      'mismatch',
+      'unavailable',
+    ]);
+    expect(result.items.every((item) => item.fillRecordCount === undefined)).toBe(true);
+    expect(result.items[3].readbackError).toContain('beta API failed');
+  });
+
+  it('refuses to claim an empty copper list when focus or native collection is missing', async () => {
+    const { operations, requireActivePcbContext } = makeOperations({
+      PCB_PrimitivePour: { getAll: async () => null },
+    });
+    await expect(operations.listPours()).rejects.toThrow('non-array collection');
+    requireActivePcbContext.mockRejectedValueOnce(Error('No focused PCB'));
+    await expect(operations.listPours()).rejects.toThrow('No focused PCB');
+  });
+
   it('maps components through the live native state fields and paginates safely', async () => {
     const components = [
       {

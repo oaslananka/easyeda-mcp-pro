@@ -405,6 +405,29 @@ function registerPcbReadTools(
   });
 
   registerPcbListTool(registry, {
+    name: 'easyeda_pcb_pours',
+    title: 'Inspect PCB copper pours and associated fills',
+    description:
+      'Read native PCB copper Pour boundaries and associated Poured fills: IDs, net, layer and fill count. ' +
+      'Missing, unsupported and mismatched beta API results stay distinct from verified associations. ' +
+      'Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.',
+    bridgeMethod: 'pcb.listPours',
+    listKey: 'pours',
+    itemSchema: z.object({
+      primitiveId: z.string().min(1),
+      net: z.string(),
+      layer: z.number().optional(),
+      fillMethod: z.string(),
+      pourName: z.string(),
+      locked: z.boolean(),
+      copperLinkStatus: z.enum(['present', 'absent', 'unavailable', 'mismatch']),
+      pouredId: z.string().optional(),
+      fillRecordCount: z.number().int().nonnegative().optional(),
+      readbackError: z.string().optional(),
+    }),
+  });
+
+  registerPcbListTool(registry, {
     name: 'easyeda_pcb_fills',
     title: 'List PCB fills',
     description:

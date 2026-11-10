@@ -102,6 +102,7 @@ const METHOD_LIST: readonly string[] = [
   'pcb.listComponentPadConnections',
   'pcb.listComponents',
   'pcb.listFills',
+  'pcb.listPours',
   'pcb.listRegions',
   'pcb.listTracks',
   'pcb.listVias',

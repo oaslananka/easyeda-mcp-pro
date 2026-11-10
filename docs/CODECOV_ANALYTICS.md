@@ -95,3 +95,14 @@ pnpm validate:codecov
 The workflow uses the repository `CODECOV_TOKEN` only for trusted pushes and same-repository pull requests. Fork and Dependabot pull requests still run tests and upload the two LCOV reports through Codecov's tokenless public-repository path. Authenticated JUnit Test Analytics and bundle uploads remain trusted-event only because GitHub does not expose repository secrets to untrusted runs.
 
 Before upload, `scripts/install-codecov-cli.mjs` downloads the exact Linux asset declared in `config/codecov-cli.json`. The installer restricts the source to the official Codecov GitHub release path, checks the expected byte length and SHA-256 digest, writes the executable atomically, and passes that verified local binary to the SHA-pinned Codecov Action. This avoids disabling validation when the Action's remote GPG-key bootstrap is unavailable.
+
+On 2026-11-10, the #480 read-only native Pour?Poured association inspection added a bounded
+MCP tool with explicit absent/unavailable/mismatch evidence and no PCB mutations.
+The reproducible Windows build measured 350,926 bytes for `dist/index.js`,
+288,404 bytes for `dist/dispatcher.js`, and 220,087 bytes for the `.eext`
+archive. The previous limits were 349,134 / 286,612 / 219,338 bytes respectively.
+The ratchets were deliberately increased only to **350,931 / 288,409 /
+220,092 bytes** (each actual artifact size plus five bytes), retaining the
+automatic build and release fail-closed budget gate. This does **not**
+constitute native post-mutation copper rebuild acceptance or permission to
+release #985.
