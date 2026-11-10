@@ -105,6 +105,11 @@ function createDependencies() {
         limit,
         offset,
       })),
+      listPours: vi.fn(async (limit?: number, offset?: number) => ({
+        method: 'pours',
+        limit,
+        offset,
+      })),
       listRegions: vi.fn(async (limit?: number, offset?: number) => ({
         method: 'regions',
         limit,
@@ -268,6 +273,7 @@ const expectedMethods = [
   'pcb.listComponentPadConnections',
   'pcb.listComponents',
   'pcb.listFills',
+  'pcb.listPours',
   'pcb.listRegions',
   'pcb.listTracks',
   'pcb.listVias',
@@ -308,6 +314,7 @@ describe('createDispatcherDomainRouter', () => {
   it.each([
     'pcb.listComponents',
     'pcb.listFills',
+    'pcb.listPours',
     'pcb.listRegions',
     'pcb.listTracks',
     'pcb.listVias',
@@ -645,6 +652,12 @@ describe('createDispatcherDomainRouter', () => {
     ).resolves.toEqual({
       handled: true,
       value: { method: 'fills', limit: 5, offset: 1 },
+    });
+    await expect(
+      router.tryDispatch('pcb.listPours', { projectId: 'proj-123', limit: 6, offset: 2 }),
+    ).resolves.toEqual({
+      handled: true,
+      value: { method: 'pours', limit: 6, offset: 2 },
     });
     await expect(
       router.tryDispatch('pcb.listRegions', { projectId: 'proj-123', limit: 6, offset: 2 }),

@@ -145,6 +145,52 @@ describe('PCB Read Tools', () => {
     });
   });
 
+  it('easyeda_pcb_pours surfaces native Pour-to-Poured evidence as read-only metadata', async () => {
+    const tool = registry.get('easyeda_pcb_pours');
+    expect(tool).toBeDefined();
+    expect(tool?.confirmWrite).toBe(false);
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    bridgeCall.mockResolvedValue({
+      total: 1,
+      items: [
+        {
+          primitiveId: 'e336',
+          net: 'GND',
+          layer: 1,
+          fillMethod: 'solid',
+          pourName: 'GND pour',
+          locked: false,
+          copperLinkStatus: 'present',
+          pouredId: 'e336',
+          fillRecordCount: 74,
+        },
+      ],
+    });
+    const result = await tool?.handler(context, { projectId: 'proj-123', limit: 10, offset: 0 });
+    expect(bridgeCall).toHaveBeenCalledWith('pcb.listPours', {
+      projectId: 'proj-123',
+      limit: 10,
+      offset: 0,
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+    expect(result).toMatchObject({
+      total: 1,
+      pours: [{ primitiveId: 'e336', pouredId: 'e336', fillRecordCount: 74 }],
+    });
+  });
+
+  it('easyeda_pcb_pours does not present disconnected bridge failures as empty copper', async () => {
+    const tool = registry.get('easyeda_pcb_pours');
+    bridgeCall.mockRejectedValue(Error('No focused PCB document'));
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      pours: [],
+      total: 0,
+      not_available: true,
+      error: 'No focused PCB document',
+    });
+  });
+
   it('easyeda_pcb_fills normalizes bridge polygon source without exposing it', async () => {
     const tool = registry.get('easyeda_pcb_fills');
     expect(tool).toBeDefined();

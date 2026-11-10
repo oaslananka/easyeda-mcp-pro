@@ -21,6 +21,7 @@ export interface PcbReadOperations {
   ): Promise<unknown>;
   listComponents(limit?: number, offset?: number): Promise<unknown>;
   listFills(limit?: number, offset?: number): Promise<unknown>;
+  listPours(limit?: number, offset?: number): Promise<unknown>;
   listRegions(limit?: number, offset?: number): Promise<unknown>;
   listTracks(limit?: number, offset?: number): Promise<unknown>;
   listVias(limit?: number, offset?: number): Promise<unknown>;
@@ -148,6 +149,32 @@ function scopedIdentityFailure(
   return undefined;
 }
 
+async function readCopperAssociation(
+  pour: { getCopperRegion?: () => Promise<unknown> },
+  primitiveId: string,
+  readState: PrimitiveStateReader,
+): Promise<Record<string, unknown>> {
+  // Native getter is beta: missing/failed readback never means copper is verified.
+  if (typeof pour.getCopperRegion !== 'function') return { copperLinkStatus: 'unavailable' };
+  try {
+    const derived = await pour.getCopperRegion();
+    if (derived === undefined) return { copperLinkStatus: 'absent' };
+    if (!derived || typeof derived !== 'object') return { copperLinkStatus: 'unavailable' };
+    const derivedId = readState(derived, 'PrimitiveId');
+    if (derivedId !== primitiveId || readState(derived, 'PourPrimitiveId') !== primitiveId) {
+      return { copperLinkStatus: 'mismatch' };
+    }
+    const fills = readState(derived, 'PourFills');
+    if (!Array.isArray(fills)) return { copperLinkStatus: 'unavailable' };
+    return { copperLinkStatus: 'present', pouredId: derivedId, fillRecordCount: fills.length };
+  } catch (error) {
+    return {
+      copperLinkStatus: 'unavailable',
+      readbackError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export function createPcbReadOperations({
   requireActivePcbContext,
   readFirstPath,
@@ -257,7 +284,7 @@ export function createPcbReadOperations({
   }
 
   async function nativePcbPrimitives(
-    kind: 'Component' | 'Line' | 'Via' | 'Fill' | 'Region',
+    kind: 'Component' | 'Line' | 'Via' | 'Fill' | 'Region' | 'Pour',
   ): Promise<any[]> {
     const name = `PCB_Primitive${kind}`;
     const nativeClass = readFirstPath<any>([name, `pcb_Primitive${kind}`]);
@@ -322,6 +349,32 @@ export function createPcbReadOperations({
         polygonSource: await polygonSource(readState, value),
       })),
     );
+    return { total: all.length, items };
+  }
+
+  async function listPours(limit?: number, offset = 0): Promise<unknown> {
+    await requireActivePcbContext();
+    const all = await nativePcbPrimitives('Pour');
+    const start = Math.max(0, offset);
+    const items: Array<Record<string, unknown>> = [];
+
+    for (const pour of all.slice(start, paginationEnd(limit, start))) {
+      const primitiveId = readState(pour, 'PrimitiveId');
+      if (typeof primitiveId !== 'string' || !primitiveId) {
+        throw new Error('Native copper Pour has no verifiable primitive ID');
+      }
+      const item: Record<string, unknown> = {
+        primitiveId,
+        net: readState(pour, 'Net') ?? '',
+        layer: readState(pour, 'Layer'),
+        fillMethod: readState(pour, 'PourFillMethod') ?? '',
+        pourName: readState(pour, 'PourName') ?? '',
+        locked: readState(pour, 'PrimitiveLock') === true,
+      };
+
+      Object.assign(item, await readCopperAssociation(pour, primitiveId, readState));
+      items.push(item);
+    }
     return { total: all.length, items };
   }
 
@@ -417,6 +470,7 @@ export function createPcbReadOperations({
     readProjectScoped,
     listComponents,
     listFills,
+    listPours,
     listRegions,
     listTracks,
     listVias,
