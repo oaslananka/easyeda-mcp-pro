@@ -1,3 +1,4 @@
+import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createSchematicSnapshotRecreator } from './schematic-snapshot-recreation.js';
 import { isRecord } from './utils.js';
@@ -32,8 +33,6 @@ export interface SchematicTransactionDependencies {
 }
 
 export interface SchematicTransactionOperations {
-  setNativeEventMonitorReady(ready: boolean): void;
-  cancelNativeWireMutation(token: number): void;
   noteNativeWireMutation(kind: 'create' | 'delete' | 'unknown', ids: string[]): void;
   beginNativeWireMutation(): number;
   finishNativeWireMutation(token: number, kind: 'create' | 'delete', ids: string[]): void;
@@ -100,8 +99,10 @@ function pinTouchesSegment(pin: SchematicPoint, a: SchematicPoint, b: SchematicP
   const length = Math.hypot(dx, dy);
   const cross = x * dy - y * dx;
   const along = x * dx + y * dy;
-  // A zero-length segment conservatively matches every pin, refusing the move.
   if (!Number.isFinite(length + cross + along)) return true;
+  // Repeated vertices are common in real EasyEDA wires. A zero-length
+  // segment can touch a pin only at THAT point, not every pin in the document.
+  if (length <= Number.EPSILON) return Math.hypot(x, y) <= 0.001;
   const edge = 0.001 * length;
   return Math.abs(cross) <= edge && Math.min(along, length * length - along) >= -edge;
 }
@@ -233,17 +234,6 @@ export function createSchematicTransactionOperations(
   const pendingWireState = new Map<string, 'create' | 'delete'>();
   const unresolvedNativeMutations = new Set<number>();
   let nextNativeMutationToken = 0;
-
-  // GUI edits are not observable through a stale getAll() snapshot alone.
-  // The native primitive listener must be installed and positively confirmed
-  // before the bridge can claim an unwired component move is safe.
-  let nativeEventMonitorReady = false;
-  function setNativeEventMonitorReady(ready: boolean): void {
-    nativeEventMonitorReady = ready;
-  }
-  function cancelNativeWireMutation(token: number): void {
-    unresolvedNativeMutations.delete(token);
-  }
 
   function noteNativeWireMutation(kind: 'create' | 'delete' | 'unknown', ids: string[]): void {
     if (kind === 'unknown' || ids.length === 0) {
@@ -914,11 +904,6 @@ export function createSchematicTransactionOperations(
 
   /** Reconcile tracked writes against both the batch list and exact-ID getter. */
   async function reconcileNativeWireState(wireApi: any, wires: unknown[]): Promise<void> {
-    if (!nativeEventMonitorReady) {
-      failUnverifiedMove(
-        'Native schematic event listener unavailable; cannot verify GUI wire edits before moving.',
-      );
-    }
     if (unresolvedNativeMutations.size > 0) {
       failUnverifiedMove(
         'A native wire write had an uncertain outcome; restart EasyEDA and reopen the schematic before moving components.',
@@ -959,15 +944,21 @@ export function createSchematicTransactionOperations(
     if (!wireApi || typeof wireApi.getAll !== 'function') {
       failUnverifiedMove('Native wire API unavailable; move refused.');
     }
-    let wires: unknown;
+    let wires: unknown[];
     try {
-      wires = await wireApi.getAll();
+      const firstWires = await wireApi.getAll();
+      if (!Array.isArray(firstWires)) {
+        throw new Error('Wire inventory incomplete');
+      }
+      wires = await verifyWireInventoryReadback({
+        wireApi,
+        firstWires,
+        extractPrimitiveId,
+        readState: safeGetState,
+      });
     } catch (error) {
       logRecoverableError('failed to preflight wires before a component move', error);
-      failUnverifiedMove('Wire read failed; move refused.');
-    }
-    if (!Array.isArray(wires)) {
-      failUnverifiedMove('Wire inventory incomplete; move refused.');
+      failUnverifiedMove('Wire inventory freshness could not be verified; move refused.');
     }
     await reconcileNativeWireState(wireApi, wires);
     const candidatePinPoints = [
@@ -1264,8 +1255,6 @@ export function createSchematicTransactionOperations(
   }
 
   return {
-    setNativeEventMonitorReady,
-    cancelNativeWireMutation,
     noteNativeWireMutation,
     beginNativeWireMutation,
     finishNativeWireMutation,

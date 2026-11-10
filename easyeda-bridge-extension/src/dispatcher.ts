@@ -53,7 +53,6 @@ import {
   type PublicTextAlignMode,
   type SchematicTransactionOperations,
 } from './schematic-transaction-operations.js';
-import { installNativeSchematicWireEventMonitor } from './schematic-wire-event-monitor.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, logRecoverableError, type JsonValue } from './utils.js';
 
@@ -2171,11 +2170,6 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     setCachedTextAlignMode: (primitiveId, alignMode) =>
       textAlignModeCache.set(primitiveId, alignMode),
     deleteCachedTextAlignMode: (primitiveId) => textAlignModeCache.delete(primitiveId),
-  });
-  installNativeSchematicWireEventMonitor({
-    transaction: schematicTransactionOperations,
-    readFirstPath,
-    logRecoverableError,
   });
   readOnlyOperations = createReadOnlyOperations({
     callFirst,
