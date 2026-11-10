@@ -135,6 +135,9 @@ function createDependencies() {
       deletePrimitives: vi.fn(async () => ({ deleted: [], notFound: [] })),
     },
     schematicTransactionOperations: {
+      noteNativeWireMutation: vi.fn(),
+      beginNativeWireMutation: vi.fn(() => 1),
+      finishNativeWireMutation: vi.fn(),
       deletePrimitives: vi.fn(async (primitiveIds: unknown) => ({
         method: 'schematic.deletePrimitive',
         primitiveIds,

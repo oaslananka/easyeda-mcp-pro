@@ -53,6 +53,7 @@ import {
   type PublicTextAlignMode,
   type SchematicTransactionOperations,
 } from './schematic-transaction-operations.js';
+import { installNativeSchematicWireEventMonitor } from './schematic-wire-event-monitor.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import { isRecord, log, logRecoverableError, type JsonValue } from './utils.js';
 
@@ -1359,6 +1360,9 @@ async function connectPinToNetImpl(
     );
   }
 
+  // Mark the write BEFORE awaiting the beta native API. An error can occur
+  // after EasyEDA has already created a wire, and wire collection reads may lag.
+  const writeToken = schematicTransactionOperations.beginNativeWireMutation();
   const created = await callFirst(
     ['SCH_PrimitiveWire.create', 'sch_PrimitiveWire.create'],
     [x, y, endpoint.x, endpoint.y],
@@ -1368,6 +1372,11 @@ async function connectPinToNetImpl(
     undefined,
   );
   const createdId = extractPrimitiveId(created);
+  schematicTransactionOperations.finishNativeWireMutation(
+    writeToken,
+    'create',
+    [createdId].filter(Boolean),
+  );
   return { primitiveId: createdId, endpoint };
 }
 
@@ -1755,7 +1764,8 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       const wireNetName = (await shouldSuppressDuplicateWireNetName(rawPoints, netName))
         ? undefined
         : netName;
-      return callFirst(
+      const writeToken = schematicTransactionOperations.beginNativeWireMutation();
+      const result = await callFirst(
         ['SCH_PrimitiveWire.create', 'sch_PrimitiveWire.create'],
         pts,
         wireNetName,
@@ -1763,6 +1773,13 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         params.lineWidth,
         params.lineType,
       );
+      const createdId = extractPrimitiveId(result);
+      schematicTransactionOperations.finishNativeWireMutation(
+        writeToken,
+        'create',
+        [createdId].filter(Boolean),
+      );
+      return result;
     }
     case 'schematic.addCircle':
       // SCH_PrimitiveCircle.create's field order was recovered
@@ -2154,6 +2171,11 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     setCachedTextAlignMode: (primitiveId, alignMode) =>
       textAlignModeCache.set(primitiveId, alignMode),
     deleteCachedTextAlignMode: (primitiveId) => textAlignModeCache.delete(primitiveId),
+  });
+  installNativeSchematicWireEventMonitor({
+    transaction: schematicTransactionOperations,
+    readFirstPath,
+    logRecoverableError,
   });
   readOnlyOperations = createReadOnlyOperations({
     callFirst,

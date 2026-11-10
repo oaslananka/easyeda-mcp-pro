@@ -69,6 +69,7 @@ function createSubject(
     deleteCachedTextAlignMode: (primitiveId) => textAlignCache.delete(primitiveId),
     ...overrides,
   });
+  operations.setNativeEventMonitorReady(true);
   return { operations, callFirst, logRecoverableError, textAlignCache };
 }
 
@@ -1000,6 +1001,112 @@ describe('schematic transaction operations', () => {
     });
     expect(componentModify).not.toHaveBeenCalled();
     expect(wireModify).not.toHaveBeenCalled();
+  });
+
+  it('refuses #945 movement when a just-created wire is missing from the native inventory', async () => {
+    const modify = vi.fn(async () => ({ moved: true }));
+    const wire = { primitiveId: 'fresh-stub', line: [280, 400, 250, 400] };
+    const wireApi = {
+      getAll: vi.fn().mockResolvedValue([]), // Real Pro 3.2.209 stale same-session result.
+      get: vi.fn().mockResolvedValue(wire), // Exact-ID native read knows the new primitive.
+    };
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 300, getState_Y: () => 400 }),
+        modify,
+      },
+      SCH_PrimitiveWire: wireApi,
+    });
+    callFirst.mockResolvedValue([
+      { getState_X: () => 280, getState_Y: () => 400 },
+      { getState_X: () => 320, getState_Y: () => 400 },
+    ]);
+    operations.noteNativeWireMutation('create', ['fresh-stub']);
+    await expect(operations.modifyPrimitive('R19', { x: 500 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+    });
+    expect(modify).not.toHaveBeenCalled();
+  });
+
+  it('rechecks a pending fresh-wire ID and refuses a move when its geometry touches a pin', async () => {
+    const modify = vi.fn();
+    const wire = { primitiveId: 'fresh-stub', line: [250, 400, 280, 400] };
+    const wireApi = {
+      getAll: vi.fn().mockResolvedValue([wire]),
+      get: vi.fn().mockResolvedValue(wire),
+    };
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 300, getState_Y: () => 400 }),
+        modify,
+      },
+      SCH_PrimitiveWire: wireApi,
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 280, getState_Y: () => 400 }]);
+    operations.noteNativeWireMutation('create', ['fresh-stub']);
+    await expect(operations.modifyPrimitive('R19', { x: 500 })).rejects.toMatchObject({
+      code: 'CONNECTED_COMPONENT_MOVE_UNSAFE',
+    });
+    expect(wireApi.get).toHaveBeenCalledWith('fresh-stub');
+    expect(modify).not.toHaveBeenCalled();
+  });
+
+  it('rejects a component move when an edited wire has no exact native get(id) reader', async () => {
+    const modify = vi.fn();
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 300, getState_Y: () => 400 }),
+        modify,
+      },
+      SCH_PrimitiveWire: { getAll: vi.fn().mockResolvedValue([]) },
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 280, getState_Y: () => 400 }]);
+    operations.noteNativeWireMutation('create', ['new-native-wire']);
+    await expect(operations.modifyPrimitive('R19', { x: 500 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('Exact native wire read unavailable'),
+    });
+    expect(modify).not.toHaveBeenCalled();
+  });
+
+  it('refuses a component move if exact-ID wire read times out after native creation', async () => {
+    const modify = vi.fn();
+    const failure = new Error('native get wire timed out');
+    const { operations, callFirst, logRecoverableError } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 300, getState_Y: () => 400 }),
+        modify,
+      },
+      SCH_PrimitiveWire: {
+        getAll: vi.fn().mockResolvedValue([]),
+        get: vi.fn().mockRejectedValue(failure),
+      },
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 280, getState_Y: () => 400 }]);
+    operations.noteNativeWireMutation('create', ['new-native-wire']);
+    await expect(operations.modifyPrimitive('R19', { x: 500 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('could not be reconciled'),
+    });
+    expect(logRecoverableError).toHaveBeenCalledWith('native fresh-wire read failed', failure);
+    expect(modify).not.toHaveBeenCalled();
+  });
+
+  it('keeps ambiguous native wire writes fail-closed until a documented editor reset', async () => {
+    const modify = vi.fn();
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 300, getState_Y: () => 400 }),
+        modify,
+      },
+      SCH_PrimitiveWire: { getAll: vi.fn().mockResolvedValue([]) },
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 280, getState_Y: () => 400 }]);
+    operations.noteNativeWireMutation('unknown', []);
+    await expect(operations.modifyPrimitive('R19', { x: 500 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+    });
+    expect(modify).not.toHaveBeenCalled();
   });
 
   it('allows an isolated component move after complete native pin and unrelated wire read', async () => {

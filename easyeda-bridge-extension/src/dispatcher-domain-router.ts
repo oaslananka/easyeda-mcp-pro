@@ -129,8 +129,18 @@ export function createDispatcherDomainRouter(
       dependencies.readOnlyOperations.getDeviceByLcscId(params),
     'library.getDeviceSubParts': (params) =>
       dependencies.readOnlyOperations.getDeviceSubParts(params),
-    'schematic.deletePrimitive': (params) =>
-      dependencies.schematicTransactionOperations.deletePrimitives(params.primitiveIds),
+    'schematic.deletePrimitive': async (params) => {
+      const token = dependencies.schematicTransactionOperations.beginNativeWireMutation();
+      const result = await dependencies.schematicTransactionOperations.deletePrimitives(
+        params.primitiveIds,
+      );
+      dependencies.schematicTransactionOperations.finishNativeWireMutation(
+        token,
+        'delete',
+        result.deleted,
+      );
+      return result;
+    },
     'schematic.getNetDetail': (params) => dependencies.readOnlyOperations.getNetDetail(params),
     'schematic.getPinNoConnect': (params) =>
       dependencies.readOnlyOperations.getPinNoConnect(params),
