@@ -37,9 +37,21 @@ function createSubject(
   const textAlignCache = new Map<string, 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9>();
   const callFirst = vi.fn();
   const logRecoverableError = vi.fn();
+  const rawWire = classes.SCH_PrimitiveWire as
+    { getAll?: () => Promise<unknown[]>; getAllPrimitiveId?: () => Promise<string[]> } | undefined;
+  const fixtureClasses =
+    rawWire?.getAll && !rawWire.getAllPrimitiveId
+      ? {
+          ...classes,
+          SCH_PrimitiveWire: {
+            ...rawWire,
+            getAllPrimitiveId: async () => ((await rawWire.getAll?.()) ?? []).map(scalarId),
+          },
+        }
+      : classes;
   const operations = createSchematicTransactionOperations({
     callFirst,
-    readFirstPath: (paths) => paths.map((path) => classes[path]).find(Boolean),
+    readFirstPath: (paths) => paths.map((path) => fixtureClasses[path]).find(Boolean),
     readState,
     extractPrimitiveId: scalarId,
     readComponentType: (value) => String(readState(value, 'ComponentType') ?? '').toLowerCase(),
@@ -69,7 +81,6 @@ function createSubject(
     deleteCachedTextAlignMode: (primitiveId) => textAlignCache.delete(primitiveId),
     ...overrides,
   });
-  operations.setNativeEventMonitorReady(true);
   return { operations, callFirst, logRecoverableError, textAlignCache };
 }
 
@@ -1183,7 +1194,7 @@ describe('schematic transaction operations', () => {
       400,
     ],
     ['near-contact', [250, 400.0003, 330, 400.0003], { x: 500, y: 400 }, 280, 400],
-    ['degenerate wire', [250, 400, 250, 400], { x: 500, y: 400 }, 280, 400],
+    ['degenerate wire', [250, 400, 250, 400], { x: 500, y: 400 }, 250, 400],
   ])(
     'refuses #945 move when a pin touches a wire segment at %s',
     async (_scenario, line, next, pinX, pinY) => {
@@ -1211,6 +1222,28 @@ describe('schematic transaction operations', () => {
       expect(wireModify).not.toHaveBeenCalled();
     },
   );
+
+  it('permits a genuinely unwired move despite duplicate distant wire vertices', async () => {
+    const componentModify = vi.fn(async () => true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 300, getState_Y: () => 400 }),
+        modify: componentModify,
+      },
+      SCH_PrimitiveWire: {
+        getAll: vi
+          .fn()
+          .mockResolvedValue([
+            { primitiveId: 'real-native-wire', line: [100, 100, 100, 100, 120, 100], net: '' },
+          ]),
+      },
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 280, getState_Y: () => 400 }]);
+    await expect(operations.modifyPrimitive('cmp', { x: 301 })).resolves.toMatchObject({
+      followedWireIds: [],
+    });
+    expect(componentModify).toHaveBeenCalledOnce();
+  });
 
   it('permits an unwired move when a pin lies near but outside the wire span', async () => {
     const componentModify = vi.fn(async () => true);
@@ -1680,7 +1713,9 @@ describe('schematic transaction operations', () => {
         getAll: vi
           .fn()
           .mockResolvedValueOnce([{ primitiveId: 'other', line: [9, 9, 8, 8] }])
+          .mockResolvedValueOnce([{ primitiveId: 'other', line: [9, 9, 8, 8] }])
           .mockResolvedValueOnce(null),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['other']),
         modify: vi.fn(),
       },
     });
