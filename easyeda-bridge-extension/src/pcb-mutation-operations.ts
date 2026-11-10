@@ -53,6 +53,15 @@ interface CopperRebuildItem {
   warning?: string;
 }
 
+// Conditional recovery information only: EasyEDA Pro 3.2.209 can return
+// undefined after same-session PCB edits, but the native value does not prove
+// the cause or allow a previously uncertain rebuild to be retried blindly.
+const UNDEFINED_COPPER_RECOVERY_HINT =
+  'An undefined native copper rebuild may follow pad, via, track or pour edits in the same EasyEDA Pro PCB session. ' +
+  'If you edited this PCB, save the PCB, close its tab and reopen it; then independently verify the active project/document, ' +
+  'Pour/Poured IDs and copper geometry before any new attempt. This is not proof of a successful rebuild. ' +
+  'Do not blindly retry, reconnect to clear uncertainty, or bypass the reconciliation lock.';
+
 interface CopperRebuildResult {
   success: boolean;
   matchedCount: number;
@@ -469,6 +478,7 @@ function mapReadbackFailureResults(
         status: 'no-copper',
         verified: false,
         error: `Native rebuild returned no copper, but PCB_PrimitivePoured read-back failed: ${message}`,
+        warning: UNDEFINED_COPPER_RECOVERY_HINT,
       };
     }
     return {
@@ -511,6 +521,7 @@ function noCopperRebuildItem(
         verified: false,
         error:
           'Native rebuild returned no copper, but unrelated Poured geometry changed or the read-back inventory could not be validated.',
+        warning: UNDEFINED_COPPER_RECOVERY_HINT,
       };
     }
     return {
@@ -518,6 +529,7 @@ function noCopperRebuildItem(
       pouredId: null,
       status: 'no-copper',
       verified: true,
+      warning: UNDEFINED_COPPER_RECOVERY_HINT,
     };
   }
   return {
@@ -527,6 +539,7 @@ function noCopperRebuildItem(
     verified: false,
     error:
       'Native rebuild returned undefined (no copper), but PCB_PrimitivePoured still reports derived copper for this pour.',
+    warning: UNDEFINED_COPPER_RECOVERY_HINT,
   };
 }
 
