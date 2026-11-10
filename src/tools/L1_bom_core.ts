@@ -23,6 +23,13 @@ function isNonEmptyFile(filePath: string): boolean {
   }
 }
 
+function matchesLcscPart<T extends { lcsc: string }>(part: T | null, requested: string): part is T {
+  return (
+    typeof part?.lcsc === 'string' &&
+    part.lcsc.trim().toUpperCase() === requested.trim().toUpperCase()
+  );
+}
+
 function registerBomCoreTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -143,6 +150,7 @@ function registerBomCoreTools(
       total_parts: z.number().int().nonnegative(),
       missing_lcsc: z.array(z.string()),
       invalid_lcsc: z.array(z.string()),
+      unverified_lcsc: z.array(z.string()).optional(),
       obsolete: z.array(z.string()),
       valid_count: z.number().int().nonnegative(),
       validated: z.boolean(),
@@ -158,29 +166,45 @@ function registerBomCoreTools(
         });
         const entries = bomResult as Array<{ lcsc?: string; reference: string; value: string }>;
 
+        if (!Array.isArray(entries)) {
+          throw new Error('BOM inventory payload is not an array');
+        }
+
         const missing: string[] = [];
         const invalid: string[] = [];
         const obsolete: string[] = [];
+        const unverified: string[] = [];
+        const lcscClient = ctx.vendors.lcsc;
+        let validCount = 0;
+        let confirmedCount = 0;
 
-        for (const entry of entries ?? []) {
-          if (!entry.lcsc) {
+        for (const entry of entries) {
+          if (!entry.lcsc?.trim()) {
             missing.push(entry.reference);
             continue;
           }
 
-          if (ctx.vendors.lcsc) {
-            try {
-              const detail = await ctx.vendors.lcsc.getPartDetail(entry.lcsc);
-              if (!detail) {
-                invalid.push(entry.reference);
-              } else if (detail.discontinued) {
+          if (!lcscClient) {
+            unverified.push(entry.reference);
+            continue;
+          }
+
+          try {
+            // Keyless lookup only scans limited in-stock snapshots. A missing
+            // match or network error cannot prove a supplier part is invalid.
+            const detail = await lcscClient.getPartDetail(entry.lcsc);
+            if (!matchesLcscPart(detail, entry.lcsc)) {
+              unverified.push(entry.reference);
+            } else {
+              confirmedCount += 1;
+              if (detail.discontinued) {
                 obsolete.push(entry.reference);
+              } else {
+                validCount += 1;
               }
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            } catch (_err) {
-              // LCSC lookup failed for this part
-              invalid.push(entry.reference);
             }
+          } catch {
+            unverified.push(entry.reference);
           }
         }
 
@@ -189,9 +213,10 @@ function registerBomCoreTools(
           total_parts: entries?.length ?? 0,
           missing_lcsc: missing,
           invalid_lcsc: invalid,
+          unverified_lcsc: unverified,
           obsolete: obsolete,
-          valid_count: (entries?.length ?? 0) - missing.length - invalid.length - obsolete.length,
-          validated: true,
+          valid_count: validCount,
+          validated: confirmedCount > 0 && unverified.length === 0,
         };
       } catch (err) {
         return {
@@ -199,6 +224,7 @@ function registerBomCoreTools(
           total_parts: 0,
           missing_lcsc: [],
           invalid_lcsc: [],
+          unverified_lcsc: [],
           obsolete: [],
           valid_count: 0,
           validated: false,

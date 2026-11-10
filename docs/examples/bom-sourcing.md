@@ -51,28 +51,37 @@ supplier stock, or manufacturing approval.
 
 ---
 
-### 2. Validate BOM Against LCSC Inventory
+### 2. Verify Supplier Part IDs Without Guessing
 
-Check if the LCSC parts specified in your design are active, in stock, or obsolete:
-
-**MCP Call**:
-`easyeda_bom_validate` with the generated parts list.
-
-**Validation Response**:
+Use `easyeda_bom_validate` with a `projectId` to check which BOM lines
+resolve to LCSC supplier records. For example:
 
 ```json
 {
-  "isValid": true,
-  "obsoleteParts": [],
-  "lowStockParts": [
-    {
-      "lcsc": "C701342",
-      "stock": 12,
-      "message": "Low stock warning: only 12 units available at LCSC."
-    }
-  ]
+  "project_id": "proj-123",
+  "total_parts": 4,
+  "missing_lcsc": ["R1"],
+  "invalid_lcsc": [],
+  "unverified_lcsc": ["U2"],
+  "obsolete": ["U3"],
+  "valid_count": 1,
+  "validated": false
 }
 ```
+
+**Do not treat `validated` as manufacturing approval.** It is `true` only
+when at least one supplied LCSC part ID was confirmed by the provider and
+no supplied part ID remains unverified. Parts without an LCSC code still
+appear under `missing_lcsc`; known-discontinued IDs appear under `obsolete`.
+If the supplier client is disconnected, times out, returns a different
+part ID, or cannot find a part in the free keyless _top in-stock_
+snapshot, `unverified_lcsc` lists the affected reference designators and
+`validated=false`. A missing free-snapshot match is **not proof that
+the part number is invalid or obsolete**. `valid_count` counts only
+supplier-confirmed IDs that are not known to be discontinued, and does
+not promise that stock, price, availability, or suitability is current.
+For purchasing decisions, resolve unknown IDs and check live supplier
+availability separately.
 
 ---
 
