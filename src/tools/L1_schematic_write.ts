@@ -104,10 +104,10 @@ async function readSchematicComponentsForVerification(
 ): Promise<SchematicComponentSnapshot[] | undefined> {
   try {
     const result = await ctx.bridge.call<
-      { projectId: string; limit: number; offset: number },
+      { allPages: boolean; limit: number; offset: number },
       { total?: number; items?: SchematicComponentSnapshot[] } | SchematicComponentSnapshot[]
     >('schematic.listComponents', {
-      projectId: 'active',
+      allPages: false,
       limit: 500,
       offset: 0,
     });
@@ -276,6 +276,8 @@ async function placeComponentInTransaction(
         x: p.x,
         y: p.y,
         subPartName: p.subPartName,
+        designator: p.designator,
+        uniqueId: p.uniqueId,
         rotation: p.rotation,
         mirror: p.mirror,
         addIntoBom: p.addIntoBom,
@@ -321,8 +323,26 @@ const placeComponentInputSchema = z
     y: z.number(),
     subPartName: z
       .string()
+      .trim()
+      .min(1)
       .optional()
-      .describe('Unsupported: multi-unit placement is unverified; preview/apply fail closed.'),
+      .describe(
+        'Exact native device unit name. Requires matching designator and uniqueId for all units.',
+      ),
+    designator: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{1,8}[1-9][0-9]*$/)
+      .optional()
+      .describe('Shared reference for units of one physical component.'),
+    uniqueId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional()
+      .describe('Shared native physical identity for units of one component.'),
     rotation: z.number().optional(),
     mirror: z.boolean().optional(),
     addIntoBom: z.boolean().optional(),
@@ -361,6 +381,8 @@ async function applyPlaceComponentWrite(ctx: ToolContext, p: PlaceComponentParam
     x: p.x,
     y: p.y,
     subPartName: p.subPartName,
+    designator: p.designator,
+    uniqueId: p.uniqueId,
     rotation: p.rotation,
     mirror: p.mirror,
     addIntoBom: p.addIntoBom,
@@ -574,6 +596,95 @@ async function deletePrimitivesInTransaction(
   return operations;
 }
 
+function subpartPlacementGuard(p: PlaceComponentParams) {
+  if (p.subPartName && (!p.designator || !p.uniqueId)) {
+    return {
+      success: false,
+      error_code: 'SUBPART_LINK_REQUIRED',
+      error:
+        'A multi-unit subPartName requires both designator and uniqueId. Use identical values for every unit of the same physical component.',
+    };
+  }
+  if (!p.subPartName && (p.designator || p.uniqueId)) {
+    return {
+      success: false,
+      error_code: 'SUBPART_LINK_REQUIRED',
+      error: 'Shared designator and uniqueId require an exact subPartName.',
+    };
+  }
+  return undefined;
+}
+
+function placementMatchesSchematicReadback(
+  p: PlaceComponentParams,
+  result: unknown,
+  before: SchematicComponentSnapshot[],
+  after: SchematicComponentSnapshot[],
+): boolean {
+  const id =
+    result && typeof result === 'object' && !Array.isArray(result)
+      ? (result as Record<string, unknown>).primitiveId
+      : undefined;
+  if (p.subPartName && (typeof id !== 'string' || !id)) return false;
+  if (typeof id !== 'string' || !id) return true; // Legacy native results may omit an ID.
+  if (before.some((item) => item.primitiveId === id)) return false;
+  const component = after.find((item) => item.primitiveId === id);
+  if (!component) return false;
+  if (!p.subPartName) return true;
+  return (
+    component.reference === p.designator &&
+    component.uniqueId === p.uniqueId &&
+    component.subPartName === p.subPartName &&
+    component.x === p.x &&
+    component.y === p.y
+  );
+}
+
+async function verifiedPlaceComponentOutcome(
+  ctx: ToolContext,
+  p: PlaceComponentParams,
+  before: SchematicComponentSnapshot[],
+  result: unknown,
+  transaction: unknown,
+  placementGuard: PlacementGuardResult | undefined,
+) {
+  const after = await readSchematicComponentsForVerification(ctx);
+  const countDelta = after ? after.length - before.length : undefined;
+  const identityConfirmed = Boolean(
+    after && countDelta === 1 && placementMatchesSchematicReadback(p, result, before, after),
+  );
+  const verification = {
+    applied: true,
+    before_component_count: before.length,
+    after_component_count: after?.length,
+    component_count_delta: countDelta,
+    readback_available: Boolean(after),
+    identity_confirmed: identityConfirmed,
+  };
+  if (!identityConfirmed) {
+    return {
+      success: false,
+      unconfirmed: true,
+      component: result,
+      transaction,
+      placement_guard: placementGuard,
+      verification,
+      error_code: 'POST_WRITE_READBACK_UNCONFIRMED',
+      error:
+        'Native placement returned, but the focused schematic did not confirm exactly one matching new component.',
+      warning:
+        'The write may already have landed. Inspect native component state before retrying; never blindly repeat.',
+    };
+  }
+  return {
+    success: true,
+    component: result,
+    transaction,
+    placement_guard: placementGuard,
+    verification,
+  };
+}
+
 function registerSchematicWriteTools(
   registry: { register: (def: ToolDefinition) => void },
   _config: EnvConfig,
@@ -582,10 +693,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_place_component',
     title: 'Place schematic component',
     description:
-      'Place a searched library device on the active schematic. Use deviceItem from ' +
-      'schematic_search_device; project-local identities from schematic_components are invalid. ' +
-      'On timeout inspect reconciled/unconfirmed before retrying. projectId + transactionId enables ' +
-      'rollback; without transactionId the write is standalone.',
+      'Place device from schematic_search_device (project-local IDs invalid). ' +
+      'For multi-unit parts provide exact subPartName + shared designator and uniqueId; ' +
+      'native readback checks linkage. On timeout inspect before retry. ' +
+      'projectId + transactionId enables rollback; without transactionId the write is standalone.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -627,22 +738,22 @@ function registerSchematicWriteTools(
     handler: async (ctx: ToolContext, params: unknown) => {
       const p = placeComponentInputSchema.parse(params);
       try {
-        if (p.subPartName) {
-          return {
-            success: false,
-            error_code: 'SUBPART_PLACEMENT_UNVERIFIED',
-            error:
-              'Multi-unit subPartName placement is not verified in this MCP bridge. ' +
-              'Use the EasyEDA editor to place the required units, then verify a shared ' +
-              'reference, package and BOM entry before continuing.',
-          };
-        }
+        const subpartGuard = subpartPlacementGuard(p);
+        if (subpartGuard) return subpartGuard;
         const shouldReadBefore = [p.dryRun, p.verifyAfterWrite, p.checkPlacementCollision].some(
           Boolean,
         );
         const beforeComponents = shouldReadBefore
           ? await readSchematicComponentsForVerification(ctx)
           : undefined;
+        if ((p.verifyAfterWrite || p.checkPlacementCollision) && !beforeComponents) {
+          return {
+            success: false,
+            error_code: 'SCHEMATIC_READBACK_UNAVAILABLE',
+            error:
+              'Cannot inspect the focused schematic for requested verification or collision checks; no write was attempted.',
+          };
+        }
         const collisionRadius = p.collisionRadius ?? 25;
         const placementGuard = p.checkPlacementCollision
           ? schematicWritePlacementGuard(beforeComponents, p.x, p.y, collisionRadius)
@@ -663,6 +774,8 @@ function registerSchematicWriteTools(
                 rotation: p.rotation,
                 mirror: p.mirror,
                 subPartName: p.subPartName,
+                designator: p.designator,
+                uniqueId: p.uniqueId,
               },
             },
           };
@@ -678,26 +791,21 @@ function registerSchematicWriteTools(
           };
         }
 
-        const afterComponents = p.verifyAfterWrite
-          ? await readSchematicComponentsForVerification(ctx)
-          : undefined;
+        if (p.verifyAfterWrite && beforeComponents) {
+          return verifiedPlaceComponentOutcome(
+            ctx,
+            p,
+            beforeComponents,
+            result,
+            transaction,
+            placementGuard,
+          );
+        }
         return {
           success: true,
           component: result,
           transaction,
           placement_guard: placementGuard,
-          verification: p.verifyAfterWrite
-            ? {
-                applied: true,
-                before_component_count: beforeComponents?.length,
-                after_component_count: afterComponents?.length,
-                component_count_delta:
-                  beforeComponents && afterComponents
-                    ? afterComponents.length - beforeComponents.length
-                    : undefined,
-                readback_available: Boolean(afterComponents),
-              }
-            : undefined,
         };
       } catch (err) {
         return handlePlaceComponentError(ctx, p, err);

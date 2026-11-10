@@ -173,11 +173,14 @@ function newBridgeError(code: string, message: string, suggestion: string, data?
   return error;
 }
 
-async function needDevice(v: unknown): Promise<void> {
+async function needDevice(v: unknown): Promise<Record<string, unknown>> {
   const d = v as Record<string, unknown> | undefined;
   const u = nativeScalarString(d?.uuid).trim();
   const l = nativeScalarString(d?.libraryUuid).trim();
-  if (u && l && (await callFirst(['LIB_Device.get'], u, l))) return;
+  if (u && l) {
+    const found = await callFirst(['LIB_Device.get'], u, l);
+    if (isRecord(found) && found.uuid === u && found.libraryUuid === l) return found;
+  }
   throw newBridgeError('INVALID_PARAMS', 'Invalid device.', 'Use search_device.');
 }
 
@@ -1471,6 +1474,249 @@ async function getPinNoConnectApi(
   return publicPinNoConnectState(await resolvePinNoConnectState(componentPrimitiveId, pinNumber));
 }
 
+type SubpartPlacement = {
+  name: string;
+  designator: string;
+  uniqueId: string;
+  componentClass: {
+    getAll(type?: unknown, allPages?: boolean): Promise<unknown[]>;
+    get(id: string): Promise<unknown>;
+    modify(id: string, changes: Record<string, unknown>): Promise<unknown>;
+    delete(id: string): Promise<boolean>;
+  };
+  existingGroup: unknown[];
+};
+
+function assertCompatiblePhysicalUnit(
+  existing: unknown,
+  requested: {
+    designator: string;
+    uniqueId: string;
+    name: string;
+    library: string;
+    deviceName: unknown;
+  },
+): void {
+  const ref = nativeScalarString(safeGetState(existing, 'Designator')).trim();
+  const uid = nativeScalarString(safeGetState(existing, 'UniqueId')).trim();
+  const source = safeGetState(existing, 'Component');
+  if (
+    ref !== requested.designator ||
+    uid !== requested.uniqueId ||
+    nativeScalarString(safeGetState(existing, 'SubPartName')) === requested.name ||
+    !isRecord(source) ||
+    source.libraryUuid !== requested.library ||
+    (typeof requested.deviceName === 'string' && source.name !== requested.deviceName)
+  ) {
+    throw newBridgeError(
+      'INVALID_PARAMS',
+      'The physical reference is already used by a different or duplicate unit.',
+      'Choose a unique reference/identity or a distinct verified subpart.',
+    );
+  }
+}
+
+function requireSubpartGroupFields(params: Record<string, unknown>) {
+  const name = nativeScalarString(params.subPartName).trim();
+  const designator = nativeScalarString(params.designator).trim();
+  const uniqueId = nativeScalarString(params.uniqueId).trim();
+  if (
+    !name ||
+    !designator ||
+    !uniqueId ||
+    !/^[A-Za-z]{1,8}[1-9][0-9]*$/.test(designator) ||
+    !/^[A-Za-z0-9_-]{1,128}$/.test(uniqueId)
+  ) {
+    throw newBridgeError(
+      'INVALID_PARAMS',
+      'A native subpart requires a valid shared designator and uniqueId.',
+      'Use the same designator and uniqueId for all physical units.',
+    );
+  }
+  return { name, designator, uniqueId };
+}
+
+function sameNativePhysicalDevice(existing: unknown, created: unknown): boolean {
+  const prior = safeGetState(existing, 'Component');
+  const next = safeGetState(created, 'Component');
+  return (
+    isRecord(prior) &&
+    isRecord(next) &&
+    prior.uuid === next.uuid &&
+    prior.libraryUuid === next.libraryUuid
+  );
+}
+
+function matchesNativeGroupedUnit(component: unknown, plan: SubpartPlacement): boolean {
+  return (
+    Boolean(component) &&
+    nativeScalarString(safeGetState(component, 'SubPartName')) === plan.name &&
+    nativeScalarString(safeGetState(component, 'Designator')) === plan.designator &&
+    nativeScalarString(safeGetState(component, 'UniqueId')) === plan.uniqueId
+  );
+}
+
+async function preflightSubpartPlacement(
+  params: Record<string, unknown>,
+  device: Record<string, unknown>,
+): Promise<SubpartPlacement> {
+  const { name, designator, uniqueId } = requireSubpartGroupFields(params);
+  const library = nativeScalarString((params.deviceItem as Record<string, unknown>)?.libraryUuid);
+  if (!Array.isArray(device.subPartNames) || !device.subPartNames.includes(name)) {
+    throw newBridgeError(
+      'INVALID_PARAMS',
+      'The requested native subpart is absent from its exact library device.',
+      'Read the verified library device subpart names before placement.',
+    );
+  }
+  const componentClass = readFirstPath<SubpartPlacement['componentClass']>([
+    'SCH_PrimitiveComponent',
+    'sch_PrimitiveComponent',
+  ]);
+  if (
+    !componentClass ||
+    !['get', 'getAll', 'modify', 'delete'].every(
+      (method) => typeof componentClass[method as keyof typeof componentClass] === 'function',
+    )
+  ) {
+    throw newBridgeError(
+      'NOT_IMPLEMENTED',
+      'Native subpart readback/rollback methods are unavailable.',
+      'Use an EasyEDA Pro version with the documented component API.',
+    );
+  }
+  const all = await componentClass.getAll(undefined, true);
+  if (!Array.isArray(all)) {
+    throw newBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      'Cannot verify existing physical unit identities.',
+      'Focus a supported schematic and retry after checking its component inventory.',
+    );
+  }
+  const existingGroup: unknown[] = [];
+  for (const component of all) {
+    const ref = nativeScalarString(safeGetState(component, 'Designator')).trim();
+    const uid = nativeScalarString(safeGetState(component, 'UniqueId')).trim();
+    if (ref !== designator && uid !== uniqueId) continue;
+    assertCompatiblePhysicalUnit(component, {
+      designator,
+      uniqueId,
+      name,
+      library,
+      deviceName: device.name,
+    });
+    existingGroup.push(component);
+  }
+  return { name, designator, uniqueId, componentClass, existingGroup };
+}
+
+async function finalizeSubpartPlacement(
+  created: unknown,
+  plan: SubpartPlacement,
+): Promise<unknown> {
+  const id = extractPrimitiveId(created);
+  if (!id) {
+    throw newBridgeError(
+      'CONTEXT_UNAVAILABLE',
+      'Native create did not expose an ID; placement state is unknown.',
+      'Inspect the focused schematic before retrying. Do not blindly repeat this write.',
+    );
+  }
+  try {
+    if (nativeScalarString(safeGetState(created, 'SubPartName')) !== plan.name) {
+      throw new Error('Native create returned the wrong subpart');
+    }
+    for (const existing of plan.existingGroup) {
+      if (!sameNativePhysicalDevice(existing, created)) {
+        throw new Error('Unit devices do not resolve to one physical component');
+      }
+    }
+    const modified = await plan.componentClass.modify(id, {
+      designator: plan.designator,
+      uniqueId: plan.uniqueId,
+    });
+    if (!modified) throw new Error('Native shared-identity modification failed');
+    const after = await plan.componentClass.get(id);
+    if (!matchesNativeGroupedUnit(after, plan)) {
+      throw new Error('Native physical identity readback mismatch');
+    }
+    return after;
+  } catch (error) {
+    let rolledBack = false;
+    try {
+      rolledBack =
+        (await plan.componentClass.delete(id)) === true && !(await plan.componentClass.get(id));
+    } catch (rollbackError) {
+      logRecoverableError('native subpart placement cleanup failed', rollbackError);
+    }
+    throw newBridgeError(
+      'SUBPART_READBACK_FAILED',
+      'Native subpart placement could not be verified.',
+      rolledBack
+        ? 'The unverified new primitive was removed.'
+        : 'Inspect the schematic for an unverified primitive before any retry.',
+      {
+        primitiveId: id,
+        rolledBack,
+        reason: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+}
+
+async function finishPlacedComponentState(
+  createdComp: unknown,
+  params: Record<string, unknown>,
+  isSubpart: boolean,
+): Promise<unknown> {
+  // Resolve the library "R?"/"U?" placeholder to a unique designator so the
+  // netlist keeps distinct parts distinct. Best-effort: if annotation fails
+  // the component is still placed, just with its placeholder designator.
+  try {
+    const newDesig = isSubpart ? undefined : await assignAutoDesignator(createdComp);
+    if (newDesig && createdComp && typeof createdComp === 'object') {
+      (createdComp as Record<string, unknown>).designator = newDesig;
+    }
+  } catch (e) {
+    logRecoverableError('auto-designator failed', e);
+  }
+  // create() is called without rotation, mirror and the BOM/PCB flags;
+  // apply them after placement so the caller's request actually takes effect.
+  try {
+    const applied = await applyPlacedState(createdComp, params);
+    if (applied && createdComp && typeof createdComp === 'object') {
+      Object.assign(createdComp, applied);
+    }
+  } catch (e) {
+    logRecoverableError('apply-placed-state failed', e);
+  }
+  return createdComp;
+}
+
+async function placeComponentApi(params: Record<string, unknown>): Promise<unknown> {
+  const device = await needDevice(params.deviceItem);
+  const subpart =
+    typeof params.subPartName === 'string' && params.subPartName.trim()
+      ? await preflightSubpartPlacement(params, device)
+      : undefined;
+  if (!subpart && (params.designator !== undefined || params.uniqueId !== undefined)) {
+    throw newBridgeError(
+      'INVALID_PARAMS',
+      'Physical-unit linkage requires a native subPartName.',
+      'Provide the exact verified subPartName, designator and uniqueId together.',
+    );
+  }
+  const created = await callFirst(
+    ['SCH_PrimitiveComponent.create', 'sch_PrimitiveComponent.create'],
+    params.deviceItem,
+    params.x,
+    params.y,
+    ...(subpart ? [subpart.name] : []),
+  );
+  const createdComp = subpart ? await finalizeSubpartPlacement(created, subpart) : created;
+  return finishPlacedComponentState(createdComp, params, Boolean(subpart));
+}
+
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
   const targetDocument = await assertExpectedDocument(
     method,
@@ -1482,58 +1728,8 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
   if (domainResult.handled) return withTargetDocumentEvidence(domainResult.value, targetDocument);
 
   switch (method) {
-    case 'schematic.placeComponent': {
-      // subPartName is meant to select a specific sub-part/gate of a multi-part
-      // device (e.g. adding a second power-pin sub-part to an existing
-      // multi-gate symbol reference). SCH_PrimitiveComponent.create only
-      // accepts (deviceItem, x, y) — passing extra arguments causes it to hang
-      // or reject (see below) — and no sub-part-selecting follow-up call is
-      // known to exist on this runtime surface (SCH_PrimitiveComponent.modify's
-      // reverse-engineered field set has no subPart-like property either). This
-      // parameter previously reached here and was silently dropped, so every
-      // placement request created an independent full component on the
-      // default sub-part regardless of what was asked for. Reject up front —
-      // before creating anything — rather than placing a component and then
-      // reporting an error, which would leave an orphaned, unrequested part
-      // behind for a caller who just saw "failed" and might retry.
-      if (typeof params.subPartName === 'string' && params.subPartName.length > 0) {
-        throw newBridgeError(
-          'NOT_IMPLEMENTED',
-          'subPartName is not supported by this EasyEDA runtime.',
-          'Omit subPartName.',
-        );
-      }
-      await needDevice(params.deviceItem);
-
-      const createdComp = await callFirst(
-        ['SCH_PrimitiveComponent.create', 'sch_PrimitiveComponent.create'],
-        params.deviceItem,
-        params.x,
-        params.y,
-      );
-      // Resolve the library "R?"/"U?" placeholder to a unique designator so the
-      // netlist keeps distinct parts distinct. Best-effort: if annotation fails
-      // the component is still placed, just with its placeholder designator.
-      try {
-        const newDesig = await assignAutoDesignator(createdComp);
-        if (newDesig && createdComp && typeof createdComp === 'object') {
-          (createdComp as Record<string, unknown>).designator = newDesig;
-        }
-      } catch (e) {
-        logRecoverableError('auto-designator failed', e);
-      }
-      // create() is called without rotation, mirror and the BOM/PCB flags;
-      // apply them after placement so the caller's request actually takes effect.
-      try {
-        const applied = await applyPlacedState(createdComp, params);
-        if (applied && createdComp && typeof createdComp === 'object') {
-          Object.assign(createdComp, applied);
-        }
-      } catch (e) {
-        logRecoverableError('apply-placed-state failed', e);
-      }
-      return createdComp;
-    }
+    case 'schematic.placeComponent':
+      return placeComponentApi(params);
     case 'schematic.addWire': {
       const rawPoints: Array<{ x: number; y: number }> = Array.isArray(params.points)
         ? params.points

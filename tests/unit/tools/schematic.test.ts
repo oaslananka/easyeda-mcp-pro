@@ -846,23 +846,54 @@ describe('Schematic Tools', () => {
     ['dry-run', { dryRun: true }],
     ['standalone apply', {}],
     ['transactional apply', { projectId: 'project-1', transactionId: 'tx-subpart-1' }],
-  ])('refuses #995 unsupported subPartName before %s reads or writes', async (_flow, options) => {
-    const tool = registry.get('easyeda_schematic_place_component');
-    const result = await tool?.handler(context, {
-      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
-      x: 100,
-      y: 200,
-      subPartName: 'OPA2333AIDR.1',
-      confirmWrite: true,
-      ...options,
-    });
+  ])(
+    'requires a shared physical identity for subPartName before %s reads or writes',
+    async (_flow, options) => {
+      const tool = registry.get('easyeda_schematic_place_component');
+      const result = await tool?.handler(context, {
+        deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+        x: 100,
+        y: 200,
+        subPartName: 'OPA2333AIDR.1',
+        confirmWrite: true,
+        ...options,
+      });
 
-    expect(result).toMatchObject({
-      success: false,
-      error_code: 'SUBPART_PLACEMENT_UNVERIFIED',
-      error: expect.stringContaining('EasyEDA editor'),
+      expect(result).toMatchObject({
+        success: false,
+        error_code: 'SUBPART_LINK_REQUIRED',
+        error: expect.stringContaining('designator'),
+      });
+      expect(bridgeCall).not.toHaveBeenCalled();
+    },
+  );
+
+  it('routes a verified subpart with an explicit shared reference and unique ID to the native bridge', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall.mockResolvedValue({ primitiveId: 'native-1', subPartName: 'OPA2333AIDR.1' });
+    const params = {
+      deviceItem: { libraryUuid: 'library-1', uuid: 'source-device' },
+      x: 1400,
+      y: 500,
+      subPartName: 'OPA2333AIDR.1',
+      designator: 'U995',
+      uniqueId: 'gge9950',
+      confirmWrite: true,
+    };
+    const result = await tool?.handler(context, params);
+    expect(result).toMatchObject({ success: true, component: { primitiveId: 'native-1' } });
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.placeComponent', {
+      deviceItem: params.deviceItem,
+      x: 1400,
+      y: 500,
+      subPartName: 'OPA2333AIDR.1',
+      designator: 'U995',
+      uniqueId: 'gge9950',
+      rotation: undefined,
+      mirror: undefined,
+      addIntoBom: undefined,
+      addIntoPcb: undefined,
     });
-    expect(bridgeCall).not.toHaveBeenCalled();
   });
 
   it('easyeda_schematic_place_component should call bridge and return success', async () => {
@@ -911,7 +942,7 @@ describe('Schematic Tools', () => {
 
     expect(bridgeCall).toHaveBeenCalledTimes(1);
     expect(bridgeCall).toHaveBeenCalledWith('schematic.listComponents', {
-      projectId: 'active',
+      allPages: false,
       limit: 500,
       offset: 0,
     });
@@ -971,6 +1002,77 @@ describe('Schematic Tools', () => {
       },
     });
   });
+  it('blocks a placement before mutation when requested focused-document verification is unavailable', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall.mockRejectedValueOnce(new Error('focused native inventory unavailable'));
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 100,
+      y: 200,
+      verifyAfterWrite: true,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error_code: 'SCHEMATIC_READBACK_UNAVAILABLE',
+    });
+    expect(bridgeCall).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an unconfirmed write rather than success when post-write readback fails', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall.mockResolvedValueOnce([]);
+    bridgeCall.mockResolvedValueOnce({ primitiveId: 'just-created' });
+    bridgeCall.mockRejectedValueOnce(new Error('native inventory read failed'));
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 100,
+      y: 200,
+      verifyAfterWrite: true,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      unconfirmed: true,
+      error_code: 'POST_WRITE_READBACK_UNCONFIRMED',
+      verification: {
+        applied: true,
+        readback_available: false,
+      },
+    });
+    expect(bridgeCall).toHaveBeenCalledTimes(3);
+  });
+
+  it('rejects false-positive subpart verification even if the component count increased', async () => {
+    const tool = registry.get('easyeda_schematic_place_component');
+    bridgeCall.mockResolvedValueOnce([]);
+    bridgeCall.mockResolvedValueOnce({ primitiveId: 'created-2' });
+    bridgeCall.mockResolvedValueOnce([
+      {
+        primitiveId: 'created-2',
+        reference: 'U997',
+        uniqueId: 'gge9970',
+        subPartName: 'OPA2333AIDR.2',
+      },
+    ]);
+    const result = await tool?.handler(context, {
+      deviceItem: { libraryUuid: 'lib-uuid', uuid: 'device-uuid' },
+      x: 1800,
+      y: 900,
+      subPartName: 'OPA2333AIDR.1',
+      designator: 'U997',
+      uniqueId: 'gge9970',
+      verifyAfterWrite: true,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      unconfirmed: true,
+      error_code: 'POST_WRITE_READBACK_UNCONFIRMED',
+      verification: { readback_available: true, identity_confirmed: false },
+    });
+  });
+
   it('easyeda_schematic_add_wire should call bridge and return success', async () => {
     const tool = registry.get('easyeda_schematic_add_wire');
     bridgeCall.mockResolvedValue({ wireId: 'wire-123' });

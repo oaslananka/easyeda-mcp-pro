@@ -109,7 +109,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_modify_primitive`               | `core`         | `medium` | Modify a schematic primitive while preserving omitted fields. With transactionId and projectId, snapshot and restore after failed writes/read-back. Connected or unverified component moves fail closed before mutation.                                                                                                      |
 | `easyeda_schematic_net_detail`                     | `core`         | `low`    | Get full details for a specific net in the current schematic context including connected pins and components. Explicit focused scope is supported; page/all_pages scopes fail closed on EasyEDA Pro 3.2.149.                                                                                                                  |
 | `easyeda_schematic_nets`                           | `core`         | `low`    | List nets from the current schematic context. Explicit focused scope is supported; page/all_pages scopes fail closed on EasyEDA Pro 3.2.149.                                                                                                                                                                                  |
-| `easyeda_schematic_place_component`                | `core`         | `medium` | Place a searched library device on the active schematic. Use deviceItem from schematic_search_device; project-local identities from schematic_components are invalid. On timeout inspect reconciled/unconfirmed before retrying. projectId + transactionId enables rollback; without transactionId the write is standalone.   |
+| `easyeda_schematic_place_component`                | `core`         | `medium` | Place device from schematic_search_device (project-local IDs invalid). For multi-unit parts provide exact subPartName + shared designator and uniqueId; native readback checks linkage. On timeout inspect before retry. projectId + transactionId enables rollback; without transactionId the write is standalone.           |
 | `easyeda_schematic_plan_layout`                    | `pro`          | `low`    | Deterministically plan functional-block placement (reserved rectangles, support space, grid-aligned coordinates, occupancy map, A3 fallback, score) from real sheet/primitive geometry -- no writes. Caller supplies roles/blockId/parentId; other primitives read as occupied regions, never overwritten.                    |
 | `easyeda_schematic_plan_safe_region`               | `core`         | `low`    | Compute a safe schematic drawing region before placing components. Uses live sheet info when available, assumes EasyEDA bottom-left coordinates, reserves the default lower-right title-block keep-out, and returns an anchor/bounds plan that avoids title-block overlap.                                                    |
 | `easyeda_schematic_preview_imported_normalization` | `core`         | `low`    | Read the live schematic and produce a deterministic, read-only normalization plan with a stable plan ID, model hash, proposed net-name/reference/metadata operations, validation gates, warnings, and blockers. This tool never writes to EasyEDA.                                                                            |
@@ -3737,29 +3737,31 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Place a searched library device on the active schematic. Use deviceItem from schematic_search_device; project-local identities from schematic_components are invalid. On timeout inspect reconciled/unconfirmed before retrying. projectId + transactionId enables rollback; without transactionId the write is standalone.
+> Place device from schematic_search_device (project-local IDs invalid). For multi-unit parts provide exact subPartName + shared designator and uniqueId; native readback checks linkage. On timeout inspect before retry. projectId + transactionId enables rollback; without transactionId the write is standalone.
 
 ### Input Parameters
 
-| Parameter                   | Type                 | Required | Description                                                                           |
-| --------------------------- | -------------------- | -------- | ------------------------------------------------------------------------------------- |
-| `deviceItem`                | `object`             | Yes      |                                                                                       |
-| `x`                         | `number`             | Yes      |                                                                                       |
-| `y`                         | `number`             | Yes      |                                                                                       |
-| `subPartName`               | `string (optional)`  | No       | Unsupported: multi-unit placement is unverified; preview/apply fail closed.           |
-| `rotation`                  | `number (optional)`  | No       |                                                                                       |
-| `mirror`                    | `boolean (optional)` | No       |                                                                                       |
-| `addIntoBom`                | `boolean (optional)` | No       |                                                                                       |
-| `addIntoPcb`                | `boolean (optional)` | No       |                                                                                       |
-| `dryRun`                    | `boolean (optional)` | No       |                                                                                       |
-| `verifyAfterWrite`          | `boolean (optional)` | No       |                                                                                       |
-| `checkPlacementCollision`   | `boolean (optional)` | No       |                                                                                       |
-| `collisionRadius`           | `number (optional)`  | No       |                                                                                       |
-| `projectId`                 | `string (optional)`  | No       | Required when transactionId is supplied; must match the transaction document.         |
-| `transactionId`             | `string (optional)`  | No       | Optional snapshot-backed project transaction ID.                                      |
-| `confirmWrite`              | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
-| `expectedPcbUuid`           | `string (optional)`  | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
-| `expectedSchematicPageUuid` | `string (optional)`  | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
+| Parameter                   | Type                 | Required | Description                                                                             |
+| --------------------------- | -------------------- | -------- | --------------------------------------------------------------------------------------- |
+| `deviceItem`                | `object`             | Yes      |                                                                                         |
+| `x`                         | `number`             | Yes      |                                                                                         |
+| `y`                         | `number`             | Yes      |                                                                                         |
+| `subPartName`               | `string (optional)`  | No       | Exact native device unit name. Requires matching designator and uniqueId for all units. |
+| `designator`                | `string (optional)`  | No       | Shared reference for units of one physical component.                                   |
+| `uniqueId`                  | `string (optional)`  | No       | Shared native physical identity for units of one component.                             |
+| `rotation`                  | `number (optional)`  | No       |                                                                                         |
+| `mirror`                    | `boolean (optional)` | No       |                                                                                         |
+| `addIntoBom`                | `boolean (optional)` | No       |                                                                                         |
+| `addIntoPcb`                | `boolean (optional)` | No       |                                                                                         |
+| `dryRun`                    | `boolean (optional)` | No       |                                                                                         |
+| `verifyAfterWrite`          | `boolean (optional)` | No       |                                                                                         |
+| `checkPlacementCollision`   | `boolean (optional)` | No       |                                                                                         |
+| `collisionRadius`           | `number (optional)`  | No       |                                                                                         |
+| `projectId`                 | `string (optional)`  | No       | Required when transactionId is supplied; must match the transaction document.           |
+| `transactionId`             | `string (optional)`  | No       | Optional snapshot-backed project transaction ID.                                        |
+| `confirmWrite`              | `'true'`             | Yes      | Must be the literal boolean true (not the string "true") to allow this write.           |
+| `expectedPcbUuid`           | `string (optional)`  | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.      |
+| `expectedSchematicPageUuid` | `string (optional)`  | No       | Expected focused schematic page UUID; reject a different focused page before a write.   |
 
 ### Output Format
 
