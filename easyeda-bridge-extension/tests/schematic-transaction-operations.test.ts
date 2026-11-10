@@ -1051,6 +1051,47 @@ describe('schematic transaction operations', () => {
     expect(modify).not.toHaveBeenCalled();
   });
 
+  it('rejects a component move when an edited wire has no exact native get(id) reader', async () => {
+    const modify = vi.fn();
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 300, getState_Y: () => 400 }),
+        modify,
+      },
+      SCH_PrimitiveWire: { getAll: vi.fn().mockResolvedValue([]) },
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 280, getState_Y: () => 400 }]);
+    operations.noteNativeWireMutation('create', ['new-native-wire']);
+    await expect(operations.modifyPrimitive('R19', { x: 500 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('Exact native wire read unavailable'),
+    });
+    expect(modify).not.toHaveBeenCalled();
+  });
+
+  it('refuses a component move if exact-ID wire read times out after native creation', async () => {
+    const modify = vi.fn();
+    const failure = new Error('native get wire timed out');
+    const { operations, callFirst, logRecoverableError } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ getState_X: () => 300, getState_Y: () => 400 }),
+        modify,
+      },
+      SCH_PrimitiveWire: {
+        getAll: vi.fn().mockResolvedValue([]),
+        get: vi.fn().mockRejectedValue(failure),
+      },
+    });
+    callFirst.mockResolvedValue([{ getState_X: () => 280, getState_Y: () => 400 }]);
+    operations.noteNativeWireMutation('create', ['new-native-wire']);
+    await expect(operations.modifyPrimitive('R19', { x: 500 })).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('could not be reconciled'),
+    });
+    expect(logRecoverableError).toHaveBeenCalledWith('native fresh-wire read failed', failure);
+    expect(modify).not.toHaveBeenCalled();
+  });
+
   it('keeps ambiguous native wire writes fail-closed until a documented editor reset', async () => {
     const modify = vi.fn();
     const { operations, callFirst } = createSubject({

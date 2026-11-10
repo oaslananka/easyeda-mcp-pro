@@ -3217,6 +3217,47 @@ describe('createDispatcher', () => {
     });
   });
 
+  it('tracks native wire writes from connectPinToNet and refuses an immediate unsafe move (#945)', async () => {
+    const componentModify = vi.fn(async () => true);
+    const createdWire = fakeWire('pin-wire', 'NET_CONNECTED', [100, 100, 120, 100]);
+    const create = vi.fn(async () => createdWire);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: {
+          getAll: vi.fn(async () => []),
+          get: vi.fn(async () => createdWire),
+          create,
+        },
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async () => fakeComponent({ X: 100, Y: 100 })),
+          getAll: vi.fn(async () => []),
+          getAllPinsByPrimitiveId: vi.fn(async () => [
+            { getState_PinNumber: () => '3', state: { X: 100, Y: 100, Rotation: 0 } },
+          ]),
+          modify: componentModify,
+        },
+      }),
+    );
+    const connected = await dispatcher.dispatch('schematic.connectPinToNet', {
+      primitiveId: 'cmp',
+      pinNumber: '3',
+      netName: 'NET_CONNECTED',
+      stubLength: 20,
+    });
+    expect(connected).toMatchObject({ connected: true, real: true, primitiveId: 'pin-wire' });
+    expect(create).toHaveBeenCalledOnce();
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'cmp',
+        property: { x: 200 },
+      }),
+    ).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('newly created wire'),
+    });
+    expect(componentModify).not.toHaveBeenCalled();
+  });
+
   it('blocks a move after addWire reports a new native ID that getAll still omits (#945)', async () => {
     const componentModify = vi.fn(async () => true);
     const newWire = fakeWire('new-wire', 'NET_NEW', [100, 100, 130, 100]);
