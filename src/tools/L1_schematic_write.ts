@@ -1759,6 +1759,23 @@ function registerSchematicWriteTools(
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = params as { projectId?: string };
       try {
+        if (projectId !== undefined) {
+          // The scoped native read rejects a mismatched project or focused page
+          // before requesting any PCB import dialog.
+          const focused = await ctx.bridge.call('schematic.listComponents', {
+            projectId,
+            limit: 1,
+            offset: 0,
+            scope: 'focused',
+          });
+          if (
+            !focused ||
+            typeof focused !== 'object' ||
+            !Array.isArray((focused as { items?: unknown }).items)
+          ) {
+            throw new Error('Unable to verify the active schematic project before PCB sync.');
+          }
+        }
         const result = await ctx.bridge.call('schematic.syncToPcb', { projectId });
         const data = result as { synced?: boolean } | null;
         if (data?.synced !== true) {
