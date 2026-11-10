@@ -136,6 +136,38 @@ describe('schematic component inspection operations', () => {
     expect(getAll).toHaveBeenCalledWith(undefined, true);
   });
 
+  it('preserves physical BOM UniqueId and SubPartName on real schematic unit readback', async () => {
+    const unit = makeStateful({
+      PrimitiveId: 'opamp-a',
+      ComponentType: 'part',
+      Component: { uuid: 'device-7', libraryUuid: 'library-7', name: 'AMP' },
+      Designator: 'U7',
+      UniqueId: 'physical-7',
+      SubPartName: 'AMP.1',
+    });
+    const getAll = vi.fn(async () => [unit]);
+    const { operations } = makeOperations({ SCH_PrimitiveComponent: { getAll } });
+    await expect(operations.listComponents()).resolves.toMatchObject({
+      items: [{ reference: 'U7', uniqueId: 'physical-7', subPartName: 'AMP.1' }],
+    });
+  });
+
+  it('preserves explicitly disabled BOM participation without hiding the schematic part', async () => {
+    const unit = makeStateful({
+      PrimitiveId: 'no-bom-unit',
+      ComponentType: 'part',
+      Component: { uuid: 'dev', libraryUuid: 'lib', name: 'TP' },
+      Designator: 'TP1',
+      AddIntoBom: false,
+    });
+    const getAll = vi.fn(async () => [unit]);
+    const { operations } = makeOperations({ SCH_PrimitiveComponent: { getAll } });
+    await expect(operations.listComponents()).resolves.toMatchObject({
+      total: 1,
+      items: [{ reference: 'TP1', addIntoBom: false }],
+    });
+  });
+
   it('uses focused component inventory only when allPages is explicitly false', async () => {
     const getAll = vi.fn(async () => []);
     const { operations } = makeOperations({ SCH_PrimitiveComponent: { getAll } });

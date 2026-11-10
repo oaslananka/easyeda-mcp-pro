@@ -71,6 +71,19 @@ not a blanket ceiling increase or permission to bypass size gates; future
 growth still fails closed. Actual EasyEDA runtime sub-part data and shared BOM
 semantics require independent live acceptance.
 
+On 2026-11-10, the multi-unit BOM identity correctness patch for #995 made BOM
+quantity count verified **physical component identities** rather than every
+schematic section; it also preserves native `AddIntoBom=false` and rejects
+ambiguous reference/UniqueId/device/library/part mismatches before returning a
+purchase quantity. The exact source example showed two same-designator/same-
+UniqueId schematic units linked to one PCB component, but live native
+two-unit placement/BOM sign-off remains **unverified**. This additional
+read-only handling changed the deterministic extension package from
+**211,697 → 213,140 bytes**, index from **333,198 → 336,312 bytes**,
+and dispatcher from **270,680 → 273,794 bytes**. Ratchets are
+**213,145 / 336,317 / 273,799 bytes** (5-byte deterministic margin each),
+with no quality/security gate disabled and no release authorization implied.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

@@ -64,6 +64,8 @@ function registerBomCoreTools(
       ),
       total_entries: z.number().int().nonnegative(),
       not_available: z.boolean().optional(),
+      error_code: z.string().optional(),
+      error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId, format, groupBy } = params as {
@@ -99,6 +101,7 @@ function registerBomCoreTools(
           total_entries: validEntries.length,
         };
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         return {
           project_id: projectId,
           format,
@@ -106,7 +109,12 @@ function registerBomCoreTools(
           entries: [],
           total_entries: 0,
           not_available: true,
-          error: err instanceof Error ? err.message : String(err),
+          ...(message.startsWith('BOM_IDENTITY_AMBIGUOUS:')
+            ? {
+                error_code: 'BOM_IDENTITY_AMBIGUOUS',
+              }
+            : {}),
+          error: message,
         };
       }
     },

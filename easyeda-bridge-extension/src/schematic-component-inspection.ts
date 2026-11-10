@@ -100,8 +100,14 @@ export function createSchematicComponentInspectionOperations({
     const otherProperty = readRecordState(component, 'OtherProperty', readState);
     const manufacturerId = nativeScalarString(readState(component, 'ManufacturerId'));
     const deviceName = nativeScalarString(device?.name);
+    const uniqueId = nativeScalarString(readState(component, 'UniqueId')).trim();
+    const subPartName = nativeScalarString(readState(component, 'SubPartName')).trim();
+    const addIntoBom = readState(component, 'AddIntoBom');
 
     return {
+      ...(typeof addIntoBom === 'boolean' ? { addIntoBom } : {}),
+      ...(uniqueId ? { uniqueId } : {}),
+      ...(subPartName ? { subPartName } : {}),
       primitiveId: nativeScalarString(readState(component, 'PrimitiveId')),
       reference: nativeScalarString(readState(component, 'Designator')),
       value: resolveComponentDisplayValue(

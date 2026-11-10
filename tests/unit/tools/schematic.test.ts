@@ -1982,6 +1982,36 @@ describe('Schematic Tools', () => {
       });
     });
 
+    it('exposes real multi-unit physical identity evidence for read-only BOM review', async () => {
+      const tool = registry.get('easyeda_schematic_components');
+      bridgeCall.mockResolvedValue({
+        total: 2,
+        items: [
+          {
+            reference: 'U7',
+            value: 'AMP',
+            primitiveId: 'p1',
+            uniqueId: 'physical-7',
+            subPartName: 'AMP.1',
+            addIntoBom: true,
+          },
+          {
+            reference: 'U7',
+            value: 'AMP',
+            primitiveId: 'p2',
+            uniqueId: 'physical-7',
+            subPartName: 'AMP.2',
+            addIntoBom: false,
+          },
+        ],
+      });
+      const result = await tool?.handler(context, { projectId: 'proj-123', limit: 100, offset: 0 });
+      expect(result?.components).toMatchObject([
+        { reference: 'U7', uniqueId: 'physical-7', subPartName: 'AMP.1', addIntoBom: true },
+        { reference: 'U7', uniqueId: 'physical-7', subPartName: 'AMP.2', addIntoBom: false },
+      ]);
+    });
+
     it('forwards explicit focused/all-pages component scope without changing legacy calls', async () => {
       const tool = registry.get('easyeda_schematic_components');
       bridgeCall.mockResolvedValue({ total: 0, items: [] });

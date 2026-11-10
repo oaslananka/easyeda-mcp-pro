@@ -17,14 +17,37 @@ Run the BOM tool to extract all schematic symbols, values, footprints, and assoc
 
 ```json
 {
-  "total": 3,
-  "parts": [
-    { "ref": "U1", "val": "ESP32-WROOM-32E", "lcsc": "C701342" },
-    { "ref": "C1", "val": "10uF", "lcsc": "C19702" },
-    { "ref": "R1", "val": "10k", "lcsc": "C25804" }
-  ]
+  "project_id": "proj-123",
+  "format": "json",
+  "group_by": "value",
+  "entries": [
+    {
+      "reference": "U1",
+      "value": "ESP32-WROOM-32E",
+      "footprint": "MODULE",
+      "lcsc": "C701342",
+      "quantity": 1
+    },
+    { "reference": "C1", "value": "10uF", "footprint": "0603", "lcsc": "C19702", "quantity": 1 },
+    { "reference": "R1", "value": "10k", "footprint": "0603", "lcsc": "C25804", "quantity": 1 }
+  ],
+  "total_entries": 3
 }
 ```
+
+**Multi-unit device protection:** BOM quantity counts verified _physical component
+instances_, not schematic symbol sections. For example, two units of one amplifier
+sharing the same designator, device, library and native `UniqueId`, with different
+`subPartName` values, contribute **one** physical device. An explicit native
+`AddIntoBom=false` flag excludes that symbol from purchasing quantities.
+
+If a designator/physical identity conflicts or required unit identity is missing,
+`easyeda_bom_generate` returns `not_available=true` and
+`error_code="BOM_IDENTITY_AMBIGUOUS"` instead of inventing a quantity. Use the
+read-only `easyeda_schematic_components` fields `uniqueId`, `subPartName`
+and `addIntoBom` to inspect the mismatch before ordering. This safeguard is
+not proof of native multi-unit placement, complete physical BOM authentication,
+supplier stock, or manufacturing approval.
 
 ---
 

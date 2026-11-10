@@ -374,6 +374,9 @@ function registerSchematicReadTools(
           deviceLibraryUuid: z.string().optional(),
           deviceName: z.string().optional(),
           symbolName: z.string().optional(),
+          uniqueId: z.string().optional(),
+          subPartName: z.string().optional(),
+          addIntoBom: z.boolean().optional(),
           x: z.number().optional(),
           y: z.number().optional(),
           rotation: z.number().optional(),
@@ -446,6 +449,9 @@ function registerSchematicReadTools(
             deviceLibraryUuid?: string;
             deviceName?: string;
             symbolName?: string;
+            uniqueId?: string;
+            subPartName?: string;
+            addIntoBom?: boolean;
             x?: number;
             y?: number;
             rotation?: number;
@@ -469,6 +475,9 @@ function registerSchematicReadTools(
               deviceLibraryUuid: c.deviceLibraryUuid,
               deviceName: normalized.deviceName,
               symbolName: normalized.symbolName,
+              ...(c.uniqueId ? { uniqueId: c.uniqueId } : {}),
+              ...(c.subPartName ? { subPartName: c.subPartName } : {}),
+              ...(typeof c.addIntoBom === 'boolean' ? { addIntoBom: c.addIntoBom } : {}),
               x: normalized.x,
               y: normalized.y,
               rotation: normalized.rotation,
