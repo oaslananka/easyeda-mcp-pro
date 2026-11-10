@@ -58,8 +58,15 @@ export async function writeExtensionArchive({ root, packagePath, date }) {
   });
 
   for (const path of await collectExtensionPackageFiles(root)) {
-    archive.append(await readFile(path), {
-      name: normalizePath(relative(root, path)),
+    const name = normalizePath(relative(root, path));
+    const data = await readFile(path);
+    // Git's Windows autocrlf setting changes these checkout files, not their meaning.
+    // Normalize package inputs so the signed distribution does not depend on the OS.
+    const packagedData = ['README.md', 'CHANGELOG.md', 'extension.json'].includes(name)
+      ? Buffer.from(data.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')
+      : data;
+    archive.append(packagedData, {
+      name,
       date,
       mode: 0o644,
     });
