@@ -154,6 +154,96 @@ function bomGroupKey(component: any, groupBy: unknown): string {
   ]);
 }
 
+function bomIdentityError(reason: string): Error {
+  return new Error(`BOM_IDENTITY_AMBIGUOUS: ${reason}`);
+}
+
+function verifiedMultiUnitPair(first: any, next: any, existingSubParts: Set<string>): void {
+  if (
+    !first.deviceUuid ||
+    !first.deviceLibraryUuid ||
+    first.deviceUuid !== next.deviceUuid ||
+    first.deviceLibraryUuid !== next.deviceLibraryUuid
+  ) {
+    throw bomIdentityError('same physical identity has missing or inconsistent device/library');
+  }
+  if (bomGroupKey(first, 'value') !== bomGroupKey(next, 'value')) {
+    throw bomIdentityError('linked schematic units disagree on the physical BOM part');
+  }
+  if (
+    typeof next.subPartName !== 'string' ||
+    !next.subPartName.trim() ||
+    existingSubParts.has(next.subPartName)
+  ) {
+    throw bomIdentityError('linked units have missing or repeated subpart identity');
+  }
+  existingSubParts.add(next.subPartName);
+}
+
+function bomReference(component: any): string {
+  const reference = typeof component.reference === 'string' ? component.reference.trim() : '';
+  if (!reference) throw bomIdentityError('part has no verified designator');
+  return reference;
+}
+
+function bomUniqueId(component: any): string {
+  return typeof component.uniqueId === 'string' ? component.uniqueId.trim() : '';
+}
+
+function linkedBOMUnit(
+  firstByReference: any | undefined,
+  firstByUniqueId: any | undefined,
+  next: any,
+  uniqueId: string,
+  parts: Map<string, Set<string>>,
+): boolean {
+  if (!firstByReference && !firstByUniqueId) return false;
+  if (!uniqueId || firstByReference !== firstByUniqueId || !firstByReference) {
+    throw bomIdentityError('duplicate designator or mismatched physical unique ID');
+  }
+  const knownParts = parts.get(uniqueId);
+  if (!knownParts?.size) throw bomIdentityError('missing first subpart identity');
+  verifiedMultiUnitPair(firstByReference, next, knownParts);
+  return true;
+}
+
+function physicalBomComponents(components: any[]): any[] {
+  const uniqueIds = new Map<string, any>();
+  const references = new Map<string, any>();
+  const parts = new Map<string, Set<string>>();
+  const physical: any[] = [];
+
+  for (const component of components) {
+    const reference = bomReference(component);
+    const uniqueId = bomUniqueId(component);
+    if (
+      linkedBOMUnit(
+        references.get(reference),
+        uniqueId ? uniqueIds.get(uniqueId) : undefined,
+        component,
+        uniqueId,
+        parts,
+      )
+    ) {
+      continue;
+    }
+    references.set(reference, component);
+    if (uniqueId) {
+      uniqueIds.set(uniqueId, component);
+      parts.set(
+        uniqueId,
+        new Set(
+          typeof component.subPartName === 'string' && component.subPartName.trim()
+            ? [component.subPartName]
+            : [],
+        ),
+      );
+    }
+    physical.push(component);
+  }
+  return physical;
+}
+
 function createBomGroup(component: any) {
   return {
     references: [] as string[],
@@ -176,7 +266,9 @@ async function generateBom(
   const groupBy = params.groupBy || 'value';
   const groups = new Map<string, ReturnType<typeof createBomGroup>>();
 
-  for (const component of result.items) {
+  for (const component of physicalBomComponents(
+    result.items.filter((component) => component.addIntoBom !== false),
+  )) {
     const key = bomGroupKey(component, groupBy);
     const group = groups.get(key) ?? createBomGroup(component);
     if (!groups.has(key)) groups.set(key, group);
@@ -344,7 +436,14 @@ export function createReadOnlyOperations(
       const result = (await dependencies.schematicComponentInspection.listComponents()) as {
         items: any[];
       };
-      return { totalParts: result.items.length, missing: [], obsolete: [], alternates: [] };
+      return {
+        totalParts: physicalBomComponents(
+          result.items.filter((component) => component.addIntoBom !== false),
+        ).length,
+        missing: [],
+        obsolete: [],
+        alternates: [],
+      };
     },
 
     async inventorySearch() {

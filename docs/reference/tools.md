@@ -451,6 +451,8 @@ Returns a JSON object matching the schema:
   entries: object[];
   total_entries: number;
   not_available: boolean (optional);
+  error_code: string (optional);
+  error: string (optional);
 }
 ```
 

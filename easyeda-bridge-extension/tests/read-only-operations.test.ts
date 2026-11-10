@@ -435,6 +435,166 @@ describe('read-only dispatcher operations', () => {
     });
   });
 
+  it('counts a real two-unit schematic device as one physical BOM component', async () => {
+    const units = [
+      {
+        primitiveId: 'symbol-1',
+        reference: 'U7',
+        value: 'AMP',
+        footprint: 'SOIC-8',
+        lcsc: 'C100',
+        manufacturer: 'TI',
+        manufacturerId: 'AMP-8',
+        uniqueId: 'physical-7',
+        deviceUuid: 'device-7',
+        deviceLibraryUuid: 'library-7',
+        subPartName: 'AMP.1',
+      },
+      {
+        primitiveId: 'symbol-2',
+        reference: 'U7',
+        value: 'AMP',
+        footprint: 'SOIC-8',
+        lcsc: 'C100',
+        manufacturer: 'TI',
+        manufacturerId: 'AMP-8',
+        uniqueId: 'physical-7',
+        deviceUuid: 'device-7',
+        deviceLibraryUuid: 'library-7',
+        subPartName: 'AMP.2',
+      },
+    ];
+    const dependencies = createDependencies({
+      schematicComponentInspection: {
+        listComponents: vi.fn(async () => ({ total: 2, items: units })),
+      },
+    });
+    const operations = createReadOnlyOperations(dependencies as any);
+    await expect(operations.generateBom({})).resolves.toMatchObject([
+      { reference: 'U7', quantity: 1, value: 'AMP', footprint: 'SOIC-8' },
+    ]);
+    await expect(operations.validateBom()).resolves.toMatchObject({ totalParts: 1 });
+  });
+
+  it.each([
+    ['distinct physical IDs with a duplicate reference', { uniqueId: 'physical-8' }],
+    ['mismatched physical device', { deviceUuid: 'wrong-device' }],
+    ['mismatched library', { deviceLibraryUuid: 'other-library' }],
+    ['mismatched BOM part identity', { manufacturerId: 'different-part' }],
+    ['repeated same unit', { subPartName: 'AMP.1' }],
+    ['missing unit identity', { subPartName: undefined }],
+  ])('refuses ambiguous BOM identity: %s', async (_reason, override) => {
+    const first = {
+      primitiveId: 'symbol-1',
+      reference: 'U7',
+      value: 'AMP',
+      footprint: 'SOIC-8',
+      lcsc: 'C100',
+      manufacturer: 'TI',
+      manufacturerId: 'AMP-8',
+      uniqueId: 'physical-7',
+      deviceUuid: 'device-7',
+      deviceLibraryUuid: 'library-7',
+      subPartName: 'AMP.1',
+    };
+    const second = { ...first, primitiveId: 'symbol-2', subPartName: 'AMP.2', ...override };
+    const operations = createReadOnlyOperations(
+      createDependencies({
+        schematicComponentInspection: {
+          listComponents: vi.fn(async () => ({ items: [first, second] })),
+        },
+      }) as any,
+    );
+    await expect(operations.generateBom({})).rejects.toThrow(/BOM.*IDENTITY|BOM.*AMBIGUOUS/);
+  });
+
+  it('preserves distinct physical units even when their part numbers match', async () => {
+    const base = {
+      value: 'AMP',
+      footprint: 'SOIC-8',
+      lcsc: 'C100',
+      manufacturer: 'TI',
+      manufacturerId: 'AMP-8',
+      deviceUuid: 'device-7',
+      deviceLibraryUuid: 'library-7',
+      subPartName: 'AMP.1',
+    };
+    const operations = createReadOnlyOperations(
+      createDependencies({
+        schematicComponentInspection: {
+          listComponents: vi.fn(async () => ({
+            items: [
+              { ...base, reference: 'U7', uniqueId: 'physical-7' },
+              { ...base, reference: 'U8', uniqueId: 'physical-8' },
+            ],
+          })),
+        },
+      }) as any,
+    );
+    await expect(operations.generateBom({})).resolves.toMatchObject([
+      { reference: 'U7, U8', quantity: 2 },
+    ]);
+  });
+
+  it('refuses to merge two symbols when the first unit identity is absent', async () => {
+    const primary = {
+      reference: 'U7',
+      uniqueId: 'physical-7',
+      deviceUuid: 'device-7',
+      deviceLibraryUuid: 'library-7',
+      subPartName: undefined,
+      value: 'AMP',
+      footprint: 'SOIC-8',
+      lcsc: 'C100',
+    };
+    const ops = createReadOnlyOperations(
+      createDependencies({
+        schematicComponentInspection: {
+          listComponents: vi.fn(async () => ({
+            items: [primary, { ...primary, subPartName: 'AMP.2' }],
+          })),
+        },
+      }) as any,
+    );
+    await expect(ops.generateBom({})).rejects.toThrow(/BOM_IDENTITY_AMBIGUOUS/);
+  });
+
+  it('excludes explicit non-BOM units without changing the physical quantity', async () => {
+    const primary = {
+      reference: 'U7',
+      uniqueId: 'physical-7',
+      deviceUuid: 'device-7',
+      deviceLibraryUuid: 'library-7',
+      subPartName: 'AMP.1',
+      addIntoBom: true,
+      value: 'AMP',
+      footprint: 'SOIC-8',
+      lcsc: 'C100',
+    };
+    const noBom = {
+      reference: 'TP1',
+      uniqueId: 'physical-tp',
+      deviceUuid: 'device-tp',
+      deviceLibraryUuid: 'library-tp',
+      subPartName: 'TP.1',
+      addIntoBom: false,
+      value: 'TP',
+      footprint: 'PAD',
+      lcsc: '',
+    };
+    const ops = createReadOnlyOperations(
+      createDependencies({
+        schematicComponentInspection: {
+          listComponents: vi.fn(async () => ({
+            items: [primary, { ...primary, subPartName: 'AMP.2', addIntoBom: false }, noBom],
+          })),
+        },
+      }) as any,
+    );
+    await expect(ops.generateBom({})).resolves.toMatchObject([{ reference: 'U7', quantity: 1 }]);
+    await expect(ops.validateBom()).resolves.toMatchObject({ totalParts: 1 });
+  });
+
   it('keeps inventory placeholders explicitly empty', async () => {
     const operations = createReadOnlyOperations(createDependencies() as any);
 

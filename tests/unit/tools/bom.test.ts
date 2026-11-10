@@ -210,6 +210,24 @@ describe('BOM Tools Sourcing & Validate', () => {
       expect(tool?.outputSchema.safeParse(result).success).toBe(true);
     });
 
+    it('reports conflicting native part identity as an actionable unavailable BOM', async () => {
+      const tool = registry.get('easyeda_bom_generate');
+      bridgeCall.mockRejectedValue(
+        new Error('BOM_IDENTITY_AMBIGUOUS: duplicate designator or mismatched physical unique ID'),
+      );
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'json',
+        groupBy: 'value',
+      });
+      expect(result).toMatchObject({
+        not_available: true,
+        total_entries: 0,
+        error_code: 'BOM_IDENTITY_AMBIGUOUS',
+      });
+      expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+    });
+
     it('returns not_available when the bridge call fails', async () => {
       const tool = registry.get('easyeda_bom_generate');
       bridgeCall.mockRejectedValue(new Error('no active project'));
