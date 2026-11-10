@@ -816,7 +816,12 @@ function registerSchematicReadTools(
           deviceUuid,
           libraryUuid,
         })) as Record<string, unknown> | undefined;
-        if (!result || result.not_available || !Array.isArray(result.subPartNames)) {
+        if (
+          !result ||
+          result.not_available ||
+          !Array.isArray(result.subPartNames) ||
+          !result.subPartNames.every((name) => typeof name === 'string' && name.length > 0)
+        ) {
           return {
             device_uuid: deviceUuid,
             library_uuid: libraryUuid,

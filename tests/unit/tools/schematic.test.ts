@@ -2154,6 +2154,17 @@ describe('Schematic Tools', () => {
         evidence_scope: 'library-metadata',
       });
     });
+    it('rejects malformed bridge unit names instead of returning false success', async () => {
+      const tool = registry.get('easyeda_schematic_device_subparts');
+      bridgeCall.mockResolvedValue({ subPartNames: ['A', 123] });
+      const result = await tool?.handler(context, {
+        deviceUuid: '70a09759383a4d13b9f66aa2bf10f850',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+      });
+      expect(result).toMatchObject({ not_available: true });
+      expect(result).not.toHaveProperty('sub_part_names');
+    });
+
     it('refuses unverifiable #995 subpart lookup without inventing A/B parts', async () => {
       const tool = registry.get('easyeda_schematic_device_subparts');
       bridgeCall.mockResolvedValue({ not_available: true, reason: 'SUBPART_METADATA_UNAVAILABLE' });
@@ -2163,6 +2174,72 @@ describe('Schematic Tools', () => {
       });
       expect(result).toMatchObject({ not_available: true });
       expect(result).not.toHaveProperty('sub_part_names');
+    });
+  });
+
+  describe('easyeda_schematic_device_subparts additional failure/edge cases', () => {
+    const ids = {
+      deviceUuid: '70a09759383a4d13b9f66aa2bf10f850',
+      libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+    };
+    it.each([
+      ['undefined result', undefined, 'Device subpart metadata unavailable'],
+      ['empty response', {}, 'Device subpart metadata unavailable'],
+      [
+        'explicit unavailability',
+        { not_available: true, reason: 'DEVICE_NOT_FOUND' },
+        'DEVICE_NOT_FOUND',
+      ],
+      ['malformed unit list', { subPartNames: 'A' }, 'Device subpart metadata unavailable'],
+      ['numeric unit name', { subPartNames: ['A', 2] }, 'Device subpart metadata unavailable'],
+    ])('returns not_available for #995 %s', async (_, raw, error) => {
+      bridgeCall.mockResolvedValue(raw);
+      const result = await registry.get('easyeda_schematic_device_subparts')?.handler(context, ids);
+      expect(result).toMatchObject({
+        device_uuid: ids.deviceUuid,
+        library_uuid: ids.libraryUuid,
+        not_available: true,
+        error,
+      });
+      expect(result).not.toHaveProperty('sub_part_names');
+    });
+
+    it.each([
+      [
+        'native API failure',
+        new Error('Native LIB_Device.get unavailable'),
+        'Native LIB_Device.get unavailable',
+      ],
+      ['non-Error bridge rejection', 'bridge-reset', 'bridge-reset'],
+    ])('reports #995 %s without pretending subpart readback', async (_, failure, error) => {
+      bridgeCall.mockRejectedValue(failure);
+      const result = await registry.get('easyeda_schematic_device_subparts')?.handler(context, ids);
+      expect(result).toMatchObject({ not_available: true, error });
+      expect(result).not.toHaveProperty('sub_part_names');
+    });
+
+    it('treats declared empty units as single-unit metadata and omits unavailable optional fields', async () => {
+      bridgeCall.mockResolvedValue({ subPartNames: [] });
+      const result = await registry.get('easyeda_schematic_device_subparts')?.handler(context, ids);
+      expect(result).toMatchObject({
+        sub_part_names: [],
+        multi_unit: false,
+        evidence_scope: 'library-metadata',
+      });
+      expect(result).not.toHaveProperty('not_available');
+      expect(result?.name).toBeUndefined();
+      expect(result?.declared_footprint_uuid).toBeUndefined();
+    });
+
+    it('rejects invalid device and library UUIDs before bridge requests', async () => {
+      const tool = registry.get('easyeda_schematic_device_subparts');
+      await expect(
+        tool?.handler(context, { deviceUuid: '../bad', libraryUuid: ids.libraryUuid }),
+      ).rejects.toThrow();
+      await expect(
+        tool?.handler(context, { deviceUuid: ids.deviceUuid, libraryUuid: 'unknown' }),
+      ).rejects.toThrow();
+      expect(bridgeCall).not.toHaveBeenCalled();
     });
   });
 
