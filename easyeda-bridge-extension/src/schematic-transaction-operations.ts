@@ -32,6 +32,11 @@ export interface SchematicTransactionDependencies {
 }
 
 export interface SchematicTransactionOperations {
+  setNativeEventMonitorReady(ready: boolean): void;
+  cancelNativeWireMutation(token: number): void;
+  noteNativeWireMutation(kind: 'create' | 'delete' | 'unknown', ids: string[]): void;
+  beginNativeWireMutation(): number;
+  finishNativeWireMutation(token: number, kind: 'create' | 'delete', ids: string[]): void;
   getPrimitiveSnapshot(
     primitiveId: string,
     expectedPrimitiveKind?: SchematicPrimitiveSnapshotKind,
@@ -221,6 +226,53 @@ export function createSchematicTransactionOperations(
     createBridgeError: newBridgeError,
     requirePublicTextAlignMode,
   });
+
+  // Native Pro 3.2.209 can return matching *stale* getAll/getAllPrimitiveId
+  // snapshots immediately after a successful wire create/delete (#945).
+  // Track the exact write IDs rather than trusting matching collection sizes.
+  const pendingWireState = new Map<string, 'create' | 'delete'>();
+  const unresolvedNativeMutations = new Set<number>();
+  let nextNativeMutationToken = 0;
+
+  // GUI edits are not observable through a stale getAll() snapshot alone.
+  // The native primitive listener must be installed and positively confirmed
+  // before the bridge can claim an unwired component move is safe.
+  let nativeEventMonitorReady = false;
+  function setNativeEventMonitorReady(ready: boolean): void {
+    nativeEventMonitorReady = ready;
+  }
+  function cancelNativeWireMutation(token: number): void {
+    unresolvedNativeMutations.delete(token);
+  }
+
+  function noteNativeWireMutation(kind: 'create' | 'delete' | 'unknown', ids: string[]): void {
+    if (kind === 'unknown' || ids.length === 0) {
+      unresolvedNativeMutations.add(++nextNativeMutationToken);
+      return;
+    }
+    for (const id of ids) {
+      if (!id || typeof id !== 'string') {
+        unresolvedNativeMutations.add(++nextNativeMutationToken);
+        continue;
+      }
+      pendingWireState.set(id, kind);
+    }
+  }
+
+  function beginNativeWireMutation(): number {
+    const token = ++nextNativeMutationToken;
+    unresolvedNativeMutations.add(token);
+    return token;
+  }
+
+  function finishNativeWireMutation(token: number, kind: 'create' | 'delete', ids: string[]): void {
+    // Never clear the uncertain-write latch without an addressable native ID.
+    if (!unresolvedNativeMutations.has(token) || ids.length === 0 || ids.some((id) => !id)) {
+      return;
+    }
+    unresolvedNativeMutations.delete(token);
+    noteNativeWireMutation(kind, ids);
+  }
 
   function readTextState(text: TextPrimitiveRead, key: string): unknown {
     const publicValue = safeGetState(text.publicCurrent, key);
@@ -835,6 +887,62 @@ export function createSchematicTransactionOperations(
     return points;
   }
 
+  function validatePendingNativeWire(
+    id: string,
+    expected: 'create' | 'delete',
+    listed: unknown,
+    direct: unknown,
+  ): void {
+    if (expected === 'create') {
+      const listLine = listed && safeGetState(listed, 'Line');
+      const directLine = direct && safeGetState(direct, 'Line');
+      if (
+        !listed ||
+        extractPrimitiveId(direct) !== id ||
+        !readWirePoints(listLine) ||
+        !readWirePoints(directLine) ||
+        JSON.stringify(listLine) !== JSON.stringify(directLine)
+      ) {
+        failUnverifiedMove(
+          'A newly created wire is not yet visible in the complete native inventory; move refused.',
+        );
+      }
+    } else if (listed || direct) {
+      failUnverifiedMove('A deleted wire still appears in native reads; move refused.');
+    }
+  }
+
+  /** Reconcile tracked writes against both the batch list and exact-ID getter. */
+  async function reconcileNativeWireState(wireApi: any, wires: unknown[]): Promise<void> {
+    if (!nativeEventMonitorReady) {
+      failUnverifiedMove(
+        'Native schematic event listener unavailable; cannot verify GUI wire edits before moving.',
+      );
+    }
+    if (unresolvedNativeMutations.size > 0) {
+      failUnverifiedMove(
+        'A native wire write had an uncertain outcome; restart EasyEDA and reopen the schematic before moving components.',
+      );
+    }
+    if (pendingWireState.size > 0) {
+      if (typeof wireApi.get !== 'function') {
+        failUnverifiedMove('Exact native wire read unavailable after a recent edit; move refused.');
+      }
+      for (const [id, expected] of pendingWireState) {
+        const listed = wires.find((wire) => extractPrimitiveId(wire) === id);
+        let direct: unknown;
+        try {
+          direct = await wireApi.get(id);
+        } catch (error) {
+          logRecoverableError('native fresh-wire read failed', error);
+          failUnverifiedMove('Native wire edit could not be reconciled; move refused.');
+        }
+        validatePendingNativeWire(id, expected, listed, direct);
+      }
+      pendingWireState.clear();
+    }
+  }
+
   /**
    * Conservative preflight for #945. Native wire.modify reportedly re-routes
    * nets even when it reports success; do not move a connected component and
@@ -861,6 +969,7 @@ export function createSchematicTransactionOperations(
     if (!Array.isArray(wires)) {
       failUnverifiedMove('Wire inventory incomplete; move refused.');
     }
+    await reconcileNativeWireState(wireApi, wires);
     const candidatePinPoints = [
       ...oldPinPoints,
       ...oldPinPoints.map(({ x, y }) => ({ x: x + dx, y: y + dy })),
@@ -1155,6 +1264,11 @@ export function createSchematicTransactionOperations(
   }
 
   return {
+    setNativeEventMonitorReady,
+    cancelNativeWireMutation,
+    noteNativeWireMutation,
+    beginNativeWireMutation,
+    finishNativeWireMutation,
     getPrimitiveSnapshot: getSchematicPrimitiveSnapshot,
     listPrimitiveIds: listSchematicPrimitiveIds,
     deletePrimitives: deleteSchematicPrimitives,

@@ -3,11 +3,20 @@ import { createDispatcher } from '../src/dispatcher.js';
 import type { DispatcherToolkit } from '../src/toolkit.js';
 
 function makeToolkit(edaGlobal: Record<string, unknown>): DispatcherToolkit {
+  const listenerIds = new Set<string>();
+  const fallbackNativeEvents = {
+    addPrimitiveEventListener: (id: string) => {
+      listenerIds.add(id);
+    },
+    isEventListenerAlreadyExist: (id: string) => listenerIds.has(id),
+    removeEventListener: (id: string) => listenerIds.delete(id),
+  };
+  const runtime = { SCH_Event: fallbackNativeEvents, ...edaGlobal };
   return {
-    getEda: () => edaGlobal,
+    getEda: () => runtime,
     getEDA: () => undefined,
     getApi: () => undefined,
-    getGlobal: () => edaGlobal,
+    getGlobal: () => runtime,
     log: () => {},
     showToast: () => {},
     getBridgeMaxPayloadSize: () => 1_048_576,
@@ -3206,6 +3215,295 @@ describe('createDispatcher', () => {
         }),
       ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
     });
+  });
+
+  it('blocks a move after addWire reports a new native ID that getAll still omits (#945)', async () => {
+    const componentModify = vi.fn(async () => true);
+    const newWire = fakeWire('new-wire', 'NET_NEW', [100, 100, 130, 100]);
+    const create = vi.fn(async () => newWire);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: {
+          getAll: vi.fn(async () => []), // stale immediately after create
+          get: vi.fn(async () => newWire), // exact ID remains available
+          create,
+        },
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async () => fakeComponent({ X: 100, Y: 100 })),
+          getAll: vi.fn(async () => []),
+          getAllPinsByPrimitiveId: vi.fn(async () => [
+            { pinNumber: '1', pinName: 'P1', x: 100, y: 100, rotation: 0 },
+          ]),
+          modify: componentModify,
+        },
+      }),
+    );
+    await dispatcher.dispatch('schematic.addWire', {
+      netName: 'NET_NEW',
+      points: [
+        { x: 100, y: 100 },
+        { x: 130, y: 100 },
+      ],
+    });
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'cmp',
+        property: { x: 200 },
+      }),
+    ).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('newly created wire'),
+    });
+    expect(create).toHaveBeenCalledOnce();
+    expect(componentModify).not.toHaveBeenCalled();
+  });
+
+  it('refuses a move after a native wire create errors with ambiguous write state', async () => {
+    const componentModify = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: {
+          getAll: vi.fn(async () => []),
+          create: vi.fn(async () => {
+            throw new Error('native timeout after write');
+          }),
+        },
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async () => fakeComponent({ X: 100, Y: 100 })),
+          getAll: vi.fn(async () => []),
+          getAllPinsByPrimitiveId: vi.fn(async () => [
+            { pinNumber: '1', pinName: 'P1', x: 100, y: 100, rotation: 0 },
+          ]),
+          modify: componentModify,
+        },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('schematic.addWire', {
+        netName: 'NET_NEW',
+        points: [
+          { x: 100, y: 100 },
+          { x: 130, y: 100 },
+        ],
+      }),
+    ).rejects.toThrow('native timeout after write');
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'cmp',
+        property: { x: 200 },
+      }),
+    ).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('uncertain outcome'),
+    });
+    expect(componentModify).not.toHaveBeenCalled();
+  });
+
+  it('does not trust stale native wire inventory immediately after a delete (#945)', async () => {
+    const componentModify = vi.fn(async () => true);
+    let stale = true;
+    const oldWire = fakeWire('wire-deleted', 'NET_OLD', [900, 900, 940, 900]);
+    const nativeDelete = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveWire: {
+          get: vi.fn(async () => (stale ? oldWire : undefined)),
+          getAll: vi.fn(async () => (stale ? [oldWire] : [])),
+          delete: nativeDelete,
+        },
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async () => fakeComponent({ X: 100, Y: 100 })),
+          getAllPinsByPrimitiveId: vi.fn(async () => [{ x: 100, y: 100 }]),
+          modify: componentModify,
+        },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('schematic.deletePrimitive', { primitiveIds: ['wire-deleted'] }),
+    ).resolves.toMatchObject({ success: true, deleted: ['wire-deleted'] });
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'cmp',
+        property: { x: 200 },
+      }),
+    ).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('deleted wire'),
+    });
+    expect(componentModify).not.toHaveBeenCalled();
+    stale = false;
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'cmp',
+        property: { x: 200 },
+      }),
+    ).resolves.toMatchObject({ followedWireIds: [] });
+    expect(componentModify).toHaveBeenCalledOnce();
+    expect(nativeDelete).toHaveBeenCalledWith(['wire-deleted']);
+  });
+
+  it('rejects a move after a GUI-created wire event when native getAll remains stale', async () => {
+    let onEvent: ((kind: string, props: { primitiveIds: string[] }) => Promise<void>) | undefined;
+    const events = {
+      addPrimitiveEventListener: vi.fn((_id: string, _kind: string, callback: typeof onEvent) => {
+        onEvent = callback;
+      }),
+      isEventListenerAlreadyExist: vi.fn(() => true),
+      removeEventListener: vi.fn(),
+    };
+    const componentModify = vi.fn(async () => true);
+    const guiWire = fakeWire('ui-wire', 'GUI_NET', [100, 100, 125, 100]);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_Event: events,
+        SCH_PrimitiveWire: {
+          get: vi.fn(async (id: string) => (id === 'ui-wire' ? guiWire : undefined)),
+          getAll: vi.fn(async () => []),
+        },
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async (id: string) =>
+            id === 'cmp' ? fakeComponent({ X: 100, Y: 100 }) : undefined,
+          ),
+          getAllPinsByPrimitiveId: vi.fn(async () => [{ x: 100, y: 100 }]),
+          modify: componentModify,
+        },
+      }),
+    );
+    expect(events.addPrimitiveEventListener).toHaveBeenCalledOnce();
+    expect(onEvent).toBeDefined();
+    await onEvent?.('create', { primitiveIds: ['ui-wire'] });
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'cmp',
+        property: { x: 200 },
+      }),
+    ).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('newly created wire'),
+    });
+    expect(componentModify).not.toHaveBeenCalled();
+  });
+
+  it('still permits unwired moves after a positively identified non-wire GUI create event', async () => {
+    let onEvent: ((kind: string, props: { primitiveIds: string[] }) => Promise<void>) | undefined;
+    const events = {
+      addPrimitiveEventListener: vi.fn((_id: string, _kind: string, callback: typeof onEvent) => {
+        onEvent = callback;
+      }),
+      isEventListenerAlreadyExist: vi.fn(() => true),
+      removeEventListener: vi.fn(),
+    };
+    const componentModify = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_Event: events,
+        SCH_PrimitiveWire: {
+          get: vi.fn(async () => undefined),
+          getAll: vi.fn(async () => []),
+        },
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async (id: string) =>
+            ['cmp', 'new-cmp'].includes(id) ? fakeComponent({ X: 100, Y: 100 }) : undefined,
+          ),
+          getAllPinsByPrimitiveId: vi.fn(async () => [{ x: 100, y: 100 }]),
+          modify: componentModify,
+        },
+      }),
+    );
+    await onEvent?.('create', { primitiveIds: ['new-cmp'] });
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'cmp',
+        property: { x: 200 },
+      }),
+    ).resolves.toMatchObject({ followedWireIds: [] });
+    expect(componentModify).toHaveBeenCalledOnce();
+  });
+
+  it('fails closed for moves without a confirmed native schematic event listener', async () => {
+    const componentModify = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_Event: { addPrimitiveEventListener: vi.fn(), isEventListenerAlreadyExist: () => false },
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async () => fakeComponent({ X: 100, Y: 100 })),
+          getAllPinsByPrimitiveId: vi.fn(async () => [{ x: 100, y: 100 }]),
+          modify: componentModify,
+        },
+        SCH_PrimitiveWire: { getAll: vi.fn(async () => []) },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'cmp',
+        property: { x: 200 },
+      }),
+    ).rejects.toMatchObject({
+      code: 'MOVE_CONNECTIVITY_UNVERIFIED',
+      message: expect.stringContaining('event'),
+    });
+    expect(componentModify).not.toHaveBeenCalled();
+  });
+
+  it('does not hold an unrelated unwired move after deleting only a component', async () => {
+    const modify = vi.fn(async () => true);
+    const deleted = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async (id: string) =>
+            ['to-delete', 'other'].includes(id) ? fakeComponent({ X: 100, Y: 100 }) : undefined,
+          ),
+          delete: deleted,
+          modify,
+          getAllPinsByPrimitiveId: vi.fn(async () => [{ x: 100, y: 100 }]),
+        },
+        SCH_PrimitiveWire: { get: vi.fn(async () => undefined), getAll: vi.fn(async () => []) },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('schematic.deletePrimitive', { primitiveIds: ['to-delete'] }),
+    ).resolves.toMatchObject({ success: true, deleted: ['to-delete'] });
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'other',
+        property: { x: 200 },
+      }),
+    ).resolves.toMatchObject({ followedWireIds: [] });
+    expect(deleted).toHaveBeenCalledWith(['to-delete']);
+    expect(modify).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a move after a GUI component change event with unverified connectivity', async () => {
+    let notify: ((kind: string, props: { primitiveIds: string[] }) => Promise<void>) | undefined;
+    const present = new Set<string>();
+    const move = vi.fn(async () => true);
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        SCH_Event: {
+          addPrimitiveEventListener: (id: string, _kind: string, cb: typeof notify) => {
+            present.add(id);
+            notify = cb;
+          },
+          isEventListenerAlreadyExist: (id: string) => present.has(id),
+          removeEventListener: (id: string) => present.delete(id),
+        },
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async () => fakeComponent({ X: 100, Y: 100 })),
+          modify: move,
+          getAllPinsByPrimitiveId: vi.fn(async () => [{ x: 100, y: 100 }]),
+        },
+        SCH_PrimitiveWire: { get: vi.fn(async () => undefined), getAll: vi.fn(async () => []) },
+      }),
+    );
+    await notify?.('change', { primitiveIds: ['other'] });
+    await expect(
+      dispatcher.dispatch('schematic.modifyPrimitive', {
+        primitiveId: 'other',
+        property: { x: 200 },
+      }),
+    ).rejects.toMatchObject({ code: 'MOVE_CONNECTIVITY_UNVERIFIED' });
+    expect(move).not.toHaveBeenCalled();
   });
 
   describe('schematic.modifyPrimitive wire-following', () => {
