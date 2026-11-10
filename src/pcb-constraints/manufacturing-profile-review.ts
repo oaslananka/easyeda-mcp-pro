@@ -209,9 +209,11 @@ function validBoardMeasurement(rule: Rule, value: unknown): value is number {
     value <= 0
   )
     return false;
-  // Signed gaps distinguish copper overlap from missing geometry. The
-  // manufacturer minimum itself must remain a positive declared limit.
-  if (rule.id === 'minimumTrackGapMm') return Number.isFinite(value) && Math.abs(value) <= 10_000;
+  // Signed copper gaps (between nets or to the board edge) distinguish
+  // geometrical overlap from unavailable measurements. The declared
+  // manufacturer minimum itself must remain strictly positive.
+  if (rule.id === 'minimumTrackGapMm' || rule.id === 'minimumCopperEdgeMm')
+    return Number.isFinite(value) && Math.abs(value) <= 10_000;
   return validReportedScalar(value, rule.units);
 }
 
