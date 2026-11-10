@@ -1760,10 +1760,18 @@ function registerSchematicWriteTools(
       const { projectId } = params as { projectId?: string };
       try {
         const result = await ctx.bridge.call('schematic.syncToPcb', { projectId });
-        const data = result as { synced?: boolean };
+        const data = result as { synced?: boolean } | null;
+        if (data?.synced !== true) {
+          return {
+            success: false,
+            requested: false,
+            error:
+              'EasyEDA did not confirm the import request. Inspect the native dialog and PCB state before retrying; synchronization is not verified.',
+          };
+        }
         return {
           success: true,
-          requested: data?.synced ?? true,
+          requested: true,
           note: 'EasyEDA opened a confirmation dialog in its UI — ask the user to approve it, then verify with pcb_components before assuming the sync completed.',
         };
       } catch (err) {
