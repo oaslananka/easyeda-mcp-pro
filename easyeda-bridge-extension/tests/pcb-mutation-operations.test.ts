@@ -212,6 +212,101 @@ describe('createPcbMutationOperations', () => {
       expect(readPoured).not.toHaveBeenCalled();
     },
   );
+  it('offers conditional save-and-reopen guidance for an undefined native return on existing copper (#480)', async () => {
+    const previouslyFilled = fakePouredWithFills('filled-1', 'pour-1');
+    const target = fakePour('pour-1', { rebuildResult: undefined });
+    const getAllPoured = vi.fn(async () => [previouslyFilled]);
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => target.primitive),
+        getAll: vi.fn(async () => [target.primitive]),
+      },
+      pouredClass: { getAll: getAllPoured },
+    });
+
+    const result = await operations.rebuildCopper({ pourIds: ['pour-1'] });
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      results: [
+        {
+          pourId: 'pour-1',
+          status: 'readback-mismatch',
+          verified: false,
+          warning: expect.stringContaining('save the PCB'),
+        },
+      ],
+    });
+    expect(result.results[0]?.warning).toContain('reopen');
+    expect(result.results[0]?.warning).toContain('Pour/Poured');
+    expect(result.results[0]?.warning).toContain('reconciliation');
+    await expect(operations.rebuildCopper({ pourIds: ['pour-1'] })).rejects.toThrow(
+      'Inspect and reconcile the PCB independently',
+    );
+    expect(target.rebuildCopperRegion).toHaveBeenCalledOnce();
+    expect(getAllPoured).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps an empty native undefined result unverified as a rebuild success and describes an optional recovery (#480)', async () => {
+    const target = fakePour('pour-empty', { rebuildResult: undefined });
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => target.primitive),
+        getAll: vi.fn(async () => [target.primitive]),
+      },
+      pouredClass: { getAll: vi.fn(async () => []) },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['pour-empty'] });
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      noCopperCount: 1,
+      results: [
+        {
+          pourId: 'pour-empty',
+          status: 'no-copper',
+          verified: true,
+          warning: expect.stringContaining('may'),
+        },
+      ],
+    });
+    expect(result.results[0]?.warning).toContain('reopen');
+    expect(result.results[0]?.warning).toContain('not proof of a successful rebuild');
+    expect(target.rebuildCopperRegion).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the reconciliation latch and a diagnostic if read-back fails after undefined (#480)', async () => {
+    const target = fakePour('pour-1', { rebuildResult: undefined });
+    const getAllPoured = vi
+      .fn<() => Promise<unknown[]>>()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('Native Poured inventory unavailable'));
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => target.primitive),
+        getAll: vi.fn(async () => [target.primitive]),
+      },
+      pouredClass: { getAll: getAllPoured },
+    });
+    const result = await operations.rebuildCopper({ pourIds: ['pour-1'] });
+    expect(result).toMatchObject({
+      success: false,
+      rebuiltCount: 0,
+      results: [
+        {
+          status: 'no-copper',
+          verified: false,
+          warning: expect.stringContaining('reconciliation'),
+        },
+      ],
+    });
+    expect(result.results[0]?.error).toContain('read-back failed');
+    await expect(operations.rebuildCopper({ pourIds: ['pour-1'] })).rejects.toThrow(
+      'A previous native PCB copper rebuild ended without complete verification',
+    );
+    expect(target.rebuildCopperRegion).toHaveBeenCalledOnce();
+  });
+
   it('reports native undefined as verified no-copper rather than success', async () => {
     const pour = fakePour('pour-empty', { rebuildResult: undefined });
     const get = vi.fn(async () => pour.primitive);

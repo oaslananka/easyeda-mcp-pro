@@ -1324,9 +1324,9 @@ function registerPcbWriteTools(
     name: 'easyeda_pcb_rebuild_copper',
     title: 'Rebuild existing PCB copper pours',
     description:
-      'Rebuild existing PCB_PrimitivePour copper via the beta rebuildCopperRegion() API and verify each ' +
-      'result through PCB_PrimitivePoured read-back. Requires confirmWrite. PCB rebuilds are not ' +
-      'transaction-covered; after timeout inspect before retry. PlaneZone objects are unsupported.',
+      'Rebuild existing copper with beta native API and Poured read-back. Requires confirmWrite; ' +
+      'not transactional. Undefined after PCB edits? See per-pour recovery hint; save and reopen ' +
+      'the PCB tab, verify IDs/geometry, never bypass reconciliation lock. PlaneZone unsupported.',
     profile: 'full',
     evidence: ['official-docs', 'pro-api-types', 'official-skill'],
     risk: 'high',
