@@ -24,7 +24,11 @@ const board = {
   getState_Polygon: () => ({ getSource: () => ['R', 0, 0, 3149.6063, 2362.2047, 0, 0] }),
 };
 
-function source(id: string, overrides: Partial<ExpectedZoneSource> = {}) {
+function source(
+  id: string,
+  overrides: Partial<ExpectedZoneSource> = {},
+  linkedCopper: () => unknown = () => undefined,
+) {
   const fields = {
     ...expected,
     polygonSignature: JSON.stringify(['R', 400, -400, 120, 80, 0, 0]),
@@ -33,6 +37,7 @@ function source(id: string, overrides: Partial<ExpectedZoneSource> = {}) {
   };
   return {
     getState_PrimitiveId: () => id,
+    getCopperRegion: async () => linkedCopper(),
     getState_Net: () => fields.net,
     getState_Layer: () => fields.layer,
     getState_ComplexPolygon: () => ({
@@ -63,8 +68,9 @@ function copper(id: string) {
 }
 
 function fixture() {
-  const sources = [source('existing')];
   const derived = [copper('existing')];
+  const findCopper = (id: string) => derived.find((item) => item.getState_PourPrimitiveId() === id);
+  const sources = [source('existing', {}, () => findCopper('existing'))];
   const create = vi.fn(
     async (
       net: string,
@@ -78,17 +84,21 @@ function fixture() {
       locked: boolean,
     ) => {
       sources.push(
-        source('created', {
-          net,
-          layer,
-          polygonSignature: JSON.stringify(polygon.getSource()),
-          fillMethod,
-          preserveSilos,
-          pourName,
-          pourPriority,
-          lineWidth,
-          locked,
-        }),
+        source(
+          'created',
+          {
+            net,
+            layer,
+            polygonSignature: JSON.stringify(polygon.getSource()),
+            fillMethod,
+            preserveSilos,
+            pourName,
+            pourPriority,
+            lineWidth,
+            locked,
+          },
+          () => findCopper('created'),
+        ),
       );
       return sources[0]; // Native beta result can be stale.
     },
@@ -404,7 +414,11 @@ describe('real native API adapter for guarded zone candidate (not a public dispa
 
   it('blocks an identical source in fresh inventory before another creation', async () => {
     const f = fixture();
-    f.sources.push(source('duplicate-existing', expected));
+    f.sources.push(
+      source('duplicate-existing', expected, () =>
+        f.derived.find((entry) => entry.getState_PourPrimitiveId() === 'duplicate-existing'),
+      ),
+    );
     f.derived.push(copper('duplicate-existing'));
     await expect(f.adapter().execute(expected)).resolves.toMatchObject({
       status: 'blocked',

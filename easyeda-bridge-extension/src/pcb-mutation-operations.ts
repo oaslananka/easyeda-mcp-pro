@@ -887,6 +887,41 @@ async function preRebuildEvidence(
 }
 
 /**
+ * Independent, read-only beta association cross-check. The source wrapper
+ * must agree with PCB_PrimitivePoured.getAll() on exact source ID, primitive
+ * ID, and filled geometry signature. A stale beta return is never evidence
+ * of a successful copper rebuild; a missing API is an unknown outcome.
+ */
+async function verifyNativeZoneAssociations(
+  sources: readonly unknown[],
+  derived: ReadonlyMap<string, PouredEvidence>,
+): Promise<boolean> {
+  for (const source of sources) {
+    const sourceId = nativeStateString(source, 'getState_PrimitiveId');
+    if (!sourceId || !nativeMethod(source, 'getCopperRegion')) return false;
+    const associated = await invokeNative(source, 'getCopperRegion');
+    const independentlyObserved = derived.get(sourceId);
+    if (!independentlyObserved) {
+      // The documented no-fill return is undefined; null, a stale old source,
+      // or an unexpected Poured are not safe substitutes.
+      if (associated !== undefined) return false;
+      continue;
+    }
+    const fill = pouredFillSignature(associated);
+    if (
+      nativeStateString(associated, 'getState_PrimitiveId') !== independentlyObserved.pouredId ||
+      nativeStateString(associated, 'getState_PourPrimitiveId') !== sourceId ||
+      !fill ||
+      fill.signature !== independentlyObserved.fillSignature ||
+      fill.hasFilledGeometry !== independentlyObserved.hasFilledGeometry
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Read-only, deterministic native inventory intended for the new-zone
  * candidate. Reuses the copper-rebuild geometry validator rather than
  * maintaining a second Poured interpretation. No mutation is invoked.
@@ -906,6 +941,7 @@ export async function readNativeZoneInventory(
   if (!sources || !derived) return undefined;
   // All copper must have a known native source, including the baseline.
   if ([...derived.keys()].some((sourceId) => !sources.has(sourceId))) return undefined;
+  if (!(await verifyNativeZoneAssociations(sourceItems, derived))) return undefined;
   return { sources, derived };
 }
 
