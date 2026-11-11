@@ -272,6 +272,86 @@ describe('single native zone creation operation with no blind retries', () => {
     expect(f.create).toHaveBeenCalledOnce();
   });
 
+  it('classifies a source appearing only on a second read-only observation without rebuilding or retrying', async () => {
+    const f = fixture([baseline, baseline, created]);
+    const op = createNativeZoneCandidateOperation(f.deps);
+    await expect(op.execute(expected)).resolves.toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining('visible only on a later native inventory read'),
+    });
+    expect(f.readInventory).toHaveBeenCalledTimes(3);
+    expect(f.create).toHaveBeenCalledOnce();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.deleteSource).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+    await expect(op.execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+  });
+
+  it('does not call create again when neither bounded post-create observation shows a native source', async () => {
+    const f = fixture([baseline, baseline, baseline]);
+    const op = createNativeZoneCandidateOperation(f.deps);
+    await expect(op.execute(expected)).resolves.toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining('Neither bounded post-create inventory showed a new source'),
+    });
+    expect(f.readInventory).toHaveBeenCalledTimes(3);
+    expect(f.create).toHaveBeenCalledOnce();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.deleteSource).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps the marker unresolved if PCB focus changes before the late read-only observation', async () => {
+    const f = fixture([baseline, baseline, created]);
+    f.focus
+      .mockResolvedValueOnce('focus-project+pcb')
+      .mockResolvedValueOnce('focus-project+pcb')
+      .mockResolvedValueOnce('focus-project+pcb')
+      .mockResolvedValueOnce('focus-project+pcb')
+      .mockResolvedValueOnce('different-project+pcb');
+    const result = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+    expect(result).toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining('Active PCB changed before bounded read-only follow-up'),
+    });
+    expect(f.readInventory).toHaveBeenCalledTimes(2);
+    expect(f.create).toHaveBeenCalledOnce();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+    expect(f.deleteSource).not.toHaveBeenCalled();
+  });
+
+  it('treats a failed second read-only inventory as unresolved and never retries create', async () => {
+    const f = fixture([baseline, baseline, undefined]);
+    const result = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+    expect(result).toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining('Bounded read-only follow-up inventory'),
+    });
+    expect(f.readInventory).toHaveBeenCalledTimes(3);
+    expect(f.create).toHaveBeenCalledOnce();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+    expect(f.deleteSource).not.toHaveBeenCalled();
+  });
+
+  it('refuses a later read-only source snapshot when the original copper changed', async () => {
+    const second = inventory(true);
+    second.derived.set('e336', { ...oldCopper, fillSignature: 'private-current-copper-drift' });
+    const f = fixture([baseline, baseline, second]);
+    const result = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+    expect(result).toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining('Existing sources or copper changed; safe rollback'),
+    });
+    expect(JSON.stringify(result)).not.toContain('private-current-copper-drift');
+    expect(f.readInventory).toHaveBeenCalledTimes(3);
+    expect(f.create).toHaveBeenCalledOnce();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.deleteSource).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
   it('does not blindly delete a source after a rebuild error with uncertain pending native work', async () => {
     const f = fixture([baseline, created]);
     f.rebuild.mockRejectedValue(Error('native beta timeout'));

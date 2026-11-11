@@ -64,6 +64,16 @@ the loader from 357,046 to 360,822 bytes and the dispatcher from
 291,600 to 295,370 bytes. Exact size ratchets remain enabled; no
 quality gate or maximum package cap is bypassed.
 
+After a native beta create returns, an initial source/Poured inventory
+that is **exactly identical** to the before snapshot is now observed one
+more time, read-only. If a new exact source appears only on that later read,
+the candidate reports a delayed-visibility diagnostic and stays uncertain.
+If no source appears, or the later inventory changes unexpectedly, it remains
+uncertain with the corresponding bounded diagnostic. No extra native
+create, rebuild, delete, save, automatic fence release or retry is triggered.
+An initial inventory with any baseline difference is not reinterpreted by
+a later read, and no read-only observation constitutes cold-reopen proof.
+
 Private native-zone candidate rejection now preserves the precise, predefined
 inventory-delta reason through the create and rebuild reconciliation paths.
 A changed original Pour/Poured, missing unique source, mismatched source

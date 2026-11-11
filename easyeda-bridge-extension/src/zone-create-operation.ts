@@ -153,6 +153,32 @@ async function rebuildAndVerifyZone(
   return verifySavedZone(deps, attempt);
 }
 
+/**
+ * An async beta native create may become observable after its first getter.
+ * One bounded follow-up READ (only when the first snapshot equals baseline)
+ * records this disagreement. It never continues the mutation based on a
+ * late source, deletes it, clears the persistent fence, or retries create.
+ */
+async function classifyLateNativeSource(
+  deps: NativeZoneCreateDependencies,
+  attempt: ZoneAttempt,
+): Promise<NativeZoneCreateResult> {
+  if ((await deps.focus()) !== attempt.focus)
+    return uncertain('Active PCB changed before bounded read-only follow-up inventory.');
+  const later = await deps.readInventory();
+  if (!later || (await deps.focus()) !== attempt.focus)
+    return uncertain('Bounded read-only follow-up inventory or PCB focus is unavailable.');
+  const exact = planExactZoneRollback(attempt.before, later, attempt.expected);
+  if (exact.safeToDelete)
+    return uncertain(
+      'A new native source was visible only on a later native inventory read. ' +
+        'It still requires independent reconciliation before any further mutation.',
+    );
+  if (inventoryEquals(attempt.before, later))
+    return uncertain('Neither bounded post-create inventory showed a new source.');
+  return uncertain('A later native inventory remains unsafe for reconciliation. ' + exact.reason);
+}
+
 async function preflightZone(
   deps: NativeZoneCreateDependencies,
   expected: ExpectedZoneSource,
@@ -214,11 +240,14 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
           'The new Pour inventory or active PCB could not be verified after create.',
         );
       const candidate = planExactZoneRollback(attempt.before, afterCreate, expected);
-      if (!candidate.safeToDelete)
+      if (!candidate.safeToDelete) {
+        if (inventoryEquals(attempt.before, afterCreate))
+          return classifyLateNativeSource(deps, attempt);
         return uncertain(
           'Create did not produce exactly one identifiable matching native Pour. ' +
             candidate.reason,
         );
+      }
       const result = await rebuildAndVerifyZone(deps, attempt, candidate.sourceId);
       // No same-session result proves persistence across an editor restart.
       // The dispatcher remains locked until an independent cold-reopen check exists.
