@@ -17,6 +17,8 @@ import {
   pcbZonePreviewSchema,
   pcbZoneRectangleSchema,
   previewPcbZone,
+  summarizeZoneLiveReadiness,
+  unavailableZoneLiveReadiness,
 } from './pcb-zone-preview.js';
 
 const layoutPointSchema = z.object({
@@ -156,6 +158,12 @@ const failClosedPcbZoneInputSchema = z
     lineWidth: z.number().optional(),
     locked: z.boolean().optional(),
     confirmWrite: z.literal(true).optional(),
+    inspectLive: z
+      .boolean()
+      .optional()
+      .describe(
+        'Preview only: also read live PCB focus, net, layer and board-containment evidence via the read-only bridge; never authorizes apply.',
+      ),
   })
   .strict();
 
@@ -188,6 +196,23 @@ const failClosedPcbZoneOutputSchema = z.object({
       }),
       planHash: z.string().length(64),
       requiredApplyChecks: z.array(z.string()),
+      nativeProfile: z.object({
+        observedInDisposableRuntime: z.boolean(),
+        evidenceRuntime: z.literal('3.2.209'),
+        blockers: z.array(z.string()),
+      }),
+    })
+    .optional(),
+  liveReadiness: z
+    .object({
+      checked: z.boolean(),
+      runtimeVersion: z.string().nullable(),
+      focusedPcbVerified: z.boolean(),
+      netVerified: z.boolean(),
+      layerVerified: z.boolean(),
+      boardContainmentVerified: z.boolean(),
+      readyToApply: z.literal(false),
+      blockers: z.array(z.string()),
     })
     .optional(),
   error: z.string().optional(),
@@ -514,11 +539,32 @@ const failClosedPcbZoneTool = {
           error: `Invalid zone preview input: ${parsed.error.issues.map((issue) => issue.message).join('; ')}`,
         };
       }
+      const preview = previewPcbZone(parsed.data);
+      if (input.inspectLive !== true) {
+        return {
+          success: true,
+          mode: 'preview' as const,
+          applied: false,
+          preview,
+        };
+      }
+      let liveReadiness = unavailableZoneLiveReadiness();
+      try {
+        const probe = await _ctx.bridge.call('pcb.zonePreflight', {
+          netName: parsed.data.netName,
+          layer: parsed.data.layer,
+          rectangle: parsed.data.rectangle,
+        });
+        liveReadiness = summarizeZoneLiveReadiness(probe);
+      } catch {
+        // A disconnected or malformed probe is not evidence of a safe native write.
+      }
       return {
         success: true,
         mode: 'preview' as const,
         applied: false,
-        preview: previewPcbZone(parsed.data),
+        preview,
+        liveReadiness,
       };
     }
     return {

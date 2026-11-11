@@ -60,6 +60,28 @@ readyToApply remains **false**, as production mutation, topology and
 ambiguous-error rollback gates have not been implemented. The diagnostic is
 not an apply authorization.
 
+## One-step preview with optional live prerequisites (no write)
+
+`easyeda_pcb_add_zone` in `mode: "preview"` remains deterministic and
+non-mutating. Supplying `inspectLive: true` additionally invokes the existing
+**read-only** `pcb.zonePreflight` bridge diagnostic with the exact preview
+net, layer and native rectangle. The response contains `liveReadiness`:
+focus/net/layer/strict board containment evidence, runtime version, and
+explicit blockers. It never creates a Pour, triggers a rebuild, saves,
+confirms a write, or enables the public apply path. Without
+`inspectLive: true`, preview requires no bridge connection and behaves
+as before. Failed, disconnected or malformed live diagnostics yield
+`checked: false`, not a fabricated successful preflight.
+
+`preview.nativeProfile` separately identifies the **only measured
+disposable-native settings combination** (EasyEDA Pro 3.2.209, GND,
+BOTTOM layer 2, solid, preserveSilos=true, priority=1, width=0.2,
+unlocked). Other combinations are presented as unverified rather than
+quietly accepted. That match is evidence from one temporary PCB, not a
+guarantee on arbitrary designs. Even a complete live diagnostic returns
+`readyToApply: false` until electrical topology/DRC, remote approval,
+durable write recovery and full public MCP acceptance are established.
+
 ## New-zone candidate verification (not production apply)
 
 The isolated, test-only `zone-create-evidence` and `zone-create-operation`

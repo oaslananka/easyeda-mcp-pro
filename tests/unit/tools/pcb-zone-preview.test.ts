@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { pcbZonePreviewSchema, previewPcbZone } from '../../../src/tools/pcb-zone-preview.js';
+import {
+  pcbZonePreviewSchema,
+  previewPcbZone,
+  summarizeZoneLiveReadiness,
+} from '../../../src/tools/pcb-zone-preview.js';
 
 const valid = {
   rectangle: { x: 140, y: 140, width: 2780, height: 2000 },
@@ -33,6 +37,51 @@ describe('native PCB copper zone preview', () => {
       locked: false,
     });
     expect(first.requiredApplyChecks.join(' ')).toContain('netName must exist');
+  });
+
+  it('does not elevate outline evidence after runtime or PCB identity verification fails', () => {
+    const base = {
+      runtimeVersion: '3.2.209',
+      runtimeVerified: true,
+      activePcb: true,
+      nativeCapabilities: true,
+      netVerified: true,
+      layerVerified: true,
+      boardGeometry: { containmentVerified: true },
+      readyToApply: false,
+      blockers: [],
+    };
+    for (const unsafe of [
+      { ...base, runtimeVerified: false },
+      { ...base, activePcb: false },
+    ]) {
+      expect(summarizeZoneLiveReadiness(unsafe)).toMatchObject({
+        checked: true,
+        boardContainmentVerified: false,
+        readyToApply: false,
+        blockers: expect.arrayContaining(['candidate-board-containment-unverified']),
+      });
+    }
+  });
+
+  it('treats the isolated native settings profile as evidence only, not write authorization', () => {
+    const matched = previewPcbZone(
+      pcbZonePreviewSchema.parse({
+        ...valid,
+        pourPriority: 1,
+      }),
+    );
+    expect(matched.nativeProfile).toEqual({
+      observedInDisposableRuntime: true,
+      evidenceRuntime: '3.2.209',
+      blockers: [],
+    });
+    expect(matched.requiredApplyChecks.join(' ')).toContain('strictly contained');
+    const unsupported = previewPcbZone(pcbZonePreviewSchema.parse(valid));
+    expect(unsupported.nativeProfile).toMatchObject({
+      observedInDisposableRuntime: false,
+      blockers: ['native-priority-unsupported'],
+    });
   });
 
   it('accepts native negative-Y board coordinates and a top-edge rectangle near positive Y limit', () => {

@@ -1661,23 +1661,24 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                   | Type                     | Required | Description                                                                           |
-| --------------------------- | ------------------------ | -------- | ------------------------------------------------------------------------------------- |
-| `mode`                      | `'preview'` \| `'apply'` | Yes      |                                                                                       |
-| `rectangle`                 | `object (optional)`      | No       | Native PCB rectangle. Required in preview mode.                                       |
-| `points`                    | `object[] (optional)`    | No       |                                                                                       |
-| `layer`                     | `number`                 | Yes      |                                                                                       |
-| `netName`                   | `string (optional)`      | No       |                                                                                       |
-| `clearance`                 | `number (optional)`      | No       |                                                                                       |
-| `fillMethod`                | `'solid' (optional)`     | No       |                                                                                       |
-| `preserveSilos`             | `boolean (optional)`     | No       |                                                                                       |
-| `pourName`                  | `string (optional)`      | No       |                                                                                       |
-| `pourPriority`              | `number (optional)`      | No       |                                                                                       |
-| `lineWidth`                 | `number (optional)`      | No       |                                                                                       |
-| `locked`                    | `boolean (optional)`     | No       |                                                                                       |
-| `confirmWrite`              | `'true' (optional)`      | No       |                                                                                       |
-| `expectedPcbUuid`           | `string (optional)`      | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
-| `expectedSchematicPageUuid` | `string (optional)`      | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
+| Parameter                   | Type                     | Required | Description                                                                                                                         |
+| --------------------------- | ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                      | `'preview'` \| `'apply'` | Yes      |                                                                                                                                     |
+| `rectangle`                 | `object (optional)`      | No       | Native PCB rectangle. Required in preview mode.                                                                                     |
+| `points`                    | `object[] (optional)`    | No       |                                                                                                                                     |
+| `layer`                     | `number`                 | Yes      |                                                                                                                                     |
+| `netName`                   | `string (optional)`      | No       |                                                                                                                                     |
+| `clearance`                 | `number (optional)`      | No       |                                                                                                                                     |
+| `fillMethod`                | `'solid' (optional)`     | No       |                                                                                                                                     |
+| `preserveSilos`             | `boolean (optional)`     | No       |                                                                                                                                     |
+| `pourName`                  | `string (optional)`      | No       |                                                                                                                                     |
+| `pourPriority`              | `number (optional)`      | No       |                                                                                                                                     |
+| `lineWidth`                 | `number (optional)`      | No       |                                                                                                                                     |
+| `locked`                    | `boolean (optional)`     | No       |                                                                                                                                     |
+| `confirmWrite`              | `'true' (optional)`      | No       |                                                                                                                                     |
+| `inspectLive`               | `boolean (optional)`     | No       | Preview only: also read live PCB focus, net, layer and board-containment evidence via the read-only bridge; never authorizes apply. |
+| `expectedPcbUuid`           | `string (optional)`      | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.                                                  |
+| `expectedSchematicPageUuid` | `string (optional)`      | No       | Expected focused schematic page UUID; reject a different focused page before a write.                                               |
 
 ### Output Format
 
@@ -1690,6 +1691,7 @@ Returns a JSON object matching the schema:
   mode: 'preview' | 'apply'(optional);
   applied: boolean(optional);
   preview: object(optional);
+  liveReadiness: object(optional);
   error: string(optional);
   remediation: string(optional);
   targetDocument: object(optional);
