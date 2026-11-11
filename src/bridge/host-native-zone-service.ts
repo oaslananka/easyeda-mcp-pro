@@ -1,6 +1,7 @@
 import {
   NativeZoneHostWriterCoordinator,
   type NativeZoneHostLease,
+  type NativeZoneHostReservationState,
 } from './native-zone-host-writer.js';
 
 type ReservationResponse =
@@ -61,6 +62,11 @@ export class HostNativeZoneReservationService {
   private lease: NativeZoneHostLease | undefined;
 
   constructor(private readonly coordinator = new NativeZoneHostWriterCoordinator()) {}
+
+  /** Host-side only; never exposes owner tokens, paths or unlock authority. */
+  inspectState(): Promise<NativeZoneHostReservationState> {
+    return this.coordinator.inspectState();
+  }
 
   async reserve(params: unknown, trustedSession: boolean): Promise<ReservationResponse> {
     if (invalidParams(params))

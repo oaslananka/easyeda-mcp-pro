@@ -137,6 +137,59 @@ describe('Diagnostics Tools', () => {
     expect(result?.uptime_ms).toBeGreaterThanOrEqual(0);
   });
 
+  it('reports a host reservation independently of the editor connection and never discloses its owner', async () => {
+    const tool = registry.get('easyeda_bridge_status');
+    const inspector = vi.fn(async () => 'reserved' as const);
+    const disconnected: ToolContext = {
+      ...context,
+      bridge: {
+        connected: false,
+        call: bridgeCall,
+        inspectNativeZoneHostReservation: inspector,
+      },
+    };
+    const result = await tool?.handler(disconnected, {});
+    expect(result).toMatchObject({
+      connected: false,
+      native_zone_host_reservation: 'reserved',
+    });
+    expect(inspector).toHaveBeenCalledOnce();
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toMatch(/ownerToken|token|lockDirectory/);
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('treats a failed or missing host inspector as unknown, not an unreserved lease', async () => {
+    const tool = registry.get('easyeda_bridge_status');
+    bridgeCall.mockResolvedValue({ bridgeVersion: '1.13.1' });
+    const broken: ToolContext = {
+      ...context,
+      bridge: {
+        connected: true,
+        call: bridgeCall,
+        inspectNativeZoneHostReservation: async () => {
+          throw Error('inspector unavailable');
+        },
+      },
+    };
+    expect(await tool?.handler(broken, {})).toMatchObject({
+      native_zone_host_reservation: 'unknown',
+    });
+    expect(await tool?.handler(context, {})).toMatchObject({
+      native_zone_host_reservation: 'unknown',
+    });
+    const malformed = {
+      ...context,
+      bridge: {
+        ...context.bridge,
+        inspectNativeZoneHostReservation: async () => 'something-unsafe',
+      },
+    } as unknown as ToolContext;
+    expect(await tool?.handler(malformed, {})).toMatchObject({
+      native_zone_host_reservation: 'unknown',
+    });
+  });
+
   it('exposes verified read-only native zone status without trusting extra bridge fields', async () => {
     const tool = registry.get('easyeda_bridge_status');
     bridgeCall.mockResolvedValue({

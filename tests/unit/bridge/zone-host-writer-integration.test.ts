@@ -1,5 +1,6 @@
 import { createServer } from 'node:net';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocket } from 'ws';
@@ -116,7 +117,11 @@ describe('real localhost WebSocket host-writer RPC + persistent native fence con
       });
       const coordinator = new NativeZoneHostWriterCoordinator(join(root, 'user-home-lock'));
       manager = new BridgeManager(config, coordinator);
+      // Follow the real manager -> host service -> OS coordinator path;
+      // reading state must never create a lock directory.
+      expect(await manager.inspectNativeZoneHostReservation()).toBe('unreserved');
       await manager.connect();
+      expect(await manager.inspectNativeZoneHostReservation()).toBe('unreserved');
       socket = await open(manager.activePort);
       await hello(manager, socket);
       const client = createLiveTransport(socket);
@@ -131,7 +136,24 @@ describe('real localhost WebSocket host-writer RPC + persistent native fence con
         },
       };
       const fence = createPersistentZoneWriteFence(storage, client);
+      // A crash-retained native pending marker must block BEFORE any host
+      // RPC. Otherwise the host lease would be acquired and orphaned even
+      // though the stored marker already prohibits another mutation.
+      values.set(NATIVE_ZONE_FENCE_KEY, 'existing-unknown-pending-marker');
+      expect(await fence.reserve(reservation)).toBe(false);
+      expect(await manager.inspectNativeZoneHostReservation()).toBe('unreserved');
+      await expect(
+        lstat(join(root, 'user-home-lock', 'native-zone-writer-v1.lock')),
+      ).rejects.toMatchObject({ code: 'ENOENT' });
+      values.delete(NATIVE_ZONE_FENCE_KEY);
+
+      // The preflight rejection did not consume the one-attempt host client:
+      // this is the first genuine host reservation for this test process.
       expect(await fence.reserve(reservation)).toBe(true);
+      expect(await manager.inspectNativeZoneHostReservation()).toBe('reserved');
+      expect(
+        (await lstat(join(root, 'user-home-lock', 'native-zone-writer-v1.lock'))).isDirectory(),
+      ).toBe(true);
       expect(values.get(NATIVE_ZONE_FENCE_KEY)).toContain('reconciliation-required');
       expect(await fence.inspect()).toEqual({
         blocked: true,
@@ -148,6 +170,7 @@ describe('real localhost WebSocket host-writer RPC + persistent native fence con
       expect(values.size).toBe(1);
       socket.close();
       manager.disconnect('native-zone integration test completed');
+      expect(await manager.inspectNativeZoneHostReservation()).toBe('reserved');
       expect(
         await new NativeZoneHostWriterCoordinator(join(root, 'user-home-lock')).tryAcquire(),
       ).toBeNull();

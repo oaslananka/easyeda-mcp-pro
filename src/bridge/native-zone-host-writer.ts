@@ -15,6 +15,9 @@ import { dirname, join } from 'node:path';
 const ZONE_LOCK_DIRECTORY = 'native-zone-writer-v1.lock';
 const OWNER_FILE = 'owner.json';
 
+/** Non-authorizing local OS-account lock observation; no owner details leak. */
+export type NativeZoneHostReservationState = 'unreserved' | 'reserved' | 'unknown';
+
 interface NativeZoneLockOwner {
   schemaVersion: 1;
   token: string;
@@ -97,6 +100,29 @@ export class NativeZoneHostWriterCoordinator {
 
   constructor(dataDirectory = join(userInfo().homedir, '.easyeda-mcp-pro')) {
     this.directory = join(dataDirectory, ZONE_LOCK_DIRECTORY);
+  }
+
+  /**
+   * Read-only host reservation status. A crashed process and a live process
+   * are intentionally indistinguishable: neither may be auto-reclaimed.
+   * Malformed paths, symlinks, or access failures remain unknown, not free.
+   */
+  async inspectState(): Promise<NativeZoneHostReservationState> {
+    const parent = dirname(this.directory);
+    try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- Fixed OS-account coordinator root; never an MCP path.
+      const base = await lstat(parent);
+      if (!base.isDirectory() || base.isSymbolicLink()) return 'unknown';
+    } catch (error) {
+      return errorCode(error) === 'ENOENT' ? 'unreserved' : 'unknown';
+    }
+    try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- Fixed native zone lock path below verified host coordinator root.
+      const state = await lstat(this.directory);
+      return state.isDirectory() && !state.isSymbolicLink() ? 'reserved' : 'unknown';
+    } catch (error) {
+      return errorCode(error) === 'ENOENT' ? 'unreserved' : 'unknown';
+    }
   }
 
   /**

@@ -61,6 +61,17 @@ const bridgeDiagnosticsSchema = z.object({
   owner_port: z.number().int().min(1).max(65535).optional(),
 });
 
+async function getHostReservationState(
+  ctx: ToolContext,
+): Promise<'unreserved' | 'reserved' | 'unknown'> {
+  try {
+    const state = await ctx.bridge.inspectNativeZoneHostReservation?.();
+    return state === 'unreserved' || state === 'reserved' ? state : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 function getBridgeDiagnostics(ctx: ToolContext): BridgeDiagnosticsSnapshot {
   const lastHeartbeat = ctx.bridge.lastHeartbeatMs;
   const ownershipConflict = ctx.bridge.ownershipConflict;
@@ -177,12 +188,15 @@ function registerDiagnosticsCore(
       diagnostics: bridgeDiagnosticsSchema.optional(),
       native_zone_safety: nativeZoneSafetySchema.optional(),
       native_zone_safety_warning: z.string().optional(),
+      native_zone_host_reservation: z.enum(['unreserved', 'reserved', 'unknown']),
     }),
     handler: async (ctx: ToolContext) => {
+      const hostReservation = await getHostReservationState(ctx);
       if (!ctx.bridge.connected) {
         const ownershipConflict = ctx.bridge.ownershipConflict;
         return {
           connected: false,
+          native_zone_host_reservation: hostReservation,
           uptime_ms: process.uptime() * 1000,
           status_error: ownershipConflict?.message,
           blocked_by_other_instance: ownershipConflict?.blockedByOtherInstance,
@@ -204,6 +218,7 @@ function registerDiagnosticsCore(
         const nativeZoneSafety = nativeZoneSafetySchema.safeParse(data.nativeZoneSafety);
         return {
           connected: true,
+          native_zone_host_reservation: hostReservation,
           native_zone_safety: nativeZoneSafety.success ? nativeZoneSafety.data : undefined,
           native_zone_safety_warning: nativeZoneSafety.success
             ? undefined
@@ -219,6 +234,7 @@ function registerDiagnosticsCore(
       } catch (err) {
         return {
           connected: true,
+          native_zone_host_reservation: hostReservation,
           uptime_ms: process.uptime() * 1000,
           status_error: err instanceof Error ? err.message : String(err),
           diagnostics: getBridgeDiagnostics(ctx),

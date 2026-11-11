@@ -39,6 +39,12 @@ export function createPersistentZoneWriteFence(storage: ZoneFenceStorage, lock: 
     const marker = encodeZoneWriteReservation(reservation);
     if (!marker) return false;
     try {
+      // Check the native pending marker BEFORE asking the OS host for its
+      // crash-retained lease. Otherwise an already pending (or unreadable)
+      // marker would needlessly create a second orphan host lock.
+      // This is only a fast preflight: recheck under the host lock below to
+      // close the race between independently connected extension processes.
+      if ((await storage.getItem(NATIVE_ZONE_FENCE_KEY)) !== null) return false;
       const observation = { callbackEntered: false, markerVerified: false };
       // The coordinator is externally supplied and must actually execute the
       // protected reservation. Its bare success value is never enough.

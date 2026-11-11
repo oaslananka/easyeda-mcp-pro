@@ -12,6 +12,15 @@ must already have accepted the active extension handshake, and the installed
 extension version and method registry must both exactly match the server.
 No arbitrary file path or client-selected lock directory is accepted.
 
+The local MCP `easyeda_bridge_status` now also reports a separate
+`native_zone_host_reservation` observation: `unreserved`, `reserved`,
+or `unknown`. This is an OS-account-local filesystem check available even
+if the editor is disconnected. A crash-retained or partially initialized
+lock remains `reserved`; unexpected files, symlinks, and read errors are
+`unknown`, **not free**. The observation never reveals the lock token,
+owner path/PID or release mechanism and never authorizes native writes.
+It is not proof that the extension's independent zone pending fence is clear.
+
 The OS-user-home lock is atomic between independent local server processes.
 A successful reservation remains held across a dropped connection, timeout,
 or server restart. **The extension cannot release it**; future release requires
@@ -21,6 +30,15 @@ transport includes a one-attempt response-correlated extension client; it reject
 or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
 until the entire create/rebuild/save/cold-reopen/rollback and approval chain
 has been accepted on a disposable project.
+
+Before requesting the host's crash-retained native-zone lease, the
+private pending-fence operation now first performs a read-only check of
+the persistent marker. A present, malformed, or unreadable marker blocks
+the attempt without acquiring a new OS-host lock. The marker is **rechecked
+after** a host grant to protect against a racing second editor or process.
+Neither check clears a marker, frees a lease, or authorizes a write.
+The real localhost Bridge WebSocket integration test verifies that an
+existing marker consumes no host lease or one-attempt RPC permission.
 
 A pending native zone fence is inspected only through the extension's native
 storage provider. When one exists, read-only status reports a narrow recovery

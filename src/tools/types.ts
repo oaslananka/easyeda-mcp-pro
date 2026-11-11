@@ -114,6 +114,8 @@ export interface ToolContext {
     registryMismatch?: boolean;
     /** Details about a live local process that currently owns the bridge listener. */
     ownershipConflict?: BridgeOwnershipConflict;
+    /** Read-only OS-account native zone lease status; no unlock or owner disclosure. */
+    inspectNativeZoneHostReservation?: () => Promise<'unreserved' | 'reserved' | 'unknown'>;
   };
   config: {
     bridgeTimeoutMs: number;
