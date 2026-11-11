@@ -612,6 +612,7 @@ Returns a JSON object matching the schema:
   diagnostics: object (optional);
   native_zone_safety: object (optional);
   native_zone_safety_warning: string (optional);
+  native_zone_host_reservation: 'unreserved' | 'reserved' | 'unknown';
 }
 ```
 
