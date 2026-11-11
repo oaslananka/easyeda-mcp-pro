@@ -16,19 +16,31 @@ interface NativeZoneAdapterDependencies {
   readState: StateReader;
 }
 
-function nativeMethod(
-  target: unknown,
-  method: string,
-): ((...args: unknown[]) => unknown) | undefined {
-  if (!target || typeof target !== 'object') return undefined;
-  const value = (target as Record<string, unknown>)[method];
-  return typeof value === 'function' ? (value as (...args: unknown[]) => unknown) : undefined;
+type NativeFn = (...args: unknown[]) => unknown;
+
+interface NativeZoneSurface {
+  create?: NativeFn;
+  get?: NativeFn;
+  getAll?: NativeFn;
+  getAllPrimitiveId?: NativeFn;
+  delete?: NativeFn;
+  getEditorCurrentVersion?: NativeFn;
+  getAllNetName?: NativeFn;
+  getTheNumberOfCopperLayers?: NativeFn;
+  createPolygon?: NativeFn;
+  save?: NativeFn;
+  getState_PrimitiveId?: NativeFn;
+  rebuildCopperRegion?: NativeFn;
 }
 
-async function nativeInvoke(target: unknown, method: string, ...args: unknown[]): Promise<unknown> {
-  const fn = nativeMethod(target, method);
-  if (!fn) throw new Error('Required native zone method is unavailable: ' + method);
-  return fn.apply(target, args);
+/** Only explicitly named native members are called; no dynamic property indexing. */
+async function nativeInvoke(
+  target: unknown,
+  member: unknown,
+  ...args: unknown[]
+): Promise<unknown> {
+  if (typeof member !== 'function') throw new Error('Required native zone method is unavailable.');
+  return (member as NativeFn).apply(target, args);
 }
 
 function nativeRectangleBounds(value: unknown[]): ZoneRectangle | undefined {
@@ -75,18 +87,20 @@ function exactNativeRectangle(
 }
 
 function hasNativeZoneCapabilities(readFirstPath: NativeReader): boolean {
-  const source = readFirstPath<unknown>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
-  const derived = readFirstPath<unknown>(['PCB_PrimitivePoured', 'pcb_PrimitivePoured']);
-  const polygon = readFirstPath<unknown>(['PCB_MathPolygon', 'pcb_MathPolygon']);
-  const doc = readFirstPath<unknown>(['PCB_Document', 'pcb_Document']);
-  return (
-    ['create', 'get', 'getAll', 'delete', 'getAllPrimitiveId'].every((m) =>
-      nativeMethod(source, m),
-    ) &&
-    Boolean(nativeMethod(derived, 'getAll')) &&
-    Boolean(nativeMethod(polygon, 'createPolygon')) &&
-    Boolean(nativeMethod(doc, 'save'))
-  );
+  const source = readFirstPath<NativeZoneSurface>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
+  const derived = readFirstPath<NativeZoneSurface>(['PCB_PrimitivePoured', 'pcb_PrimitivePoured']);
+  const polygon = readFirstPath<NativeZoneSurface>(['PCB_MathPolygon', 'pcb_MathPolygon']);
+  const doc = readFirstPath<NativeZoneSurface>(['PCB_Document', 'pcb_Document']);
+  return [
+    source?.create,
+    source?.get,
+    source?.getAll,
+    source?.delete,
+    source?.getAllPrimitiveId,
+    derived?.getAll,
+    polygon?.createPolygon,
+    doc?.save,
+  ].every((member) => typeof member === 'function');
 }
 
 function measuredZoneRuntime(
@@ -123,16 +137,16 @@ export function createNativeZoneApiAdapter({
     if (!parsed || !initialFocus || !expected.pourName || expected.pourName.length > 128)
       return false;
     if (!hasNativeZoneCapabilities(readFirstPath)) return false;
-    const env = readFirstPath<unknown>(['SYS_Environment', 'sys_Environment']);
-    const nets = readFirstPath<unknown>(['PCB_Net', 'pcb_Net']);
-    const layers = readFirstPath<unknown>(['PCB_Layer', 'pcb_Layer']);
+    const env = readFirstPath<NativeZoneSurface>(['SYS_Environment', 'sys_Environment']);
+    const nets = readFirstPath<NativeZoneSurface>(['PCB_Net', 'pcb_Net']);
+    const layers = readFirstPath<NativeZoneSurface>(['PCB_Layer', 'pcb_Layer']);
     try {
       // Only the 3.2.209 disposable PCB's exact settings have been verified.
       // No beta capability inference from neighboring EasyEDA versions.
       const [version, names, count] = await Promise.all([
-        nativeInvoke(env, 'getEditorCurrentVersion'),
-        nativeInvoke(nets, 'getAllNetName'),
-        nativeInvoke(layers, 'getTheNumberOfCopperLayers'),
+        nativeInvoke(env, env?.getEditorCurrentVersion),
+        nativeInvoke(nets, nets?.getAllNetName),
+        nativeInvoke(layers, layers?.getTheNumberOfCopperLayers),
       ]);
       if (!measuredZoneRuntime(version, names, count, expected.net)) return false;
       const outline = await evaluateZoneOutlineEvidence(parsed.rectangle, readFirstPath, readState);
@@ -149,13 +163,13 @@ export function createNativeZoneApiAdapter({
   async function create(expected: ExpectedZoneSource): Promise<unknown> {
     const parsed = exactNativeRectangle(expected.polygonSignature);
     if (!parsed) throw new Error('Invalid native rectangle; no Pour was created.');
-    const polygon = readFirstPath<unknown>(['PCB_MathPolygon', 'pcb_MathPolygon']);
-    const pour = readFirstPath<unknown>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
-    const nativePolygon = await nativeInvoke(polygon, 'createPolygon', parsed.source);
+    const polygon = readFirstPath<NativeZoneSurface>(['PCB_MathPolygon', 'pcb_MathPolygon']);
+    const pour = readFirstPath<NativeZoneSurface>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
+    const nativePolygon = await nativeInvoke(polygon, polygon?.createPolygon, parsed.source);
     if (!nativePolygon) throw new Error('Native polygon builder returned no polygon.');
     return nativeInvoke(
       pour,
-      'create',
+      pour?.create,
       expected.net,
       expected.layer,
       nativePolygon,
@@ -169,24 +183,25 @@ export function createNativeZoneApiAdapter({
   }
 
   async function rebuild(sourceId: string): Promise<unknown> {
-    const pour = readFirstPath<unknown>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
-    const primitive = await nativeInvoke(pour, 'get', sourceId);
-    if ((await nativeInvoke(primitive, 'getState_PrimitiveId')) !== sourceId)
+    const pour = readFirstPath<NativeZoneSurface>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
+    const primitive = (await nativeInvoke(pour, pour?.get, sourceId)) as
+      NativeZoneSurface | undefined;
+    if ((await nativeInvoke(primitive, primitive?.getState_PrimitiveId)) !== sourceId)
       throw new Error('New native Pour source lookup disagreed with its exact ID.');
-    return nativeInvoke(primitive, 'rebuildCopperRegion');
+    return nativeInvoke(primitive, primitive?.rebuildCopperRegion);
   }
 
   async function save(): Promise<boolean> {
-    const doc = readFirstPath<unknown>(['PCB_Document', 'pcb_Document']);
-    return (await nativeInvoke(doc, 'save')) === true;
+    const doc = readFirstPath<NativeZoneSurface>(['PCB_Document', 'pcb_Document']);
+    return (await nativeInvoke(doc, doc?.save)) === true;
   }
 
   async function deleteSource(sourceId: string): Promise<boolean> {
     if (typeof sourceId !== 'string' || sourceId.length === 0) return false;
-    const pour = readFirstPath<unknown>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
-    const ids = await nativeInvoke(pour, 'getAllPrimitiveId');
+    const pour = readFirstPath<NativeZoneSurface>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
+    const ids = await nativeInvoke(pour, pour?.getAllPrimitiveId);
     if (!Array.isArray(ids) || ids.filter((id) => id === sourceId).length !== 1) return false;
-    return (await nativeInvoke(pour, 'delete', [sourceId])) === true;
+    return (await nativeInvoke(pour, pour?.delete, [sourceId])) === true;
   }
 
   return createNativeZoneCandidateOperation({
