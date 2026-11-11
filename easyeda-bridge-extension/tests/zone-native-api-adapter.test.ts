@@ -134,11 +134,29 @@ function fixture() {
     PCB_MathPolygon: { createPolygon: vi.fn((input: unknown) => ({ getSource: () => input })) },
   };
   const fenceCells = new Map<string, string>();
-  const writeFenceStorage = {
-    getItem: vi.fn((key: string) => fenceCells.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      fenceCells.set(key, value);
-    }),
+  const getExtensionUserConfig = vi.fn((key: string): unknown => fenceCells.get(key));
+  const setExtensionUserConfig = vi.fn(async (key: string, value: string) => {
+    fenceCells.set(key, value);
+    return true;
+  });
+  api.SYS_Storage = { getExtensionUserConfig, setExtensionUserConfig };
+  let occupied = false;
+  const lockManager = {
+    request: vi.fn(
+      async (
+        _name: string,
+        _options: { mode: string; ifAvailable: boolean },
+        callback: (lock: { name: string } | null) => Promise<boolean>,
+      ) => {
+        if (occupied) return callback(null);
+        occupied = true;
+        try {
+          return await callback({ name: 'easyeda-mcp-pro.native-zone-reservation.v1' });
+        } finally {
+          occupied = false;
+        }
+      },
+    ),
   };
   const reader = <T>(paths: readonly string[]): T | undefined =>
     paths.map((path) => api[path]).find(Boolean) as T | undefined;
@@ -146,7 +164,7 @@ function fixture() {
     createNativeZoneApiAdapter({
       readFirstPath: reader,
       readState: (item, key) => (item as Record<string, () => unknown>)?.['getState_' + key]?.(),
-      writeFenceStorage,
+      lockManager,
     });
   return {
     api,
@@ -160,7 +178,9 @@ function fixture() {
     getAllPoured,
     sources,
     derived,
-    writeFenceStorage,
+    getExtensionUserConfig,
+    setExtensionUserConfig,
+    lockManager,
   };
 }
 
@@ -210,11 +230,48 @@ describe('real native API adapter for guarded zone candidate (not a public dispa
   it('never enters native creation when durable write-fence storage fails', async () => {
     const f = fixture();
     // Test adapter shall use mandatory, injected storage. The fixture supplies a denied store.
-    f.writeFenceStorage.getItem.mockImplementationOnce(() => {
+    f.getExtensionUserConfig.mockImplementationOnce(() => {
       throw Error('storage denied');
     });
     await expect(f.adapter().execute(expected)).resolves.toMatchObject({ status: 'blocked' });
     expect(f.create).not.toHaveBeenCalled();
+  });
+
+  it('requires a native extension storage capability before touching copper', async () => {
+    const f = fixture();
+    delete f.api.SYS_Storage;
+    await expect(f.adapter().execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(f.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a native storage write that returns false before any Pour creation', async () => {
+    const f = fixture();
+    f.setExtensionUserConfig.mockResolvedValueOnce(false);
+    await expect(f.adapter().execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.setExtensionUserConfig).toHaveBeenCalledOnce();
+  });
+
+  it('refuses native creation when another tab already holds the exclusive lock', async () => {
+    const f = fixture();
+    f.lockManager.request.mockImplementationOnce(async (_name, _options, callback) =>
+      callback(null),
+    );
+    await expect(f.adapter().execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
+  });
+
+  it('permits at most one creation across two concurrently reconstructed adapters', async () => {
+    const f = fixture();
+    const [a, b] = await Promise.all([
+      f.adapter().execute(expected),
+      f.adapter().execute({ ...expected, pourName: 'Z480_OTHER_NONRETRY' }),
+    ]);
+    expect([a.status, b.status]).toContain('blocked');
+    expect([a.status, b.status].filter((status) => status === 'saved-readback')).toHaveLength(1);
+    expect(f.create).toHaveBeenCalledOnce();
+    expect(f.setExtensionUserConfig).toHaveBeenCalledOnce();
   });
 
   it('rolls back only the exact created source when native rebuild produces no associated copper', async () => {

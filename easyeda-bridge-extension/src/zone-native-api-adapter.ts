@@ -2,10 +2,9 @@ import type { ApiRuntime } from './api-runtime.js';
 import { readNativeZoneInventory } from './pcb-mutation-operations.js';
 import { createNativeZoneCandidateOperation } from './zone-create-operation.js';
 import type { ExpectedZoneSource } from './zone-create-evidence.js';
-import {
-  createPersistentZoneWriteFence,
-  type ZoneFenceStorage,
-} from './zone-durable-write-fence.js';
+import { createPersistentZoneWriteFence } from './zone-durable-write-fence.js';
+import { createBrowserZoneFenceLock } from './zone-fence-lock.js';
+import { createEasyedaZoneStorage } from './zone-native-storage.js';
 import {
   documentIdentity,
   evaluateZoneOutlineEvidence,
@@ -18,8 +17,8 @@ type StateReader = (value: unknown, key: string) => unknown;
 interface NativeZoneAdapterDependencies {
   readFirstPath: NativeReader;
   readState: StateReader;
-  /** Required persistent store. An unavailable store must fail closed. */
-  writeFenceStorage: ZoneFenceStorage;
+  /** Optional test injection; actual extension uses the origin Web Locks manager. */
+  lockManager?: unknown;
 }
 
 type NativeFn = (...args: unknown[]) => unknown;
@@ -134,9 +133,13 @@ function measuredZoneRuntime(
 export function createNativeZoneApiAdapter({
   readFirstPath,
   readState,
-  writeFenceStorage,
+  lockManager,
 }: NativeZoneAdapterDependencies) {
-  const writeFence = createPersistentZoneWriteFence(writeFenceStorage);
+  const locks = lockManager ?? (typeof navigator === 'undefined' ? undefined : navigator.locks);
+  const writeFence = createPersistentZoneWriteFence(
+    createEasyedaZoneStorage(readFirstPath),
+    createBrowserZoneFenceLock(locks),
+  );
   const focus = () => documentIdentity(readFirstPath);
 
   async function preflight(expected: ExpectedZoneSource): Promise<boolean> {
