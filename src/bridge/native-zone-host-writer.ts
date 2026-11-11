@@ -35,17 +35,20 @@ function isPrivateDirectory(path: string): Promise<boolean> {
     .catch(() => false);
 }
 
-async function sameOwner(ownerFile: string, token: string): Promise<boolean> {
-  try {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- Owner filename is a fixed segment of the server-owned private lock directory.
-    const details = await lstat(ownerFile);
-    if (!details.isFile() || details.isSymbolicLink()) return false;
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- Owner metadata path is fixed and checked against symlinks above.
-    const parsed = JSON.parse(await readFile(ownerFile, 'utf8')) as Partial<NativeZoneLockOwner>;
-    return parsed.schemaVersion === 1 && parsed.token === token && parsed.pid === process.pid;
-  } catch {
-    return false;
-  }
+function sameOwner(ownerFile: string, token: string): Promise<boolean> {
+  // This is deliberately a fully rejection-handled chain: unreadable metadata,
+  // malformed JSON, missing owner or a symlink must all retain the write lock.
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- Fixed owner.json path in private server-owned lock directory.
+  return lstat(ownerFile)
+    .then((details) => {
+      if (!details.isFile() || details.isSymbolicLink()) return false;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- Owner metadata path was checked against symlinks.
+      return readFile(ownerFile, 'utf8').then((raw) => {
+        const parsed = JSON.parse(raw) as Partial<NativeZoneLockOwner>;
+        return parsed.schemaVersion === 1 && parsed.token === token && parsed.pid === process.pid;
+      });
+    })
+    .catch(() => false);
 }
 
 /** Only trusted host-native recovery code may supply the verification callback. */
