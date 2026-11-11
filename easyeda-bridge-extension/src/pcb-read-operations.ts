@@ -2,7 +2,11 @@ import type { ApiRuntime } from './api-runtime.js';
 import { createComponentPadConnectionReader } from './pcb-pad-connection-operations.js';
 import type { BoardInspectionOperations } from './board-inspection.js';
 import { logRecoverableError } from './utils.js';
-import { evaluateZoneOutlineEvidence, type ZoneRectangle } from './zone-outline-evidence.js';
+import {
+  documentIdentity,
+  evaluateZoneOutlineEvidence,
+  type ZoneRectangle,
+} from './zone-outline-evidence.js';
 
 export type PrimitiveStateReader = (value: unknown, key: string) => unknown;
 
@@ -104,16 +108,6 @@ async function optionalNativeRead(read: () => Promise<unknown>): Promise<unknown
   }
 }
 
-async function focusedPcbIsVerified(pcb: any, selection: any): Promise<boolean> {
-  const current = await optionalNativeRead(() => pcb?.getCurrentPcbInfo?.());
-  if (current) return true;
-  const selected = (await optionalNativeRead(() => selection?.getCurrentDocumentInfo?.())) as
-    { documentType?: unknown; uuid?: unknown } | undefined;
-  return (
-    selected?.documentType === 3 && typeof selected.uuid === 'string' && selected.uuid.length > 0
-  );
-}
-
 async function readZoneGeometry(
   rectangle: ZoneRectangle | undefined,
   activePcb: boolean,
@@ -127,11 +121,60 @@ async function readZoneGeometry(
 function appendGeometryBlocker(
   blockers: string[],
   rectangle: ZoneRectangle | undefined,
-  boardGeometry: { intersectionVerified: boolean } | null,
+  boardGeometry: { intersectionVerified: boolean; containmentVerified: boolean } | null,
 ): void {
-  if (rectangle && !boardGeometry?.intersectionVerified) {
+  if (!rectangle) return;
+  if (!boardGeometry?.intersectionVerified)
     blockers.push('candidate-board-intersection-unverified');
-  }
+  if (!boardGeometry?.containmentVerified) blockers.push('candidate-board-containment-unverified');
+}
+
+interface ZonePreflightFlags {
+  runtimeVerified: boolean;
+  activePcb: boolean;
+  nativeCapabilities: boolean;
+  netVerified: boolean;
+  layerVerified: boolean;
+  focusChanged: boolean;
+}
+
+function zonePreflightBlockers(
+  flags: ZonePreflightFlags,
+  rectangle: ZoneRectangle | undefined,
+  boardGeometry: { intersectionVerified: boolean; containmentVerified: boolean } | null,
+): string[] {
+  const checks: Array<[boolean, string]> = [
+    [flags.runtimeVerified, 'runtime-version-unverified'],
+    [flags.activePcb, 'active-pcb-unverified'],
+    [flags.nativeCapabilities, 'native-zone-capabilities-unavailable'],
+    [flags.netVerified, 'net-not-in-active-pcb'],
+    [flags.layerVerified, 'copper-layer-unverified'],
+  ];
+  const blockers = checks.filter(([passed]) => !passed).map(([, reason]) => reason);
+  if (flags.focusChanged) blockers.push('focused-pcb-changed-during-preflight');
+  blockers.push(
+    'board-outline-and-copper-topology-unverified',
+    'apply-and-rollback-not-implemented',
+  );
+  appendGeometryBlocker(blockers, rectangle, boardGeometry);
+  return blockers;
+}
+
+function hasNativeZoneCapabilities(pours: any, poured: any, document: any): boolean {
+  return (
+    typeof pours?.create === 'function' &&
+    typeof poured?.get === 'function' &&
+    typeof document?.save === 'function'
+  );
+}
+
+function hasVerifiedZoneCopperLayer(layer: number, count: unknown): boolean {
+  return (
+    (layer === 1 || layer === 2) &&
+    typeof count === 'number' &&
+    Number.isInteger(count) &&
+    count >= 2
+  );
 }
 
 /** Classify scoped read failures without returning account/project/document identifiers. */
@@ -225,8 +268,6 @@ export function createPcbReadOperations({
     rectangle?: ZoneRectangle,
   ): Promise<unknown> {
     const environment = readFirstPath<any>(['SYS_Environment', 'sys_Environment']);
-    const pcb = readFirstPath<any>(['DMT_Pcb', 'dmt_Pcb']);
-    const selection = readFirstPath<any>(['DMT_SelectControl', 'dmt_SelectControl']);
     const nets = readFirstPath<any>(['PCB_Net', 'pcb_Net']);
     const layers = readFirstPath<any>(['PCB_Layer', 'pcb_Layer']);
     const pours = readFirstPath<any>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
@@ -238,38 +279,36 @@ export function createPcbReadOperations({
     );
     const version = typeof reportedVersion === 'string' ? reportedVersion : null;
     const runtimeVerified = version !== null && /^3\.2\.(?:206|209)(?:\.|$)/.test(version);
-    const activePcb = await focusedPcbIsVerified(pcb, selection);
-    const nativeCapabilities =
-      typeof pours?.create === 'function' &&
-      typeof poured?.get === 'function' &&
-      typeof document?.save === 'function';
+    const identityBefore = await optionalNativeRead(() => documentIdentity(readFirstPath));
+    const focusedAtStart = typeof identityBefore === 'string';
+    const nativeCapabilities = hasNativeZoneCapabilities(pours, poured, document);
 
-    const names = activePcb ? await optionalNativeRead(() => nets?.getAllNetName?.()) : undefined;
-    const netVerified = Array.isArray(names) && names.includes(netName);
-    const count = activePcb
+    const names = focusedAtStart
+      ? await optionalNativeRead(() => nets?.getAllNetName?.())
+      : undefined;
+    const count = focusedAtStart
       ? await optionalNativeRead(() => layers?.getTheNumberOfCopperLayers?.())
       : undefined;
-    const layerVerified =
-      (layer === 1 || layer === 2) &&
-      typeof count === 'number' &&
-      Number.isInteger(count) &&
-      count >= 2;
-    // Informational only. Even a proven rectangle overlap says nothing about clearance.
-    const boardGeometry = await readZoneGeometry(rectangle, activePcb, readFirstPath, readState);
-    const checks: Array<[boolean, string]> = [
-      [runtimeVerified, 'runtime-version-unverified'],
-      [activePcb, 'active-pcb-unverified'],
-      [nativeCapabilities, 'native-zone-capabilities-unavailable'],
-      [netVerified, 'net-not-in-active-pcb'],
-      [layerVerified, 'copper-layer-unverified'],
-    ];
-    const blockers = checks.filter(([passed]) => !passed).map(([, reason]) => reason);
-    // A bounding box is not proof of full board containment or safe copper topology.
-    blockers.push(
-      'board-outline-and-copper-topology-unverified',
-      'apply-and-rollback-not-implemented',
+    // Informational only. Even strict outline containment says nothing about copper topology.
+    const observedGeometry = await readZoneGeometry(
+      rectangle,
+      focusedAtStart,
+      readFirstPath,
+      readState,
     );
-    appendGeometryBlocker(blockers, rectangle, boardGeometry);
+    // The active design can change while awaiting native net/layer/outline reads.
+    // Never return stale membership and geometry evidence as a valid preflight.
+    const identityAfter = await optionalNativeRead(() => documentIdentity(readFirstPath));
+    const focusChanged = focusedAtStart && identityBefore !== identityAfter;
+    const activePcb = focusedAtStart && identityBefore === identityAfter;
+    const netVerified = activePcb && Array.isArray(names) && names.includes(netName);
+    const layerVerified = activePcb && hasVerifiedZoneCopperLayer(layer, count);
+    const boardGeometry = activePcb ? observedGeometry : null;
+    const blockers = zonePreflightBlockers(
+      { runtimeVerified, activePcb, nativeCapabilities, netVerified, layerVerified, focusChanged },
+      rectangle,
+      boardGeometry,
+    );
     return {
       runtimeVersion: version,
       runtimeVerified,

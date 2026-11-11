@@ -305,6 +305,7 @@ function registerPcbReadTools(
             'unavailable',
           ]),
           intersectionVerified: z.boolean(),
+          containmentVerified: z.boolean(),
           outline: pcbZoneRectangleSchema.nullable(),
           outlineKind: z.enum(['rectangle', 'closed-polyline']).optional(),
           intersection: z.enum(['inside', 'partial', 'outside']).optional(),
@@ -317,7 +318,8 @@ function registerPcbReadTools(
             'observed for one explicitly closed, simple native L polyline with a verified ' +
             'inside/partial/outside intersection field. unsupported-outline means ambiguous ' +
             'geometry; unavailable means native identity/inspection was not verified. ' +
-            'intersectionVerified is true for observed inside/partial geometric contact only, ' +
+            'intersectionVerified denotes contact, whereas containmentVerified requires a ' +
+            'strictly interior candidate without boundary contact or overhang. Neither is ' +
             'NOT proof of copper fill, keepout clearance, plane continuity, DRC, or apply approval. ' +
             'outline is the native rectangle only; null for polygons to avoid suggesting that ' +
             'their bounding box is a board outline. readyToApply always stays false.',
@@ -357,6 +359,7 @@ function registerPcbReadTools(
             boardGeometry?: {
               status: string;
               intersectionVerified: boolean;
+              containmentVerified: boolean;
               outline: z.infer<typeof pcbZoneRectangleSchema> | null;
               outlineKind?: 'rectangle' | 'closed-polyline';
               intersection?: 'inside' | 'partial' | 'outside';

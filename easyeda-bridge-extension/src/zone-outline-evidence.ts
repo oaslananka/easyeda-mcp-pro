@@ -19,6 +19,7 @@ export type ZoneIntersectionStatus =
 export interface ZoneOutlineEvidence {
   status: ZoneIntersectionStatus;
   intersectionVerified: boolean;
+  containmentVerified: boolean;
   outline: { x: number; y: number; width: number; height: number } | null;
   outlineKind?: 'rectangle' | 'closed-polyline';
   intersection?: 'inside' | 'partial' | 'outside';
@@ -28,11 +29,21 @@ type NativeReader = <T>(paths: readonly string[]) => T | undefined;
 type StateReader = (object: unknown, field: string) => unknown;
 
 function unavailable(): ZoneOutlineEvidence {
-  return { status: 'unavailable', intersectionVerified: false, outline: null };
+  return {
+    status: 'unavailable',
+    intersectionVerified: false,
+    containmentVerified: false,
+    outline: null,
+  };
 }
 
 function unsupported(): ZoneOutlineEvidence {
-  return { status: 'unsupported-outline', intersectionVerified: false, outline: null };
+  return {
+    status: 'unsupported-outline',
+    intersectionVerified: false,
+    containmentVerified: false,
+    outline: null,
+  };
 }
 
 function isFiniteRectangle(r: ZoneRectangle): boolean {
@@ -61,7 +72,7 @@ function overlaps(a: ZoneRectangle, b: ZoneRectangle): boolean {
   );
 }
 
-async function documentIdentity(readFirstPath: NativeReader): Promise<string | undefined> {
+export async function documentIdentity(readFirstPath: NativeReader): Promise<string | undefined> {
   const project = readFirstPath<Record<string, unknown>>(['DMT_Project', 'dmt_Project']);
   const selection = readFirstPath<Record<string, unknown>>([
     'DMT_SelectControl',
@@ -129,9 +140,19 @@ function classifyOutline(rectangle: ZoneRectangle, source: unknown): ZoneOutline
   const bounds = nativeRectangle(source);
   if (bounds) {
     const intersects = overlaps(rectangle, bounds);
+    // Full, strictly interior containment is stronger than bounding-box overlap.
+    // Contact with an edge or any overhang cannot authorize future placement.
+    const contained =
+      rectangle.x > bounds.x &&
+      rectangle.x + rectangle.width < bounds.x + bounds.width &&
+      rectangle.y < bounds.y &&
+      rectangle.y - rectangle.height > bounds.y - bounds.height;
     return {
       status: intersects ? 'intersection-confirmed' : 'outside-board',
       intersectionVerified: intersects,
+      containmentVerified: contained,
+      outlineKind: 'rectangle',
+      intersection: !intersects ? 'outside' : contained ? 'inside' : 'partial',
       outline: bounds,
     };
   }
@@ -141,6 +162,7 @@ function classifyOutline(rectangle: ZoneRectangle, source: unknown): ZoneOutline
   return {
     status: 'observed',
     intersectionVerified: intersection !== 'outside',
+    containmentVerified: intersection === 'inside',
     outline: null, // A polygon cannot be represented truthfully by its bounding rectangle.
     outlineKind: 'closed-polyline',
     intersection,
