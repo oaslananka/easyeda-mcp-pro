@@ -93,10 +93,26 @@ describe('native zone write quarantine with persistent storage and exclusive loc
     );
   });
 
+  it('refuses an existing valid pending marker before asking for a crash-retained host lease', async () => {
+    const backing = storage();
+    const host = { exclusive: vi.fn(async (action: () => Promise<boolean>) => action()) };
+    const first = fence(backing);
+    expect(await first.reserve(sample('project-A:pcb-1'))).toBe(true);
+    const newAttempt = createPersistentZoneWriteFence(backing, host);
+    expect(await newAttempt.reserve(sample('project-A:pcb-1'))).toBe(false);
+    expect(await newAttempt.reserve(sample('project-B:pcb-2'))).toBe(false);
+    expect(host.exclusive).not.toHaveBeenCalled();
+    expect(backing.setItem).toHaveBeenCalledTimes(1);
+  });
+
   it('never treats corrupt, malformed, null or unsupported markers as an empty store', async () => {
     const backing = storage();
     backing.cells.set(NATIVE_ZONE_FENCE_KEY, '{}');
-    expect(await fence(backing).reserve(sample('project:pcb'))).toBe(false);
+    const host = { exclusive: vi.fn(async (action: () => Promise<boolean>) => action()) };
+    expect(await createPersistentZoneWriteFence(backing, host).reserve(sample('project:pcb'))).toBe(
+      false,
+    );
+    expect(host.exclusive).not.toHaveBeenCalled();
     expect(await fence(backing).inspect()).toEqual({ blocked: true });
     backing.cells.set(NATIVE_ZONE_FENCE_KEY, '{broken-json');
     expect(await fence(backing).inspect()).toEqual({ blocked: true });
@@ -116,6 +132,11 @@ describe('native zone write quarantine with persistent storage and exclusive loc
     expect(await fence(denied).inspect()).toEqual({ blocked: true });
     expect(await fence(denied).reserve(sample('project:pcb'))).toBe(false);
     expect(setItem).not.toHaveBeenCalled();
+    const host = { exclusive: vi.fn(async (action: () => Promise<boolean>) => action()) };
+    expect(await createPersistentZoneWriteFence(denied, host).reserve(sample('project:pcb'))).toBe(
+      false,
+    );
+    expect(host.exclusive).not.toHaveBeenCalled();
   });
 
   it('fails closed on rejected and ignored asynchronous writes', async () => {
@@ -146,7 +167,7 @@ describe('native zone write quarantine with persistent storage and exclusive loc
     expect(
       await createPersistentZoneWriteFence(backing, denied).reserve(sample('project:pcb')),
     ).toBe(false);
-    expect(backing.getItem).not.toHaveBeenCalled();
+    expect(backing.getItem).toHaveBeenCalledOnce();
     expect(backing.setItem).not.toHaveBeenCalled();
   });
 
@@ -157,7 +178,25 @@ describe('native zone write quarantine with persistent storage and exclusive loc
       await createPersistentZoneWriteFence(backing, dishonest).reserve(sample('project:pcb')),
     ).toBe(false);
     expect(dishonest.exclusive).toHaveBeenCalledOnce();
-    expect(backing.getItem).not.toHaveBeenCalled();
+    expect(backing.getItem).toHaveBeenCalledOnce();
+    expect(backing.setItem).not.toHaveBeenCalled();
+  });
+
+  it('rechecks a marker that appears after preflight but before the host callback', async () => {
+    const backing = storage();
+    const prior = 'pending-write-from-another-editor';
+    const host = {
+      exclusive: vi.fn(async (action: () => Promise<boolean>) => {
+        backing.cells.set(NATIVE_ZONE_FENCE_KEY, prior);
+        return action();
+      }),
+    };
+    const attempted = await createPersistentZoneWriteFence(backing, host).reserve(
+      sample('project:pcb'),
+    );
+    expect(attempted).toBe(false);
+    expect(host.exclusive).toHaveBeenCalledOnce();
+    expect(backing.cells.get(NATIVE_ZONE_FENCE_KEY)).toBe(prior);
     expect(backing.setItem).not.toHaveBeenCalled();
   });
 

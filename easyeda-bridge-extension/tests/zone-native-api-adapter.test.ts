@@ -338,6 +338,19 @@ describe('real native API adapter for guarded zone candidate (not a public dispa
     expect(f.create).toHaveBeenCalledOnce();
   });
 
+  it('does not request a host lease if native storage already has a pending fence', async () => {
+    const f = fixture();
+    f.getExtensionUserConfig.mockImplementation((key) =>
+      key === 'easyeda-mcp-pro.zone-create.pending.v1' ? '{invalid-but-blocking}' : undefined,
+    );
+    await expect(f.adapter().execute(expected)).resolves.toMatchObject({
+      status: 'blocked',
+    });
+    expect(f.hostRequests).not.toHaveBeenCalled();
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
+  });
+
   it('never enters native creation when durable write-fence storage fails', async () => {
     const f = fixture();
     // Test adapter shall use mandatory, injected storage. The fixture supplies a denied store.
@@ -345,6 +358,7 @@ describe('real native API adapter for guarded zone candidate (not a public dispa
       throw Error('storage denied');
     });
     await expect(f.adapter().execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(f.hostRequests).not.toHaveBeenCalled();
     expect(f.create).not.toHaveBeenCalled();
   });
 
