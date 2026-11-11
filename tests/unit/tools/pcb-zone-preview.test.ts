@@ -39,6 +39,56 @@ describe('native PCB copper zone preview', () => {
     expect(first.requiredApplyChecks.join(' ')).toContain('netName must exist');
   });
 
+  it.each([
+    ['another net', { netName: 'VCC' }, 'native-net-unsupported'],
+    ['TOP layer', { layer: 1 }, 'native-layer-unsupported'],
+    ['island preservation disabled', { preserveSilos: false }, 'native-islands-mode-unsupported'],
+    ['primitive locked', { locked: true }, 'native-lock-mode-unsupported'],
+  ] as const)(
+    'marks %s as outside the live-measured native settings profile',
+    (_, changed, blocker) => {
+      const preview = previewPcbZone(
+        pcbZonePreviewSchema.parse({ ...valid, pourPriority: 1, ...changed }),
+      );
+      expect(preview.nativeProfile).toEqual({
+        observedInDisposableRuntime: false,
+        evidenceRuntime: '3.2.209',
+        blockers: [blocker],
+      });
+    },
+  );
+
+  it.each([
+    [
+      'native API unavailable',
+      { nativeCapabilities: false },
+      'native-zone-capabilities-unavailable',
+    ],
+    ['net absent', { netVerified: false }, 'net-not-in-active-pcb'],
+    ['copper layer unavailable', { layerVerified: false }, 'copper-layer-unverified'],
+  ] as const)(
+    'surfaces %s as a live blocker without inventing readiness',
+    (_, changed, blocker) => {
+      const result = summarizeZoneLiveReadiness({
+        runtimeVersion: '3.2.209',
+        runtimeVerified: true,
+        activePcb: true,
+        nativeCapabilities: true,
+        netVerified: true,
+        layerVerified: true,
+        boardGeometry: { containmentVerified: true },
+        readyToApply: false,
+        blockers: [],
+        ...changed,
+      });
+      expect(result).toMatchObject({
+        checked: true,
+        readyToApply: false,
+        blockers: expect.arrayContaining([blocker]),
+      });
+    },
+  );
+
   it('does not elevate outline evidence after runtime or PCB identity verification fails', () => {
     const base = {
       runtimeVersion: '3.2.209',

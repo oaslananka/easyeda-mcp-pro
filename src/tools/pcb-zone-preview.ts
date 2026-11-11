@@ -45,7 +45,6 @@ export function observedZoneNativeProfile(input: PcbZonePreviewInput) {
   const blockers = [
     ...(input.netName !== 'GND' ? ['native-net-unsupported'] : []),
     ...(input.layer !== 2 ? ['native-layer-unsupported'] : []),
-    ...(input.fillMethod !== 'solid' ? ['native-fill-method-unsupported'] : []),
     ...(!input.preserveSilos ? ['native-islands-mode-unsupported'] : []),
     ...(input.pourPriority !== 1 ? ['native-priority-unsupported'] : []),
     ...(input.lineWidth !== 0.2 ? ['native-line-width-unsupported'] : []),
