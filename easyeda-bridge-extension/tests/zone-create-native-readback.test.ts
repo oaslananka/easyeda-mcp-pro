@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readNativeZoneInventory } from '../src/pcb-mutation-operations.js';
 
-const pour = (id = 'e336') => ({
+const pour = (id = 'e336', linkedCopper: () => unknown = () => poured(id)) => ({
   getState_PrimitiveId: () => id,
+  getCopperRegion: async () => linkedCopper(),
   getState_Net: () => 'GND',
   getState_Layer: () => 1,
   getState_ComplexPolygon: () => ({ getSource: () => ['R', 0, 0, 200, 120, 0, 0] }),
@@ -60,7 +61,10 @@ describe('native source and Poured inventory readback is independently snapshott
   });
 
   it('retains proof that an outline-only Poured has no actual filled geometry', async () => {
-    const r = runtime([pour()], [poured('e336', 'e336', false)]);
+    const r = runtime(
+      [pour('e336', () => poured('e336', 'e336', false))],
+      [poured('e336', 'e336', false)],
+    );
     expect((await readNativeZoneInventory(r.lookup))?.derived.get('e336')?.hasFilledGeometry).toBe(
       false,
     );
@@ -79,6 +83,44 @@ describe('native source and Poured inventory readback is independently snapshott
       ).toBeUndefined();
     },
   );
+
+  it('cross-checks the native source association against independently enumerated Poured geometry', async () => {
+    const baseline = poured();
+    expect(
+      (
+        await readNativeZoneInventory(runtime([pour('e336', () => baseline)], [baseline]).lookup)
+      )?.derived.get('e336')?.pouredId,
+    ).toBe('e336');
+
+    for (const association of [
+      undefined,
+      null,
+      poured('old-poured', 'old-source'),
+      poured('different-poured', 'e336'),
+      poured('e336', 'different-source'),
+      poured('e336', 'e336', false),
+    ]) {
+      const source = pour('e336', () => association);
+      expect(await readNativeZoneInventory(runtime([source], [baseline]).lookup)).toBeUndefined();
+    }
+  });
+
+  it('denies a stale source association when no independently enumerated Poured exists', async () => {
+    expect(await readNativeZoneInventory(runtime([pour('e336')], []).lookup)).toBeUndefined();
+    const noFill = pour('e336', () => undefined);
+    expect((await readNativeZoneInventory(runtime([noFill], []).lookup))?.derived.size).toBe(0);
+  });
+
+  it('rejects missing association capability and getter failure without claiming a valid inventory', async () => {
+    const missing = { ...pour(), getCopperRegion: undefined };
+    expect(await readNativeZoneInventory(runtime([missing], [poured()]).lookup)).toBeUndefined();
+    const failing = pour('e336', () => {
+      throw new Error('beta association failed');
+    });
+    await expect(readNativeZoneInventory(runtime([failing], [poured()]).lookup)).rejects.toThrow(
+      'beta association failed',
+    );
+  });
 
   it('fails closed on missing runtime capabilities and rejected native inventory getters', async () => {
     const r = runtime([pour()], [poured()]);

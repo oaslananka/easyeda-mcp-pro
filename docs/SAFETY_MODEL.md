@@ -22,6 +22,24 @@ or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
 until the entire create/rebuild/save/cold-reopen/rollback and approval chain
 has been accepted on a disposable project.
 
+Native copper readback now cross-checks each Pour's beta
+getCopperRegion() association with the separately enumerated
+PCB_PrimitivePoured.getAll() source/primitive IDs and exact fill geometry
+signature. Missing associations, stale beta objects, differing fills or failed
+read APIs cannot be interpreted as a valid post-rebuild inventory.
+This check is read-only and does not authorize any new PCB mutation.
+
+The isolated EasyEDA Pro 3.2.209 disposable Z480 PCB was reopened and the
+existing POUR2 source e336 independently matched Poured e336 with 74
+fill records and an exact 31,093-character fill-geometry signature match
+between the two independent API read paths. This verifies baseline source-to-derived association only;
+SYS_Storage cannot be read from the standalone CDP context, so the native
+pending-fence state remained **unknown** in this read-only observation.
+No create, rebuild, delete or save was executed and its database SHA was
+unchanged. The official beta rebuildCopperRegion() documentation warns
+that API-created Pour rebuilds may error internally; no blind retry or
+claim of successful native filled-zone creation is permitted.
+
 The test-only native zone adapter also enforces factory-issued provenance for
 its injected host lock. A browser Web Lock, an arbitrary callback coordinator,
 or a forged plain object cannot reserve the native pending fence even if it
