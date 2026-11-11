@@ -155,6 +155,7 @@
     "@vitest/coverage-v8": "^4.1.12",
     "esbuild": "0.28.2",
     "eslint": "^10.6.0",
+    "eslint-plugin-security": "4.2.1",
     "fast-check": "4.10.2",
     "globals": "^17.7.0",
     "prettier": "^3.9.4",
