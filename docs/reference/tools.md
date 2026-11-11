@@ -610,6 +610,7 @@ Returns a JSON object matching the schema:
   owner_pid: number (optional);
   owner_port: number (optional);
   diagnostics: object (optional);
+  native_zone_safety: object (optional);
 }
 ```
 

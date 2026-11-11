@@ -47,7 +47,7 @@ export function createEasyedaZoneStorage(readFirstPath: NativeReader): ZoneFence
 }
 
 /** Safe status telemetry. No native writes, no marker disclosure or recovery authority. */
-export async function inspectNativeZoneSafety(readFirstPath: NativeReader) {
+export function inspectNativeZoneSafety(readFirstPath: NativeReader) {
   const notReady = {
     storage: 'unavailable' as const,
     pendingFence: 'unknown' as const,
@@ -55,14 +55,14 @@ export async function inspectNativeZoneSafety(readFirstPath: NativeReader) {
     coldReopenVerified: false as const,
     publicApplyEnabled: false as const,
   };
-  try {
-    const stored = await createEasyedaZoneStorage(readFirstPath).getItem(NATIVE_ZONE_FENCE_KEY);
-    return {
+  // The isolated native API can throw synchronously or reject asynchronously.
+  // Catch the entire chain; never turn a failed probe into readiness evidence.
+  return Promise.resolve()
+    .then(() => createEasyedaZoneStorage(readFirstPath).getItem(NATIVE_ZONE_FENCE_KEY))
+    .then((stored) => ({
       ...notReady,
       storage: 'readable' as const,
       pendingFence: stored === null ? ('absent' as const) : ('present' as const),
-    };
-  } catch {
-    return notReady;
-  }
+    }))
+    .catch(() => notReady);
 }
