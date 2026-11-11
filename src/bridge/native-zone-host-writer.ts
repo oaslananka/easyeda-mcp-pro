@@ -28,19 +28,19 @@ function errorCode(error: unknown): string | undefined {
     : undefined;
 }
 
-async function isPrivateDirectory(path: string): Promise<boolean> {
-  try {
-    const details = await lstat(path);
-    return details.isDirectory() && !details.isSymbolicLink();
-  } catch {
-    return false;
-  }
+function isPrivateDirectory(path: string): Promise<boolean> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- Path is generated from the private fixed OS-account reservation root, not a user/MCP request.
+  return lstat(path)
+    .then((details) => details.isDirectory() && !details.isSymbolicLink())
+    .catch(() => false);
 }
 
 async function sameOwner(ownerFile: string, token: string): Promise<boolean> {
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- Owner filename is a fixed segment of the server-owned private lock directory.
     const details = await lstat(ownerFile);
     if (!details.isFile() || details.isSymbolicLink()) return false;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- Owner metadata path is fixed and checked against symlinks above.
     const parsed = JSON.parse(await readFile(ownerFile, 'utf8')) as Partial<NativeZoneLockOwner>;
     return parsed.schemaVersion === 1 && parsed.token === token && parsed.pid === process.pid;
   } catch {
@@ -75,7 +75,9 @@ export class NativeZoneHostLease {
     const ownerFile = join(this.directory, OWNER_FILE);
     if (!(await sameOwner(ownerFile, this.token))) return false;
     try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- Verified owner token and private lock path; no untrusted pathname.
       await unlink(ownerFile);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- Only the fixed empty native writer lock directory is removed after verified recovery.
       await rmdir(this.directory);
       this.held = false;
       return true;
@@ -101,11 +103,13 @@ export class NativeZoneHostWriterCoordinator {
    */
   async tryAcquire(): Promise<NativeZoneHostLease | null> {
     const dataDirectory = dirname(this.directory);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- OS userInfo().homedir or trusted test-injected root, never supplied by a client.
     await mkdir(dataDirectory, { recursive: true, mode: 0o700 });
     if (!(await isPrivateDirectory(dataDirectory))) {
       throw new Error('Native zone coordinator directory is not a regular directory.');
     }
     try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- Atomic fixed-name lock below private OS-user directory, no remote input.
       await mkdir(this.directory, { mode: 0o700 });
     } catch (error) {
       if (errorCode(error) === 'EEXIST') return null;
@@ -121,6 +125,7 @@ export class NativeZoneHostWriterCoordinator {
     };
     // If metadata persistence fails, keep the directory as a hard blocker:
     // no attempt is allowed to infer that a native write did not occur.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- Fixed owner.json under an exclusive, fresh 0700 lock directory.
     const handle = await open(join(this.directory, OWNER_FILE), 'wx', 0o600);
     try {
       await handle.writeFile(JSON.stringify(owner));

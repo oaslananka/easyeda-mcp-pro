@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import security from 'eslint-plugin-security';
 
 const dynamicExecutionRule = {
   selector: "NewExpression[callee.name='AsyncFunction']",
@@ -133,6 +134,14 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-this-alias': 'off',
     },
+  },
+  {
+    // Codacy flags legitimate variable paths even when the root is selected
+    // exclusively from the OS account, never from MCP request parameters.
+    // Keep this rule live locally so exceptions require line-specific review.
+    files: ['src/bridge/native-zone-host-writer.ts'],
+    plugins: { security },
+    rules: { 'security/detect-non-literal-fs-filename': 'error' },
   },
   {
     ...tseslint.configs.disableTypeChecked,
