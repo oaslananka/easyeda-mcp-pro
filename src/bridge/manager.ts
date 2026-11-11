@@ -178,6 +178,11 @@ export class BridgeManager extends EventEmitter {
     this.nativeZoneHostReservation = new HostNativeZoneReservationService(nativeZoneCoordinator);
   }
 
+  /** Available independently of the editor socket; never changes native lock state. */
+  inspectNativeZoneHostReservation(): Promise<'unreserved' | 'reserved' | 'unknown'> {
+    return this.nativeZoneHostReservation.inspectState();
+  }
+
   get lastHeartbeatMs(): number {
     return this._lastHeartbeatMs;
   }

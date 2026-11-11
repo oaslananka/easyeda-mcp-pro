@@ -48,6 +48,47 @@ afterEach(() => {
 });
 
 describe('host-wide native copper-zone writer reservation (not yet Bridge-wired)', () => {
+  it('reports an absent host lease without creating a coordinator directory', async () => {
+    const dir = root();
+    const gate = new NativeZoneHostWriterCoordinator(join(dir, 'not-yet-created'));
+    await expect(gate.inspectState()).resolves.toBe('unreserved');
+    expect(() => lstatSync(join(dir, 'not-yet-created'))).toThrow();
+  });
+
+  it('reports a held or abandoned host reservation without exposing owner data', async () => {
+    const dir = root();
+    const gate = new NativeZoneHostWriterCoordinator(dir);
+    await expect(gate.inspectState()).resolves.toBe('unreserved');
+    const lease = await gate.tryAcquire();
+    expect(lease).not.toBeNull();
+    await expect(gate.inspectState()).resolves.toBe('reserved');
+    const owned = join(dir, lockName, 'owner.json');
+    const metadata = readFileSync(owned, 'utf8');
+    expect(metadata).toContain('token');
+    expect(await gate.inspectState()).toBe('reserved');
+    await expect(lease?.releaseAfterVerifiedRecovery(async () => true)).resolves.toBe(true);
+    await expect(gate.inspectState()).resolves.toBe('unreserved');
+  });
+
+  it('never classifies a malformed or symlink coordinator as unreserved', async () => {
+    const dir = root();
+    const child = root();
+    const parent = join(dir, 'coordinator');
+    symlinkSync(child, parent);
+    const suspiciousParent = new NativeZoneHostWriterCoordinator(parent);
+    expect(await suspiciousParent.inspectState()).toBe('unknown');
+
+    const valid = new NativeZoneHostWriterCoordinator(child);
+    mkdirSync(join(child, lockName));
+    const ownerFile = join(child, lockName, 'owner.json');
+    writeFileSync(ownerFile, 'not-json');
+    expect(await valid.inspectState()).toBe('reserved');
+
+    const anotherDir = root();
+    symlinkSync(child, join(anotherDir, lockName));
+    expect(await new NativeZoneHostWriterCoordinator(anotherDir).inspectState()).toBe('unknown');
+  });
+
   it('uses OS identity rather than the per-profile HOME environment for its default root', () => {
     // The data root must not be selected from the EasyEDA isolated profile.
     expect(userInfo().homedir).toBeTruthy();

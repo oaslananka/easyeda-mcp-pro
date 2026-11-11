@@ -12,6 +12,15 @@ must already have accepted the active extension handshake, and the installed
 extension version and method registry must both exactly match the server.
 No arbitrary file path or client-selected lock directory is accepted.
 
+The local MCP `easyeda_bridge_status` now also reports a separate
+`native_zone_host_reservation` observation: `unreserved`, `reserved`,
+or `unknown`. This is an OS-account-local filesystem check available even
+if the editor is disconnected. A crash-retained or partially initialized
+lock remains `reserved`; unexpected files, symlinks, and read errors are
+`unknown`, **not free**. The observation never reveals the lock token,
+owner path/PID or release mechanism and never authorizes native writes.
+It is not proof that the extension's independent zone pending fence is clear.
+
 The OS-user-home lock is atomic between independent local server processes.
 A successful reservation remains held across a dropped connection, timeout,
 or server restart. **The extension cannot release it**; future release requires
