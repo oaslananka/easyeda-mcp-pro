@@ -11,7 +11,8 @@
 - Every explicit `pourIds` target is resolved before the first mutation. If any requested id is missing, the operation fails before rebuilding anything.
 - The extension calls the documented instance method `IPCB_PrimitivePour.rebuildCopperRegion()`.
 - Success is accepted only after `PCB_PrimitivePoured.getAll()` read-back links exactly one derived primitive to the source pour through `getState_PourPrimitiveId()`.
-- If native rebuild returns `getState_PourPrimitiveId()`, it must match the requested source Pour. A result from another Pour is rejected even when older copper remains present.
+- A native return naming a different Pour is never trusted alone. It may only be reconciled when independent before/after Poured snapshots prove a newly generated target-linked fill and unchanged existing copper. Otherwise the mismatch fails closed.
+- Verified generated copper requires at least one valid `fill=true` polygon. Outline-only (`fill=false`) segments cannot count as a successful rebuild.
 - A native `undefined` result is reported as `no-copper`; it is **not** counted as a successful rebuild.
 - PCB rebuild writes are not covered by the server transaction manager. If the bridge times out, the native outcome is unknown; inspect the active PCB before retrying.
 
