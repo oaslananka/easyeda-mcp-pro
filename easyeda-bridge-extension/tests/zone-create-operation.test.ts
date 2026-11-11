@@ -287,6 +287,7 @@ describe('single native zone creation operation with no blind retries', () => {
     await expect(op.execute(expected)).resolves.toMatchObject({
       status: 'rollback-readback',
       sourceId: 'new-source',
+      reason: 'The post-write Pour/Poured inventory has an ambiguous delta.',
       persistenceVerified: false,
     });
     expect(f.deleteSource).toHaveBeenCalledExactlyOnceWith('new-source');
@@ -322,12 +323,71 @@ describe('single native zone creation operation with no blind retries', () => {
     expect(f.deleteSource).toHaveBeenCalledExactlyOnceWith('new-source');
   });
 
+  it('explains a post-create source-property mismatch without leaking native values or retrying', async () => {
+    const wrongSource = { ...newer, net: 'private-net-mismatch' };
+    const f = fixture([baseline, inventory(false, false, [wrongSource])]);
+    const op = createNativeZoneCandidateOperation(f.deps);
+    const result = await op.execute(expected);
+    expect(result).toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining(
+        'The only new source is not a verified match for the requested plan.',
+      ),
+    });
+    expect(JSON.stringify(result)).not.toContain('private-net-mismatch');
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.deleteSource).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+    expect(await op.execute(expected)).toMatchObject({ status: 'blocked' });
+  });
+
+  it('distinguishes a changed original Pour/Poured from a missing new source', async () => {
+    const changedOldCopper: ZoneDerivedEvidence = {
+      ...oldCopper,
+      fillSignature: 'private-baseline-signature-changed',
+    };
+    const after = inventory(true);
+    after.derived.set(oldCopper.sourceId, changedOldCopper);
+    const f = fixture([baseline, after]);
+    const result = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+    expect(result).toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining('Existing sources or copper changed; safe rollback'),
+    });
+    expect(JSON.stringify(result)).not.toContain(changedOldCopper.fillSignature);
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.deleteSource).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
+  it('retains the original reconciliation failure when post-rebuild native copper changed', async () => {
+    const after = inventory(true);
+    after.derived.set('e336', { ...oldCopper, fillSignature: 'private-after-rebuild-fill' });
+    const f = fixture([baseline, created, after]);
+    const op = createNativeZoneCandidateOperation(f.deps);
+    const result = await op.execute(expected);
+    expect(result).toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining(
+        'An existing Pour or Poured geometry changed; outcome is not isolated.',
+      ),
+    });
+    expect(JSON.stringify(result)).not.toContain('private-after-rebuild-fill');
+    expect(f.rebuild).toHaveBeenCalledOnce();
+    expect(f.deleteSource).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+    expect(await op.execute(expected)).toMatchObject({ status: 'blocked' });
+  });
+
   it('does not guess which source to remove after two new Pours appeared', async () => {
     const duplicate = inventory(true, false, [{ ...newer, sourceId: 'unrelated' }]);
     const f = fixture([baseline, duplicate]);
     await expect(
       createNativeZoneCandidateOperation(f.deps).execute(expected),
-    ).resolves.toMatchObject({ status: 'uncertain' });
+    ).resolves.toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining('No unique native source appeared for exact-id rollback.'),
+    });
     expect(f.deleteSource).not.toHaveBeenCalled();
   });
 

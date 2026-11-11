@@ -85,7 +85,12 @@ async function recoverIncompleteZone(
 ): Promise<NativeZoneCreateResult> {
   const rollback = planExactZoneRollback(attempt.before, observed, attempt.expected);
   if (!rollback.safeToDelete)
-    return uncertain('New copper is unverified and exact-id rollback is unavailable.');
+    return uncertain(
+      'New copper is unverified and exact-id rollback is unavailable. ' +
+        reason +
+        ' ' +
+        rollback.reason,
+    );
   if ((await deps.focus()) !== attempt.focus)
     return uncertain('Focus changed before rollback; no deletion attempted.');
   if (!(await deps.deleteSource(rollback.sourceId)))
@@ -144,7 +149,7 @@ async function rebuildAndVerifyZone(
     return uncertain('Rebuilt copper or unchanged PCB focus could not be verified.');
   const verdict = reconcileZoneCreation(attempt.before, afterRebuild, attempt.expected);
   if (verdict.status !== 'verified')
-    return recoverIncompleteZone(deps, attempt, afterRebuild, verdict.status);
+    return recoverIncompleteZone(deps, attempt, afterRebuild, verdict.reason);
   return verifySavedZone(deps, attempt);
 }
 
@@ -210,7 +215,10 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
         );
       const candidate = planExactZoneRollback(attempt.before, afterCreate, expected);
       if (!candidate.safeToDelete)
-        return uncertain('Create did not produce exactly one identifiable matching native Pour.');
+        return uncertain(
+          'Create did not produce exactly one identifiable matching native Pour. ' +
+            candidate.reason,
+        );
       const result = await rebuildAndVerifyZone(deps, attempt, candidate.sourceId);
       // No same-session result proves persistence across an editor restart.
       // The dispatcher remains locked until an independent cold-reopen check exists.
