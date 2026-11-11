@@ -37,6 +37,24 @@ interface ZoneAttempt {
   expected: ExpectedZoneSource;
 }
 
+/**
+ * Only these creation settings have survived a real isolated 3.2.209
+ * native create/readback/cold-reopen cycle. Other values were silently
+ * normalized: rejecting before mutation is safer than post-hoc cleanup.
+ * Version/board/net/outline checks remain mandatory in deps.preflight().
+ */
+function measuredNativeZoneSettings(expected: ExpectedZoneSource): boolean {
+  return (
+    expected.net === 'GND' &&
+    expected.layer === 2 &&
+    expected.fillMethod === 'solid' &&
+    expected.preserveSilos === true &&
+    expected.pourPriority === 1 &&
+    expected.lineWidth === 0.2 &&
+    expected.locked === false
+  );
+}
+
 function uncertain(reason: string): NativeZoneCreateResult {
   return {
     status: 'uncertain',
@@ -144,6 +162,13 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
         status: 'blocked',
         reason:
           'Previous native zone write requires independent reconciliation; no automatic retry.',
+      };
+    if (!measuredNativeZoneSettings(expected))
+      return {
+        status: 'blocked',
+        reason:
+          'Native zone settings are unverified: only solid fill, keep islands=true, ' +
+          'priority=1, line width=0.2, unlocked GND/BOTTOM are accepted by this candidate.',
       };
     inProgress = true;
     let nativeMutationStarted = false;

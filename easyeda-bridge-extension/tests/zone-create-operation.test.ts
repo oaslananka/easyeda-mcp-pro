@@ -122,6 +122,27 @@ describe('single native zone creation operation with no blind retries', () => {
     expect(f.create).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['priority silently normalized by native API', { ...expected, pourPriority: 5 }],
+    ['line width silently normalized by native API', { ...expected, lineWidth: 10 }],
+    ['island preservation not live-verified', { ...expected, preserveSilos: false }],
+    ['primitive lock mode not live-verified', { ...expected, locked: true }],
+    ['TOP creation not live-verified', { ...expected, layer: 1 }],
+    ['non-GND creation not live-verified', { ...expected, net: 'VCC' }],
+    ['inner copper layer not live-verified', { ...expected, layer: 15 }],
+    ['fill mode not live-verified', { ...expected, fillMethod: 'hatched' }],
+  ] as const)('blocks %s before even one native create', async (_, settings) => {
+    const f = fixture();
+    await expect(
+      createNativeZoneCandidateOperation(f.deps).execute(settings),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+    });
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
   it('does not mutate when exact preflight or focus is unavailable', async () => {
     const f = fixture();
     f.preflight.mockResolvedValue(false);

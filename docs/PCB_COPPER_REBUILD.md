@@ -77,6 +77,24 @@ exact-ID deletion followed by a same-session baseline match is called
 `rollback-readback`, not verified durable rollback. Neither status clears
 the write fence without independent fresh-session evidence.
 
+A second real isolated 3.2.209 candidate-engine test identified a native
+normalization hazard: explicitly requesting priority `5` and line width `10`
+returned a new Pour with priority `1` and line width `0.2`. The candidate
+correctly refused to claim success, did not rebuild/save, and blocked retries.
+After full editor shutdown, an independently consistent pre-test SQLite backup
+was restored, and native reopen confirmed original source/Poured `e336` with
+74 fills. A follow-up request with native-measured priority `1`, line width
+`0.2`, `solid`, `preserveSilos=true`, unlocked `GND` / BOTTOM (layer `2`)
+produced a new matching source and one valid filled Poured object. Native
+`save()` returned true; a completely new editor session retained the exact
+source/Poured id and fill-signature SHA-256
+`5aba6844f3ca27b9b66dd0a504b058382373afbbeca7e9be22041d5d4151cc87`.
+The on-disk saved SQLite file matched its pre-close fingerprint. The test
+then restored the consistent original snapshot; native reopen again confirmed
+`e336`/74 only, byte-exact restored SQLite, and an unchanged separate
+schematic project. Unverified native values and TOP/non-GND creation are now
+blocked by the **test-only candidate before any write**.
+
 Live direct native tests in the separate Ubuntu 24.04, EasyEDA Pro
 3.2.209 disposable PCB showed target-associated filled copper can persist
 across a full editor restart even when the beta rebuild _return object_
