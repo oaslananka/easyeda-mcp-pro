@@ -5,6 +5,7 @@ import {
   type ExpectedZoneSource,
   type ZoneInventory,
 } from './zone-create-evidence.js';
+import type { ZoneWriteReservation } from './zone-recovery-evidence.js';
 
 // Candidate operation is intentionally NOT attached to pcb.addZone or exposed
 // to the public MCP write path until disposable end-to-end acceptance.
@@ -18,7 +19,7 @@ export interface NativeZoneCreateDependencies {
   save(): Promise<boolean>;
   deleteSource(sourceId: string): Promise<boolean>;
   /** Mandatory write-ahead reservation; a rejected/missing fence cannot allow native create. */
-  reserveMutation(focus: string): Promise<boolean> | boolean;
+  reserveMutation(reservation: ZoneWriteReservation): Promise<boolean> | boolean;
 }
 
 export type NativeZoneCreateResult =
@@ -188,7 +189,7 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
           status: 'blocked',
           reason: 'Exact PCB identity, net, outline or inventory preflight failed.',
         };
-      if (!(await deps.reserveMutation(attempt.focus)))
+      if (!(await deps.reserveMutation({ focus: attempt.focus, before: attempt.before, expected })))
         return {
           status: 'blocked',
           reason: 'Persistent native write fence requires independent reconciliation; no retry.',
