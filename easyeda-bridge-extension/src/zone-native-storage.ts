@@ -1,5 +1,6 @@
 import type { ApiRuntime } from './api-runtime.js';
 import { NATIVE_ZONE_FENCE_KEY, type ZoneFenceStorage } from './zone-durable-write-fence.js';
+import { decodeZonePendingEvidence } from './zone-recovery-evidence.js';
 
 type NativeReader = ApiRuntime['readFirstPath'];
 
@@ -46,8 +47,50 @@ export function createEasyedaZoneStorage(readFirstPath: NativeReader): ZoneFence
   };
 }
 
-/** Safe status telemetry. No native writes, no marker disclosure or recovery authority. */
-export function inspectNativeZoneSafety(readFirstPath: NativeReader) {
+interface FocusedProject {
+  uuid?: unknown;
+}
+
+interface FocusedDocument {
+  uuid?: unknown;
+  parentProjectUuid?: unknown;
+  documentType?: unknown;
+}
+
+/** Zero-mutation focus check, intentionally independent of the full copper inventory. */
+async function pendingZoneFocus(readFirstPath: NativeReader): Promise<string | undefined> {
+  const projectApi = readFirstPath<{
+    getCurrentProjectInfo?: () => Promise<FocusedProject | null>;
+  }>(['DMT_Project', 'dmt_Project']);
+  const documentApi = readFirstPath<{
+    getCurrentDocumentInfo?: () => Promise<FocusedDocument | null>;
+  }>(['DMT_SelectControl', 'dmt_SelectControl']);
+  if (
+    typeof projectApi?.getCurrentProjectInfo !== 'function' ||
+    typeof documentApi?.getCurrentDocumentInfo !== 'function'
+  )
+    return undefined;
+  const project = await projectApi.getCurrentProjectInfo();
+  const document = await documentApi.getCurrentDocumentInfo();
+  if (
+    typeof project?.uuid !== 'string' ||
+    !project.uuid ||
+    typeof document?.uuid !== 'string' ||
+    !document.uuid ||
+    document.documentType !== 3 ||
+    document.parentProjectUuid !== project.uuid
+  )
+    return undefined;
+  return JSON.stringify([project.uuid, document.uuid]);
+}
+
+/**
+ * Safe, privacy-preserving status telemetry: no native writes, no raw marker,
+ * project identity or source ID disclosures, and NEVER any release authority.
+ * A match is only a same-session focus check, NOT filled-copper recovery or
+ * cold-reopen proof. A missing focused PCB is explicitly actionable.
+ */
+export async function inspectNativeZoneSafety(readFirstPath: NativeReader) {
   const notReady = {
     storage: 'unavailable' as const,
     pendingFence: 'unknown' as const,
@@ -55,14 +98,46 @@ export function inspectNativeZoneSafety(readFirstPath: NativeReader) {
     coldReopenVerified: false as const,
     publicApplyEnabled: false as const,
   };
-  // The isolated native API can throw synchronously or reject asynchronously.
-  // Catch the entire chain; never turn a failed probe into readiness evidence.
-  return Promise.resolve()
-    .then(() => createEasyedaZoneStorage(readFirstPath).getItem(NATIVE_ZONE_FENCE_KEY))
-    .then((stored) => ({
-      ...notReady,
-      storage: 'readable' as const,
-      pendingFence: stored === null ? ('absent' as const) : ('present' as const),
-    }))
-    .catch(() => notReady);
+  let stored: string | null;
+  try {
+    stored = await createEasyedaZoneStorage(readFirstPath).getItem(NATIVE_ZONE_FENCE_KEY);
+  } catch {
+    return notReady;
+  }
+  const readable = {
+    ...notReady,
+    storage: 'readable' as const,
+    pendingFence: stored === null ? ('absent' as const) : ('present' as const),
+  };
+  if (stored === null) return readable;
+
+  const candidate = decodeZonePendingEvidence(stored);
+  if (!candidate) {
+    return {
+      ...readable,
+      recoveryState: 'invalid-marker' as const,
+      recoveryReleaseAuthorized: false as const,
+    };
+  }
+  let recoveryState:
+    'requires-focused-pcb' | 'focus-mismatch' | 'awaiting-independent-recovery' | 'unresolved';
+  try {
+    const focus = await pendingZoneFocus(readFirstPath);
+    if (!focus) {
+      recoveryState = 'requires-focused-pcb';
+    } else if (candidate.focus !== focus) {
+      recoveryState = 'focus-mismatch';
+    } else {
+      // Do not perform a potentially expensive full copper scan on each
+      // health poll. Independent cold-reopen inventory is a separate gate.
+      recoveryState = 'awaiting-independent-recovery';
+    }
+  } catch {
+    recoveryState = 'unresolved';
+  }
+  return {
+    ...readable,
+    recoveryState,
+    recoveryReleaseAuthorized: false as const,
+  };
 }

@@ -37,6 +37,16 @@ const nativeZoneSafetySchema = z.object({
   coordinator: z.literal('unavailable'),
   coldReopenVerified: z.literal(false),
   publicApplyEnabled: z.literal(false),
+  recoveryState: z
+    .enum([
+      'invalid-marker',
+      'requires-focused-pcb',
+      'focus-mismatch',
+      'awaiting-independent-recovery',
+      'unresolved',
+    ])
+    .optional(),
+  recoveryReleaseAuthorized: z.literal(false).optional(),
 });
 
 const bridgeDiagnosticsSchema = z.object({
