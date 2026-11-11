@@ -23,6 +23,7 @@ import {
 } from './remote-client.js';
 import { createDispatcher } from './dispatcher.js';
 import { normalizeCanvasBinaryResult } from './capture-binary-result.js';
+import { createHostZoneReservationClient } from './zone-host-reservation-client.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
 import {
   createRuntimeTimers,
@@ -221,6 +222,14 @@ const runtimeTimers = createRuntimeTimers(
   globalThis as any,
   SOCKET_ID,
 );
+
+// Reserved for native-zone candidate integration only. Instantiating this
+// transport never acquires a lock or enables any public PCB write operation.
+const hostZoneReservation = createHostZoneReservationClient({
+  send: (request) => send({ id: request.id, type: request.type, method: request.method }),
+  isLocalConnected: () => connectionState === 'connected' && connectedPort !== null,
+  timers: runtimeTimers,
+});
 
 function recordLocalConnectionDiagnostic(diagnostic: LocalConnectionDiagnostic): void {
   log(`Local bridge connection phase ${diagnostic.phase}`, {
@@ -935,6 +944,7 @@ function closeHandle(handle: SocketHandle | null): void {
 }
 
 function closeSocket(): void {
+  hostZoneReservation.reset();
   closeHandle(socketHandle);
   socketHandle = null;
   connectedPort = null;
@@ -948,6 +958,7 @@ function recoverConnection(reason: string): void {
   if (!wasConnected && !wasConnecting && !socketHandle) return;
 
   log(reason);
+  hostZoneReservation.reset();
   stopHeartbeat();
   closeHandle(socketHandle);
   socketHandle = null;
@@ -1120,6 +1131,9 @@ function handleMessage(raw: string): InboundMessageType {
     case 'request':
       void handleRequest(message as BridgeRequest);
       return 'request';
+    case 'response':
+      hostZoneReservation.handleResponse(message);
+      return 'ignored';
     default:
       return 'ignored';
   }
@@ -1203,6 +1217,7 @@ async function connectToPort(
             socketOpened = true;
             clearRegisterFallback();
             socketHandle = resolvedHandle();
+            hostZoneReservation.reset();
             handshakeSent = true;
             log('Local bridge socket opened; sending handshake', {
               port,
@@ -1247,6 +1262,7 @@ async function connectToPort(
               });
             }
             if (socketHandle === currentHandle) {
+              hostZoneReservation.reset();
               stopHeartbeat();
               socketHandle = null;
               connectedPort = null;
