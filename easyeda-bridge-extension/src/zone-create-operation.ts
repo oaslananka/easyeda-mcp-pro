@@ -17,6 +17,8 @@ export interface NativeZoneCreateDependencies {
   rebuild(sourceId: string): Promise<unknown>;
   save(): Promise<boolean>;
   deleteSource(sourceId: string): Promise<boolean>;
+  /** Mandatory write-ahead reservation; a rejected/missing fence cannot allow native create. */
+  reserveMutation(focus: string): Promise<boolean> | boolean;
 }
 
 export type NativeZoneCreateResult =
@@ -185,6 +187,17 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
         return {
           status: 'blocked',
           reason: 'Exact PCB identity, net, outline or inventory preflight failed.',
+        };
+      if (!(await deps.reserveMutation(attempt.focus)))
+        return {
+          status: 'blocked',
+          reason: 'Persistent native write fence requires independent reconciliation; no retry.',
+        };
+      if ((await deps.focus()) !== attempt.focus)
+        return {
+          status: 'blocked',
+          reason:
+            'Active PCB changed after write reservation; independent reconciliation required.',
         };
       nativeMutationStarted = true;
       reconciliationRequired = true;
