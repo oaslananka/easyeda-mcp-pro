@@ -96,6 +96,35 @@ describe('single native zone creation operation with no blind retries', () => {
     expect(f.deleteSource).not.toHaveBeenCalled();
   });
 
+  it('refuses rebuild when the selected PCB changes after create reconciliation', async () => {
+    const f = fixture();
+    f.focus
+      .mockResolvedValueOnce('focus-project+pcb') // preflight
+      .mockResolvedValueOnce('focus-project+pcb') // preflight inventory
+      .mockResolvedValueOnce('focus-project+pcb') // post-create inventory
+      .mockResolvedValueOnce('different-project+pcb'); // immediately before rebuild
+    const outcome = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+    expect(outcome).toMatchObject({ status: 'uncertain' });
+    expect(f.create).toHaveBeenCalledOnce();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses save when selected PCB changes after the rebuilt copper readback', async () => {
+    const f = fixture();
+    f.focus
+      .mockResolvedValueOnce('focus-project+pcb') // preflight
+      .mockResolvedValueOnce('focus-project+pcb') // preflight inventory
+      .mockResolvedValueOnce('focus-project+pcb') // post-create inventory
+      .mockResolvedValueOnce('focus-project+pcb') // before rebuild
+      .mockResolvedValueOnce('focus-project+pcb') // after rebuilt copper
+      .mockResolvedValueOnce('different-project+pcb'); // before save
+    const outcome = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+    expect(outcome).toMatchObject({ status: 'uncertain' });
+    expect(f.rebuild).toHaveBeenCalledOnce();
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
   it('keeps the write fence after same-session save because cold-reopen persistence is not verified', async () => {
     const f = fixture();
     const operation = createNativeZoneCandidateOperation(f.deps);
@@ -202,6 +231,21 @@ describe('single native zone creation operation with no blind retries', () => {
       reason: expect.stringContaining('reconciliation'),
     });
     expect(f.create).toHaveBeenCalledOnce();
+  });
+
+  it('does not save a deleted source if focus changed during exact-id rollback', async () => {
+    const f = fixture([baseline, created, created]);
+    f.deleteSource.mockImplementation(async () => {
+      f.focus.mockResolvedValue('different-project+pcb');
+      return true;
+    });
+    await expect(
+      createNativeZoneCandidateOperation(f.deps).execute(expected),
+    ).resolves.toMatchObject({
+      status: 'uncertain',
+    });
+    expect(f.deleteSource).toHaveBeenCalledExactlyOnceWith('new-source');
+    expect(f.save).not.toHaveBeenCalled();
   });
 
   it('fences all subsequent writes if exact-id rollback did not recover the original inventory', async () => {
