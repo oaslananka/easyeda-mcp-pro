@@ -150,6 +150,101 @@ describe('system API operations', () => {
     expect(getEasyedaVersion).toHaveBeenCalledOnce();
   });
 
+  it('reports native-zone storage capability read-only, but never claims public apply is ready', async () => {
+    const getExtensionUserConfig = vi.fn(() => undefined);
+    const setExtensionUserConfig = vi.fn(async () => true);
+    const readFirstPath = vi.fn(() => ({ getExtensionUserConfig, setExtensionUserConfig }));
+    const operations = createSystemApiOperations(createDependencies({ readFirstPath }));
+    await expect(operations.getStatus()).resolves.toMatchObject({
+      nativeZoneSafety: {
+        storage: 'readable',
+        pendingFence: 'absent',
+        coordinator: 'unavailable',
+        publicApplyEnabled: false,
+      },
+    });
+    expect(getExtensionUserConfig).toHaveBeenCalledOnce();
+    expect(setExtensionUserConfig).not.toHaveBeenCalled();
+  });
+
+  it('does not treat invalid native storage marker values as safely absent', async () => {
+    const readFirstPath = vi.fn(() => ({
+      getExtensionUserConfig: vi.fn(() => ({ bad: 'nonstring-marker' })),
+      setExtensionUserConfig: vi.fn(async () => true),
+    }));
+    const status = await createSystemApiOperations(
+      createDependencies({ readFirstPath }),
+    ).getStatus();
+    expect(status).toMatchObject({
+      nativeZoneSafety: {
+        storage: 'readable',
+        pendingFence: 'present',
+        coordinator: 'unavailable',
+        publicApplyEnabled: false,
+      },
+    });
+    expect(JSON.stringify(status)).not.toContain('nonstring-marker');
+  });
+
+  it('reports a present pending native-zone fence without disclosing its contents', async () => {
+    const marker = 'secret-do-not-return-' + 'x'.repeat(40);
+    const readFirstPath = vi.fn(() => ({
+      getExtensionUserConfig: vi.fn(() => marker),
+      setExtensionUserConfig: vi.fn(async () => true),
+    }));
+    const status = await createSystemApiOperations(
+      createDependencies({ readFirstPath }),
+    ).getStatus();
+    expect(status).toMatchObject({
+      nativeZoneSafety: {
+        storage: 'readable',
+        pendingFence: 'present',
+        publicApplyEnabled: false,
+      },
+    });
+    expect(JSON.stringify(status)).not.toContain(marker);
+  });
+
+  it('reports an inaccessible extension storage API without throwing or claiming an absent fence', async () => {
+    const readFirstPath = vi.fn(() => ({
+      getExtensionUserConfig: () => {
+        throw new TypeError('extension-only');
+      },
+      setExtensionUserConfig: vi.fn(async () => true),
+    }));
+    await expect(
+      createSystemApiOperations(createDependencies({ readFirstPath })).getStatus(),
+    ).resolves.toMatchObject({
+      nativeZoneSafety: {
+        storage: 'unavailable',
+        pendingFence: 'unknown',
+        coordinator: 'unavailable',
+        publicApplyEnabled: false,
+      },
+    });
+  });
+
+  it('denies confidence when the storage provider returns a Promise or lacks its setter', async () => {
+    const wrongGet = createDependencies({
+      readFirstPath: vi.fn(() => ({
+        getExtensionUserConfig: async () => undefined,
+        setExtensionUserConfig: async () => true,
+      })),
+    });
+    const missingSetter = createDependencies({
+      readFirstPath: vi.fn(() => ({ getExtensionUserConfig: () => undefined })),
+    });
+    for (const deps of [wrongGet, missingSetter]) {
+      await expect(createSystemApiOperations(deps).getStatus()).resolves.toMatchObject({
+        nativeZoneSafety: {
+          pendingFence: 'unknown',
+          storage: 'unavailable',
+          publicApplyEnabled: false,
+        },
+      });
+    }
+  });
+
   it('reports status with the full dispatcher capability list and build id', async () => {
     const dependencies = createDependencies();
     const operations = createSystemApiOperations(dependencies);

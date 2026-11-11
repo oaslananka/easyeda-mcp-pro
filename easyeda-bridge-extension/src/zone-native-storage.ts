@@ -1,5 +1,5 @@
 import type { ApiRuntime } from './api-runtime.js';
-import type { ZoneFenceStorage } from './zone-durable-write-fence.js';
+import { NATIVE_ZONE_FENCE_KEY, type ZoneFenceStorage } from './zone-durable-write-fence.js';
 
 type NativeReader = ApiRuntime['readFirstPath'];
 
@@ -15,7 +15,7 @@ interface EasyedaExtensionStorage {
  */
 export function createEasyedaZoneStorage(readFirstPath: NativeReader): ZoneFenceStorage {
   function requiredStorage(): Required<EasyedaExtensionStorage> {
-    const storage = readFirstPath<EasyedaExtensionStorage>(['SYS_Storage', 'sys_Storage']);
+    const storage = readFirstPath<EasyedaExtensionStorage>(['sys_Storage', 'SYS_Storage']);
     if (
       !storage ||
       typeof storage.getExtensionUserConfig !== 'function' ||
@@ -31,8 +31,11 @@ export function createEasyedaZoneStorage(readFirstPath: NativeReader): ZoneFence
       const storage = requiredStorage();
       const value = storage.getExtensionUserConfig(key);
       if (value === undefined) return null;
-      // An unexpected object (including a Promise) is an existing, corrupt
-      // marker, NEVER evidence for a fresh empty durable store.
+      // This API must be synchronous. A thenable result is a mismatched runtime,
+      // not a known persisted marker or proof of an empty store.
+      if (value !== null && typeof value === 'object' && 'then' in value)
+        throw new Error('Native extension storage getter returned an asynchronous result.');
+      // Unsupported values are nonempty/invalid markers, NEVER absent evidence.
       return typeof value === 'string' ? value : 'invalid-native-zone-marker';
     },
     async setItem(key, value) {
@@ -41,4 +44,25 @@ export function createEasyedaZoneStorage(readFirstPath: NativeReader): ZoneFence
       if (result !== true) throw new Error('Native extension storage did not confirm persistence.');
     },
   };
+}
+
+/** Safe status telemetry. No native writes, no marker disclosure or recovery authority. */
+export async function inspectNativeZoneSafety(readFirstPath: NativeReader) {
+  const notReady = {
+    storage: 'unavailable' as const,
+    pendingFence: 'unknown' as const,
+    coordinator: 'unavailable' as const,
+    coldReopenVerified: false as const,
+    publicApplyEnabled: false as const,
+  };
+  try {
+    const stored = await createEasyedaZoneStorage(readFirstPath).getItem(NATIVE_ZONE_FENCE_KEY);
+    return {
+      ...notReady,
+      storage: 'readable' as const,
+      pendingFence: stored === null ? ('absent' as const) : ('present' as const),
+    };
+  } catch {
+    return notReady;
+  }
 }

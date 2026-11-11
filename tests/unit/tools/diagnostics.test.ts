@@ -135,6 +135,47 @@ describe('Diagnostics Tools', () => {
     expect(result?.uptime_ms).toBeGreaterThanOrEqual(0);
   });
 
+  it('exposes verified read-only native zone status without trusting extra bridge fields', async () => {
+    const tool = registry.get('easyeda_bridge_status');
+    bridgeCall.mockResolvedValue({
+      bridgeVersion: '1.13.1',
+      nativeZoneSafety: {
+        storage: 'readable',
+        pendingFence: 'present',
+        coordinator: 'unavailable',
+        coldReopenVerified: false,
+        publicApplyEnabled: false,
+        storedMarker: 'private-marker-data-do-not-leak',
+      },
+    });
+    const result = await tool?.handler(context, {});
+    expect(result?.native_zone_safety).toEqual({
+      storage: 'readable',
+      pendingFence: 'present',
+      coordinator: 'unavailable',
+      coldReopenVerified: false,
+      publicApplyEnabled: false,
+    });
+    expect(JSON.stringify(result)).not.toContain('private-marker-data');
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('does not expose invalid or legacy native zone safety data as a validated result', async () => {
+    const tool = registry.get('easyeda_bridge_status');
+    bridgeCall.mockResolvedValue({
+      nativeZoneSafety: {
+        storage: 'readable',
+        pendingFence: 'absent',
+        coordinator: 'unavailable',
+        coldReopenVerified: true,
+        publicApplyEnabled: true,
+      },
+    });
+    const result = await tool?.handler(context, {});
+    expect(result?.native_zone_safety).toBeUndefined();
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
   it('easyeda_bridge_status returns disconnected when bridge not connected', async () => {
     const tool = registry.get('easyeda_bridge_status');
     expect(tool).toBeDefined();

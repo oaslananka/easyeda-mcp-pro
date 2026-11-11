@@ -31,6 +31,14 @@ const featureMaturityEntrySchema = z.object({
 
 const featureMaturitySchema = z.record(z.string(), featureMaturityEntrySchema);
 
+const nativeZoneSafetySchema = z.object({
+  storage: z.enum(['readable', 'unavailable']),
+  pendingFence: z.enum(['absent', 'present', 'unknown']),
+  coordinator: z.literal('unavailable'),
+  coldReopenVerified: z.literal(false),
+  publicApplyEnabled: z.literal(false),
+});
+
 const bridgeDiagnosticsSchema = z.object({
   manager_uptime_ms: z.number().optional(),
   active_port: z.number().optional(),
@@ -157,6 +165,7 @@ function registerDiagnosticsCore(
       owner_pid: z.number().int().positive().optional(),
       owner_port: z.number().int().min(1).max(65535).optional(),
       diagnostics: bridgeDiagnosticsSchema.optional(),
+      native_zone_safety: nativeZoneSafetySchema.optional(),
     }),
     handler: async (ctx: ToolContext) => {
       if (!ctx.bridge.connected) {
@@ -179,9 +188,12 @@ function registerDiagnosticsCore(
           capabilities?: string[];
           devMode?: boolean;
           lastHeartbeatMs?: number;
+          nativeZoneSafety?: unknown;
         };
+        const nativeZoneSafety = nativeZoneSafetySchema.safeParse(data.nativeZoneSafety);
         return {
           connected: true,
+          native_zone_safety: nativeZoneSafety.success ? nativeZoneSafety.data : undefined,
           bridge_version: data.bridgeVersion,
           easyeda_version: data.easyedaVersion,
           capabilities: data.capabilities,
