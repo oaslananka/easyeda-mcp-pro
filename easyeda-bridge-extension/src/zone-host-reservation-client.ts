@@ -53,7 +53,7 @@ function isPositiveHostReservationResponse(value: unknown, id: string): boolean 
 }
 
 export function createHostZoneReservationClient(
-  { send, isLocalConnected, timers }: HostReservationClientDependencies,
+  dependencies: HostReservationClientDependencies,
   timeoutMs = HOST_REQUEST_TIMEOUT_MS,
 ): HostZoneReservationClient {
   let epoch = 0;
@@ -65,7 +65,7 @@ export function createHostZoneReservationClient(
     if (!pending) return;
     const request = pending;
     pending = undefined;
-    timers.clearTimeout(request.timer);
+    dependencies.timers.clearTimeout(request.timer);
     request.resolve(granted && request.epoch === epoch);
   }
 
@@ -85,7 +85,8 @@ export function createHostZoneReservationClient(
   }
 
   async function exclusive(action: () => Promise<boolean>): Promise<boolean> {
-    if (attempted || pending || !isLocalConnected() || typeof action !== 'function') return false;
+    if (attempted || pending || !dependencies.isLocalConnected() || typeof action !== 'function')
+      return false;
     attempted = true;
     const requestEpoch = epoch;
     const id = 'host_zone_' + ++sequence;
@@ -93,18 +94,20 @@ export function createHostZoneReservationClient(
 
     try {
       granted = await new Promise<boolean>((resolve) => {
-        const timer = timers.setTimeout(() => settle(false), timeoutMs);
+        const timer = dependencies.timers.setTimeout(() => {
+          settle(false);
+        }, timeoutMs);
         pending = { id, epoch: requestEpoch, timer, resolve };
-        send({ id, type: 'request', method: HOST_NATIVE_ZONE_RESERVATION_METHOD });
+        dependencies.send({ id, type: 'request', method: HOST_NATIVE_ZONE_RESERVATION_METHOD });
       });
     } catch {
       settle(false);
       return false;
     }
-    if (!granted || requestEpoch !== epoch || !isLocalConnected()) return false;
+    if (!granted || requestEpoch !== epoch || !dependencies.isLocalConnected()) return false;
     try {
       const actionResult = await action();
-      return actionResult === true && requestEpoch === epoch && isLocalConnected();
+      return actionResult === true && requestEpoch === epoch && dependencies.isLocalConnected();
     } catch {
       // The host lock remains held and the native fence requires independent
       // recovery. Never classify a failed/unknown action as safe to retry.

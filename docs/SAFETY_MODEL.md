@@ -22,6 +22,13 @@ or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
 until the entire create/rebuild/save/cold-reopen/rollback and approval chain
 has been accepted on a disposable project.
 
+The extension packaging size ratchet was intentionally measured after adding
+the local private reservation protocol: .eext 221,604 → 222,329 bytes
+(+725 compressed bytes); loader index.js 354,124 → 356,913 bytes
+(+2,789 bytes); dispatcher.js remains 291,600 bytes. The ratchet
+tracks the complete non-minified testable loader; no size checker or
+production package-ceiling enforcement was disabled.
+
 ## Bridge version drift
 
 When the active EasyEDA extension and MCP server report different versions,
