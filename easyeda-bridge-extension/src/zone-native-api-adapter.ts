@@ -219,7 +219,7 @@ export function createNativeZoneApiAdapter({
     focus,
     preflight,
     readInventory: () => readNativeZoneInventory(readFirstPath),
-    reserveMutation: (focusId) => writeFence.reserve(focusId),
+    reserveMutation: (reservation) => writeFence.reserve(reservation),
     create,
     rebuild,
     save,

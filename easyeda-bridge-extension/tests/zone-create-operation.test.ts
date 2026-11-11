@@ -66,7 +66,7 @@ function fixture(
   const rebuild = vi.fn(async (_sourceId: string) => ({ getState_PourPrimitiveId: () => 'e336' }));
   const save = vi.fn(async () => true);
   const deleteSource = vi.fn(async (_id: string) => true);
-  const reserveMutation = vi.fn(async (_focusId: string) => true);
+  const reserveMutation = vi.fn(async (_reservation: unknown) => true);
   return {
     deps: { focus, preflight, readInventory, create, rebuild, save, deleteSource, reserveMutation },
     focus,
@@ -134,7 +134,11 @@ describe('single native zone creation operation with no blind retries', () => {
     ).resolves.toMatchObject({
       status: 'saved-readback',
     });
-    expect(f.reserveMutation).toHaveBeenCalledExactlyOnceWith('focus-project+pcb');
+    expect(f.reserveMutation).toHaveBeenCalledExactlyOnceWith({
+      focus: 'focus-project+pcb',
+      before: baseline,
+      expected,
+    });
     expect(f.reserveMutation.mock.invocationCallOrder[0]).toBeLessThan(
       f.create.mock.invocationCallOrder[0],
     );

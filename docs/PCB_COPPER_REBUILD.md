@@ -105,6 +105,32 @@ capability inspection** in the isolated EasyEDA Pro 3.2.209 editor, but
 that does not demonstrate the full extension lifecycle or persistence
 across a cold browser restart.
 
+The pending marker now stores a **versioned full pre-write native
+Pour/Poured inventory** (primitive identities, requested source properties,
+and validated filled-copper signatures) together with the exact focused PCB
+and requested zone plan. The serializer checks map-key/source-ID integrity,
+orders sources deterministically, and refuses unsupported/malformed snapshots
+or records larger than 256,000 characters **before** any native mutation.
+The existing storage key is retained so legacy v1 markers cannot accidentally
+be bypassed by a renamed key; those older records lack recoverable baseline
+evidence and remain blocked.
+
+`assessZoneRecoveryCandidate()` provides a **read-only** interpretation
+of a subsequently observed inventory: `candidate-unchanged`,
+`candidate-created` (one exact matching filled Poured), or `unresolved`.
+It rejects changed existing copper, incorrect focus, duplicates, missing
+filled copper, tampered snapshots, and legacy markers. Every verdict
+explicitly returns `persistenceVerified: false` and
+`releaseAuthorized: false`: this classifier neither proves a cold
+editor restart happened nor deletes a marker or authorizes a retry.
+A separate independently witnessed cold reopen and durable, audited
+recovery protocol are still mandatory.
+
+In one **read-only** inspection of the isolated 3.2.209 test PCB,
+the original single Pour/Poured inventory encoded to a 32,813-character
+marker, within this cap. This was only a capacity/readback probe:
+no extension configuration or PCB was modified.
+
 **No auto-clear, timeout-based expiry or manual reset API is provided.**
 Removing the marker requires a separately designed and verified cold-reopen
 reconciliation/restore contract. The key is intentionally global to the

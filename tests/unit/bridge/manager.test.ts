@@ -175,27 +175,37 @@ describe('BridgeManager', () => {
   });
 
   it('should replace a connected bridge client with a newer validated handshake', async () => {
-    const port = await getFreePort();
-    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
+    // Probed OS ports are released before connect(): allow alternate candidates
+    // if another concurrent test/runner binds the initial port (EADDRINUSE).
+    const portCandidates = await getFreePortCandidates();
+    const config = createTestConfig({
+      BRIDGE_HOST: '127.0.0.1',
+      BRIDGE_PORT_SCAN: portCandidates,
+    });
     const manager = new BridgeManager(config);
-    await manager.connect();
+    let first: WebSocket | undefined;
+    let second: WebSocket | undefined;
+    try {
+      await manager.connect();
+      const port = manager.activePort;
+      first = await openSocket(port);
+      sendHandshake(first);
+      await expect(waitForMessage(first)).resolves.toMatchObject({ type: 'hello' });
+      expect(manager.connected).toBe(true);
 
-    const first = await openSocket(port);
-    sendHandshake(first);
-    await expect(waitForMessage(first)).resolves.toMatchObject({ type: 'hello' });
-    expect(manager.connected).toBe(true);
+      const firstClosed = waitForClose(first);
+      second = await openSocket(port);
+      sendHandshake(second);
+      await expect(waitForMessage(second)).resolves.toMatchObject({ type: 'hello' });
 
-    const firstClosed = waitForClose(first);
-    const second = await openSocket(port);
-    sendHandshake(second);
-    await expect(waitForMessage(second)).resolves.toMatchObject({ type: 'hello' });
-
-    await expect(firstClosed).resolves.toBe(4000);
-    expect(manager.connected).toBe(true);
-    expect(manager.activePort).toBe(port);
-
-    second.close();
-    manager.disconnect('test complete');
+      await expect(firstClosed).resolves.toBe(4000);
+      expect(manager.connected).toBe(true);
+      expect(manager.activePort).toBe(port);
+    } finally {
+      first?.close();
+      second?.close();
+      manager.disconnect('test complete');
+    }
   });
 
   it('does not let a stale extension replace an active exact-version session', async () => {
