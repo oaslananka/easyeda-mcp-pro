@@ -144,7 +144,7 @@ export function createNativeZoneApiAdapter({
   const failClosedLock: ZoneFenceLock = { exclusive: async () => false };
   const writeFence = createPersistentZoneWriteFence(
     createEasyedaZoneStorage(readFirstPath),
-    reservationLock ?? failClosedLock,
+    (reservationLock as ZoneFenceLock | undefined) ?? failClosedLock,
   );
   const focus = () => documentIdentity(readFirstPath);
 
