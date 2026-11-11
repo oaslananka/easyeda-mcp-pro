@@ -688,6 +688,46 @@ describe('createPcbMutationOperations', () => {
     },
   );
 
+  it.each(['wrong beta return', 'matching native return'])(
+    'rejects contour-only copper as an actual fill with a %s',
+    async (scenario) => {
+      const old = fakePouredWithFills('e336', 'e336', 12);
+      const contourOnly = {
+        ...fakePoured('target-id', 'target-id'),
+        getState_PourFills: () => [
+          {
+            id: 'outline-only',
+            lineWidth: 0.2,
+            fill: false,
+            path: { getSource: () => ['R', 1400, -1200, 120, 80, 0, 0] },
+          },
+        ],
+      };
+      const pour = fakePour('target-id', {
+        rebuildResult: scenario === 'wrong beta return' ? old : contourOnly,
+      });
+      const getAllPoured = vi
+        .fn<() => Promise<unknown[]>>()
+        .mockResolvedValueOnce([old])
+        .mockResolvedValueOnce([old, contourOnly]);
+      const { operations } = createOperations({
+        pourClass: {
+          get: vi.fn(async () => pour.primitive),
+          getAll: vi.fn(async () => [pour.primitive]),
+        },
+        pouredClass: { getAll: getAllPoured },
+      });
+
+      const result = await operations.rebuildCopper({ pourIds: ['target-id'] });
+      expect(result).toMatchObject({
+        success: false,
+        rebuiltCount: 0,
+        results: [{ pourId: 'target-id', status: 'readback-mismatch', verified: false }],
+      });
+      expect(pour.rebuildCopperRegion).toHaveBeenCalledOnce();
+    },
+  );
+
   it('reconciles a wrong beta return only when independent new copper and unchanged existing fills prove the target', async () => {
     const existing = fakePouredWithFills('e336', 'e336', 12);
     const newlyFilled = fakePouredWithFills('target-id', 'target-id', 42);

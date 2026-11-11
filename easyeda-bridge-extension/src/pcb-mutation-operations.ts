@@ -87,6 +87,7 @@ interface PouredEvidence {
   pouredId: string;
   sourceId: string;
   fillSignature: string;
+  hasFilledGeometry: boolean;
 }
 
 function validCopperPathPart(part: unknown): boolean {
@@ -132,7 +133,9 @@ function fillSignature(fill: unknown): unknown[] | undefined {
   }
 }
 
-function pouredFillSignature(item: unknown): string | undefined {
+function pouredFillSignature(
+  item: unknown,
+): { signature: string; hasFilledGeometry: boolean } | undefined {
   const getter = nativeMethod(item, 'getState_PourFills');
   if (!getter) return undefined;
   let fills: unknown;
@@ -144,7 +147,10 @@ function pouredFillSignature(item: unknown): string | undefined {
   if (!Array.isArray(fills) || fills.length === 0) return undefined;
   const signatures = fills.map(fillSignature);
   if (signatures.some((signature) => signature === undefined)) return undefined;
-  return JSON.stringify(signatures);
+  return {
+    signature: JSON.stringify(signatures),
+    hasFilledGeometry: signatures.some((signature) => signature?.[2] === true),
+  };
 }
 
 function snapshotPoured(items: unknown[]): Map<string, PouredEvidence> | undefined {
@@ -152,9 +158,14 @@ function snapshotPoured(items: unknown[]): Map<string, PouredEvidence> | undefin
   for (const item of items) {
     const pouredId = nativeStateString(item, 'getState_PrimitiveId');
     const sourceId = nativeStateString(item, 'getState_PourPrimitiveId');
-    const fillSignature = pouredFillSignature(item);
-    if (!pouredId || !sourceId || !fillSignature || snapshot.has(sourceId)) return undefined;
-    snapshot.set(sourceId, { pouredId, sourceId, fillSignature });
+    const fillEvidence = pouredFillSignature(item);
+    if (!pouredId || !sourceId || !fillEvidence || snapshot.has(sourceId)) return undefined;
+    snapshot.set(sourceId, {
+      pouredId,
+      sourceId,
+      fillSignature: fillEvidence.signature,
+      hasFilledGeometry: fillEvidence.hasFilledGeometry,
+    });
   }
   return snapshot;
 }
@@ -263,6 +274,7 @@ function independentlyReconciled(
   if (
     !target ||
     target.pouredId !== attempt.pourId ||
+    !target.hasFilledGeometry ||
     !onlyBatchCopperAdded(beforeEvidence, afterEvidence, batchRebuiltIds) ||
     !existingPouredUnchanged(beforeEvidence, afterEvidence) ||
     !returnNamesPriorCopper(attempt, beforeEvidence, afterEvidence, earlierRebuiltIds)
@@ -715,6 +727,7 @@ function directRebuildItemWithGeometry(
     !before ||
     !after ||
     target?.pouredId !== pouredId ||
+    !target.hasFilledGeometry ||
     unexpectedPouredChanges(before, after, attemptedIds)
   ) {
     return {
