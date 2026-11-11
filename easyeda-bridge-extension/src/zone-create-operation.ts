@@ -11,7 +11,7 @@ import {
 // A future adapter must supply a real zero-write exact-focus/geometry preflight.
 export interface NativeZoneCreateDependencies {
   focus(): Promise<string | undefined>;
-  preflight(): Promise<boolean>;
+  preflight(expected: ExpectedZoneSource): Promise<boolean>;
   readInventory(): Promise<ZoneInventory | undefined>;
   create(expected: ExpectedZoneSource): Promise<unknown>;
   rebuild(sourceId: string): Promise<unknown>;
@@ -27,7 +27,7 @@ export type NativeZoneCreateResult =
       saveReturnedTrue: true;
       persistenceVerified: false;
     }
-  | { status: 'rolled-back'; sourceId: string; reason: string }
+  | { status: 'rollback-readback'; sourceId: string; reason: string; persistenceVerified: false }
   | { status: 'blocked'; reason: string }
   | { status: 'uncertain'; reason: string };
 
@@ -76,7 +76,12 @@ async function recoverIncompleteZone(
     !inventoryEquals(attempt.before, restored)
   )
     return uncertain('Exact-id rollback did not restore the original native inventory.');
-  return { status: 'rolled-back', sourceId: rollback.sourceId, reason };
+  return {
+    status: 'rollback-readback',
+    sourceId: rollback.sourceId,
+    reason,
+    persistenceVerified: false,
+  };
 }
 
 async function verifySavedZone(
@@ -120,7 +125,7 @@ async function preflightZone(
   expected: ExpectedZoneSource,
 ): Promise<ZoneAttempt | undefined> {
   const focus = await deps.focus();
-  if (!focus || !(await deps.preflight())) return undefined;
+  if (!focus || !(await deps.preflight(expected))) return undefined;
   const before = await deps.readInventory();
   if (!before || (await deps.focus()) !== focus) return undefined;
   if (findMatchingExistingZoneSources(before, expected).length > 0)
@@ -161,8 +166,8 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
       if (!candidate.safeToDelete)
         return uncertain('Create did not produce exactly one identifiable matching native Pour.');
       const result = await rebuildAndVerifyZone(deps, attempt, candidate.sourceId);
-      if (result.status === 'saved-readback' || result.status === 'rolled-back')
-        reconciliationRequired = false;
+      // No same-session result proves persistence across an editor restart.
+      // The dispatcher remains locked until an independent cold-reopen check exists.
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

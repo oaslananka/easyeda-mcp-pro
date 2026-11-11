@@ -89,10 +89,27 @@ describe('single native zone creation operation with no blind retries', () => {
       saveReturnedTrue: true,
       persistenceVerified: false,
     });
+    expect(f.preflight).toHaveBeenCalledExactlyOnceWith(expected);
     expect(f.create).toHaveBeenCalledExactlyOnceWith(expected);
     expect(f.rebuild).toHaveBeenCalledExactlyOnceWith('new-source');
     expect(f.save).toHaveBeenCalledOnce();
     expect(f.deleteSource).not.toHaveBeenCalled();
+  });
+
+  it('keeps the write fence after same-session save because cold-reopen persistence is not verified', async () => {
+    const f = fixture();
+    const operation = createNativeZoneCandidateOperation(f.deps);
+    await expect(operation.execute(expected)).resolves.toMatchObject({
+      status: 'saved-readback',
+      persistenceVerified: false,
+    });
+    await expect(
+      operation.execute({ ...expected, pourName: 'GND_ANOTHER' }),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      reason: expect.stringContaining('reconciliation'),
+    });
+    expect(f.create).toHaveBeenCalledOnce();
   });
 
   it('does not create an identical second zone after reconnect when the first is already inventoried', async () => {
@@ -152,16 +169,18 @@ describe('single native zone creation operation with no blind retries', () => {
     const f = fixture([baseline, created, created, baseline]);
     const op = createNativeZoneCandidateOperation(f.deps);
     await expect(op.execute(expected)).resolves.toMatchObject({
-      status: 'rolled-back',
+      status: 'rollback-readback',
       sourceId: 'new-source',
+      persistenceVerified: false,
     });
     expect(f.deleteSource).toHaveBeenCalledExactlyOnceWith('new-source');
     expect(f.save).toHaveBeenCalledOnce();
-    // Successful exact rollback releases the in-process fence.
-    expect(await op.execute(expected)).not.toMatchObject({
+    // No cold-reopen proof: the in-process write fence must still hold.
+    expect(await op.execute(expected)).toMatchObject({
       status: 'blocked',
       reason: expect.stringContaining('reconciliation'),
     });
+    expect(f.create).toHaveBeenCalledOnce();
   });
 
   it('fences all subsequent writes if exact-id rollback did not recover the original inventory', async () => {
