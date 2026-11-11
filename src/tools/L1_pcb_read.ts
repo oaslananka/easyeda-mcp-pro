@@ -320,7 +320,7 @@ function registerPcbReadTools(
             'geometry; unavailable means native identity/inspection was not verified. ' +
             'intersectionVerified denotes contact, whereas containmentVerified requires a ' +
             'strictly interior candidate without boundary contact or overhang. Neither is ' +
-            'NOT proof of copper fill, keepout clearance, plane continuity, DRC, or apply approval. ' +
+            'proof of copper fill, keepout clearance, plane continuity, DRC, or apply approval. ' +
             'outline is the native rectangle only; null for polygons to avoid suggesting that ' +
             'their bounding box is a board outline. readyToApply always stays false.',
         ),

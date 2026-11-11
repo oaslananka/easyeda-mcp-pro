@@ -2480,7 +2480,7 @@ Returns a JSON object matching the schema:
 
 **Output field semantics:**
 
-- `boardGeometry`: Null when no rectangle is supplied or there is no active PCB; otherwise status is intersection-confirmed/outside-board for a single native rectangle; observed for one explicitly closed, simple native L polyline with a verified inside/partial/outside intersection field. unsupported-outline means ambiguous geometry; unavailable means native identity/inspection was not verified. intersectionVerified is true for observed inside/partial geometric contact only, NOT proof of copper fill, keepout clearance, plane continuity, DRC, or apply approval. outline is the native rectangle only; null for polygons to avoid suggesting that their bounding box is a board outline. readyToApply always stays false.
+- `boardGeometry`: Null when no rectangle is supplied or there is no active PCB; otherwise status is intersection-confirmed/outside-board for a single native rectangle; observed for one explicitly closed, simple native L polyline with a verified inside/partial/outside intersection field. unsupported-outline means ambiguous geometry; unavailable means native identity/inspection was not verified. intersectionVerified denotes contact, whereas containmentVerified requires a strictly interior candidate without boundary contact or overhang. Neither is proof of copper fill, keepout clearance, plane continuity, DRC, or apply approval. outline is the native rectangle only; null for polygons to avoid suggesting that their bounding box is a board outline. readyToApply always stays false.
 
 ---
 
