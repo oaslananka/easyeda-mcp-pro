@@ -22,10 +22,18 @@ or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
 until the entire create/rebuild/save/cold-reopen/rollback and approval chain
 has been accepted on a disposable project.
 
+The test-only native zone adapter also enforces factory-issued provenance for
+its injected host lock. A browser Web Lock, an arbitrary callback coordinator,
+or a forged plain object cannot reserve the native pending fence even if it
+implements an `exclusive()` function. A real loopback WebSocket integration
+test verifies the host RPC precedes a **simulated** storage-marker write and
+that the host lease survives disconnect. That simulation is not proof of a
+real editor cold reopen or PCB write, so public apply remains disabled.
+
 The extension packaging size ratchet was intentionally measured after adding
-the local private reservation protocol: .eext 221,604 → 222,329 bytes
-(+725 compressed bytes); loader index.js 354,124 → 356,913 bytes
-(+2,789 bytes); dispatcher.js remains 291,600 bytes. The ratchet
+the local private reservation protocol: .eext 221,604 → 222,372 bytes
+(+768 compressed bytes); loader index.js 354,124 → 357,046 bytes
+(+2,922 bytes); dispatcher.js remains 291,600 bytes. The ratchet
 tracks the complete non-minified testable loader; no size checker or
 production package-ceiling enforcement was disabled.
 
