@@ -14,6 +14,8 @@ import {
 } from './protocol.js';
 import { EasyedaApiMethodSchema } from './types.js';
 import { SERVER_VERSION } from '../config/version.js';
+import { NativeZoneHostWriterCoordinator } from './native-zone-host-writer.js';
+import { HostNativeZoneReservationService } from './host-native-zone-service.js';
 import { getGlobalMetricsCollector } from '../observability/index.js';
 import {
   BridgeListenerOwnership,
@@ -167,11 +169,13 @@ export class BridgeManager extends EventEmitter {
   private followerRelayServer: LocalBridgeRelayServer | null = null;
   private followerRelayClient: LocalBridgeRelayClient | null = null;
   private _ownershipConflict: BridgeOwnershipConflict | undefined;
+  private readonly nativeZoneHostReservation: HostNativeZoneReservationService;
 
-  constructor(config: EnvConfig) {
+  constructor(config: EnvConfig, nativeZoneCoordinator = new NativeZoneHostWriterCoordinator()) {
     super();
     this.config = config;
     this._methodRegistryHash = this.computeMethodRegistryHash();
+    this.nativeZoneHostReservation = new HostNativeZoneReservationService(nativeZoneCoordinator);
   }
 
   get lastHeartbeatMs(): number {
@@ -527,7 +531,7 @@ export class BridgeManager extends EventEmitter {
       } else if (data.type === 'response') {
         this.handleResponse(data as unknown as BridgeResponse);
       } else if (data.type === 'request') {
-        this.handleIncomingRequest(ws, data);
+        void this.handleIncomingRequest(ws, data);
       } else if (data.type === 'heartbeat') {
         this._lastHeartbeatMs = Date.now();
         this.emit('heartbeat', data.timestamp);
@@ -811,7 +815,7 @@ export class BridgeManager extends EventEmitter {
    * The server does not currently accept arbitrary extension requests,
    * so unknown methods are rejected with a structured error response.
    */
-  private handleIncomingRequest(ws: WebSocket, data: unknown): void {
+  private async handleIncomingRequest(ws: WebSocket, data: unknown): Promise<void> {
     const logger = getLogger();
     const parsed = BridgeRequestSchema.safeParse(data);
     if (!parsed.success) {
@@ -830,6 +834,11 @@ export class BridgeManager extends EventEmitter {
           durationMs: 0,
         }),
       );
+      return;
+    }
+
+    if (parsed.data.method === 'host.nativeZone.reserve') {
+      await this.handleHostNativeZoneReservation(ws, parsed.data.id, parsed.data.params);
       return;
     }
 
@@ -867,6 +876,30 @@ export class BridgeManager extends EventEmitter {
         },
         durationMs: 0,
       }),
+    );
+  }
+
+  /** Internal transport only; the response never authorizes native mutation. */
+  private async handleHostNativeZoneReservation(
+    ws: WebSocket,
+    id: string,
+    params: unknown,
+  ): Promise<void> {
+    const startedAt = Date.now();
+    const trustedSession =
+      ws === this.ws &&
+      this.state === 'connected' &&
+      this.isLoopbackHost(this.config.BRIDGE_HOST) &&
+      this._extensionVersion === SERVER_VERSION &&
+      this._extensionMethodListHash === this._methodRegistryHash &&
+      !this.registryMismatch &&
+      !this._ownershipConflict;
+    const response = await this.nativeZoneHostReservation.reserve(params, trustedSession);
+    // An editor replacement or disconnect mid-reservation does not return a
+    // grant to the stale socket; the OS-host lock stays retained for recovery.
+    if (ws.readyState !== WebSocket.OPEN || (response.ok && ws !== this.ws)) return;
+    ws.send(
+      JSON.stringify({ id, type: 'response', ...response, durationMs: Date.now() - startedAt }),
     );
   }
 

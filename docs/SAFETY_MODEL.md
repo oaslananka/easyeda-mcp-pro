@@ -4,6 +4,24 @@ This document explains the security posture, permission checks, data privacy con
 
 ---
 
+## Native copper-zone host reservation (experimental, not a write permission)
+
+The host writer reservation is an internal, extension-to-local-Bridge
+`host.nativeZone.reserve` request, **not a public MCP tool**. The local Bridge
+must already have accepted the active extension handshake, and the installed
+extension version and method registry must both exactly match the server.
+No arbitrary file path or client-selected lock directory is accepted.
+
+The OS-user-home lock is atomic between independent local server processes.
+A successful reservation remains held across a dropped connection, timeout,
+or server restart. **The extension cannot release it**; future release requires
+independent, trusted persisted-state and pending-fence recovery verification.
+The response explicitly states `authorizesMutation=false`. This internal
+transport alone does **not** connect the reservation to the native zone engine
+or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
+until the entire create/rebuild/save/cold-reopen/rollback and approval chain
+has been accepted on a disposable project.
+
 ## Bridge version drift
 
 When the active EasyEDA extension and MCP server report different versions,
