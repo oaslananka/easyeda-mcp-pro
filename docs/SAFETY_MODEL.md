@@ -64,6 +64,32 @@ the loader from 357,046 to 360,822 bytes and the dispatcher from
 291,600 to 295,370 bytes. Exact size ratchets remain enabled; no
 quality gate or maximum package cap is bypassed.
 
+After a native beta create returns, an initial source/Poured inventory
+that is **exactly identical** to the before snapshot is now observed one
+more time, read-only. If a new exact source appears only on that later read,
+the candidate reports a delayed-visibility diagnostic and stays uncertain.
+If no source appears, or the later inventory changes unexpectedly, it remains
+uncertain with the corresponding bounded diagnostic. No extra native
+create, rebuild, delete, save, automatic fence release or retry is triggered.
+An initial inventory with any baseline difference is not reinterpreted by
+a later read, and no read-only observation constitutes cold-reopen proof.
+
+Unexpected native API and reservation exceptions are never copied into
+candidate result text: error messages can contain private project paths,
+net names or other data. Only a fixed failure-phase diagnostic is exposed,
+while pre-write failures stay blocked and post-write failures stay uncertain
+with their recovery fence held. This differs from safe, predefined inventory
+reconciliation reasons, which remain available for investigation.
+
+Private native-zone candidate rejection now preserves the precise, predefined
+inventory-delta reason through the create and rebuild reconciliation paths.
+A changed original Pour/Poured, missing unique source, mismatched source
+properties, or unrelated copper delta can be distinguished without exposing
+project/source identifiers, raw fill signatures, or attempting a second native
+write. A rejected post-write candidate remains uncertain with its persistent
+fence held pending independent reconciliation; the reason is not evidence of
+safe rollback or permission to retry.
+
 Native copper readback now cross-checks each Pour's beta
 getCopperRegion() association with the separately enumerated
 PCB_PrimitivePoured.getAll() source/primitive IDs and exact fill geometry

@@ -40,6 +40,9 @@ interface ZoneAttempt {
   expected: ExpectedZoneSource;
 }
 
+/** Only internally generated plan-collision reasons may surface verbatim. */
+class ExistingNativeZonePlanError extends Error {}
+
 /**
  * Only these creation settings have survived a real isolated 3.2.209
  * native create/readback/cold-reopen cycle. Other values were silently
@@ -85,7 +88,12 @@ async function recoverIncompleteZone(
 ): Promise<NativeZoneCreateResult> {
   const rollback = planExactZoneRollback(attempt.before, observed, attempt.expected);
   if (!rollback.safeToDelete)
-    return uncertain('New copper is unverified and exact-id rollback is unavailable.');
+    return uncertain(
+      'New copper is unverified and exact-id rollback is unavailable. ' +
+        reason +
+        ' ' +
+        rollback.reason,
+    );
   if ((await deps.focus()) !== attempt.focus)
     return uncertain('Focus changed before rollback; no deletion attempted.');
   if (!(await deps.deleteSource(rollback.sourceId)))
@@ -144,8 +152,34 @@ async function rebuildAndVerifyZone(
     return uncertain('Rebuilt copper or unchanged PCB focus could not be verified.');
   const verdict = reconcileZoneCreation(attempt.before, afterRebuild, attempt.expected);
   if (verdict.status !== 'verified')
-    return recoverIncompleteZone(deps, attempt, afterRebuild, verdict.status);
+    return recoverIncompleteZone(deps, attempt, afterRebuild, verdict.reason);
   return verifySavedZone(deps, attempt);
+}
+
+/**
+ * An async beta native create may become observable after its first getter.
+ * One bounded follow-up READ (only when the first snapshot equals baseline)
+ * records this disagreement. It never continues the mutation based on a
+ * late source, deletes it, clears the persistent fence, or retries create.
+ */
+async function classifyLateNativeSource(
+  deps: NativeZoneCreateDependencies,
+  attempt: ZoneAttempt,
+): Promise<NativeZoneCreateResult> {
+  if ((await deps.focus()) !== attempt.focus)
+    return uncertain('Active PCB changed before bounded read-only follow-up inventory.');
+  const later = await deps.readInventory();
+  if (!later || (await deps.focus()) !== attempt.focus)
+    return uncertain('Bounded read-only follow-up inventory or PCB focus is unavailable.');
+  const exact = planExactZoneRollback(attempt.before, later, attempt.expected);
+  if (exact.safeToDelete)
+    return uncertain(
+      'A new native source was visible only on a later native inventory read. ' +
+        'It still requires independent reconciliation before any further mutation.',
+    );
+  if (inventoryEquals(attempt.before, later))
+    return uncertain('Neither bounded post-create inventory showed a new source.');
+  return uncertain('A later native inventory remains unsafe for reconciliation. ' + exact.reason);
 }
 
 async function preflightZone(
@@ -157,7 +191,9 @@ async function preflightZone(
   const before = await deps.readInventory();
   if (!before || (await deps.focus()) !== focus) return undefined;
   if (findMatchingExistingZoneSources(before, expected).length > 0)
-    throw new Error('An existing identical native Pour already matches this plan; do not retry.');
+    throw new ExistingNativeZonePlanError(
+      'An existing identical native Pour already matches this plan; do not retry.',
+    );
   return { focus, before, expected };
 }
 
@@ -209,17 +245,29 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
           'The new Pour inventory or active PCB could not be verified after create.',
         );
       const candidate = planExactZoneRollback(attempt.before, afterCreate, expected);
-      if (!candidate.safeToDelete)
-        return uncertain('Create did not produce exactly one identifiable matching native Pour.');
+      if (!candidate.safeToDelete) {
+        if (inventoryEquals(attempt.before, afterCreate))
+          return classifyLateNativeSource(deps, attempt);
+        return uncertain(
+          'Create did not produce exactly one identifiable matching native Pour. ' +
+            candidate.reason,
+        );
+      }
       const result = await rebuildAndVerifyZone(deps, attempt, candidate.sourceId);
       // No same-session result proves persistence across an editor restart.
       // The dispatcher remains locked until an independent cold-reopen check exists.
       return result;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      // A plan collision is our own fixed, non-sensitive diagnostic. All
+      // native-provided errors must stay opaque, including preflight failures.
+      if (error instanceof ExistingNativeZonePlanError)
+        return { status: 'blocked', reason: error.message };
       return nativeMutationStarted
-        ? uncertain('Native zone create/rebuild/save raised: ' + message)
-        : { status: 'blocked', reason: 'Read-only preflight raised: ' + message };
+        ? uncertain('Native zone operation failed; persisted outcome is unknown.')
+        : {
+            status: 'blocked',
+            reason: 'Native zone preflight or reservation failed; no native create was attempted.',
+          };
     } finally {
       inProgress = false;
     }
