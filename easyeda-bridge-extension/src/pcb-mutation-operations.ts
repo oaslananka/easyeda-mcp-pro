@@ -1,4 +1,5 @@
 import type { ApiRuntime } from './api-runtime.js';
+import { snapshotNativeZoneSources, type ZoneInventory } from './zone-create-evidence.js';
 
 export interface PcbMutationOperationDependencies {
   callFirst: ApiRuntime['callFirst'];
@@ -883,6 +884,29 @@ async function preRebuildEvidence(
     throw new Error('Existing Poured geometry cannot be snapshotted; no copper was rebuilt.');
   }
   return evidence;
+}
+
+/**
+ * Read-only, deterministic native inventory intended for the new-zone
+ * candidate. Reuses the copper-rebuild geometry validator rather than
+ * maintaining a second Poured interpretation. No mutation is invoked.
+ */
+export async function readNativeZoneInventory(
+  readFirstPath: ApiRuntime['readFirstPath'],
+): Promise<ZoneInventory | undefined> {
+  const pours = readFirstPath<unknown>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
+  const poured = readFirstPath<unknown>(['PCB_PrimitivePoured', 'pcb_PrimitivePoured']);
+  if (!nativeMethod(pours, 'getAll') || !nativeMethod(poured, 'getAll')) return undefined;
+
+  const sourceItems = await invokeNative(pours, 'getAll');
+  if (!Array.isArray(sourceItems)) return undefined;
+  const derivedItems = await readPouredItems(poured);
+  const sources = snapshotNativeZoneSources(sourceItems);
+  const derived = snapshotPoured(derivedItems);
+  if (!sources || !derived) return undefined;
+  // All copper must have a known native source, including the baseline.
+  if ([...derived.keys()].some((sourceId) => !sources.has(sourceId))) return undefined;
+  return { sources, derived };
 }
 
 export interface PcbMutationOperations {

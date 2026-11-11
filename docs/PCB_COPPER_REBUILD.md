@@ -59,3 +59,45 @@ topology, or persisted fill. Even if every currently supported read succeeds,
 readyToApply remains **false**, as production mutation, topology and
 ambiguous-error rollback gates have not been implemented. The diagnostic is
 not an apply authorization.
+
+## New-zone candidate verification (not production apply)
+
+The isolated, test-only `zone-create-evidence` and `zone-create-operation`
+modules implement deterministic **pre/post native inventory reconciliation**
+for a single candidate Pour. They are intentionally **not connected** to
+`pcb.addZone` or `easyeda_pcb_add_zone`; public apply still fails closed.
+The candidate verifies exact native source properties, one unique created
+source, a matching source-linked truly filled Poured object, unchanged
+pre-existing geometry, and exact-source-only rollback eligibility. It
+rejects duplicate plans and leaves the same-dispatcher write fence active
+after a native error, ambiguous result, or same-session save. A native
+`save() === true` and same-session readback are reported as
+`saved-readback`, **not** cold-reopen persistence proof. Similarly, an
+exact-ID deletion followed by a same-session baseline match is called
+`rollback-readback`, not verified durable rollback. Neither status clears
+the write fence without independent fresh-session evidence.
+
+A second real isolated 3.2.209 candidate-engine test identified a native
+normalization hazard: explicitly requesting priority `5` and line width `10`
+returned a new Pour with priority `1` and line width `0.2`. The candidate
+correctly refused to claim success, did not rebuild/save, and blocked retries.
+After full editor shutdown, an independently consistent pre-test SQLite backup
+was restored, and native reopen confirmed original source/Poured `e336` with
+74 fills. A follow-up request with native-measured priority `1`, line width
+`0.2`, `solid`, `preserveSilos=true`, unlocked `GND` / BOTTOM (layer `2`)
+produced a new matching source and one valid filled Poured object. Native
+`save()` returned true; a completely new editor session retained the exact
+source/Poured id and fill-signature SHA-256
+`5aba6844f3ca27b9b66dd0a504b058382373afbbeca7e9be22041d5d4151cc87`.
+The on-disk saved SQLite file matched its pre-close fingerprint. The test
+then restored the consistent original snapshot; native reopen again confirmed
+`e336`/74 only, byte-exact restored SQLite, and an unchanged separate
+schematic project. Unverified native values and TOP/non-GND creation are now
+blocked by the **test-only candidate before any write**.
+
+Live direct native tests in the separate Ubuntu 24.04, EasyEDA Pro
+3.2.209 disposable PCB showed target-associated filled copper can persist
+across a full editor restart even when the beta rebuild _return object_
+identifies the previous Pour. This does not prove that public MCP apply,
+conflicting topology, multiple board geometries, timeout recovery, or
+post-write DRC are safe. Issue #480 remains open.
