@@ -163,6 +163,32 @@ describe('Diagnostics Tools', () => {
     expect(tool?.outputSchema.safeParse(result).success).toBe(true);
   });
 
+  it('surfaces only privacy-safe tentative zone recovery classification and never grants release', async () => {
+    const tool = registry.get('easyeda_bridge_status');
+    bridgeCall.mockResolvedValue({
+      nativeZoneSafety: {
+        storage: 'readable',
+        pendingFence: 'present',
+        coordinator: 'unavailable',
+        coldReopenVerified: false,
+        publicApplyEnabled: false,
+        recoveryState: 'requires-focused-pcb',
+        recoveryReleaseAuthorized: false,
+        storedMarker: 'private-internal-source-and-project-id',
+      },
+    });
+    const result = await tool?.handler(context, {});
+    expect(result?.native_zone_safety).toMatchObject({
+      pendingFence: 'present',
+      recoveryState: 'requires-focused-pcb',
+      recoveryReleaseAuthorized: false,
+      coldReopenVerified: false,
+      publicApplyEnabled: false,
+    });
+    expect(JSON.stringify(result)).not.toContain('private-internal-source-and-project-id');
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
   it('does not expose invalid or legacy native zone safety data as a validated result', async () => {
     const tool = registry.get('easyeda_bridge_status');
     bridgeCall.mockResolvedValue({

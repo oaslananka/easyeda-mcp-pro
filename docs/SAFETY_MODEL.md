@@ -22,6 +22,30 @@ or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
 until the entire create/rebuild/save/cold-reopen/rollback and approval chain
 has been accepted on a disposable project.
 
+A pending native zone fence is inspected only through the extension's native
+storage provider. When one exists, read-only status reports a narrow recovery
+state: invalid marker, PCB focus required, focus mismatch, awaiting independent
+recovery, or unresolved. This status never performs a full copper inventory
+scan or leaks marker/source IDs, and always reports
+recoveryReleaseAuthorized=false. A matching active PCB focus does not prove
+cold-reopen persistence or correct copper geometry: coldReopenVerified=false
+and publicApplyEnabled=false remain unchanged. A failed native storage read
+never turns a pending marker into an absent fence.
+
+A synthetic v2 marker was also tested in an isolated EasyEDA Pro 3.2.209
+editor using its real installed Bridge: native SYS_Storage write/readback,
+complete editor shutdown/restart, exact persisted readback, independent
+read-only unchanged PCB inventory, and exact-value cleanup passed. The
+temporary marker was not created under a host-writer lease and held a
+synthetic, not project-derived, baseline; the result proves **zone-key
+storage durability only**, not independent full recovery or native writes.
+
+The bounded read-only recovery-status addition increases the measured
+extension package from 222,372 to 223,998 bytes (+1,626 compressed),
+the loader from 357,046 to 360,822 bytes and the dispatcher from
+291,600 to 295,370 bytes. Exact size ratchets remain enabled; no
+quality gate or maximum package cap is bypassed.
+
 Native copper readback now cross-checks each Pour's beta
 getCopperRegion() association with the separately enumerated
 PCB_PrimitivePoured.getAll() source/primitive IDs and exact fill geometry
