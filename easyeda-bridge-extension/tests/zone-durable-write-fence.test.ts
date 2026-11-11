@@ -150,6 +150,17 @@ describe('native zone write quarantine with persistent storage and exclusive loc
     expect(backing.setItem).not.toHaveBeenCalled();
   });
 
+  it('refuses a coordinator that reports success without running the protected reservation', async () => {
+    const backing = storage();
+    const dishonest = { exclusive: vi.fn(async () => true) };
+    expect(
+      await createPersistentZoneWriteFence(backing, dishonest).reserve(sample('project:pcb')),
+    ).toBe(false);
+    expect(dishonest.exclusive).toHaveBeenCalledOnce();
+    expect(backing.getItem).not.toHaveBeenCalled();
+    expect(backing.setItem).not.toHaveBeenCalled();
+  });
+
   it('serializes concurrent requests, reserving the marker at most once', async () => {
     const backing = storage();
     const mutex = lock();
