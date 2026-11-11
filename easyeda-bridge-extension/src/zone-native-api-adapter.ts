@@ -4,6 +4,7 @@ import { createNativeZoneCandidateOperation } from './zone-create-operation.js';
 import type { ExpectedZoneSource } from './zone-create-evidence.js';
 import { createPersistentZoneWriteFence } from './zone-durable-write-fence.js';
 import type { ZoneFenceLock } from './zone-fence-lock.js';
+import { isHostZoneReservationClient } from './zone-host-reservation-client.js';
 import { createEasyedaZoneStorage } from './zone-native-storage.js';
 import {
   documentIdentity,
@@ -18,9 +19,10 @@ interface NativeZoneAdapterDependencies {
   readFirstPath: NativeReader;
   readState: StateReader;
   /**
-   * Required external single-writer coordinator for this test-only native candidate.
+   * Required authenticated host reservation client for this test-only candidate.
    * The restricted EasyEDA extension main-script runtime does NOT promise browser
-   * navigator.locks. A missing provider must never inherit a host-page Web Lock.
+   * navigator.locks. Browser Web Locks and forged coordinators cannot grant
+   * cross-process native write authorization.
    */
   reservationLock: ZoneFenceLock;
 }
@@ -144,7 +146,7 @@ export function createNativeZoneApiAdapter({
   const failClosedLock: ZoneFenceLock = { exclusive: async () => false };
   const writeFence = createPersistentZoneWriteFence(
     createEasyedaZoneStorage(readFirstPath),
-    (reservationLock as ZoneFenceLock | undefined) ?? failClosedLock,
+    isHostZoneReservationClient(reservationLock) ? reservationLock : failClosedLock,
   );
   const focus = () => documentIdentity(readFirstPath);
 

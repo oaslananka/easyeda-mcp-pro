@@ -12,6 +12,20 @@ import type { ZoneFenceLock } from './zone-fence-lock.js';
 export const HOST_NATIVE_ZONE_RESERVATION_METHOD = 'host.nativeZone.reserve';
 const HOST_REQUEST_TIMEOUT_MS = 5_000;
 
+/**
+ * Factory-issued internal capability: only reservation clients
+ * built by the extension's private host transport may guard native Pour.
+ * A browser Web Lock, callback-only mock, or forged plain object is NOT a
+ * cross-process OS-host reservation, even if it exposes exclusive(). The
+ * host reply still must be verified by the client; this brand alone is not
+ * authentication or permission to perform a native write.
+ */
+const hostReservationCapabilities = new WeakSet<object>();
+
+export function isHostZoneReservationClient(value: unknown): value is HostZoneReservationClient {
+  return typeof value === 'object' && value !== null && hostReservationCapabilities.has(value);
+}
+
 interface HostReservationRequest {
   type: 'request';
   id: string;
@@ -115,5 +129,7 @@ export function createHostZoneReservationClient(
     }
   }
 
-  return { exclusive, handleResponse, reset };
+  const client = { exclusive, handleResponse, reset };
+  hostReservationCapabilities.add(client);
+  return client;
 }

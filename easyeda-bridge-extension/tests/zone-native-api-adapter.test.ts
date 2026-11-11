@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNativeZoneApiAdapter } from '../src/zone-native-api-adapter.js';
 import { createBrowserZoneFenceLock } from '../src/zone-fence-lock.js';
+import {
+  createHostZoneReservationClient,
+  type HostZoneReservationClient,
+} from '../src/zone-host-reservation-client.js';
 import type { ExpectedZoneSource } from '../src/zone-create-evidence.js';
 
 const expected: ExpectedZoneSource = {
@@ -134,6 +138,9 @@ function fixture() {
     PCB_Document: { save },
     PCB_MathPolygon: { createPolygon: vi.fn((input: unknown) => ({ getSource: () => input })) },
   };
+  let hostOccupied = false;
+  let hostUnavailable = false;
+  const hostRequests = vi.fn();
   const fenceCells = new Map<string, string>();
   const getExtensionUserConfig = vi.fn((key: string): unknown => fenceCells.get(key));
   const setExtensionUserConfig = vi.fn(async (key: string, value: string) => {
@@ -159,13 +166,47 @@ function fixture() {
       },
     ),
   };
+  const hostClient = (): HostZoneReservationClient => {
+    const client: HostZoneReservationClient = createHostZoneReservationClient({
+      send: (request) => {
+        hostRequests(request);
+        const granted = !hostOccupied && !hostUnavailable;
+        if (granted) hostOccupied = true;
+        queueMicrotask(() =>
+          client.handleResponse({
+            type: 'response',
+            id: request.id,
+            ok: true,
+            result: {
+              granted,
+              independentRecoveryRequired: true,
+              authorizesMutation: false,
+            },
+          }),
+        );
+      },
+      isLocalConnected: () => true,
+      timers: {
+        setTimeout: (callback, ms) => ({
+          source: 'native',
+          kind: 'timeout',
+          handle: setTimeout(callback, ms),
+        }),
+        clearTimeout: (handle) => {
+          if (handle?.source === 'native')
+            clearTimeout(handle.handle as ReturnType<typeof setTimeout>);
+        },
+      },
+    });
+    return client;
+  };
   const reader = <T>(paths: readonly string[]): T | undefined =>
     paths.map((path) => api[path]).find(Boolean) as T | undefined;
   const adapter = () =>
     createNativeZoneApiAdapter({
       readFirstPath: reader,
       readState: (item, key) => (item as Record<string, () => unknown>)?.['getState_' + key]?.(),
-      reservationLock: createBrowserZoneFenceLock(lockManager),
+      reservationLock: hostClient(),
     });
   return {
     api,
@@ -182,6 +223,10 @@ function fixture() {
     getExtensionUserConfig,
     setExtensionUserConfig,
     lockManager,
+    hostRequests,
+    blockHost: () => {
+      hostUnavailable = true;
+    },
     reader,
   };
 }
@@ -200,6 +245,33 @@ describe('real native API adapter for guarded zone candidate (not a public dispa
     await expect(adapter.execute(expected)).resolves.toMatchObject({ status: 'blocked' });
     expect(f.create).not.toHaveBeenCalled();
     expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
+  });
+
+  it('refuses browser Web Locks even if an origin-scoped lock reports exclusive success', async () => {
+    const f = fixture();
+    const adapter = createNativeZoneApiAdapter({
+      readFirstPath: f.reader,
+      readState: (item, key) => (item as Record<string, () => unknown>)?.['getState_' + key]?.(),
+      reservationLock: createBrowserZoneFenceLock(f.lockManager),
+    });
+    await expect(adapter.execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(f.lockManager.request).not.toHaveBeenCalled();
+    expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
+    expect(f.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a forged coordinator even if it runs callbacks and returns success', async () => {
+    const f = fixture();
+    const fake = { exclusive: vi.fn(async (action: () => Promise<boolean>) => action()) };
+    const adapter = createNativeZoneApiAdapter({
+      readFirstPath: f.reader,
+      readState: (item, key) => (item as Record<string, () => unknown>)?.['getState_' + key]?.(),
+      reservationLock: fake,
+    });
+    await expect(adapter.execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(fake.exclusive).not.toHaveBeenCalled();
+    expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
+    expect(f.create).not.toHaveBeenCalled();
   });
 
   it('blocks a coordinator failure before the write-ahead marker or any native Pour', async () => {
@@ -283,9 +355,7 @@ describe('real native API adapter for guarded zone candidate (not a public dispa
 
   it('refuses native creation when another tab already holds the exclusive lock', async () => {
     const f = fixture();
-    f.lockManager.request.mockImplementationOnce(async (_name, _options, callback) =>
-      callback(null),
-    );
+    f.blockHost();
     await expect(f.adapter().execute(expected)).resolves.toMatchObject({ status: 'blocked' });
     expect(f.create).not.toHaveBeenCalled();
     expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
