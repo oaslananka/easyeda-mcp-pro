@@ -3,7 +3,7 @@ import { readNativeZoneInventory } from './pcb-mutation-operations.js';
 import { createNativeZoneCandidateOperation } from './zone-create-operation.js';
 import type { ExpectedZoneSource } from './zone-create-evidence.js';
 import { createPersistentZoneWriteFence } from './zone-durable-write-fence.js';
-import { createBrowserZoneFenceLock } from './zone-fence-lock.js';
+import type { ZoneFenceLock } from './zone-fence-lock.js';
 import { createEasyedaZoneStorage } from './zone-native-storage.js';
 import {
   documentIdentity,
@@ -17,8 +17,12 @@ type StateReader = (value: unknown, key: string) => unknown;
 interface NativeZoneAdapterDependencies {
   readFirstPath: NativeReader;
   readState: StateReader;
-  /** Optional test injection; actual extension uses the origin Web Locks manager. */
-  lockManager?: unknown;
+  /**
+   * Required external single-writer coordinator for this test-only native candidate.
+   * The restricted EasyEDA extension main-script runtime does NOT promise browser
+   * navigator.locks. A missing provider must never inherit a host-page Web Lock.
+   */
+  reservationLock: ZoneFenceLock;
 }
 
 type NativeFn = (...args: unknown[]) => unknown;
@@ -133,12 +137,14 @@ function measuredZoneRuntime(
 export function createNativeZoneApiAdapter({
   readFirstPath,
   readState,
-  lockManager,
+  reservationLock,
 }: NativeZoneAdapterDependencies) {
-  const locks = lockManager ?? (typeof navigator === 'undefined' ? undefined : navigator.locks);
+  // Runtime defense for callers outside TypeScript: no provided coordinator
+  // means no native mutation. Never fall back to global navigator/window.
+  const failClosedLock: ZoneFenceLock = { exclusive: async () => false };
   const writeFence = createPersistentZoneWriteFence(
     createEasyedaZoneStorage(readFirstPath),
-    createBrowserZoneFenceLock(locks),
+    (reservationLock as ZoneFenceLock | undefined) ?? failClosedLock,
   );
   const focus = () => documentIdentity(readFirstPath);
 

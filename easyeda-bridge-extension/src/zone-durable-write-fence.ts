@@ -39,12 +39,18 @@ export function createPersistentZoneWriteFence(storage: ZoneFenceStorage, lock: 
     const marker = encodeZoneWriteReservation(reservation);
     if (!marker) return false;
     try {
-      // Exactly one same-origin contender can examine and create the marker.
-      return await lock.exclusive(async () => {
+      const observation = { callbackEntered: false, markerVerified: false };
+      // The coordinator is externally supplied and must actually execute the
+      // protected reservation. Its bare success value is never enough.
+      const granted = await lock.exclusive(async () => {
+        if (observation.callbackEntered) return false;
+        observation.callbackEntered = true;
         if ((await storage.getItem(NATIVE_ZONE_FENCE_KEY)) !== null) return false;
         await storage.setItem(NATIVE_ZONE_FENCE_KEY, marker);
-        return (await storage.getItem(NATIVE_ZONE_FENCE_KEY)) === marker;
+        observation.markerVerified = (await storage.getItem(NATIVE_ZONE_FENCE_KEY)) === marker;
+        return observation.markerVerified;
       });
+      return granted === true && observation.callbackEntered && observation.markerVerified;
     } catch {
       return false;
     }

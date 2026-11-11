@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNativeZoneApiAdapter } from '../src/zone-native-api-adapter.js';
+import { createBrowserZoneFenceLock } from '../src/zone-fence-lock.js';
 import type { ExpectedZoneSource } from '../src/zone-create-evidence.js';
 
 const expected: ExpectedZoneSource = {
@@ -164,7 +165,7 @@ function fixture() {
     createNativeZoneApiAdapter({
       readFirstPath: reader,
       readState: (item, key) => (item as Record<string, () => unknown>)?.['getState_' + key]?.(),
-      lockManager,
+      reservationLock: createBrowserZoneFenceLock(lockManager),
     });
   return {
     api,
@@ -181,10 +182,38 @@ function fixture() {
     getExtensionUserConfig,
     setExtensionUserConfig,
     lockManager,
+    reader,
   };
 }
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe('real native API adapter for guarded zone candidate (not a public dispatcher route)', () => {
+  it('never inherits browser Web Locks from the page without an explicitly supplied coordinator', async () => {
+    const f = fixture();
+    vi.stubGlobal('navigator', { locks: f.lockManager });
+    const adapter = createNativeZoneApiAdapter({
+      readFirstPath: f.reader,
+      readState: (item, key) => (item as Record<string, () => unknown>)?.['getState_' + key]?.(),
+      // @ts-expect-error Simulate untyped legacy callers omitting the required coordinator.
+    });
+    await expect(adapter.execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
+  });
+
+  it('blocks a coordinator failure before the write-ahead marker or any native Pour', async () => {
+    const f = fixture();
+    const adapter = createNativeZoneApiAdapter({
+      readFirstPath: f.reader,
+      readState: (item, key) => (item as Record<string, () => unknown>)?.['getState_' + key]?.(),
+      reservationLock: { exclusive: async () => false },
+    });
+    await expect(adapter.execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
+  });
+
   it('creates true-filled copper, verifies actual source and saves through the real native API shape', async () => {
     const f = fixture();
     const result = await f.adapter().execute(expected);

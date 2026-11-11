@@ -96,14 +96,25 @@ browser `localStorage`. Its `reconciliation-required` marker survives
 reconstructed adapters sharing the same native extension store and prevents
 retries even after same-session save or source rollback.
 
-Read+write+readback of that marker is serialized using a _non-waiting,
-exclusive_ origin-scoped Web Lock with a fixed reserved name. A missing,
-busy or rejecting Web Locks manager blocks creation before the first mutation.
-This addresses same-origin concurrent tab/adaptor races in the test-only
-contract. The storage and Web Locks APIs were discovered by **read-only
-capability inspection** in the isolated EasyEDA Pro 3.2.209 editor, but
-that does not demonstrate the full extension lifecycle or persistence
-across a cold browser restart.
+The candidate engine serializes marker read+write+readback only through an
+**explicitly injected single-writer reservation coordinator**. It no longer
+implicitly calls `navigator.locks`: the EasyEDA extension's restricted
+main-script runtime does not guarantee any standard browser globals.
+A missing/denied coordinator blocks `PCB_PrimitivePour.create()` before
+writing even the pending marker. A coordinator returning `true` without
+actually running the protected marker write/readback callback is also refused;
+that boolean alone does not constitute an acquired lease. The standalone `createBrowserZoneFenceLock`
+helper is supported only for _actual browser contexts that expose the Web
+Locks API_; it is **not** selected by default in the native adapter.
+Until a durable, multi-session and cross-process coordinator is implemented
+and proven, this **test-only candidate cannot be activated**.
+
+A read-only capability probe in the isolated EasyEDA Pro 3.2.209 **host
+page** observed `navigator.locks` and a `SYS_Storage` getter method, but
+the getter threw a `TypeError` when called outside an extension runtime.
+The official API explicitly documents that extension configuration access
+throws in standalone scripting. Host-page visibility is **not** a proof
+of availability inside the extension's own restricted runtime.
 
 The pending marker now stores a **versioned full pre-write native
 Pour/Poured inventory** (primitive identities, requested source properties,
@@ -138,14 +149,15 @@ extension origin (one unresolved copper write blocks all further candidate
 writes), rather than assuming it is safe to continue on another PCB.
 
 **The candidate is still not installed in a production dispatcher.**
-A Web Lock applies only to contexts on the _same browser origin_; extension
-API storage scope, separate browser profiles/processes, and editor/extension
-script isolation must be independently accepted on the real target.
-Availability in the host editor does **not** prove `navigator.locks` is
-available in the extension's restricted main-script runtime; absent
-capability fails closed. Tests establish only mock-native async durability
-and serialization, not live persistence, multi-profile isolation or cold
-browser recovery. The new adapter's real mutating acceptance was previously
+Even a working Web Lock applies only to contexts on the _same browser origin_.
+An integration with the existing bridge session/relay must prove exclusive
+reservation across native extension instances, separate browser
+profiles/processes and reconnects before this path can be enabled.
+`SessionDispatchQueue` currently serializes by **session ID**, not by
+shared PCB identity, so reusing that queue alone would not prove
+cross-session exclusivity. No lease provider has been installed by this PR.
+Tests establish only injected mock-native persistence and serialization, not
+live persistence, multi-profile coordination or cold browser recovery. The new adapter's real mutating acceptance was previously
 blocked before write; no alternate mutating path is attempted here. Public
 `easyeda_pcb_add_zone` apply and `pcb.addZone` stay fail-closed.
 
