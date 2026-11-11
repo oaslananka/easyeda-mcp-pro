@@ -85,8 +85,11 @@ async function recoverIncompleteZone(
     return uncertain('New copper is unverified and exact-id rollback is unavailable.');
   if ((await deps.focus()) !== attempt.focus)
     return uncertain('Focus changed before rollback; no deletion attempted.');
-  if (!(await deps.deleteSource(rollback.sourceId)) || !(await deps.save()))
-    return uncertain('Exact-id rollback failed or could not be saved.');
+  if (!(await deps.deleteSource(rollback.sourceId)))
+    return uncertain('Exact-id rollback failed; deletion outcome requires independent inspection.');
+  if ((await deps.focus()) !== attempt.focus)
+    return uncertain('Focus changed after native rollback deletion; no document save attempted.');
+  if (!(await deps.save())) return uncertain('Native rollback deletion could not be saved.');
   const restored = await deps.readInventory();
   if (
     !restored ||
@@ -106,6 +109,8 @@ async function verifySavedZone(
   deps: NativeZoneCreateDependencies,
   attempt: ZoneAttempt,
 ): Promise<NativeZoneCreateResult> {
+  if ((await deps.focus()) !== attempt.focus)
+    return uncertain('Active PCB changed before the native zone save; no save attempted.');
   if (!(await deps.save())) return uncertain('Native document save did not return true.');
   const persisted = await deps.readInventory();
   if (!persisted || (await deps.focus()) !== attempt.focus)
@@ -128,6 +133,8 @@ async function rebuildAndVerifyZone(
   attempt: ZoneAttempt,
   sourceId: string,
 ): Promise<NativeZoneCreateResult> {
+  if ((await deps.focus()) !== attempt.focus)
+    return uncertain('Active PCB changed before native copper rebuild; no rebuild attempted.');
   await deps.rebuild(sourceId);
   const afterRebuild = await deps.readInventory();
   if (!afterRebuild || (await deps.focus()) !== attempt.focus)

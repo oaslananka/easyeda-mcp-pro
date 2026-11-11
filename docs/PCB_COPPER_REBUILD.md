@@ -84,6 +84,22 @@ durable write recovery and full public MCP acceptance are established.
 
 ## New-zone candidate verification (not production apply)
 
+The separate test-only `zone-native-api-adapter` now connects the candidate
+engine to the **documented native method shapes** for version, project/PCB
+identity, net/layer and full board-outline containment before mutation.
+Its create/rebuild/save/exact-id delete delegates are covered by deterministic
+native API mock contracts and still distinguish same-session saved-readback
+from cold-reopen persisted evidence. An active PCB focus change is rejected
+immediately before native rebuild, save and after exact-id rollback deletion,
+not only before initial create. **The adapter is not wired into the bridge
+dispatcher or public MCP apply route.** The earlier isolated native
+3.2.209 acceptance used a locally constructed candidate dependency wiring;
+the new repository-owned adapter has **not** yet passed live mutating
+acceptance and must not inherit that claim. Live mutation execution for this
+adapter was blocked by the execution environment before any write, so its
+live acceptance is explicitly still pending. The disposable PCB and its
+separate schematic were unchanged; no fallback execution was attempted.
+
 The isolated, test-only `zone-create-evidence` and `zone-create-operation`
 modules implement deterministic **pre/post native inventory reconciliation**
 for a single candidate Pour. They are intentionally **not connected** to
