@@ -41,10 +41,21 @@ An isolated MSI / EasyEDA Pro `3.2.206` positive-path experiment for #480 **did*
 
 An isolated, disposable EasyEDA Pro `3.2.206` test for #480 showed why this guard matters: creating a new Pour returned a new, readable id, but rebuilding it returned **existing** Pour `e336` with 74 fills and produced no associated `PCB_PrimitivePoured` for the new id. The new Pour was deleted and the original Pour/Poured inventory restored. This does not meet the creation, filling, persistence, or rollback acceptance criteria; zone creation remains fail-closed.
 
-The separate zone-preflight diagnostic is read-only and checks the active PCB,
-exact net membership, copper layer stackup, supported 3.2.206 runtime and
-native create/Poured/save API capabilities. Missing active context, unsupported
-runtime or failed net lookup are blocking conditions. Even if every supported
-read succeeds, its readyToApply flag remains false: arbitrary board-outline
-containment, copper topology, write authorization and ambiguous-error rollback
-remain unverified. This diagnostic is not an apply authorization.
+The separate zone-preflight diagnostic is read-only and checks the exact
+selected PCB document and parent project **both before and after** runtime
+inspection, plus net membership, copper layer stackup, supported EasyEDA
+3.2.206/3.2.209 versions, and native create/Poured/save API capabilities.
+A truthy native PCB handle alone is not trusted as the selected document;
+changed focus invalidates earlier net/layer/outline observations.
+
+For a single verified native rectangular outline or a supported simple
+closed-polyline outline, the diagnostic distinguishes board intersection
+(intersectionVerified) from **strict candidate containment**
+(containmentVerified). An overhanging or boundary-touching candidate may
+intersect the board but is not fully contained; unsupported contours, arcs,
+cutouts, identity drift, and missing outline data fail closed. Geometric
+containment is not proof of copper clearance, net connectivity, DRC,
+topology, or persisted fill. Even if every currently supported read succeeds,
+readyToApply remains **false**, as production mutation, topology and
+ambiguous-error rollback gates have not been implemented. The diagnostic is
+not an apply authorization.

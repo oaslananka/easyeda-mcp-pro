@@ -53,6 +53,7 @@ describe('read-only native board rectangle intersection', () => {
       await expect(evaluateZoneOutlineEvidence(rect, reader, state)).resolves.toMatchObject({
         status: 'observed',
         intersectionVerified: relation !== 'outside',
+        containmentVerified: relation === 'inside',
         outlineKind: 'closed-polyline',
         intersection: relation,
         outline: null,
@@ -100,6 +101,9 @@ describe('read-only native board rectangle intersection', () => {
     await expect(evaluateZoneOutlineEvidence(inside, reader, state)).resolves.toEqual({
       status: 'intersection-confirmed',
       intersectionVerified: true,
+      containmentVerified: true,
+      outlineKind: 'rectangle',
+      intersection: 'inside',
       outline: { x: 0, y: 0, width: 3149.6063, height: 2362.2047 },
     });
   });
@@ -126,6 +130,30 @@ describe('read-only native board rectangle intersection', () => {
       intersectionVerified: false,
     });
   });
+  it('distinguishes strict geometric containment, overhang and exact board-edge contact', async () => {
+    const { reader } = fixture();
+    const boardInside = await evaluateZoneOutlineEvidence(inside, reader, state);
+    expect(boardInside).toMatchObject({
+      intersectionVerified: true,
+      containmentVerified: true,
+      outlineKind: 'rectangle',
+      intersection: 'inside',
+    });
+    const cases = [
+      { x: 3140, y: -10, width: 100, height: 50 },
+      { x: 0, y: -10, width: 100, height: 50 },
+      { x: 40, y: 0, width: 20, height: 30 },
+      { x: 40, y: -2300, width: 20, height: 62.2047 },
+    ];
+    for (const rectangle of cases) {
+      expect(await evaluateZoneOutlineEvidence(rectangle, reader, state)).toMatchObject({
+        intersectionVerified: true,
+        containmentVerified: false,
+        intersection: 'partial',
+      });
+    }
+  });
+
   it('allows partial overhang while checking only rectangle intersection', async () => {
     const { reader } = fixture();
     await expect(

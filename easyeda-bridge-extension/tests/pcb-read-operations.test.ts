@@ -790,6 +790,14 @@ describe('PCB primitive deletion routing', () => {
 describe('native zone preflight', () => {
   const base = {
     sys_Environment: { getEditorCurrentVersion: async () => '3.2.206.715d940d' },
+    DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'project' }) },
+    DMT_SelectControl: {
+      getCurrentDocumentInfo: async () => ({
+        documentType: 3,
+        uuid: 'pcb-1',
+        parentProjectUuid: 'project',
+      }),
+    },
     dmt_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
     pcb_Net: { getAllNetName: async () => ['GND', 'VCC'] },
     pcb_Layer: { getTheNumberOfCopperLayers: async () => 2 },
@@ -913,8 +921,12 @@ describe('native zone preflight', () => {
     const { operations } = makeOperations({
       ...base,
       dmt_Pcb: { getCurrentPcbInfo: async () => undefined },
-      dmt_SelectControl: {
-        getCurrentDocumentInfo: async () => ({ documentType: 3, uuid: 'pcb-1' }),
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => ({
+          documentType: 3,
+          uuid: 'pcb-1',
+          parentProjectUuid: 'project',
+        }),
       },
     });
     expect(await operations.zonePreflight('GND', 2)).toMatchObject({
@@ -923,12 +935,116 @@ describe('native zone preflight', () => {
       readyToApply: false,
     });
   });
+  it('rejects a truthy native PCB handle when the selected document belongs to another project', async () => {
+    const { operations } = makeOperations({
+      ...base,
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => ({
+          documentType: 3,
+          uuid: 'pcb-from-elsewhere',
+          parentProjectUuid: 'other-project',
+        }),
+      },
+    });
+    expect(await operations.zonePreflight('GND', 2)).toMatchObject({
+      activePcb: false,
+      netVerified: false,
+      layerVerified: false,
+      readyToApply: false,
+      blockers: expect.arrayContaining(['active-pcb-unverified']),
+    });
+  });
+
+  it('discards stale membership and board evidence when focus changes during the preflight', async () => {
+    const getCurrentDocumentInfo = vi
+      .fn()
+      .mockResolvedValueOnce({
+        documentType: 3,
+        uuid: 'pcb-1',
+        parentProjectUuid: 'project',
+      })
+      .mockResolvedValueOnce({
+        documentType: 3,
+        uuid: 'pcb-other',
+        parentProjectUuid: 'project',
+      });
+    const { operations } = makeOperations({
+      ...base,
+      DMT_SelectControl: { getCurrentDocumentInfo },
+    });
+    const result = await operations.zonePreflight('GND', 2);
+    expect(result).toMatchObject({
+      activePcb: false,
+      netVerified: false,
+      layerVerified: false,
+      boardGeometry: null,
+      readyToApply: false,
+      blockers: expect.arrayContaining([
+        'active-pcb-unverified',
+        'focused-pcb-changed-during-preflight',
+      ]),
+    });
+  });
+
+  it('reports partial board overlap without implying full containment', async () => {
+    const { operations } = makeOperations({
+      ...base,
+      PCB_PrimitivePolyline: {
+        getAll: async () => [
+          {
+            getState_Layer: () => 11,
+            getState_Polygon: () => ({ getSource: () => ['R', 0, 0, 100, 80, 0, 0] }),
+          },
+        ],
+      },
+      PCB_PrimitiveLine: { getAll: async () => [] },
+      PCB_PrimitiveArc: { getAll: async () => [] },
+      PCB_PrimitiveRegion: { getAll: async () => [] },
+    });
+    const partial = await operations.zonePreflight('GND', 2, {
+      x: 90,
+      y: -20,
+      width: 30,
+      height: 20,
+    });
+    expect(partial).toMatchObject({
+      activePcb: true,
+      boardGeometry: {
+        status: 'intersection-confirmed',
+        intersectionVerified: true,
+        containmentVerified: false,
+        intersection: 'partial',
+      },
+      readyToApply: false,
+      blockers: expect.arrayContaining(['candidate-board-containment-unverified']),
+    });
+    const inside = await operations.zonePreflight('GND', 2, {
+      x: 20,
+      y: -20,
+      width: 30,
+      height: 20,
+    });
+    expect(inside).toMatchObject({
+      boardGeometry: {
+        intersectionVerified: true,
+        containmentVerified: true,
+        intersection: 'inside',
+      },
+      readyToApply: false,
+      blockers: expect.not.arrayContaining(['candidate-board-containment-unverified']),
+    });
+  });
+
   it('rejects focused schematic selection as non-PCB', async () => {
     const { operations } = makeOperations({
       ...base,
       dmt_Pcb: { getCurrentPcbInfo: async () => undefined },
-      dmt_SelectControl: {
-        getCurrentDocumentInfo: async () => ({ documentType: 1, uuid: 'schematic-1' }),
+      DMT_SelectControl: {
+        getCurrentDocumentInfo: async () => ({
+          documentType: 1,
+          uuid: 'schematic-1',
+          parentProjectUuid: 'project',
+        }),
       },
     });
     expect(await operations.zonePreflight('GND', 2)).toMatchObject({
@@ -947,10 +1063,23 @@ describe('native zone preflight', () => {
     });
   });
   it.each([
-    ['missing PCB', { dmt_Pcb: undefined }, 'active-pcb-unverified'],
+    ['missing project identity', { DMT_Project: undefined }, 'active-pcb-unverified'],
     [
       'missing focus',
-      { dmt_Pcb: { getCurrentPcbInfo: async () => null } },
+      { DMT_SelectControl: { getCurrentDocumentInfo: async () => null } },
+      'active-pcb-unverified',
+    ],
+    [
+      'different focused project',
+      {
+        DMT_SelectControl: {
+          getCurrentDocumentInfo: async () => ({
+            uuid: 'pcb-1',
+            documentType: 3,
+            parentProjectUuid: 'another-project',
+          }),
+        },
+      },
       'active-pcb-unverified',
     ],
     [
