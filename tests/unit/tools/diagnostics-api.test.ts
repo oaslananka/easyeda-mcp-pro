@@ -26,6 +26,38 @@ function createDevRegistry(): ToolRegistry {
 }
 
 describe('diagnostics API tools', () => {
+  it.each([
+    'PCB_Document.save',
+    'PCB_Document.saveProject',
+    'PCB_PrimitivePour.create',
+    'PCB_PrimitivePour.createCopperRegion',
+    'PCB_PrimitivePour.deletePrimitive',
+    'PCB_PrimitivePour.modifySettings',
+    'SCH_Document.setState_Enabled',
+    'DMT_Project.openProject',
+    'DMT_Project.removeDocument',
+    'DMT_Project.rebuildDependencies',
+  ])('requires explicit confirmation for prefixed native mutator %s', async (path) => {
+    const registry = createDevRegistry();
+    const tool = registry.get('easyeda_api_call');
+    const call = vi.fn();
+    const result = await tool?.handler(createDevContext(call), { path, args: [] });
+    expect(result).toMatchObject({ ok: false, requires_confirmation: true });
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it.each(['PCB_PrimitivePour.getAll', 'DMT_Project.getCurrentProjectInfo'])(
+    'does not infer a mutation from a getter %s',
+    async (path) => {
+      const registry = createDevRegistry();
+      const tool = registry.get('easyeda_api_call');
+      const call = vi.fn().mockResolvedValue({ path, result: [] });
+      const result = await tool?.handler(createDevContext(call), { path, args: [] });
+      expect(result).toMatchObject({ ok: true, path });
+      expect(call).toHaveBeenCalledWith('api.call', { path, args: [] });
+    },
+  );
+
   it('registers the read-only schematic wire probe in dev profile', async () => {
     const config = EnvSchema.parse({ NODE_ENV: 'test', TOOL_PROFILE: 'dev' });
     const registry = new ToolRegistry();

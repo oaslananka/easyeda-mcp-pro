@@ -100,8 +100,10 @@ function readonlyApiError(path: string, error: unknown) {
   };
 }
 
+// Public native classes can expose prefixed mutators (e.g. setState_*, delete*, save*).
+// Requiring confirmation for only the bare verb silently misses those writes.
 const writeMethodPattern =
-  /\.(create[A-Za-z0-9_]*|delete|modify|open|openProject|save|import|export|reorder|remove|update|set|reset|done)$/i;
+  /\.(?:create|delete|modify|open|save|import|export|reorder|remove|update|set|reset|done|clear|copy|move|rebuild|commit)[A-Za-z0-9_]*$/i;
 
 function requiresWriteConfirmation(path: string): boolean {
   return writeMethodPattern.test(path);
