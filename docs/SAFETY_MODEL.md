@@ -17,10 +17,17 @@ A successful reservation remains held across a dropped connection, timeout,
 or server restart. **The extension cannot release it**; future release requires
 independent, trusted persisted-state and pending-fence recovery verification.
 The response explicitly states `authorizesMutation=false`. This internal
-transport alone does **not** connect the reservation to the native zone engine
+transport includes a one-attempt response-correlated extension client; it rejects malformed/late replies, connection replacement and timeout, and never retries an ambiguous reservation. The extension never requests this host lock on startup or during ordinary read-only work. This internal transport alone does **not** connect the reservation to the native zone engine
 or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
 until the entire create/rebuild/save/cold-reopen/rollback and approval chain
 has been accepted on a disposable project.
+
+The extension packaging size ratchet was intentionally measured after adding
+the local private reservation protocol: .eext 221,604 → 222,329 bytes
+(+725 compressed bytes); loader index.js 354,124 → 356,913 bytes
+(+2,789 bytes); dispatcher.js remains 291,600 bytes. The ratchet
+tracks the complete non-minified testable loader; no size checker or
+production package-ceiling enforcement was disabled.
 
 ## Bridge version drift
 
