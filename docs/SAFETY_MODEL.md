@@ -31,6 +31,15 @@ or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
 until the entire create/rebuild/save/cold-reopen/rollback and approval chain
 has been accepted on a disposable project.
 
+Before requesting the host's crash-retained native-zone lease, the
+private pending-fence operation now first performs a read-only check of
+the persistent marker. A present, malformed, or unreadable marker blocks
+the attempt without acquiring a new OS-host lock. The marker is **rechecked
+after** a host grant to protect against a racing second editor or process.
+Neither check clears a marker, frees a lease, or authorizes a write.
+The real localhost Bridge WebSocket integration test verifies that an
+existing marker consumes no host lease or one-attempt RPC permission.
+
 A pending native zone fence is inspected only through the extension's native
 storage provider. When one exists, read-only status reports a narrow recovery
 state: invalid marker, PCB focus required, focus mismatch, awaiting independent
