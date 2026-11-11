@@ -40,6 +40,9 @@ interface ZoneAttempt {
   expected: ExpectedZoneSource;
 }
 
+/** Only internally generated plan-collision reasons may surface verbatim. */
+class ExistingNativeZonePlanError extends Error {}
+
 /**
  * Only these creation settings have survived a real isolated 3.2.209
  * native create/readback/cold-reopen cycle. Other values were silently
@@ -188,7 +191,9 @@ async function preflightZone(
   const before = await deps.readInventory();
   if (!before || (await deps.focus()) !== focus) return undefined;
   if (findMatchingExistingZoneSources(before, expected).length > 0)
-    throw new Error('An existing identical native Pour already matches this plan; do not retry.');
+    throw new ExistingNativeZonePlanError(
+      'An existing identical native Pour already matches this plan; do not retry.',
+    );
   return { focus, before, expected };
 }
 
@@ -253,10 +258,16 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
       // The dispatcher remains locked until an independent cold-reopen check exists.
       return result;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      // A plan collision is our own fixed, non-sensitive diagnostic. All
+      // native-provided errors must stay opaque, including preflight failures.
+      if (error instanceof ExistingNativeZonePlanError)
+        return { status: 'blocked', reason: error.message };
       return nativeMutationStarted
-        ? uncertain('Native zone create/rebuild/save raised: ' + message)
-        : { status: 'blocked', reason: 'Read-only preflight raised: ' + message };
+        ? uncertain('Native zone operation failed; persisted outcome is unknown.')
+        : {
+            status: 'blocked',
+            reason: 'Native zone preflight or reservation failed; no native create was attempted.',
+          };
     } finally {
       inProgress = false;
     }

@@ -74,6 +74,13 @@ create, rebuild, delete, save, automatic fence release or retry is triggered.
 An initial inventory with any baseline difference is not reinterpreted by
 a later read, and no read-only observation constitutes cold-reopen proof.
 
+Unexpected native API and reservation exceptions are never copied into
+candidate result text: error messages can contain private project paths,
+net names or other data. Only a fixed failure-phase diagnostic is exposed,
+while pre-write failures stay blocked and post-write failures stay uncertain
+with their recovery fence held. This differs from safe, predefined inventory
+reconciliation reasons, which remain available for investigation.
+
 Private native-zone candidate rejection now preserves the precise, predefined
 inventory-delta reason through the create and rebuild reconciliation paths.
 A changed original Pour/Poured, missing unique source, mismatched source

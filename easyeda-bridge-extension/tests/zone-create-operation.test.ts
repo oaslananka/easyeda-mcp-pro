@@ -263,6 +263,42 @@ describe('single native zone creation operation with no blind retries', () => {
     expect(f.deleteSource).not.toHaveBeenCalled();
   });
 
+  it.each(['create', 'rebuild', 'save'] as const)(
+    'redacts sensitive native %s exception details and holds the candidate fence',
+    async (step) => {
+      const f = fixture();
+      const secret = 'private-GND:/home/user/secret-board.eprj2/token-123';
+      f[step].mockRejectedValue(Error(secret));
+      const op = createNativeZoneCandidateOperation(f.deps);
+      const result = await op.execute(expected);
+      expect(result).toMatchObject({
+        status: 'uncertain',
+        reason: expect.stringContaining('Native zone operation failed'),
+      });
+      expect(JSON.stringify(result)).not.toContain(secret);
+      await expect(op.execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+      expect(f.create).toHaveBeenCalledOnce();
+      expect(f.deleteSource).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['preflight', 'reserveMutation'] as const)(
+    'redacts sensitive %s failures before the first native create',
+    async (step) => {
+      const f = fixture();
+      const secret = 'private-project-source-id:user-token-and-path';
+      f[step].mockRejectedValue(Error(secret));
+      const result = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+      expect(result).toMatchObject({
+        status: 'blocked',
+        reason: expect.stringContaining('Native zone preflight or reservation failed'),
+      });
+      expect(JSON.stringify(result)).not.toContain(secret);
+      expect(f.create).not.toHaveBeenCalled();
+      expect(f.rebuild).not.toHaveBeenCalled();
+    },
+  );
+
   it('does not treat a native create returning undefined as failure when readback identifies one new source', async () => {
     const f = fixture();
     f.create.mockResolvedValue(undefined);
