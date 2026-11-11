@@ -132,6 +132,8 @@ describe('Diagnostics Tools', () => {
     expect(result?.capabilities).toEqual(['bom', 'export']);
     expect(result?.dev_mode).toBe(false);
     expect(result?.last_heartbeat_ms).toBe(500);
+    expect(result?.native_zone_safety).toBeUndefined();
+    expect(result?.native_zone_safety_warning).toMatch(/does not report/);
     expect(result?.uptime_ms).toBeGreaterThanOrEqual(0);
   });
 
@@ -156,6 +158,7 @@ describe('Diagnostics Tools', () => {
       coldReopenVerified: false,
       publicApplyEnabled: false,
     });
+    expect(result?.native_zone_safety_warning).toBeUndefined();
     expect(JSON.stringify(result)).not.toContain('private-marker-data');
     expect(tool?.outputSchema.safeParse(result).success).toBe(true);
   });
@@ -173,6 +176,7 @@ describe('Diagnostics Tools', () => {
     });
     const result = await tool?.handler(context, {});
     expect(result?.native_zone_safety).toBeUndefined();
+    expect(result?.native_zone_safety_warning).toMatch(/matching extension build/);
     expect(tool?.outputSchema.safeParse(result).success).toBe(true);
   });
 

@@ -166,6 +166,7 @@ function registerDiagnosticsCore(
       owner_port: z.number().int().min(1).max(65535).optional(),
       diagnostics: bridgeDiagnosticsSchema.optional(),
       native_zone_safety: nativeZoneSafetySchema.optional(),
+      native_zone_safety_warning: z.string().optional(),
     }),
     handler: async (ctx: ToolContext) => {
       if (!ctx.bridge.connected) {
@@ -194,6 +195,9 @@ function registerDiagnosticsCore(
         return {
           connected: true,
           native_zone_safety: nativeZoneSafety.success ? nativeZoneSafety.data : undefined,
+          native_zone_safety_warning: nativeZoneSafety.success
+            ? undefined
+            : 'The connected MCP Pro Bridge does not report the current native copper-zone safety contract. Reinstall the matching extension build and check again. Zone apply remains disabled.',
           bridge_version: data.bridgeVersion,
           easyeda_version: data.easyedaVersion,
           capabilities: data.capabilities,
