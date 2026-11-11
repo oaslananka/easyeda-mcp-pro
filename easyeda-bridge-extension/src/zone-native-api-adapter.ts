@@ -3,6 +3,10 @@ import { readNativeZoneInventory } from './pcb-mutation-operations.js';
 import { createNativeZoneCandidateOperation } from './zone-create-operation.js';
 import type { ExpectedZoneSource } from './zone-create-evidence.js';
 import {
+  createPersistentZoneWriteFence,
+  type ZoneFenceStorage,
+} from './zone-durable-write-fence.js';
+import {
   documentIdentity,
   evaluateZoneOutlineEvidence,
   type ZoneRectangle,
@@ -14,6 +18,8 @@ type StateReader = (value: unknown, key: string) => unknown;
 interface NativeZoneAdapterDependencies {
   readFirstPath: NativeReader;
   readState: StateReader;
+  /** Required persistent store. An unavailable store must fail closed. */
+  writeFenceStorage: ZoneFenceStorage;
 }
 
 type NativeFn = (...args: unknown[]) => unknown;
@@ -128,7 +134,9 @@ function measuredZoneRuntime(
 export function createNativeZoneApiAdapter({
   readFirstPath,
   readState,
+  writeFenceStorage,
 }: NativeZoneAdapterDependencies) {
+  const writeFence = createPersistentZoneWriteFence(writeFenceStorage);
   const focus = () => documentIdentity(readFirstPath);
 
   async function preflight(expected: ExpectedZoneSource): Promise<boolean> {
@@ -208,6 +216,7 @@ export function createNativeZoneApiAdapter({
     focus,
     preflight,
     readInventory: () => readNativeZoneInventory(readFirstPath),
+    reserveMutation: (focusId) => writeFence.reserve(focusId),
     create,
     rebuild,
     save,

@@ -82,6 +82,33 @@ guarantee on arbitrary designs. Even a complete live diagnostic returns
 `readyToApply: false` until electrical topology/DRC, remote approval,
 durable write recovery and full public MCP acceptance are established.
 
+## Write-ahead quarantine across adapter reconstruction (test-only)
+
+The guarded native-zone candidate now **requires** a write-ahead reservation
+before any native creation call. The repository-owned adapter requires an
+injected persistent key/value storage provider, and the
+`zone-durable-write-fence` reserve/inspect contract records an
+`reconciliation-required` marker **before** native mutation. If the store
+cannot be read, written or read back, the operation is blocked before
+`PCB_PrimitivePour.create()`. Even malformed existing journal entries
+fail closed. Freshly constructed adapters sharing this store refuse every
+new zone mutation, including after a same-session successful save or a
+same-session exact-source rollback.
+
+**No auto-clear, timeout-based expiry or manual reset API is provided.**
+Removing the marker requires a separately designed and verified cold-reopen
+reconciliation/restore contract. The key is intentionally global to the
+extension origin (one unresolved copper write blocks all further candidate
+writes), rather than assuming it is safe to continue on another PCB.
+
+The storage adapter is injected, **not yet installed in a production
+dispatcher**, and cross-tab atomic reservations are NOT established by
+ordinary browser storage. Test coverage proves the persistence-provider
+contract across new adapter instances, not a cold browser restart or
+production recovery. Live mutating acceptance of this new adapter is still
+blocked/not performed. Public `easyeda_pcb_add_zone` apply and
+`pcb.addZone` stay fail-closed until these remaining gates pass.
+
 ## New-zone candidate verification (not production apply)
 
 The separate test-only `zone-native-api-adapter` now connects the candidate

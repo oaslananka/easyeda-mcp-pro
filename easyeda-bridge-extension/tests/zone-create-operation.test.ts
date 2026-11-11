@@ -66,8 +66,9 @@ function fixture(
   const rebuild = vi.fn(async (_sourceId: string) => ({ getState_PourPrimitiveId: () => 'e336' }));
   const save = vi.fn(async () => true);
   const deleteSource = vi.fn(async (_id: string) => true);
+  const reserveMutation = vi.fn(async (_focusId: string) => true);
   return {
-    deps: { focus, preflight, readInventory, create, rebuild, save, deleteSource },
+    deps: { focus, preflight, readInventory, create, rebuild, save, deleteSource, reserveMutation },
     focus,
     preflight,
     readInventory,
@@ -75,6 +76,7 @@ function fixture(
     rebuild,
     save,
     deleteSource,
+    reserveMutation,
   };
 }
 
@@ -123,6 +125,66 @@ describe('single native zone creation operation with no blind retries', () => {
     expect(outcome).toMatchObject({ status: 'uncertain' });
     expect(f.rebuild).toHaveBeenCalledOnce();
     expect(f.save).not.toHaveBeenCalled();
+  });
+
+  it('reserves before any native mutation after the read-only preflight', async () => {
+    const f = fixture();
+    await expect(
+      createNativeZoneCandidateOperation(f.deps).execute(expected),
+    ).resolves.toMatchObject({
+      status: 'saved-readback',
+    });
+    expect(f.reserveMutation).toHaveBeenCalledExactlyOnceWith('focus-project+pcb');
+    expect(f.reserveMutation.mock.invocationCallOrder[0]).toBeLessThan(
+      f.create.mock.invocationCallOrder[0],
+    );
+  });
+
+  it.each(['denied', 'exception'] as const)(
+    'fails closed if a durable write-ahead reservation returns %s',
+    async (caseName) => {
+      const f = fixture();
+      if (caseName === 'denied') f.reserveMutation.mockResolvedValue(false);
+      else f.reserveMutation.mockRejectedValue(Error('storage denied'));
+      await expect(
+        createNativeZoneCandidateOperation(f.deps).execute(expected),
+      ).resolves.toMatchObject({
+        status: 'blocked',
+      });
+      expect(f.reserveMutation).toHaveBeenCalledOnce();
+      expect(f.create).not.toHaveBeenCalled();
+      expect(f.rebuild).not.toHaveBeenCalled();
+      expect(f.save).not.toHaveBeenCalled();
+    },
+  );
+
+  it('blocks native create if the editor focus changes immediately after persisting a fence', async () => {
+    const f = fixture();
+    f.focus
+      .mockResolvedValueOnce('focus-project+pcb')
+      .mockResolvedValueOnce('focus-project+pcb')
+      .mockResolvedValueOnce('other-project+pcb');
+    const result = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+    expect(result).toMatchObject({
+      status: 'blocked',
+      reason: expect.stringContaining('changed after write reservation'),
+    });
+    expect(f.reserveMutation).toHaveBeenCalledOnce();
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
+  it('does not reserve a slot when the purely read-only preflight fails', async () => {
+    const f = fixture();
+    f.preflight.mockResolvedValue(false);
+    await expect(
+      createNativeZoneCandidateOperation(f.deps).execute(expected),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+    });
+    expect(f.reserveMutation).not.toHaveBeenCalled();
+    expect(f.create).not.toHaveBeenCalled();
   });
 
   it('keeps the write fence after same-session save because cold-reopen persistence is not verified', async () => {

@@ -133,12 +133,20 @@ function fixture() {
     PCB_Document: { save },
     PCB_MathPolygon: { createPolygon: vi.fn((input: unknown) => ({ getSource: () => input })) },
   };
+  const fenceCells = new Map<string, string>();
+  const writeFenceStorage = {
+    getItem: vi.fn((key: string) => fenceCells.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      fenceCells.set(key, value);
+    }),
+  };
   const reader = <T>(paths: readonly string[]): T | undefined =>
     paths.map((path) => api[path]).find(Boolean) as T | undefined;
   const adapter = () =>
     createNativeZoneApiAdapter({
       readFirstPath: reader,
       readState: (item, key) => (item as Record<string, () => unknown>)?.['getState_' + key]?.(),
+      writeFenceStorage,
     });
   return {
     api,
@@ -152,6 +160,7 @@ function fixture() {
     getAllPoured,
     sources,
     derived,
+    writeFenceStorage,
   };
 }
 
@@ -181,6 +190,31 @@ describe('real native API adapter for guarded zone candidate (not a public dispa
     expect(f.rebuild).toHaveBeenCalledOnce();
     expect(f.save).toHaveBeenCalledOnce();
     expect(f.del).not.toHaveBeenCalled();
+  });
+
+  it('blocks an identical second write across freshly constructed adapters after save', async () => {
+    const f = fixture();
+    await expect(f.adapter().execute(expected)).resolves.toMatchObject({
+      status: 'saved-readback',
+      persistenceVerified: false,
+    });
+    await expect(
+      f.adapter().execute({ ...expected, pourName: 'ANOTHER_ZONE' }),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      reason: expect.stringContaining('reconciliation'),
+    });
+    expect(f.create).toHaveBeenCalledOnce();
+  });
+
+  it('never enters native creation when durable write-fence storage fails', async () => {
+    const f = fixture();
+    // Test adapter shall use mandatory, injected storage. The fixture supplies a denied store.
+    f.writeFenceStorage.getItem.mockImplementationOnce(() => {
+      throw Error('storage denied');
+    });
+    await expect(f.adapter().execute(expected)).resolves.toMatchObject({ status: 'blocked' });
+    expect(f.create).not.toHaveBeenCalled();
   });
 
   it('rolls back only the exact created source when native rebuild produces no associated copper', async () => {
