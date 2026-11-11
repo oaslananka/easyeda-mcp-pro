@@ -40,6 +40,91 @@ export const pcbZonePreviewSchema = z
 
 export type PcbZonePreviewInput = z.infer<typeof pcbZonePreviewSchema>;
 
+/** This is evidence for one disposable native runtime, NOT generic API support. */
+export function observedZoneNativeProfile(input: PcbZonePreviewInput) {
+  const blockers = [
+    ...(input.netName !== 'GND' ? ['native-net-unsupported'] : []),
+    ...(input.layer !== 2 ? ['native-layer-unsupported'] : []),
+    ...(!input.preserveSilos ? ['native-islands-mode-unsupported'] : []),
+    ...(input.pourPriority !== 1 ? ['native-priority-unsupported'] : []),
+    ...(input.lineWidth !== 0.2 ? ['native-line-width-unsupported'] : []),
+    ...(input.locked ? ['native-lock-mode-unsupported'] : []),
+  ];
+  return {
+    observedInDisposableRuntime: blockers.length === 0,
+    evidenceRuntime: '3.2.209' as const,
+    blockers,
+  };
+}
+
+const nativeZonePreflightShape = z.object({
+  runtimeVersion: z.string().nullable(),
+  runtimeVerified: z.boolean(),
+  activePcb: z.boolean(),
+  nativeCapabilities: z.boolean(),
+  netVerified: z.boolean(),
+  layerVerified: z.boolean(),
+  boardGeometry: z
+    .object({
+      containmentVerified: z.boolean(),
+    })
+    .nullable()
+    .optional(),
+  readyToApply: z.literal(false),
+  blockers: z.array(z.string()),
+});
+
+export type ZoneLiveReadiness = {
+  checked: boolean;
+  runtimeVersion: string | null;
+  focusedPcbVerified: boolean;
+  netVerified: boolean;
+  layerVerified: boolean;
+  boardContainmentVerified: boolean;
+  readyToApply: false;
+  blockers: string[];
+};
+
+export function unavailableZoneLiveReadiness(): ZoneLiveReadiness {
+  return {
+    checked: false,
+    runtimeVersion: null,
+    focusedPcbVerified: false,
+    netVerified: false,
+    layerVerified: false,
+    boardContainmentVerified: false,
+    readyToApply: false,
+    blockers: ['live-zone-preflight-unavailable'],
+  };
+}
+
+/** Parse untrusted bridge probe evidence without treating success-like values as write consent. */
+export function summarizeZoneLiveReadiness(raw: unknown): ZoneLiveReadiness {
+  const parsed = nativeZonePreflightShape.safeParse(raw);
+  if (!parsed.success) return unavailableZoneLiveReadiness();
+  const value = parsed.data;
+  const boardContainmentVerified =
+    value.runtimeVerified && value.activePcb && value.boardGeometry?.containmentVerified === true;
+  const additional = [
+    ...(!value.runtimeVerified ? ['runtime-version-unverified'] : []),
+    ...(!value.activePcb ? ['active-pcb-unverified'] : []),
+    ...(!value.nativeCapabilities ? ['native-zone-capabilities-unavailable'] : []),
+    ...(!value.netVerified ? ['net-not-in-active-pcb'] : []),
+    ...(!value.layerVerified ? ['copper-layer-unverified'] : []),
+    ...(!boardContainmentVerified ? ['candidate-board-containment-unverified'] : []),
+  ];
+  return {
+    checked: true,
+    runtimeVersion: value.runtimeVersion,
+    focusedPcbVerified: value.activePcb,
+    netVerified: value.netVerified,
+    layerVerified: value.layerVerified,
+    boardContainmentVerified,
+    readyToApply: false,
+    blockers: [...new Set([...value.blockers, ...additional])],
+  };
+}
+
 export function previewPcbZone(input: PcbZonePreviewInput) {
   const {
     rectangle,
@@ -76,16 +161,17 @@ export function previewPcbZone(input: PcbZonePreviewInput) {
   return {
     target: 'PCB_PrimitivePour.create' as const,
     nativeArguments,
+    nativeProfile: observedZoneNativeProfile(input),
     planHash,
     requiredApplyChecks: [
       'Exact EasyEDA Pro runtime and native capabilities must be verified.',
       'An active PCB document must be confirmed before mutation.',
       'The netName must exist in the current PCB net inventory; native create does not enforce this.',
-      'Polygon must have a verified intersection with the actual board outline; overhang may be clipped. Bounding-box overlap is not topology proof.',
+      'The candidate must be strictly contained by the verified actual board outline; overlap, boundary contact and unsupported contours do not prove safety.',
       'An explicit confirmWrite=true and applicable remote approval are mandatory.',
-      'Fresh Pour and target-associated Poured read-back must match the created id.',
+      'Actual native source properties and its target-associated true-filled Poured must match the preview; native may silently normalize parameters.',
       'Write timeouts require inventory reconciliation, never blind retry.',
-      'Any failed or partial write requires exact-id deletion and verified rollback.',
+      'Any failed or partial write requires exact-id recovery, independently verified durable rollback and a no-blind-retry fence.',
     ],
   };
 }

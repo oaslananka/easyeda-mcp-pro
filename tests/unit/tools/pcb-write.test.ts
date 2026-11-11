@@ -1098,6 +1098,174 @@ describe('PCB Write Tools', () => {
     expect(tool?.outputSchema.safeParse(first).success).toBe(true);
   });
 
+  it('easyeda_pcb_add_zone can inspect the live PCB during preview without writing', async () => {
+    bridgeCall.mockResolvedValueOnce({
+      runtimeVersion: '3.2.209',
+      runtimeVerified: true,
+      activePcb: true,
+      nativeCapabilities: true,
+      netVerified: true,
+      layerVerified: true,
+      boardGeometry: {
+        status: 'intersection-confirmed',
+        intersectionVerified: true,
+        containmentVerified: true,
+        outlineKind: 'rectangle',
+        intersection: 'inside',
+        outline: { x: 0, y: 0, width: 3149, height: 2362 },
+      },
+      readyToApply: false,
+      blockers: [
+        'board-outline-and-copper-topology-unverified',
+        'apply-and-rollback-not-implemented',
+      ],
+    });
+    const request = {
+      mode: 'preview',
+      inspectLive: true,
+      rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_PREVIEW',
+      pourPriority: 1,
+      lineWidth: 0.2,
+      locked: false,
+    };
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const result = await tool?.handler(context, request);
+    expect(bridgeCall).toHaveBeenCalledExactlyOnceWith('pcb.zonePreflight', {
+      netName: 'GND',
+      layer: 2,
+      rectangle: request.rectangle,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      mode: 'preview',
+      applied: false,
+      liveReadiness: {
+        checked: true,
+        runtimeVersion: '3.2.209',
+        focusedPcbVerified: true,
+        netVerified: true,
+        layerVerified: true,
+        boardContainmentVerified: true,
+        readyToApply: false,
+        blockers: expect.arrayContaining(['apply-and-rollback-not-implemented']),
+      },
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('easyeda_pcb_add_zone preview reports unavailable diagnostics without inventing write readiness', async () => {
+    bridgeCall.mockRejectedValueOnce(new Error('disconnected'));
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const result = await tool?.handler(context, {
+      mode: 'preview',
+      inspectLive: true,
+      rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_PREVIEW',
+      pourPriority: 1,
+      lineWidth: 0.2,
+      locked: false,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      applied: false,
+      liveReadiness: {
+        checked: false,
+        readyToApply: false,
+        blockers: expect.arrayContaining(['live-zone-preflight-unavailable']),
+      },
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+    expect(bridgeCall).toHaveBeenCalledOnce();
+  });
+
+  it('easyeda_pcb_add_zone rejects a false claim of readyToApply from live bridge evidence', async () => {
+    bridgeCall.mockResolvedValueOnce({
+      runtimeVersion: '3.2.209',
+      runtimeVerified: true,
+      activePcb: true,
+      nativeCapabilities: true,
+      netVerified: true,
+      layerVerified: true,
+      boardGeometry: { containmentVerified: true },
+      readyToApply: true,
+      blockers: [],
+    });
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const result = await tool?.handler(context, {
+      mode: 'preview',
+      inspectLive: true,
+      rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_PREVIEW',
+      pourPriority: 1,
+      lineWidth: 0.2,
+      locked: false,
+    });
+    expect(result).toMatchObject({
+      applied: false,
+      liveReadiness: {
+        checked: false,
+        readyToApply: false,
+        blockers: ['live-zone-preflight-unavailable'],
+      },
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('easyeda_pcb_add_zone skips live bridge probing when preview data is incomplete', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const result = await tool?.handler(context, {
+      mode: 'preview',
+      inspectLive: true,
+      netName: 'GND',
+      layer: 2,
+    });
+    expect(result).toMatchObject({ success: false, applied: false });
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
+  it('easyeda_pcb_add_zone preview never reports supported native settings for unverified priorities', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const result = await tool?.handler(context, {
+      mode: 'preview',
+      rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_PREVIEW',
+      pourPriority: 5,
+      lineWidth: 10,
+      locked: false,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      applied: false,
+      preview: {
+        nativeProfile: {
+          observedInDisposableRuntime: false,
+          blockers: expect.arrayContaining([
+            'native-priority-unsupported',
+            'native-line-width-unsupported',
+          ]),
+        },
+      },
+    });
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_pcb_add_zone preview rejects legacy points and missing native inputs', async () => {
     const tool = registry.get('easyeda_pcb_add_zone');
     const partial = {
