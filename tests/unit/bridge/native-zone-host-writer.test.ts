@@ -25,7 +25,7 @@ function root(): string {
 function childAcquire(dir: string): string {
   const script = `
 import { NativeZoneHostWriterCoordinator } from './src/bridge/native-zone-host-writer.ts';
-const lease = new NativeZoneHostWriterCoordinator(process.env.NATIVE_ZONE_TEST_ROOT).tryAcquire();
+const lease = await new NativeZoneHostWriterCoordinator(process.env.NATIVE_ZONE_TEST_ROOT).tryAcquire();
 process.stdout.write(lease === null ? 'blocked' : 'acquired');
 `;
   const result = spawnSync(
@@ -57,26 +57,26 @@ describe('host-wide native copper-zone writer reservation (not yet Bridge-wired)
   it('refuses two simultaneous same-host reservations even across independent processes', async () => {
     const dir = root();
     const gate = new NativeZoneHostWriterCoordinator(dir);
-    const lease = gate.tryAcquire();
+    const lease = await gate.tryAcquire();
     expect(lease).not.toBeNull();
-    expect(gate.tryAcquire()).toBeNull();
+    expect(await gate.tryAcquire()).toBeNull();
     expect(childAcquire(dir)).toBe('blocked');
     expect(await lease?.releaseAfterVerifiedRecovery(async () => true)).toBe(true);
     expect(childAcquire(dir)).toBe('acquired');
   });
 
-  it('does not reclaim a crashed process reservation, even when its PID has exited', () => {
+  it('does not reclaim a crashed process reservation, even when its PID has exited', async () => {
     const dir = root();
     expect(childAcquire(dir)).toBe('acquired');
     const gate = new NativeZoneHostWriterCoordinator(dir);
-    expect(gate.tryAcquire()).toBeNull();
+    expect(await gate.tryAcquire()).toBeNull();
     expect(lstatSync(join(dir, lockName)).isDirectory()).toBe(true);
   });
 
   it('does not release a lock when recovery is false or throws', async () => {
     const dir = root();
     const gate = new NativeZoneHostWriterCoordinator(dir);
-    const lease = gate.tryAcquire();
+    const lease = await gate.tryAcquire();
     expect(lease).not.toBeNull();
     expect(await lease?.releaseAfterVerifiedRecovery(async () => false)).toBe(false);
     expect(
@@ -84,44 +84,46 @@ describe('host-wide native copper-zone writer reservation (not yet Bridge-wired)
         throw Error('DRC unknown');
       }),
     ).toBe(false);
-    expect(gate.tryAcquire()).toBeNull();
+    expect(await gate.tryAcquire()).toBeNull();
     expect(await lease?.releaseAfterVerifiedRecovery(async () => true)).toBe(true);
     expect(await lease?.releaseAfterVerifiedRecovery(async () => true)).toBe(false);
-    expect(gate.tryAcquire()).not.toBeNull();
+    expect(await gate.tryAcquire()).not.toBeNull();
   });
 
   it('rejects malformed or altered owner records without removing the reservation', async () => {
     const dir = root();
     const gate = new NativeZoneHostWriterCoordinator(dir);
-    const lease = gate.tryAcquire();
+    const lease = await gate.tryAcquire();
     const owner = join(dir, lockName, 'owner.json');
     const record = JSON.parse(readFileSync(owner, 'utf8')) as Record<string, unknown>;
     writeFileSync(owner, JSON.stringify({ ...record, token: 'not-our-token' }));
     expect(await lease?.releaseAfterVerifiedRecovery(async () => true)).toBe(false);
-    expect(gate.tryAcquire()).toBeNull();
+    expect(await gate.tryAcquire()).toBeNull();
   });
 
-  it('keeps incomplete reservations as hard blockers', () => {
+  it('keeps incomplete reservations as hard blockers', async () => {
     const dir = root();
     const reserved = join(dir, lockName);
     mkdirSync(reserved);
-    expect(new NativeZoneHostWriterCoordinator(dir).tryAcquire()).toBeNull();
+    expect(await new NativeZoneHostWriterCoordinator(dir).tryAcquire()).toBeNull();
   });
 
-  it.skipIf(process.platform === 'win32')('blocks symlinked lock directories', () => {
+  it.skipIf(process.platform === 'win32')('blocks symlinked lock directories', async () => {
     const dir = root();
     const reserved = join(dir, lockName);
     const target = root();
     symlinkSync(target, reserved);
-    expect(new NativeZoneHostWriterCoordinator(dir).tryAcquire()).toBeNull();
+    expect(await new NativeZoneHostWriterCoordinator(dir).tryAcquire()).toBeNull();
     expect(lstatSync(reserved).isSymbolicLink()).toBe(true);
   });
 
-  it.skipIf(process.platform === 'win32')('refuses a symlink as coordinator root', () => {
+  it.skipIf(process.platform === 'win32')('refuses a symlink as coordinator root', async () => {
     const outside = root();
     const dir = root();
     const alias = join(dir, 'alias');
     symlinkSync(outside, alias);
-    expect(() => new NativeZoneHostWriterCoordinator(alias).tryAcquire()).toThrow(/directory/);
+    await expect(new NativeZoneHostWriterCoordinator(alias).tryAcquire()).rejects.toThrow(
+      /directory/,
+    );
   });
 });

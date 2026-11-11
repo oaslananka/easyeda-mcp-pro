@@ -1,15 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-  closeSync,
-  fsyncSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  rmdirSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { lstat, mkdir, open, readFile, rmdir, unlink } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -38,20 +28,20 @@ function errorCode(error: unknown): string | undefined {
     : undefined;
 }
 
-function isPrivateDirectory(path: string): boolean {
+async function isPrivateDirectory(path: string): Promise<boolean> {
   try {
-    const details = lstatSync(path);
+    const details = await lstat(path);
     return details.isDirectory() && !details.isSymbolicLink();
   } catch {
     return false;
   }
 }
 
-function sameOwner(ownerFile: string, token: string): boolean {
+async function sameOwner(ownerFile: string, token: string): Promise<boolean> {
   try {
-    const details = lstatSync(ownerFile);
+    const details = await lstat(ownerFile);
     if (!details.isFile() || details.isSymbolicLink()) return false;
-    const parsed = JSON.parse(readFileSync(ownerFile, 'utf8')) as Partial<NativeZoneLockOwner>;
+    const parsed = JSON.parse(await readFile(ownerFile, 'utf8')) as Partial<NativeZoneLockOwner>;
     return parsed.schemaVersion === 1 && parsed.token === token && parsed.pid === process.pid;
   } catch {
     return false;
@@ -80,13 +70,13 @@ export class NativeZoneHostLease {
     } catch {
       return false;
     }
-    if (!verified || !isPrivateDirectory(this.directory)) return false;
+    if (!verified || !(await isPrivateDirectory(this.directory))) return false;
 
     const ownerFile = join(this.directory, OWNER_FILE);
-    if (!sameOwner(ownerFile, this.token)) return false;
+    if (!(await sameOwner(ownerFile, this.token))) return false;
     try {
-      unlinkSync(ownerFile);
-      rmdirSync(this.directory);
+      await unlink(ownerFile);
+      await rmdir(this.directory);
       this.held = false;
       return true;
     } catch {
@@ -109,14 +99,14 @@ export class NativeZoneHostWriterCoordinator {
    * using the same host account. EEXIST, including abandoned locks, blocks.
    * An interrupted initialization leaves a lock that must not be auto-cleared.
    */
-  tryAcquire(): NativeZoneHostLease | null {
+  async tryAcquire(): Promise<NativeZoneHostLease | null> {
     const dataDirectory = dirname(this.directory);
-    mkdirSync(dataDirectory, { recursive: true, mode: 0o700 });
-    if (!isPrivateDirectory(dataDirectory)) {
+    await mkdir(dataDirectory, { recursive: true, mode: 0o700 });
+    if (!(await isPrivateDirectory(dataDirectory))) {
       throw new Error('Native zone coordinator directory is not a regular directory.');
     }
     try {
-      mkdirSync(this.directory, { mode: 0o700 });
+      await mkdir(this.directory, { mode: 0o700 });
     } catch (error) {
       if (errorCode(error) === 'EEXIST') return null;
       throw error;
@@ -131,12 +121,12 @@ export class NativeZoneHostWriterCoordinator {
     };
     // If metadata persistence fails, keep the directory as a hard blocker:
     // no attempt is allowed to infer that a native write did not occur.
-    const fd = openSync(join(this.directory, OWNER_FILE), 'wx', 0o600);
+    const handle = await open(join(this.directory, OWNER_FILE), 'wx', 0o600);
     try {
-      writeFileSync(fd, JSON.stringify(owner));
-      fsyncSync(fd);
+      await handle.writeFile(JSON.stringify(owner));
+      await handle.sync();
     } finally {
-      closeSync(fd);
+      await handle.close();
     }
     return new NativeZoneHostLease(this.directory, token);
   }
