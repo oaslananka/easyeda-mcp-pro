@@ -1,3 +1,4 @@
+import { inspectNativeZoneSafety } from './zone-native-storage.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { normalizeValue } from './api-introspection.js';
 import type { DispatcherToolkit } from './toolkit.js';
@@ -281,6 +282,7 @@ export function createSystemApiOperations(
         hasDMT: 'DMT_Schematic' in globalThis || hasDMTLocal || hasDMTEDA,
         dispatcherBuildId: dependencies.buildId,
         documentTargetGuard: true,
+        nativeZoneSafety: await inspectNativeZoneSafety(dependencies.readFirstPath),
       };
     },
 

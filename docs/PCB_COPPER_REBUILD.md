@@ -148,6 +148,17 @@ reconciliation/restore contract. The key is intentionally global to the
 extension origin (one unresolved copper write blocks all further candidate
 writes), rather than assuming it is safe to continue on another PCB.
 
+The existing read-only `easyeda_bridge_status` MCP tool now carries
+`native_zone_safety` when the connected extension supports it. It reports
+whether the extension-scoped storage getter was actually readable,
+whether a pending write fence is absent/present/unknown, and the unchanged
+`coordinator: unavailable`, `coldReopenVerified: false` and
+`publicApplyEnabled: false` gates. It never returns stored fence contents
+or calls native storage setters. A missing result from an older extension
+means **unverified**, not safe-to-write. This lets actual extension runtime
+tests distinguish an unavailable native storage API from a verified empty
+pending key, without implying public zone-writing support.
+
 **The candidate is still not installed in a production dispatcher.**
 Even a working Web Lock applies only to contexts on the _same browser origin_.
 An integration with the existing bridge session/relay must prove exclusive
