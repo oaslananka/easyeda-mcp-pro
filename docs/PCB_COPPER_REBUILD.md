@@ -84,16 +84,26 @@ durable write recovery and full public MCP acceptance are established.
 
 ## Write-ahead quarantine across adapter reconstruction (test-only)
 
-The guarded native-zone candidate now **requires** a write-ahead reservation
-before any native creation call. The repository-owned adapter requires an
-injected persistent key/value storage provider, and the
-`zone-durable-write-fence` reserve/inspect contract records an
-`reconciliation-required` marker **before** native mutation. If the store
-cannot be read, written or read back, the operation is blocked before
-`PCB_PrimitivePour.create()`. Even malformed existing journal entries
-fail closed. Freshly constructed adapters sharing this store refuse every
-new zone mutation, including after a same-session successful save or a
-same-session exact-source rollback.
+The guarded native-zone candidate **requires** a write-ahead reservation
+before any native creation call. The repository-owned, test-only adapter now
+obtains a native extension-scoped store through EasyEDA Pro `SYS_Storage`:
+`getExtensionUserConfig(key)` is a synchronous lookup, while
+`setExtensionUserConfig(key, value)` is an asynchronous operation that must
+resolve exactly `true`. The adapter re-reads the stored marker before any
+`PCB_PrimitivePour.create()`; unavailable, malformed, false-returning,
+unreadable or unwritable persistence blocks creation, never falls back to
+browser `localStorage`. Its `reconciliation-required` marker survives
+reconstructed adapters sharing the same native extension store and prevents
+retries even after same-session save or source rollback.
+
+Read+write+readback of that marker is serialized using a _non-waiting,
+exclusive_ origin-scoped Web Lock with a fixed reserved name. A missing,
+busy or rejecting Web Locks manager blocks creation before the first mutation.
+This addresses same-origin concurrent tab/adaptor races in the test-only
+contract. The storage and Web Locks APIs were discovered by **read-only
+capability inspection** in the isolated EasyEDA Pro 3.2.209 editor, but
+that does not demonstrate the full extension lifecycle or persistence
+across a cold browser restart.
 
 **No auto-clear, timeout-based expiry or manual reset API is provided.**
 Removing the marker requires a separately designed and verified cold-reopen
@@ -101,13 +111,23 @@ reconciliation/restore contract. The key is intentionally global to the
 extension origin (one unresolved copper write blocks all further candidate
 writes), rather than assuming it is safe to continue on another PCB.
 
-The storage adapter is injected, **not yet installed in a production
-dispatcher**, and cross-tab atomic reservations are NOT established by
-ordinary browser storage. Test coverage proves the persistence-provider
-contract across new adapter instances, not a cold browser restart or
-production recovery. Live mutating acceptance of this new adapter is still
-blocked/not performed. Public `easyeda_pcb_add_zone` apply and
-`pcb.addZone` stay fail-closed until these remaining gates pass.
+**The candidate is still not installed in a production dispatcher.**
+A Web Lock applies only to contexts on the _same browser origin_; extension
+API storage scope, separate browser profiles/processes, and editor/extension
+script isolation must be independently accepted on the real target.
+Availability in the host editor does **not** prove `navigator.locks` is
+available in the extension's restricted main-script runtime; absent
+capability fails closed. Tests establish only mock-native async durability
+and serialization, not live persistence, multi-profile isolation or cold
+browser recovery. The new adapter's real mutating acceptance was previously
+blocked before write; no alternate mutating path is attempted here. Public
+`easyeda_pcb_add_zone` apply and `pcb.addZone` stay fail-closed.
+
+Official platform contracts:
+
+- [SYS_Storage.getExtensionUserConfig](https://prodocs.easyeda.com/en/api/reference/pro-api.sys_storage.getextensionuserconfig.html)
+- [SYS_Storage.setExtensionUserConfig](https://prodocs.easyeda.com/en/api/reference/pro-api.sys_storage.setextensionuserconfig.html)
+- [Web Locks API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)
 
 ## New-zone candidate verification (not production apply)
 

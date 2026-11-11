@@ -5,13 +5,15 @@
  * BEFORE entering native mutation; it is intentionally never auto-cleared by
  * a same-session save, rollback or timeout. No public apply is wired to this.
  */
+import type { ZoneFenceLock } from './zone-fence-lock.js';
+
 export interface ZoneFenceStorage {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
+  getItem(key: string): string | null | Promise<string | null>;
+  setItem(key: string, value: string): void | Promise<void>;
 }
 
 export interface NativeZoneWriteFence {
-  reserve(focus: string): boolean;
+  reserve(focus: string): Promise<boolean>;
 }
 
 export const NATIVE_ZONE_FENCE_KEY = 'easyeda-mcp-pro.zone-create.pending.v1';
@@ -41,10 +43,10 @@ function parsePending(raw: string | null): PendingZoneFence | undefined {
   }
 }
 
-export function createPersistentZoneWriteFence(storage: ZoneFenceStorage) {
-  function inspect(): { blocked: boolean; focus?: string } {
+export function createPersistentZoneWriteFence(storage: ZoneFenceStorage, lock: ZoneFenceLock) {
+  async function inspect(): Promise<{ blocked: boolean; focus?: string }> {
     try {
-      const stored = storage.getItem(NATIVE_ZONE_FENCE_KEY);
+      const stored = await storage.getItem(NATIVE_ZONE_FENCE_KEY);
       if (stored === null) return { blocked: false };
       const parsed = parsePending(stored);
       return parsed ? { blocked: true, focus: parsed.focus } : { blocked: true };
@@ -53,16 +55,17 @@ export function createPersistentZoneWriteFence(storage: ZoneFenceStorage) {
     }
   }
 
-  function reserve(focus: string): boolean {
+  async function reserve(focus: string): Promise<boolean> {
     if (typeof focus !== 'string' || !focus.trim() || focus.length > 1024) return false;
     try {
-      // A malformed record is treated as an existing barrier, not an empty store.
-      if (storage.getItem(NATIVE_ZONE_FENCE_KEY) !== null) return false;
-      const marker = JSON.stringify({ status: 'reconciliation-required', focus, version: 1 });
-      storage.setItem(NATIVE_ZONE_FENCE_KEY, marker);
-      return storage.getItem(NATIVE_ZONE_FENCE_KEY) === marker;
+      // Exactly one same-origin contender can examine and create the marker.
+      return await lock.exclusive(async () => {
+        if ((await storage.getItem(NATIVE_ZONE_FENCE_KEY)) !== null) return false;
+        const marker = JSON.stringify({ status: 'reconciliation-required', focus, version: 1 });
+        await storage.setItem(NATIVE_ZONE_FENCE_KEY, marker);
+        return (await storage.getItem(NATIVE_ZONE_FENCE_KEY)) === marker;
+      });
     } catch {
-      // Access denied, quota, missing permissions, or corrupted persistence => no write.
       return false;
     }
   }
