@@ -398,6 +398,19 @@ describe('createDispatcherDomainRouter', () => {
     const router = createDispatcherDomainRouter(dependencies);
     const params = { value: 'preserved' };
 
+    // Exercise lifecycle dispatch end-to-end; the read and destructive actions
+    // must use their respective native project handlers with the exact input.
+    await expect(router.tryDispatch('project.list', params)).resolves.toEqual({
+      handled: true,
+      value: { status: 'ok', projects: [], complete: true },
+    });
+    expect(dependencies.projectOperations.list).toHaveBeenCalledWith(params);
+    await expect(router.tryDispatch('project.close', params)).resolves.toEqual({
+      handled: true,
+      value: { success: false, status: 'dirty_state_unavailable' },
+    });
+    expect(dependencies.projectOperations.close).toHaveBeenCalledWith(params);
+
     await expect(router.tryDispatch('project.open', params)).resolves.toEqual({
       handled: true,
       value: { method: 'project.open', params },
