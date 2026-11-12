@@ -171,6 +171,29 @@ describe('createPcbMutationOperations', () => {
     expect(getAllPoured).toHaveBeenCalledTimes(2);
   });
 
+  it('blocks copper rebuild before mutation when distinct sources share a Poured primitive identity', async () => {
+    const target = fakePour('pour-1', {
+      rebuildResult: fakePouredWithFills('shared-poured', 'pour-1'),
+    });
+    const duplicatePoured = [
+      fakePouredWithFills('shared-poured', 'pour-1'),
+      fakePouredWithFills('shared-poured', 'pour-2'),
+    ];
+    const getAllPoured = vi.fn(async () => duplicatePoured);
+    const { operations } = createOperations({
+      pourClass: {
+        get: vi.fn(async () => target.primitive),
+        getAll: vi.fn(async () => [target.primitive]),
+      },
+      pouredClass: { getAll: getAllPoured },
+    });
+    await expect(operations.rebuildCopper({ pourIds: ['pour-1'] })).rejects.toThrow(
+      'Existing Poured geometry cannot be snapshotted',
+    );
+    expect(getAllPoured).toHaveBeenCalledOnce();
+    expect(target.rebuildCopperRegion).not.toHaveBeenCalled();
+  });
+
   it('resolves every requested id before writing and rejects missing ids with zero rebuilds', async () => {
     const pour1 = fakePour('pour-1', { rebuildResult: fakePoured('poured-1', 'pour-1') });
     const get = vi.fn(async (id: unknown) => (id === 'pour-1' ? pour1.primitive : undefined));
