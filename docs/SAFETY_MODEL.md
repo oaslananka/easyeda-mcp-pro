@@ -58,6 +58,21 @@ cold-reopen persistence or correct copper geometry: coldReopenVerified=false
 and publicApplyEnabled=false remain unchanged. A failed native storage read
 never turns a pending marker into an absent fence.
 
+A real, source-linked Z480 baseline has also been serialized **in memory**
+as a complete project-derived v2 pending marker, without storing it or
+obtaining a host lease. The 32,840-byte rehearsal marker decoded correctly;
+the read-only recovery classifier returned \`candidate-unchanged\`, while
+a changed filled-copper signature and the wrong PCB focus both returned
+\`unresolved\`. Every result kept persistenceVerified=false and
+releaseAuthorized=false. This does not validate a post-write cold reopen,
+release any crash-retained lease, or authorize a new native write.
+
+Recovery marker creation now rejects a source-less Poured baseline before
+any durable reservation. If a legacy schema-shaped marker already carries
+such an orphan source link, the independent recovery classifier keeps it
+unresolved with no release authority. Schema shape alone is not sufficient
+evidence of a coherent native source/Poured inventory.
+
 A synthetic v2 marker was also tested in an isolated EasyEDA Pro 3.2.209
 editor using its real installed Bridge: native SYS_Storage write/readback,
 complete editor shutdown/restart, exact persisted readback, independent

@@ -120,6 +120,12 @@ function restoredInventory(value: StoredZoneInventory): ZoneInventory {
   };
 }
 
+/** A source-less Poured cannot be proof of a valid native recovery baseline. */
+function hasOrphanedPoured(value: StoredZoneInventory): boolean {
+  const sources = new Set(value.sources.map((source) => source.sourceId));
+  return value.derived.some((poured) => !sources.has(poured.sourceId));
+}
+
 /** Writes a compact, deterministically ordered record, or refuses oversized/malformed evidence. */
 export function encodeZoneWriteReservation(reservation: ZoneWriteReservation): string | undefined {
   if (
@@ -138,6 +144,7 @@ export function encodeZoneWriteReservation(reservation: ZoneWriteReservation): s
   };
   if (
     !isStoredInventory(stored.before) ||
+    hasOrphanedPoured(stored.before) ||
     [...reservation.before.sources].some(([key, item]) => key !== item.sourceId) ||
     [...reservation.before.derived].some(([key, item]) => key !== item.sourceId)
   )
@@ -188,6 +195,8 @@ export function assessZoneRecoveryCandidate(
   });
   const pending = decodeZonePendingEvidence(pendingRaw);
   if (!pending) return deny('Pending marker lacks a complete, valid original inventory.');
+  if (hasOrphanedPoured(pending.before))
+    return deny('Pending baseline has a Poured entry without its exact native Pour source.');
   if (pending.focus !== focusedDocument || !fresh)
     return deny('The reopened PCB focus or current native inventory is unverified.');
   const verdict = reconcileZoneCreation(restoredInventory(pending.before), fresh, pending.expected);
