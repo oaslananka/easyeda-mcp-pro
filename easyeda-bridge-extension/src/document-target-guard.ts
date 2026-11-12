@@ -1,5 +1,6 @@
 import type { ApiRuntime, BridgeErrorFactory } from './api-runtime.js';
 import { isRecord } from './utils.js';
+import { documentIdentity } from './zone-outline-evidence.js';
 
 export interface TargetDocumentEvidence {
   uuid: string;
@@ -258,4 +259,45 @@ export function withTargetDocumentEvidence(
   return target && isRecord(value) && !Array.isArray(value)
     ? { ...value, targetDocument: target }
     : value;
+}
+
+/** Recheck the same private project+PCB key after awaiting a native read-only zone
+ * preflight. This is focus continuity evidence, never a saved PCB revision. */
+export async function withGuardedZonePreflight<T>(
+  method: string,
+  params: Record<string, unknown>,
+  target: TargetDocumentEvidence | undefined,
+  readFirstPath: ApiRuntime['readFirstPath'],
+  createBridgeError: BridgeErrorFactory,
+  inspect: () => Promise<T>,
+): Promise<T> {
+  if (method !== 'pcb.zonePreflight' || !target) return inspect();
+  const failedFocus = () =>
+    createBridgeError(
+      'TARGET_CONTEXT_CHANGED',
+      'The focused PCB/project changed or could not be verified during zone inspection.',
+      'Focus the intended PCB and repeat the read-only preview. No write attempted.',
+    );
+  const before = await documentIdentity(readFirstPath).catch(() => undefined);
+  if (!before) throw failedFocus();
+  const response = await inspect();
+  const after = await documentIdentity(readFirstPath).catch(() => undefined);
+  if (!after || before !== after) throw failedFocus();
+  let verified: TargetDocumentEvidence | undefined;
+  try {
+    verified = await assertExpectedDocument(method, params, readFirstPath, createBridgeError);
+  } catch {
+    // Native focus failures may contain private document identifiers.
+    throw failedFocus();
+  }
+  if (
+    !verified ||
+    verified.uuid !== target.uuid ||
+    verified.documentType !== target.documentType ||
+    verified.projectUuid !== target.projectUuid ||
+    verified.name !== target.name
+  ) {
+    throw failedFocus();
+  }
+  return response;
 }

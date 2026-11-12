@@ -38,7 +38,11 @@ exposing private identifiers. A connected older extension must explicitly
 advertise documentProjectGuard=true before any project-bound native call;
 missing support fails before accessing the document. These checks only
 bind **current project and PCB identity**, not a saved PCB revision, live
-copper topology, remote approval, or authorization to mutate.
+copper topology, remote approval, or authorization to mutate. The guarded
+read-only zone preflight checks the project+PCB identity again after native
+net/layer/outline inspection, discarding results when native focus changes or
+post-read verification fails. Even this continuity check is **not** a saved
+revision/content fingerprint; public native zone apply remains disabled.
 
 ## Native copper-zone host reservation (experimental, not a write permission)
 

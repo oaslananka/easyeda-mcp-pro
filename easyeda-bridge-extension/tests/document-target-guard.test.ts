@@ -15,16 +15,16 @@ function makeDispatcher(focusedUuid: string, type = 3) {
     documentType: type,
     parentProjectUuid: 'project-1',
   }));
+  const getCurrentProjectInfo = vi.fn(async () => ({ uuid: 'project-1' }));
+  const getCurrentPcbInfo = vi.fn(async () => ({
+    uuid: focusedUuid,
+    name: 'Production PCB',
+    parentProjectUuid: 'project-1',
+  }));
   const global = {
     DMT_SelectControl: { getCurrentDocumentInfo },
-    DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'project-1' }) },
-    DMT_Pcb: {
-      getCurrentPcbInfo: async () => ({
-        uuid: focusedUuid,
-        name: 'Production PCB',
-        parentProjectUuid: 'project-1',
-      }),
-    },
+    DMT_Project: { getCurrentProjectInfo },
+    DMT_Pcb: { getCurrentPcbInfo },
     DMT_Schematic: {
       getCurrentSchematicPageInfo: async () => ({ uuid: focusedUuid, name: 'Schematic page' }),
     },
@@ -47,6 +47,8 @@ function makeDispatcher(focusedUuid: string, type = 3) {
     deleteLine,
     modifySchematic,
     getCurrentDocumentInfo,
+    getCurrentProjectInfo,
+    getCurrentPcbInfo,
   };
 }
 
@@ -126,6 +128,166 @@ describe('target document guard #946', () => {
         projectUuid: 'project-1',
       },
     });
+  });
+
+  it('rechecks focus after an async project-bound native zone preview', async () => {
+    const { dispatcher, getCurrentDocumentInfo, mutateTrack } = makeDispatcher('board-copy');
+    const result = await dispatcher.dispatch('pcb.zonePreflight', {
+      netName: 'GND',
+      layer: 2,
+      expectedPcbUuid: 'board-copy',
+      expectedProjectUuid: 'project-1',
+    });
+    expect(result).toMatchObject({
+      readyToApply: false,
+      targetDocument: {
+        uuid: 'board-copy',
+        projectUuid: 'project-1',
+        documentType: 'pcb',
+      },
+    });
+    expect(getCurrentDocumentInfo.mock.calls.length).toBeGreaterThanOrEqual(5);
+    expect(mutateTrack).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['another PCB', { uuid: 'other-board', parentProjectUuid: 'project-1' }],
+    ['a copied PCB in another project', { uuid: 'board-copy', parentProjectUuid: 'other-project' }],
+  ] as const)(
+    'discards stale zone preview target evidence after focus switches to %s',
+    async (_, switched) => {
+      const { dispatcher, getCurrentDocumentInfo, getCurrentProjectInfo, mutateTrack } =
+        makeDispatcher('board-copy');
+      let reads = 0;
+      getCurrentDocumentInfo.mockImplementation(async () => {
+        reads++;
+        return {
+          uuid: reads >= 5 ? switched.uuid : 'board-copy',
+          documentType: 3,
+          parentProjectUuid: reads >= 5 ? switched.parentProjectUuid : 'project-1',
+        };
+      });
+      let projectReads = 0;
+      getCurrentProjectInfo.mockImplementation(async () => ({
+        uuid: ++projectReads >= 5 ? switched.parentProjectUuid : 'project-1',
+      }));
+      await expect(
+        dispatcher.dispatch('pcb.zonePreflight', {
+          netName: 'GND',
+          layer: 2,
+          expectedPcbUuid: 'board-copy',
+          expectedProjectUuid: 'project-1',
+        }),
+      ).rejects.toMatchObject({ code: 'TARGET_CONTEXT_CHANGED' });
+      expect(mutateTrack).not.toHaveBeenCalled();
+    },
+  );
+
+  it('detects a copied PCB in a different project even without an explicit project guard', async () => {
+    const { dispatcher, getCurrentDocumentInfo, getCurrentProjectInfo } =
+      makeDispatcher('board-copy');
+    let reads = 0;
+    getCurrentDocumentInfo.mockImplementation(async () => ({
+      uuid: 'board-copy',
+      documentType: 3,
+      parentProjectUuid: ++reads >= 5 ? 'other-project' : 'project-1',
+    }));
+    let projectReads = 0;
+    getCurrentProjectInfo.mockImplementation(async () => ({
+      uuid: ++projectReads >= 5 ? 'other-project' : 'project-1',
+    }));
+    await expect(
+      dispatcher.dispatch('pcb.zonePreflight', {
+        netName: 'GND',
+        layer: 2,
+        expectedPcbUuid: 'board-copy',
+      }),
+    ).rejects.toMatchObject({ code: 'TARGET_CONTEXT_CHANGED' });
+  });
+
+  it('does not leak native focus errors when the post-read target becomes unavailable', async () => {
+    const { dispatcher, getCurrentDocumentInfo } = makeDispatcher('board-copy');
+    let reads = 0;
+    getCurrentDocumentInfo.mockImplementation(async () => {
+      if (++reads >= 5) throw new Error('private native document metadata');
+      return { uuid: 'board-copy', documentType: 3, parentProjectUuid: 'project-1' };
+    });
+    const rejection = await dispatcher
+      .dispatch('pcb.zonePreflight', {
+        netName: 'GND',
+        layer: 2,
+        expectedPcbUuid: 'board-copy',
+        expectedProjectUuid: 'project-1',
+      })
+      .catch((error: unknown) => error);
+    expect(rejection).toMatchObject({ code: 'TARGET_CONTEXT_CHANGED' });
+    expect(JSON.stringify(rejection)).not.toContain('private native document metadata');
+  });
+
+  it('keeps unguarded zone inspection non-mutating and does not invent a target', async () => {
+    const { dispatcher } = makeDispatcher('board-copy');
+    const result = await dispatcher.dispatch('pcb.zonePreflight', { netName: 'GND', layer: 2 });
+    expect(result).toMatchObject({ readyToApply: false });
+    expect(result).not.toHaveProperty('targetDocument');
+  });
+
+  it('fails closed if native identity disappears after the initial target check', async () => {
+    const { dispatcher, getCurrentDocumentInfo } = makeDispatcher('board-copy');
+    let reads = 0;
+    getCurrentDocumentInfo.mockImplementation(async () => ({
+      uuid: 'board-copy',
+      documentType: 3,
+      parentProjectUuid: ++reads >= 2 ? 'unexpected-project' : 'project-1',
+    }));
+    await expect(
+      dispatcher.dispatch('pcb.zonePreflight', {
+        netName: 'GND',
+        layer: 2,
+        expectedPcbUuid: 'board-copy',
+      }),
+    ).rejects.toMatchObject({ code: 'TARGET_CONTEXT_CHANGED' });
+  });
+
+  it('redacts native metadata read errors from final focused PCB verification', async () => {
+    const { dispatcher, getCurrentPcbInfo } = makeDispatcher('board-copy');
+    getCurrentPcbInfo
+      .mockResolvedValueOnce({
+        uuid: 'board-copy',
+        name: 'Production PCB',
+        parentProjectUuid: 'project-1',
+      })
+      .mockRejectedValueOnce(new Error('private-metadata-error'));
+    const error = await dispatcher
+      .dispatch('pcb.zonePreflight', {
+        netName: 'GND',
+        layer: 2,
+        expectedPcbUuid: 'board-copy',
+      })
+      .catch((cause: unknown) => cause);
+    expect(error).toMatchObject({ code: 'TARGET_CONTEXT_CHANGED' });
+    expect(JSON.stringify(error)).not.toContain('private-metadata-error');
+  });
+
+  it('rejects a renamed PCB after inspection rather than attach stale name evidence', async () => {
+    const { dispatcher, getCurrentPcbInfo } = makeDispatcher('board-copy');
+    getCurrentPcbInfo
+      .mockResolvedValueOnce({
+        uuid: 'board-copy',
+        name: 'Production PCB',
+        parentProjectUuid: 'project-1',
+      })
+      .mockResolvedValueOnce({
+        uuid: 'board-copy',
+        name: 'Renamed PCB',
+        parentProjectUuid: 'project-1',
+      });
+    await expect(
+      dispatcher.dispatch('pcb.zonePreflight', {
+        netName: 'GND',
+        layer: 2,
+        expectedPcbUuid: 'board-copy',
+      }),
+    ).rejects.toMatchObject({ code: 'TARGET_CONTEXT_CHANGED' });
   });
 
   it('refuses mismatched schematic identity before any primitive mutation', async () => {
