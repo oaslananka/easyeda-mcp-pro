@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ToolRegistry } from '../../../src/tools/registry.js';
+import { ToolRegistry, handleRegisteredToolCall } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import { registerPcbWriteTools } from '../../../src/tools/L1_pcb_write.js';
 import { EnvSchema } from '../../../src/config/env.js';
@@ -1289,6 +1289,55 @@ describe('PCB Write Tools', () => {
     expect(JSON.stringify(result)).not.toContain('pcb-private-uuid');
     expect(JSON.stringify(result)).not.toContain('local file path');
     expect(bridgeCall).toHaveBeenCalledOnce();
+  });
+
+  it('does not reattach a different native PCB identity through the MCP registry wrapper', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    expect(tool).toBeDefined();
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'system.getStatus') return { documentTargetGuard: true };
+      if (method === 'pcb.zonePreflight')
+        return {
+          runtimeVersion: '3.2.209',
+          runtimeVerified: true,
+          activePcb: true,
+          nativeCapabilities: true,
+          netVerified: true,
+          layerVerified: true,
+          boardGeometry: { containmentVerified: true },
+          readyToApply: false,
+          blockers: ['board-outline-and-copper-topology-unverified'],
+          targetDocument: {
+            uuid: 'secret-wrong-pcb',
+            name: 'Other Board',
+            documentType: 'pcb',
+          },
+        };
+      return {};
+    });
+    const result = await handleRegisteredToolCall(
+      tool!,
+      context,
+      {
+        mode: 'preview',
+        inspectLive: true,
+        expectedPcbUuid: 'pcb-expected',
+        rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+        layer: 2,
+        netName: 'GND',
+        fillMethod: 'solid',
+        preserveSilos: true,
+        pourName: 'Z480_PREVIEW',
+        pourPriority: 1,
+        lineWidth: 0.2,
+        locked: false,
+      },
+      undefined,
+    );
+    expect(JSON.stringify(result)).not.toContain('secret-wrong-pcb');
+    expect(JSON.stringify(result)).not.toContain('Other Board');
+    expect(result.structuredContent).not.toHaveProperty('targetDocument');
+    expect(bridgeCall).toHaveBeenCalledWith('system.getStatus', {});
   });
 
   it('cannot convert explicit target selection and confirmWrite into an enabled zone apply', async () => {
