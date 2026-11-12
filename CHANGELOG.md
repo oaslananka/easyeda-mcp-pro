@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.15.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.14.0...easyeda-mcp-pro-v1.15.0) (2026-11-12)
+
+
+### Features
+
+* **project:** safe EasyEDA project lifecycle tools ([#1013](https://github.com/oaslananka/easyeda-mcp-pro/issues/1013)) ([9cf61e3](https://github.com/oaslananka/easyeda-mcp-pro/commit/9cf61e3cce0f1dbf73fc72569619ec4cdad0fe71))
+
+
+### Bug Fixes
+
+* **pcb:** bind native zone preview to owning project ([#1043](https://github.com/oaslananka/easyeda-mcp-pro/issues/1043)) ([c8081ac](https://github.com/oaslananka/easyeda-mcp-pro/commit/c8081ac49bed45ce87184118e389d4e4c10ab8de))
+* **pcb:** make native zone preview report measured capabilities ([#1040](https://github.com/oaslananka/easyeda-mcp-pro/issues/1040)) ([18d3c98](https://github.com/oaslananka/easyeda-mcp-pro/commit/18d3c9861dbf564b17f13a626e58b1506139886d))
+* **pcb:** recheck zone-preview focus after native reads ([f076920](https://github.com/oaslananka/easyeda-mcp-pro/commit/f0769200251ed8ae2b78301171c7e83d630b359f))
+* **pcb:** reject unverified native runtime in zone preview ([#1044](https://github.com/oaslananka/easyeda-mcp-pro/issues/1044)) ([f561f36](https://github.com/oaslananka/easyeda-mcp-pro/commit/f561f36eff42d014f30f7eea951c4590643cecc1))
+* **pcb:** validate focused board identity in native zone preview ([#1042](https://github.com/oaslananka/easyeda-mcp-pro/issues/1042)) ([015b7e7](https://github.com/oaslananka/easyeda-mcp-pro/commit/015b7e7b2a65f33746ca932d13b3dae5d754cba7))
+
 ## [1.14.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.13.1...easyeda-mcp-pro-v1.14.0) (2026-11-12)
 
 
