@@ -1,5 +1,62 @@
 # Changelog
 
+## [1.14.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.13.1...easyeda-mcp-pro-v1.14.0) (2026-11-12)
+
+
+### Features
+
+* **erc:** review declared datasheet rules on live schematic ([#987](https://github.com/oaslananka/easyeda-mcp-pro/issues/987)) ([6d2c726](https://github.com/oaslananka/easyeda-mcp-pro/commit/6d2c7265fd2918717b5ec74245b585ad0de052c8))
+* **pcb:** add fail-closed extension host reservation client ([#1026](https://github.com/oaslananka/easyeda-mcp-pro/issues/1026)) ([f7eaecc](https://github.com/oaslananka/easyeda-mcp-pro/commit/f7eaeccaa0beb8f5b97b0bcc2b38a85baa634398))
+* **pcb:** expose read-only native copper pour associations ([#1011](https://github.com/oaslananka/easyeda-mcp-pro/issues/1011)) ([8984f78](https://github.com/oaslananka/easyeda-mcp-pro/commit/8984f78e41b20c4d3c260c197fb79311f31ce68d))
+* **pcb:** guard internal Bridge host reservation handshake ([#1025](https://github.com/oaslananka/easyeda-mcp-pro/issues/1025)) ([6deab28](https://github.com/oaslananka/easyeda-mcp-pro/commit/6deab28e781e42c9ccd7e7d2da3e10c668a2c9fb))
+* **pcb:** inspect live prerequisites during native zone preview ([#1016](https://github.com/oaslananka/easyeda-mcp-pro/issues/1016)) ([274a663](https://github.com/oaslananka/easyeda-mcp-pro/commit/274a663b75e1762c82f7959137267cd8404c080d))
+* **pcb:** stage crash-retained host-wide native writer lease ([#1024](https://github.com/oaslananka/easyeda-mcp-pro/issues/1024)) ([f38fa66](https://github.com/oaslananka/easyeda-mcp-pro/commit/f38fa66158e3ee43eac08e8a3067fc6154308994))
+* **pcb:** stage guarded native zone creation candidate ([#1015](https://github.com/oaslananka/easyeda-mcp-pro/issues/1015)) ([a3e32da](https://github.com/oaslananka/easyeda-mcp-pro/commit/a3e32dafa230cfc818c489f8afda97d2f0de5b9a))
+* **schematic:** expose declared device subparts without design writes ([#998](https://github.com/oaslananka/easyeda-mcp-pro/issues/998)) ([f31a3b3](https://github.com/oaslananka/easyeda-mcp-pro/commit/f31a3b3b4dc315786cd1573f9ece3633bc15e528))
+
+
+### Bug Fixes
+
+* **bom:** avoid false LCSC validation without supplier evidence ([#1000](https://github.com/oaslananka/easyeda-mcp-pro/issues/1000)) ([a276d35](https://github.com/oaslananka/easyeda-mcp-pro/commit/a276d35e0d4173a5ede5bc1ba20835bdac81bdd5))
+* **bom:** prevent multi-unit parts from doubling purchase quantity ([#999](https://github.com/oaslananka/easyeda-mcp-pro/issues/999)) ([327dd18](https://github.com/oaslananka/easyeda-mcp-pro/commit/327dd1865d698f410e9c2024ee0d9d50c5d026d2))
+* **dfm:** do not infer drilled holes from zero native diameters ([#990](https://github.com/oaslananka/easyeda-mcp-pro/issues/990)) ([02d4653](https://github.com/oaslananka/easyeda-mcp-pro/commit/02d46539ba9b231a39ee8009c6febc5e8277440d))
+* **dfm:** do not treat zero board dimensions as within factory limits ([#989](https://github.com/oaslananka/easyeda-mcp-pro/issues/989)) ([1a2c449](https://github.com/oaslananka/easyeda-mcp-pro/commit/1a2c44911e03670a417826dcf88012dff8249798))
+* **dfm:** reject impossible zero-millimetre factory limits ([#994](https://github.com/oaslananka/easyeda-mcp-pro/issues/994)) ([406fd49](https://github.com/oaslananka/easyeda-mcp-pro/commit/406fd4971d35363d634ca311f51bd161c4fba6b4))
+* **erc:** scope duplicate native component identities ([#986](https://github.com/oaslananka/easyeda-mcp-pro/issues/986)) ([d502d70](https://github.com/oaslananka/easyeda-mcp-pro/commit/d502d708126fc616338f7dc519a3c1e7de4a81d7))
+* **extension:** identify contradictory pending zone markers before recovery ([#1038](https://github.com/oaslananka/easyeda-mcp-pro/issues/1038)) ([85ceb14](https://github.com/oaslananka/easyeda-mcp-pro/commit/85ceb14bdb98023c56f68a4a1c97010205b602c4))
+* **extension:** make packages reproducible across Windows and Linux ([#1010](https://github.com/oaslananka/easyeda-mcp-pro/issues/1010)) ([301fffa](https://github.com/oaslananka/easyeda-mcp-pro/commit/301fffa03b60403a961b6b1806dc2289febc6830))
+* **manufacturing:** flag signed copper-edge violations ([#1004](https://github.com/oaslananka/easyeda-mcp-pro/issues/1004)) ([7ca1607](https://github.com/oaslananka/easyeda-mcp-pro/commit/7ca160718bf169ed08c55a8f6e7e71baeb7edaa4))
+* **pcb:** confirm native mutators and flag stale zone telemetry ([#1023](https://github.com/oaslananka/easyeda-mcp-pro/issues/1023)) ([0dede3c](https://github.com/oaslananka/easyeda-mcp-pro/commit/0dede3c2a957082d260164906242dce6c1ea96db))
+* **pcb:** diagnose native zone readback without exposing project data ([#1032](https://github.com/oaslananka/easyeda-mcp-pro/issues/1032)) ([b533c10](https://github.com/oaslananka/easyeda-mcp-pro/commit/b533c1060093a4992b8cba9b73dc452bd0f89592))
+* **pcb:** explain recovery after uncertain copper rebuild ([#480](https://github.com/oaslananka/easyeda-mcp-pro/issues/480)) ([d446633](https://github.com/oaslananka/easyeda-mcp-pro/commit/d446633506500d8a14d0c9fb75031060346944d5))
+* **pcb:** expose native zone safety gates in bridge status ([#1022](https://github.com/oaslananka/easyeda-mcp-pro/issues/1022)) ([a036111](https://github.com/oaslananka/easyeda-mcp-pro/commit/a0361119343a3df3aa97bd27f8d7b02d067449cf))
+* **pcb:** preserve copper baseline for safe zone recovery ([#1020](https://github.com/oaslananka/easyeda-mcp-pro/issues/1020)) ([524dc7b](https://github.com/oaslananka/easyeda-mcp-pro/commit/524dc7b219aea4f5f0d05881d5be4347a2a7150f))
+* **pcb:** preserve native zone write quarantine after reconnect ([#1018](https://github.com/oaslananka/easyeda-mcp-pro/issues/1018)) ([d394b8e](https://github.com/oaslananka/easyeda-mcp-pro/commit/d394b8e2b533bac4f3c14fd5380b4d8665adb062))
+* **pcb:** prevent zero board extents from passing validation ([#992](https://github.com/oaslananka/easyeda-mcp-pro/issues/992)) ([84e40ae](https://github.com/oaslananka/easyeda-mcp-pro/commit/84e40ae365d17609e6c08ff0ae439614419fe0a8))
+* **pcb:** reject case-colliding testpoint net inventories ([#993](https://github.com/oaslananka/easyeda-mcp-pro/issues/993)) ([8451248](https://github.com/oaslananka/easyeda-mcp-pro/commit/8451248423efa09e401c020cf4947da0f5a01865))
+* **pcb:** reject contour-only copper rebuild results ([#1012](https://github.com/oaslananka/easyeda-mcp-pro/issues/1012)) ([755adb6](https://github.com/oaslananka/easyeda-mcp-pro/commit/755adb679a0b6f56596cb4545038059ca1187430))
+* **pcb:** reject orphan Poured evidence during native recovery ([#1034](https://github.com/oaslananka/easyeda-mcp-pro/issues/1034)) ([197a561](https://github.com/oaslananka/easyeda-mcp-pro/commit/197a56150150ef677163bc491df038e3239f371d))
+* **pcb:** reject reused Poured IDs in post-write reconciliation ([#1036](https://github.com/oaslananka/easyeda-mcp-pro/issues/1036)) ([b8935a2](https://github.com/oaslananka/easyeda-mcp-pro/commit/b8935a2bb117a5677bfe932e1e745cb271658bd8))
+* **pcb:** reject shared native Poured identity in recovery evidence ([#1035](https://github.com/oaslananka/easyeda-mcp-pro/issues/1035)) ([0f6e4ce](https://github.com/oaslananka/easyeda-mcp-pro/commit/0f6e4cec4599ffcef418d6929f4b2a4c2b7f9df0))
+* **pcb:** reject shared Poured identity before copper rebuild ([#1037](https://github.com/oaslananka/easyeda-mcp-pro/issues/1037)) ([7dba5ad](https://github.com/oaslananka/easyeda-mcp-pro/commit/7dba5ad45dccee21bdad1f4aca805a82e949bc09))
+* **pcb:** report host writer lease and prevent redundant pending fence ([#1030](https://github.com/oaslananka/easyeda-mcp-pro/issues/1030)) ([864dbc4](https://github.com/oaslananka/easyeda-mcp-pro/commit/864dbc463fbaf839753257db665cbe45791d80a2))
+* **pcb:** report safe read-only pending zone recovery state ([#1029](https://github.com/oaslananka/easyeda-mcp-pro/issues/1029)) ([0f412ee](https://github.com/oaslananka/easyeda-mcp-pro/commit/0f412eed0d5a59185394452074ed9264b8e3e94a))
+* **pcb:** require explicit coordinator before native zone mutation ([#1021](https://github.com/oaslananka/easyeda-mcp-pro/issues/1021)) ([76b89d9](https://github.com/oaslananka/easyeda-mcp-pro/commit/76b89d99880814bfcdec509f15fa32ac177abd3e))
+* **pcb:** require verified host client for native zone candidate ([#1027](https://github.com/oaslananka/easyeda-mcp-pro/issues/1027)) ([ecba904](https://github.com/oaslananka/easyeda-mcp-pro/commit/ecba9046d4ac7700a24a8e5e989041bb86108359))
+* **pcb:** retain recovery quarantine after native zone reservation ([#1033](https://github.com/oaslananka/easyeda-mcp-pro/issues/1033)) ([f9b029e](https://github.com/oaslananka/easyeda-mcp-pro/commit/f9b029e9a518364f3c8405c252b29230ff2a6c15))
+* **pcb:** serialize native zone reservations with extension storage ([#1019](https://github.com/oaslananka/easyeda-mcp-pro/issues/1019)) ([86c4c78](https://github.com/oaslananka/easyeda-mcp-pro/commit/86c4c78c871a8e3e9c402b9b795905439321faab))
+* **pcb:** verify exact board focus and zone containment ([#1014](https://github.com/oaslananka/easyeda-mcp-pro/issues/1014)) ([8268032](https://github.com/oaslananka/easyeda-mcp-pro/commit/82680327ad028b193a1b8d06ad9af2c0944e4f7f))
+* **pcb:** verify native Pour-to-Poured associations before accepting copper ([#1028](https://github.com/oaslananka/easyeda-mcp-pro/issues/1028)) ([f6cea9d](https://github.com/oaslananka/easyeda-mcp-pro/commit/f6cea9dfb39b6f8e85cf835380597c83b3c806de))
+* **qa:** prevent production review pass when warnings remain ([#991](https://github.com/oaslananka/easyeda-mcp-pro/issues/991)) ([425c4d7](https://github.com/oaslananka/easyeda-mcp-pro/commit/425c4d701146175de36bd93341f65295c91911c9))
+* **schematic:** block unverified orientation in native fallback ([#996](https://github.com/oaslananka/easyeda-mcp-pro/issues/996)) ([8279f7d](https://github.com/oaslananka/easyeda-mcp-pro/commit/8279f7d7ee08c2831046c98ffb01a28f00626c9a))
+* **schematic:** enable verified native multi-unit placement ([#1001](https://github.com/oaslananka/easyeda-mcp-pro/issues/1001)) ([3f2d3c6](https://github.com/oaslananka/easyeda-mcp-pro/commit/3f2d3c611b8b4b181409e594a52ed0f2214e55ff))
+* **schematic:** fail closed on unverified multi-unit previews ([#997](https://github.com/oaslananka/easyeda-mcp-pro/issues/997)) ([80b4118](https://github.com/oaslananka/easyeda-mcp-pro/commit/80b4118d26f6e39262262aa5013a56e597acd645))
+* **schematic:** refuse unsafe net marker relocation ([#984](https://github.com/oaslananka/easyeda-mcp-pro/issues/984)) ([e98ac15](https://github.com/oaslananka/easyeda-mcp-pro/commit/e98ac159c75acd7e8a8fdb8aa8fb2f44dad34ea0))
+* **schematic:** reject moves with stale native wire inventory ([#945](https://github.com/oaslananka/easyeda-mcp-pro/issues/945)) ([b56e71b](https://github.com/oaslananka/easyeda-mcp-pro/commit/b56e71b06ee56be83abcb0a95902673da20ac396))
+* **schematic:** reject unconfirmed PCB import requests ([#1002](https://github.com/oaslananka/easyeda-mcp-pro/issues/1002)) ([82eb61b](https://github.com/oaslananka/easyeda-mcp-pro/commit/82eb61bcf0fba0512c0a52fa0562d8917290cd52))
+* **schematic:** verify native wire snapshots and precise pin contact ([#945](https://github.com/oaslananka/easyeda-mcp-pro/issues/945)) ([042c900](https://github.com/oaslananka/easyeda-mcp-pro/commit/042c90076fd864cef9ab2801c8a93e690210e9a2))
+* **schematic:** verify project before PCB sync request ([#1003](https://github.com/oaslananka/easyeda-mcp-pro/issues/1003)) ([41bb401](https://github.com/oaslananka/easyeda-mcp-pro/commit/41bb40100a011e97010e41134f60b74f9892ab2a))
+
 ## [1.13.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.13.0...easyeda-mcp-pro-v1.13.1) (2026-11-09)
 
 
