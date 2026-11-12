@@ -31,6 +31,14 @@ or enable `pcb.addZone` / `easyeda_pcb_add_zone apply`. Both remain fail-closed
 until the entire create/rebuild/save/cold-reopen/rollback and approval chain
 has been accepted on a disposable project.
 
+Once the private candidate receives a confirmed durable reservation,
+its in-process reconciliation latch is set **before** the next focus
+check or any native create call. A focus mismatch or unexpected native
+API exception at that point is uncertain, not a routine blocked
+preflight, even if no create call began: the host lease and pending marker
+may remain. Same-instance retries remain blocked until independent
+cold-reopen recovery. No automatic lease release or marker cleanup occurs.
+
 Before requesting the host's crash-retained native-zone lease, the
 private pending-fence operation now first performs a read-only check of
 the persistent marker. A present, malformed, or unreadable marker blocks

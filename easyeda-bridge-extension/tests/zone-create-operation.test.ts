@@ -162,21 +162,51 @@ describe('single native zone creation operation with no blind retries', () => {
     },
   );
 
-  it('blocks native create if the editor focus changes immediately after persisting a fence', async () => {
+  it('retains an unresolved candidate after the editor focus changes following a granted reservation', async () => {
     const f = fixture();
     f.focus
       .mockResolvedValueOnce('focus-project+pcb')
       .mockResolvedValueOnce('focus-project+pcb')
       .mockResolvedValueOnce('other-project+pcb');
-    const result = await createNativeZoneCandidateOperation(f.deps).execute(expected);
+    const operation = createNativeZoneCandidateOperation(f.deps);
+    const result = await operation.execute(expected);
     expect(result).toMatchObject({
-      status: 'blocked',
+      status: 'uncertain',
       reason: expect.stringContaining('changed after write reservation'),
+    });
+    await expect(operation.execute(expected)).resolves.toMatchObject({
+      status: 'blocked',
+      reason: expect.stringContaining('independent reconciliation'),
     });
     expect(f.reserveMutation).toHaveBeenCalledOnce();
     expect(f.create).not.toHaveBeenCalled();
     expect(f.rebuild).not.toHaveBeenCalled();
     expect(f.save).not.toHaveBeenCalled();
+  });
+
+  it('treats a private focus lookup failure after a granted reservation as uncertain and never retries', async () => {
+    const f = fixture();
+    const secret = 'sensitive project path and token';
+    f.reserveMutation.mockImplementation(async () => {
+      f.focus.mockRejectedValueOnce(new Error(secret));
+      return true;
+    });
+    const operation = createNativeZoneCandidateOperation(f.deps);
+    const result = await operation.execute(expected);
+    expect(result).toMatchObject({
+      status: 'uncertain',
+      reason: expect.stringContaining('Native zone operation failed'),
+    });
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(await operation.execute(expected)).toMatchObject({
+      status: 'blocked',
+      reason: expect.stringContaining('independent reconciliation'),
+    });
+    expect(f.reserveMutation).toHaveBeenCalledOnce();
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.rebuild).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+    expect(f.deleteSource).not.toHaveBeenCalled();
   });
 
   it('does not reserve a slot when the purely read-only preflight fails', async () => {
