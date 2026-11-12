@@ -93,6 +93,19 @@ the loader from 357,046 to 360,822 bytes and the dispatcher from
 291,600 to 295,370 bytes. Exact size ratchets remain enabled; no
 quality gate or maximum package cap is bypassed.
 
+Read-only native-zone safety status now marks older v2 pending records as
+`invalid-marker` when their baseline has an orphaned Poured source link or
+two Pour sources claiming one native Poured identity. Previously those
+schema-valid but contradictory records could be reported as needing only
+PCB focus or independent recovery. No expensive native inventory scan,
+marker cleanup, lease release or native write is performed by this status
+check. Two synthetic RED/GREEN regressions cover the contradictions; they
+do not establish real cold-reopen recovery. The measured 2026-11-12
+extension artifacts are package 224,335 bytes (+278), loader 361,464
+(+549), and dispatcher 296,012 (+549). Exact size limits remain enforced
+on those measured outputs and existing release/compatibility gates remain
+mandatory.
+
 The common native Poured inventory now also rejects one physical Poured
 primitive ID being claimed by two different Pour sources **before any
 existing-copper rebuild mutation**. This closes the same identity ambiguity

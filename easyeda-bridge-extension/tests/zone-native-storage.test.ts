@@ -92,6 +92,43 @@ describe('EasyEDA Pro SYS_Storage extension-only persistent marker provider', ()
     expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
   });
 
+  it.each(['orphaned Poured link', 'shared native Poured identity'] as const)(
+    'identifies a semantically contradictory pending baseline as invalid: %s',
+    async (caseName) => {
+      const f = fixture();
+      const marker = JSON.parse(v2Marker()) as Record<string, any>;
+      const source = (id: string) => ({ ...expected, sourceId: id });
+      marker.before.sources = [source('pour-one')];
+      marker.before.derived = [
+        {
+          sourceId: caseName === 'orphaned Poured link' ? 'missing-source' : 'pour-one',
+          pouredId: 'shared-poured',
+          fillSignature: 'filled-polygon',
+          hasFilledGeometry: true,
+        },
+      ];
+      if (caseName === 'shared native Poured identity') {
+        marker.before.sources.push(source('pour-two'));
+        marker.before.derived.push({
+          ...marker.before.derived[0],
+          sourceId: 'pour-two',
+        });
+      }
+      f.cells.set(NATIVE_ZONE_FENCE_KEY, JSON.stringify(marker));
+      const status = await inspectNativeZoneSafety(f.readFirstPath);
+      expect(status).toMatchObject({
+        storage: 'readable',
+        pendingFence: 'present',
+        recoveryState: 'invalid-marker',
+        recoveryReleaseAuthorized: false,
+        coldReopenVerified: false,
+        publicApplyEnabled: false,
+      });
+      expect(f.setExtensionUserConfig).not.toHaveBeenCalled();
+      expect(JSON.stringify(status)).not.toContain('shared-poured');
+    },
+  );
+
   it('asks for a focused PCB before inspecting a valid pending marker', async () => {
     const f = fixture();
     f.cells.set(NATIVE_ZONE_FENCE_KEY, v2Marker());

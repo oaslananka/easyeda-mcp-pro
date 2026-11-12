@@ -132,6 +132,15 @@ function hasSharedPouredIdentity(value: StoredZoneInventory): boolean {
   return new Set(ids).size !== ids.length;
 }
 
+/**
+ * A schema-valid historical marker may still contain impossible native links.
+ * This read-only guard gives status telemetry the same baseline safety verdict
+ * as recovery assessment, without inspecting live copper or exposing IDs.
+ */
+export function hasContradictoryZoneRecoveryBaseline(pending: ZonePendingEvidence): boolean {
+  return hasOrphanedPoured(pending.before) || hasSharedPouredIdentity(pending.before);
+}
+
 /** Writes a compact, deterministically ordered record, or refuses oversized/malformed evidence. */
 export function encodeZoneWriteReservation(reservation: ZoneWriteReservation): string | undefined {
   if (
