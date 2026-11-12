@@ -82,6 +82,22 @@ describe('PCB read operations', () => {
           { getState_PrimitiveId: () => 'missing', getCopperRegion: async () => undefined },
           { getState_PrimitiveId: () => 'unsupported' },
           {
+            getState_PrimitiveId: () => 'unfilled',
+            getCopperRegion: async () => ({
+              getState_PrimitiveId: () => 'unfilled',
+              getState_PourPrimitiveId: () => 'unfilled',
+              getState_PourFills: () => [],
+            }),
+          },
+          {
+            getState_PrimitiveId: () => 'malformed',
+            getCopperRegion: async () => ({
+              getState_PrimitiveId: () => 'malformed',
+              getState_PourPrimitiveId: () => 'malformed',
+              getState_PourFills: () => [null],
+            }),
+          },
+          {
             getState_PrimitiveId: () => 'mismatch',
             getCopperRegion: async () => ({
               getState_PrimitiveId: () => 'another-pour',
@@ -92,22 +108,26 @@ describe('PCB read operations', () => {
           {
             getState_PrimitiveId: () => 'failed',
             getCopperRegion: async () => {
-              throw Error('beta API failed');
+              throw Error('beta API failed at /home/private-user/confidential-board.eprj2');
             },
           },
         ],
       },
     });
     const result = (await operations.listPours()) as { items: Array<Record<string, unknown>> };
-    expect(result.total).toBe(4);
+    expect(result.total).toBe(6);
     expect(result.items.map((item) => item.copperLinkStatus)).toEqual([
       'absent',
       'unavailable',
+      'unfilled',
+      'unverified',
       'mismatch',
       'unavailable',
     ]);
-    expect(result.items.every((item) => item.fillRecordCount === undefined)).toBe(true);
-    expect(result.items[3].readbackError).toContain('beta API failed');
+    expect(result.items[2].fillRecordCount).toBe(0);
+    expect(result.items[3].fillRecordCount).toBeUndefined();
+    expect(result.items[5].readbackError).toBe('native-copper-read-failed');
+    expect(JSON.stringify(result)).not.toContain('confidential-board.eprj2');
   });
 
   it('refuses to claim an empty copper list when focus or native collection is missing', async () => {

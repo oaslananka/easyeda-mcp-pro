@@ -411,9 +411,9 @@ function registerPcbReadTools(
     name: 'easyeda_pcb_pours',
     title: 'Inspect PCB copper pours and associated fills',
     description:
-      'Read native PCB copper Pour boundaries and associated Poured fills: IDs, net, layer and fill count. ' +
-      'Missing, unsupported and mismatched beta API results stay distinct from verified associations. ' +
-      'Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.',
+      'Inspect native PCB Pour and associated Poured fill records. ' +
+      'States: present (link only, not DRC-certified), unfilled, unverified, absent, unavailable, mismatch. ' +
+      'Requires the exact focused project and PCB. Read-only: never rebuilds or saves.',
     bridgeMethod: 'pcb.listPours',
     listKey: 'pours',
     itemSchema: z.object({
@@ -423,7 +423,14 @@ function registerPcbReadTools(
       fillMethod: z.string(),
       pourName: z.string(),
       locked: z.boolean(),
-      copperLinkStatus: z.enum(['present', 'absent', 'unavailable', 'mismatch']),
+      copperLinkStatus: z.enum([
+        'present',
+        'unfilled',
+        'unverified',
+        'absent',
+        'unavailable',
+        'mismatch',
+      ]),
       pouredId: z.string().optional(),
       fillRecordCount: z.number().int().nonnegative().optional(),
       readbackError: z.string().optional(),

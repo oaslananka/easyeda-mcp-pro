@@ -215,12 +215,16 @@ async function readCopperAssociation(
     }
     const fills = readState(derived, 'PourFills');
     if (!Array.isArray(fills)) return { copperLinkStatus: 'unavailable' };
+    // A source-linked Poured with zero fill regions is not actual filled copper.
+    // Even non-empty records show association only, NOT DRC or copper continuity.
+    if (fills.length === 0) return { copperLinkStatus: 'unfilled', fillRecordCount: 0 };
+    if (fills.some((fill) => !fill || typeof fill !== 'object'))
+      return { copperLinkStatus: 'unverified' };
     return { copperLinkStatus: 'present', pouredId: derivedId, fillRecordCount: fills.length };
-  } catch (error) {
-    return {
-      copperLinkStatus: 'unavailable',
-      readbackError: error instanceof Error ? error.message : String(error),
-    };
+  } catch {
+    // Vendor exceptions may contain project names, private paths, or netlists.
+    // Never relay untrusted native error text through a public MCP read tool.
+    return { copperLinkStatus: 'unavailable', readbackError: 'native-copper-read-failed' };
   }
 }
 

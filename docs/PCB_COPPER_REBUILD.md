@@ -16,6 +16,18 @@
 - A native `undefined` result is reported as `no-copper`; it is **not** counted as a successful rebuild.
 - PCB rebuild writes are not covered by the server transaction manager. If the bridge times out, the native outcome is unknown; inspect the active PCB before retrying.
 
+## Read-only Pour/Poured association
+
+`easyeda_pcb_pours` lists existing source Pours and their related native Poured
+records without rebuilding or saving. A `copperLinkStatus` of `present` means
+the two primitive IDs match and the native getter returned nonempty fill
+records; it **does not** validate electrical continuity, clearances, DRC, or
+manufacturing readiness. `unfilled` distinguishes a linked Poured with zero
+records; `unverified` flags malformed records. Missing, mismatched and
+unavailable native links remain separate fail-closed outcomes. Native API
+exceptions are replaced with a fixed diagnostic rather than exposing
+workstation paths or project details.
+
 ## Compatibility boundary
 
 The repository's current live desktop compatibility baseline is EasyEDA Pro `3.2.149.88089769`. The rebuild implementation was validated against the `@jlceda/pro-api-types` `0.4.25` instance-rebuild surface and the official EasyEDA API skill/docs. Upstream `0.4.26` retains that instance contract and also declares an `@alpha` class-level `PCB_PrimitivePour.rebuildCopperRegions()` method, but that class-level method is absent from the verified 3.2.149 runtime and is not used by this tool.

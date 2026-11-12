@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "kind": "real-native-source-bound-readonly-pour-poured-association",
+  "validatedAt": "2026-11-12T19:01:43.031682+00:00",
+  "repository": "oaslananka/easyeda-mcp-pro",
+  "branch": "feat/480-native-zone-endtoend-20261112",
+  "baseCommit": "0a0523c8eef9c11590d844d3f5584100b1df9653",
+  "changedFileSha256": {
+    "easyeda-bridge-extension/src/pcb-read-operations.ts": "6ae2a362ec52de5243fa60a3c6cff77a2eb4c9b4492411d3e316dc25b943f8ca",
+    "easyeda-bridge-extension/tests/pcb-read-operations.test.ts": "5305b16322adfcba51545e7af500defcdd848cce8da33efcc469ebf148cade53",
+    "src/tools/L1_pcb_read.ts": "f931f2b43eb6f735f69e34ce88b3a507919f10b463d745b4ca04cef03cdf3e07",
+    "tests/unit/tools/pcb-read.test.ts": "00c216a16392de5bcefae56cca3542dd1160ff59ccaa889f90e8af9536616a6d"
+  },
+  "runtime": {
+    "editor": "EasyEDA Pro 3.2.209",
+    "platform": "Ubuntu 24.04",
+    "isolatedProfile": true,
+    "extensionColdRestart": true,
+    "editorExitedNormally": true
+  },
+  "extension": {
+    "version": "1.14.0",
+    "dispatcherBuildId": "d0634x9f37x76b2",
+    "packageSha256": "5a54ea506244fd6ecffd18ae09984552ad2a5af28e86e86650253734dfcd57d5",
+    "publicZoneApplyEnabled": false
+  },
+  "testFixture": {
+    "scope": "owner-approved-disposable-native-PCB",
+    "byteIdenticalToOriginalAfterTest": true,
+    "fileSha256": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+    "personalProjectWriteCalls": 0
+  },
+  "liveReadOnlyAcceptance": {
+    "sourceAndProjectIdentityBeforeAfterVerified": true,
+    "nativePourSourceCount": 1,
+    "copperLinkStatuses": {
+      "present": 1
+    },
+    "associatedPouredWithNonemptyRecords": 1,
+    "associatedPouredRecordCount": 74,
+    "nativeZoneWriteCalls": 0
+  },
+  "newNegativePathUnitTests": [
+    "linked Poured with zero fill records is unfilled (not present)",
+    "malformed linked Poured fill entries remain unverified (not present)",
+    "native exception path and project detail are replaced by a fixed diagnostic",
+    "MCP schema transports both fail-closed statuses without fabricating filled copper"
+  ],
+  "verification": {
+    "completePnpmVerifyPassed": true,
+    "serverTestsPassed": 3150,
+    "extensionTestsPassed": 1070,
+    "packageAndDocsBuildPassed": true
+  },
+  "limitations": [
+    "A linked nonempty Poured inventory does not establish electrical connectivity, pad clearance, DRC or fabrication suitability",
+    "Zero-length and malformed native fill entries were covered by unit tests, not fabricated as live scenarios",
+    "Production native zone creation remains unavailable: upstream PCB_PrimitivePour.create is BETA and warns against production use",
+    "No native create, rebuild, save, delete, export, cloud write or production design operation was attempted"
+  ]
+}

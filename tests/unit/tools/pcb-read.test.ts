@@ -179,6 +179,32 @@ describe('PCB Read Tools', () => {
     });
   });
 
+  it.each(['unfilled', 'unverified'] as const)(
+    'easyeda_pcb_pours preserves %s native copper evidence without declaring a fill',
+    async (status) => {
+      const tool = registry.get('easyeda_pcb_pours');
+      bridgeCall.mockResolvedValue({
+        total: 1,
+        items: [
+          {
+            primitiveId: 'source',
+            net: 'GND',
+            layer: 2,
+            fillMethod: 'solid',
+            pourName: 'GND',
+            locked: false,
+            copperLinkStatus: status,
+            ...(status === 'unfilled' ? { fillRecordCount: 0 } : {}),
+          },
+        ],
+      });
+      const result = await tool?.handler(context, { projectId: 'proj-123' });
+      expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+      expect(result).toMatchObject({ pours: [{ copperLinkStatus: status }], total: 1 });
+      expect(result?.pours?.[0]?.pouredId).toBeUndefined();
+    },
+  );
+
   it('easyeda_pcb_pours does not present disconnected bridge failures as empty copper', async () => {
     const tool = registry.get('easyeda_pcb_pours');
     bridgeCall.mockRejectedValue(Error('No focused PCB document'));
