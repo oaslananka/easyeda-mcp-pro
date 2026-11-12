@@ -4,6 +4,108 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-12-fa44b76-v1150-project-lifecycle",
+      "status": "live-validated",
+      "validatedAt": "2026-11-12T21:53:34Z",
+      "reviewBy": "2027-02-10",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Previously inspected metadata of the same installed 3.2.209 package; current native runtime 3.2.209 reconfirmed."
+      },
+      "server": {
+        "validationPackageVersion": "1.15.0",
+        "releaseContainingFixes": "1.15.0",
+        "commit": "fa44b76e7e4f795d56fce0f4671d476388fe0485",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "31ac4b1e4936da9f5ff47471acd8fdaf1aa6875b",
+            "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "c9773886e9888a88742825772611b07cf070cf5f",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.15.0",
+        "loaderReportedVersion": "1.15.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "f71f5e22b7fec5db",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "da149xf0e4x83a8",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "88c16934a49ab702220e9b078627b86dd213e0b12036be83ebd7da7209e43f67",
+        "packageSizeBytes": 230597
+      },
+      "fixture": {
+        "project": "Isolated, backed-up disposable L-outline PCB; private project/document identifiers and paths omitted",
+        "schematic": "Schematic document identity read back from native project tree, not modified",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "v1150-fa44b76-installed",
+          "name": "Native v1.15.0 extension install, full restart and exact source identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Real Extension Manager import of 230597-byte package; 1.15.0 server/extension/loader versions match, native dispatcher da149xf0e4x83a8 and method registry f71f5e22b7fec5db, no version or registry mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.15.0-fa44b76-native-project-lifecycle.json"
+          ]
+        },
+        {
+          "id": "v1150-fa44b76-lifecycle",
+          "name": "Native project listing, safe open and guarded save/close",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Eight projects in two team scopes; exact UUID open and native document tree readback; unsafe switch and default dirty-state close refused; unconfirmed discard refused; confirmed native PCB save/close succeeded exactly once.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.15.0-fa44b76-native-project-lifecycle.json"
+          ]
+        },
+        {
+          "id": "v1150-fa44b76-reopen",
+          "name": "Real editor cold reopen preserves original L-shaped PCB",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Editor completely stopped and restarted. Same exact candidate extension and same backed-up disposable PCB reopened; GUI showed original L outline; stored project SHA256 remained identical to independently verified backup.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.15.0-fa44b76-native-project-lifecycle.json"
+          ]
+        },
+        {
+          "id": "v1150-fa44b76-preview",
+          "name": "Zone preflight observes source-matched native readiness without permitting copper apply",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "Real focused L-board and runtime 3.2.209 verified; missing GND net and board/copper topology evidence reported explicit blockers, readiness false and public apply disabled; zero native copper writes.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.15.0-fa44b76-native-project-lifecycle.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This is one Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209 isolated disposable L-board session; real native Windows/macOS editor acceptance is not independently proven.",
+        "The source-built package SHA256/size, installed Extension Manager version, cold restart, native handshake and dispatcher match; bytewise readback of the editor internal installed archive is not independently available.",
+        "Real project lifecycle tests cover team listing, confirmed project open, unsafe switch/close refusal, one explicit PCB save/close and cold reopen. This does not certify all methods, arbitrary project mutation, or schematic write rollback.",
+        "The native editor does not supply a trustworthy unsaved-document dirty field. Default close and project switch remain fail-closed; confirmed discard was not performed in this candidate release smoke.",
+        "The source-matched GND preview on the L-board correctly failed net lookup and board/copper topology readiness. Public PCB zone apply remains OFF, readyToApply=false, full native copper write/rollback/DRC/remote user acceptance is OPEN in #480.",
+        "No production project change, cloud or manufacturing export, PCB copper mutation, supplier/vendor communication, physical electronics compliance claim or paid service occurred."
+      ]
+    },
+    {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-12-38fff04-v1140-native-zone-rollback",
       "status": "live-validated",
       "validatedAt": "2026-11-12T09:51:36.855267+00:00",

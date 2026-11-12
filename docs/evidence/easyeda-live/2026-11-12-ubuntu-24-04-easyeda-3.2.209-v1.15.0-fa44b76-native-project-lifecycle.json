@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-release-v1150-native-project-lifecycle-and-fail-closed-zone-acceptance",
+  "validatedAt": "2026-11-12T21:53:34Z",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "releasePr": 1041,
+    "commit": "fa44b76e7e4f795d56fce0f4671d476388fe0485",
+    "compatibilitySnapshot": {
+      "algorithm": "git-tree-sha1",
+      "paths": {
+        "easyeda-bridge-extension/src": "31ac4b1e4936da9f5ff47471acd8fdaf1aa6875b",
+        "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+        "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+        "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+        "src/tools": "c9773886e9888a88742825772611b07cf070cf5f",
+        "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+      }
+    }
+  },
+  "runtime": {
+    "editorVersion": "3.2.209.8a704eab",
+    "platform": "Ubuntu 24.04.5 LTS",
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "nodeVersion": "24.22.1",
+    "isolatedDesktopProfile": true,
+    "editorRestartAfterImport": true
+  },
+  "extension": {
+    "packageVersion": "1.15.0",
+    "loaderHandshakeVersion": "1.15.0",
+    "bridgeContractVersion": "1.0.0",
+    "packageSizeBytes": 230597,
+    "packageSha256": "88c16934a49ab702220e9b078627b86dd213e0b12036be83ebd7da7209e43f67",
+    "installedVia": "Real EasyEDA Extension Manager, enabled and allow-external true; automatic update disabled; entire editor restarted",
+    "installedManagerVerified": true,
+    "independentInstalledArchiveByteReadback": false,
+    "runtimeBakedDispatcherBuildId": "da149xf0e4x83a8",
+    "methodRegistryHash": "f71f5e22b7fec5db",
+    "versionMismatch": false,
+    "registryMismatch": false,
+    "publicNativeZoneApplyEnabled": false
+  },
+  "fixture": {
+    "kind": "Isolated backed-up disposable L-shaped PCB, private IDs and paths omitted",
+    "originalProjectSha256": "6f53114f0faeca6fa04e709fef9c6868472a4222c745bc5c5e1931d6ffa708d2",
+    "postSaveCloseAndColdReopenSha256": "6f53114f0faeca6fa04e709fef9c6868472a4222c745bc5c5e1931d6ffa708d2",
+    "backupVerified": true,
+    "productionDesignTouched": false,
+    "manufacturingExportCalls": 0
+  },
+  "nativeTests": {
+    "enumeration": {
+      "teamScopes": 2,
+      "completeProjectCount": 8,
+      "nonActiveOpenState": "unknown"
+    },
+    "confirmedOpen": {
+      "requiresConfirmWrite": true,
+      "projectIdentityReadback": true,
+      "schematicAndPcbDocumentTreeReadback": true
+    },
+    "refusal": {
+      "unsafeSwitch": "open_documents_may_be_dirty",
+      "defaultClose": "dirty_state_unavailable",
+      "unconfirmedDiscard": "confirm_write_required",
+      "writeCalls": 0
+    },
+    "saveClose": {
+      "mode": "save",
+      "explicitlyConfirmed": true,
+      "nativeSaveSucceeded": true,
+      "nativeClosedTabs": 1,
+      "asynchronousTabReadback": true,
+      "status": "closed"
+    },
+    "coldReopen": {
+      "fullEditorProcessStop": true,
+      "sameExtensionVersionVerified": true,
+      "originalLBoardRendered": true,
+      "storedProjectSha256Unchanged": true
+    },
+    "zonePreflightReadOnly": {
+      "runtimeVerified": true,
+      "layerVerified": true,
+      "netVerified": false,
+      "blockers": [
+        "net-not-in-active-pcb",
+        "board-outline-and-copper-topology-unverified",
+        "apply-and-rollback-not-implemented",
+        "candidate-board-intersection-unverified",
+        "candidate-board-containment-unverified"
+      ],
+      "readyToApply": false,
+      "publicApplyEnabled": false,
+      "nativeWriteCalls": 0
+    },
+    "recovery": {
+      "exactFixtureBackupMatch": true,
+      "editorFullyClosed": true,
+      "noNativeCopperMutation": true
+    }
+  },
+  "knownLimitations": [
+    "This is one Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209 isolated disposable L-board session; real native Windows/macOS editor acceptance is not independently proven.",
+    "The source-built package SHA256/size, installed Extension Manager version, cold restart, native handshake and dispatcher match; bytewise readback of the editor internal installed archive is not independently available.",
+    "Real project lifecycle tests cover team listing, confirmed project open, unsafe switch/close refusal, one explicit PCB save/close and cold reopen. This does not certify all methods, arbitrary project mutation, or schematic write rollback.",
+    "The native editor does not supply a trustworthy unsaved-document dirty field. Default close and project switch remain fail-closed; confirmed discard was not performed in this candidate release smoke.",
+    "The source-matched GND preview on the L-board correctly failed net lookup and board/copper topology readiness. Public PCB zone apply remains OFF, readyToApply=false, full native copper write/rollback/DRC/remote user acceptance is OPEN in #480.",
+    "No production project change, cloud or manufacturing export, PCB copper mutation, supplier/vendor communication, physical electronics compliance claim or paid service occurred."
+  ],
+  "githubEvidence": [
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1041",
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1046",
+    "https://github.com/oaslananka/easyeda-mcp-pro/issues/480"
+  ]
+}
