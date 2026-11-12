@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.0               | 1.15.0                | 1.15.0            | Live validated  | 2026-11-12 | 2027-02-10 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.14.0               | 1.14.0                | 1.14.0            | Live validated  | 2026-11-12 | 2027-02-09 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.13.0               | 1.13.0                | 1.13.0            | Live validated  | 2026-11-09 | 2027-02-06 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.11.2               | 1.11.2                | 1.11.2            | Live validated  | 2026-11-08 | 2027-02-06 |
@@ -68,6 +69,54 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-12-fa44b76-v1150-project-lifecycle
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-12-fa44b76-v1150-project-lifecycle`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-42-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.22.1`                                                          |
+| Validation package version               | `1.15.0`                                                           |
+| Fix version represented by evidence      | `1.15.0`                                                           |
+| Compatibility-sensitive base commit      | `fa44b76e7e4f795d56fce0f4671d476388fe0485`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.15.0`                                                           |
+| Live-validated extension package SHA-256 | `88c16934a49ab702220e9b078627b86dd213e0b12036be83ebd7da7209e43f67` |
+| Live-validated extension package size    | `230597 bytes`                                                     |
+| Loader-reported version                  | `1.15.0`                                                           |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `f71f5e22b7fec5db`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.15.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                                              | Level  | Status    | Result                                                                                                                                                                                                                          | Evidence                                                                                                                                                                             |
+| --------------------------------------------------------------------------------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Native v1.15.0 extension install, full restart and exact source identity                | `live` | `passed`  | Real Extension Manager import of 230597-byte package; 1.15.0 server/extension/loader versions match, native dispatcher da149xf0e4x83a8 and method registry f71f5e22b7fec5db, no version or registry mismatch.                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.15.0-fa44b76-native-project-lifecycle.json) |
+| Native project listing, safe open and guarded save/close                                | `live` | `passed`  | Eight projects in two team scopes; exact UUID open and native document tree readback; unsafe switch and default dirty-state close refused; unconfirmed discard refused; confirmed native PCB save/close succeeded exactly once. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.15.0-fa44b76-native-project-lifecycle.json) |
+| Real editor cold reopen preserves original L-shaped PCB                                 | `live` | `passed`  | Editor completely stopped and restarted. Same exact candidate extension and same backed-up disposable PCB reopened; GUI showed original L outline; stored project SHA256 remained identical to independently verified backup.   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.15.0-fa44b76-native-project-lifecycle.json) |
+| Zone preflight observes source-matched native readiness without permitting copper apply | `live` | `limited` | Real focused L-board and runtime 3.2.209 verified; missing GND net and board/copper topology evidence reported explicit blockers, readiness false and public apply disabled; zero native copper writes.                         | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.15.0-fa44b76-native-project-lifecycle.json) |
+
+### Known limitations
+
+- This is one Ubuntu 24.04.5 x86_64 EasyEDA Pro 3.2.209 isolated disposable L-board session; real native Windows/macOS editor acceptance is not independently proven.
+- The source-built package SHA256/size, installed Extension Manager version, cold restart, native handshake and dispatcher match; bytewise readback of the editor internal installed archive is not independently available.
+- Real project lifecycle tests cover team listing, confirmed project open, unsafe switch/close refusal, one explicit PCB save/close and cold reopen. This does not certify all methods, arbitrary project mutation, or schematic write rollback.
+- The native editor does not supply a trustworthy unsaved-document dirty field. Default close and project switch remain fail-closed; confirmed discard was not performed in this candidate release smoke.
+- The source-matched GND preview on the L-board correctly failed net lookup and board/copper topology readiness. Public PCB zone apply remains OFF, readyToApply=false, full native copper write/rollback/DRC/remote user acceptance is OPEN in #480.
+- No production project change, cloud or manufacturing export, PCB copper mutation, supplier/vendor communication, physical electronics compliance claim or paid service occurred.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-12-38fff04-v1140-native-zone-rollback
 
