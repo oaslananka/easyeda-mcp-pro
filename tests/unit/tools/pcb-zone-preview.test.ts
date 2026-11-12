@@ -89,6 +89,30 @@ describe('native PCB copper zone preview', () => {
     },
   );
 
+  it.each(['3.2.206', '3.2.210', '3.2.209-beta', null])(
+    'rejects inconsistent native runtime evidence %s even when the bridge claims verification',
+    (runtimeVersion) => {
+      const result = summarizeZoneLiveReadiness({
+        runtimeVersion,
+        runtimeVerified: true,
+        activePcb: true,
+        nativeCapabilities: true,
+        netVerified: true,
+        layerVerified: true,
+        boardGeometry: { containmentVerified: true },
+        readyToApply: false,
+        blockers: [],
+      });
+      expect(result).toMatchObject({
+        checked: true,
+        runtimeVersion,
+        boardContainmentVerified: false,
+        readyToApply: false,
+        blockers: expect.arrayContaining(['runtime-version-unverified']),
+      });
+    },
+  );
+
   it('does not elevate outline evidence after runtime or PCB identity verification fails', () => {
     const base = {
       runtimeVersion: '3.2.209',
