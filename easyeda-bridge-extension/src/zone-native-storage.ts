@@ -1,6 +1,9 @@
 import type { ApiRuntime } from './api-runtime.js';
 import { NATIVE_ZONE_FENCE_KEY, type ZoneFenceStorage } from './zone-durable-write-fence.js';
-import { decodeZonePendingEvidence } from './zone-recovery-evidence.js';
+import {
+  decodeZonePendingEvidence,
+  hasContradictoryZoneRecoveryBaseline,
+} from './zone-recovery-evidence.js';
 
 type NativeReader = ApiRuntime['readFirstPath'];
 
@@ -112,7 +115,7 @@ export async function inspectNativeZoneSafety(readFirstPath: NativeReader) {
   if (stored === null) return readable;
 
   const candidate = decodeZonePendingEvidence(stored);
-  if (!candidate) {
+  if (!candidate || hasContradictoryZoneRecoveryBaseline(candidate)) {
     return {
       ...readable,
       recoveryState: 'invalid-marker' as const,
