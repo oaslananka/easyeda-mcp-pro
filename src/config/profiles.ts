@@ -14,7 +14,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Core',
     description:
       'High-confidence tools: diagnostics, EasyEDA API inventory, schematic, BOM, DRC/ERC, board layers/stackup, drilled-pad inspection, active DRC rules, Gerber export',
-    approxToolCount: '79',
+    approxToolCount: '82',
     isDefault: true,
   },
   pro: {
@@ -22,7 +22,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Pro',
     description:
       'Adds pick-and-place, PDF, netlist export, compound transactional workflow tools, autorouting, route-context export, and offline SPICE verification for manufacturing workflows',
-    approxToolCount: '106',
+    approxToolCount: '109',
     isDefault: false,
   },
   full: {
@@ -30,7 +30,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Full',
     description:
       'Adds audited read-only EasyEDA API getters, controlled writable API calls, and CircuitIR-driven floorplanning without raw JavaScript execution',
-    approxToolCount: '123',
+    approxToolCount: '126',
     isDefault: false,
   },
   dev: {
@@ -38,14 +38,14 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Dev',
     description:
       'Adds diagnostics probes for bridge methods and live component runtime shape inspection',
-    approxToolCount: '128',
+    approxToolCount: '131',
     isDefault: false,
   },
   experimental: {
     name: 'experimental',
     label: 'Experimental',
     description: 'MCP Apps, Tasks, AI action plans',
-    approxToolCount: '129',
+    approxToolCount: '132',
     isDefault: false,
   },
 };

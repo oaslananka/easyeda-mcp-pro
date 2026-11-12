@@ -134,8 +134,8 @@ function fakeSchematicPart(
 }
 
 describe('createDispatcher', () => {
-  it('delegates project open, save, and export through the extracted domain', async () => {
-    const openProject = vi.fn(async () => 'opened');
+  it('keeps legacy project.open safe when current project cannot be verified', async () => {
+    const openProject = vi.fn(async () => true);
     const saveAll = vi.fn(async () => 'saved');
     const getManufactureData = vi.fn(async (params: unknown) => ({ exported: params }));
     const dispatcher = createDispatcher(
@@ -147,9 +147,9 @@ describe('createDispatcher', () => {
     );
     const exportParams = { projectId: 'project-1', format: 'zip' };
 
-    await expect(dispatcher.dispatch('project.open', { projectId: 'project-1' })).resolves.toBe(
-      'opened',
-    );
+    await expect(
+      dispatcher.dispatch('project.open', { projectId: 'project-1', confirmWrite: true }),
+    ).rejects.toThrow('No EasyEDA API implementation found for dmt_Project.getCurrentProjectInfo');
     await expect(dispatcher.dispatch('project.save', { projectId: 'project-1' })).resolves.toBe(
       'saved',
     );
@@ -157,7 +157,7 @@ describe('createDispatcher', () => {
       exported: exportParams,
     });
 
-    expect(openProject).toHaveBeenCalledWith('project-1');
+    expect(openProject).not.toHaveBeenCalled();
     expect(saveAll).toHaveBeenCalledWith();
     expect(getManufactureData).toHaveBeenCalledWith(exportParams);
   });

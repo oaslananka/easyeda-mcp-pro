@@ -119,6 +119,8 @@ export function createDispatcherDomainRouter(
     ...Object.fromEntries(pcbListRoutes.map(({ method, handle }) => [method, handle])),
     'pcb.modifyComponent': (params) => dependencies.pcbMutationOperations.modifyComponent(params),
     'pcb.rebuildCopper': (params) => dependencies.pcbMutationOperations.rebuildCopper(params),
+    'project.list': (params) => dependencies.projectOperations.list(params),
+    'project.close': (params) => dependencies.projectOperations.close(params),
     'project.export': (params) => dependencies.projectOperations.export(params),
     'project.open': (params) => dependencies.projectOperations.open(params),
     'project.save': (params) => dependencies.projectOperations.save(params),

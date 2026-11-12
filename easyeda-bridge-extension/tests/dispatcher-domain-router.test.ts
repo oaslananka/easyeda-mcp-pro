@@ -23,6 +23,8 @@ function createDependencies() {
       })),
     },
     projectOperations: {
+      list: vi.fn(async () => ({ status: 'ok', projects: [], complete: true })),
+      close: vi.fn(async () => ({ success: false, status: 'dirty_state_unavailable' })),
       open: vi.fn(async (params: Record<string, unknown>) => ({ method: 'project.open', params })),
       save: vi.fn(async (_params: Record<string, unknown>) => undefined),
       export: vi.fn(async (params: Record<string, unknown>) => ({
@@ -280,7 +282,9 @@ const expectedMethods = [
   'pcb.modifyComponent',
   'pcb.rebuildCopper',
   'pcb.zonePreflight',
+  'project.close',
   'project.export',
+  'project.list',
   'project.open',
   'project.save',
   'schematic.deletePrimitive',

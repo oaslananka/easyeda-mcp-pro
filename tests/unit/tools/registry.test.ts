@@ -787,6 +787,7 @@ describe('ToolRegistry', () => {
         'easyeda_pcb_place_component_group',
         'easyeda_pcb_rebuild_copper',
         'easyeda_pcb_route_path_plan',
+        'easyeda_project_close',
         'easyeda_schematic_batch_write',
         'easyeda_schematic_layout_autofix_apply',
       ]);
