@@ -4,6 +4,17 @@ This document explains the security posture, permission checks, data privacy con
 
 ---
 
+## Native copper-zone live preview (read-only)
+
+The easyeda_pcb_add_zone tool with mode=preview and inspectLive=true checks
+the focused PCB, net, layer, board containment and the class-level native
+APIs needed for creation, copper inventory, exact-id rollback and save.
+Only the tested EasyEDA Pro 3.2.209 runtime is recognized; older 3.2.206
+builds are not silently promoted to write-verified. The preview also
+combines unsupported native setting warnings with live diagnostic blockers.
+These checks do not prove fill topology/DRC or supply write authorization:
+readyToApply=false and public zone apply remain fail-closed.
+
 ## Native copper-zone host reservation (experimental, not a write permission)
 
 The host writer reservation is an internal, extension-to-local-Bridge

@@ -559,6 +559,12 @@ const failClosedPcbZoneTool = {
       } catch {
         // A disconnected or malformed probe is not evidence of a safe native write.
       }
+      // Never present a live net/layer/outline probe as supporting an unmeasured
+      // native settings combination. These blockers are true even if the probe fails.
+      liveReadiness = {
+        ...liveReadiness,
+        blockers: [...new Set([...liveReadiness.blockers, ...preview.nativeProfile.blockers])],
+      };
       return {
         success: true,
         mode: 'preview' as const,
