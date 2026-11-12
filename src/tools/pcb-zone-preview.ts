@@ -103,10 +103,16 @@ export function summarizeZoneLiveReadiness(raw: unknown): ZoneLiveReadiness {
   const parsed = nativeZonePreflightShape.safeParse(raw);
   if (!parsed.success) return unavailableZoneLiveReadiness();
   const value = parsed.data;
+  // Do not accept a success-like bridge flag for a different or unknown native runtime.
+  // Mirror the only source-verified EasyEDA Pro profile in the bridge zone preflight.
+  const runtimeVerified =
+    value.runtimeVerified &&
+    typeof value.runtimeVersion === 'string' &&
+    /^3\.2\.209(?:\.|$)/.test(value.runtimeVersion);
   const boardContainmentVerified =
-    value.runtimeVerified && value.activePcb && value.boardGeometry?.containmentVerified === true;
+    runtimeVerified && value.activePcb && value.boardGeometry?.containmentVerified === true;
   const additional = [
-    ...(!value.runtimeVerified ? ['runtime-version-unverified'] : []),
+    ...(!runtimeVerified ? ['runtime-version-unverified'] : []),
     ...(!value.activePcb ? ['active-pcb-unverified'] : []),
     ...(!value.nativeCapabilities ? ['native-zone-capabilities-unavailable'] : []),
     ...(!value.netVerified ? ['net-not-in-active-pcb'] : []),
