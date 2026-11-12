@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "kind": "source-bound-real-native-pcb-zone-preflight-and-project-identity-readonly",
+  "validatedAt": "2026-11-12T18:39:34.344849+00:00",
+  "source": {
+    "repository": "oaslananka/easyeda-mcp-pro",
+    "commit": "6c0cff28c09c9b64dae8fa5682ca614eaca2003c",
+    "branch": "feat/480-native-zone-endtoend-20261112"
+  },
+  "runtime": {
+    "editorVersion": "3.2.209",
+    "isolatedDesktopProfile": true,
+    "realDesktopExtensionImport": true,
+    "fullEditorRestartAfterImport": true,
+    "editorExitedNormallyAfterTest": true
+  },
+  "extension": {
+    "packageVersion": "1.14.0",
+    "archiveSha256": "c0c06bd9f0bb1975dde629bba7e9d54b1932163a68f63dcaf8754ec06e69bc93",
+    "runtimeDispatcherBuildId": "d341axec5dx3711",
+    "sourceMatchedPackagedBuildId": "d341axec5dx3711",
+    "publicNativeZoneApplyEnabled": false
+  },
+  "fixture": {
+    "kind": "owner-approved-disposable-pcb",
+    "sourceSha256BeforeAndAfter": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+    "baselineArchiveByteIdenticalAfterTest": true,
+    "unrelatedProjectsTouched": false
+  },
+  "liveAcceptance": {
+    "focusedDocumentProjectVerified": true,
+    "wrongProjectRejectedByRegisteredMcp": true,
+    "wrongProjectRejectedByNativeBridge": true,
+    "geometryCases": [
+      {
+        "case": "inside",
+        "outlineKind": "rectangle",
+        "intersection": "inside",
+        "contained": true,
+        "readyToApply": false
+      },
+      {
+        "case": "outside",
+        "outlineKind": "rectangle",
+        "intersection": "outside",
+        "contained": false,
+        "readyToApply": false
+      },
+      {
+        "case": "partial",
+        "outlineKind": "rectangle",
+        "intersection": "partial",
+        "contained": false,
+        "readyToApply": false
+      },
+      {
+        "case": "boundary",
+        "outlineKind": "rectangle",
+        "intersection": "partial",
+        "contained": false,
+        "readyToApply": false
+      }
+    ],
+    "geometryCasesVerified": 4,
+    "readyToApplyAlwaysFalse": true,
+    "pendingNativeWriteFenceAbsent": true,
+    "nativeZoneWriteCalls": 0,
+    "productionZoneApplyEnabled": false
+  },
+  "limitations": [
+    "Read-only geometry and identity tests do not verify source-linked Poured topology, electrical clearance, DRC or manufacturing suitability.",
+    "The tested native board outline is rectangular, not the separately open L-shaped acceptance fixture.",
+    "The officially documented PCB_PrimitivePour.create API remains BETA with an explicit do-not-use-in-production warning.",
+    "No new create/rebuild/save/delete, remote write approval or cold-reopen copper mutation was attempted in this read-only acceptance."
+  ]
+}
