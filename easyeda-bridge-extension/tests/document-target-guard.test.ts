@@ -100,6 +100,34 @@ describe('target document guard #946', () => {
     });
   });
 
+  it('refuses a copied PCB in the wrong project before any native mutation', async () => {
+    const { dispatcher, mutateTrack } = makeDispatcher('board-copy');
+    await expect(
+      dispatcher.dispatch('pcb.addTrack', {
+        ...addTrack,
+        expectedProjectUuid: 'different-project',
+      }),
+    ).rejects.toMatchObject({ code: 'TARGET_PROJECT_MISMATCH' });
+    expect(mutateTrack).not.toHaveBeenCalled();
+  });
+
+  it('echoes source project identity only for a matching explicit project expectation', async () => {
+    const { dispatcher, mutateTrack } = makeDispatcher('board-copy');
+    const result = await dispatcher.dispatch('pcb.addTrack', {
+      ...addTrack,
+      expectedProjectUuid: 'project-1',
+    });
+    expect(mutateTrack).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      targetDocument: {
+        uuid: 'board-copy',
+        name: 'Production PCB',
+        documentType: 'pcb',
+        projectUuid: 'project-1',
+      },
+    });
+  });
+
   it('refuses mismatched schematic identity before any primitive mutation', async () => {
     const { dispatcher, modifySchematic } = makeDispatcher('schematic-actual', 1);
     await expect(
@@ -184,6 +212,9 @@ describe('document target verification edge cases', () => {
     { expectedSchematicPageUuid: 34 },
     { expectedSchematicPageUuid: '' },
     { expectedPcbUuid: 'expected-board', expectedSchematicPageUuid: 'page' },
+    { expectedProjectUuid: 'project-1' },
+    { expectedPcbUuid: 'expected-board', expectedProjectUuid: '' },
+    { expectedPcbUuid: 'expected-board', expectedProjectUuid: false },
   ])('rejects malformed or conflicting UUID fields %#', async (params) => {
     const reader = scopedReaders(focused);
     await expect(

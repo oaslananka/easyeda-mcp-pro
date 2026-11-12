@@ -59,6 +59,7 @@ const DOCUMENT_TARGET_RESULT = z.object({
   uuid: z.string(),
   name: z.string(),
   documentType: z.enum(['pcb', 'schematic']),
+  projectUuid: z.string().trim().min(1).optional(),
 });
 
 /** Guarded native evidence must never identify a different document than the caller selected. */
@@ -66,6 +67,7 @@ function verifiedTargetDocumentEvidence(
   value: unknown,
   expectedPcbUuid: unknown,
   expectedSchematicPageUuid: unknown,
+  expectedProjectUuid: unknown,
 ) {
   const parsed = DOCUMENT_TARGET_RESULT.safeParse(value);
   const expectedType = expectedPcbUuid !== undefined ? 'pcb' : 'schematic';
@@ -74,6 +76,7 @@ function verifiedTargetDocumentEvidence(
     !parsed.success ||
     parsed.data.uuid !== expectedUuid ||
     parsed.data.documentType !== expectedType ||
+    (expectedProjectUuid !== undefined && parsed.data.projectUuid !== expectedProjectUuid) ||
     !parsed.data.name.trim()
   ) {
     throw new Error('TARGET_DOCUMENT_EVIDENCE_MISMATCH: selected document could not be verified.');
@@ -543,12 +546,18 @@ async function executeToolWithMetrics(
     const controls = rawRecord(parsed);
     const expectedPcbUuid = controls.expectedPcbUuid;
     const expectedSchematicPageUuid = controls.expectedSchematicPageUuid;
+    const expectedProjectUuid = controls.expectedProjectUuid;
     const bridge = prepared.context.bridge;
     if (expectedPcbUuid !== undefined || expectedSchematicPageUuid !== undefined) {
       const status = rawRecord(await bridge.call('system.getStatus', {}));
       if (status.documentTargetGuard !== true) {
         throw new Error(
           'TARGET_DOCUMENT_GUARD_UNAVAILABLE: active extension does not support focused-document write guards; update and restart the EasyEDA extension. No write attempted.',
+        );
+      }
+      if (expectedProjectUuid !== undefined && status.documentProjectGuard !== true) {
+        throw new Error(
+          'TARGET_PROJECT_GUARD_UNAVAILABLE: active extension does not support focused-project guards; update and restart it. No write attempted.',
         );
       }
     }
@@ -572,6 +581,7 @@ async function executeToolWithMetrics(
                   {
                     ...bridgeParams,
                     ...(pcbMatches && expectedPcbUuid !== undefined ? { expectedPcbUuid } : {}),
+                    ...(expectedProjectUuid !== undefined ? { expectedProjectUuid } : {}),
                     ...(schematicMatches && expectedSchematicPageUuid !== undefined
                       ? { expectedSchematicPageUuid }
                       : {}),
@@ -583,6 +593,7 @@ async function executeToolWithMetrics(
                     result.targetDocument,
                     expectedPcbUuid,
                     expectedSchematicPageUuid,
+                    expectedProjectUuid,
                   );
                 }
                 return result;

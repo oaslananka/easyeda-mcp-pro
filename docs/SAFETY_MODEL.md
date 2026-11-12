@@ -27,6 +27,19 @@ inspectLive is not a live target check. This does not certify a specific
 project/revision, give write permission, or override remote approval;
 public native copper-zone apply remains disabled.
 
+### Focused owning-project preview (read-only)
+
+An optional expectedProjectUuid may accompany expectedPcbUuid with
+inspectLive=true. The extension compares the active project with the
+selected PCB's owning project before probing. The MCP response displays
+the verified project UUID only on an exact match, and the common MCP
+registry rejects an inconsistent native project/document response without
+exposing private identifiers. A connected older extension must explicitly
+advertise documentProjectGuard=true before any project-bound native call;
+missing support fails before accessing the document. These checks only
+bind **current project and PCB identity**, not a saved PCB revision, live
+copper topology, remote approval, or authorization to mutate.
+
 ## Native copper-zone host reservation (experimental, not a write permission)
 
 The host writer reservation is an internal, extension-to-local-Bridge
