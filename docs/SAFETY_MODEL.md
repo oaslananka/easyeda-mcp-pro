@@ -67,6 +67,12 @@ a changed filled-copper signature and the wrong PCB focus both returned
 releaseAuthorized=false. This does not validate a post-write cold reopen,
 release any crash-retained lease, or authorize a new native write.
 
+Recovery marker creation also rejects two different Pour sources sharing
+the same native Poured primitive identity. An older schema-valid marker
+with that contradictory identity is classified as unresolved and never
+grants recovery or lease-release authority. Distinct source-linked Poured
+identities remain valid evidence candidates, not cold-reopen proof.
+
 Recovery marker creation now rejects a source-less Poured baseline before
 any durable reservation. If a legacy schema-shaped marker already carries
 such an orphan source link, the independent recovery classifier keeps it

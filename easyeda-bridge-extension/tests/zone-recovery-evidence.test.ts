@@ -201,6 +201,54 @@ describe('independent cold-reopen candidate recovery without destructive actions
     });
   });
 
+  it('rejects two distinct Pour sources sharing one native Poured primitive identity', () => {
+    const secondSource: ZoneSourceEvidence = {
+      ...previousSource,
+      sourceId: 'second-source',
+      pourName: 'SECOND-SOURCE',
+    };
+    const secondDerived: ZoneDerivedEvidence = {
+      ...previousCopper,
+      sourceId: 'second-source',
+      pouredId: previousCopper.pouredId,
+    };
+    const duplicateNativePoured: ZoneInventory = {
+      sources: new Map([...before.sources, [secondSource.sourceId, secondSource]]),
+      derived: new Map([...before.derived, [secondDerived.sourceId, secondDerived]]),
+    };
+
+    // Never persist a contradictory baseline before acquiring a host lease.
+    expect(
+      encodeZoneWriteReservation({ ...attempt, before: duplicateNativePoured }),
+    ).toBeUndefined();
+
+    // Previously persisted, structurally valid records may still decode for
+    // diagnostics but cannot establish a safe recovery candidate.
+    const stored = JSON.parse(captured()) as Record<string, any>;
+    stored.before.sources.push(secondSource);
+    stored.before.derived.push(secondDerived);
+    const historical = JSON.stringify(stored);
+    expect(decodeZonePendingEvidence(historical)).toBeDefined();
+    expect(
+      assessZoneRecoveryCandidate(historical, 'project:pcb', duplicateNativePoured),
+    ).toMatchObject({
+      status: 'unresolved',
+      reason: expect.stringContaining('Poured primitive identity'),
+      persistenceVerified: false,
+      releaseAuthorized: false,
+    });
+
+    // Distinct Pour/Poured pairs are valid recovery evidence.
+    const distinctNativePoured: ZoneInventory = {
+      ...duplicateNativePoured,
+      derived: new Map([
+        ...before.derived,
+        [secondDerived.sourceId, { ...secondDerived, pouredId: 'second-poured' }],
+      ]),
+    };
+    expect(encodeZoneWriteReservation({ ...attempt, before: distinctNativePoured })).toBeDefined();
+  });
+
   it('rejects empty and oversized recovery payloads before parsing', () => {
     expect(decodeZonePendingEvidence('')).toBeUndefined();
     expect(decodeZonePendingEvidence('x'.repeat(256_001))).toBeUndefined();

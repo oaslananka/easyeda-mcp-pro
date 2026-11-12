@@ -126,6 +126,12 @@ function hasOrphanedPoured(value: StoredZoneInventory): boolean {
   return value.derived.some((poured) => !sources.has(poured.sourceId));
 }
 
+/** One native Poured primitive cannot be the derived copper of two Pour sources. */
+function hasSharedPouredIdentity(value: StoredZoneInventory): boolean {
+  const ids = value.derived.map((poured) => poured.pouredId);
+  return new Set(ids).size !== ids.length;
+}
+
 /** Writes a compact, deterministically ordered record, or refuses oversized/malformed evidence. */
 export function encodeZoneWriteReservation(reservation: ZoneWriteReservation): string | undefined {
   if (
@@ -145,6 +151,7 @@ export function encodeZoneWriteReservation(reservation: ZoneWriteReservation): s
   if (
     !isStoredInventory(stored.before) ||
     hasOrphanedPoured(stored.before) ||
+    hasSharedPouredIdentity(stored.before) ||
     [...reservation.before.sources].some(([key, item]) => key !== item.sourceId) ||
     [...reservation.before.derived].some(([key, item]) => key !== item.sourceId)
   )
@@ -197,6 +204,8 @@ export function assessZoneRecoveryCandidate(
   if (!pending) return deny('Pending marker lacks a complete, valid original inventory.');
   if (hasOrphanedPoured(pending.before))
     return deny('Pending baseline has a Poured entry without its exact native Pour source.');
+  if (hasSharedPouredIdentity(pending.before))
+    return deny('Pending baseline reuses one Poured primitive identity for multiple Pour sources.');
   if (pending.focus !== focusedDocument || !fresh)
     return deny('The reopened PCB focus or current native inventory is unverified.');
   const verdict = reconcileZoneCreation(restoredInventory(pending.before), fresh, pending.expected);
