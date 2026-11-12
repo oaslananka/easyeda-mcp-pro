@@ -1,8 +1,115 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-09",
+  "lastReviewed": "2026-11-12",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-12-38fff04-v1140-native-zone-rollback",
+      "status": "live-validated",
+      "validatedAt": "2026-11-12T09:51:36.855267+00:00",
+      "reviewBy": "2027-02-09",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Verified against the isolated EasyEDA desktop process User-Agent and current installed package metadata."
+      },
+      "server": {
+        "validationPackageVersion": "1.14.0",
+        "releaseContainingFixes": "1.14.0",
+        "commit": "38fff040d482b28a808a0381d018d59a95e3329e",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "1006e6a0e0497b8c8bbdb1e0746aafb694cc227a",
+            "src/bridge": "75b0b0d2a3ba2125444bd7be30a0f3bd1ca29745",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "864fc6f6a84170ba51cff376d91056af7f3432a2",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.14.0",
+        "loaderReportedVersion": "1.14.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "76974ff017e0ebba",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "dc924x26cax15ba",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "9ba4af40ecc33915e09626af221cb6a635cc46083daddc55690975a72c27940b",
+        "packageSizeBytes": 224335
+      },
+      "fixture": {
+        "project": "Owner-controlled isolated disposable local Z480 test PCB; all private document identifiers and paths withheld",
+        "schematic": "Native focused PCB project/document parent identity verified; no schematic mutation",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "v1140-38fff04-exact-install-restart",
+          "name": "Exact release candidate imported, cold-restarted and runtime identity matched",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact v1.14.0 release-head package was installed in a real isolated EasyEDA Pro 3.2.209 editor and restarted; the Bridge reported matching version, build dc924x26cax15ba and 77 methods without registry mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.14.0-38fff04-native-zone-rollback.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/480"
+          ]
+        },
+        {
+          "id": "v1140-38fff04-native-filled-copper-persistence",
+          "name": "One guarded real bottom-layer native Pour produced source-linked filled Poured across a full editor cold restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "One owner-approved isolated Z480 candidate used a real exclusive OS host lease and project-derived v2 native pending marker before native create. After one native rebuild and save, independent source and filled-copper association persisted through a full EasyEDA process restart. This is private test-candidate evidence, not public MCP apply approval.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.14.0-38fff04-native-zone-rollback.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/480"
+          ]
+        },
+        {
+          "id": "v1140-38fff04-native-exact-rollback",
+          "name": "Exact-id native rollback, second cold restart and original persisted project restoration verified",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The new test source alone was deleted and saved. Original one Pour/one Poured with 74 fill elements was independently verified after a second full process restart; disposable SQLite project was restored byte-identically from its pretest backup. Durable marker was removed and orphan host lease released only after independent checks.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.14.0-38fff04-native-zone-rollback.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/480"
+          ]
+        },
+        {
+          "id": "v1140-38fff04-production-and-electrical-limits",
+          "name": "Public write authorization, PCB topology/DRC and manufacturing safety remain outside tested scope",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "Public native zone apply is OFF; actual end-user MCP preview/confirmWrite/remote approval and board keepout/topology/DRC signoff are NOT accepted. These remain issue #480 work, not release or fabrication approval.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-12-ubuntu-24-04-easyeda-3.2.209-v1.14.0-38fff04-native-zone-rollback.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/480"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "This was a single owner-approved isolated disposable Z480 PCB on Ubuntu; real Windows and macOS EasyEDA GUI behavior remains unverified.",
+        "The candidate native creation was executed from a private one-off test harness through local api.execute; public pcb.addZone apply remains disabled. Real MCP preview, confirmWrite, remote approval and user-facing workflow acceptance are still OPEN (#480).",
+        "Verified one on-board GND bottom-layer rectangle and one source-linked filled Poured; no broad shapes, priorities, all-net/layer variations, full board topology, keepouts, clearance, or DRC acceptance was performed. No electrical or fabrication approval is implied.",
+        "First setup attempt failed after one native source create due to a local test-harness redeclaration; its source was recovered, native state independently cold-reopened, original bytes restored and orphan host lease audited. This is test-harness failure evidence, not a product-success claim.",
+        "Second successful native create and filled-copper cold-reopen later encountered a transient CDP execution-context failure on rollback restart; the original inventory was subsequently independently observed, and recovery/marker/host release completed. No blind repeated create occurred under a pending fence.",
+        "Installed package identity was verified through official EasyEDA Extensions Manager import/restart, runtime version and dispatcher build ID; a byte-for-byte read-back of EasyEDA internal installed extension storage was not available. Reproducible candidate artifact SHA and size were measured locally.",
+        "This does not cover all 77 dispatcher capabilities, DRC/ERC electrical correctness, cloud/design publishing, manufacturing exports, or any production PCB mutation."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-09-c660492-v1130-schematic-readonly",
       "status": "live-validated",
