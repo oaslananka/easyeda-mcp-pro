@@ -8,7 +8,11 @@ import { nativeScalarString } from './utils.js';
 // baked into the extension script scope and eval'd via AsyncFunction.
 
 import { createApiRuntime, type ApiRuntime } from './api-runtime.js';
-import { assertExpectedDocument, withTargetDocumentEvidence } from './document-target-guard.js';
+import {
+  assertExpectedDocument,
+  withGuardedZonePreflight,
+  withTargetDocumentEvidence,
+} from './document-target-guard.js';
 import { createDeviceMetadataOperations } from './device-metadata-operations.js';
 import {
   compactPrimitiveSummary,
@@ -1733,7 +1737,14 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     readFirstPath,
     newBridgeError,
   );
-  const domainResult = await domainRouter.tryDispatch(method, params);
+  const domainResult = await withGuardedZonePreflight(
+    method,
+    params,
+    targetDocument,
+    readFirstPath,
+    newBridgeError,
+    () => domainRouter.tryDispatch(method, params),
+  );
   if (domainResult.handled) return withTargetDocumentEvidence(domainResult.value, targetDocument);
 
   switch (method) {
