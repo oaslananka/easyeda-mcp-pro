@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 export const EasyedaApiMethodSchema = z.enum([
+  'project.list',
   'project.open',
+  'project.close',
   'project.save',
   'project.export',
   'schematic.listNets',

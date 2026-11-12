@@ -23,6 +23,8 @@ function createDependencies() {
       })),
     },
     projectOperations: {
+      list: vi.fn(async () => ({ status: 'ok', projects: [], complete: true })),
+      close: vi.fn(async () => ({ success: false, status: 'dirty_state_unavailable' })),
       open: vi.fn(async (params: Record<string, unknown>) => ({ method: 'project.open', params })),
       save: vi.fn(async (_params: Record<string, unknown>) => undefined),
       export: vi.fn(async (params: Record<string, unknown>) => ({
@@ -280,7 +282,9 @@ const expectedMethods = [
   'pcb.modifyComponent',
   'pcb.rebuildCopper',
   'pcb.zonePreflight',
+  'project.close',
   'project.export',
+  'project.list',
   'project.open',
   'project.save',
   'schematic.deletePrimitive',
@@ -393,6 +397,19 @@ describe('createDispatcherDomainRouter', () => {
     const dependencies = createDependencies();
     const router = createDispatcherDomainRouter(dependencies);
     const params = { value: 'preserved' };
+
+    // Exercise lifecycle dispatch end-to-end; the read and destructive actions
+    // must use their respective native project handlers with the exact input.
+    await expect(router.tryDispatch('project.list', params)).resolves.toEqual({
+      handled: true,
+      value: { status: 'ok', projects: [], complete: true },
+    });
+    expect(dependencies.projectOperations.list).toHaveBeenCalledWith(params);
+    await expect(router.tryDispatch('project.close', params)).resolves.toEqual({
+      handled: true,
+      value: { success: false, status: 'dirty_state_unavailable' },
+    });
+    expect(dependencies.projectOperations.close).toHaveBeenCalledWith(params);
 
     await expect(router.tryDispatch('project.open', params)).resolves.toEqual({
       handled: true,

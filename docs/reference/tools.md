@@ -78,8 +78,11 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_power_tree_analyze`                       | `core`         | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                   |
 | `easyeda_production_qa_artifacts`                  | `pro`          | `low`    | Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.                                                                                                                                                                                     |
 | `easyeda_project_begin_transaction`                | `core`         | `low`    | Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools passed transactionId participate; standalone schematic writes are not auto-captured. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.                                    |
+| `easyeda_project_close`                            | `core`         | `high`   | Default refuses when dirty status is unknown. Explicit confirmed save first verifies native save then closes; explicit discard is destructive. Never silently discards unsaved documents.                                                                                                                                     |
 | `easyeda_project_commit_transaction`               | `core`         | `medium` | Finalize a transaction after its writes and validation gates succeed. Commit removes rollback eligibility and releases the document transaction lock.                                                                                                                                                                         |
 | `easyeda_project_get_transaction_status`           | `core`         | `low`    | Read transaction state, validation results, operation hashes, and rollback status without exposing captured primitive snapshots.                                                                                                                                                                                              |
+| `easyeda_project_list`                             | `core`         | `low`    | Read team-scoped EasyEDA projects and active identity. Only the active project can be verified open; unknown projects report open=null. No native project or document changes.                                                                                                                                                |
+| `easyeda_project_open`                             | `core`         | `medium` | Open an EasyEDA project by UUID only when no other document is open. Requires explicit write confirmation and read-back of active project. Never silently switches away from an open document.                                                                                                                                |
 | `easyeda_project_rollback_transaction`             | `core`         | `medium` | Controlled write: restore applied schematic primitive snapshots in reverse order, verify each restored hash, and report partial rollback explicitly instead of hiding inconsistencies.                                                                                                                                        |
 | `easyeda_project_save`                             | `core`         | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                                  |
 | `easyeda_project_validate_transaction`             | `core`         | `low`    | Run transaction consistency gates before commit: bridge availability, pending/failed operation checks, optional expected operation count, and optional requirement for at least one applied write.                                                                                                                            |
@@ -2640,6 +2643,36 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_project_close`
+
+**Profile:** `core` | **Risk Level:** `high`
+
+> Default refuses when dirty status is unknown. Explicit confirmed save first verifies native save then closes; explicit discard is destructive. Never silently discards unsaved documents.
+
+### Input Parameters
+
+| Parameter      | Type                                           | Required | Description |
+| -------------- | ---------------------------------------------- | -------- | ----------- |
+| `projectId`    | `string`                                       | Yes      |             |
+| `mode`         | `'refuse_if_dirty'` \| `'save'` \| `'discard'` | Yes      |             |
+| `confirmWrite` | `'true'`                                       | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  status: string;
+  projectId: string (optional);
+  openTabIds: string[] (optional);
+  closedTabs: string[] (optional);
+}
+```
+
+---
+
 ## `easyeda_project_commit_transaction`
 
 **Profile:** `core` | **Risk Level:** `medium`
@@ -2696,6 +2729,59 @@ Returns a JSON object matching the schema:
   error_code: string (optional);
   error: string (optional);
   details: Record<string, any> (optional);
+}
+```
+
+---
+
+## `easyeda_project_list`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Read team-scoped EasyEDA projects and active identity. Only the active project can be verified open; unknown projects report open=null. No native project or document changes.
+
+### Input Parameters
+
+No parameters required.
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  status: string;
+  complete: boolean;
+  projects: object[];
+  activeProjectId: string | null (optional);
+}
+```
+
+---
+
+## `easyeda_project_open`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Open an EasyEDA project by UUID only when no other document is open. Requires explicit write confirmation and read-back of active project. Never silently switches away from an open document.
+
+### Input Parameters
+
+| Parameter      | Type     | Required | Description |
+| -------------- | -------- | -------- | ----------- |
+| `projectId`    | `string` | Yes      |             |
+| `confirmWrite` | `'true'` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  status: string;
+  projectId: string (optional);
+  documents: object[] (optional);
 }
 ```
 
