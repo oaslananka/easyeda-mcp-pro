@@ -618,9 +618,10 @@ const failClosedPcbZoneTool = {
     return {
       success: false,
       not_available: true,
-      error: 'PCB copper-zone creation is not supported by the verified EasyEDA Pro runtime.',
+      error:
+        'Native copper-zone apply is unavailable: EasyEDA labels PCB_PrimitivePour.create BETA and prohibits production use.',
       remediation:
-        'Create or edit the copper zone in EasyEDA Pro manually until a supported runtime has a live-verified deterministic create/rebuild/associated-Poured read-back contract.',
+        'In EasyEDA Pro, choose Place > Copper Pour Area in the PCB editor, select the intended net and copper layer, rebuild the fill, inspect DRC and save manually. MCP preview never writes.',
     };
   },
 } satisfies ToolDefinition<

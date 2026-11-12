@@ -6,6 +6,8 @@ This document explains the security posture, permission checks, data privacy con
 
 ## Native copper-zone live preview (read-only)
 
+The upstream [`PCB_PrimitivePour.create()` API](https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_primitivepour.create.html) is marked **BETA** and must not be used in production. Real disposable-board evidence does not override that restriction. The public MCP apply path stays disabled; the editor's manual **Place > Copper Pour Area** workflow is the supported alternative.
+
 The easyeda_pcb_add_zone tool with mode=preview and inspectLive=true checks
 the focused PCB, net, layer, board containment and the class-level native
 APIs needed for creation, copper inventory, exact-id rollback and save.

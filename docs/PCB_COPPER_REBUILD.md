@@ -35,7 +35,7 @@ Other EasyEDA Pro versions are therefore capability-gated rather than assumed co
 
 This tool intentionally excludes EasyEDA inner `PlaneZone` objects. The verified public API surface exposes normal `PCB_PrimitivePour` rebuilds but no equivalent writable PlaneZone class contract. Plane-zone creation/rebuild remains tracked separately by issue #480 and the [upstream EasyEDA API request #43](https://github.com/easyeda/pro-api-sdk/issues/43) referenced from issue #596.
 
-`easyeda_pcb_add_zone` now supports a **pure local preview** of a rectangular native Pour plan; it never calls the bridge in preview mode. All actual apply requests still fail closed, including `confirmWrite=true`. Preview must specify all nine creation parameters explicitly (net, layer, rectangle polygon, solid fill method, island preservation, name, priority, stroke width and lock state); no runtime net or board information is read or assumed. `requiredApplyChecks` lists unmet live preflight gates. The preview hash is only a deterministic representation of the planned native arguments, not authorization to apply.
+`easyeda_pcb_add_zone` now supports a **pure local preview** of a rectangular native Pour plan; it never calls the bridge in preview mode. All actual apply requests still fail closed, including `confirmWrite=true`. Preview must specify all nine creation parameters explicitly (net, layer, rectangle polygon, solid fill method, island preservation, name, priority, stroke width and lock state); no runtime net or board information is read or assumed. `requiredApplyChecks` lists unmet live preflight gates. The preview hash is only a deterministic representation of the planned native arguments, not authorization to apply. The upstream [`PCB_PrimitivePour.create()` contract](https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_primitivepour.create.html) is marked **BETA** with an explicit prohibition on production use. Even a successful isolated Z480 creation/reopen/rollback does not supersede that vendor restriction. The supported fallback is manual EasyEDA Pro editing: **Place > Copper Pour Area**, select the intended net and copper layer, rebuild the fill, inspect DRC, and save. MCP native zone apply remains unavailable.
 
 An isolated MSI / EasyEDA Pro `3.2.206` positive-path experiment for #480 **did** create a BOTTOM/GND native Pour with `preserveSilos=true`, read 41 associated Poured fills, save, close/reopen, delete, save, close/reopen and restore the exact baseline. However a smaller rectangle failed to produce associated copper, native create accepted a nonexistent net name, and the SDK helper `rebuildCopperRegion()` returned the first available Pour's fill group (`e336`) rather than the target even when a valid target fill existed. Thus this positive-path experiment does not cover general inputs, invalid contexts or timeout recovery. Creation remains fail-closed until strict net membership/board checks, explicit authorization, appropriate version gates, exact-id read-back and deterministic error reconciliation have been implemented and verified. See #480 for detailed live evidence.
 
@@ -43,8 +43,8 @@ An isolated, disposable EasyEDA Pro `3.2.206` test for #480 showed why this guar
 
 The separate zone-preflight diagnostic is read-only and checks the exact
 selected PCB document and parent project **both before and after** runtime
-inspection, plus net membership, copper layer stackup, supported EasyEDA
-3.2.206/3.2.209 versions, and native create/Poured/save API capabilities.
+inspection, plus net membership, copper layer stackup, the measured EasyEDA
+Pro 3.2.209 native-create version, and native create/Poured/save API capabilities.
 A truthy native PCB handle alone is not trusted as the selected document;
 changed focus invalidates earlier net/layer/outline observations.
 

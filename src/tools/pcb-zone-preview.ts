@@ -217,6 +217,7 @@ export function previewPcbZone(input: PcbZonePreviewInput) {
     nativeProfile: observedZoneNativeProfile(input),
     planHash,
     requiredApplyChecks: [
+      'EasyEDA labels PCB_PrimitivePour.create BETA and forbids production use; a preview is never apply authorization.',
       'Exact EasyEDA Pro runtime and native capabilities must be verified.',
       'An active PCB document must be confirmed before mutation.',
       'The netName must exist in the current PCB net inventory; native create does not enforce this.',

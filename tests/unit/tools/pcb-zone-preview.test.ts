@@ -37,6 +37,7 @@ describe('native PCB copper zone preview', () => {
       locked: false,
     });
     expect(first.requiredApplyChecks.join(' ')).toContain('netName must exist');
+    expect(first.requiredApplyChecks.join(' ')).toContain('BETA');
   });
 
   it.each([
