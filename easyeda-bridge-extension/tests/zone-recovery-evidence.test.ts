@@ -176,6 +176,31 @@ describe('independent cold-reopen candidate recovery without destructive actions
     ).toBeUndefined();
   });
 
+  it('rejects orphan Poured source links before recording or interpreting pending recovery evidence', () => {
+    const orphan = {
+      ...previousCopper,
+      sourceId: 'orphan-foreign-source',
+      pouredId: 'orphan-foreign-poured',
+    };
+    const mismatchedInventory: ZoneInventory = {
+      sources: before.sources,
+      derived: new Map([[orphan.sourceId, orphan]]),
+    };
+    expect(encodeZoneWriteReservation({ ...attempt, before: mismatchedInventory })).toBeUndefined();
+
+    // A schema-shaped legacy marker may still decode for diagnostics, but
+    // must never be treated as a trustworthy independent recovery verdict.
+    const marker = JSON.parse(captured()) as Record<string, any>;
+    marker.before.derived = [orphan];
+    const raw = JSON.stringify(marker);
+    expect(decodeZonePendingEvidence(raw)).toBeDefined();
+    expect(assessZoneRecoveryCandidate(raw, 'project:pcb', mismatchedInventory)).toMatchObject({
+      status: 'unresolved',
+      reason: expect.stringContaining('without its exact native Pour source'),
+      releaseAuthorized: false,
+    });
+  });
+
   it('rejects empty and oversized recovery payloads before parsing', () => {
     expect(decodeZonePendingEvidence('')).toBeUndefined();
     expect(decodeZonePendingEvidence('x'.repeat(256_001))).toBeUndefined();
