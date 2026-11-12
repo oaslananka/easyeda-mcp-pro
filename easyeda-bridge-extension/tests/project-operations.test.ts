@@ -48,6 +48,15 @@ describe('project lifecycle safety', () => {
     save?: boolean;
     readyDelayReads?: number;
     closeReadbackDelay?: number;
+    nestedTabs?: boolean;
+    projectInfoMissingFor?: string;
+    nativeOpenReturnsFalse?: boolean;
+    activationFails?: boolean;
+    focusedProject?: string;
+    focusedDocument?: string;
+    saveThrows?: boolean;
+    nativeCloseReturnsFalse?: boolean;
+    projectData?: unknown[];
   }) {
     let active = overrides?.active ?? 'p1';
     let currentReadCount = 0;
@@ -65,13 +74,17 @@ describe('project lifecycle safety', () => {
           case 'dmt_Project.getAllProjectsUuid':
             return ['p1', 'p2'];
           case 'dmt_Project.getProjectInfo':
+            if (overrides?.projectInfoMissingFor === args[0]) return undefined;
             return { uuid: args[0], friendlyName: args[0] === 'p1' ? 'Alpha' : 'Beta' };
           case 'dmt_Project.getCurrentProjectInfo':
             currentReadCount++;
             return {
               ...project,
               uuid: active,
-              data: currentReadCount <= (overrides?.readyDelayReads ?? 0) ? [] : project.data,
+              data:
+                currentReadCount <= (overrides?.readyDelayReads ?? 0)
+                  ? []
+                  : (overrides?.projectData ?? project.data),
             };
           case 'dmt_EditorControl.getSplitScreenTree':
             if (pendingClose) {
@@ -81,17 +94,26 @@ describe('project lifecycle safety', () => {
                 pendingClose = undefined;
               }
             }
-            return { id: 'root', tabs };
+            return overrides?.nestedTabs
+              ? { id: 'root', tabs: [], children: [{ id: 'nested', tabs }] }
+              : { id: 'root', tabs };
           case 'dmt_Project.openProject':
+            if (overrides?.nativeOpenReturnsFalse) return false;
             active = args[0] as string;
             return true;
           case 'dmt_EditorControl.activateDocument':
-            return true;
+            return overrides?.activationFails !== true;
           case 'dmt_SelectControl.getCurrentDocumentInfo':
-            return { uuid: 'pcb1', parentProjectUuid: 'p1', documentType: 3 };
+            return {
+              uuid: overrides?.focusedDocument ?? 'pcb1',
+              parentProjectUuid: overrides?.focusedProject ?? 'p1',
+              documentType: 3,
+            };
           case 'pcb_Document.save':
+            if (overrides?.saveThrows) throw new Error('native PCB save exception');
             return overrides?.save !== false;
           case 'dmt_EditorControl.closeDocument':
+            if (overrides?.nativeCloseReturnsFalse) return false;
             if (overrides?.closeReadbackDelay) {
               pendingClose = args[0] as string;
               pendingReadbacks = overrides.closeReadbackDelay;
@@ -117,6 +139,33 @@ describe('project lifecycle safety', () => {
       ],
     });
     expect(callFirst).toHaveBeenCalledWith(['dmt_Project.getAllProjectsUuid'], 'team-a');
+  });
+
+  it('does not open a different project without explicit confirmation', async () => {
+    const { operations, callFirst } = fixture({
+      tabs: [{ tabId: 'start', title: 'Start Page', data: { doctype: 'start' } }],
+    });
+    await expect(operations.open({ projectId: 'p2' })).resolves.toMatchObject({
+      success: false,
+      status: 'confirm_write_required',
+    });
+    expect(callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_Project.openProject')).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    ['project_not_found', { projectInfoMissingFor: 'p2' }],
+    ['native_open_failed', { nativeOpenReturnsFalse: true }],
+  ])('refuses unsafe open outcome %s', async (status, flags) => {
+    const { operations } = fixture({
+      tabs: [{ tabId: 'start', title: 'Start Page', data: { doctype: 'start' } }],
+      ...flags,
+    });
+    await expect(operations.open({ projectId: 'p2', confirmWrite: true })).resolves.toMatchObject({
+      success: false,
+      status,
+    });
   });
 
   it('does not switch away from any open project document (dirty state cannot be proved)', async () => {
@@ -168,6 +217,15 @@ describe('project lifecycle safety', () => {
     ).toHaveLength(1);
   });
 
+  it('recognizes genuinely nested native split-screen tabs', async () => {
+    const { operations } = fixture({ nestedTabs: true });
+    await expect(operations.close({ projectId: 'p1' })).resolves.toMatchObject({
+      success: false,
+      status: 'dirty_state_unavailable',
+      openTabIds: ['pcb1-extended-native-tab'],
+    });
+  });
+
   it('refuses to close any open document in default mode when dirty state is unavailable', async () => {
     const { operations, callFirst } = fixture();
     await expect(operations.close({ projectId: 'p1' })).resolves.toMatchObject({
@@ -214,6 +272,80 @@ describe('project lifecycle safety', () => {
       operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
     ).resolves.toMatchObject({ success: false, status: 'save_failed' });
     expect(callFirst).not.toHaveBeenCalledWith(['dmt_EditorControl.closeDocument'], 'pcb1');
+  });
+
+  it.each([
+    ['activation_failed', { activationFails: true }],
+    ['focused_document_mismatch', { focusedProject: 'a-different-project' }],
+    ['save_failed', { saveThrows: true }],
+  ])('blocks an unsafe native save: %s', async (status, flags) => {
+    const { operations, callFirst } = fixture(flags);
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status });
+    expect(
+      callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
+    ).toBe(false);
+  });
+
+  it('refuses unverified native close without falsely reporting success', async () => {
+    const { operations, callFirst } = fixture({ nativeCloseReturnsFalse: true });
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'native_close_unverified' });
+    expect(
+      callFirst.mock.calls.filter(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
+    ).toHaveLength(1);
+  });
+
+  it('does not blindly retry a native close when delayed readback never confirms', async () => {
+    const { operations, callFirst } = fixture({ closeReadbackDelay: 50 });
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'close_readback_unverified' });
+    expect(
+      callFirst.mock.calls.filter(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
+    ).toHaveLength(1);
+  }, 10000);
+
+  it.each([
+    ['invalid_close_request', { projectId: 'p1', mode: 'unknown' }],
+    ['active_project_mismatch', { projectId: 'p2', mode: 'save', confirmWrite: true }],
+  ])('refuses bad close target: %s', async (status, input) => {
+    const { operations, callFirst } = fixture();
+    await expect(operations.close(input)).resolves.toMatchObject({ success: false, status });
+    expect(
+      callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
+    ).toBe(false);
+  });
+
+  it('returns already_closed without invoking native close if no document is open', async () => {
+    const { operations, callFirst } = fixture({
+      tabs: [{ tabId: 'start', title: 'Start Page', data: { doctype: 'start' } }],
+    });
+    await expect(operations.close({ projectId: 'p1' })).resolves.toMatchObject({
+      success: true,
+      status: 'already_closed',
+      closedTabs: [],
+    });
+    expect(
+      callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
+    ).toBe(false);
+  });
+
+  it('blocks saving panel documents without a tested stable native panel save API', async () => {
+    const { operations, callFirst } = fixture({
+      projectData: [{ panel: { uuid: 'panel1' } }],
+      tabs: [
+        { tabId: 'panel1-native-tab', title: 'Panel1', data: { pid: 'p1', creator: 'panel1' } },
+      ],
+    });
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'panel_save_unsupported' });
+    expect(
+      callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
+    ).toBe(false);
   });
 
   it('never discards without confirmWrite, even via direct native method', async () => {
