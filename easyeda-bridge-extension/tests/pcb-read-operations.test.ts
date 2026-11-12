@@ -789,7 +789,7 @@ describe('PCB primitive deletion routing', () => {
 
 describe('native zone preflight', () => {
   const base = {
-    sys_Environment: { getEditorCurrentVersion: async () => '3.2.206.715d940d' },
+    sys_Environment: { getEditorCurrentVersion: async () => '3.2.209.8a704eab' },
     DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'project' }) },
     DMT_SelectControl: {
       getCurrentDocumentInfo: async () => ({
@@ -801,8 +801,15 @@ describe('native zone preflight', () => {
     dmt_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-1' }) },
     pcb_Net: { getAllNetName: async () => ['GND', 'VCC'] },
     pcb_Layer: { getTheNumberOfCopperLayers: async () => 2 },
-    pcb_PrimitivePour: { create: vi.fn() },
-    pcb_PrimitivePoured: { get: vi.fn() },
+    pcb_PrimitivePour: {
+      create: vi.fn(),
+      get: vi.fn(),
+      getAll: vi.fn(),
+      getAllPrimitiveId: vi.fn(),
+      delete: vi.fn(),
+    },
+    pcb_PrimitivePoured: { get: vi.fn(), getAll: vi.fn() },
+    pcb_MathPolygon: { createPolygon: vi.fn() },
     pcb_Document: { save: vi.fn() },
   };
   it('recognizes live-verified 3.2.209 without enabling apply', async () => {
@@ -815,6 +822,49 @@ describe('native zone preflight', () => {
       readyToApply: false,
     });
   });
+  it('does not call previously observed 3.2.206 a verified zone-write runtime', async () => {
+    const { operations } = makeOperations({
+      ...base,
+      sys_Environment: { getEditorCurrentVersion: async () => '3.2.206.715d940d' },
+    });
+    await expect(operations.zonePreflight('GND', 2)).resolves.toMatchObject({
+      runtimeVersion: '3.2.206.715d940d',
+      runtimeVerified: false,
+      readyToApply: false,
+      blockers: expect.arrayContaining(['runtime-version-unverified']),
+    });
+  });
+
+  it.each([
+    [
+      'native Pour inventory',
+      { pcb_PrimitivePour: { ...base.pcb_PrimitivePour, getAll: undefined } },
+    ],
+    [
+      'exact-id native Pour delete',
+      { pcb_PrimitivePour: { ...base.pcb_PrimitivePour, delete: undefined } },
+    ],
+    [
+      'native source ID inventory',
+      { pcb_PrimitivePour: { ...base.pcb_PrimitivePour, getAllPrimitiveId: undefined } },
+    ],
+    [
+      'native Pour source lookup',
+      { pcb_PrimitivePour: { ...base.pcb_PrimitivePour, get: undefined } },
+    ],
+    ['native Poured association inventory', { pcb_PrimitivePoured: { get: vi.fn() } }],
+    ['native polygon builder', { pcb_MathPolygon: undefined }],
+  ])('does not claim write-capability completeness without %s', async (_name, override) => {
+    const { operations } = makeOperations({ ...base, ...override });
+    await expect(operations.zonePreflight('GND', 2)).resolves.toMatchObject({
+      runtimeVerified: true,
+      nativeCapabilities: false,
+      readyToApply: false,
+      blockers: expect.arrayContaining(['native-zone-capabilities-unavailable']),
+    });
+    expect(base.pcb_PrimitivePour.create).not.toHaveBeenCalled();
+  });
+
   it('checks an optional rectangle only as diagnostic evidence, never authorization', async () => {
     const { operations } = makeOperations({
       ...base,

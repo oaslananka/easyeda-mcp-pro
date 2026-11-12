@@ -160,12 +160,18 @@ function zonePreflightBlockers(
   return blockers;
 }
 
-function hasNativeZoneCapabilities(pours: any, poured: any, document: any): boolean {
-  return (
-    typeof pours?.create === 'function' &&
-    typeof poured?.get === 'function' &&
-    typeof document?.save === 'function'
-  );
+/** Read-only check of class-level prerequisites; instance methods need later readback. */
+function hasNativeZoneCapabilities(pours: any, poured: any, polygon: any, document: any): boolean {
+  return [
+    pours?.create,
+    pours?.get,
+    pours?.getAll,
+    pours?.getAllPrimitiveId,
+    pours?.delete,
+    poured?.getAll,
+    polygon?.createPolygon,
+    document?.save,
+  ].every((member) => typeof member === 'function');
 }
 
 function hasVerifiedZoneCopperLayer(layer: number, count: unknown): boolean {
@@ -272,16 +278,17 @@ export function createPcbReadOperations({
     const layers = readFirstPath<any>(['PCB_Layer', 'pcb_Layer']);
     const pours = readFirstPath<any>(['PCB_PrimitivePour', 'pcb_PrimitivePour']);
     const poured = readFirstPath<any>(['PCB_PrimitivePoured', 'pcb_PrimitivePoured']);
+    const polygon = readFirstPath<any>(['PCB_MathPolygon', 'pcb_MathPolygon']);
     const document = readFirstPath<any>(['PCB_Document', 'pcb_Document']);
 
     const reportedVersion = await optionalNativeRead(() =>
       environment?.getEditorCurrentVersion?.(),
     );
     const version = typeof reportedVersion === 'string' ? reportedVersion : null;
-    const runtimeVerified = version !== null && /^3\.2\.(?:206|209)(?:\.|$)/.test(version);
+    const runtimeVerified = version !== null && /^3\.2\.209(?:\.|$)/.test(version);
     const identityBefore = await optionalNativeRead(() => documentIdentity(readFirstPath));
     const focusedAtStart = typeof identityBefore === 'string';
-    const nativeCapabilities = hasNativeZoneCapabilities(pours, poured, document);
+    const nativeCapabilities = hasNativeZoneCapabilities(pours, poured, polygon, document);
 
     const names = focusedAtStart
       ? await optionalNativeRead(() => nets?.getAllNetName?.())

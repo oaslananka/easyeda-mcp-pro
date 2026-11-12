@@ -22,7 +22,7 @@ export const pcbZoneRectangleSchema = z
     path: ['height'],
   });
 
-// The native 3.2.206 signature has nine positional arguments. Never infer
+// The nine positional arguments were verified in one disposable 3.2.209 runtime. Never infer
 // priorities, dimensions, net identities or fill settings on the user's behalf.
 export const pcbZonePreviewSchema = z
   .object({

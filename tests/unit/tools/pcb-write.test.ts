@@ -1158,6 +1158,53 @@ describe('PCB Write Tools', () => {
     expect(tool?.outputSchema.safeParse(result).success).toBe(true);
   });
 
+  it('includes out-of-profile native settings in inspected preview blockers', async () => {
+    bridgeCall.mockResolvedValueOnce({
+      runtimeVersion: '3.2.209',
+      runtimeVerified: true,
+      activePcb: true,
+      nativeCapabilities: true,
+      netVerified: true,
+      layerVerified: true,
+      boardGeometry: { containmentVerified: true },
+      readyToApply: false,
+      blockers: ['apply-and-rollback-not-implemented'],
+    });
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const result = await tool?.handler(context, {
+      mode: 'preview',
+      inspectLive: true,
+      rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_PREVIEW',
+      pourPriority: 2,
+      lineWidth: 0.2,
+      locked: false,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      applied: false,
+      preview: {
+        nativeProfile: {
+          observedInDisposableRuntime: false,
+          blockers: ['native-priority-unsupported'],
+        },
+      },
+      liveReadiness: {
+        readyToApply: false,
+        blockers: expect.arrayContaining([
+          'native-priority-unsupported',
+          'apply-and-rollback-not-implemented',
+        ]),
+      },
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+    expect(bridgeCall).toHaveBeenCalledOnce();
+  });
+
   it('easyeda_pcb_add_zone preview reports unavailable diagnostics without inventing write readiness', async () => {
     bridgeCall.mockRejectedValueOnce(new Error('disconnected'));
     const tool = registry.get('easyeda_pcb_add_zone');
