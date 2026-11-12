@@ -17,8 +17,9 @@ import {
   pcbZonePreviewSchema,
   pcbZoneRectangleSchema,
   previewPcbZone,
-  summarizeZoneLiveReadiness,
-  unavailableZoneLiveReadiness,
+  summarizeTargetBoundZoneLiveReadiness,
+  zonePreviewTargetDocumentSchema,
+  type ZoneLiveReadiness,
 } from './pcb-zone-preview.js';
 
 const layoutPointSchema = z.object({
@@ -158,6 +159,12 @@ const failClosedPcbZoneInputSchema = z
     lineWidth: z.number().optional(),
     locked: z.boolean().optional(),
     confirmWrite: z.literal(true).optional(),
+    expectedPcbUuid: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('Optional exact focused PCB UUID for guarded read-only live preview.'),
     inspectLive: z
       .boolean()
       .optional()
@@ -203,6 +210,7 @@ const failClosedPcbZoneOutputSchema = z.object({
       }),
     })
     .optional(),
+  targetDocument: zonePreviewTargetDocumentSchema.optional(),
   liveReadiness: z
     .object({
       checked: z.boolean(),
@@ -548,16 +556,27 @@ const failClosedPcbZoneTool = {
           preview,
         };
       }
-      let liveReadiness = unavailableZoneLiveReadiness();
+      let liveReadiness: ZoneLiveReadiness;
+      let targetDocument: z.infer<typeof zonePreviewTargetDocumentSchema> | undefined;
       try {
         const probe = await _ctx.bridge.call('pcb.zonePreflight', {
           netName: parsed.data.netName,
           layer: parsed.data.layer,
           rectangle: parsed.data.rectangle,
+          ...(input.expectedPcbUuid !== undefined
+            ? { expectedPcbUuid: input.expectedPcbUuid }
+            : {}),
         });
-        liveReadiness = summarizeZoneLiveReadiness(probe);
+        ({ liveReadiness, targetDocument } = summarizeTargetBoundZoneLiveReadiness(
+          probe,
+          input.expectedPcbUuid,
+        ));
       } catch {
-        // A disconnected or malformed probe is not evidence of a safe native write.
+        // Never expose raw native target errors or trust a failed target probe.
+        liveReadiness = summarizeTargetBoundZoneLiveReadiness(
+          undefined,
+          input.expectedPcbUuid,
+        ).liveReadiness;
       }
       // Never present a live net/layer/outline probe as supporting an unmeasured
       // native settings combination. These blockers are true even if the probe fails.
@@ -571,6 +590,7 @@ const failClosedPcbZoneTool = {
         applied: false,
         preview,
         liveReadiness,
+        ...(targetDocument ? { targetDocument } : {}),
       };
     }
     return {

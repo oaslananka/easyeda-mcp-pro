@@ -15,6 +15,18 @@ combines unsupported native setting warnings with live diagnostic blockers.
 These checks do not prove fill topology/DRC or supply write authorization:
 readyToApply=false and public zone apply remain fail-closed.
 
+### Explicit focused-PCB preview
+
+The optional expectedPcbUuid paired with inspectLive=true causes the
+native target-document guard to compare the selected EasyEDA PCB UUID
+before returning any confirmed focus or board-readiness evidence. The tool
+also requires a matching native response and returns the verified PCB name
+and UUID. A mismatched, missing or untrusted target response fails closed
+without revealing private native error details. A static preview without
+inspectLive is not a live target check. This does not certify a specific
+project/revision, give write permission, or override remote approval;
+public native copper-zone apply remains disabled.
+
 ## Native copper-zone host reservation (experimental, not a write permission)
 
 The host writer reservation is an internal, extension-to-local-Bridge
