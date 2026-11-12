@@ -217,7 +217,7 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
           'priority=1, line width=0.2, unlocked GND/BOTTOM are accepted by this candidate.',
       };
     inProgress = true;
-    let nativeMutationStarted = false;
+    let reservationGranted = false;
     try {
       const attempt = await preflightZone(deps, expected);
       if (!attempt)
@@ -230,14 +230,13 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
           status: 'blocked',
           reason: 'Persistent native write fence requires independent reconciliation; no retry.',
         };
-      if ((await deps.focus()) !== attempt.focus)
-        return {
-          status: 'blocked',
-          reason:
-            'Active PCB changed after write reservation; independent reconciliation required.',
-        };
-      nativeMutationStarted = true;
+      // The host lease and pending native fence may now survive this session.
+      // Even a focus failure before the first native API write requires
+      // independent recovery; the in-memory candidate must not attempt again.
+      reservationGranted = true;
       reconciliationRequired = true;
+      if ((await deps.focus()) !== attempt.focus)
+        return uncertain('Active PCB changed after write reservation; no native create attempted.');
       await deps.create(expected);
       const afterCreate = await deps.readInventory();
       if (!afterCreate || (await deps.focus()) !== attempt.focus)
@@ -262,8 +261,8 @@ export function createNativeZoneCandidateOperation(deps: NativeZoneCreateDepende
       // native-provided errors must stay opaque, including preflight failures.
       if (error instanceof ExistingNativeZonePlanError)
         return { status: 'blocked', reason: error.message };
-      return nativeMutationStarted
-        ? uncertain('Native zone operation failed; persisted outcome is unknown.')
+      return reservationGranted
+        ? uncertain('Native zone operation failed after reservation; recovery is required.')
         : {
             status: 'blocked',
             reason: 'Native zone preflight or reservation failed; no native create was attempted.',
