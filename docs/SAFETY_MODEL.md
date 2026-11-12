@@ -93,6 +93,17 @@ the loader from 357,046 to 360,822 bytes and the dispatcher from
 291,600 to 295,370 bytes. Exact size ratchets remain enabled; no
 quality gate or maximum package cap is bypassed.
 
+The common native Poured inventory now also rejects one physical Poured
+primitive ID being claimed by two different Pour sources **before any
+existing-copper rebuild mutation**. This closes the same identity ambiguity
+for both the existing rebuild path and the candidate zone baseline, without
+enabling public zone creation. The focused regression tests were red before
+and green after this check. The measured 2026-11-12 production artifacts are:
+package 224,057 bytes (+59), loader 360,915 bytes (+93), and dispatcher
+295,463 bytes (+93). The exact artifact budgets track those values; the
+size check and all release/compatibility gates remain mandatory. This
+synthetic safety test does not replace native EasyEDA cold-reopen acceptance.
+
 After a native beta create returns, an initial source/Poured inventory
 that is **exactly identical** to the before snapshot is now observed one
 more time, read-only. If a new exact source appears only on that later read,

@@ -156,11 +156,21 @@ function pouredFillSignature(
 
 function snapshotPoured(items: unknown[]): Map<string, PouredEvidence> | undefined {
   const snapshot = new Map<string, PouredEvidence>();
+  const primitiveIds = new Set<string>();
   for (const item of items) {
     const pouredId = nativeStateString(item, 'getState_PrimitiveId');
     const sourceId = nativeStateString(item, 'getState_PourPrimitiveId');
     const fillEvidence = pouredFillSignature(item);
-    if (!pouredId || !sourceId || !fillEvidence || snapshot.has(sourceId)) return undefined;
+    // A native copper primitive cannot be independent evidence for two Pour sources.
+    if (
+      !pouredId ||
+      !sourceId ||
+      !fillEvidence ||
+      snapshot.has(sourceId) ||
+      primitiveIds.has(pouredId)
+    )
+      return undefined;
+    primitiveIds.add(pouredId);
     snapshot.set(sourceId, {
       pouredId,
       sourceId,

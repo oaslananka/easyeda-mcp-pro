@@ -60,6 +60,17 @@ describe('native source and Poured inventory readback is independently snapshott
     expect(getAllDerived).toHaveBeenCalledOnce();
   });
 
+  it('rejects two distinct Pour sources claiming one native Poured identity', async () => {
+    const shared = 'same-native-poured';
+    const first = poured(shared, 'source-1');
+    const second = poured(shared, 'source-2');
+    const r = runtime(
+      [pour('source-1', () => first), pour('source-2', () => second)],
+      [first, second],
+    );
+    expect(await readNativeZoneInventory(r.lookup)).toBeUndefined();
+  });
+
   it('retains proof that an outline-only Poured has no actual filled geometry', async () => {
     const r = runtime(
       [pour('e336', () => poured('e336', 'e336', false))],
