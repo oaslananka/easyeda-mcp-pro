@@ -120,6 +120,19 @@ describe('safe project lifecycle tools', () => {
     }
   });
 
+  it('also shields synchronous bridge exceptions without exposing native details', async () => {
+    call.mockImplementation(() => {
+      throw new Error('private scratch path from native Bridge');
+    });
+    const tool = registry.get('easyeda_project_open')!;
+    const output = await tool.handler(context, {
+      projectId: 'p1',
+      confirmWrite: true,
+    });
+    expect(output).toMatchObject({ success: false, status: 'native_outcome_unknown' });
+    expect(JSON.stringify(output)).not.toContain('private scratch path');
+  });
+
   it('refuses an unverified native response without pretending it succeeded', async () => {
     const tool = registry.get('easyeda_project_close')!;
     call.mockResolvedValue({ success: true, status: 'closed', closedTabs: 3 });

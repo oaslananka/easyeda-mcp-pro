@@ -54,18 +54,20 @@ function resultOrSafeFailure<T extends z.ZodType>(
   return parsed.success ? parsed.data : fallback;
 }
 
-async function callWithBoundary(
+function callWithBoundary(
   ctx: ToolContext,
   method: string,
   params: Record<string, unknown>,
 ): Promise<unknown> {
-  try {
-    return await ctx.bridge.call(method, params);
-  } catch {
-    // A lost reply after a native write has UNKNOWN outcome.
-    // Never expose raw native errors or imply a mutation was rolled back.
-    return { success: false, status: 'native_outcome_unknown', projectId: params.projectId };
-  }
+  // Handle both a synchronous bridge exception and an asynchronous lost reply.
+  // Either outcome remains UNKNOWN: never retry or claim a native rollback.
+  return Promise.resolve()
+    .then(() => ctx.bridge.call(method, params))
+    .catch(() => ({
+      success: false,
+      status: 'native_outcome_unknown',
+      projectId: params.projectId,
+    }));
 }
 
 export function registerProjectLifecycleTools(registry: Pick<ToolRegistry, 'register'>): void {
