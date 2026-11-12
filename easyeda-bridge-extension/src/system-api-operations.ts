@@ -282,6 +282,7 @@ export function createSystemApiOperations(
         hasDMT: 'DMT_Schematic' in globalThis || hasDMTLocal || hasDMTEDA,
         dispatcherBuildId: dependencies.buildId,
         documentTargetGuard: true,
+        documentProjectGuard: true,
         nativeZoneSafety: await inspectNativeZoneSafety(dependencies.readFirstPath),
       };
     },

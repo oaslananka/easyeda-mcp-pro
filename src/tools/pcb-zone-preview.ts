@@ -130,10 +130,15 @@ export const zonePreviewTargetDocumentSchema = z.object({
   uuid: z.string().min(1),
   name: z.string().min(1),
   documentType: z.literal('pcb'),
+  projectUuid: z.string().trim().min(1).optional(),
 });
 
 /** Do not mix a stale or mismatched target response with a valid-looking board preflight. */
-export function summarizeTargetBoundZoneLiveReadiness(raw: unknown, expectedPcbUuid?: string) {
+export function summarizeTargetBoundZoneLiveReadiness(
+  raw: unknown,
+  expectedPcbUuid?: string,
+  expectedProjectUuid?: string,
+) {
   const observed = summarizeZoneLiveReadiness(raw);
   if (expectedPcbUuid === undefined) return { liveReadiness: observed };
   const evidence =
@@ -148,7 +153,19 @@ export function summarizeTargetBoundZoneLiveReadiness(raw: unknown, expectedPcbU
     return {
       liveReadiness: {
         ...unavailableZoneLiveReadiness(),
-        blockers: ['live-zone-preflight-unavailable', 'expected-focused-pcb-unverified'],
+        blockers: [
+          'live-zone-preflight-unavailable',
+          'expected-focused-pcb-unverified',
+          ...(expectedProjectUuid !== undefined ? ['expected-focused-project-unverified'] : []),
+        ],
+      },
+    };
+  }
+  if (expectedProjectUuid !== undefined && matched.data.projectUuid !== expectedProjectUuid) {
+    return {
+      liveReadiness: {
+        ...unavailableZoneLiveReadiness(),
+        blockers: ['live-zone-preflight-unavailable', 'expected-focused-project-unverified'],
       },
     };
   }

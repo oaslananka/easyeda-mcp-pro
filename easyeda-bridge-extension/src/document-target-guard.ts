@@ -5,9 +5,14 @@ export interface TargetDocumentEvidence {
   uuid: string;
   name: string;
   documentType: 'pcb' | 'schematic';
+  projectUuid?: string;
 }
 
-type ExpectedDocument = { uuid: string; documentType: TargetDocumentEvidence['documentType'] };
+type ExpectedDocument = {
+  uuid: string;
+  documentType: TargetDocumentEvidence['documentType'];
+  projectUuid?: string;
+};
 
 type FocusedDocument = {
   uuid: string;
@@ -16,27 +21,59 @@ type FocusedDocument = {
   parentProjectUuid: unknown;
 };
 
-function parseExpectedDocument(
-  params: Record<string, unknown>,
+function parseExpectedProject(
+  project: unknown,
+  createBridgeError: BridgeErrorFactory,
+): string | undefined {
+  if (project === undefined) return undefined;
+  if (typeof project !== 'string' || !project.trim()) {
+    throw createBridgeError(
+      'INVALID_PARAMS',
+      'Expected project UUID must be a non-empty string.',
+      'Provide the exact owning project UUID.',
+    );
+  }
+  return project;
+}
+
+function parseDocumentUuid(
+  pcb: unknown,
+  page: unknown,
   createBridgeError: BridgeErrorFactory,
 ): ExpectedDocument | undefined {
-  const pcb = params.expectedPcbUuid;
-  const page = params.expectedSchematicPageUuid;
   if (pcb === undefined && page === undefined) return undefined;
-  if (
-    (pcb !== undefined && (typeof pcb !== 'string' || !pcb.trim())) ||
-    (page !== undefined && (typeof page !== 'string' || !page.trim())) ||
-    (pcb !== undefined && page !== undefined)
-  ) {
+  const uuid = pcb !== undefined ? pcb : page;
+  if ((pcb !== undefined && page !== undefined) || typeof uuid !== 'string' || !uuid.trim()) {
     throw createBridgeError(
       'INVALID_PARAMS',
       'Specify exactly one non-empty expectedPcbUuid or expectedSchematicPageUuid.',
       'Provide the intended focused document UUID.',
     );
   }
-  return pcb !== undefined
-    ? { uuid: pcb as string, documentType: 'pcb' }
-    : { uuid: page as string, documentType: 'schematic' };
+  return { uuid, documentType: pcb !== undefined ? 'pcb' : 'schematic' };
+}
+
+function parseExpectedDocument(
+  params: Record<string, unknown>,
+  createBridgeError: BridgeErrorFactory,
+): ExpectedDocument | undefined {
+  const document = parseDocumentUuid(
+    params.expectedPcbUuid,
+    params.expectedSchematicPageUuid,
+    createBridgeError,
+  );
+  const project = parseExpectedProject(params.expectedProjectUuid, createBridgeError);
+  if (!document) {
+    if (project !== undefined) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        'Project expectation requires an expected PCB or schematic document UUID.',
+        'Provide both intended project and document identifiers.',
+      );
+    }
+    return undefined;
+  }
+  return { ...document, ...(project !== undefined ? { projectUuid: project } : {}) };
 }
 
 function assertTargetSupportsMethod(
@@ -177,6 +214,13 @@ export async function assertExpectedDocument(
   if (!expected) return undefined;
   assertTargetSupportsMethod(method, params, expected, createBridgeError);
   const current = await focusedDocument(readFirstPath, createBridgeError);
+  if (expected.projectUuid !== undefined && current.parentProjectUuid !== expected.projectUuid) {
+    throw createBridgeError(
+      'TARGET_PROJECT_MISMATCH',
+      'Refusing operation: the focused document belongs to a different project.',
+      'Open the expected EasyEDA project and recheck its focused document.',
+    );
+  }
   const type = expected.documentType === 'pcb' ? 3 : 1;
   const name = await verifiedFocusedName(
     current,
@@ -197,7 +241,14 @@ export async function assertExpectedDocument(
       },
     );
   }
-  return { uuid: current.uuid, name, documentType: expected.documentType };
+  return {
+    uuid: current.uuid,
+    name,
+    documentType: expected.documentType,
+    ...(expected.projectUuid !== undefined
+      ? { projectUuid: current.parentProjectUuid as string }
+      : {}),
+  };
 }
 
 export function withTargetDocumentEvidence(

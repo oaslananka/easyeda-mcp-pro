@@ -165,6 +165,12 @@ const failClosedPcbZoneInputSchema = z
       .min(1)
       .optional()
       .describe('Optional exact focused PCB UUID for guarded read-only live preview.'),
+    expectedProjectUuid: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('Optional owning project UUID; requires inspectLive=true and expectedPcbUuid.'),
     inspectLive: z
       .boolean()
       .optional()
@@ -548,6 +554,17 @@ const failClosedPcbZoneTool = {
         };
       }
       const preview = previewPcbZone(parsed.data);
+      if (
+        input.expectedProjectUuid !== undefined &&
+        (input.inspectLive !== true || input.expectedPcbUuid === undefined)
+      ) {
+        return {
+          success: false,
+          mode: 'preview' as const,
+          applied: false,
+          error: 'Project-bound zone preview requires inspectLive=true and expectedPcbUuid.',
+        };
+      }
       if (input.inspectLive !== true) {
         return {
           success: true,
@@ -566,16 +583,21 @@ const failClosedPcbZoneTool = {
           ...(input.expectedPcbUuid !== undefined
             ? { expectedPcbUuid: input.expectedPcbUuid }
             : {}),
+          ...(input.expectedProjectUuid !== undefined
+            ? { expectedProjectUuid: input.expectedProjectUuid }
+            : {}),
         });
         ({ liveReadiness, targetDocument } = summarizeTargetBoundZoneLiveReadiness(
           probe,
           input.expectedPcbUuid,
+          input.expectedProjectUuid,
         ));
       } catch {
         // Never expose raw native target errors or trust a failed target probe.
         liveReadiness = summarizeTargetBoundZoneLiveReadiness(
           undefined,
           input.expectedPcbUuid,
+          input.expectedProjectUuid,
         ).liveReadiness;
       }
       // Never present a live net/layer/outline probe as supporting an unmeasured
