@@ -86,6 +86,21 @@ describe('native copper zone create independent reconciliation', () => {
     });
   });
 
+  it('rejects a newly verified Poured identity reused by another existing source', () => {
+    const before: ZoneInventory = {
+      sources: prior.sources,
+      derived: new Map([['e336', { ...copper, pouredId: 'new-source' }]]),
+    };
+    const after: ZoneInventory = {
+      sources: current().sources,
+      derived: new Map([...before.derived, ['new-source', newCopper]]),
+    };
+    expect(reconcileZoneCreation(before, after, expected).status).toBe('ambiguous');
+    expect(planExactZoneRollback(before, after, expected)).toMatchObject({
+      safeToDelete: false,
+    });
+  });
+
   it('reports unchanged inventory without pretending native create succeeded', () => {
     expect(reconcileZoneCreation(prior, current([], []), expected)).toMatchObject({
       status: 'unchanged',

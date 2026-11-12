@@ -38,6 +38,12 @@ function sameEvidence(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/** One native Poured primitive must not be claimed by separate Pour sources. */
+function hasSharedPouredIdentity(derived: ReadonlyMap<string, ZoneDerivedEvidence>): boolean {
+  const ids = [...derived.values()].map((item) => item.pouredId);
+  return new Set(ids).size !== ids.length;
+}
+
 function unchanged<T>(before: ReadonlyMap<string, T>, after: ReadonlyMap<string, T>): boolean {
   for (const [key, value] of before) {
     if (!after.has(key) || !sameEvidence(value, after.get(key))) return false;
@@ -88,6 +94,8 @@ export function reconcileZoneCreation(
     reason,
     candidateIds,
   });
+  if (hasSharedPouredIdentity(after.derived))
+    return ambiguous('Multiple Pour sources claim the same native Poured primitive.');
   if (!unchanged(before.sources, after.sources) || !unchanged(before.derived, after.derived))
     return ambiguous('An existing Pour or Poured geometry changed; outcome is not isolated.');
   if (
@@ -132,6 +140,8 @@ export function planExactZoneRollback(
     reason,
     candidateIds,
   });
+  if (hasSharedPouredIdentity(after.derived))
+    return refuse('Multiple Pour sources claim the same native Poured primitive.');
   if (!unchanged(before.sources, after.sources) || !unchanged(before.derived, after.derived))
     return refuse('Existing sources or copper changed; safe rollback cannot be identified.');
   if (candidateIds.length !== 1 || after.sources.size !== before.sources.size + 1)
