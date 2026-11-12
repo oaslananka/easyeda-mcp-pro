@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ToolRegistry } from '../../../src/tools/registry.js';
+import { ToolRegistry, handleRegisteredToolCall } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import { registerPcbWriteTools } from '../../../src/tools/L1_pcb_write.js';
 import { EnvSchema } from '../../../src/config/env.js';
@@ -1156,6 +1156,202 @@ describe('PCB Write Tools', () => {
       },
     });
     expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('verifies an explicitly selected PCB on live zone preview and reports its name', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const request = {
+      mode: 'preview',
+      inspectLive: true,
+      expectedPcbUuid: 'pcb-expected',
+      rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_PREVIEW',
+      pourPriority: 1,
+      lineWidth: 0.2,
+      locked: false,
+    };
+    bridgeCall.mockResolvedValueOnce({
+      runtimeVersion: '3.2.209',
+      runtimeVerified: true,
+      activePcb: true,
+      nativeCapabilities: true,
+      netVerified: true,
+      layerVerified: true,
+      boardGeometry: { containmentVerified: true },
+      readyToApply: false,
+      blockers: ['board-outline-and-copper-topology-unverified'],
+      targetDocument: { uuid: 'pcb-expected', name: 'Verified Test PCB', documentType: 'pcb' },
+    });
+    expect(tool?.inputSchema.safeParse(request).success).toBe(true);
+    const result = await tool?.handler(context, request);
+    expect(bridgeCall).toHaveBeenCalledExactlyOnceWith('pcb.zonePreflight', {
+      netName: 'GND',
+      layer: 2,
+      rectangle: request.rectangle,
+      expectedPcbUuid: 'pcb-expected',
+    });
+    expect(result).toMatchObject({
+      success: true,
+      applied: false,
+      mode: 'preview',
+      targetDocument: { uuid: 'pcb-expected', name: 'Verified Test PCB', documentType: 'pcb' },
+      liveReadiness: {
+        checked: true,
+        focusedPcbVerified: true,
+        readyToApply: false,
+      },
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it.each([
+    ['different focused PCB', { uuid: 'pcb-other', name: 'Other', documentType: 'pcb' }],
+    ['missing target evidence', undefined],
+    ['wrong document type', { uuid: 'pcb-expected', name: 'Page', documentType: 'schematic' }],
+  ])(
+    'fails the live target check for %s without presenting stale readiness',
+    async (_case, targetDocument) => {
+      const tool = registry.get('easyeda_pcb_add_zone');
+      bridgeCall.mockResolvedValueOnce({
+        runtimeVersion: '3.2.209',
+        runtimeVerified: true,
+        activePcb: true,
+        nativeCapabilities: true,
+        netVerified: true,
+        layerVerified: true,
+        boardGeometry: { containmentVerified: true },
+        readyToApply: false,
+        blockers: [],
+        ...(targetDocument === undefined ? {} : { targetDocument }),
+      });
+      const result = await tool?.handler(context, {
+        mode: 'preview',
+        inspectLive: true,
+        expectedPcbUuid: 'pcb-expected',
+        rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+        layer: 2,
+        netName: 'GND',
+        fillMethod: 'solid',
+        preserveSilos: true,
+        pourName: 'Z480_PREVIEW',
+        pourPriority: 1,
+        lineWidth: 0.2,
+        locked: false,
+      });
+      expect(result).toMatchObject({
+        success: true,
+        applied: false,
+        liveReadiness: {
+          checked: false,
+          focusedPcbVerified: false,
+          readyToApply: false,
+          blockers: expect.arrayContaining(['expected-focused-pcb-unverified']),
+        },
+      });
+      expect(result).not.toHaveProperty('targetDocument');
+      expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+      expect(bridgeCall).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('does not expose a mismatching native target or leak its error during live preview', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    bridgeCall.mockRejectedValueOnce(
+      new Error('TARGET_DOCUMENT_MISMATCH: unexpected pcb-private-uuid and local file path'),
+    );
+    const result = await tool?.handler(context, {
+      mode: 'preview',
+      inspectLive: true,
+      expectedPcbUuid: 'pcb-expected',
+      rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+      layer: 2,
+      netName: 'GND',
+      fillMethod: 'solid',
+      preserveSilos: true,
+      pourName: 'Z480_PREVIEW',
+      pourPriority: 1,
+      lineWidth: 0.2,
+      locked: false,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      applied: false,
+      liveReadiness: {
+        checked: false,
+        readyToApply: false,
+        blockers: expect.arrayContaining(['expected-focused-pcb-unverified']),
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('pcb-private-uuid');
+    expect(JSON.stringify(result)).not.toContain('local file path');
+    expect(bridgeCall).toHaveBeenCalledOnce();
+  });
+
+  it('does not reattach a different native PCB identity through the MCP registry wrapper', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    expect(tool).toBeDefined();
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'system.getStatus') return { documentTargetGuard: true };
+      if (method === 'pcb.zonePreflight')
+        return {
+          runtimeVersion: '3.2.209',
+          runtimeVerified: true,
+          activePcb: true,
+          nativeCapabilities: true,
+          netVerified: true,
+          layerVerified: true,
+          boardGeometry: { containmentVerified: true },
+          readyToApply: false,
+          blockers: ['board-outline-and-copper-topology-unverified'],
+          targetDocument: {
+            uuid: 'secret-wrong-pcb',
+            name: 'Other Board',
+            documentType: 'pcb',
+          },
+        };
+      return {};
+    });
+    const result = await handleRegisteredToolCall(
+      tool!,
+      context,
+      {
+        mode: 'preview',
+        inspectLive: true,
+        expectedPcbUuid: 'pcb-expected',
+        rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+        layer: 2,
+        netName: 'GND',
+        fillMethod: 'solid',
+        preserveSilos: true,
+        pourName: 'Z480_PREVIEW',
+        pourPriority: 1,
+        lineWidth: 0.2,
+        locked: false,
+      },
+      undefined,
+    );
+    expect(JSON.stringify(result)).not.toContain('secret-wrong-pcb');
+    expect(JSON.stringify(result)).not.toContain('Other Board');
+    expect(result.structuredContent).not.toHaveProperty('targetDocument');
+    expect(bridgeCall).toHaveBeenCalledWith('system.getStatus', {});
+  });
+
+  it('cannot convert explicit target selection and confirmWrite into an enabled zone apply', async () => {
+    const tool = registry.get('easyeda_pcb_add_zone');
+    const result = await tool?.handler(context, {
+      mode: 'apply',
+      confirmWrite: true,
+      expectedPcbUuid: 'pcb-expected',
+      rectangle: { x: 1400, y: -1200, width: 120, height: 80 },
+      layer: 2,
+      netName: 'GND',
+    });
+    expect(result).toMatchObject({ success: false, not_available: true });
+    expect(bridgeCall).not.toHaveBeenCalled();
   });
 
   it('includes out-of-profile native settings in inspected preview blockers', async () => {

@@ -61,6 +61,26 @@ const DOCUMENT_TARGET_RESULT = z.object({
   documentType: z.enum(['pcb', 'schematic']),
 });
 
+/** Guarded native evidence must never identify a different document than the caller selected. */
+function verifiedTargetDocumentEvidence(
+  value: unknown,
+  expectedPcbUuid: unknown,
+  expectedSchematicPageUuid: unknown,
+) {
+  const parsed = DOCUMENT_TARGET_RESULT.safeParse(value);
+  const expectedType = expectedPcbUuid !== undefined ? 'pcb' : 'schematic';
+  const expectedUuid = expectedPcbUuid ?? expectedSchematicPageUuid;
+  if (
+    !parsed.success ||
+    parsed.data.uuid !== expectedUuid ||
+    parsed.data.documentType !== expectedType ||
+    !parsed.data.name.trim()
+  ) {
+    throw new Error('TARGET_DOCUMENT_EVIDENCE_MISMATCH: selected document could not be verified.');
+  }
+  return parsed.data;
+}
+
 function isDocumentWriteTool(tool: ToolDefinition): boolean {
   return (
     tool.confirmWrite &&
@@ -559,7 +579,11 @@ async function executeToolWithMetrics(
                   opts,
                 );
                 if (result && typeof result === 'object' && 'targetDocument' in result) {
-                  targetDocument = result.targetDocument;
+                  targetDocument = verifiedTargetDocumentEvidence(
+                    result.targetDocument,
+                    expectedPcbUuid,
+                    expectedSchematicPageUuid,
+                  );
                 }
                 return result;
               },
