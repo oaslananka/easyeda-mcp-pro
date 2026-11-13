@@ -72,6 +72,35 @@ provisioning, browser-click acceptance, or live EasyEDA design acceptance.
 
 Keep Cloud disabled until all mandatory live acceptance gates are satisfied.
 
+### Native EasyEDA extension navigation and Local acceptance (not Cloud rollout)
+
+On 2026-11-13, an isolated EasyEDA Pro 3.2.209 desktop session exposed a
+user-facing navigation defect: MCP Bridge was available on the Start Page but
+disappeared in the PCB and 3D PCB editors. The extension manifest now declares
+consistent Local and optional Cloud controls in the `home`, `sch`, `pcb` and
+`pcbView` contexts, with globally unique menu/item identifiers. An extension
+regression test checks all four contexts and controls. A test-built
+**1.15.4 candidate** was imported into the isolated editor; the extension
+manager reported it enabled, and real GUI checks confirmed the Bridge menu
+and its Cloud/Local actions appeared in PCB and 3D PCB views. The installed
+package was then activated after a complete application restart.
+
+The restarted 3.2.209 editor subsequently paired with a **temporary
+loopback-only Local bridge** via its actual extension menu. The bridge
+reported extension 1.15.4 with matching method registry/server version,
+and read-only `system.getStatus` and `system.loaderStatus` succeeded.
+With an explicitly disposable PCB focused, independent read-only native
+project/document queries confirmed matching project identity, and
+`pcb.listComponents` reported 33 components (30 returned in the first page).
+The document identity remained unchanged after reading. **No design
+writes, exports or saves were performed**; the temporary bridge listener
+was closed and the diagnostic scripts removed. The previous published
+extension 1.15.3 artifact was retained for local rollback.
+
+These observations establish **real native extension Local connectivity
+and menu navigation**, not a verified remote WSS connection, real GitHub
+or Google sign-in, production OAuth, or hosted Cloud release.
+
 ### Local browser acceptance (test account only)
 
 On 2026-11-13, real Chrome 157 interacted with the running Cloud portal on

@@ -57,6 +57,41 @@ describe('build.mjs hot-swap define', () => {
     expect(manifest.activationEvents?.onStartupFinished).toBe(true);
   });
 
+  it('keeps Cloud and Local connection controls visible in home, schematic, PCB and 3D PCB', () => {
+    const manifest = JSON.parse(readFileSync(join(root, 'extension.json'), 'utf8')) as {
+      headerMenus?: Record<
+        string,
+        Array<{
+          id: string;
+          title: string;
+          menuItems: Array<{ id: string; title: string; registerFn: string }>;
+        }>
+      >;
+    };
+    const allIds: string[] = [];
+    const required = [
+      'connect',
+      'disconnect',
+      'connectHostedCloud',
+      'connectCustomRemote',
+      'disconnectRemoteRelay',
+      'showRemoteRelayStatus',
+      'showStatus',
+    ];
+    for (const page of ['home', 'sch', 'pcb', 'pcbView']) {
+      const menus = manifest.headerMenus?.[page] ?? [];
+      expect(menus, `MCP Bridge should be available directly in the ${page} menu`).toHaveLength(1);
+      const [menu] = menus;
+      expect(menu.title).toBe('MCP Bridge');
+      const actions = menu.menuItems.map((item) => item.registerFn);
+      expect(actions).toEqual(expect.arrayContaining(required));
+      allIds.push(menu.id, ...menu.menuItems.map((item) => item.id));
+    }
+    // EasyEDA treats menu IDs as global, not page-local. Reused IDs cause
+    // only the first editor tab to show a plugin's menu.
+    expect(new Set(allIds).size).toBe(allIds.length);
+  });
+
   it('reuses one persistent runtime and connects without the URL constructor', async () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ext-build-persistent-runtime-'));
     outDirs.push(outDir);
