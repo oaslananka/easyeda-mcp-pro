@@ -642,23 +642,28 @@ describe('BridgeManager - method registry hash', () => {
   });
 
   it('includes the configured BRIDGE_MAX_PAYLOAD_SIZE in hello', async () => {
-    const port = await getFreePort();
+    // getFreePort() releases its probe socket before BridgeManager.bind().
+    // Concurrent Linux CI workers can take that port; provide fallbacks and
+    // connect to the port the bridge actually bound, not the first guess.
+    const candidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: candidates,
       BRIDGE_MAX_PAYLOAD_SIZE: 2_097_152,
     });
     const manager = new BridgeManager(config);
     await manager.connect();
 
-    const socket = await openSocket(port);
-    sendHandshake(socket);
-
-    const msg = (await waitForMessage(socket)) as Record<string, unknown>;
-    expect(msg.maxPayloadSize).toBe(2_097_152);
-
-    socket.close();
-    manager.disconnect('test complete');
+    const socket = await openSocket(manager.activePort);
+    try {
+      expect(candidates.split(',')).toContain(String(manager.activePort));
+      sendHandshake(socket);
+      const msg = (await waitForMessage(socket)) as Record<string, unknown>;
+      expect(msg.maxPayloadSize).toBe(2_097_152);
+    } finally {
+      socket.close();
+      manager.disconnect('test complete');
+    }
   });
 });
 
