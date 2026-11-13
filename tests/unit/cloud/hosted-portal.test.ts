@@ -268,6 +268,57 @@ describe('Hosted Cloud browser portal', () => {
     });
   });
 
+  it('rejects expired login links, missing consent clients, and untrusted portal commands', async () => {
+    await withPortal(async (base) => {
+      const signed =
+        'client_id=valid&scope=easyeda.read&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid';
+      const badLogin = await fetch(`${base}/sign-in?client_id=forged`);
+      expect(badLogin.status).toBe(400);
+      const signedLogin = await fetch(`${base}/sign-in?${signed}`);
+      expect(signedLogin.status).toBe(200);
+
+      const unknownClient = await fetch(`${base}/consent?${signed}`, {
+        headers: { cookie: 'session=owner-b' },
+      });
+      expect(unknownClient.status).toBe(404);
+
+      for (const path of ['/cloud/api/clients', '/cloud/api/extensions']) {
+        const anonymous = await fetch(`${base}${path}`);
+        expect(anonymous.status).toBe(401);
+        expect(anonymous.headers.get('cache-control')).toBe('no-store');
+      }
+      const ownerClients = await fetch(`${base}/cloud/api/clients`, {
+        headers: { cookie: 'session=owner-a' },
+      });
+      expect(ownerClients.status).toBe(200);
+      await expect(ownerClients.json()).resolves.toEqual({ clients: [] });
+
+      const invalidSelection = await fetch(`${base}/cloud/api/selection`, {
+        method: 'PUT',
+        headers: { cookie: 'session=owner-a', origin: base, 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: 'not-a-session' }),
+      });
+      expect(invalidSelection.status).toBe(400);
+      const unpairedSelection = await fetch(`${base}/cloud/api/selection`, {
+        method: 'PUT',
+        headers: { cookie: 'session=owner-a', origin: base, 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: 'sess_unknown' }),
+      });
+      expect(unpairedSelection.status).toBe(404);
+
+      const unknownRevoke = await fetch(`${base}/cloud/api/extensions/sess_unknown`, {
+        method: 'DELETE',
+        headers: { cookie: 'session=owner-a', origin: base },
+      });
+      expect(unknownRevoke.status).toBe(404);
+      const missingOrigin = await fetch(`${base}/cloud/api/extensions/sess_unknown`, {
+        method: 'DELETE',
+        headers: { cookie: 'session=owner-a' },
+      });
+      expect(missingOrigin.status).toBe(403);
+    });
+  });
+
   it('does not expose the portal in the original no-account Local HTTP mode', async () => {
     const transport = createHttpTransport(EnvSchema.parse({ TRANSPORT: 'http' }));
     const server = http.createServer(transport.app);

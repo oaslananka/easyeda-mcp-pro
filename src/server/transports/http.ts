@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import {
   NodeStreamableHTTPServerTransport,
   toNodeHandler,
@@ -40,51 +41,12 @@ export interface HttpTransportOptions {
   hostedAuth?: HostedAuth;
 }
 
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
-
 interface McpHttpSession {
   server: McpServer;
   transport: NodeStreamableHTTPServerTransport;
   closing: boolean;
   /** Hosted legacy HTTP sessions belong to one OAuth user AND client. */
   oauthPrincipal?: string;
-}
-
-function createRateLimiter(windowMs: number, maxRequests: number) {
-  const store = new Map<string, RateLimitEntry>();
-  const CLEANUP_THRESHOLD = 1000;
-
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const key = req.ip ?? 'unknown';
-    const now = Date.now();
-
-    if (store.size > CLEANUP_THRESHOLD) {
-      for (const [k, entry] of store) {
-        if (entry.resetAt <= now) store.delete(k);
-      }
-    }
-
-    let entry = store.get(key);
-
-    if (!entry || entry.resetAt <= now) {
-      entry = { count: 0, resetAt: now + windowMs };
-      store.set(key, entry);
-    }
-
-    entry.count++;
-    res.setHeader('X-RateLimit-Limit', String(maxRequests));
-    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, maxRequests - entry.count)));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(entry.resetAt / 1000)));
-
-    if (entry.count > maxRequests) {
-      res.status(429).json({ error: 'Too many requests', retryAfterMs: entry.resetAt - now });
-      return;
-    }
-    next();
-  };
 }
 
 /**
@@ -564,7 +526,25 @@ export function createHttpTransport(
 
   const app = express();
   app.use(addSecurityHeaders);
-  app.use(createRateLimiter(60_000, config.HTTP_RATE_LIMIT_MAX));
+  // Apply a standard, CodeQL-recognized limiter before *all* hosted OAuth,
+  // browser-session and MCP authorization routes. Keep existing 1-minute
+  // request budget and legacy X-RateLimit-* response headers.
+  app.use(
+    rateLimit({
+      windowMs: 60_000,
+      limit: config.HTTP_RATE_LIMIT_MAX,
+      standardHeaders: false,
+      legacyHeaders: true,
+      handler: (_req, res, _next, options) => {
+        res.status(429).json({
+          error: 'Too many requests',
+          retryAfterMs:
+            Math.max(0, Number(res.getHeader('X-RateLimit-Reset')) * 1000 - Date.now()) ||
+            options.windowMs,
+        });
+      },
+    }),
+  );
 
   // Origin validation and CORS preflight must run before OAuth so browser
   // preflight can complete without a bearer token while still enforcing origin.

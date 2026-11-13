@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from 'express';
+import type { Express, Request, Response, RequestHandler } from 'express';
 import { toWebRequest } from '@modelcontextprotocol/node';
 import type { HostedAuth } from './hosted-auth.js';
 
@@ -25,7 +25,12 @@ export function mountHostedAuth(app: Express, auth: HostedAuth): void {
     }
   };
 
-  app.all('/api/auth/*authPath', handler);
-  app.all('/.well-known/oauth-protected-resource', handler);
-  app.all('/.well-known/oauth-protected-resource/mcp', handler);
+  // Explicit synchronous Express middleware hands rejected promises to the
+  // error pipeline, including providers whose errors occur before a response.
+  const route: RequestHandler = (req, res, next) => {
+    void handler(req, res).catch(next);
+  };
+  app.all('/api/auth/*authPath', route);
+  app.all('/.well-known/oauth-protected-resource', route);
+  app.all('/.well-known/oauth-protected-resource/mcp', route);
 }

@@ -1,6 +1,9 @@
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { EnvSchema, detectUnknownEnvVars } from '../../../src/config/env.js';
-import { parseHostedCloudSettings } from '../../../src/cloud/runtime.js';
+import { createHostedCloudRuntime, parseHostedCloudSettings } from '../../../src/cloud/runtime.js';
 
 const origin = 'https://easyeda-mcp-pro.oaslananka.dev';
 const credentials = {
@@ -63,6 +66,39 @@ describe('Hosted Cloud runtime configuration', () => {
       ['no Google', { ...credentials, CLOUD_GOOGLE_CLIENT_SECRET: '' }],
     ] as const) {
       expect(() => parseHostedCloudSettings(baseConfig, candidate), label).toThrow(/Hosted Cloud/);
+    }
+  });
+
+  it('initializes durable hosted user/consent storage only when explicitly enabled', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'easyeda-hosted-auth-test-'));
+    const location = join(root, 'nested', 'cloud');
+    try {
+      const config = { ...baseConfig, DATA_DIR: location };
+      expect(
+        await createHostedCloudRuntime(config, { CLOUD_HOSTED_ENABLED: 'false' }),
+      ).toBeUndefined();
+      const runtime = await createHostedCloudRuntime(config, credentials);
+      expect(runtime?.auth.origin).toBe(origin);
+      expect(runtime?.auth.options).toBeDefined();
+      runtime?.close();
+      const database = await readFile(join(location, 'hosted-cloud.sqlite'));
+      expect(database.length).toBeGreaterThan(100);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses file-backed data directories without exposing a partially initialized Cloud', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'easyeda-hosted-bad-path-'));
+    try {
+      const occupied = join(root, 'not-a-directory');
+      await writeFile(occupied, 'existing file');
+      await expect(
+        createHostedCloudRuntime({ ...baseConfig, DATA_DIR: occupied }, credentials),
+      ).rejects.toThrow();
+      expect((await readFile(occupied)).toString()).toBe('existing file');
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 

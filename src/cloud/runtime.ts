@@ -23,6 +23,18 @@ const PRIVATE_CLOUD_KEYS = [
   'CLOUD_GOOGLE_CLIENT_SECRET',
 ] as const;
 
+// Keep OAuth secret reads statically named, without growing validation complexity.
+function privateCloudValues(env: Record<string, string | undefined>) {
+  return {
+    CLOUD_HOSTED_ORIGIN: env.CLOUD_HOSTED_ORIGIN?.trim() ?? '',
+    CLOUD_AUTH_SECRET: env.CLOUD_AUTH_SECRET?.trim() ?? '',
+    CLOUD_GITHUB_CLIENT_ID: env.CLOUD_GITHUB_CLIENT_ID?.trim() ?? '',
+    CLOUD_GITHUB_CLIENT_SECRET: env.CLOUD_GITHUB_CLIENT_SECRET?.trim() ?? '',
+    CLOUD_GOOGLE_CLIENT_ID: env.CLOUD_GOOGLE_CLIENT_ID?.trim() ?? '',
+    CLOUD_GOOGLE_CLIENT_SECRET: env.CLOUD_GOOGLE_CLIENT_SECRET?.trim() ?? '',
+  } satisfies Record<(typeof PRIVATE_CLOUD_KEYS)[number], string>;
+}
+
 function canonicalCloudOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);
@@ -66,7 +78,8 @@ export function parseHostedCloudSettings(
 ): HostedCloudSettings | undefined {
   if (!hostedCloudEnabled(env.CLOUD_HOSTED_ENABLED)) return undefined;
   assertHostedTransport(config);
-  const value = (key: (typeof PRIVATE_CLOUD_KEYS)[number]): string => env[key]?.trim() ?? '';
+  const values = privateCloudValues(env);
+  const value = (key: (typeof PRIVATE_CLOUD_KEYS)[number]): string => values[key];
   for (const name of PRIVATE_CLOUD_KEYS) {
     if (!value(name)) {
       throw new Error(`Hosted Cloud requires configuration ${name}.`);

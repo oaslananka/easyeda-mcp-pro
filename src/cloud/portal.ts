@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { Express, Request, Response } from 'express';
+import type { Express, Request, Response, RequestHandler } from 'express';
 import type { HostedAuth } from './hosted-auth.js';
 import { CLOUD_CSS, CLOUD_JS } from './portal-assets.js';
 import type { RemoteGateway } from '../remote/gateway.js';
@@ -20,17 +20,22 @@ const PORTAL_CSP = [
   "img-src 'self' data:",
 ].join('; ');
 
+const HTML_ENTITIES = new Map([
+  ['&', '&amp;'],
+  ['<', '&lt;'],
+  ['>', '&gt;'],
+  ['"', '&quot;'],
+  ["'", '&#39;'],
+]);
+
 function escaped(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => {
-    const names: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    };
-    return names[char] ?? char;
-  });
+  return value.replace(/[&<>"']/g, (char) => HTML_ENTITIES.get(char) ?? char);
+}
+
+function asyncRoute(handler: (req: Request, res: Response) => Promise<void>): RequestHandler {
+  return (req, res, next) => {
+    void handler(req, res).catch(next);
+  };
 }
 
 function page(title: string, body: string, state: 'sign-in' | 'consent' | 'account'): string {
@@ -160,106 +165,142 @@ export function mountHostedPortal(app: Express, auth: HostedAuth, gateway: Remot
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.type('application/javascript').send(CLOUD_JS);
   });
-  app.get('/sign-in', async (req, res) => {
-    const hasQuery = new URL(req.originalUrl, auth.origin).search.length > 0;
-    if (hasQuery && !(await signedQuery(req, auth))) {
-      res.status(400).type('text/plain').send('This authorization request is invalid or expired.');
-      return;
-    }
-    sendHtml(res, signIn());
-  });
-  app.get('/consent', async (req, res) => {
-    const query = await signedQuery(req, auth);
-    const clientId = query?.get('client_id');
-    if (!query || !clientId) {
-      res.status(400).type('text/plain').send('This authorization request is invalid or expired.');
-      return;
-    }
-    const user = await requireSession(req, res);
-    if (!user) return;
-    const client = await auth.getClient(clientId, sessionHeaders(req));
-    if (!client) {
-      res.status(404).type('text/plain').send('This client is unavailable.');
-      return;
-    }
-    const scopes = (query.get('scope') ?? '').split(/\s+/).filter(Boolean);
-    sendHtml(res, consent(client.name, safeRedirectHost(query.get('redirect_uri')), scopes));
-  });
+  app.get(
+    '/sign-in',
+    asyncRoute(async (req, res) => {
+      const hasQuery = new URL(req.originalUrl, auth.origin).search.length > 0;
+      if (hasQuery && !(await signedQuery(req, auth))) {
+        res
+          .status(400)
+          .type('text/plain')
+          .send('This authorization request is invalid or expired.');
+        return;
+      }
+      sendHtml(res, signIn());
+    }),
+  );
+  app.get(
+    '/consent',
+    asyncRoute(async (req, res) => {
+      const query = await signedQuery(req, auth);
+      const clientId = query?.get('client_id');
+      if (!query || !clientId) {
+        res
+          .status(400)
+          .type('text/plain')
+          .send('This authorization request is invalid or expired.');
+        return;
+      }
+      const user = await requireSession(req, res);
+      if (!user) return;
+      const client = await auth.getClient(clientId, sessionHeaders(req));
+      if (!client) {
+        res.status(404).type('text/plain').send('This client is unavailable.');
+        return;
+      }
+      const scopes = (query.get('scope') ?? '').split(/\s+/).filter(Boolean);
+      sendHtml(res, consent(client.name, safeRedirectHost(query.get('redirect_uri')), scopes));
+    }),
+  );
 
-  app.get('/cloud', async (req, res) => {
-    const user = await auth.getSessionUser(sessionHeaders(req));
-    if (!user) {
-      res.redirect(303, '/sign-in');
-      return;
-    }
-    sendHtml(res, account());
-  });
+  app.get(
+    '/cloud',
+    asyncRoute(async (req, res) => {
+      const user = await auth.getSessionUser(sessionHeaders(req));
+      if (!user) {
+        res.redirect(303, '/sign-in');
+        return;
+      }
+      sendHtml(res, account());
+    }),
+  );
 
-  app.get('/cloud/api/me', async (req, res) => {
-    const user = await auth.getSessionUser(sessionHeaders(req));
-    if (!user) return rejectUnauthorized(res);
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({ user });
-  });
-  app.get('/cloud/api/clients', async (req, res) => {
-    const userId = await requireSession(req, res);
-    if (!userId) return;
-    const clients = await auth.listClientConsents(sessionHeaders(req));
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({ clients });
-  });
-  app.get('/cloud/api/extensions', async (req, res) => {
-    const userId = await requireSession(req, res);
-    if (!userId) return;
-    res.setHeader('Cache-Control', 'no-store');
-    const identity = { userId, scopes: ['easyeda.read'] as const };
-    res.json({
-      sessions: gateway.listPairedExtensions(identity),
-      selection: gateway.getSelectedProject(identity) ?? null,
-    });
-  });
-  app.put('/cloud/api/selection', async (req, res) => {
-    if (!originRequired(req, res, auth.origin)) return;
-    const userId = await requireSession(req, res);
-    if (!userId) return;
-    const sessionId: unknown = req.body?.sessionId;
-    if (typeof sessionId !== 'string' || !/^sess_[a-zA-Z0-9_-]{1,100}$/.test(sessionId)) {
-      res.status(400).json({ code: 'INVALID_SESSION', message: 'Choose a linked extension.' });
-      return;
-    }
-    const identity = { userId, scopes: ['easyeda.read'] as const };
-    if (!gateway.selectPairedProject(identity, sessionId)) {
-      res.status(404).json({
-        code: 'PROJECT_NOT_AVAILABLE',
-        message:
-          'Focus a schematic or PCB in EasyEDA, update MCP Bridge to a Cloud-capable build, then refresh and select that project.',
+  app.get(
+    '/cloud/api/me',
+    asyncRoute(async (req, res) => {
+      const user = await auth.getSessionUser(sessionHeaders(req));
+      if (!user) {
+        rejectUnauthorized(res);
+        return;
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ user });
+    }),
+  );
+  app.get(
+    '/cloud/api/clients',
+    asyncRoute(async (req, res) => {
+      const userId = await requireSession(req, res);
+      if (!userId) return;
+      const clients = await auth.listClientConsents(sessionHeaders(req));
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ clients });
+    }),
+  );
+  app.get(
+    '/cloud/api/extensions',
+    asyncRoute(async (req, res) => {
+      const userId = await requireSession(req, res);
+      if (!userId) return;
+      res.setHeader('Cache-Control', 'no-store');
+      const identity = { userId, scopes: ['easyeda.read'] as const };
+      res.json({
+        sessions: gateway.listPairedExtensions(identity),
+        selection: gateway.getSelectedProject(identity) ?? null,
       });
-      return;
-    }
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({ selection: gateway.getSelectedProject(identity) });
-  });
-  app.post('/cloud/api/pairing-code', async (req, res) => {
-    if (!originRequired(req, res, auth.origin)) return;
-    const userId = await requireSession(req, res);
-    if (!userId) return;
-    const code = gateway.createPairingCode({ identity: { userId, scopes: ['easyeda.read'] } });
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({ code, expiresInSeconds: 600 });
-  });
-  app.delete('/cloud/api/extensions/:sessionId', async (req, res) => {
-    if (!originRequired(req, res, auth.origin)) return;
-    const userId = await requireSession(req, res);
-    if (!userId) return;
-    const sessionId = req.params.sessionId;
-    if (
-      typeof sessionId !== 'string' ||
-      !/^sess_[a-zA-Z0-9_-]{1,100}$/.test(sessionId) ||
-      !gateway.revokePairedExtension({ userId, scopes: ['easyeda.read'] }, sessionId)
-    ) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'This extension was not found.' });
-      return;
-    }
-    res.status(204).end();
-  });
+    }),
+  );
+  app.put(
+    '/cloud/api/selection',
+    asyncRoute(async (req, res) => {
+      if (!originRequired(req, res, auth.origin)) return;
+      const userId = await requireSession(req, res);
+      if (!userId) return;
+      const sessionId: unknown = req.body?.sessionId;
+      if (typeof sessionId !== 'string' || !/^sess_[a-zA-Z0-9_-]{1,100}$/.test(sessionId)) {
+        res.status(400).json({ code: 'INVALID_SESSION', message: 'Choose a linked extension.' });
+        return;
+      }
+      const identity = { userId, scopes: ['easyeda.read'] as const };
+      if (!gateway.selectPairedProject(identity, sessionId)) {
+        res.status(404).json({
+          code: 'PROJECT_NOT_AVAILABLE',
+          message:
+            'Focus a schematic or PCB in EasyEDA, update MCP Bridge to a Cloud-capable build, then refresh and select that project.',
+        });
+        return;
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ selection: gateway.getSelectedProject(identity) });
+    }),
+  );
+  app.post(
+    '/cloud/api/pairing-code',
+    asyncRoute(async (req, res) => {
+      if (!originRequired(req, res, auth.origin)) return;
+      const userId = await requireSession(req, res);
+      if (!userId) return;
+      const code = gateway.createPairingCode({ identity: { userId, scopes: ['easyeda.read'] } });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ code, expiresInSeconds: 600 });
+    }),
+  );
+  app.delete(
+    '/cloud/api/extensions/:sessionId',
+    asyncRoute(async (req, res) => {
+      if (!originRequired(req, res, auth.origin)) return;
+      const userId = await requireSession(req, res);
+      if (!userId) return;
+      const sessionId = req.params.sessionId;
+      if (
+        typeof sessionId !== 'string' ||
+        !/^sess_[a-zA-Z0-9_-]{1,100}$/.test(sessionId) ||
+        !gateway.revokePairedExtension({ userId, scopes: ['easyeda.read'] }, sessionId)
+      ) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'This extension was not found.' });
+        return;
+      }
+      res.status(204).end();
+    }),
+  );
 }
