@@ -39,7 +39,21 @@ acknowledgement loops, and an extension-side dispatch guard rejects a switched
 project before the EasyEDA tool is called. A changed project identity requires
 reselection before remote tool routing; tampered/expired consent requests fail closed. Live GitHub/Google sign-in, full browser consent completion, real extension
 pairing/project UX, hosted deployment and real EasyEDA relay acceptance are **not yet
-verified or shipped**. Keep Cloud disabled until all acceptance gates are satisfied.
+verified or shipped**.
+
+A separate end-to-end loopback test uses the **actual first-party Better Auth provider**,
+not an independently signed access token. A test-only Better Auth utility creates the
+owner's browser session in the same isolated SQLite database; it is **not** installed in the
+production provider. From there, a native public MCP client is registered and the running
+provider signs the consent query, receives explicit approval, issues a PKCE authorization
+code, and exchanges it for a resource-bound `at+jwt` with the expected owner and client
+claims. The official MCP SDK uses that **provider-issued token** to read through a
+selected, owner-paired fake EasyEDA extension. Code replay, tampered consent scopes,
+explicit denial, and an incorrect S256 PKCE verifier are rejected. This is strong local
+OAuth/MCP integration evidence, **not** GitHub/Google login, production identity
+provisioning, browser-click acceptance, or live EasyEDA design acceptance.
+
+Keep Cloud disabled until all mandatory live acceptance gates are satisfied.
 
 ## Implemented and continuously tested
 
