@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "kind": "source-bound-native-readonly-differential-pair-coverage-negative-control",
+  "dateUtc": "2026-11-13T06:08:04Z",
+  "issue": 841,
+  "source": {
+    "baseMainCommit": "6dbc3caa54de1be30f75e0b4d4e02f7b64456777",
+    "modifiedSourcePath": "src/pcb-layout/differential-pair.ts",
+    "modifiedSourceFileSha256": "4701bd9d898acf24b3bc3e40fa558cee193bc85ac4a631f7b8d12bc24ec78500",
+    "candidateBranch": "feat/841-differential-coverage-20261113",
+    "requiredPostCommitValidation": "Match SHA256 of modified file against exact PR head; release requires separate candidate native compatibility evidence."
+  },
+  "editor": {
+    "product": "EasyEDA Pro",
+    "version": "3.2.209",
+    "extensionVersion": "1.15.2",
+    "loaderVersion": "1.15.2",
+    "registryHash": "f71f5e22b7fec5db",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "projectIdentityHash": "c1cc941a9f41",
+    "focusedPcbIdentityHash": "76509018c377",
+    "fixture": "Z480 local backed-up disposable PCB, read-only"
+  },
+  "routeReview": {
+    "tool": "easyeda_pcb_route_geometry_review",
+    "inputPair": {
+      "positiveNet": "VCC",
+      "negativeNet": "VO1",
+      "protocol": "custom",
+      "maxEdgeGapMm": 10000,
+      "minEdgeGapMm": 0,
+      "constraintSource": "Synthetic negative-control only; VCC and VO1 are not declared to be an actual differential pair"
+    },
+    "nativeInventoryComplete": true,
+    "bridgeReadCalls": 2,
+    "nativeGetterErrors": 0,
+    "paths": {
+      "positive": "AMBIGUOUS",
+      "negative": "AMBIGUOUS"
+    },
+    "pairStatus": "UNKNOWN",
+    "gapStatus": "UNKNOWN",
+    "gapSamples": 8,
+    "gapMinMm": 1.2435204999999996,
+    "gapMaxMm": 19.20200121999999,
+    "observedSameLayerContacts": 0,
+    "positiveSampledParallelLengthMm": 28.66695054000002,
+    "negativeSampledParallelLengthMm": 26.710002460000013,
+    "sampleCoverageComplete": false,
+    "coverageNote": "Only partial or ambiguous native parallel-path coverage was observed; unsampled route sections cannot be treated as within declared limits.",
+    "skewStatus": "UNKNOWN",
+    "impedanceStatus": "UNKNOWN",
+    "engineeringSignOff": false,
+    "overallStatus": "UNKNOWN"
+  },
+  "integrity": {
+    "fixtureSha256Before": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+    "fixtureSha256After": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+    "designMutations": 0,
+    "saves": 0,
+    "exports": 0
+  },
+  "limitations": [
+    "VCC and VO1 are unrelated observed native nets selected solely as a synthetic negative control; the PCB does not demonstrate a verified real differential-pair positive case.",
+    "Eight parallel sample gaps are actually observed, but neither route proves a single chain and full overlap; UNKNOWN prevents a false passing signal-integrity/spacing verdict.",
+    "Values are sampled native 2D geometry in mm, not impedance, coupled delay, pad endpoints, actual reference-plane return path, manufacturer stackup or physical-board compliance.",
+    "No production design editing or manufacturing approval took place. Deterministic positive/negative/partial-coverage cases are separately covered in unit and MCP tests."
+  ],
+  "result": "NATIVE_READ_ONLY_NEGATIVE_CONTROL_PASS"
+}

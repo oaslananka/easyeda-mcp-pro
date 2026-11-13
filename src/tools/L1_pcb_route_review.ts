@@ -312,6 +312,9 @@ const differentialPairResultSchema = z.object({
     observed_max_mm: z.number().optional(),
     sample_count: z.number().int().nonnegative(),
     observed_contact_count: z.number().int().nonnegative().optional(),
+    sampled_positive_length_mm: z.number().nonnegative().optional(),
+    sampled_negative_length_mm: z.number().nonnegative().optional(),
+    sample_coverage_complete: z.boolean().optional(),
   }),
   findings: z.array(
     z.object({
