@@ -454,6 +454,8 @@ export function generateProductionQaArtifacts(input: QaBoardInput): ProductionQa
     projectName: input.projectName,
     revision: input.revision,
     passed: errorCount === 0,
+    manualReviewRequired: true as const,
+    fabricationApproval: false as const,
     issues,
     checklist,
     artifacts: [] as QaArtifact[],
@@ -468,8 +470,8 @@ export function generateProductionQaArtifacts(input: QaBoardInput): ProductionQa
         errorCount > 0
           ? `Production QA package blocked by ${errorCount} error(s) and ${warningCount} warning(s).`
           : warningCount > 0
-            ? `Production QA package generated with ${warningCount} warning(s) for review.`
-            : 'Production QA package generated with no blocking issues.',
+            ? `Production QA package generated with ${warningCount} warning(s); independent manufacturing review remains required.`
+            : 'Production QA package generated without reported blocking issues; independent manufacturing review remains required.',
     },
   } satisfies ProductionQaReport;
 
@@ -480,6 +482,8 @@ export function generateProductionQaArtifacts(input: QaBoardInput): ProductionQa
       projectName: partial.projectName,
       revision: partial.revision,
       passed: partial.passed,
+      manualReviewRequired: partial.manualReviewRequired,
+      fabricationApproval: partial.fabricationApproval,
       issues: partial.issues,
       checklist: partial.checklist,
       summary: partial.summary,

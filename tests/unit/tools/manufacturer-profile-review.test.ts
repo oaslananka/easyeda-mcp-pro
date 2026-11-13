@@ -39,9 +39,9 @@ function setNativeFocus(ctx: ToolContext, projectId: string, pcbUuid = 'test-pcb
     if (method === 'api.call') {
       const path = (params as { path?: string } | undefined)?.path;
       if (path === 'DMT_Project.getCurrentProjectInfo') return { result: { uuid: projectId } };
-      if (path === 'DMT_SelectControl.getCurrentDocumentInfo')
+      if (path === 'DMT_Pcb.getCurrentPcbInfo')
         return {
-          result: { uuid: pcbUuid, parentProjectUuid: projectId, documentType: 3 },
+          result: { uuid: pcbUuid, parentProjectUuid: projectId },
         };
       throw new Error('unexpected native identity lookup');
     }
@@ -326,17 +326,14 @@ describe('optional source-aware manufacturing profile on existing production rev
   });
 
   it('refuses a schematic tab or a PCB belonging to a different project', async () => {
-    for (const document of [
-      { uuid: 'schematic-tab', parentProjectUuid: 'requested', documentType: 1 },
-      { uuid: 'foreign-pcb', parentProjectUuid: 'foreign', documentType: 3 },
-    ]) {
+    for (const document of [undefined, { uuid: 'foreign-pcb', parentProjectUuid: 'foreign' }]) {
       const { tool, ctx, bridge } = setup();
       ctx.bridge.connected = true;
       ctx.bridge.call = (async (method: string, params?: unknown) => {
         if (method !== 'api.call') return bridge(method, params);
         const path = (params as { path: string }).path;
         if (path === 'DMT_Project.getCurrentProjectInfo') return { result: { uuid: 'requested' } };
-        if (path === 'DMT_SelectControl.getCurrentDocumentInfo') return { result: document };
+        if (path === 'DMT_Pcb.getCurrentPcbInfo') return { result: document };
         throw new Error('unexpected native method');
       }) as typeof ctx.bridge.call;
       const result = await tool.handler(ctx, {
@@ -392,12 +389,11 @@ describe('optional source-aware manufacturing profile on existing production rev
         const nativePath = (params as { path: string }).path;
         if (nativePath === 'DMT_Project.getCurrentProjectInfo')
           return { result: { uuid: currentProject } };
-        if (nativePath === 'DMT_SelectControl.getCurrentDocumentInfo')
+        if (nativePath === 'DMT_Pcb.getCurrentPcbInfo')
           return {
             result: {
               uuid: 'unchanged-pcb-name',
               parentProjectUuid: currentProject,
-              documentType: 3,
             },
           };
       }
@@ -444,12 +440,11 @@ describe('optional source-aware manufacturing profile on existing production rev
         const path = (params as { path?: string }).path;
         if (path === 'DMT_Project.getCurrentProjectInfo')
           return { result: { uuid: requestProject } };
-        if (path === 'DMT_SelectControl.getCurrentDocumentInfo')
+        if (path === 'DMT_Pcb.getCurrentPcbInfo')
           return {
             result: {
               uuid: focusedPcbUuid,
               parentProjectUuid: requestProject,
-              documentType: 3,
             },
           };
       }

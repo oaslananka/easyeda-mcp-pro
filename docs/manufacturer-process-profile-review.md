@@ -107,13 +107,15 @@ the focused editor tab, so passing `projectId` as a method argument is
 the project/PCB identity cannot be read or changes while the calls are
 running.
 
-The source-identity lookup relies on
-[`DMT_SelectControl.getCurrentDocumentInfo()`](https://prodocs.easyeda.com/en/api/reference/pro-api.dmt_selectcontrol.getcurrentdocumentinfo.html),
-which the upstream API reference labels **beta**, alongside
-`DMT_Project.getCurrentProjectInfo()`. Missing, rejected or ambiguous
-methods fail closed; declared method signatures alone are not live
-capability evidence. Two matching identity snapshots do not establish
-an atomic PCB revision, complete geometry, or manufacturer acceptance.
+The source-identity lookup uses the documented
+[`DMT_Pcb.getCurrentPcbInfo()`](https://prodocs.easyeda.com/en/api/reference/pro-api.dmt_pcb.getcurrentpcbinfo.html)
+with `DMT_Project.getCurrentProjectInfo()`. This PCB-specific getter
+returns `undefined` when the active document is not a PCB, so the review
+does not depend on the beta-only generic current-document API. Missing,
+rejected or ambiguous methods fail closed; documented signatures alone
+are not live capability evidence. Two matching identity snapshots do
+not establish an atomic PCB revision, complete geometry, or factory
+acceptance.
 
 The top-level `native_focus_status` tells the user what to do:
 
@@ -188,10 +190,33 @@ a mocked project/PCB focus-change race. This safety test does not prove
 manufacturer capabilities, real assembly access, physical clearance
 or certified DFM readiness.
 
-The full #846 acceptance is **not closed** by this identity safety check:
-complete source-bound assembly and testability observations, actual
-manufacturer process capability, and a reproducible native acceptance
-record tied to the final candidate must be established separately.
+The source-bound [13 November 2026 live acceptance record](./evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.0-846-native-production-review.json)
+was repeated with the actual matching v1.15.0 extension/loader and an
+isolated disposable V3 PCB. The selected PCB was measured and the
+foreign project refused without board-summary reads. When the same
+disposable project's schematic page was focused, the production
+review returned `unavailable` with **zero** PCB reads and no fabricated
+measurements. The source file matched its independent backup SHA-256
+before and after. Manufacturer, assembly and testability sign-off
+still require independent engineering and factory evidence.
+
+This source-target safety check is part of #846's **software**
+acceptance, not factory sign-off. Actual manufacturer capabilities,
+complete assembly and test-point access, and full-board native
+geometries must still be independently validated for each design;
+the tool expressly reports these unsupported claims as `UNKNOWN`.
+
+## Production QA handoff is not fabrication approval
+
+The existing `easyeda_production_qa_artifacts` report and its JSON
+handoff manifest distinguish **QA package checks** (`passed`) from
+**real manufacturing readiness**. Both now explicitly return
+`manual_review_required=true` and `fabrication_approval=false`,
+including an error-free synthetic checklist. Required human-review
+items remain visible in the generated checklist; no empty or clean
+artifact package silently authorizes fabrication. This is compatible
+with existing `passed` callers and does not request an export, design
+write, supplier approval or factory order.
 
 ## Representative source-bound, read-only PCB acceptance
 

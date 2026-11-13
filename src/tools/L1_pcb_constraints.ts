@@ -147,17 +147,12 @@ async function readFocusedPcbIdentity(ctx: ToolContext): Promise<NativePcbIdenti
     if (!projectUuid) return null;
     const document = nativeIdentityPayload(
       await ctx.bridge.call('api.call', {
-        path: 'DMT_SelectControl.getCurrentDocumentInfo',
+        path: 'DMT_Pcb.getCurrentPcbInfo',
         args: [],
       }),
     );
     const pcbUuid = nativeId(document?.uuid);
-    if (
-      !pcbUuid ||
-      document?.documentType !== 3 ||
-      nativeId(document.parentProjectUuid) !== projectUuid
-    )
-      return null;
+    if (!pcbUuid || nativeId(document?.parentProjectUuid) !== projectUuid) return null;
     return { projectUuid, pcbUuid };
   } catch {
     return null;

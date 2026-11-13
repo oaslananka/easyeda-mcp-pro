@@ -78,6 +78,9 @@ export interface ProductionQaReport {
   projectName?: string;
   revision?: string;
   passed: boolean;
+  /** Report generation/checklist evaluation, never independent factory sign-off. */
+  manualReviewRequired: true;
+  fabricationApproval: false;
   issues: QaIssue[];
   checklist: QaChecklistItem[];
   artifacts: QaArtifact[];

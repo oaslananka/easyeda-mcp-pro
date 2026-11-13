@@ -76,7 +76,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_zone_preflight`                       | `full`         | `low`    | Verify the live EasyEDA Pro version, focused PCB, exact net membership, supported copper layer and native zone capabilities. This is a read-only diagnostic of supported rectangular or simple closed-polyline outlines, never proof of copper continuity or permission for zone writes.                                      |
 | `easyeda_post_write_qa`                            | `core`         | `medium` | Run and classify post-write schematic QA after generated edits. Combines native DRC/ERC results with policy-aware classification so duplicate net names, free networks, and unconnected pins are reported as pass/fail/inconclusive instead of raw warning counts.                                                            |
 | `easyeda_power_tree_analyze`                       | `core`         | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                   |
-| `easyeda_production_qa_artifacts`                  | `pro`          | `low`    | Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.                                                                                                                                                                                     |
+| `easyeda_production_qa_artifacts`                  | `pro`          | `low`    | Generate testpoint, assembly and bring-up QA handoff artifacts; explicit human review is required and generated files never certify fabrication approval.                                                                                                                                                                     |
 | `easyeda_project_begin_transaction`                | `core`         | `low`    | Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools passed transactionId participate; standalone schematic writes are not auto-captured. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.                                    |
 | `easyeda_project_close`                            | `core`         | `high`   | Default refuses when dirty status is unknown. Explicit confirmed save first verifies native save then closes; explicit discard is destructive. Never silently discards unsaved documents.                                                                                                                                     |
 | `easyeda_project_commit_transaction`               | `core`         | `medium` | Finalize a transaction after its writes and validation gates succeed. Commit removes rollback eligibility and releases the document transaction lock.                                                                                                                                                                         |
@@ -2575,7 +2575,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `pro` | **Risk Level:** `low`
 
-> Generate testpoint checklist, assembly notes, bring-up plan, production QA checklist, and machine-readable QA manifest for board handoff.
+> Generate testpoint, assembly and bring-up QA handoff artifacts; explicit human review is required and generated files never certify fabrication approval.
 
 ### Input Parameters
 
@@ -2602,6 +2602,8 @@ Returns a JSON object matching the schema:
   project_name: string (optional);
   revision: string (optional);
   passed: boolean;
+  manual_review_required: 'true';
+  fabrication_approval: 'false';
   issues: object[];
   checklist: object[];
   artifacts: object[];

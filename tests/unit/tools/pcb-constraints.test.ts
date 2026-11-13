@@ -14,8 +14,8 @@ function setNativeFocus(context: ToolContext, projectId: string, pcbUuid = 'pcb-
     if (method === 'api.call') {
       const path = (params as { path?: string } | undefined)?.path;
       if (path === 'DMT_Project.getCurrentProjectInfo') return { result: { uuid: projectId } };
-      if (path === 'DMT_SelectControl.getCurrentDocumentInfo')
-        return { result: { uuid: pcbUuid, parentProjectUuid: projectId, documentType: 3 } };
+      if (path === 'DMT_Pcb.getCurrentPcbInfo')
+        return { result: { uuid: pcbUuid, parentProjectUuid: projectId } };
       throw new Error('unexpected native identity lookup');
     }
     return boardRead(method, params);
