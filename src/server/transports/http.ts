@@ -49,6 +49,8 @@ interface McpHttpSession {
   server: McpServer;
   transport: NodeStreamableHTTPServerTransport;
   closing: boolean;
+  /** Hosted legacy HTTP sessions belong to one OAuth user AND client. */
+  oauthPrincipal?: string;
 }
 
 function createRateLimiter(windowMs: number, maxRequests: number) {
@@ -143,6 +145,18 @@ function extractTokenScopes(payload: Record<string, unknown>): Set<string> {
 }
 
 type AuthenticatedExpressRequest = Request & { auth?: AuthInfo };
+
+function hostedMcpPrincipal(req: Request): string | undefined {
+  const claims = (req as AuthenticatedExpressRequest).auth?.extra;
+  const subject = claims?.sub;
+  const authorizedParty = claims?.azp;
+  return typeof subject === 'string' &&
+    subject.length > 0 &&
+    typeof authorizedParty === 'string' &&
+    authorizedParty.length > 0
+    ? JSON.stringify([subject, authorizedParty])
+    : undefined;
+}
 
 function validateOAuthToken(config: EnvConfig, hostedAuth?: HostedAuth) {
   const hosted = Boolean(hostedAuth);
@@ -578,6 +592,13 @@ export function createHttpTransport(
     await session.server.close();
   };
 
+  const belongsToMcpClient = (req: Request, res: Response, session: McpHttpSession): boolean => {
+    if (!options.hostedAuth) return true;
+    if (session.oauthPrincipal && session.oauthPrincipal === hostedMcpPrincipal(req)) return true;
+    mcpSessionError(res, 403, 'MCP session belongs to a different authorized OAuth client.');
+    return false;
+  };
+
   const sessionForRequest = (req: Request, res: Response): McpHttpSession | undefined => {
     const sessionId = getMcpSessionId(req);
     if (!sessionId) {
@@ -589,7 +610,7 @@ export function createHttpTransport(
       mcpSessionError(res, 404, 'Session not found or expired');
       return undefined;
     }
-    return session;
+    return belongsToMcpClient(req, res, session) ? session : undefined;
   };
 
   const createMcpSession = async (req: Request, res: Response): Promise<void> => {
@@ -611,6 +632,7 @@ export function createHttpTransport(
       server: sessionServer,
       transport: sessionTransport,
       closing: false,
+      oauthPrincipal: options.hostedAuth ? hostedMcpPrincipal(req) : undefined,
     };
 
     sessionTransport.onclose = () => {
@@ -656,12 +678,8 @@ export function createHttpTransport(
 
     const sessionId = getMcpSessionId(req);
     if (sessionId) {
-      const session = sessions.get(sessionId);
-      if (!session) {
-        mcpSessionError(res, 404, 'Session not found or expired');
-        return;
-      }
-      await session.transport.handleRequest(req, res, req.body);
+      const session = sessionForRequest(req, res);
+      if (session) await session.transport.handleRequest(req, res, req.body);
       return;
     }
 

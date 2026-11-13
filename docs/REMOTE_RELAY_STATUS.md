@@ -24,7 +24,15 @@ shows linked extensions, creates owner-bound pairing codes, revokes sessions and
 explicit owner-selected extension/project binding. The extension's optional Connect Cloud menu asks only for a pairing code and
 uses the official WSS relay URL; Custom Remote remains independent.
 Cloud requires explicit project selection even when only one extension is
-paired. Simulated WebSocket tests cover disconnect, one-time-code replay
+paired. Real loopback MCP HTTP tests use locally signed RFC 9068-style resource
+access tokens against the JWKS verifier in both legacy and 2026-07-28 modes;
+they cover owner and scope isolation, expired tokens, session JWT rejection,
+forged owner headers and cross-client legacy session replay. Legacy MCP sessions
+are bound to the OAuth subject and authorized client; token refresh for the
+same account/client can retain the session while a different client cannot use
+or delete it. **These tokens are signed by the test fixture**, not issued by
+an authenticated GitHub/Google production OAuth flow. Simulated WebSocket
+tests cover disconnect, one-time-code replay
 rejection, fresh pairing, project reselection, read dispatch, and revocation.
 Periodic extension-originated heartbeats report the current project without
 acknowledgement loops, and an extension-side dispatch guard rejects a switched
