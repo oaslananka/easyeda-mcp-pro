@@ -6,6 +6,22 @@
 
 `MCP_BRIDGE_BACKEND=remote_relay` is an implemented, explicitly selected runtime path. It is not the default and is not yet advertised as Beta or production-ready. Local bridge mode remains the supported default.
 
+### First-party Cloud identity foundation (not a public service)
+
+The issue #849 branch adds an opt-in hosted OAuth identity provider and MCP resource discovery. The
+provider starts **only** when `CLOUD_HOSTED_ENABLED=true`, `TRANSPORT=http`,
+`MCP_BRIDGE_BACKEND=remote_relay`, and `OAUTH_ENABLED=true`, with exact canonical
+`OAUTH_ISSUER=<origin>/api/auth`, `OAUTH_AUDIENCE=<origin>/mcp`, and
+`OAUTH_JWKS_URI=<origin>/api/auth/jwks`. The operator supplies `CLOUD_HOSTED_ORIGIN`,
+`CLOUD_AUTH_SECRET`, and private GitHub/Google OAuth client ID/secret environment variables.
+These hosted-only credentials are not part of the local MCP Registry configuration. Provider
+state uses a dedicated `hosted-cloud.sqlite` database under `DATA_DIR`.
+
+A loopback process test confirms OAuth discovery, JWKS and SQLite startup with **fake provider
+credentials**, not a real signed-in user. Live GitHub/Google sign-in, consent pages, owner pairing,
+client/project management, hosted deployment and real EasyEDA relay acceptance are **not yet
+verified or shipped**. Keep Cloud disabled until all acceptance gates are satisfied.
+
 ## Implemented and continuously tested
 
 | Capability                                                                                            | Evidence level                                                  | Current state |

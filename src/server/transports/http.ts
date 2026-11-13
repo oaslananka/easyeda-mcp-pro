@@ -85,10 +85,6 @@ function createRateLimiter(windowMs: number, maxRequests: number) {
 }
 
 /**
- * Supported token type hints (typ claim).
- * We accept JWT by default and only reject tokens with an explicit non-JWT typ.
- */
-/**
  * Hosted MCP accepts only resource-bound OAuth access tokens. Better Auth's
  * session JWTs use the same signing keys, so accepting JWT/absent typ here would
  * allow a signed-in browser session to act as a consented MCP client.
@@ -111,8 +107,9 @@ function tokenError(
   config: EnvConfig,
   message: string,
   code = 'invalid_token',
+  canonicalOrigin?: string,
 ): void {
-  setProtectedResourceChallenge(req, res, config, code);
+  setProtectedResourceChallenge(req, res, config, code, canonicalOrigin);
   res.status(401).json({ error: message, code });
 }
 
@@ -146,7 +143,10 @@ function extractTokenScopes(payload: Record<string, unknown>): Set<string> {
 
 type AuthenticatedExpressRequest = Request & { auth?: AuthInfo };
 
-function validateOAuthToken(config: EnvConfig, hosted: boolean) {
+function validateOAuthToken(config: EnvConfig, hostedAuth?: HostedAuth) {
+  const hosted = Boolean(hostedAuth);
+  const rejectToken = (req: Request, res: Response, message: string, code?: string): void =>
+    tokenError(req, res, config, message, code, hostedAuth?.origin);
   if (!config.OAUTH_ENABLED || config.HTTP_AUTH_DISABLED) {
     return (_req: Request, _res: Response, next: NextFunction): void => next();
   }
@@ -162,13 +162,13 @@ function validateOAuthToken(config: EnvConfig, hosted: boolean) {
     // ── 1. Extract Bearer token ───────────────────────────────────────────
     const auth = req.headers.authorization;
     if (!auth || !auth.startsWith('Bearer ')) {
-      tokenError(req, res, config, 'Missing or invalid Authorization header', 'missing_auth');
+      rejectToken(req, res, 'Missing or invalid Authorization header', 'missing_auth');
       return;
     }
 
     const token = auth.slice(7);
     if (!token) {
-      tokenError(req, res, config, 'Empty Bearer token', 'empty_token');
+      rejectToken(req, res, 'Empty Bearer token', 'empty_token');
       return;
     }
 
@@ -176,13 +176,25 @@ function validateOAuthToken(config: EnvConfig, hosted: boolean) {
     jwtVerify(token, JWKSet, {
       issuer: config.OAUTH_ISSUER || undefined,
       audience: config.OAUTH_AUDIENCE || undefined,
-      algorithms: ['RS256', 'RS384', 'RS512', 'ES256', 'ES384', 'ES512'],
+      algorithms: ['EdDSA', 'RS256', 'RS384', 'RS512', 'ES256', 'ES384', 'ES512'],
+      requiredClaims: hosted ? ['azp', 'sub', 'exp', 'iat'] : undefined,
     })
       .then(({ payload, protectedHeader }) => {
         // Validate token type (typ) — it lives in the protected header per JWT spec
         const typ = protectedHeader.typ;
         if (!isOAuthAccessTokenTypeAllowed(typ, hosted)) {
-          tokenError(req, res, config, `Unsupported token type: ${typ}`, 'unsupported_token_type');
+          rejectToken(req, res, `Unsupported token type: ${typ}`, 'unsupported_token_type');
+          return;
+        }
+
+        // A client-authorized access token must identify the OAuth client.
+        // DPoP-bound tokens require a separate request proof verifier; do not
+        // silently treat them as ordinary bearer tokens.
+        if (
+          hosted &&
+          (typeof payload.azp !== 'string' || !payload.azp.trim() || payload.cnf !== undefined)
+        ) {
+          rejectToken(req, res, 'Invalid or sender-constrained OAuth access token.');
           return;
         }
 
@@ -228,15 +240,15 @@ function validateOAuthToken(config: EnvConfig, hosted: boolean) {
         //   '"aud" claim mismatch' → invalid_audience
         //   'signature verification failed' → invalid_signature
         if (/["']exp["']/.test(msg) || /expired|timestamp/i.test(msg)) {
-          tokenError(req, res, config, 'Token has expired', 'token_expired');
+          rejectToken(req, res, 'Token has expired', 'token_expired');
         } else if (/["']iss["']/.test(msg) || /issuer/i.test(msg)) {
-          tokenError(req, res, config, 'Invalid token issuer', 'invalid_issuer');
+          rejectToken(req, res, 'Invalid token issuer', 'invalid_issuer');
         } else if (/["']aud["']/.test(msg) || /audience/i.test(msg)) {
-          tokenError(req, res, config, 'Invalid token audience', 'invalid_audience');
+          rejectToken(req, res, 'Invalid token audience', 'invalid_audience');
         } else if (/signature|key|JWT|JWS|malformed|parse/i.test(msg)) {
-          tokenError(req, res, config, 'Invalid token signature', 'invalid_signature');
+          rejectToken(req, res, 'Invalid token signature', 'invalid_signature');
         } else {
-          tokenError(req, res, config, 'Token validation failed', 'token_validation_failed');
+          rejectToken(req, res, 'Token validation failed', 'token_validation_failed');
         }
       });
   };
@@ -272,8 +284,15 @@ function configuredOriginMatch(allowedOrigins: Set<string>, origin: string): str
   return undefined;
 }
 
-function validateHostHeader(config: EnvConfig, host: string | undefined): boolean {
+function validateHostHeader(
+  config: EnvConfig,
+  host: string | undefined,
+  canonicalOrigin?: string,
+): boolean {
   if (!host) return true;
+  if (canonicalOrigin && host.toLowerCase() === new URL(canonicalOrigin).host.toLowerCase()) {
+    return true;
+  }
   const hostname = hostWithoutPort(host).toLowerCase();
   const configuredHost = config.HTTP_HOST.toLowerCase();
 
@@ -312,7 +331,7 @@ export function parseOriginAllowlist(raw: string): Set<string> {
  * - CORS preflight: responds with appropriate headers for OPTIONS requests.
  * - No-origin requests (non-browser clients) are always allowed.
  */
-export function createOriginValidator(config: EnvConfig) {
+export function createOriginValidator(config: EnvConfig, canonicalOrigin?: string) {
   const allowedOrigins = parseOriginAllowlist(config.ALLOWED_ORIGINS);
   const hasExplicitAllowlist = allowedOrigins.size > 0;
   const allowAll = allowedOrigins.has('*');
@@ -323,7 +342,7 @@ export function createOriginValidator(config: EnvConfig) {
     // On non-loopback, verify the Host header matches our configured bind address.
     // This prevents an attacker from pointing a DNS name at our IP and bypassing
     // browser same-origin policy.
-    if (!validateHostHeader(config, req.headers.host)) {
+    if (!validateHostHeader(config, req.headers.host, canonicalOrigin)) {
       res.status(400).json({
         error: 'Invalid Host header',
         code: 'host_mismatch',
@@ -518,7 +537,7 @@ export function createHttpTransport(
 
   // Origin validation and CORS preflight must run before OAuth so browser
   // preflight can complete without a bearer token while still enforcing origin.
-  app.use(createOriginValidator(config));
+  app.use(createOriginValidator(config, options.hostedAuth?.origin));
   app.use(handleCorsPreflight);
 
   // The provider consumes raw POST bodies for sign-in, consent and OAuth code
@@ -539,7 +558,7 @@ export function createHttpTransport(
     });
   }
 
-  app.use(validateOAuthToken(config, Boolean(options.hostedAuth)));
+  app.use(validateOAuthToken(config, options.hostedAuth));
 
   const forgetMcpSession = (session: McpHttpSession): void => {
     const sessionId = session.transport.sessionId;

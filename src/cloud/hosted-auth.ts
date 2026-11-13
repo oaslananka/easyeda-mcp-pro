@@ -63,13 +63,14 @@ function validateHostedAuthSettings(settings: HostedAuthSettings): void {
  * A separate HTTP adapter will mount this only when Cloud is explicitly enabled.
  */
 export interface HostedAuth {
+  readonly origin: string;
   readonly options: BetterAuthOptions;
   handler(request: Request): Promise<Response>;
 }
 
 export function createHostedAuth(settings: HostedAuthSettings): HostedAuth {
   validateHostedAuthSettings(settings);
-  return betterAuth({
+  const provider = betterAuth({
     baseURL: settings.origin,
     secret: settings.secret,
     database: settings.database,
@@ -98,4 +99,5 @@ export function createHostedAuth(settings: HostedAuthSettings): HostedAuth {
       cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }),
     ],
   });
+  return { origin: settings.origin, options: provider.options, handler: provider.handler };
 }
