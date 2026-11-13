@@ -1,8 +1,110 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-12",
+  "lastReviewed": "2026-11-13",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-13-6dfb890-v1150-production-review",
+      "status": "live-validated",
+      "validatedAt": "2026-11-13T03:48:39Z",
+      "reviewBy": "2027-02-11",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Previously inspected metadata of the same installed 3.2.209 package; current native runtime 3.2.209 reconfirmed."
+      },
+      "server": {
+        "validationPackageVersion": "1.15.0",
+        "releaseContainingFixes": "1.15.0",
+        "commit": "6dfb890d0a96af6758535704e10df49e5d718fcb",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "31ac4b1e4936da9f5ff47471acd8fdaf1aa6875b",
+            "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "0782f5b9d0656daeceb9a43578925d7acdac5e46",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.15.0",
+        "loaderReportedVersion": "1.15.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "f71f5e22b7fec5db",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "da149xf0e4x83a8",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "88c16934a49ab702220e9b078627b86dd213e0b12036be83ebd7da7209e43f67",
+        "packageSizeBytes": 230597
+      },
+      "fixture": {
+        "project": "Isolated backed-up disposable Z928 V3 PCB; UUIDs/path not published",
+        "schematic": "Same project schematic page selected to verify non-PCB focus is rejected",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "6dfb890-source-match",
+          "name": "Exact main source with installed reproducible v1.15.0 bridge and release identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Actual EasyEDA Pro 3.2.209 with server+extension+loader v1.15.0, official dispatcher da149xf0e4x83a8, published package hash and 230597 bytes, non-mutating project inventory and no version/registry drift. The release 1.15.1 version-only candidate has not been installed in the editor.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.0-6dfb890-native-release-source-acceptance.json"
+          ]
+        },
+        {
+          "id": "6dfb890-pcb-focus",
+          "name": "Bounded native production review on the correct PCB and foreign-project rejection",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Four read-only source-bound board calls returned 112.014 mm board width and synthetic-only threshold WARNING. Actual drill/tooling unverified UNKNOWN. Foreign project refused before native summary reads, with no measurements leaked. Fabrication approval remained false.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.0-6dfb890-native-release-source-acceptance.json"
+          ]
+        },
+        {
+          "id": "6dfb890-schematic-refusal",
+          "name": "Non-PCB focused schematic fails closed",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "The official DMT_Pcb.getCurrentPcbInfo returned no selected PCB when the schematic was focused; production review refused with unavailable, zero board reads, no manufactured dimensions or factory approval.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.0-6dfb890-native-release-source-acceptance.json"
+          ]
+        },
+        {
+          "id": "6dfb890-no-write",
+          "name": "Disposable project integrity and native write boundary",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Same source file and independent pre-test backup SHA-256 before and after. Zero PCB writes, saves, exports, orders, supplier contacts or production copper apply.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.0-6dfb890-native-release-source-acceptance.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Only the modified source-bound PCB manufacturing review and core bridge handshake/project identity paths were exercised in this new exact-main smoke; previously recorded project lifecycle validation remains historical, not represented as re-run on this source.",
+        "A synthetic manufacturer maximum-width threshold tests warning behavior, not a supplier-certified manufacturing process window.",
+        "Native drill, copper/trace space, soldermask, assembly geometry, BOM/MPN compatibility, testpoint access and actual fab capability remain UNKNOWN without independent complete evidence.",
+        "The stable 1.15.1 version-only promotion is not itself an installed editor package; its eligibility requires the executable release compatibility and strict version-change-only checks.",
+        "No native design mutations, copper fills, saves, manufacturing orders, supplier communications or electric/fabrication signoff took place.",
+        "The editor profile is isolated and licensed, and the native test source fixture was backed up; private project IDs and local absolute paths are intentionally not recorded."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-12-fa44b76-v1150-project-lifecycle",
       "status": "live-validated",

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.0...easyeda-mcp-pro-v1.15.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **manufacturing:** complete source-bound production QA review ([#846](https://github.com/oaslananka/easyeda-mcp-pro/issues/846)) ([#1047](https://github.com/oaslananka/easyeda-mcp-pro/issues/1047)) ([6dfb890](https://github.com/oaslananka/easyeda-mcp-pro/commit/6dfb890d0a96af6758535704e10df49e5d718fcb))
+
 ## [1.15.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.14.0...easyeda-mcp-pro-v1.15.0) (2026-11-12)
 
 

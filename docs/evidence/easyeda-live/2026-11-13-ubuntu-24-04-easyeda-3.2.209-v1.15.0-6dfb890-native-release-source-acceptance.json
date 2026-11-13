@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "kind": "source-bound-read-only-release-compatibility-acceptance",
+  "recordedAtUtc": "2026-11-13T03:48:39Z",
+  "sourceCommit": "6dfb890d0a96af6758535704e10df49e5d718fcb",
+  "testBranchOrigin": "protected main, no source diffs from merged PR #1047",
+  "candidateRelease": "1.15.1",
+  "validationServerAndBridgePackageVersion": "1.15.0",
+  "runtime": {
+    "os": "Ubuntu 24.04.5 LTS",
+    "kernel": "Linux 7.0.0-42-generic x86_64",
+    "nodeVersion": "24.22.1",
+    "pnpmVersion": "11.28.8",
+    "easyedaProVersion": "3.2.209",
+    "bridgeExtensionVersion": "1.15.0",
+    "bridgeLoaderVersion": "1.15.0",
+    "serverVersion": "1.15.0",
+    "extensionPackageSha256": "88c16934a49ab702220e9b078627b86dd213e0b12036be83ebd7da7209e43f67",
+    "extensionPackageBytes": 230597,
+    "dispatcherBuildId": "da149xf0e4x83a8",
+    "serverMethodRegistryHash": "f71f5e22b7fec5db",
+    "bridgeVersionMismatch": false,
+    "bridgeRegistryMismatch": false,
+    "methodListHashConfirmedByExtension": false,
+    "publicNativeCopperApplyEnabled": false
+  },
+  "fixture": {
+    "source": "Backed-up local disposable Z928 V3 PCB in isolated activated EasyEDA profile",
+    "sourceFileSha256Before": "6f53114f0faeca6fa04e709fef9c6868472a4222c745bc5c5e1931d6ffa708d2",
+    "sourceFileSha256After": "6f53114f0faeca6fa04e709fef9c6868472a4222c745bc5c5e1931d6ffa708d2",
+    "sourceFileSha256IndependentBackup": "6f53114f0faeca6fa04e709fef9c6868472a4222c745bc5c5e1931d6ffa708d2",
+    "projectUuidAndDocumentUuid": "intentionally withheld",
+    "nativeDesignMutationCalls": 0,
+    "saveCalls": 0,
+    "exportCalls": 0
+  },
+  "nativeReadOnlyScenarios": [
+    {
+      "scenario": "connected_release_identity",
+      "result": "PASSED",
+      "details": "running bridge and loader both 1.15.0; source build identical to published extension sha256; dispatcher build exact; no copper writes enabled"
+    },
+    {
+      "scenario": "project_list_and_selected_document",
+      "result": "PASSED",
+      "projectCount": 8,
+      "activeProjectCount": 1,
+      "notes": "Active disposable project and focused PCB UUID read from official native project/PCB getter"
+    },
+    {
+      "scenario": "correct_focused_PCB",
+      "result": "PASSED",
+      "focusedProjectMatches": true,
+      "focusStatus": "verified",
+      "nativeBoardReadCount": 4,
+      "observedBoardWidthMm": 112.014,
+      "declaredSyntheticMaximumWidthMm": 10,
+      "observedStatus": "WARNING",
+      "missingDrillMetric": "UNKNOWN",
+      "missingToolingHoleCount": "UNKNOWN",
+      "nativeConstraintUnknownCount": 18,
+      "fabricationApproval": false
+    },
+    {
+      "scenario": "other_project_is_rejected_before_measuring",
+      "result": "PASSED",
+      "focusStatus": "wrong_project",
+      "nativeBoardReadCount": 0,
+      "measuredValuesExposed": 0,
+      "fabricationApproval": false
+    },
+    {
+      "scenario": "focused_schematic_is_rejected_before_measuring",
+      "result": "PASSED",
+      "focusStatus": "unavailable",
+      "nativeBoardReadCount": 0,
+      "measuredValuesExposed": 0,
+      "fabricationApproval": false
+    },
+    {
+      "scenario": "source_file_and_independent_backup_integrity",
+      "result": "PASSED",
+      "sourceIdenticalBeforeAndAfter": true,
+      "nativeDesignMutationCalls": 0,
+      "saveCalls": 0,
+      "exportCalls": 0
+    }
+  ],
+  "boundary": {
+    "manufacturerProfile": "Synthetic test-only limit, not an authenticated fabrication-process reference",
+    "humanReviewRequired": true,
+    "manufacturingApproval": false,
+    "electricalSignOff": false,
+    "nativeCopperApplyEnabled": false,
+    "vendorContactOrOrder": false,
+    "claim": "Source-bound read-only product acceptance for the newly changed PCB QA review path, not full fabrication/assembly/testability certification"
+  },
+  "limitation": "The tested v1.15.0 installed bridge is byte-identical to the recorded package; the 1.15.1 candidate changes only declared release-managed versions. The 1.15.1 extension was not installed or represented as tested. Source-only promotion must still pass the executable compatibility gate."
+}
