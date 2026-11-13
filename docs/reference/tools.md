@@ -2210,6 +2210,7 @@ Returns a JSON object matching the schema:
 ```ts
 {
   project_id: string;
+  native_focus_status: 'verified' | 'unavailable' | 'wrong_project' | 'changed' | 'caller_supplied_unverified' (optional);
   passed: boolean;
   blocked: boolean;
   gate_mode: string;

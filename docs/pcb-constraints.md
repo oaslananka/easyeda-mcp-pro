@@ -331,7 +331,7 @@ const result = validatePcbConstraints({
 });
 ```
 
-The MCP tool `easyeda_pcb_production_review` exposes the same review model to agents.
+The MCP tool `easyeda_pcb_production_review` exposes the same review model to agents. Its native evidence is bound to the requested project and focused PCB before and after measurement. A `wrong_project`, `changed`, or `unavailable` `native_focus_status` means no native measurements were accepted and the user should refocus the correct PCB; `verified` proves source identity only, not fabrication approval.
 `easyeda_export_gerbers` can also run the same review as an optional gate:
 
 - `mode: 'warn'` returns production findings but still exports.

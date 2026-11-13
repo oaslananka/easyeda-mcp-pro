@@ -116,6 +116,92 @@ const processProfileReviewSchema = z.object({
   limitations: z.array(z.string()),
 });
 
+type NativeFocusStatus = 'verified' | 'unavailable' | 'wrong_project' | 'changed';
+
+interface NativePcbIdentity {
+  projectUuid: string;
+  pcbUuid: string;
+}
+
+function nativeIdentityPayload(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const candidate = 'result' in record ? record.result : record;
+  return candidate !== null && typeof candidate === 'object' && !Array.isArray(candidate)
+    ? (candidate as Record<string, unknown>)
+    : null;
+}
+
+function nativeId(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() === value && value.length > 0 ? value : null;
+}
+
+/** Read-only source/target proof; a missing or changed identity is never evidence of this PCB. */
+async function readFocusedPcbIdentity(ctx: ToolContext): Promise<NativePcbIdentity | null> {
+  if (!ctx.bridge.connected) return null;
+  try {
+    const project = nativeIdentityPayload(
+      await ctx.bridge.call('api.call', { path: 'DMT_Project.getCurrentProjectInfo', args: [] }),
+    );
+    const projectUuid = nativeId(project?.uuid);
+    if (!projectUuid) return null;
+    const document = nativeIdentityPayload(
+      await ctx.bridge.call('api.call', {
+        path: 'DMT_SelectControl.getCurrentDocumentInfo',
+        args: [],
+      }),
+    );
+    const pcbUuid = nativeId(document?.uuid);
+    if (
+      !pcbUuid ||
+      document?.documentType !== 3 ||
+      nativeId(document.parentProjectUuid) !== projectUuid
+    )
+      return null;
+    return { projectUuid, pcbUuid };
+  } catch {
+    return null;
+  }
+}
+
+async function productionNativeBoardEvidence(
+  ctx: ToolContext,
+  projectId: string,
+): Promise<{ boardData: PcbConstraintInput; status: NativeFocusStatus }> {
+  const before = await readFocusedPcbIdentity(ctx);
+  if (!before) return { boardData: {}, status: 'unavailable' };
+  if (before.projectUuid !== projectId) return { boardData: {}, status: 'wrong_project' };
+
+  const boardData = await fetchBoardDataFromBridge(ctx, projectId);
+  const after = await readFocusedPcbIdentity(ctx);
+  if (!after || after.projectUuid !== before.projectUuid || after.pcbUuid !== before.pcbUuid)
+    return { boardData: {}, status: 'changed' };
+  return { boardData, status: 'verified' };
+}
+
+async function chooseProductionBoardEvidence(
+  ctx: ToolContext,
+  projectId: string,
+  suppliedData?: Partial<PcbConstraintInput>,
+): Promise<{
+  boardData: PcbConstraintInput;
+  focusStatus: NativeFocusStatus | 'caller_supplied_unverified';
+  evidenceClass: 'native_partial_unverified' | 'caller_supplied_unverified';
+}> {
+  if (suppliedData !== undefined)
+    return {
+      boardData: suppliedData as PcbConstraintInput,
+      focusStatus: 'caller_supplied_unverified',
+      evidenceClass: 'caller_supplied_unverified',
+    };
+  const live = await productionNativeBoardEvidence(ctx, projectId);
+  return {
+    boardData: live.boardData,
+    focusStatus: live.status,
+    evidenceClass: 'native_partial_unverified',
+  };
+}
+
 const pcbUnknownSchema = z.object({
   area: z.string(),
   missingFields: z.array(z.string()),
@@ -365,6 +451,9 @@ function registerPcbConstraintTools(
     }),
     outputSchema: z.object({
       project_id: z.string(),
+      native_focus_status: z
+        .enum(['verified', 'unavailable', 'wrong_project', 'changed', 'caller_supplied_unverified'])
+        .optional(),
       passed: z.boolean(),
       blocked: z.boolean(),
       gate_mode: z.string(),
@@ -399,9 +488,8 @@ function registerPcbConstraintTools(
       try {
         if (manufacturerProfile !== undefined)
           productionProcessProfileSchema.parse(manufacturerProfile);
-        const input = boardData
-          ? (boardData as PcbConstraintInput)
-          : await fetchBoardDataFromBridge(ctx, projectId);
+        const nativeEvidence = await chooseProductionBoardEvidence(ctx, projectId, boardData);
+        const input = nativeEvidence.boardData;
         const result = validatePcbConstraints(input);
         const errors = result.errors.map(mapPcbIssue);
         const warnings = result.warnings.map(mapPcbIssue);
@@ -409,13 +497,7 @@ function registerPcbConstraintTools(
         const profileReview =
           manufacturerProfile === undefined
             ? undefined
-            : reviewManufacturerProfile(
-                manufacturerProfile,
-                input,
-                boardData === undefined
-                  ? 'native_partial_unverified'
-                  : 'caller_supplied_unverified',
-              );
+            : reviewManufacturerProfile(manufacturerProfile, input, nativeEvidence.evidenceClass);
         // Production readiness cannot be called passed while even an advisory
         // issue remains to be reviewed. The base constraint valid contract
         // still distinguishes blocking errors from warnings independently.
@@ -423,6 +505,7 @@ function registerPcbConstraintTools(
 
         return {
           project_id: projectId,
+          native_focus_status: nativeEvidence.focusStatus,
           passed,
           blocked: mode === 'block' && !passed,
           gate_mode: mode,

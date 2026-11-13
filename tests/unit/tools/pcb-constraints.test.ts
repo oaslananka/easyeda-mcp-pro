@@ -8,6 +8,20 @@ import {
 } from '../../../src/tools/L1_pcb_constraints.js';
 import { EnvSchema } from '../../../src/config/env.js';
 
+function setNativeFocus(context: ToolContext, projectId: string, pcbUuid = 'pcb-test') {
+  const boardRead = context.bridge.call;
+  context.bridge.call = (async (method: string, params?: unknown) => {
+    if (method === 'api.call') {
+      const path = (params as { path?: string } | undefined)?.path;
+      if (path === 'DMT_Project.getCurrentProjectInfo') return { result: { uuid: projectId } };
+      if (path === 'DMT_SelectControl.getCurrentDocumentInfo')
+        return { result: { uuid: pcbUuid, parentProjectUuid: projectId, documentType: 3 } };
+      throw new Error('unexpected native identity lookup');
+    }
+    return boardRead(method, params);
+  }) as typeof context.bridge.call;
+}
+
 describe('PCB constraint tools', () => {
   let registry: ToolRegistry;
   let context: ToolContext;
@@ -242,6 +256,7 @@ describe('PCB constraint tools', () => {
       throw new Error(`unexpected method ${method}`);
     });
 
+    setNativeFocus(context, 'pcb-bridge-1');
     const result = await tool?.handler(context, { projectId: 'pcb-bridge-1', gateMode: 'warn' });
 
     expect(bridgeCall).toHaveBeenCalledWith('board.getDimensions', { projectId: 'pcb-bridge-1' });
@@ -249,6 +264,7 @@ describe('PCB constraint tools', () => {
     expect(bridgeCall).toHaveBeenCalledWith('board.getStackup', { projectId: 'pcb-bridge-1' });
     expect(bridgeCall).toHaveBeenCalledWith('board.getDesignRules', { projectId: 'pcb-bridge-1' });
     expect(result?.project_id).toBe('pcb-bridge-1');
+    expect(result?.native_focus_status).toBe('verified');
     expect(result?.summary.totalChecks).toBeGreaterThan(0);
   });
 
@@ -332,6 +348,7 @@ describe('PCB constraint tools', () => {
     expect(native.widthMm).toBeUndefined();
     expect(native.heightMm).toBe(40);
     const tool = registry.get('easyeda_pcb_production_review');
+    setNativeFocus(context, 'pcb-zero-canvas-extent');
     const result = await tool?.handler(context, {
       projectId: 'pcb-zero-canvas-extent',
       gateMode: 'warn',
@@ -357,6 +374,7 @@ describe('PCB constraint tools', () => {
     const native = await fetchBoardDataFromBridge(context, 'pcb-zero-native-drill');
     expect(native.minDrillMm).toBeUndefined();
     const tool = registry.get('easyeda_pcb_production_review');
+    setNativeFocus(context, 'pcb-zero-native-drill');
     const result = await tool?.handler(context, {
       projectId: 'pcb-zero-native-drill',
       manufacturerProfile: {
@@ -389,6 +407,7 @@ describe('PCB constraint tools', () => {
       throw new Error(`unexpected method ${method}`);
     });
 
+    setNativeFocus(context, 'pcb-bridge-2');
     const result = await tool?.handler(context, { projectId: 'pcb-bridge-2', gateMode: 'warn' });
 
     expect(result?.project_id).toBe('pcb-bridge-2');
@@ -405,6 +424,7 @@ describe('PCB constraint tools', () => {
       if (method === 'board.getStackup') return { totalLayers: 0, layers: [], available: false };
       throw new Error(`unexpected ${method}`);
     });
+    setNativeFocus(context, 'pcb-incomplete');
     const result = await tool?.handler(context, { projectId: 'pcb-incomplete', gateMode: 'block' });
     expect(result?.blocked).toBe(true);
     expect(result?.passed).toBe(false);
@@ -435,6 +455,7 @@ describe('PCB constraint tools', () => {
       if (method === 'board.listLayers') return [{ name: 'TopLayer' }, { name: 'BottomLayer' }];
       throw new Error(`unexpected ${method}`);
     });
+    setNativeFocus(context, 'pcb-offline');
     const result = await tool?.handler(context, { projectId: 'pcb-offline', gateMode: 'warn' });
     expect(result?.not_available).toBeUndefined();
     expect(result?.passed).toBe(false);
