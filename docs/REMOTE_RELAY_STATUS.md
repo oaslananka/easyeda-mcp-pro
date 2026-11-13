@@ -77,6 +77,18 @@ simulated native identity getters. Prior native EasyEDA 3.2.209
 read-only acceptance confirmed both getters function on a disposable
 PCB, but a live **Hosted WSS** pairing is still not verified.
 
+The experimental extension now uses the EasyEDA-native `sys_Dialog.showInputDialog`
+and `sys_WebSocket.register/send/close` APIs in its main process, avoiding
+browser `prompt()`/`WebSocket` assumptions that do not hold in the native
+sandbox. The input API is beta and capability-checked; missing or denied
+External Interactions permission fails without silently connecting. The
+native socket adapter uses independent IDs per attempt, a bounded open
+timeout and the existing server-heartbeat liveness watchdog. Native
+callback, timeout, cancellation and denied-permission cases are tested
+with **simulated EasyEDA SDK implementations**. Actual native outbound
+Hosted WSS remains NOT VERIFIED until the official domain and gateway
+are operational.
+
 The browser's **Revoke** control
 now cuts off previously issued MCP bearer tokens on the very next protected
 request: the hosted resource validates active user/client/scope/resource consent

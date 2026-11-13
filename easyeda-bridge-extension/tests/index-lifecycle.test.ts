@@ -105,7 +105,16 @@ async function loadExtension(
     webSocketApi?: Record<string, unknown>;
     prompt?: (text: string, initial?: string) => string | null;
     dialog?: {
-      showConfirmationMessage: (
+      showInputDialog?: (
+        before?: string,
+        after?: string,
+        title?: string,
+        type?: string,
+        value?: string | number,
+        options?: Record<string, unknown>,
+        callback?: (value: unknown) => void,
+      ) => void;
+      showConfirmationMessage?: (
         content: string,
         title?: string,
         approveTitle?: string,
@@ -229,10 +238,12 @@ describe('extension loader lifecycle source', () => {
   it('reports safe local and Remote Relay connection fallbacks without opening remote sockets', async () => {
     const { extension, toasts } = await loadExtension();
     await extension.connectCustomRemote();
-    expect(toasts).toContain('Custom Remote input dialog unavailable; local works.');
+    expect(toasts).toContain('EasyEDA input dialog is unavailable. Local MCP remains available.');
 
     extension.connectRemoteRelay('hosted');
-    expect(toasts).toContain('Remote Relay needs WebSocket in EasyEDA.');
+    expect(toasts.join(' | ')).toContain(
+      'Remote Relay requires EasyEDA WebSocket and External Interactions permission; Local is still available.',
+    );
 
     extension.disconnectRemoteRelay();
     expect(toasts.at(-1)).toBe('Remote Relay off. Use Connect for the local bridge.');
@@ -510,6 +521,128 @@ describe('extension loader lifecycle source', () => {
     expect(storage.autoConnect).toBe(true);
     await extension.connect();
     expect(remote.closeCalls).toBeGreaterThan(0);
+  });
+
+  it('pairs through EasyEDA native input and SYS_WebSocket without browser prompt/WebSocket', async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    let socketId = '';
+    let receiveNative: ((event: unknown) => void) | undefined;
+    const native = {
+      register: vi.fn(
+        (id: string, _url: string, receive: (event: unknown) => void, onOpen: () => void) => {
+          socketId = id;
+          receiveNative = receive;
+          queueMicrotask(onOpen);
+        },
+      ),
+      send: vi.fn((_id: string, data: string) => sent.push(JSON.parse(data))),
+      close: vi.fn(),
+    };
+    const input = vi.fn(
+      (
+        _before?: string,
+        _after?: string,
+        _title?: string,
+        _type?: string,
+        _value?: string | number,
+        _options?: Record<string, unknown>,
+        callback?: (value: unknown) => void,
+      ) => callback?.('eda-abcdef12'),
+    );
+    const { extension, toasts } = await loadExtension({
+      webSocketApi: native,
+      dialog: { showInputDialog: input },
+    });
+    expect(Reflect.has(globalThis, 'WebSocket')).toBe(false);
+    expect(Reflect.has(globalThis, 'prompt')).toBe(false);
+    await extension.connectHostedCloud();
+    await flushMicrotasks();
+
+    expect(input).toHaveBeenCalledTimes(1);
+    expect(native.register).toHaveBeenCalledWith(
+      expect.stringContaining('easyeda-mcp-pro-remote-'),
+      'wss://easyeda-mcp-pro.oaslananka.dev/remote/relay',
+      expect.any(Function),
+      expect.any(Function),
+    );
+    expect(sent).toContainEqual(
+      expect.objectContaining({
+        type: 'register_session',
+        mode: 'hosted',
+        pairingCode: 'EDA-ABCDEF12',
+      }),
+    );
+    expect(native.send).toHaveBeenCalledWith(socketId, expect.any(String));
+    receiveNative?.({
+      data: JSON.stringify({
+        protocolVersion: '2026-07-remote-relay-v1',
+        type: 'session_registered',
+        messageId: 'ack_1',
+        sessionId: 'sess_native',
+        timestamp: new Date().toISOString(),
+        paired: true,
+      }),
+    });
+    extension.showRemoteRelayStatus();
+    expect(toasts.at(-1)).toContain('hosted/paired');
+    extension.disconnectRemoteRelay();
+    expect(native.close).toHaveBeenCalledWith(socketId);
+  });
+
+  it('does not connect when the native dialog is cancelled or its answer arrives after Local wins', async () => {
+    const native = { register: vi.fn(), send: vi.fn(), close: vi.fn() };
+    const callbacks: Array<(value: unknown) => void> = [];
+    const input = vi.fn(
+      (
+        _before?: string,
+        _after?: string,
+        _title?: string,
+        _type?: string,
+        _value?: string | number,
+        _options?: Record<string, unknown>,
+        callback?: (value: unknown) => void,
+      ) => {
+        if (callback) callbacks.push(callback);
+      },
+    );
+    const { extension } = await loadExtension({
+      webSocketApi: native,
+      dialog: { showInputDialog: input },
+    });
+    const cancelled = extension.connectHostedCloud();
+    callbacks[0]?.(undefined);
+    await cancelled;
+    expect(native.register).not.toHaveBeenCalled();
+    const pending = extension.connectHostedCloud();
+    extension.disconnectRemoteRelay();
+    callbacks[1]?.('EDA-ABCDEF12');
+    await pending;
+    expect(native.register).not.toHaveBeenCalled();
+  });
+
+  it('reports denied native External Interactions once instead of retrying an unusable socket', async () => {
+    const native = {
+      register: vi.fn(() => {
+        throw new Error('external permission denied');
+      }),
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+    const { extension, toasts } = await loadExtension({
+      webSocketApi: native,
+      dialog: {
+        showInputDialog: (_before, _after, _title, _type, _value, _options, callback) =>
+          callback?.('EDA-ABCDEF12'),
+      },
+    });
+    await extension.connectHostedCloud();
+    await flushMicrotasks();
+    expect(native.register).toHaveBeenCalledTimes(1);
+    expect(toasts.join(' | ')).toMatch(/Enable External Interactions/);
+    await vi.advanceTimersByTimeAsync(80_000);
+    expect(native.register).toHaveBeenCalledTimes(1);
+    extension.showStatus();
+    expect(toasts.at(-1)).not.toContain('Remote Relay:');
   });
 
   it('keeps Local connected when Custom Remote dialog is cancelled or unsafe', async () => {

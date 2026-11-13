@@ -228,6 +228,21 @@ export class RemoteRelayClient {
       socket.onclose = () => this.handleClose(socket);
     } catch (error) {
       this.socket = null;
+      const details = isRecord(error) ? error : {};
+      if (details.code === 'REMOTE_SOCKET_UNAVAILABLE') {
+        const message =
+          error instanceof Error ? error.message : 'EasyEDA native WebSocket unavailable.';
+        this.desiredConnection = null;
+        this.status = {
+          ...this.status,
+          state: 'disconnected',
+          pairingCode: undefined,
+          lastError: message,
+          nextReconnectDelayMs: undefined,
+        };
+        this.options.showToast(message);
+        return;
+      }
       this.scheduleReconnect(`Remote Relay failed to start: ${String(error)}`);
     }
   }

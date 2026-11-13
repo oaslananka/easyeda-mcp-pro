@@ -24,6 +24,7 @@ import {
 } from './remote-client.js';
 import { createDispatcher } from './dispatcher.js';
 import { readNativeRemoteActiveProject } from './remote-active-project.js';
+import { createNativeRemoteWebSocket } from './remote-native-websocket.js';
 import { normalizeCanvasBinaryResult } from './capture-binary-result.js';
 import { createHostZoneReservationClient } from './zone-host-reservation-client.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
@@ -116,6 +117,15 @@ interface EasyedaMessageApi {
 }
 
 interface EasyedaDialogApi {
+  showInputDialog?: (
+    beforeContent?: string,
+    afterContent?: string,
+    title?: string,
+    type?: 'text' | 'url' | 'password',
+    value?: string | number,
+    otherProperty?: { maxlength?: number; placeholder?: string },
+    callbackFn?: (value: unknown) => void,
+  ) => void;
   showConfirmationMessage?: (
     content: string,
     title?: string,
@@ -678,11 +688,19 @@ function getRemoteRelayClient(): RemoteRelayClient {
     requestApproval: requestRemoteApproval,
     timers: runtimeTimers,
     createWebSocket: (url) => {
-      const WebSocketCtor = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
-      if (typeof WebSocketCtor !== 'function') {
-        throw new Error('WebSocket is unavailable in the EasyEDA extension runtime.');
+      const native = getWsApi();
+      if (native?.register && native.send && native.close) {
+        // Standard browser WebSocket is unavailable inside the EasyEDA main
+        // extension sandbox; use the official external-interactions API.
+        return createNativeRemoteWebSocket(url, native, runtimeTimers);
       }
-      return new WebSocketCtor(url);
+      const BrowserWebSocket = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+      if (typeof BrowserWebSocket === 'function') return new BrowserWebSocket(url);
+      const error = new Error(
+        'Remote Relay needs EasyEDA WebSocket access. Enable External Interactions for MCP Pro Bridge.',
+      ) as Error & { code: string };
+      error.code = 'REMOTE_SOCKET_UNAVAILABLE';
+      throw error;
     },
   });
   return remoteRelayClient;
@@ -714,27 +732,55 @@ async function readRemoteActiveProject(mode: RemoteRelayMode) {
 // silently connect to the placeholder hosted URL, or auto-open a remote session.
 let selectedConnectionMode: 'local' | 'remote' = 'local';
 
-function promptConnectionValue(message: string, initialValue = ''): string | null {
+let connectionPromptGeneration = 0;
+
+/** EasyEDA's main extension sandbox does not expose browser prompt(). */
+async function promptConnectionValue(message: string, initialValue = ''): Promise<string | null> {
+  const dialog = readPath<EasyedaDialogApi>(getGlobal(), 'sys_Dialog');
+  if (typeof dialog?.showInputDialog === 'function') {
+    return await new Promise<string | null>((resolve) => {
+      try {
+        // This native dialog API is beta: capability-check it, and fail
+        // closed rather than guessing a code if the runtime rejects it.
+        dialog.showInputDialog?.call(
+          dialog,
+          message,
+          'Cloud access is optional. Pairing codes are single-use and never saved.',
+          'EasyEDA MCP Pro — Remote Connection',
+          'text',
+          initialValue,
+          { maxlength: 2048 },
+          (value) => resolve(typeof value === 'string' ? value : null),
+        );
+      } catch {
+        showToast('EasyEDA input dialog is unavailable. Local MCP remains available.');
+        resolve(null);
+      }
+    });
+  }
+
+  // Useful only in browser-based harnesses and older runtimes. No expectation
+  // that the main EasyEDA extension process exposes browser prompt().
   const promptFn = (globalThis as { prompt?: (text: string, value?: string) => string | null })
     .prompt;
   if (typeof promptFn !== 'function') {
-    showToast('Custom Remote input dialog unavailable; local works.');
+    showToast('EasyEDA input dialog is unavailable. Local MCP remains available.');
     return null;
   }
   try {
     return promptFn(message, initialValue);
-  } catch (error) {
-    log('Custom Remote input dialog unavailable', error);
-    showToast('Custom Remote input dialog unavailable. Local remains available.');
+  } catch {
+    showToast('Remote input dialog failed. Local MCP remains available.');
     return null;
   }
 }
 
 async function connectHostedCloudInternal(): Promise<void> {
-  const pairingCode = promptConnectionValue(
+  const generation = ++connectionPromptGeneration;
+  const pairingCode = await promptConnectionValue(
     'Enter the one-time Cloud pairing code from your EasyEDA MCP Pro account (EDA-XXXXXXXX)',
   );
-  if (pairingCode === null) return;
+  if (generation !== connectionPromptGeneration || pairingCode === null) return;
   const code = pairingCode.trim().toUpperCase();
   if (!/^EDA-[A-F0-9]{8}$/.test(code)) {
     showToast('Cloud connection requires a valid EDA-XXXXXXXX pairing code.');
@@ -744,9 +790,10 @@ async function connectHostedCloudInternal(): Promise<void> {
 }
 
 async function connectCustomRemoteInternal(): Promise<void> {
+  const generation = ++connectionPromptGeneration;
   const existingUrl = remoteRelayClient?.getStatus().relayUrl ?? '';
-  const rawUrl = promptConnectionValue('Custom Remote Relay URL (wss://)', existingUrl);
-  if (rawUrl === null) return;
+  const rawUrl = await promptConnectionValue('Custom Remote Relay URL (wss://)', existingUrl);
+  if (generation !== connectionPromptGeneration || rawUrl === null) return;
   let relayUrl: string;
   try {
     relayUrl = validateCustomRemoteRelayUrl(rawUrl);
@@ -754,8 +801,8 @@ async function connectCustomRemoteInternal(): Promise<void> {
     showToast(`Custom Remote: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
-  const pairingCode = promptConnectionValue('Enter the one-time pairing code (EDA-XXXXXXXX)');
-  if (pairingCode === null) return;
+  const pairingCode = await promptConnectionValue('Enter the one-time pairing code (EDA-XXXXXXXX)');
+  if (generation !== connectionPromptGeneration || pairingCode === null) return;
   const code = pairingCode.trim().toUpperCase();
   if (!/^EDA-[A-F0-9]{8}$/.test(code)) {
     showToast('Custom Remote requires a valid EDA-XXXXXXXX pairing code.');
@@ -765,6 +812,7 @@ async function connectCustomRemoteInternal(): Promise<void> {
 }
 
 function connectLocalInternal(mode: ConnectMode = 'manual'): Promise<void> {
+  connectionPromptGeneration += 1; // Ignore any delayed native dialog callback.
   if (selectedConnectionMode === 'remote') {
     remoteRelayClient?.disconnect('user_disabled');
     selectedConnectionMode = 'local';
@@ -785,16 +833,28 @@ function connectRemoteRelayInternal(
       return;
     }
   }
-  if (typeof (globalThis as { WebSocket?: unknown }).WebSocket !== 'function') {
-    showToast('Remote Relay needs WebSocket in EasyEDA.');
+  const nativeWs = getWsApi();
+  const browserWs = (globalThis as { WebSocket?: unknown }).WebSocket;
+  if (!(nativeWs?.register && nativeWs.send && nativeWs.close) && typeof browserWs !== 'function') {
+    showToast(
+      'Remote Relay requires EasyEDA WebSocket and External Interactions permission; Local is still available.',
+    );
     return;
   }
   disconnectInternal(false);
   selectedConnectionMode = 'remote';
-  getRemoteRelayClient().connect({ mode, relayUrl, pairingCode });
+  const client = getRemoteRelayClient();
+  client.connect({ mode, relayUrl, pairingCode });
+  if (client.getStatus().state === 'disconnected') {
+    // A denied native external-interactions permission is not a transient
+    // outage: restore Local as the user's selected mode instead of looping.
+    selectedConnectionMode = 'local';
+    showToast('Remote could not connect. Choose Connect to resume Local MCP.');
+  }
 }
 
 function disconnectRemoteRelayInternal(): void {
+  connectionPromptGeneration += 1;
   getRemoteRelayClient().disconnect('user_disabled');
   selectedConnectionMode = 'local';
   showToast('Remote Relay off. Use Connect for the local bridge.');
@@ -1623,6 +1683,7 @@ async function activateInternal(_status?: 'onStartupFinished', _arg?: string): P
 }
 
 function deactivateInternal(): void {
+  connectionPromptGeneration += 1;
   activationStarted = false;
   disconnectInternal(false);
   remoteRelayClient?.disconnect('disconnected');

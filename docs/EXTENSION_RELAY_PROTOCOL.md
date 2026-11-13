@@ -125,6 +125,17 @@ a potentially stale registration or heartbeat. Write/export approvals also
 fail without a matching current project. A mismatch returns
 `PROJECT_INACTIVE`; the user must select the correct project again in Cloud.
 
+The EasyEDA main extension sandbox uses the platform's own
+`sys_Dialog.showInputDialog` (beta, capability-checked) and
+`sys_WebSocket.register/send/close` to create authenticated outbound WSS
+sessions; it does not require browser `prompt()` or constructible
+`WebSocket`. Native register may invoke its open callback before return,
+so registration is delivered only after the client installs handlers.
+Distinct native socket IDs are allocated per retry; a 12-second open
+deadline and the normal heartbeat watchdog close stalled sockets.
+A missing/denied native transport is an actionable setup error that does
+not repeatedly reconnect or silently downgrade to cleartext.
+
 Pairing codes are single-use. A dropped connection cannot reuse the same
 code to regain owner access; the extension reports a clear re-pair action
 rather than continually retrying an unpaired session. Cloud is still
