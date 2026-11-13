@@ -62,6 +62,49 @@ Register these exact redirect URIs with the two identity providers:
 GitHub and Google sign-in credentials are **not** MCP client OAuth tokens.
 MCP clients use this service's standard OAuth metadata/authorization flow.
 
+## First activation for owner-only live acceptance
+
+The real GitHub/Google callback, public MCP and WSS checks in #849 cannot
+pass while the official service returns 503. This is a **bounded pre-release
+acceptance exception**, not general availability, and uses the **same existing**
+Coolify application and official domain. No staging service, extra database,
+billable provider, auto-deploy or public release is required.
+
+1. Require the exact PR candidate SHA with **all required CI checks passing**.
+   Save the current Coolify application branch, pinned commit, ingress policy
+   and running status as rollback inputs. Verify the existing read-only Doppler
+   integration lists all required production keys and that /app/data is mounted.
+   Never copy secret values out of Doppler or log them.
+2. Keep **automatic and preview deployments disabled**. For this time-boxed
+   acceptance only, manually select the reviewed PR branch and its **exact
+   verified commit** in the existing application. The protected main branch
+   remains the target for the eventual production deployment.
+3. Before starting the app, configure and verify a **temporary owner-only
+   ingress policy restricted to this hostname**; do not change policies for
+   other applications. Verify it permits the owner's GitHub/Google callback
+   navigation. If the identity gate interferes with native WSS or MCP discovery,
+   any narrowly scoped path exception must still enforce application-level
+   pairing, OAuth, token scopes and selected-project authorization. Do not
+   weaken those checks or claim the external-client test passed through an
+   intermediary login it cannot use. Without a verifiable access boundary,
+   **stop here**.
+4. Start **one manual acceptance deployment**. Require healthy /healthz,
+   TLS, protected /mcp, negative unauthorized and cross-owner requests,
+   both real provider callbacks, and genuine owner-paired EasyEDA WSS with
+   selected disposable project/document IDs and a read-only routed MCP call.
+   A mocked response or invalid pairing-code rejection alone is insufficient.
+   Record exact deployed SHA, observed outcomes and test-only access policy
+   without publishing any tokens or raw project payloads.
+5. On any failed check, stop the application, restore the prior branch/commit
+   and ingress configuration, and keep #850 marked **HOLD**. Never report an
+   acceptance activation as a successful production rollout. The first live
+   design write remains separately subject to explicit owner approval.
+6. Only after #849's real user journey and required approvals pass, mark the
+   PR review-ready, merge it with normal required checks, re-pin the accepted
+   **protected main SHA**, remove temporary owner-only constraints as
+   appropriate, and follow the ordinary deployment steps below. Re-run
+   external HTTPS, OAuth, MCP, WSS, revocation and rollback probes.
+
 ## Deploy once the live gates pass
 
 1. Confirm Cloudflare's **authoritative nameservers** return a public DNS
