@@ -32,6 +32,18 @@ describe('explicitly hosted HTTP auth', () => {
     const server = http.createServer(transport.app);
     await new Promise<void>((resolve) => server.listen(3996, '127.0.0.1', resolve));
     try {
+      // The container health probe has no bearer token, but MCP still must.
+      const health = await fetch('http://127.0.0.1:3996/healthz');
+      expect(health.status).toBe(200);
+      await expect(health.json()).resolves.toMatchObject({ status: 'ok' });
+      const readiness = await fetch('http://127.0.0.1:3996/readyz');
+      expect(readiness.status).toBe(200);
+      await expect(readiness.json()).resolves.toMatchObject({ status: 'ok' });
+      const protectedMcp = await fetch('http://127.0.0.1:3996/mcp');
+      expect(protectedMcp.status).toBe(401);
+      const protectedSessions = await fetch('http://127.0.0.1:3996/remote/sessions');
+      expect(protectedSessions.status).toBe(401);
+
       const metadata = await fetch(
         'http://127.0.0.1:3996/api/auth/.well-known/oauth-authorization-server',
       );

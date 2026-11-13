@@ -493,6 +493,22 @@ function mcpSessionError(res: Response, status: number, message: string): void {
   });
 }
 
+function registerHealthRoutes(app: Express): void {
+  app.get('/healthz', (_req, res) => {
+    res.json({ status: 'ok', version: SERVER_VERSION });
+  });
+  app.get('/readyz', (_req, res) => {
+    res.json({ status: 'ok', uptime: process.uptime() });
+  });
+}
+
+/** Only Hosted Cloud health probes bypass bearer auth; existing Local OAuth stays unchanged. */
+function mountHealthAndOAuthRoutes(app: Express, config: EnvConfig, hostedAuth?: HostedAuth): void {
+  if (hostedAuth) registerHealthRoutes(app);
+  app.use(validateOAuthToken(config, hostedAuth));
+  if (!hostedAuth) registerHealthRoutes(app);
+}
+
 export function createHttpTransport(
   config: EnvConfig,
   options: HttpTransportOptions = {},
@@ -570,7 +586,7 @@ export function createHttpTransport(
     });
   }
 
-  app.use(validateOAuthToken(config, options.hostedAuth));
+  mountHealthAndOAuthRoutes(app, config, options.hostedAuth);
 
   const forgetMcpSession = (session: McpHttpSession): void => {
     const sessionId = session.transport.sessionId;
@@ -702,14 +718,6 @@ export function createHttpTransport(
     }
     const session = sessionForRequest(req, res);
     if (session) await session.transport.handleRequest(req, res);
-  });
-
-  app.get('/healthz', (_req, res) => {
-    res.json({ status: 'ok', version: SERVER_VERSION });
-  });
-
-  app.get('/readyz', (_req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime() });
   });
 
   gateway.registerHttpRoutes(app, config);
