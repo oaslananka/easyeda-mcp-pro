@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.3...easyeda-mcp-pro-v1.15.4) (2026-11-13)
+
+
+### Bug Fixes
+
+* **deps:** update Node 24 LTS runtime and compatible security patches ([#650](https://github.com/oaslananka/easyeda-mcp-pro/issues/650)) ([#1053](https://github.com/oaslananka/easyeda-mcp-pro/issues/1053)) ([5058b8f](https://github.com/oaslananka/easyeda-mcp-pro/commit/5058b8fb080fa5524003cae1840fdf845bfa63cc))
+
 ## [1.15.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.2...easyeda-mcp-pro-v1.15.3) (2026-11-13)
 
 
