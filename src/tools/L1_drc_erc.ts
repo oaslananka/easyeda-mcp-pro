@@ -584,7 +584,7 @@ function registerDrcErcTools(
     name: 'easyeda_semantic_erc_validate',
     title: 'Run semantic ERC validation',
     description:
-      'Run typed semantic ERC over caller-supplied pin/net metadata. Optional exact part/package/revision constraints report source-declared voltage, I/O supply-domain, intentional NC, support-part and headroom evidence; they do not authenticate a datasheet or certify the circuit.',
+      'Run typed semantic ERC over caller-supplied pin/net metadata. Optional exact part/package/revision constraints report source-declared voltage, I/O supply-domain, intentional NC, support-part and headroom evidence; a requested but unverified datasheet review never yields passed=true or electrical approval.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -626,7 +626,10 @@ function registerDrcErcTools(
 
       return {
         project_id: parsed.projectId ?? '',
-        passed: result.valid && (datasheet === undefined || datasheet.status !== 'WARNING'),
+        // Datasheet-specific results are WARNING or UNKNOWN, never a verified PASS.
+        // A clean semantic/ERC graph cannot satisfy a requested, unverified
+        // datasheet review; keep the legacy no-constraints path unchanged.
+        passed: result.valid && datasheet === undefined,
         error_count: errors.length,
         warning_count: warnings.length,
         total_issues: errors.length + warnings.length,
@@ -643,7 +646,7 @@ function registerDrcErcTools(
     name: 'easyeda_semantic_erc_auto',
     title: 'Auto-extract netlist and run semantic ERC',
     description:
-      'Read LIVE nets, devices and pins for semantic ERC. Optional caller-declared datasheet rules compare pin/net identity without source authentication or circuit approval. Pin types remain inferred; incomplete inventories block datasheet review.',
+      'Read LIVE nets, devices and pins for semantic ERC. Optional caller-declared datasheet rules compare pin/net identity without source authentication; UNKNOWN evidence never yields passed=true or electrical approval. Pin types remain inferred; incomplete inventories block datasheet review.',
     profile: 'core',
     evidence: ['inferred', 'runtime-probe'],
     risk: 'low',
@@ -709,7 +712,10 @@ function registerDrcErcTools(
               };
         return {
           project_id: projectId,
-          passed: result.valid && (datasheet === undefined || datasheet.status !== 'WARNING'),
+          // Datasheet-specific results are WARNING or UNKNOWN, never a verified PASS.
+          // A clean semantic/ERC graph cannot satisfy a requested, unverified
+          // datasheet review; keep the legacy no-constraints path unchanged.
+          passed: result.valid && datasheet === undefined,
           error_count: errors.length,
           warning_count: warnings.length,
           total_issues: errors.length + warnings.length,

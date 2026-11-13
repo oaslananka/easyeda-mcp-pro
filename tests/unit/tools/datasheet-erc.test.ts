@@ -335,6 +335,53 @@ describe('optional source-aware electrical review MCP contract', () => {
     expect(tool.outputSchema.parse(result)).toEqual(result);
   });
 
+  it('does not mark an unverified datasheet review as passed when all findings are UNKNOWN', async () => {
+    const { tool, context, call } = toolSetup();
+    const cleanNetlist = [
+      { id: 'vcc', name: 'VCC', type: 'power' as const, nodes: [{ deviceRef: 'U1', pin: 'VDD' }] },
+      { id: 'gnd', name: 'GND', type: 'ground' as const, nodes: [{ deviceRef: 'U1', pin: 'GND' }] },
+    ];
+    const cleanDevices = [
+      {
+        id: 'U1',
+        ref: 'U1',
+        pins: [
+          { pin: 'VDD', electricalType: 'passive' as const },
+          { pin: 'GND', electricalType: 'passive' as const },
+        ],
+      },
+    ];
+    const normal = await tool.handler(context, { nets: cleanNetlist, devices: cleanDevices });
+    expect(normal.passed).toBe(true);
+    expect(normal).not.toHaveProperty('datasheet_review');
+
+    const review = await tool.handler(context, {
+      nets: cleanNetlist,
+      devices: cleanDevices,
+      datasheetConstraints: [
+        {
+          kind: 'pin_voltage',
+          componentRef: 'U1',
+          pin: 'VDD',
+          maxVoltageV: 3.6,
+          reference: source,
+        },
+      ],
+    });
+    expect(review).toMatchObject({
+      passed: false,
+      electrical_approval: false,
+      datasheet_review: {
+        status: 'UNKNOWN',
+        source_authenticity: 'CALLER_DECLARED_UNVERIFIED',
+        engineering_sign_off: false,
+        findings: [{ status: 'UNKNOWN', nets: ['VCC'], observed_voltages_v: [] }],
+      },
+    });
+    expect(tool.outputSchema.parse(review)).toEqual(review);
+    expect(call).not.toHaveBeenCalled();
+  });
+
   it('flags explicitly unexpected supply mapping without inventing a measured voltage', async () => {
     const { tool, context } = toolSetup();
     const result = await tool.handler(context, {

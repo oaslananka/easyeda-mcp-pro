@@ -53,6 +53,11 @@ review. Select only requested phases; do not load unrelated standard catalogs.
   enumeration or component paging makes a datasheet request unavailable,
   rather than clean. Use easyeda_semantic_erc_validate for caller-provided
   netlists. Neither tool authenticates a datasheet or approves the circuit.
+  With `datasheetConstraints` requested, the top-level `passed` stays false
+  for both `UNKNOWN` and `WARNING` findings; inspect the individual
+  `datasheet_review` rather than treating zero netlist errors as a green
+  electrical approval. Calls without datasheet constraints preserve the
+  prior inferred ERC `passed` meaning.
 - `easyeda_design_rules_lookup` has on-demand `trace-current-review`,
   `protocol-routing`, `decoupling`, `dfm-checklist` and
   `isolation-emc-review` topics; distinguish guidance from measured facts.

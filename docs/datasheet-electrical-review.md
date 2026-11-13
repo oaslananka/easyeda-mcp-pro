@@ -172,12 +172,21 @@ of shared electrical connectivity; exact pin-to-net identity must first
 be unambiguous.
 
 The original `passed`, `errors` and `warnings` fields retain the semantic
-ERC contract when this optional review is omitted. When source-declared
-constraints are supplied, an observed datasheet mismatch also makes
-`passed=false`. The additional `datasheet_review` describes every
-constraint's findings and limitations; `electrical_approval=false`
-is always present in this mode. A true semantic `passed` without
-source-declared violations is **not** datasheet sign-off.
+ERC contract when this optional review is **omitted**. When `datasheetConstraints`
+are requested, the result does **not** return `passed=true`: the datasheet
+review only has `WARNING` (observed contradiction) or `UNKNOWN` (not
+independently established) outcomes, never an authenticated datasheet `PASS`.
+The individual findings and the `errors`/`warnings` arrays still identify
+what to fix; `datasheet_review.status` and `source_authenticity` explain
+whether a claimed limit is observed or remains unverified.
+`electrical_approval=false` is always present in this mode.
+
+**User-facing interpretation:** An ERC run with zero semantic violations and
+only `UNKNOWN` datasheet findings is **not a green electrical approval**.
+It means "no contradiction demonstrated; review the missing evidence", even
+when the native schematic collection completed. Run the explicit manufacturer
+datasheet/package/revision review and qualified human sign-off separately;
+never infer voltage from a net name or approve a design from a clean report.
 
 ## Live acceptance and follow-up
 
