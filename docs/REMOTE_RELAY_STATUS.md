@@ -61,6 +61,27 @@ provisioning, browser-click acceptance, or live EasyEDA design acceptance.
 
 Keep Cloud disabled until all mandatory live acceptance gates are satisfied.
 
+### Local browser acceptance (test account only)
+
+On 2026-11-13, real Chrome 157 interacted with the running Cloud portal on
+loopback using a temporary Better Auth test account and **simulated** EasyEDA
+extension. The browser selected an explicit schematic project, generated a
+one-time pairing code, denied a signed OAuth consent (returned `access_denied`
+without a code), then approved a new consent (received an authorization code).
+After approval, the owner dashboard originally displayed an opaque client ID
+rather than its recognisable application name. The portal now displays the
+Better Auth-registered client name, with an authenticated, owner-scoped
+`/cloud/api/clients` view; the actual Revoke button removed it from the list.
+The same Chrome session exposed stale cached `app.js` after a code update;
+HTML now references content-fingerprinted JS/CSS URLs so refreshed pages use the
+current interface. All user-visible controls above were clicked in Chrome,
+not merely asserted in DOM mocks.
+
+This acceptance is **local, fake-identity/fake-extension evidence only**.
+GitHub/Google callback login, the official DNS/domain, remote WSS connection
+to a real EasyEDA Pro instance, and live design read/write/export/read-back
+remain unverified.
+
 ## Implemented and continuously tested
 
 | Capability                                                                                            | Evidence level                                                  | Current state |

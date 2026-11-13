@@ -23,6 +23,7 @@ describe('Hosted Cloud MCP token verification', () => {
     const hostedAuth: HostedAuth = {
       origin: 'https://easyeda-mcp-pro.oaslananka.dev',
       options: {},
+      listClientConsents: async () => [],
       installGrantProtection: () => undefined,
       checkAccessGrant: () => true, // Cryptographic-only test; real grants use the provider integration test.
       handler: async () => new Response(null, { status: 404 }),

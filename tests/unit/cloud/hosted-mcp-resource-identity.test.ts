@@ -61,6 +61,7 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
       const provider: HostedAuth = {
         origin,
         options: {},
+        listClientConsents: async () => [],
         installGrantProtection: () => undefined,
         checkAccessGrant: () => true, // Test identity isolation independently of DB grant checks.
         handler: async (request: Request) =>

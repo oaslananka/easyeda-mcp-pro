@@ -137,14 +137,14 @@ export const CLOUD_JS = String.raw`
     const loadClients = async () => {
       const dest = get('clients');
       try {
-        const data = await request('/api/auth/oauth2/get-consents');
-        const consents = Array.isArray(data) ? data : Array.isArray(data?.consents) ? data.consents : [];
+        const data = await request('/cloud/api/clients');
+        const consents = Array.isArray(data?.clients) ? data.clients : [];
         dest.replaceChildren();
         if (!consents.length) { dest.appendChild(el('div','empty','No MCP clients have your authorization yet.')); return; }
         consents.forEach((consent) => {
           const card = el('div','session');
           const info = el('div');
-          info.appendChild(el('strong','',consent.clientId || consent.client_id || 'MCP client'));
+          info.appendChild(el('strong','',consent.name || 'Unrecognized MCP client'));
           info.appendChild(el('p','',Array.isArray(consent.scopes) ? consent.scopes.join(' · ') : 'Authorized via OAuth'));
           card.appendChild(info);
           if (typeof consent.id === 'string') {

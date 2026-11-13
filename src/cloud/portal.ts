@@ -1,7 +1,13 @@
+import { createHash } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import type { HostedAuth } from './hosted-auth.js';
 import { CLOUD_CSS, CLOUD_JS } from './portal-assets.js';
 import type { RemoteGateway } from '../remote/gateway.js';
+
+// Each browser gets the current assets even when its previous Cloud version
+// is cached. Derive the URL from content, not the package version.
+const cssVersion = createHash('sha256').update(CLOUD_CSS).digest('hex').slice(0, 12);
+const jsVersion = createHash('sha256').update(CLOUD_JS).digest('hex').slice(0, 12);
 
 const PORTAL_CSP = [
   "default-src 'none'",
@@ -30,12 +36,12 @@ function escaped(value: string): string {
 function page(title: string, body: string, state: 'sign-in' | 'consent' | 'account'): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
-<title>${escaped(title)} · EasyEDA MCP Pro Cloud</title><link rel="stylesheet" href="/cloud/app.css"></head>
+<title>${escaped(title)} · EasyEDA MCP Pro Cloud</title><link rel="stylesheet" href="/cloud/app.css?v=${cssVersion}"></head>
 <body><div class="wrap">
 <header class="nav"><a class="brand" href="/cloud"><span class="mark" aria-hidden="true">E</span><span>EasyEDA MCP Pro</span></a><span class="tag">CLOUD · EARLY ACCESS</span></header>
 <main id="cloud-root" data-page="${state}">${body}<p class="muted" id="notice" role="status" aria-live="polite"></p></main>
 <footer>Cloud is optional. Your EasyEDA projects remain on your device. <a href="https://github.com/oaslananka/easyeda-mcp-pro">Open-source Local MCP</a> works without sign-in.</footer></div>
-<script defer src="/cloud/app.js"></script></body></html>`;
+<script defer src="/cloud/app.js?v=${jsVersion}"></script></body></html>`;
 }
 
 const signIn = (): string =>
@@ -194,6 +200,13 @@ export function mountHostedPortal(app: Express, auth: HostedAuth, gateway: Remot
     if (!user) return rejectUnauthorized(res);
     res.setHeader('Cache-Control', 'no-store');
     res.json({ user });
+  });
+  app.get('/cloud/api/clients', async (req, res) => {
+    const userId = await requireSession(req, res);
+    if (!userId) return;
+    const clients = await auth.listClientConsents(sessionHeaders(req));
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ clients });
   });
   app.get('/cloud/api/extensions', async (req, res) => {
     const userId = await requireSession(req, res);

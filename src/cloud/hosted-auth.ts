@@ -131,6 +131,10 @@ export interface HostedAuth {
   handler(request: Request): Promise<Response>;
   getSessionUser(headers: Headers): Promise<{ id: string; name: string; email: string } | null>;
   verifySignedQuery(query: string): Promise<boolean>;
+  /** Return only the signed-in user's recognized OAuth clients. */
+  listClientConsents(
+    headers: Headers,
+  ): Promise<Array<{ id: string; clientId: string; name: string; scopes: string[] }>>;
   getClient(
     clientId: string,
     headers: Headers,
@@ -203,6 +207,24 @@ export function createHostedAuth(settings: HostedAuthSettings): HostedAuth {
     async verifySignedQuery(query) {
       if (!query || query.length > 8192) return false;
       return verifyOAuthQueryParams(query, settings.secret);
+    },
+    async listClientConsents(headers) {
+      const consents = await provider.api.getOAuthConsents({ headers });
+      return Promise.all(
+        consents.map(async (consent) => {
+          let name = 'Unrecognized MCP client';
+          try {
+            const client = await provider.api.getOAuthClientPublic({
+              query: { client_id: consent.clientId },
+              headers,
+            });
+            if (client?.client_name) name = client.client_name;
+          } catch {
+            // An unavailable client must not prevent the owner from revoking its consent.
+          }
+          return { id: consent.id, clientId: consent.clientId, name, scopes: consent.scopes };
+        }),
+      );
     },
     async getClient(clientId, headers) {
       try {

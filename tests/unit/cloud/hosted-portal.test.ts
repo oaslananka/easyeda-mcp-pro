@@ -1,4 +1,5 @@
 import * as http from 'node:http';
+import { createHash } from 'node:crypto';
 import { createServer as createNetServer } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
@@ -6,6 +7,7 @@ import type { HostedAuth } from '../../../src/cloud/hosted-auth.js';
 import { RemoteGateway } from '../../../src/remote/gateway.js';
 import { REMOTE_RELAY_PROTOCOL_VERSION } from '../../../src/remote/protocol.js';
 import { createHttpTransport } from '../../../src/server/transports/http.js';
+import { CLOUD_CSS, CLOUD_JS } from '../../../src/cloud/portal-assets.js';
 
 function fakeProvider(origin: string): HostedAuth {
   return {
@@ -18,6 +20,7 @@ function fakeProvider(origin: string): HostedAuth {
         : headers.get('cookie') === 'session=owner-b'
           ? { id: 'owner-b', name: 'Second Owner', email: 'other@example.com' }
           : null,
+    listClientConsents: async () => [],
     verifySignedQuery: async (query: string) =>
       query ===
       'client_id=valid&scope=easyeda.read&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid',
@@ -67,7 +70,10 @@ describe('Hosted Cloud browser portal', () => {
       expect(login.status).toBe(200);
       expect(html).toContain('Continue with GitHub');
       expect(html).toContain('Continue with Google');
-      expect(html).toContain('/cloud/app.js');
+      const cssHash = createHash('sha256').update(CLOUD_CSS).digest('hex').slice(0, 12);
+      const jsHash = createHash('sha256').update(CLOUD_JS).digest('hex').slice(0, 12);
+      expect(html).toContain(`href="/cloud/app.css?v=${cssHash}"`);
+      expect(html).toContain(`src="/cloud/app.js?v=${jsHash}"`);
       expect(login.headers.get('content-security-policy')).toContain("script-src 'self'");
       expect(login.headers.get('cache-control')).toContain('no-store');
       expect(await (await fetch(`${base}/cloud/app.js`)).text()).toContain('oauth_query');

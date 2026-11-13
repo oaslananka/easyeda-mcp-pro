@@ -236,6 +236,21 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(replay.status).toBe(400);
       expect(replayResponse.error).toBe('invalid_grant');
 
+      const unauthenticatedClients = await fetch(`${origin}/cloud/api/clients`);
+      expect(unauthenticatedClients.status).toBe(401);
+      const namedClients = await fetch(`${origin}/cloud/api/clients`, { headers });
+      expect(namedClients.status).toBe(200);
+      await expect(namedClients.json()).resolves.toMatchObject({
+        clients: [
+          {
+            id: expect.any(String),
+            clientId: oauthClient.client_id,
+            name: 'Fixture MCP Agent',
+            scopes: expect.arrayContaining(['easyeda.read']),
+          },
+        ],
+      });
+
       const resourceCheck = await fetch(`${origin}/remote/sessions`, {
         headers: { Authorization: `Bearer ${issued.access_token}` },
       });
