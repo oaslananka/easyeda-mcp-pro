@@ -5,6 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { WebSocket } from 'ws';
 import { decodeJwt, decodeProtectedHeader } from 'jose';
 import { getMigrations } from 'better-auth/db/migration';
 import { betterAuth } from 'better-auth';
@@ -30,7 +31,7 @@ async function ephemeralPort(): Promise<number> {
 }
 
 describe('Hosted OAuth real provider authorization-code flow (fixture identity only)', () => {
-  it('issues a provider-signed PKCE token and routes a selected owner MCP read, rejecting bad consent and replay', async () => {
+  it('issues a real provider PKCE token through an owner-paired WebSocket relay and rejects stale projects, disconnects and revoked consent', async () => {
     const port = await ephemeralPort();
     const origin = `http://127.0.0.1:${port}`;
     const secret = 'fixture-only-hosted-strong-secret-12345678';
@@ -82,40 +83,9 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
     });
     const gateway = new RemoteGateway();
     const dispatched: ToolRequestMessage[] = [];
-    const session = gateway.registerExtension({
-      connectionId: 'fixture-easyeda-extension',
-      mode: 'hosted',
-      extensionVersion: 'test-fixture',
-      activeProject: {
-        projectId: 'disposable-project',
-        projectName: 'Disposable',
-        documentType: 'schematic',
-      },
-      dispatch: async (request) => {
-        dispatched.push(request);
-        return {
-          protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
-          type: 'tool_response' as const,
-          messageId: 'fixture-response-' + dispatched.length,
-          sessionId: request.sessionId,
-          requestMessageId: request.messageId,
-          timestamp: new Date().toISOString(),
-          ok: true,
-          result: { total: 0, items: [] },
-          durationMs: 1,
-        };
-      },
-    });
     const ownerIdentity = { userId: saved.id, scopes: ['easyeda.read'] as const };
-    const pairingCode = gateway.createPairingCode({ identity: ownerIdentity });
-    expect(
-      gateway.completePairing({
-        identity: ownerIdentity,
-        code: pairingCode,
-        sessionId: session.sessionId,
-      }),
-    ).toBe(true);
-    expect(gateway.selectPairedProject(ownerIdentity, session.sessionId)).toBe(true);
+    let socket: WebSocket | undefined;
+    let sessionId = '';
     const mcpServer = await createMcpServer(config, { remoteGateway: gateway });
     const transport = createHttpTransport(config, {
       hostedAuth: auth,
@@ -126,6 +96,66 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
     let client: Client | undefined;
     try {
       await transport.start();
+      // Pair over a REAL WebSocket upgrade and wire protocol instead of
+      // injecting a fake dispatcher directly into the gateway.
+      const relay = new WebSocket(`ws://127.0.0.1:${port}/remote/relay`);
+      socket = relay;
+      await new Promise<void>((resolve, reject) => {
+        relay.once('open', () => resolve());
+        relay.once('error', reject);
+      });
+      const registration = new Promise<Record<string, unknown>>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Relay registration timed out')), 3000);
+        relay.on('message', (raw) => {
+          const message = JSON.parse(raw.toString()) as Record<string, unknown>;
+          if (message.type === 'session_registered') {
+            clearTimeout(timeout);
+            resolve(message);
+          } else if (message.type === 'tool_request') {
+            const request = message as unknown as ToolRequestMessage;
+            dispatched.push(request);
+            relay.send(
+              JSON.stringify({
+                protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+                type: 'tool_response',
+                messageId: 'fixture-response-' + dispatched.length,
+                sessionId: request.sessionId,
+                requestMessageId: request.messageId,
+                timestamp: new Date().toISOString(),
+                ok: true,
+                result: { total: 0, items: [] },
+                durationMs: 1,
+              }),
+            );
+          } else if (message.type === 'error') {
+            clearTimeout(timeout);
+            reject(new Error('Relay rejected frame: ' + String(message.code)));
+          }
+        });
+      });
+      const pairingCode = gateway.createPairingCode({ identity: ownerIdentity });
+      relay.send(
+        JSON.stringify({
+          protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+          type: 'register_session',
+          messageId: 'fixture-register',
+          timestamp: new Date().toISOString(),
+          mode: 'hosted',
+          extensionVersion: 'fixture-1.15.4',
+          capabilities: [],
+          pairingCode,
+          activeProject: {
+            projectId: 'disposable-project',
+            projectName: 'Disposable',
+            documentType: 'schematic',
+          },
+        }),
+      );
+      const registered = await registration;
+      expect(registered.paired).toBe(true);
+      sessionId = String(registered.sessionId);
+      expect(sessionId).toMatch(/^sess_/);
+      expect(gateway.selectPairedProject(ownerIdentity, sessionId)).toBe(true);
       const createClient = await fetch(`${origin}/api/auth/oauth2/create-client`, {
         method: 'POST',
         headers: {
@@ -257,7 +287,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(resourceCheck.status, `resource status ${resourceCheck.status}`).toBe(200);
       await expect(resourceCheck.json()).resolves.toMatchObject({
         ok: true,
-        sessions: [expect.objectContaining({ sessionId: session.sessionId })],
+        sessions: [expect.objectContaining({ sessionId })],
       });
 
       client = new Client({ name: 'real-provider-mcp-fixture', version: '1.0.0' });
@@ -272,7 +302,73 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       });
       expect(read.isError).not.toBe(true);
       expect(dispatched).toHaveLength(2);
-      expect(dispatched[0]).toMatchObject({ sessionId: session.sessionId, riskLevel: 'read' });
+      expect(dispatched[0]).toMatchObject({ sessionId, riskLevel: 'read' });
+
+      // The currently open extension can switch projects. The previously
+      // approved selection must not authorize the new project until the owner
+      // explicitly chooses it again in the Cloud dashboard.
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Missing relay heartbeat ack')), 1_500);
+        const onMessage = (raw: Buffer) => {
+          const message = JSON.parse(raw.toString()) as Record<string, unknown>;
+          if (message.type === 'heartbeat' && message.source === 'server') {
+            clearTimeout(timeout);
+            relay.off('message', onMessage);
+            resolve();
+          }
+        };
+        relay.on('message', onMessage);
+        relay.send(
+          JSON.stringify({
+            protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+            type: 'heartbeat',
+            messageId: 'fixture-project-change',
+            sessionId,
+            timestamp: new Date().toISOString(),
+            source: 'extension',
+            activeProject: {
+              projectId: 'disposable-project-v2',
+              projectName: 'Disposable Second Schematic',
+              documentType: 'schematic',
+            },
+          }),
+        );
+      });
+      const oldProjectRead = await client.callTool({
+        name: 'easyeda_schematic_components',
+        arguments: { projectId: 'disposable-project' },
+      });
+      expect(dispatched).toHaveLength(2);
+      expect(oldProjectRead.isError).toBe(true);
+      expect(oldProjectRead.structuredContent).toMatchObject({
+        errorCode: 'ERR_REMOTE_RELAY',
+        details: { remoteCode: 'PROJECT_INACTIVE' },
+      });
+      expect(gateway.selectPairedProject(ownerIdentity, sessionId)).toBe(true);
+      const newProjectRead = await client.callTool({
+        name: 'easyeda_schematic_components',
+        arguments: { projectId: 'disposable-project-v2' },
+      });
+      expect(newProjectRead.isError).not.toBe(true);
+      expect(dispatched).toHaveLength(4);
+
+      // If the paired extension drops off the network, the same authenticated
+      // MCP client must receive an explicit failure rather than a fabricated
+      // empty schematic, and no more tool calls may reach that extension.
+      await new Promise<void>((resolve) => {
+        relay.once('close', () => resolve());
+        relay.close();
+      });
+      const offlineRead = await client.callTool({
+        name: 'easyeda_schematic_components',
+        arguments: { projectId: 'disposable-project-v2' },
+      });
+      expect(offlineRead.isError).toBe(true);
+      expect(offlineRead.structuredContent).toMatchObject({
+        errorCode: 'ERR_REMOTE_RELAY',
+        details: { remoteCode: 'SESSION_DISCONNECTED' },
+      });
+      expect(dispatched).toHaveLength(4);
 
       // A browser cannot turn a signed read-only consent into a write grant.
       const tamperedConsent = new URL(consentUrl);
@@ -462,6 +558,12 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       ).toBe(200);
     } finally {
       await client?.close();
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        await new Promise<void>((resolve) => {
+          socket!.once('close', resolve);
+          socket!.close();
+        });
+      }
       await transport.close();
       await mcpServer.shutdown();
       database.close();

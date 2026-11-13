@@ -47,8 +47,19 @@ owner's browser session in the same isolated SQLite database; it is **not** inst
 production provider. From there, a native public MCP client is registered and the running
 provider signs the consent query, receives explicit approval, issues a PKCE authorization
 code, and exchanges it for a resource-bound `at+jwt` with the expected owner and client
-claims. The official MCP SDK uses that **provider-issued token** to read through a
-selected, owner-paired fake EasyEDA extension. The browser's **Revoke** control
+claims. The official MCP SDK uses that **provider-issued token** over HTTP /mcp.
+The extension fixture connects through a **real loopback WebSocket upgrade**
+to /remote/relay, sends a single-use pairing code, handles actual JSON
+tool_request and tool_response frames, and reports a project-switching
+heartbeat. The old selected project then fails with actionable MCP
+isError=true and PROJECT_INACTIVE without dispatch; explicitly reselecting
+the new project restores reads. Closing the socket returns an explicit
+SESSION_DISCONNECTED MCP error instead of a misleading successful empty
+schematic. The common MCP registry preserves critical remote authorization,
+session, project and timeout errors even when an individual read tool normally
+returns a best-effort not_available result. **The WebSocket peer is a simulated
+EasyEDA extension, not the live EasyEDA desktop process or public WSS service.**
+The browser's **Revoke** control
 now cuts off previously issued MCP bearer tokens on the very next protected
 request: the hosted resource validates active user/client/scope/resource consent
 and retains a SQLite revocation epoch so an old JWT cannot revive after
