@@ -499,6 +499,63 @@ describe('DRC/ERC Tools', () => {
     );
   });
 
+  it('keeps the top-level live review unpassed when requested datasheet evidence is UNKNOWN', async () => {
+    const tool = registry.get('easyeda_semantic_erc_auto');
+    if (!tool) throw new Error('auto ERC not registered');
+    bridgeCall.mockImplementation(async (method: string, params?: unknown) => {
+      if (method === 'schematic.listNets')
+        return [
+          { netName: 'VCC', nodes: [{ component: 'U1', pin: '1' }] },
+          { netName: 'GND', nodes: [{ component: 'U1', pin: '2' }] },
+        ];
+      if (method === 'schematic.listComponents')
+        return { total: 1, items: [{ primitiveId: 'one', reference: 'U1' }] };
+      if (method === 'api.call')
+        return {
+          result: [
+            { pinNumber: '1', pinName: 'SUPPLY' },
+            { pinNumber: '2', pinName: 'RETURN' },
+          ],
+        };
+      throw new Error('Unexpected bridge method: ' + method + String(params));
+    });
+    const baseline = await tool.handler(context, { projectId: 'p' });
+    expect(baseline.passed).toBe(true);
+    const review = await tool.handler(context, {
+      projectId: 'p',
+      datasheetConstraints: [
+        {
+          kind: 'pin_voltage',
+          componentRef: 'U1',
+          pin: '1',
+          maxVoltageV: 3.6,
+          reference: {
+            partNumber: 'EXAMPLE',
+            package: 'QFN32',
+            revision: 'A',
+            source: 'Unverified caller datasheet',
+            section: 'Supply',
+          },
+        },
+      ],
+    });
+    expect(review).toMatchObject({
+      passed: false,
+      electrical_approval: false,
+      datasheet_review: {
+        status: 'UNKNOWN',
+        netlist_scope: 'LIVE_BRIDGE_READ_NOT_INDEPENDENTLY_VERIFIED',
+        source_authenticity: 'CALLER_DECLARED_UNVERIFIED',
+        findings: [{ status: 'UNKNOWN' }],
+      },
+    });
+    expect(tool.outputSchema.parse(review)).toEqual(review);
+    expect(bridgeCall).not.toHaveBeenCalledWith(
+      expect.stringMatching(/write|modify|save|export/i),
+      expect.anything(),
+    );
+  });
+
   it('applies optional source-declared datasheet checks to native pins without electrical approval', async () => {
     const tool = registry.get('easyeda_semantic_erc_auto');
     if (!tool) throw new Error('auto ERC not registered');

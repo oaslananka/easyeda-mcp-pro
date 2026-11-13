@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "kind": "read-only-source-bound-datasheet-erc-acceptance",
+  "recordedAtUtc": "2026-11-13T04:44:42Z",
+  "issue": 844,
+  "source": {
+    "baseCommit": "dba802c50827333ced6017c5c5d5f8eb6b8c377c",
+    "branch": "feat/844-datasheet-acceptance-20261113",
+    "localServerSourceFile": "src/tools/L1_drc_erc.ts",
+    "localServerSourceFileSha256": "b50e97d920172b826fc54ae0ba2fe9e11746047a1f24e81adf742a462e1d6507",
+    "releasePackageVersion": "1.15.1",
+    "extensionPackageSha256": "2ff1f9f7f770dddbbeb66076284899da7c68169d8cb1f6b7b27f0c23d3afd017",
+    "extensionPackageBytes": 230597,
+    "releaseAssetByteIdenticalToRebuiltWorktree": true,
+    "note": "Live run used the uncommitted working tree containing the regression fix, not unmodified main; the checked source file digest must be verified against the final PR commit."
+  },
+  "runtime": {
+    "platform": "Ubuntu 24.04.5 LTS / x86_64",
+    "easyedaProVersion": "3.2.209",
+    "nativeProjectIdentityHash": "c1cc941a9f41",
+    "projectKind": "backed-up disposable Z480 native test fixture",
+    "bridgeExtensionVersion": "1.15.1",
+    "bridgeLoaderVersion": "1.15.1",
+    "serverSourceVersion": "1.15.1",
+    "bridgeMethodRegistryHash": "f71f5e22b7fec5db",
+    "versionMismatch": false,
+    "methodRegistryMismatch": false
+  },
+  "scenarios": [
+    {
+      "name": "legacy semantic ERC without datasheet requirements",
+      "result": "PASS",
+      "nativeNets": 16,
+      "nativeComponents": 34,
+      "mcpPassed": true,
+      "bridgeCalls": 36
+    },
+    {
+      "name": "caller-declared datasheet pin check with missing numeric/source authenticity and duplicated native U3 reference",
+      "result": "PASS",
+      "nativeScope": "LIVE_BRIDGE_READ_NOT_INDEPENDENTLY_VERIFIED",
+      "reviewStatus": "UNKNOWN",
+      "passed": false,
+      "electricalApproval": false,
+      "sourceAuthenticity": "CALLER_DECLARED_UNVERIFIED",
+      "findings": [
+        {
+          "status": "UNKNOWN",
+          "evidence": "incomplete_or_ambiguous",
+          "pins": ["8"],
+          "nets": []
+        }
+      ]
+    },
+    {
+      "name": "intentionally incorrect expected net on a uniquely observed native pin",
+      "result": "PASS",
+      "reviewStatus": "WARNING",
+      "passed": false,
+      "electricalApproval": false,
+      "sourceAuthenticity": "CALLER_DECLARED_UNVERIFIED",
+      "nativeComponentHash": "588f508e4a71",
+      "nativePinHash": "4e07408562be",
+      "nativeNetHash": "ccdd8d41edba",
+      "findings": [
+        {
+          "status": "WARNING",
+          "evidence": "explicit_netlist",
+          "netHash": ["ccdd8d41edba"]
+        }
+      ]
+    },
+    {
+      "name": "foreign project request rejected instead of reading or approving",
+      "result": "PASS",
+      "notAvailable": true,
+      "passed": false,
+      "electricalApproval": false,
+      "nativeNetCount": 0
+    },
+    {
+      "name": "on-disk disposable design integrity",
+      "result": "PASS",
+      "projectSha256Before": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+      "projectSha256After": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+      "designWrites": 0,
+      "saves": 0,
+      "exports": 0
+    }
+  ],
+  "limitations": [
+    "The datasheet source, package and pin-voltage limit were synthetic controls, not an authenticated device datasheet; neither tool authenticates manufacturer data.",
+    "A WARNING demonstrates a contradiction against caller-declared constraints and native connectivity, not external electrical failure or an independently measured voltage.",
+    "UNKNOWN is an explicit incomplete/unverified result. A clean semantic ERC is not datasheet, safety, manufacturing or electrical approval.",
+    "No production design or user project mutation, ERC hard-approval, copper write, supplier communication or purchase was performed."
+  ],
+  "outcome": "READ_ONLY_ACCEPTANCE_PASS"
+}
