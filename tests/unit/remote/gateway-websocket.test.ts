@@ -226,6 +226,50 @@ describe('RemoteGateway WebSocket upgrade admission', () => {
     ).rejects.toThrow('403');
   });
 
+  it('admits the exact EasyEDA desktop Origin only on the remote relay without pairing it', async () => {
+    const harness = await createHarness(5);
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const base = 'ws://127.0.0.1:' + address.port;
+    const nativeSocket = new WebSocket(base + '/remote/relay', {
+      headers: { Origin: 'https://client' },
+    });
+    await new Promise<void>((resolve, reject) => {
+      nativeSocket.once('open', resolve);
+      nativeSocket.once('error', reject);
+    });
+    const nativeClient = new RelayClient(nativeSocket);
+    try {
+      nativeClient.send(
+        envelope('register_session', {
+          extensionVersion: '1.15.4',
+          mode: 'self_hosted',
+          capabilities: [],
+          pairingCode: 'EDA-00000000',
+        }),
+      );
+      await expect(
+        nativeClient.waitFor((message) => message.type === 'session_registered'),
+      ).resolves.toMatchObject({ paired: false });
+      expect(harness.gateway.listPairedExtensions(readIdentity)).toEqual([]);
+    } finally {
+      await nativeClient.close();
+    }
+
+    for (const [path, origin] of [
+      ['/session', 'https://client'],
+      ['/remote/relay', 'https://client.evil.example'],
+    ]) {
+      const rejected = new WebSocket(base + path, { headers: { Origin: origin } });
+      await expect(
+        new Promise<void>((resolve, reject) => {
+          rejected.once('open', resolve);
+          rejected.once('error', reject);
+        }),
+      ).rejects.toThrow('403');
+    }
+  });
+
   it('rejects a mismatched Host header before allocating a relay socket', async () => {
     const harness = await createHarness(5);
     const address = harness.server.address();

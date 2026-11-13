@@ -278,8 +278,11 @@ function validUpgradeHost(
   return hostname === expected || hostname === '127.0.0.1' || hostname === 'localhost';
 }
 
-function validUpgradeOrigin(origin: string | undefined, config: EnvConfig): boolean {
+function validUpgradeOrigin(origin: string | undefined, config: EnvConfig, path: string): boolean {
   if (!origin) return true; // Non-browser extension clients do not set Origin.
+  // EasyEDA Pro 3.2.209's native SYS_WebSocket sends this Electron origin.
+  // Admit it only to the paired relay; Origin never grants a user session.
+  if (path === '/remote/relay' && origin === 'https://client') return true;
   if (
     config.ALLOWED_ORIGINS.split(',')
       .map((value) => value.trim())
@@ -1152,7 +1155,7 @@ export class RemoteGateway {
         reject(400, 'Bad Request');
         return;
       }
-      if (config && !validUpgradeOrigin(request.headers.origin, config)) {
+      if (config && !validUpgradeOrigin(request.headers.origin, config, path)) {
         reject(403, 'Forbidden');
         return;
       }
