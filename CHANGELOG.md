@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.2...easyeda-mcp-pro-v1.15.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* **pcb:** prevent partial differential-pair samples from looking like full coverage ([#841](https://github.com/oaslananka/easyeda-mcp-pro/issues/841)) ([#1051](https://github.com/oaslananka/easyeda-mcp-pro/issues/1051)) ([3e0156b](https://github.com/oaslananka/easyeda-mcp-pro/commit/3e0156b08f92aade7aeca3fdb93efc3bbc60d2f8))
+
 ## [1.15.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.1...easyeda-mcp-pro-v1.15.2) (2026-11-13)
 
 
