@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-source-native-readonly-pair-spacing-release-acceptance",
+  "recordedAtUtc": "2026-11-13T06:49:24Z",
+  "issue": 841,
+  "releaseCandidate": {
+    "commit": "70aadfb217c2950c9f717ae46b7f80e5ce5e331b",
+    "baseProtectedMainCommit": "3e0156b08f92aade7aeca3fdb93efc3bbc60d2f8",
+    "packageVersion": "1.15.3",
+    "packageSha256": "05410efef0c1998ad64e34c10733f6e58386323d210f1a75535b4d5d30d3e9a9",
+    "packageBytes": 230597,
+    "differentialPairSourceFileSha256": "4701bd9d898acf24b3bc3e40fa558cee193bc85ac4a631f7b8d12bc24ec78500",
+    "sourceFile": "src/pcb-layout/differential-pair.ts",
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "342dfd9bbe4d3c1e395760ce5d36e7c524efb6ae",
+      "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "da40678b4713ffd34c448a837d82ef91e8d2dcb7",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "nativeRuntime": {
+    "editor": "EasyEDA Pro 3.2.209",
+    "platform": "Ubuntu 24.04.5 LTS x86_64",
+    "installedBridgeExtensionVersion": "1.15.3",
+    "bridgeLoaderVersion": "1.15.3",
+    "serverVersion": "1.15.3",
+    "methodRegistryHash": "f71f5e22b7fec5db",
+    "versionMismatch": false,
+    "registryMismatch": false,
+    "fixture": "Disposable backed-up Z480 focused native PCB",
+    "projectIdentityHash": "c1cc941a9f41",
+    "documentIdentityHash": "76509018c377"
+  },
+  "nativeReadOnlyScenarios": [
+    {
+      "name": "match exact installed candidate extension and bound native PCB",
+      "result": "PASS",
+      "projectIdentityVerified": true,
+      "bridgeRegistryVerified": true
+    },
+    {
+      "name": "read all native tracks and vias through bounded existing MCP tool",
+      "result": "PASS",
+      "nativeCollectionComplete": true,
+      "getterCalls": 2,
+      "getterErrors": 0
+    },
+    {
+      "name": "synthetic wrong-pair reference measured without false green signal-integrity approval",
+      "result": "PASS",
+      "declaredNets": ["VCC", "VO1"],
+      "pairIsRealDifferentialPair": false,
+      "pairTopologyPositive": "AMBIGUOUS",
+      "pairTopologyNegative": "AMBIGUOUS",
+      "gapStatus": "UNKNOWN",
+      "sampleCount": 8,
+      "minimumObservedGapMm": 1.2435204999999996,
+      "maximumObservedGapMm": 19.20200121999999,
+      "sampledPositiveParallelLengthMm": 28.66695054000002,
+      "sampledNegativeParallelLengthMm": 26.710002460000013,
+      "sampleCoverageComplete": false,
+      "skewStatus": "UNKNOWN",
+      "impedanceStatus": "UNKNOWN",
+      "overallStatus": "UNKNOWN",
+      "engineeringSignOff": false
+    },
+    {
+      "name": "preserve disposable PCB archive without mutation",
+      "result": "PASS",
+      "projectSha256Before": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+      "projectSha256After": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+      "designWrites": 0,
+      "saves": 0,
+      "exports": 0
+    }
+  ],
+  "limitations": [
+    "VCC and VO1 are unrelated native nets selected as a synthetic negative control; this record does not demonstrate a verified real differential-pair routing positive case.",
+    "Eight native spacing samples are real, but route topology is AMBIGUOUS and sample coverage incomplete; genuine paired coupling, skew/impedance and electrical signoff remain UNKNOWN.",
+    "No independent reference-plane continuity, stackup dielectric properties, measurements of impedance or supplier-certified signal integrity were obtained.",
+    "The installed candidate was imported from the exact locally built 230597-byte .eext via official Extensions Manager and its version/registry were checked at runtime; it is not yet a published release.",
+    "No production design writes, copper apply, save/export, external supplier communication, purchasing or fabrication approval."
+  ],
+  "result": "NATIVE_READ_ONLY_NEGATIVE_CONTROL_PASSED"
+}
