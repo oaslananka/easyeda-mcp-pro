@@ -214,20 +214,35 @@ function validateOAuthToken(config: EnvConfig, hostedAuth?: HostedAuth) {
         }
 
         const tokenScopes = extractTokenScopes(payload as Record<string, unknown>);
-        if (requiredScopes.length > 0) {
-          const normalizedTokenScopes = new Set([...tokenScopes].map(normalizeOAuthScope));
-          const missingScopes = requiredScopes.filter(
-            (_scope, idx) => !normalizedTokenScopes.has(normalizedRequiredScopes[idx] ?? ''),
-          );
-          if (missingScopes.length > 0) {
-            res.status(403).json({
-              error: 'Token is missing required OAuth scope',
-              code: 'insufficient_scope',
-              requiredScopes,
-              missingScopes,
-            });
-            return;
-          }
+        if (
+          hostedAuth &&
+          !hostedAuth.checkAccessGrant({
+            ownerId: payload.sub ?? '',
+            clientId: String(payload.azp),
+            scopes: [...tokenScopes],
+            issuedAt: payload.iat ?? 0,
+            resource: config.OAUTH_AUDIENCE,
+          })
+        ) {
+          res.status(403).json({
+            code: 'consent_revoked',
+            error:
+              'The MCP client authorization is missing or was revoked. Reauthorize this client.',
+          });
+          return;
+        }
+        const normalizedTokenScopes = new Set([...tokenScopes].map(normalizeOAuthScope));
+        const missingScopes = requiredScopes.filter(
+          (_scope, idx) => !normalizedTokenScopes.has(normalizedRequiredScopes[idx] ?? ''),
+        );
+        if (missingScopes.length > 0) {
+          res.status(403).json({
+            error: 'Token is missing required OAuth scope',
+            code: 'insufficient_scope',
+            requiredScopes,
+            missingScopes,
+          });
+          return;
         }
 
         const claims = payload as Record<string, unknown>;

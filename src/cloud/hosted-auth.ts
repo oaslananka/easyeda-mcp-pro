@@ -63,9 +63,71 @@ function validateHostedAuthSettings(settings: HostedAuthSettings): void {
  * OAuth client consent and PKCE/CIMD remain owned by Better Auth: no duplicate token engine.
  * A separate HTTP adapter will mount this only when Cloud is explicitly enabled.
  */
+export interface HostedAccessGrant {
+  ownerId: string;
+  clientId: string;
+  scopes: string[];
+  resource: string;
+  issuedAt: number;
+}
+
+function storedStringArray(raw: unknown): string[] {
+  if (typeof raw !== 'string') return [];
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) && value.every((entry) => typeof entry === 'string') ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+function hasActiveClientGrant(database: DatabaseSync, request: HostedAccessGrant): boolean {
+  if (!request.ownerId || !request.clientId || !Number.isSafeInteger(request.issuedAt)) {
+    return false;
+  }
+  try {
+    const revoked = database
+      .prepare(
+        'SELECT "revokedAt" FROM "cloudClientRevocation" WHERE "userId" = ? AND "clientId" = ?',
+      )
+      .get(request.ownerId, request.clientId) as { revokedAt?: number } | undefined;
+    // JWT iat is second-resolution. Reject the whole revocation second;
+    // a re-grant must mint a NEW token in a later second to regain access.
+    if (typeof revoked?.revokedAt === 'number' && request.issuedAt <= revoked.revokedAt) {
+      return false;
+    }
+    const grants = database
+      .prepare(
+        'SELECT "scopes", "resources", "createdAt" FROM "oauthConsent" WHERE "userId" = ? AND "clientId" = ?',
+      )
+      .all(request.ownerId, request.clientId) as Array<{
+      scopes: unknown;
+      resources?: unknown;
+      createdAt: unknown;
+    }>;
+    return grants.some((grant) => {
+      const createdAt = typeof grant.createdAt === 'string' ? Date.parse(grant.createdAt) : NaN;
+      if (!Number.isFinite(createdAt) || request.issuedAt < Math.floor(createdAt / 1000)) {
+        return false;
+      }
+      const allowedScopes = new Set(storedStringArray(grant.scopes));
+      if (!request.scopes.every((scope) => allowedScopes.has(scope))) return false;
+      const resources = grant.resources == null ? [] : storedStringArray(grant.resources);
+      return resources.length === 0 || resources.includes(request.resource);
+    });
+  } catch {
+    // No implicit permission on missing DB tables, closed database or storage errors.
+    return false;
+  }
+}
+
 export interface HostedAuth {
   readonly origin: string;
   readonly options: BetterAuthOptions;
+  /** Install the grant-revocation ledger AFTER Better Auth schema migrations. */
+  installGrantProtection(): void;
+  /** Called after signature verification on every protected Cloud request. */
+  checkAccessGrant(request: HostedAccessGrant): boolean;
   handler(request: Request): Promise<Response>;
   getSessionUser(headers: Headers): Promise<{ id: string; name: string; email: string } | null>;
   verifySignedQuery(query: string): Promise<boolean>;
@@ -109,6 +171,28 @@ export function createHostedAuth(settings: HostedAuthSettings): HostedAuth {
   return {
     origin: settings.origin,
     options: provider.options,
+    installGrantProtection() {
+      // A SQLite trigger survives process restarts and catches Better Auth's
+      // own consent deletion, not only our browser's Revoke button.
+      settings.database.exec(`
+        CREATE TABLE IF NOT EXISTS "cloudClientRevocation" (
+          "userId" TEXT NOT NULL,
+          "clientId" TEXT NOT NULL,
+          "revokedAt" INTEGER NOT NULL,
+          PRIMARY KEY ("userId", "clientId")
+        );
+        CREATE TRIGGER IF NOT EXISTS "cloudConsentRemoved"
+        AFTER DELETE ON "oauthConsent"
+        WHEN OLD."userId" IS NOT NULL
+        BEGIN
+          INSERT INTO "cloudClientRevocation" ("userId", "clientId", "revokedAt")
+          VALUES (OLD."userId", OLD."clientId", CAST(strftime('%s', 'now') AS INTEGER))
+          ON CONFLICT ("userId", "clientId") DO UPDATE
+          SET "revokedAt" = MAX("revokedAt", excluded."revokedAt");
+        END;
+      `);
+    },
+    checkAccessGrant: (request) => hasActiveClientGrant(settings.database, request),
     handler: provider.handler,
     async getSessionUser(headers) {
       const result = await provider.api.getSession({ headers });

@@ -44,6 +44,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
     });
     const migration = await getMigrations(auth.options);
     await migration.runMigrations();
+    auth.installGrantProtection();
     const fixtureAuth = betterAuth({
       baseURL: origin,
       secret,
@@ -341,6 +342,109 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(invalidVerifier.status).toBe(400);
       expect(invalidPkceBody.access_token).toBeUndefined();
       expect(invalidPkceBody.error).toBe('invalid_grant');
+
+      // User-facing revoke must take away an existing OAuth client's
+      // ability to use the already-issued MCP resource access token.
+      const consentList = await fetch(`${origin}/api/auth/oauth2/get-consents`, { headers });
+      expect(consentList.status).toBe(200);
+      const consents = (await consentList.json()) as Array<{
+        id: string;
+        clientId: string;
+        scopes: string[];
+        userId: string;
+      }>;
+      const activeConsent = consents.find((entry) => entry.clientId === oauthClient.client_id);
+      expect(activeConsent).toMatchObject({
+        id: expect.any(String),
+        clientId: oauthClient.client_id,
+        userId: saved.id,
+      });
+      const revoke = await fetch(`${origin}/api/auth/oauth2/delete-consent`, {
+        method: 'POST',
+        headers: {
+          cookie: headers.get('cookie') ?? '',
+          origin,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ id: activeConsent!.id }),
+      });
+      expect(revoke.status).toBe(200);
+      const afterRevoke = await fetch(`${origin}/remote/sessions`, {
+        headers: { Authorization: `Bearer ${issued.access_token}` },
+      });
+      expect(
+        afterRevoke.status,
+        'An OAuth bearer must stop accessing Cloud immediately after the owner revokes its consent.',
+      ).toBe(403);
+      const beforeRevokedCall = dispatched.length;
+      await expect(
+        client.callTool({
+          name: 'easyeda_schematic_components',
+          arguments: { projectId: 'must-not-reach-extension-after-revoke' },
+        }),
+      ).rejects.toThrow(/consent_revoked/);
+      expect(dispatched).toHaveLength(beforeRevokedCall);
+
+      // Reauthorization creates a new grant. A previously revoked JWT cannot
+      // regain access even when the same owner authorizes the same client again.
+      // JWT iat has second resolution; the new grant must mint after the
+      // recorded revocation second.
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      const reauthorize = await fetch(
+        `${origin}/api/auth/oauth2/authorize?${new URLSearchParams({
+          ...Object.fromEntries(authorizeQuery),
+          prompt: 'consent',
+          state: 'regrant-state',
+        })}`,
+        { headers },
+      );
+      expect(reauthorize.status).toBe(200);
+      const renewedAuthorization = (await reauthorize.json()) as { url: string };
+      const renewedConsent = await fetch(`${origin}/api/auth/oauth2/consent`, {
+        method: 'POST',
+        headers: {
+          cookie: headers.get('cookie') ?? '',
+          origin,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          accept: true,
+          oauth_query: new URL(renewedAuthorization.url, origin).search.slice(1),
+        }),
+      });
+      expect(renewedConsent.status).toBe(200);
+      const renewedCallback = (await renewedConsent.json()) as { url: string };
+      const renewedCode = new URL(renewedCallback.url, origin).searchParams.get('code');
+      expect(renewedCode).toBeTruthy();
+      const replacementToken = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: oauthClient.client_id,
+          code: renewedCode!,
+          code_verifier: verifier,
+          redirect_uri: redirectUri,
+          resource: `${origin}/mcp`,
+        }),
+      });
+      expect(replacementToken.status).toBe(200);
+      const newGrant = (await replacementToken.json()) as { access_token: string };
+      expect(newGrant.access_token).toBeTruthy();
+      expect(
+        (
+          await fetch(`${origin}/remote/sessions`, {
+            headers: { Authorization: `Bearer ${issued.access_token}` },
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await fetch(`${origin}/remote/sessions`, {
+            headers: { Authorization: `Bearer ${newGrant.access_token}` },
+          })
+        ).status,
+      ).toBe(200);
     } finally {
       await client?.close();
       await transport.close();

@@ -20,11 +20,21 @@ describe('Hosted Cloud OAuth provider (opt-in)', () => {
       const auth = createHostedAuth(settings(database));
       const migrations = await getMigrations(auth.options);
       await migrations.runMigrations();
+      auth.installGrantProtection();
+      auth.installGrantProtection(); // Restart-safe, idempotent initialization.
+      const trigger = database
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='trigger' AND name='cloudConsentRemoved'",
+        )
+        .get();
+      expect(trigger).toMatchObject({ name: 'cloudConsentRemoved' });
       const tables = database
         .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         .all()
         .map((row) => row.name);
-      expect(tables).toEqual(expect.arrayContaining(['user', 'session', 'oauthClient', 'jwks']));
+      expect(tables).toEqual(
+        expect.arrayContaining(['user', 'session', 'oauthClient', 'jwks', 'cloudClientRevocation']),
+      );
 
       const issuer = await auth.handler(
         new Request('http://127.0.0.1:3997/api/auth/.well-known/oauth-authorization-server'),

@@ -115,6 +115,7 @@ export async function createHostedCloudRuntime(
     const auth = createHostedAuth({ ...settings, database });
     const migrations = await getMigrations(auth.options);
     await migrations.runMigrations();
+    auth.installGrantProtection();
     return { auth, close: () => database.close() };
   } catch (error) {
     database.close();

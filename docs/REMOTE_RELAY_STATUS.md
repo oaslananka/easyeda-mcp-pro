@@ -48,7 +48,13 @@ production provider. From there, a native public MCP client is registered and th
 provider signs the consent query, receives explicit approval, issues a PKCE authorization
 code, and exchanges it for a resource-bound `at+jwt` with the expected owner and client
 claims. The official MCP SDK uses that **provider-issued token** to read through a
-selected, owner-paired fake EasyEDA extension. Code replay, tampered consent scopes,
+selected, owner-paired fake EasyEDA extension. The browser's **Revoke** control
+now cuts off previously issued MCP bearer tokens on the very next protected
+request: the hosted resource validates active user/client/scope/resource consent
+and retains a SQLite revocation epoch so an old JWT cannot revive after
+reauthorization. A newly consented token remains usable. These checks and the
+SQLite deletion trigger apply only to explicitly enabled Hosted Cloud; Local
+mode and custom relay configurations are unaffected. Code replay, tampered consent scopes,
 explicit denial, and an incorrect S256 PKCE verifier are rejected. This is strong local
 OAuth/MCP integration evidence, **not** GitHub/Google login, production identity
 provisioning, browser-click acceptance, or live EasyEDA design acceptance.

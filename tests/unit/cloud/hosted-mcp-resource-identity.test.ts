@@ -61,6 +61,8 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
       const provider: HostedAuth = {
         origin,
         options: {},
+        installGrantProtection: () => undefined,
+        checkAccessGrant: () => true, // Test identity isolation independently of DB grant checks.
         handler: async (request: Request) =>
           new URL(request.url).pathname === '/api/auth/jwks'
             ? Response.json({ keys: [publicJwk] })
