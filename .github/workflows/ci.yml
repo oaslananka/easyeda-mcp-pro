@@ -30,12 +30,12 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.8
+          version: 11.28.11
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.22.1
+          node-version: 24.22.3
           package-manager-cache: false
       - name: Verify runtime pin parity
         run: node scripts/check-runtime-pins.mjs
@@ -66,12 +66,12 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.8
+          version: 11.28.11
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.22.1
+          node-version: 24.22.3
           package-manager-cache: false
       - name: Verify runtime pin parity
         run: node scripts/check-runtime-pins.mjs
@@ -125,12 +125,12 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.8
+          version: 11.28.11
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.22.1
+          node-version: 24.22.3
           package-manager-cache: false
       - name: Verify runtime pin parity
         run: node scripts/check-runtime-pins.mjs
@@ -172,12 +172,12 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.8
+          version: 11.28.11
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.22.1
+          node-version: 24.22.3
           package-manager-cache: false
       - name: Verify runtime pin parity
         run: node scripts/check-runtime-pins.mjs
@@ -206,12 +206,12 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.8
+          version: 11.28.11
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.22.1
+          node-version: 24.22.3
           package-manager-cache: false
       - name: Validate Codecov configuration
         run: pnpm validate:codecov
@@ -356,11 +356,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            node-version: 24.22.1
+            node-version: 24.22.3
           - os: windows-2025
-            node-version: 24.22.1
+            node-version: 24.22.3
           - os: macos-26
-            node-version: 24.22.1
+            node-version: 24.22.3
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -368,7 +368,7 @@ jobs:
           persist-credentials: false
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.8
+          version: 11.28.11
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -442,12 +442,12 @@ jobs:
           persist-credentials: false
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
         with:
-          version: 11.28.8
+          version: 11.28.11
           install: false
           node-version-file: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.22.1
+          node-version: 24.22.3
           package-manager-cache: false
       - name: Verify runtime pin parity
         run: node scripts/check-runtime-pins.mjs

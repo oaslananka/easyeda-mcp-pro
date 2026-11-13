@@ -6,14 +6,14 @@
 
 ## Prerequisites
 
-- **Node.js**: 24.x, with `24.22.1` pinned for repository automation
-- **pnpm**: exactly `11.28.8` when building from source
+- **Node.js**: 24.x, with `24.22.3` pinned for repository automation
+- **pnpm**: exactly `11.28.11` when building from source
 
 ```bash
-nvm install 24.22.1
-nvm use 24.22.1
+nvm install 24.22.3
+nvm use 24.22.3
 corepack enable
-corepack prepare pnpm@11.28.8 --activate
+corepack prepare pnpm@11.28.11 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 

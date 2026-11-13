@@ -140,12 +140,12 @@ describe('local setup CLI helpers', () => {
     expect(parseCliArgs(['--doctor'])).toEqual({ command: 'doctor', doctorFix: false });
   });
 
-  it('accepts only Node 24 and exact pnpm 11.28.8 for repository automation', () => {
-    expect(evaluateNodeRuntime('24.22.1')).toMatchObject({ supported: true });
+  it('accepts only Node 24 and exact pnpm 11.28.11 for repository automation', () => {
+    expect(evaluateNodeRuntime('24.22.3')).toMatchObject({ supported: true });
     expect(evaluateNodeRuntime('24.99.0')).toMatchObject({ supported: true });
     expect(evaluateNodeRuntime('23.11.1')).toMatchObject({ supported: false });
     expect(evaluateNodeRuntime('26.0.0')).toMatchObject({ supported: false });
-    expect(evaluatePnpmRuntime('11.28.8')).toMatchObject({ supported: true });
+    expect(evaluatePnpmRuntime('11.28.11')).toMatchObject({ supported: true });
     expect(evaluatePnpmRuntime('11.5.2')).toMatchObject({ supported: false });
     expect(evaluatePnpmRuntime(null)).toMatchObject({ supported: false });
   });
@@ -226,12 +226,12 @@ describe('local setup CLI helpers', () => {
           platform: 'linux',
           unitPath,
           executableExists: () => true,
-          readNodeVersion: async () => '24.22.1',
+          readNodeVersion: async () => '24.22.3',
         }),
       ).resolves.toMatchObject({
         installed: true,
         nodePath: '/runtime/node',
-        nodeVersion: '24.22.1',
+        nodeVersion: '24.22.3',
         nodeSupported: true,
         issues: [],
       });
@@ -312,12 +312,12 @@ describe('local setup CLI helpers', () => {
     };
     const supported = await inspectUserServiceRuntime({
       ...base,
-      readNodeVersion: async () => '24.22.1',
+      readNodeVersion: async () => '24.22.3',
     });
     expect(supported).toMatchObject({
       nodePath: '/home/test/node 24/bin/node',
       nodePathExists: true,
-      nodeVersion: '24.22.1',
+      nodeVersion: '24.22.3',
       nodeSupported: true,
       issues: [],
     });
@@ -415,7 +415,7 @@ describe('local setup CLI helpers', () => {
     );
     expect(formatDoctorReport(report)).not.toContain('Suggested fixes:');
     expect(formatDoctorReport(report, { fix: true })).toContain(
-      'pnpm 9.0.0 is not supported (required: 11.28.8).',
+      'pnpm 9.0.0 is not supported (required: 11.28.11).',
     );
   });
 
@@ -462,8 +462,8 @@ describe('local setup CLI helpers', () => {
     const output = formatDoctorReport(report, { fix: true });
 
     expect(output).toContain('Suggested fixes:');
-    expect(output).toContain('nvm install 24.22.1 && nvm use 24.22.1');
-    expect(output).toContain('corepack prepare pnpm@11.28.8 --activate');
+    expect(output).toContain('nvm install 24.22.3 && nvm use 24.22.3');
+    expect(output).toContain('corepack prepare pnpm@11.28.11 --activate');
     expect(output).toContain('Fix: set/correct BRIDGE_PORT: Expected number, received string');
     expect(output).toContain('pnpm build');
     expect(output).toContain('pnpm build:extension');
@@ -487,7 +487,7 @@ describe('local setup CLI helpers', () => {
       },
       nodeVersion: '24.16.0',
       nodeSupported: true,
-      pnpmVersion: '11.28.8',
+      pnpmVersion: '11.28.11',
       pnpmSupported: true,
       envValid: true,
       envIssues: [],
@@ -534,9 +534,9 @@ describe('local setup CLI helpers', () => {
         serverEntryExists: true,
         extensionPackageExists: true,
       },
-      nodeVersion: '24.22.1',
+      nodeVersion: '24.22.3',
       nodeSupported: true,
-      pnpmVersion: '11.28.8',
+      pnpmVersion: '11.28.11',
       pnpmSupported: true,
       envValid: true,
       envIssues: [],
@@ -557,7 +557,7 @@ describe('local setup CLI helpers', () => {
     };
 
     const output = formatDoctorReport(report, { fix: true });
-    expect(output).toContain('pnpm: OK 11.28.8 (required for source workflows: 11.28.8)');
+    expect(output).toContain('pnpm: OK 11.28.11 (required for source workflows: 11.28.11)');
     expect(output).toContain('User service runtime: BROKEN /usr/local/bin/node');
     expect(output).toContain('systemctl --user disable --now easyeda-mcp-pro.service');
     expect(output).toContain('Rerun your MCP client setup');
@@ -624,10 +624,10 @@ describe('local setup CLI helpers', () => {
           expect(report.pnpmSupported).toBe(false);
           expect(doctorExitCode(report)).toBe(1);
           expect(formatDoctorReport(report)).toContain(
-            'pnpm: UNSUPPORTED 11.5.2 (required for source workflows: 11.28.8)',
+            'pnpm: UNSUPPORTED 11.5.2 (required for source workflows: 11.28.11)',
           );
           expect(formatDoctorReport(report, { fix: true })).toContain(
-            'corepack prepare pnpm@11.28.8 --activate',
+            'corepack prepare pnpm@11.28.11 --activate',
           );
         });
       } finally {
@@ -828,9 +828,9 @@ describe('local setup CLI helpers', () => {
           serverEntryExists: true,
           extensionPackageExists: true,
         },
-        nodeVersion: '24.22.1',
+        nodeVersion: '24.22.3',
         nodeSupported: true,
-        pnpmVersion: '11.28.8',
+        pnpmVersion: '11.28.11',
         pnpmSupported: true,
         envValid: true,
         envIssues: [],

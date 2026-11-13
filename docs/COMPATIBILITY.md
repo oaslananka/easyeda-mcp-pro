@@ -10,18 +10,18 @@ Version ranges in this overview are support-policy targets, not exact live-valid
 
 | Environment | Supported Versions        | Tested Status           | Notes                                                                                                |
 | :---------- | :------------------------ | :---------------------- | :--------------------------------------------------------------------------------------------------- |
-| **Node.js** | `24.x` (pinned `24.22.1`) | **Enforced**            | Startup and automation preflights reject other major versions.                                       |
-| **pnpm**    | `11.28.8`                 | **Enforced for source** | Required for a source checkout; pnpm is not required for an installed package or production runtime. |
+| **Node.js** | `24.x` (pinned `24.22.3`) | **Enforced**            | Startup and automation preflights reject other major versions.                                       |
+| **pnpm**    | `11.28.11`                | **Enforced for source** | Required for a source checkout; pnpm is not required for an installed package or production runtime. |
 | **npm**     | `*`                       | **Verified**            | Supported via `npx` execution.                                                                       |
 | **Docker**  | `v20.x` or newer          | **Verified**            | Fully containerized execution using alpine/node.                                                     |
 
 Restore the repository toolchain with:
 
 ```bash
-nvm install 24.22.1
-nvm use 24.22.1
+nvm install 24.22.3
+nvm use 24.22.3
 corepack enable
-corepack prepare pnpm@11.28.8 --activate
+corepack prepare pnpm@11.28.11 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 

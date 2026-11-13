@@ -65,7 +65,7 @@ unsupported until native source-matched read-back acceptance is available.
 
 ## 3. Node.js Version Error
 
-The MCP server supports Node.js **24.x**. Repository automation is pinned to **24.22.1**, and local pnpm workflows require exactly **11.28.8**.
+The MCP server supports Node.js **24.x**. Repository automation is pinned to **24.22.3**, and local pnpm workflows require exactly **11.28.11**.
 
 If you see compilation or runtime errors:
 
@@ -73,15 +73,15 @@ If you see compilation or runtime errors:
 2. Restore the pinned toolchain:
 
    ```bash
-   nvm install 24.22.1
-   nvm use 24.22.1
+   nvm install 24.22.3
+   nvm use 24.22.3
    corepack enable
-   corepack prepare pnpm@11.28.8 --activate
+   corepack prepare pnpm@11.28.11 --activate
    node scripts/check-runtime.mjs --require-pnpm
    ```
 
 3. Use `nvm` or your platform package manager to update:
    ```bash
-   nvm install 24.22.1
-   nvm use 24.22.1
+   nvm install 24.22.3
+   nvm use 24.22.3
    ```
