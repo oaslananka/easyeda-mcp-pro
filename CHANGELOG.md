@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.5](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.4...easyeda-mcp-pro-v1.15.5) (2026-11-13)
+
+
+### Bug Fixes
+
+* **cloud:** prepare persistent data and Doppler main deployment ([#850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)) ([f9a7286](https://github.com/oaslananka/easyeda-mcp-pro/commit/f9a728625c89a18e138867fba63add400e385076))
+
 ## [1.15.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.3...easyeda-mcp-pro-v1.15.4) (2026-11-13)
 
 
