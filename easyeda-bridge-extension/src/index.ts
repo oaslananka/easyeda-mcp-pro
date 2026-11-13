@@ -862,7 +862,7 @@ function disconnectRemoteRelayInternal(): void {
 
 function showRemoteRelayStatusInternal(): void {
   const status = getRemoteRelayClient().getStatus();
-  const project = status.activeProject?.projectName ?? 'no active project detected';
+  const project = status.activeProject?.projectName ?? 'not yet reported';
   const retry =
     status.nextReconnectDelayMs !== undefined
       ? ` | retry: ${Math.ceil(status.nextReconnectDelayMs / 1000)}s`

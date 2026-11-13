@@ -485,6 +485,21 @@ describe('extension loader lifecycle source', () => {
     expect(toasts.at(-1)).toContain('connected to local server');
   });
 
+  it('does not incorrectly claim an open PCB is missing before remote pairing', async () => {
+    const { extension, toasts } = await loadExtension({
+      withWebSocket: true,
+      prompt: () => 'EDA-ABCDEF12',
+    });
+
+    extension.showRemoteRelayStatus();
+    expect(toasts.at(-1)).toContain('project: not yet reported');
+
+    await extension.connectHostedCloud();
+    extension.showRemoteRelayStatus();
+    expect(toasts.at(-1)).toContain('project: not yet reported');
+    expect(toasts.at(-1)).not.toContain('no active project detected');
+  });
+
   it('connects to the official hosted relay with a one-time code, keeping Local as the default', async () => {
     HarnessSocket.localBehavior = 'success';
     const prompts = ['bad-code', 'eda-abcdef12'];
