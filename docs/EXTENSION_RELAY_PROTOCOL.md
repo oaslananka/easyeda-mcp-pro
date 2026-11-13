@@ -107,6 +107,18 @@ must **not echo this acknowledgement**. The gateway ignores source-less
 heartbeat echoes to avoid an uncontrolled feedback loop. Older clients that
 omit project context do not implicitly clear it.
 
+For official Hosted Cloud, `activeProject` and `activeProjectHint` carry
+the native `projectId` **and** `documentId` returned by the read-only
+EasyEDA Pro focus APIs (`dmt_Project.getCurrentProjectInfo` and
+`dmt_SelectControl.getCurrentDocumentInfo`). These APIs are version-sensitive
+and the latter is documented as beta. A missing API, mismatched parent-project
+UUID, unrecognized document type, or unresolved focus gives no hosted
+selection authority. The gateway refuses project selection unless both
+UUIDs exist. Changing to another document inside the same project requires
+re-selection: the document UUID is part of the selected-project identity.
+Custom Remote retains its legacy title/URL fallback when native APIs are
+unavailable; Local mode needs no Cloud identity.
+
 Before executing a tool, the extension separately checks the gateway's
 `activeProjectHint` against its _current_ editor project, rather than trusting
 a potentially stale registration or heartbeat. Write/export approvals also
@@ -117,7 +129,7 @@ Pairing codes are single-use. A dropped connection cannot reuse the same
 code to regain owner access; the extension reports a clear re-pair action
 rather than continually retrying an unpaired session. Cloud is still
 Experimental: these are protocol and simulated-extension guarantees, not
-live EasyEDA runtime acceptance.
+live **Hosted Cloud** EasyEDA acceptance.
 
 ## Failure handling
 

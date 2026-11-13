@@ -326,12 +326,20 @@ interface SelectedProject {
   sessionId: string;
   projectKey: string;
   projectId?: string;
+  documentId?: string;
   projectName?: string;
   documentType: string;
 }
 
+function hasNativeDocumentIdentity(
+  required: boolean,
+  project?: ExtensionSession['activeProject'],
+): boolean {
+  return !required || Boolean(project?.projectId && project.documentId);
+}
+
 function projectIdentity(project?: ExtensionSession['activeProject']): string | undefined {
-  if (project?.projectId) return `id:${project.projectId}`;
+  if (project?.projectId) return `id:${project.projectId}:document:${project.documentId ?? ''}`;
   if (project?.projectName) {
     return `name:${project.documentType}:${project.projectName}:${project.url ?? ''}`;
   }
@@ -647,6 +655,9 @@ export class RemoteGateway {
     if (
       !session ||
       session.userId !== identity.userId ||
+      // Hosted Cloud cannot authorize a title-only/URL-only project claim:
+      // native document + parent project UUIDs are required at selection.
+      !hasNativeDocumentIdentity(this.explicitSelectionRequired, session.activeProject) ||
       !session.connected ||
       session.expiresAt.getTime() <= this.now().getTime() ||
       !projectKey
@@ -657,6 +668,7 @@ export class RemoteGateway {
       sessionId,
       projectKey,
       projectId: session.activeProject?.projectId,
+      documentId: session.activeProject?.documentId,
       projectName: session.activeProject?.projectName,
       documentType: session.activeProject?.documentType ?? 'unknown',
     });

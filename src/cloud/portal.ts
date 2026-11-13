@@ -231,7 +231,8 @@ export function mountHostedPortal(app: Express, auth: HostedAuth, gateway: Remot
     if (!gateway.selectPairedProject(identity, sessionId)) {
       res.status(404).json({
         code: 'PROJECT_NOT_AVAILABLE',
-        message: 'This extension or active project is not available. Refresh and retry.',
+        message:
+          'Focus a schematic or PCB in EasyEDA, update MCP Bridge to a Cloud-capable build, then refresh and select that project.',
       });
       return;
     }

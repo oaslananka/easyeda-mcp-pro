@@ -144,6 +144,98 @@ describe('RemoteRelayClient resilience', () => {
     expect(FakeWebSocket.instances).toHaveLength(3);
   });
 
+  it('refreshes async native UUIDs before each hosted dispatch and fails closed after document switch', async () => {
+    let focused:
+      | { projectId: string; documentId: string; projectName: string; documentType: 'pcb' }
+      | undefined = {
+      projectId: 'project-one',
+      documentId: 'pcb-one',
+      projectName: 'Disposable',
+      documentType: 'pcb',
+    };
+    const execute = vi.fn(async () => ({ components: [] }));
+    const approve = vi.fn(async () => 'approved' as const);
+    const client = new RemoteRelayClient({
+      extensionVersion: '1.15.4',
+      log: vi.fn(),
+      showToast: vi.fn(),
+      readActiveProject: async () => focused,
+      executeToolRequest: execute,
+      requestApproval: approve,
+      timers: createRuntimeTimers(() => undefined, globalThis as any, 'native-uuid-test'),
+      createWebSocket: (url) => new FakeWebSocket(url) as unknown as WebSocket,
+    });
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    await vi.advanceTimersByTimeAsync(0);
+    const register = socket.sent
+      .map((m) => JSON.parse(m))
+      .find((message) => message.type === 'register_session');
+    expect(register.activeProject).toMatchObject({
+      projectId: 'project-one',
+      documentId: 'pcb-one',
+    });
+
+    const hint = { projectId: 'project-one', documentId: 'pcb-one', documentType: 'pcb' };
+    socket.receive(
+      relayMessage('tool_request', {
+        toolName: 'pcb.listComponents',
+        activeProjectHint: hint,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(execute).toHaveBeenCalledTimes(1);
+
+    focused = { ...focused!, documentId: 'pcb-two' };
+    socket.receive(
+      relayMessage('tool_request', {
+        toolName: 'pcb.listComponents',
+        activeProjectHint: hint,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(socket.sent.map((data) => JSON.parse(data))).toContainEqual(
+      expect.objectContaining({
+        type: 'tool_response',
+        ok: false,
+        error: expect.objectContaining({ code: 'PROJECT_INACTIVE' }),
+      }),
+    );
+
+    socket.receive(
+      relayMessage('approval_request', {
+        approvalId: 'same-project-other-document',
+        toolName: 'pcb.addText',
+        riskLevel: 'write',
+        activeProject: hint,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(approve).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    const heartbeats = socket.sent
+      .map((data) => JSON.parse(data))
+      .filter((message) => message.type === 'heartbeat');
+    expect(heartbeats.at(-1)?.activeProject).toMatchObject({
+      projectId: 'project-one',
+      documentId: 'pcb-two',
+    });
+
+    focused = undefined; // native beta focus became unavailable
+    socket.receive(
+      relayMessage('tool_request', {
+        toolName: 'pcb.listComponents',
+        activeProjectHint: { ...hint, documentId: 'pcb-two' },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
   it('does not reconnect after explicit user disconnect', async () => {
     const { client } = makeClient();
 
@@ -408,6 +500,7 @@ describe('RemoteRelayClient resilience', () => {
     socket.open();
     const request = relayMessage('approval_request', {
       approvalId: 'appr_duplicate',
+      activeProject: { projectName: 'Fixture', documentType: 'schematic' },
       toolName: 'schematic.addText',
       riskLevel: 'write',
       actionSummary: 'Add a schematic note',
@@ -480,6 +573,7 @@ describe('RemoteRelayClient approval session binding', () => {
     originalSocket.receive(
       relayMessage('approval_request', {
         approvalId: 'appr_stale',
+        activeProject: { projectName: 'Fixture', documentType: 'schematic' },
         toolName: 'schematic.addText',
         riskLevel: 'write',
         actionSummary: 'Add a schematic note',
@@ -533,6 +627,7 @@ describe('RemoteRelayClient approval session binding', () => {
     socket.receive(
       relayMessage('tool_request', {
         toolName: 'schematic.listComponents',
+        activeProjectHint: { projectName: 'Fixture', documentType: 'schematic' },
         input: {},
       }),
     );
@@ -561,6 +656,7 @@ describe('RemoteRelayClient approval session binding', () => {
     socket.receive(
       relayMessage('tool_request', {
         toolName: 'schematic.listComponents',
+        activeProjectHint: { projectName: 'Fixture', documentType: 'schematic' },
         input: {},
       }),
     );
@@ -595,6 +691,7 @@ describe('RemoteRelayClient approval session binding', () => {
     originalSocket.receive(
       relayMessage('tool_request', {
         toolName: 'schematic.listComponents',
+        activeProjectHint: { projectName: 'Fixture', documentType: 'schematic' },
         input: {},
       }),
     );

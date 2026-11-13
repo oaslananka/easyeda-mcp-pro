@@ -79,7 +79,12 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
         connectionId: 'owned-extension',
         mode: 'hosted',
         extensionVersion: '1.15.4',
-        activeProject: { projectName: 'Disposable', documentType: 'schematic' },
+        activeProject: {
+          projectId: 'disposable-project',
+          documentId: 'fixture-schematic',
+          projectName: 'Disposable',
+          documentType: 'schematic',
+        },
         dispatch: async (message: ToolRequestMessage): Promise<ToolResponseMessage> => {
           dispatched.push(message);
           return {

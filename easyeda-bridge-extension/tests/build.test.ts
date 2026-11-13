@@ -479,6 +479,16 @@ describe('build.mjs hot-swap define', () => {
         setItem: () => undefined,
       },
       eda: {
+        dmt_Project: {
+          getCurrentProjectInfo: async () => ({ uuid: 'fixture-project', friendlyName: 'Fixture' }),
+        },
+        dmt_SelectControl: {
+          getCurrentDocumentInfo: async () => ({
+            uuid: 'fixture-schematic-page',
+            parentProjectUuid: 'fixture-project',
+            documentType: 1,
+          }),
+        },
         sys_Message: { showToastMessage: () => undefined },
         sys_Dialog: {
           showConfirmationMessage: (
@@ -512,12 +522,19 @@ describe('build.mjs hot-swap define', () => {
       riskLevel: 'write',
       actionSummary: 'write MCP tool easyeda_schematic_add_text on Fixture',
       inputHash: '1234567890abcdef',
-      activeProject: { projectName: 'Fixture', documentType: 'schematic' },
+      activeProject: {
+        projectId: 'fixture-project',
+        documentId: 'fixture-schematic-page',
+        projectName: 'Fixture',
+        documentType: 'schematic',
+      },
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     });
     await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
 
-    expect(confirmations).toHaveLength(1);
+    await vi.waitFor(() => expect(confirmations).toHaveLength(1));
     expect(confirmations[0]).toMatchObject({
       title: 'Remote MCP Approval',
       approveTitle: 'Approve',

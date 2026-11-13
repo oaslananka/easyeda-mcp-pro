@@ -144,7 +144,12 @@ async function registerSession(
       extensionVersion: '0.35.1',
       mode: 'hosted',
       capabilities: [],
-      activeProject: { projectName: 'Relay Fixture', documentType: 'schematic' },
+      activeProject: {
+        projectId: 'relay-project',
+        documentId: 'relay-schematic',
+        projectName: 'Relay Fixture',
+        documentType: 'schematic',
+      },
       pairingCode,
     }),
   );
@@ -348,6 +353,67 @@ describe('RemoteGateway WebSocket relay', () => {
     ).resolves.toMatchObject({ type: 'error', code: 'SESSION_NOT_REGISTERED' });
   });
 
+  it('requires native project AND document UUIDs before owner selects a hosted extension', async () => {
+    const harness = await createHarness();
+    harness.gateway.requireExplicitProjectSelection();
+    const code = harness.gateway.createPairingCode({ identity: readIdentity });
+    harness.client.send(
+      envelope('register_session', {
+        extensionVersion: '1.15.4',
+        mode: 'hosted',
+        capabilities: [],
+        pairingCode: code,
+        activeProject: { projectName: 'Window title only', documentType: 'pcb' },
+      }),
+    );
+    const registered = await harness.client.waitFor((m) => m.type === 'session_registered');
+    expect(registered.paired).toBe(true);
+    const sessionId = String(registered.sessionId);
+    expect(harness.gateway.selectPairedProject(readIdentity, sessionId)).toBe(false);
+
+    harness.client.send(
+      envelope('heartbeat', {
+        source: 'extension',
+        sessionId,
+        activeProject: {
+          projectId: 'native-project',
+          documentId: 'native-pcb',
+          projectName: 'Native PCB',
+          documentType: 'pcb',
+        },
+      }),
+    );
+    await expect(
+      harness.client.waitFor((m) => m.type === 'heartbeat' && m.source === 'server'),
+    ).resolves.toMatchObject({ sessionId });
+    expect(harness.gateway.selectPairedProject(readIdentity, sessionId)).toBe(true);
+
+    harness.client.send(
+      envelope('heartbeat', {
+        source: 'extension',
+        sessionId,
+        activeProject: {
+          projectId: 'native-project',
+          documentId: 'other-pcb-in-same-project',
+          projectName: 'Native PCB',
+          documentType: 'pcb',
+        },
+      }),
+    );
+    await waitForCondition(
+      () =>
+        harness.gateway.router.getSession(sessionId)?.activeProject?.documentId ===
+        'other-pcb-in-same-project',
+    );
+    await expect(
+      harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        riskLevel: 'read',
+        toolName: 'pcb.listComponents',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'PROJECT_INACTIVE' });
+  });
+
   it('invalidates an explicit project selection when a live heartbeat reports another project', async () => {
     const harness = await createHarness();
     harness.gateway.requireExplicitProjectSelection();
@@ -383,6 +449,7 @@ describe('RemoteGateway WebSocket relay', () => {
           capabilities: [],
           activeProject: {
             projectId: 'disposable-pcb',
+            documentId: 'disposable-pcb-document',
             projectName: 'Disposable PCB',
             documentType: 'pcb',
           },

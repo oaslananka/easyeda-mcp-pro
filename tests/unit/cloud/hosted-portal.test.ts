@@ -109,7 +109,12 @@ describe('Hosted Cloud browser portal', () => {
         connectionId: 'extension-1',
         mode: 'hosted',
         extensionVersion: '1.15.4',
-        activeProject: { projectId: 'board-a', projectName: 'Example board', documentType: 'pcb' },
+        activeProject: {
+          projectId: 'board-a',
+          documentId: 'pcb-a',
+          projectName: 'Example board',
+          documentType: 'pcb',
+        },
         dispatch: async (message) => ({
           version: message.version,
           type: 'tool_response',
@@ -209,7 +214,12 @@ describe('Hosted Cloud browser portal', () => {
         connectionId: 'single-paired-extension',
         mode: 'hosted',
         extensionVersion: '1.15.4',
-        activeProject: { projectId: 'pcb-one', projectName: 'Disposable PCB', documentType: 'pcb' },
+        activeProject: {
+          projectId: 'pcb-one',
+          documentId: 'pcb-doc-one',
+          projectName: 'Disposable PCB',
+          documentType: 'pcb',
+        },
         dispatch: async (request) => {
           sent.push(request.toolName);
           return {

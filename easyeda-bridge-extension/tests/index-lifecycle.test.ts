@@ -447,6 +447,7 @@ describe('extension loader lifecycle source', () => {
     expect(local?.closeCalls).toBeGreaterThan(0);
     const remote = latestRemoteSocket();
     remote.open();
+    await flushMicrotasks(); // Native focused-document identity resolves before registration.
     expect(remote.sent).toContainEqual(
       expect.objectContaining({
         type: 'register_session',
@@ -498,6 +499,7 @@ describe('extension loader lifecycle source', () => {
     expect(remote.url).toBe('wss://easyeda-mcp-pro.oaslananka.dev/remote/relay');
     expect(local?.closeCalls).toBeGreaterThan(0);
     remote.open();
+    await flushMicrotasks();
     expect(remote.sent).toContainEqual(
       expect.objectContaining({
         type: 'register_session',
@@ -583,6 +585,7 @@ describe('extension loader lifecycle source', () => {
     extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
     const remoteSocket = latestRemoteSocket();
     remoteSocket.open();
+    await flushMicrotasks();
     expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     extension.deactivate();

@@ -59,6 +59,24 @@ schematic. The common MCP registry preserves critical remote authorization,
 session, project and timeout errors even when an individual read tool normally
 returns a best-effort not_available result. **The WebSocket peer is a simulated
 EasyEDA extension, not the live EasyEDA desktop process or public WSS service.**
+Cloud's project identity now uses the native EasyEDA Pro
+`dmt_Project.getCurrentProjectInfo` project UUID and
+`dmt_SelectControl.getCurrentDocumentInfo` focused document UUID rather
+than a window title/URL guess. These are read-only calls, and the focus
+API is an EasyEDA beta capability: **if either UUID or the document's
+parent-project relationship is unavailable or inconsistent, Cloud cannot
+select or execute that document**. The extension refreshes the pair on
+registration, heartbeat, approval and immediately before remote tool
+execution; changing focus to another PCB in the _same_ project invalidates
+the previous document selection. The relay and owner selection require
+both UUIDs in Hosted mode. Custom Remote retains its historical fallback
+for older editors; Local MCP does not need an account.
+
+This is verified by negative-path tests against the real protocol and
+simulated native identity getters. Prior native EasyEDA 3.2.209
+read-only acceptance confirmed both getters function on a disposable
+PCB, but a live **Hosted WSS** pairing is still not verified.
+
 The browser's **Revoke** control
 now cuts off previously issued MCP bearer tokens on the very next protected
 request: the hosted resource validates active user/client/scope/resource consent

@@ -23,6 +23,7 @@ import {
   type RemoteRelayMode,
 } from './remote-client.js';
 import { createDispatcher } from './dispatcher.js';
+import { readNativeRemoteActiveProject } from './remote-active-project.js';
 import { normalizeCanvasBinaryResult } from './capture-binary-result.js';
 import { createHostZoneReservationClient } from './zone-host-reservation-client.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
@@ -687,15 +688,21 @@ function getRemoteRelayClient(): RemoteRelayClient {
   return remoteRelayClient;
 }
 
-function readRemoteActiveProject():
-  | { projectName?: string; documentType: 'schematic' | 'pcb' | 'unknown'; url?: string }
-  | undefined {
+async function readRemoteActiveProject(mode: RemoteRelayMode) {
+  // The official Hosted Cloud must never use tab titles/URLs as project identity:
+  // multiple EasyEDA documents commonly share both, and that could route a
+  // tool call to a different design. Beta native UUID APIs are capability-gated.
+  const native = await readNativeRemoteActiveProject(getGlobal());
+  if (native) return native;
+  if (mode === 'hosted') return undefined;
+
+  // Preserve legacy Custom Remote interoperability when native APIs are absent.
   const href = typeof location !== 'undefined' ? location.href : undefined;
   const title = typeof document !== 'undefined' ? document.title : undefined;
   const projectName = title && title.trim() ? title.trim() : undefined;
   if (!href && !projectName) return undefined;
   const lower = `${href ?? ''} ${projectName ?? ''}`.toLowerCase();
-  const documentType = lower.includes('pcb')
+  const documentType: 'pcb' | 'schematic' | 'unknown' = lower.includes('pcb')
     ? 'pcb'
     : lower.includes('sch')
       ? 'schematic'

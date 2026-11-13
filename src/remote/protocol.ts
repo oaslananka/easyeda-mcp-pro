@@ -16,6 +16,7 @@ export type RemoteScope = z.infer<typeof RemoteScopeSchema>;
 
 export const ActiveProjectSchema = z.object({
   projectId: z.string().min(1).optional(),
+  documentId: z.string().min(1).optional(),
   projectName: z.string().min(1).optional(),
   documentType: z.enum(['schematic', 'pcb', 'unknown']).default('unknown'),
   url: z.string().url().optional(),

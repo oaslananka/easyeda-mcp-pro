@@ -146,6 +146,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
           pairingCode,
           activeProject: {
             projectId: 'disposable-project',
+            documentId: 'schematic-page-one',
             projectName: 'Disposable',
             documentType: 'schematic',
           },
@@ -327,8 +328,9 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
             timestamp: new Date().toISOString(),
             source: 'extension',
             activeProject: {
-              projectId: 'disposable-project-v2',
-              projectName: 'Disposable Second Schematic',
+              projectId: 'disposable-project',
+              documentId: 'schematic-page-two',
+              projectName: 'Disposable',
               documentType: 'schematic',
             },
           }),
@@ -347,7 +349,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(gateway.selectPairedProject(ownerIdentity, sessionId)).toBe(true);
       const newProjectRead = await client.callTool({
         name: 'easyeda_schematic_components',
-        arguments: { projectId: 'disposable-project-v2' },
+        arguments: { projectId: 'disposable-project' },
       });
       expect(newProjectRead.isError).not.toBe(true);
       expect(dispatched).toHaveLength(4);
@@ -361,7 +363,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       });
       const offlineRead = await client.callTool({
         name: 'easyeda_schematic_components',
-        arguments: { projectId: 'disposable-project-v2' },
+        arguments: { projectId: 'disposable-project' },
       });
       expect(offlineRead.isError).toBe(true);
       expect(offlineRead.structuredContent).toMatchObject({
