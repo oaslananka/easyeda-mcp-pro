@@ -4,6 +4,7 @@ export type RemoteAuditEventName =
   | 'remote.session.registered'
   | 'remote.session.paired'
   | 'remote.session.disconnected'
+  | 'remote.session.revoked'
   | 'remote.tool.requested'
   | 'remote.tool.dispatched'
   | 'remote.tool.completed'

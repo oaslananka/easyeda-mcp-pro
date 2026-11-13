@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as http from 'node:http';
 import { EnvSchema } from '../../../../src/config/env.js';
-import { createHttpTransport } from '../../../../src/server/transports/http.js';
+import {
+  createHttpTransport,
+  isOAuthAccessTokenTypeAllowed,
+} from '../../../../src/server/transports/http.js';
 
 function createTestConfig(port: number) {
   return EnvSchema.parse({
@@ -26,6 +29,19 @@ async function withServer<T>(port: number, fn: () => Promise<T>): Promise<T> {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }
+
+describe('hosted MCP access-token type boundary', () => {
+  it('allows OAuth access tokens, but not session JWTs, in hosted Cloud', () => {
+    expect(isOAuthAccessTokenTypeAllowed('at+jwt', true)).toBe(true);
+    expect(isOAuthAccessTokenTypeAllowed('JWT', true)).toBe(false);
+    expect(isOAuthAccessTokenTypeAllowed(undefined, true)).toBe(false);
+  });
+
+  it('preserves the existing JWT contract outside hosted Cloud', () => {
+    expect(isOAuthAccessTokenTypeAllowed('JWT', false)).toBe(true);
+    expect(isOAuthAccessTokenTypeAllowed(undefined, false)).toBe(true);
+  });
+});
 
 describe('HTTP OAuth protected resource metadata', () => {
   it('serves protected resource metadata for the MCP resource', async () => {

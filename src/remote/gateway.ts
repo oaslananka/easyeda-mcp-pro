@@ -20,7 +20,11 @@ import {
   RelayMessageSchema,
 } from './protocol.js';
 import { type RemoteIdentity, checkRemoteScope } from './scope.js';
-import { type ExtensionSession, RemoteSessionRouter } from './session-router.js';
+import {
+  type ExtensionSession,
+  type ManagedExtensionSession,
+  RemoteSessionRouter,
+} from './session-router.js';
 import { SessionDispatchQueue } from './session-dispatch-queue.js';
 
 const RouteToolRequestSchema = z.object({
@@ -526,6 +530,31 @@ export class RemoteGateway {
     return paired;
   }
 
+  listPairedExtensions(identity: RemoteIdentity): ManagedExtensionSession[] {
+    return this.router.listPairedSessions(identity.userId);
+  }
+
+  revokePairedExtension(identity: RemoteIdentity, sessionId: string): boolean {
+    const session = this.router.getSession(sessionId);
+    // Missing and another owner's session must be indistinguishable to callers.
+    if (!session || session.userId !== identity.userId) return false;
+    const closeConnection = this.connections.get(sessionId)?.closeConnection;
+    this.disconnect(sessionId);
+    this.router.forgetSession(sessionId);
+    this.audit.record({
+      event: 'remote.session.revoked',
+      mode: session.mode,
+      userId: identity.userId,
+      sessionId,
+    });
+    try {
+      closeConnection?.();
+    } catch {
+      // Revocation is authoritative even when the transport refuses to close.
+    }
+    return true;
+  }
+
   disconnect(sessionId: string): void {
     const session = this.router.getSession(sessionId);
     this.router.disconnect(sessionId);
@@ -867,6 +896,42 @@ export class RemoteGateway {
   }
 
   registerHttpRoutes(app: Express, config: EnvConfig): void {
+    const manageIdentity = (req: Request, res: Response): RemoteIdentity | undefined => {
+      const identity = identityFromRequest(req, res, config);
+      const result = checkRemoteScope(identity, 'read');
+      if (!result.ok) {
+        res.status(result.code === 'SCOPE_MISSING' ? 403 : 401).json({
+          ok: false,
+          code: result.code,
+          message: result.message,
+        });
+        return undefined;
+      }
+      return identity;
+    };
+
+    app.get('/remote/sessions', (req: Request, res: Response) => {
+      const identity = manageIdentity(req, res);
+      if (!identity) return;
+      res.json({ ok: true, sessions: this.listPairedExtensions(identity) });
+    });
+
+    app.delete('/remote/sessions/:sessionId', (req: Request, res: Response) => {
+      const identity = manageIdentity(req, res);
+      if (!identity) return;
+      const target = z
+        .string()
+        .regex(/^sess_[a-zA-Z0-9_-]{1,100}$/)
+        .safeParse(req.params.sessionId);
+      if (!target.success || !this.revokePairedExtension(identity, target.data)) {
+        res
+          .status(404)
+          .json({ ok: false, code: 'SESSION_UNPAIRED', message: 'Session not found.' });
+        return;
+      }
+      res.status(204).end();
+    });
+
     app.post('/remote/pairing-codes', (req: Request, res: Response) => {
       const identity = identityFromRequest(req, res, config);
       if (!identity) {

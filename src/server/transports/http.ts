@@ -20,6 +20,8 @@ import {
   setProtectedResourceChallenge,
 } from './oauth-resource-metadata.js';
 import { RemoteGateway } from '../../remote/gateway.js';
+import { mountHostedAuth } from '../../cloud/http-adapter.js';
+import type { HostedAuth } from '../../cloud/hosted-auth.js';
 
 export interface HttpTransportInstance {
   app: Express;
@@ -33,6 +35,8 @@ export interface HttpTransportInstance {
 export interface HttpTransportOptions {
   gateway?: RemoteGateway;
   serverFactory?: () => McpServer;
+  /** Optional first-party OAuth; Local mode never creates or mounts it. */
+  hostedAuth?: HostedAuth;
 }
 
 interface RateLimitEntry {
@@ -84,7 +88,14 @@ function createRateLimiter(windowMs: number, maxRequests: number) {
  * Supported token type hints (typ claim).
  * We accept JWT by default and only reject tokens with an explicit non-JWT typ.
  */
-const SUPPORTED_TOKEN_TYPES = new Set(['JWT', undefined]);
+/**
+ * Hosted MCP accepts only resource-bound OAuth access tokens. Better Auth's
+ * session JWTs use the same signing keys, so accepting JWT/absent typ here would
+ * allow a signed-in browser session to act as a consented MCP client.
+ */
+export function isOAuthAccessTokenTypeAllowed(typ: string | undefined, hosted: boolean): boolean {
+  return hosted ? typ === 'at+jwt' : typ === 'JWT' || typ === undefined;
+}
 
 export function normalizeOAuthScope(scope: string): string {
   return scope
@@ -135,7 +146,7 @@ function extractTokenScopes(payload: Record<string, unknown>): Set<string> {
 
 type AuthenticatedExpressRequest = Request & { auth?: AuthInfo };
 
-function validateOAuthToken(config: EnvConfig) {
+function validateOAuthToken(config: EnvConfig, hosted: boolean) {
   if (!config.OAUTH_ENABLED || config.HTTP_AUTH_DISABLED) {
     return (_req: Request, _res: Response, next: NextFunction): void => next();
   }
@@ -170,7 +181,7 @@ function validateOAuthToken(config: EnvConfig) {
       .then(({ payload, protectedHeader }) => {
         // Validate token type (typ) — it lives in the protected header per JWT spec
         const typ = protectedHeader.typ;
-        if (typ !== undefined && !SUPPORTED_TOKEN_TYPES.has(typ)) {
+        if (!isOAuthAccessTokenTypeAllowed(typ, hosted)) {
           tokenError(req, res, config, `Unsupported token type: ${typ}`, 'unsupported_token_type');
           return;
         }
@@ -475,6 +486,9 @@ export function createHttpTransport(
   config: EnvConfig,
   options: HttpTransportOptions = {},
 ): HttpTransportInstance {
+  if (options.hostedAuth && (!config.OAUTH_ENABLED || config.HTTP_AUTH_DISABLED)) {
+    throw new Error('Hosted Cloud requires OAuth bearer-token validation.');
+  }
   const logger = getLogger();
   const gateway = options.gateway ?? new RemoteGateway();
   const sessions = new Map<string, McpHttpSession>();
@@ -499,28 +513,33 @@ export function createHttpTransport(
   });
 
   const app = express();
-  app.use(express.json());
-
-  app.use(parseRemoteJsonBody);
   app.use(addSecurityHeaders);
-
   app.use(createRateLimiter(60_000, config.HTTP_RATE_LIMIT_MAX));
 
   // Origin validation and CORS preflight must run before OAuth so browser
   // preflight can complete without a bearer token while still enforcing origin.
   app.use(createOriginValidator(config));
   app.use(handleCorsPreflight);
+
+  // The provider consumes raw POST bodies for sign-in, consent and OAuth code
+  // exchange. Mount before express.json() and the MCP OAuth bearer guard.
+  if (options.hostedAuth) mountHostedAuth(app, options.hostedAuth);
+
+  app.use(express.json());
+  app.use(parseRemoteJsonBody);
   app.use(validateMcpProtocolVersion(config));
 
-  app.get('/.well-known/oauth-protected-resource', (req, res) => {
-    res.json(createProtectedResourceMetadata(req, config));
-  });
+  if (!options.hostedAuth) {
+    app.get('/.well-known/oauth-protected-resource', (req, res) => {
+      res.json(createProtectedResourceMetadata(req, config));
+    });
 
-  app.get('/.well-known/oauth-protected-resource/mcp', (req, res) => {
-    res.json(createProtectedResourceMetadata(req, config));
-  });
+    app.get('/.well-known/oauth-protected-resource/mcp', (req, res) => {
+      res.json(createProtectedResourceMetadata(req, config));
+    });
+  }
 
-  app.use(validateOAuthToken(config));
+  app.use(validateOAuthToken(config, Boolean(options.hostedAuth)));
 
   const forgetMcpSession = (session: McpHttpSession): void => {
     const sessionId = session.transport.sessionId;
