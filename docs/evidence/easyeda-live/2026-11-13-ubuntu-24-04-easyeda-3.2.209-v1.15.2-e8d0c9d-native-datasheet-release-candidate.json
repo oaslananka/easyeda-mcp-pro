@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-release-candidate-native-datasheet-erc-acceptance",
+  "recordedAtUtc": "2026-11-13T05:20:42Z",
+  "source": {
+    "releaseCandidateCommit": "e8d0c9d7804f4261ede1a1dcb379370b48e9f1d6",
+    "extensionVersion": "1.15.2",
+    "serverVersion": "1.15.2",
+    "serverSourcePath": "src/tools/L1_drc_erc.ts",
+    "serverSourceFileSha256": "b50e97d920172b826fc54ae0ba2fe9e11746047a1f24e81adf742a462e1d6507",
+    "compatibleGitTreeSha1": {
+      "easyeda-bridge-extension/src": "ad031a2690001eb0dfe3f07c933ade1d35a519ab",
+      "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "abd8982899f510e1e7d01ed57ef487929e227497",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    },
+    "extensionPackageSha256": "398f69eeac7b2e6ccb804cabb027b14949e597ad33057618c52629bef930ffca",
+    "extensionPackageBytes": 230597
+  },
+  "runtime": {
+    "platform": "Ubuntu 24.04.5 LTS / x86_64",
+    "easyedaPro": "3.2.209",
+    "bridgeExtension": "1.15.2",
+    "bridgeLoader": "1.15.2",
+    "methodRegistryHash": "f71f5e22b7fec5db",
+    "versionMismatch": false,
+    "registryMismatch": false,
+    "projectIdentityHash": "c1cc941a9f41",
+    "projectType": "Isolated backed-up disposable Z480 focused schematic"
+  },
+  "nativeReadOnlyScenarios": [
+    {
+      "name": "Existing semantic ERC without requested datasheet constraints",
+      "outcome": "PASS",
+      "passed": true,
+      "nativeNetCount": 16,
+      "nativeDeviceCount": 34,
+      "readCalls": 36
+    },
+    {
+      "name": "Incomplete or ambiguous datasheet constraint",
+      "outcome": "PASS",
+      "passed": false,
+      "electricalApproval": false,
+      "status": "UNKNOWN",
+      "sourceAuthenticity": "CALLER_DECLARED_UNVERIFIED",
+      "scope": "LIVE_BRIDGE_READ_NOT_INDEPENDENTLY_VERIFIED",
+      "findings": [
+        {
+          "status": "UNKNOWN",
+          "evidence": "incomplete_or_ambiguous"
+        }
+      ]
+    },
+    {
+      "name": "Deliberately wrong declared net against one uniquely observed native pin",
+      "outcome": "PASS",
+      "passed": false,
+      "electricalApproval": false,
+      "status": "WARNING",
+      "evidence": "explicit_netlist",
+      "sourceAuthenticity": "CALLER_DECLARED_UNVERIFIED",
+      "nativeComponentHash": "588f508e4a71",
+      "nativePinHash": "4e07408562be",
+      "nativeNetHash": "ccdd8d41edba"
+    },
+    {
+      "name": "Foreign project ID rejected",
+      "outcome": "PASS",
+      "passed": false,
+      "notAvailable": true,
+      "electricalApproval": false,
+      "returnedNetCount": 0
+    },
+    {
+      "name": "Disposable project SHA-256 unchanged",
+      "outcome": "PASS",
+      "fixtureSha256Before": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+      "fixtureSha256After": "d7fa4b69f83761abe0e9fdc04d3cea1d8fb580f640120a11488ae46d2d356a7c",
+      "designWrites": 0,
+      "saves": 0,
+      "exports": 0
+    }
+  ],
+  "limitations": [
+    "Source-declared datasheet part/limit and deliberately incorrect net are synthetic controls; no authentic manufacturer datasheet or external voltage was independently verified.",
+    "UNKNOWN means not independently proven, not a manufacturing/electrical PASS. WARNING proves a conflict with a caller-declared requirement and real native net observation, not a certified hardware hazard.",
+    "This is exact release-candidate source and extension v1.15.2 installed via official Extensions Manager in an isolated native editor. No future package publication is asserted.",
+    "Native Windows/macOS editor acceptance, all MCP methods, and independent physical circuit validation remain outside this limited read-only smoke.",
+    "Zero production design edits, copper writes, save/export operations, vendor contact or manufacturing orders."
+  ],
+  "result": "NATIVE_READ_ONLY_ACCEPTANCE_PASSED"
+}

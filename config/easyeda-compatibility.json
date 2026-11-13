@@ -4,6 +4,108 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-13-e8d0c9d-v1152-release-candidate",
+      "status": "live-validated",
+      "validatedAt": "2026-11-13T05:20:42Z",
+      "reviewBy": "2027-02-11",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-42-generic",
+        "nodeVersion": "24.22.1"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Previously inspected metadata of the same installed 3.2.209 package; current native runtime 3.2.209 reconfirmed."
+      },
+      "server": {
+        "validationPackageVersion": "1.15.2",
+        "releaseContainingFixes": "1.15.2",
+        "commit": "e8d0c9d7804f4261ede1a1dcb379370b48e9f1d6",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "ad031a2690001eb0dfe3f07c933ade1d35a519ab",
+            "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "abd8982899f510e1e7d01ed57ef487929e227497",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.15.2",
+        "loaderReportedVersion": "1.15.2",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "f71f5e22b7fec5db",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "da149xf0e4x83a8",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "398f69eeac7b2e6ccb804cabb027b14949e597ad33057618c52629bef930ffca",
+        "packageSizeBytes": 230597
+      },
+      "fixture": {
+        "project": "Isolated, backed-up disposable Z480 test schematic; private UUID and local path excluded",
+        "schematic": "Focused native Z480 schematic with 16 net records and 34 component entries",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "e8d0c9d-exact-release-install",
+          "name": "Real EasyEDA Pro 3.2.209 and exact v1.15.2 candidate package",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Installed candidate .eext 230597 bytes SHA256 398f69ee; server/extension/loader 1.15.2, registry f71f5e22 matched with zero mismatch. Release commit e8d0c9d source is exact.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.2-e8d0c9d-native-datasheet-release-candidate.json"
+          ]
+        },
+        {
+          "id": "e8d0c9d-datasheet-unknown",
+          "name": "Unverified datasheet findings never appear as green approval",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Legacy semantic ERC true on 16 nets and 34 components; requested unverified exact-pin constraint UNKNOWN, passed=false, electrical_approval=false.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.2-e8d0c9d-native-datasheet-release-candidate.json"
+          ]
+        },
+        {
+          "id": "e8d0c9d-expected-net-negative",
+          "name": "Real native wrong-net warning and foreign project refusal",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Synthetic expected-net mismatch on native uniquely observed pin returned WARNING, passed=false and no approval. Foreign project returned not_available=true with no inferred nets.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.2-e8d0c9d-native-datasheet-release-candidate.json"
+          ]
+        },
+        {
+          "id": "e8d0c9d-fixture-integrity",
+          "name": "Zero native design writes with byte-identical disposable PCB archive",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Disposable .eprj2 SHA256 unchanged, and tool bridge only accepted read methods; no saves, exports or design mutation.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.2-e8d0c9d-native-datasheet-release-candidate.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Tested one isolated licensed EasyEDA Pro 3.2.209 Ubuntu 24.04.5 runtime; Windows/macOS editor runtime is not claimed.",
+        "User-declared manufacturer, package, pin supply limit and wrong-net expectation were synthetic control data. They do not establish actual datasheet limits, measured voltage or electrical compliance.",
+        "Installed exact release candidate 1.15.2; publication/registry verification remains a separate post-merge workflow and is not part of this pre-release evidence.",
+        "The proprietary editor installed extension bytes are not independently exported; the official import package was SHA256-verified before install and runtime reports matching versions/registry.",
+        "Native copper apply, fabrication/electrical approval, supplier contact and paid ordering remain outside test scope.",
+        "Editor Electron/Chromium subversions were independently inspected earlier from the same installed EasyEDA 3.2.209 binary; current runtime 3.2.209 was reconfirmed."
+      ]
+    },
+    {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-13-6dfb890-v1150-production-review",
       "status": "live-validated",
       "validatedAt": "2026-11-13T03:48:39Z",
