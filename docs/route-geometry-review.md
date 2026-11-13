@@ -256,8 +256,18 @@ For **parallel, overlapping, same-layer** trace segments, the tool samples
 edge-to-edge copper separation (native centerline spacing minus half of
 both line widths). Only those parallel samples can support a
 `WITHIN_DECLARED_LIMIT_REFERENCE` comparison against the supplied
-`minEdgeGapMm`/`maxEdgeGapMm` bounds. Perpendicular or nonoverlapping
-paths cannot establish a **passing** differential spacing comparison.
+`minEdgeGapMm`/`maxEdgeGapMm` bounds, **and only when both native net paths
+form complete observed single-layer chains and every segment length is
+covered by an overlapping parallel sample**. A short straight section of a
+longer route, an uncovered bend, disconnection or same-net via never makes
+the whole observed pair's spacing reference green. Such incomplete coverage
+returns `UNKNOWN`, while any _observed_ out-of-bound gap remains a
+`WARNING`. `spacing.sample_coverage_complete` describes this bounded
+sample coverage, and `sampled_positive_length_mm` and
+`sampled_negative_length_mm` expose the measured parallel-overlap length
+for each declared net. The observed native track lengths appear separately
+in `paths`. Perpendicular or nonoverlapping paths cannot establish a
+**passing** differential spacing comparison.
 Independently, a nonpositive 2D projected copper gap between any two
 same-layer, different-net native trace segments (including perpendicular
 crossings and near endpoint contacts) produces `WARNING` even with no

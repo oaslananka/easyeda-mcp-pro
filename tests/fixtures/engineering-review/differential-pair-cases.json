@@ -35,7 +35,7 @@
     "expected": {
       "status": "UNKNOWN",
       "skew": "WITHIN_DECLARED_LIMIT_REFERENCE",
-      "spacing": "WITHIN_DECLARED_LIMIT_REFERENCE",
+      "spacing": "UNKNOWN",
       "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
       "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
     }
@@ -290,7 +290,7 @@
     "expected": {
       "status": "UNKNOWN",
       "skew": "WITHIN_DECLARED_LIMIT_REFERENCE",
-      "spacing": "WITHIN_DECLARED_LIMIT_REFERENCE",
+      "spacing": "UNKNOWN",
       "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
       "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
     }
@@ -331,7 +331,7 @@
     "expected": {
       "status": "WARNING",
       "skew": "WARNING",
-      "spacing": "WITHIN_DECLARED_LIMIT_REFERENCE",
+      "spacing": "UNKNOWN",
       "positiveCoverage": "OBSERVED_SINGLE_CHAIN",
       "negativeCoverage": "OBSERVED_SINGLE_CHAIN"
     }

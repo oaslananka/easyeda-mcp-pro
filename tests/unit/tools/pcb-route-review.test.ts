@@ -726,9 +726,12 @@ describe('native PCB route geometry review MCP contract', () => {
       declared_limit_mm: 0.6,
     });
     expect(result.differential_pair.spacing).toMatchObject({
-      status: 'WITHIN_DECLARED_LIMIT_REFERENCE',
+      status: 'UNKNOWN',
       sample_count: 1,
+      sample_coverage_complete: false,
     });
+    expect(result.differential_pair.spacing.sampled_positive_length_mm).toBeCloseTo(25.4, 5);
+    expect(result.differential_pair.spacing.sampled_negative_length_mm).toBeCloseTo(25.4, 5);
     expect(result.differential_pair.impedance_status).toBe('UNKNOWN');
     expect(result.differential_pair.protocol_guidance.differential_impedance_reference_ohms).toBe(
       90,

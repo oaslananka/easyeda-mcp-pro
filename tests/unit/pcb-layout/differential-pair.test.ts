@@ -112,6 +112,104 @@ describe('source-backed native differential-pair evidence', () => {
     expect(r.protocol_guidance?.source).toContain('USB');
   });
 
+  it('never reports an entire pair gap within limits from only a short overlapping sample', () => {
+    const r = reviewDifferentialPair(
+      { ...declared, minEdgeGapMm: 0.2, maxEdgeGapMm: 0.3 },
+      [a('p', 'P', 0, 0, 1000, 0), a('n', 'N', 0, 20, 100, 20)],
+      [],
+      true,
+    );
+    expect(r.paths.positive.coverage).toBe('OBSERVED_SINGLE_CHAIN');
+    expect(r.paths.negative.coverage).toBe('OBSERVED_SINGLE_CHAIN');
+    expect(r.spacing).toMatchObject({
+      status: 'UNKNOWN',
+      sample_count: 1,
+      sample_coverage_complete: false,
+    });
+    expect(r.spacing.sampled_positive_length_mm).toBeCloseTo(2.54, 5);
+    expect(r.spacing.sampled_negative_length_mm).toBeCloseTo(2.54, 5);
+    expect(r.spacing.note).toMatch(/unsampled|partial|incomplete/i);
+  });
+
+  it('does not treat multiple bend segments with only partial parallel samples as full pairing', () => {
+    const tracks = [
+      a('p1', 'P', 0, 0, 100, 0),
+      a('p2', 'P', 100, 0, 100, 100),
+      a('n1', 'N', 0, -20, 120, -20),
+      a('n2', 'N', 120, -20, 120, 100),
+    ];
+    const r = reviewDifferentialPair(
+      { ...declared, minEdgeGapMm: 0.2, maxEdgeGapMm: 0.4 },
+      tracks,
+      [],
+      true,
+    );
+    expect(r.paths.positive.coverage).toBe('OBSERVED_SINGLE_CHAIN');
+    expect(r.paths.negative.coverage).toBe('OBSERVED_SINGLE_CHAIN');
+    expect(r.spacing.status).toBe('UNKNOWN');
+    expect(r.spacing.sample_coverage_complete).toBe(false);
+    expect(r.spacing.sample_count).toBe(2);
+    expect(r.engineering_sign_off).toBe(false);
+  });
+
+  it('recognizes fully covered multi-segment parallel chain samples without promoting SI compliance', () => {
+    const tracks = [
+      a('p1', 'P', 0, 0, 500, 0),
+      a('p2', 'P', 500, 0, 1000, 0),
+      a('n1', 'N', 0, 20, 500, 20),
+      a('n2', 'N', 500, 20, 1000, 20),
+    ];
+    const r = reviewDifferentialPair(
+      { ...declared, minEdgeGapMm: 0.2, maxEdgeGapMm: 0.3, maxSkewMm: 0.1 },
+      tracks,
+      [],
+      true,
+    );
+    expect(r.spacing).toMatchObject({
+      status: 'WITHIN_DECLARED_LIMIT_REFERENCE',
+      sample_count: 2,
+      sample_coverage_complete: true,
+    });
+    expect(r.spacing.sampled_positive_length_mm).toBeCloseTo(25.4, 5);
+    expect(r.spacing.sampled_negative_length_mm).toBeCloseTo(25.4, 5);
+    expect(r.skew.status).toBe('WITHIN_DECLARED_LIMIT_REFERENCE');
+    expect(r.status).toBe('UNKNOWN');
+    expect(r.impedance_status).toBe('UNKNOWN');
+    expect(r.engineering_sign_off).toBe(false);
+  });
+
+  it('withholds the within-limit label when a via prevents a proven single-chain pairing', () => {
+    const tracks = [a('p', 'P', 0, 0, 1000, 0), a('n', 'N', 0, 20, 1000, 20)];
+    const vias: NativeVia[] = [
+      { primitiveId: 'via-p', net: 'P', x: 1000, y: 0, diameter: 24, holeDiameter: 12 },
+    ];
+    const r = reviewDifferentialPair(
+      { ...declared, minEdgeGapMm: 0.2, maxEdgeGapMm: 0.3 },
+      tracks,
+      vias,
+      true,
+    );
+    expect(r.paths.positive.coverage).toBe('AMBIGUOUS');
+    expect(r.spacing.status).toBe('UNKNOWN');
+    expect(r.spacing.sample_coverage_complete).toBe(false);
+    expect(r.spacing.observed_mm).toBeCloseTo(0.254, 5);
+  });
+
+  it('preserves an observed out-of-limit gap warning even if the rest of a pair is unobserved', () => {
+    const r = reviewDifferentialPair(
+      { ...declared, minEdgeGapMm: 0.2 },
+      [a('p', 'P', 0, 0, 1000, 0), a('n', 'N', 0, 12, 100, 12)],
+      [],
+      true,
+    );
+    expect(r.spacing.status).toBe('WARNING');
+    expect(r.spacing.sample_coverage_complete).toBe(false);
+    expect(r.spacing.observed_mm).toBeCloseTo(0.0508, 5);
+    expect(r.findings).toContainEqual(
+      expect.objectContaining({ id: 'pair:spacing', status: 'WARNING' }),
+    );
+  });
+
   it('protocol does not automatically impose a hard skew or spacing threshold', () => {
     const d: DifferentialPairDeclaration = {
       positiveNet: 'USB_D+',
@@ -437,9 +535,10 @@ describe('source-backed native differential-pair evidence', () => {
       true,
     );
     expect(result.spacing).toMatchObject({
-      status: 'WITHIN_DECLARED_LIMIT_REFERENCE',
+      status: 'UNKNOWN',
       sample_count: 250_000,
       observed_contact_count: 0,
+      sample_coverage_complete: false,
     });
     expect(result.paths.positive.coverage).toBe('AMBIGUOUS');
     expect(result.paths.negative.coverage).toBe('AMBIGUOUS');
