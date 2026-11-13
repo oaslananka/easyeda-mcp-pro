@@ -23,12 +23,13 @@ variable is <code>&#123;&#123;vault.VARIABLE_NAME&#125;&#125;</code>, not a copi
 
 ## What to add to Doppler (one time)
 
-Use the project/config already scoped to Coolify's linked
-**EasyEDA-specific Doppler service token** if it is the dedicated config. Otherwise, create a dedicated project such as
-`easyeda-mcp-pro` with config `prd` and replace that token once with a
-**read-only service token for exactly this config**. A service account
-requires project/config settings in Coolify instead. Do not reuse another
-project's secret token or introduce a second credential store.
+Use exactly the existing Doppler project **`easyeda-mcp-pro`** and its
+**`main`** config. The owner manages all runtime settings and four
+GitHub/Google OAuth credentials only in `main`; no other config is needed.
+Coolify's existing EasyEDA secret-manager integration uses a **read-only
+service token scoped to `easyeda-mcp-pro/main`**. All 16 production entries
+reference that config directly. Do not create another Doppler config or
+copy values into GitHub Actions or a second secret store.
 
 | Doppler key                  | Value / requirement                                       |
 | ---------------------------- | --------------------------------------------------------- |
