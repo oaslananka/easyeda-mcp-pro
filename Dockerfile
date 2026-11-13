@@ -59,12 +59,14 @@ COPY --from=builder --chown=node:node /prod ./
 # The production process invokes Node directly and never needs npm, npx, or
 # corepack. Remove package-manager payloads from the runtime stage to reduce
 # image size and eliminate vulnerabilities in tooling that is not executed.
-# WORKDIR created /app while still root; hand ownership to "node" so the app
-# can create its runtime DATA_DIR (.easyeda-mcp-pro/) under it at startup.
+# Cloud's dedicated named volume mounts at /app/data. Pre-create this path
+# with the runtime user's ownership before Docker's first empty-volume copy-up.
+# Local installs keep their existing DATA_DIR and do not use the Cloud mount.
+# Coolify's in-container HTTP health check also needs wget (BusyBox in Alpine).
 RUN apk add --no-cache --upgrade libcrypto3=3.5.9-r0 libssl3=3.5.9-r0 \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
-    && chown node:node /app
+    && mkdir -p /app/data     && chown node:node /app /app/data     && chmod 0700 /app/data     && command -v wget >/dev/null
 
 USER node
 

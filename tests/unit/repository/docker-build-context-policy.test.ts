@@ -81,6 +81,17 @@ describe('Docker build-context policy', () => {
     expect(patterns.at(-1)).toBe('!.env.example');
   });
 
+  it('prepares the hosted Cloud data volume for the non-root runtime and Coolify health checks', () => {
+    const dockerfile = read('Dockerfile');
+    expect(dockerfile).toContain('mkdir -p /app/data');
+    expect(dockerfile).toContain('chown node:node /app /app/data');
+    expect(dockerfile).toContain('chmod 0700 /app/data');
+    expect(dockerfile).toContain('command -v wget >/dev/null');
+    expect(dockerfile.indexOf('chown node:node /app /app/data')).toBeLessThan(
+      dockerfile.indexOf('USER node'),
+    );
+  });
+
   it('copies runtime artifacts only from the builder stage', () => {
     const dockerfile = read('Dockerfile');
     const localCopyLines = dockerfile
