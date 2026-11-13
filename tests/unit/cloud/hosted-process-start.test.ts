@@ -85,6 +85,20 @@ describe('Hosted Cloud executable startup (no external social providers)', () =>
       expect(jwks.status).toBe(200);
       await expect(jwks.json()).resolves.toHaveProperty('keys');
       expect((await stat(join(dataDir, 'hosted-cloud.sqlite'))).size).toBeGreaterThan(0);
+      const signIn = await fetch(`${origin}/sign-in`);
+      expect(signIn.status).toBe(200);
+      expect(await signIn.text()).toContain('Continue with GitHub');
+      const portal = await fetch(`${origin}/cloud`, { redirect: 'manual' });
+      expect(portal.status).toBe(303);
+      expect(portal.headers.get('location')).toBe('/sign-in');
+      const fakeClient = await fetch(`${origin}/api/auth/sign-in/social`, {
+        method: 'POST',
+        headers: { origin, 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'github', callbackURL: '/cloud' }),
+      });
+      expect(fakeClient.status).toBe(200);
+      const fakeProviderURL = (await fakeClient.json()) as { url?: string };
+      expect(fakeProviderURL.url).toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize/);
     } finally {
       await stopChild(child);
       await rm(dataDir, { recursive: true, force: true });

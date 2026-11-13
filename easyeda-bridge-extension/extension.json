@@ -58,6 +58,11 @@
             "registerFn": "disableAutoConnect"
           },
           {
+            "id": "ConnectHostedCloud",
+            "title": "Connect Cloud... (Experimental)",
+            "registerFn": "connectHostedCloud"
+          },
+          {
             "id": "ConnectCustomRemote",
             "title": "Connect Custom Remote... (Experimental)",
             "registerFn": "connectCustomRemote"
@@ -91,6 +96,11 @@
             "registerFn": "connect"
           },
           {
+            "id": "ConnectHostedCloud",
+            "title": "Connect Cloud... (Experimental)",
+            "registerFn": "connectHostedCloud"
+          },
+          {
             "id": "ConnectCustomRemote",
             "title": "Connect Custom Remote... (Experimental)",
             "registerFn": "connectCustomRemote"
@@ -122,6 +132,11 @@
             "id": "ConnectLocal",
             "title": "Connect Local",
             "registerFn": "connect"
+          },
+          {
+            "id": "ConnectHostedCloud",
+            "title": "Connect Cloud... (Experimental)",
+            "registerFn": "connectHostedCloud"
           },
           {
             "id": "ConnectCustomRemote",

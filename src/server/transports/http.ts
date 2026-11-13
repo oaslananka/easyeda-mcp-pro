@@ -21,6 +21,7 @@ import {
 } from './oauth-resource-metadata.js';
 import { RemoteGateway } from '../../remote/gateway.js';
 import { mountHostedAuth } from '../../cloud/http-adapter.js';
+import { mountHostedPortal } from '../../cloud/portal.js';
 import type { HostedAuth } from '../../cloud/hosted-auth.js';
 
 export interface HttpTransportInstance {
@@ -544,7 +545,8 @@ export function createHttpTransport(
   // exchange. Mount before express.json() and the MCP OAuth bearer guard.
   if (options.hostedAuth) mountHostedAuth(app, options.hostedAuth);
 
-  app.use(express.json());
+  app.use(express.json({ limit: '1mb' }));
+  if (options.hostedAuth) mountHostedPortal(app, options.hostedAuth, gateway);
   app.use(parseRemoteJsonBody);
   app.use(validateMcpProtocolVersion(config));
 
@@ -703,7 +705,7 @@ export function createHttpTransport(
   const start = async () => {
     return new Promise<void>((resolve) => {
       server = app.listen(config.HTTP_PORT, config.HTTP_HOST, () => {
-        if (server) gateway.attachWebSocketServer(server, config);
+        if (server) gateway.attachWebSocketServer(server, config, options.hostedAuth?.origin);
         logger.info({ host: config.HTTP_HOST, port: config.HTTP_PORT }, 'HTTP transport listening');
         resolve();
       });

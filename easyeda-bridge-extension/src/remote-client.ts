@@ -64,7 +64,8 @@ interface RemoteEnvelope {
 }
 
 const PROTOCOL_VERSION = '2026-07-remote-relay-v1';
-const DEFAULT_HOSTED_RELAY_URL = 'wss://relay.easyeda-mcp-pro.local/session';
+export const OFFICIAL_HOSTED_RELAY_URL = 'wss://easyeda-mcp-pro.oaslananka.dev/remote/relay';
+const DEFAULT_HOSTED_RELAY_URL = OFFICIAL_HOSTED_RELAY_URL;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 const HEARTBEAT_LIVENESS_MS = 45_000;

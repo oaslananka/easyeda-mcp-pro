@@ -86,7 +86,11 @@ async function waitForCondition(check: () => boolean, timeoutMs = 1_000): Promis
   }
 }
 
-async function createHarness(rateLimit?: number, allowedOrigins = ''): Promise<GatewayHarness> {
+async function createHarness(
+  rateLimit?: number,
+  allowedOrigins = '',
+  hostedOrigin?: string,
+): Promise<GatewayHarness> {
   let counter = 0;
   const gateway = new RemoteGateway({ makeId: () => `id-${++counter}` });
   const server = createServer();
@@ -101,6 +105,7 @@ async function createHarness(rateLimit?: number, allowedOrigins = ''): Promise<G
           HTTP_HOST: '127.0.0.1',
           BRIDGE_MAX_PAYLOAD_SIZE: 1024,
         }),
+    hostedOrigin,
   );
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -227,6 +232,32 @@ describe('RemoteGateway WebSocket upgrade admission', () => {
       new Promise<void>((resolve, reject) => {
         rejected.once('open', resolve);
         rejected.once('error', reject);
+      }),
+    ).rejects.toThrow('400');
+  });
+
+  it('accepts the canonical hosted Host through a reverse proxy but rejects foreign hosts', async () => {
+    const harness = await createHarness(5, '', 'https://easyeda-mcp-pro.oaslananka.dev');
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const publicSocket = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`, {
+      headers: { Host: 'easyeda-mcp-pro.oaslananka.dev' },
+    });
+    await new Promise<void>((resolve, reject) => {
+      publicSocket.once('open', resolve);
+      publicSocket.once('error', reject);
+    });
+    await new Promise<void>((resolve) => {
+      publicSocket.once('close', resolve);
+      publicSocket.close();
+    });
+    const evil = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`, {
+      headers: { Host: 'attacker.example' },
+    });
+    await expect(
+      new Promise<void>((resolve, reject) => {
+        evil.once('open', resolve);
+        evil.once('error', reject);
       }),
     ).rejects.toThrow('400');
   });

@@ -16,6 +16,7 @@ import {
   validateCustomRemoteRelayUrl,
 } from './connection-policy.js';
 import {
+  OFFICIAL_HOSTED_RELAY_URL,
   RemoteRelayClient,
   type RemoteApprovalDecision,
   type RemoteApprovalPrompt,
@@ -94,6 +95,7 @@ interface EasyedaGlobal {
   disconnectRemoteRelay?: () => void;
   showRemoteRelayStatus?: () => void;
   connectCustomRemote?: () => Promise<void>;
+  connectHostedCloud?: () => Promise<void>;
 }
 
 interface EasyedaWebSocketApi {
@@ -719,6 +721,19 @@ function promptConnectionValue(message: string, initialValue = ''): string | nul
     showToast('Custom Remote input dialog unavailable. Local remains available.');
     return null;
   }
+}
+
+async function connectHostedCloudInternal(): Promise<void> {
+  const pairingCode = promptConnectionValue(
+    'Enter the one-time Cloud pairing code from your EasyEDA MCP Pro account (EDA-XXXXXXXX)',
+  );
+  if (pairingCode === null) return;
+  const code = pairingCode.trim().toUpperCase();
+  if (!/^EDA-[A-F0-9]{8}$/.test(code)) {
+    showToast('Cloud connection requires a valid EDA-XXXXXXXX pairing code.');
+    return;
+  }
+  connectRemoteRelayInternal('hosted', OFFICIAL_HOSTED_RELAY_URL, code);
 }
 
 async function connectCustomRemoteInternal(): Promise<void> {
@@ -1624,6 +1639,7 @@ interface PersistentRuntime {
   toggleAutoConnect: typeof toggleAutoConnectInternal;
   connectRemoteRelay: typeof connectRemoteRelayInternal;
   connectCustomRemote: typeof connectCustomRemoteInternal;
+  connectHostedCloud: typeof connectHostedCloudInternal;
   disconnectRemoteRelay: typeof disconnectRemoteRelayInternal;
   showRemoteRelayStatus: typeof showRemoteRelayStatusInternal;
 }
@@ -1633,7 +1649,11 @@ const PERSISTENT_RUNTIME_KEY = '__easyedaMcpProBridgeRuntime_v8__';
 function getPersistentRuntime(): PersistentRuntime {
   const globalScope = globalThis as any;
   const existing = globalScope[PERSISTENT_RUNTIME_KEY] as PersistentRuntime | undefined;
-  if (existing) return existing;
+  if (existing) {
+    // Preserve the hot-reload runtime while upgrading its optional Cloud menu.
+    existing.connectHostedCloud = connectHostedCloudInternal;
+    return existing;
+  }
 
   const runtime: PersistentRuntime = {
     activate: activateInternal,
@@ -1646,6 +1666,7 @@ function getPersistentRuntime(): PersistentRuntime {
     toggleAutoConnect: toggleAutoConnectInternal,
     connectRemoteRelay: connectRemoteRelayInternal,
     connectCustomRemote: connectCustomRemoteInternal,
+    connectHostedCloud: connectHostedCloudInternal,
     disconnectRemoteRelay: disconnectRemoteRelayInternal,
     showRemoteRelayStatus: showRemoteRelayStatusInternal,
   };
@@ -1699,6 +1720,10 @@ export async function connectCustomRemote(): Promise<void> {
   await persistentRuntime.connectCustomRemote();
 }
 
+export async function connectHostedCloud(): Promise<void> {
+  await persistentRuntime.connectHostedCloud();
+}
+
 export function disconnectRemoteRelay(): void {
   persistentRuntime.disconnectRemoteRelay();
 }
@@ -1715,6 +1740,7 @@ function expose(): void {
     api.showStatus = showStatus;
     api.connectRemoteRelay = connectRemoteRelay;
     api.connectCustomRemote = connectCustomRemote;
+    api.connectHostedCloud = connectHostedCloud;
     api.disconnectRemoteRelay = disconnectRemoteRelay;
     api.showRemoteRelayStatus = showRemoteRelayStatus;
     api.enableAutoConnect = enableAutoConnect;
@@ -1730,6 +1756,7 @@ function expose(): void {
   globalScope.showStatus = showStatus;
   globalScope.connectRemoteRelay = connectRemoteRelay;
   globalScope.connectCustomRemote = connectCustomRemote;
+  globalScope.connectHostedCloud = connectHostedCloud;
   globalScope.disconnectRemoteRelay = disconnectRemoteRelay;
   globalScope.showRemoteRelayStatus = showRemoteRelayStatus;
   globalScope.enableAutoConnect = enableAutoConnect;

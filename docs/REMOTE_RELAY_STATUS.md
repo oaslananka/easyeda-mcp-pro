@@ -17,9 +17,13 @@ provider starts **only** when `CLOUD_HOSTED_ENABLED=true`, `TRANSPORT=http`,
 These hosted-only credentials are not part of the local MCP Registry configuration. Provider
 state uses a dedicated `hosted-cloud.sqlite` database under `DATA_DIR`.
 
-A loopback process test confirms OAuth discovery, JWKS and SQLite startup with **fake provider
-credentials**, not a real signed-in user. Live GitHub/Google sign-in, consent pages, owner pairing,
-client/project management, hosted deployment and real EasyEDA relay acceptance are **not yet
+A loopback process test confirms OAuth discovery, JWKS, a rendered GitHub/Google sign-in
+screen, a fake-credential GitHub OAuth redirect and SQLite startup with **fake provider
+credentials**, not a real signed-in user. A separate cookie-authenticated browser portal
+shows linked extensions, creates owner-bound pairing codes, revokes sessions and supports
+explicit owner-selected extension/project binding. The extension has a separate opt-in Connect Cloud menu that requests only a pairing code and uses the official Cloud WSS relay URL; Custom Remote remains independent. A changed project identity requires
+reselection before remote tool routing; tampered/expired consent requests fail closed. Live GitHub/Google sign-in, full browser consent completion, real extension
+pairing/project UX, hosted deployment and real EasyEDA relay acceptance are **not yet
 verified or shipped**. Keep Cloud disabled until all acceptance gates are satisfied.
 
 ## Implemented and continuously tested

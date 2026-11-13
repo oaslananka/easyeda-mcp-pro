@@ -137,6 +137,7 @@
   "dependencies": {
     "@better-auth/cimd": "1.7.22",
     "@better-auth/mcp": "1.7.22",
+    "@better-auth/oauth-provider": "1.7.22",
     "@modelcontextprotocol/ext-apps": "2.0.4",
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",

@@ -113,6 +113,7 @@ Tunnels provide reachability only. They do not replace authentication, pairing, 
 The **MCP Bridge** menu is available in the Start Page, schematic and PCB editors:
 
 - **Connect** or **Connect Local** uses the local loopback MCP bridge (the default), including in EasyEDA Pro Web. A locally running MCP server is still required. No domain or Tunnel is needed when both run on the same computer.
+- **Connect Cloud... (Experimental)** requests only the one-time pairing code from the signed-in Cloud portal at `https://easyeda-mcp-pro.oaslananka.dev/cloud`. It targets the official `wss://easyeda-mcp-pro.oaslananka.dev/remote/relay` endpoint. This is an explicit one-editor-session opt-in; Local stays the default and Cloud does not auto-resume on restart. The public hosted service and live EasyEDA acceptance remain unverified.
 - **Connect Custom Remote... (Experimental)** requests a self-hosted WSS Relay URL and a short-lived EDA-XXXXXXXX pairing code previously obtained from an authenticated Relay gateway. This uses the existing remote session/approval protocol; it does **not** accept a public MCP /mcp URL as a WebSocket Relay endpoint.
 - **Disconnect Remote Relay**, **Remote Relay Status...** and **Connect Local** let the user inspect or return from the experimental mode. Switching modes closes the previous transport. The pairing code is never persisted in extension settings or placed in the Relay URL. Remote mode does not automatically resume after editor restart.
 

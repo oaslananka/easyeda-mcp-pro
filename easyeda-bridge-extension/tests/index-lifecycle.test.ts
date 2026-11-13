@@ -14,6 +14,7 @@ const GLOBAL_KEYS = [
   'showStatus',
   'connectRemoteRelay',
   'connectCustomRemote',
+  'connectHostedCloud',
   'disconnectRemoteRelay',
   'showRemoteRelayStatus',
   'enableAutoConnect',
@@ -470,6 +471,43 @@ describe('extension loader lifecycle source', () => {
     );
     extension.showStatus();
     expect(toasts.at(-1)).toContain('connected to local server');
+  });
+
+  it('connects to the official hosted relay with a one-time code, keeping Local as the default', async () => {
+    HarnessSocket.localBehavior = 'success';
+    const prompts = ['bad-code', 'eda-abcdef12'];
+    const { extension, toasts, storage } = await loadExtension({
+      autoConnect: true,
+      withWebSocket: true,
+      prompt: () => prompts.shift() ?? null,
+    });
+    await extension.activate('onStartupFinished');
+    await flushMicrotasks();
+    const local = HarnessSocket.instances.find((socket) => socket.url.startsWith('ws://'));
+    expect(local?.readyState).toBe(HarnessSocket.OPEN);
+
+    await extension.connectHostedCloud();
+    expect(local?.closeCalls).toBe(0);
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(0);
+    expect(toasts.join(' | ')).toContain('valid EDA-');
+
+    await extension.connectHostedCloud();
+    const remote = latestRemoteSocket();
+    expect(remote.url).toBe('wss://easyeda-mcp-pro.oaslananka.dev/remote/relay');
+    expect(local?.closeCalls).toBeGreaterThan(0);
+    remote.open();
+    expect(remote.sent).toContainEqual(
+      expect.objectContaining({
+        type: 'register_session',
+        mode: 'hosted',
+        pairingCode: 'EDA-ABCDEF12',
+      }),
+    );
+    expect(storage.autoConnect).toBe(true);
+    await extension.connect();
+    expect(remote.closeCalls).toBeGreaterThan(0);
   });
 
   it('keeps Local connected when Custom Remote dialog is cancelled or unsafe', async () => {

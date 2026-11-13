@@ -236,8 +236,18 @@ export function identityFromRequest(
 const MAX_RELAY_WEBSOCKETS = 64;
 const RELAY_UPGRADE_WINDOW_MS = 60_000;
 
-function validUpgradeHost(host: string | undefined, config: EnvConfig): boolean {
+function validUpgradeHost(
+  host: string | undefined,
+  config: EnvConfig,
+  canonicalHostedOrigin?: string,
+): boolean {
   if (!host) return false;
+  if (
+    canonicalHostedOrigin &&
+    host.toLowerCase() === new URL(canonicalHostedOrigin).host.toLowerCase()
+  ) {
+    return true;
+  }
   const hostname = host.toLowerCase().replace(/:\d+$/, '');
   const expected = config.HTTP_HOST.toLowerCase();
   if (expected === '127.0.0.1' || expected === 'localhost' || expected === '::1') {
@@ -290,11 +300,26 @@ export function allowRelayUpgradeAttempt(
   return current.count <= rateLimit;
 }
 
+interface SelectedProject {
+  sessionId: string;
+  projectKey: string;
+  projectId?: string;
+  projectName?: string;
+  documentType: string;
+}
+
+function projectIdentity(project?: ExtensionSession['activeProject']): string | undefined {
+  if (project?.projectId) return `id:${project.projectId}`;
+  if (project?.projectName) return `name:${project.documentType}:${project.projectName}`;
+  return undefined;
+}
+
 export class RemoteGateway {
   readonly router: RemoteSessionRouter;
   readonly approvals: ApprovalStore;
   readonly audit: RemoteAuditLog;
   private readonly connections = new Map<string, RegisteredConnection>();
+  private readonly selectedProjects = new Map<string, SelectedProject>();
   private readonly now: () => Date;
   private readonly makeId: () => string;
   private readonly hashInput: (value: unknown) => string;
@@ -322,10 +347,31 @@ export class RemoteGateway {
     sessionId?: string;
     riskLevel: RemoteRiskLevel;
   }): ResolvedRemoteConnection {
+    const selected = this.selectedProjects.get(input.identity.userId);
+    if (selected && input.sessionId && input.sessionId !== selected.sessionId) {
+      return gatewayError(
+        403,
+        'SESSION_UNPAIRED',
+        'This session differs from the owner-selected EasyEDA project.',
+      );
+    }
+    if (selected) {
+      const current = this.router.getSession(selected.sessionId);
+      if (!current || current.userId !== input.identity.userId) {
+        return gatewayError(404, 'SESSION_UNPAIRED', 'Selected EasyEDA session is unavailable.');
+      }
+      if (projectIdentity(current.activeProject) !== selected.projectKey) {
+        return gatewayError(
+          409,
+          'PROJECT_INACTIVE',
+          'The EasyEDA active project changed. Select the project again in Cloud.',
+        );
+      }
+    }
     const route = this.router.resolve({
       userId: input.identity.userId,
       riskLevel: input.riskLevel,
-      sessionId: input.sessionId,
+      sessionId: selected?.sessionId ?? input.sessionId,
     });
     if (!route.ok) {
       const status =
@@ -534,6 +580,36 @@ export class RemoteGateway {
     return this.router.listPairedSessions(identity.userId);
   }
 
+  /** An explicit selection pins both extension session and its active project identity. */
+  selectPairedProject(identity: RemoteIdentity, sessionId: string): boolean {
+    const session = this.router.getSession(sessionId);
+    const projectKey = projectIdentity(session?.activeProject);
+    if (
+      !session ||
+      session.userId !== identity.userId ||
+      !session.connected ||
+      session.expiresAt.getTime() <= this.now().getTime() ||
+      !projectKey
+    ) {
+      return false;
+    }
+    this.selectedProjects.set(identity.userId, {
+      sessionId,
+      projectKey,
+      projectId: session.activeProject?.projectId,
+      projectName: session.activeProject?.projectName,
+      documentType: session.activeProject?.documentType ?? 'unknown',
+    });
+    return true;
+  }
+
+  getSelectedProject(identity: RemoteIdentity): Omit<SelectedProject, 'projectKey'> | undefined {
+    const selection = this.selectedProjects.get(identity.userId);
+    if (!selection) return undefined;
+    const { projectKey: _key, ...publicSelection } = selection;
+    return publicSelection;
+  }
+
   revokePairedExtension(identity: RemoteIdentity, sessionId: string): boolean {
     const session = this.router.getSession(sessionId);
     // Missing and another owner's session must be indistinguishable to callers.
@@ -541,6 +617,9 @@ export class RemoteGateway {
     const closeConnection = this.connections.get(sessionId)?.closeConnection;
     this.disconnect(sessionId);
     this.router.forgetSession(sessionId);
+    if (this.selectedProjects.get(identity.userId)?.sessionId === sessionId) {
+      this.selectedProjects.delete(identity.userId);
+    }
     this.audit.record({
       event: 'remote.session.revoked',
       mode: session.mode,
@@ -990,7 +1069,11 @@ export class RemoteGateway {
     });
   }
 
-  attachWebSocketServer(server: HttpServer, config?: EnvConfig): void {
+  attachWebSocketServer(
+    server: HttpServer,
+    config?: EnvConfig,
+    canonicalHostedOrigin?: string,
+  ): void {
     if (this.wsAttached) return;
     this.wsAttached = true;
     const wss = new WebSocketServer({
@@ -1005,7 +1088,7 @@ export class RemoteGateway {
       const reject = (status: number, reason: string) => {
         socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
       };
-      if (config && !validUpgradeHost(request.headers.host, config)) {
+      if (config && !validUpgradeHost(request.headers.host, config, canonicalHostedOrigin)) {
         reject(400, 'Bad Request');
         return;
       }

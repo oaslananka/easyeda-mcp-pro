@@ -4,6 +4,7 @@ import { jwt } from 'better-auth/plugins';
 import { mcp } from '@better-auth/mcp';
 import { cimd } from '@better-auth/cimd';
 import { fetchClientMetadataResource } from '@better-auth/cimd/node';
+import { verifyOAuthQueryParams } from '@better-auth/oauth-provider';
 
 type ProviderCredentials = { clientId: string; clientSecret: string };
 
@@ -66,6 +67,12 @@ export interface HostedAuth {
   readonly origin: string;
   readonly options: BetterAuthOptions;
   handler(request: Request): Promise<Response>;
+  getSessionUser(headers: Headers): Promise<{ id: string; name: string; email: string } | null>;
+  verifySignedQuery(query: string): Promise<boolean>;
+  getClient(
+    clientId: string,
+    headers: Headers,
+  ): Promise<{ name: string; redirectUri?: string } | null>;
 }
 
 export function createHostedAuth(settings: HostedAuthSettings): HostedAuth {
@@ -99,5 +106,34 @@ export function createHostedAuth(settings: HostedAuthSettings): HostedAuth {
       cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }),
     ],
   });
-  return { origin: settings.origin, options: provider.options, handler: provider.handler };
+  return {
+    origin: settings.origin,
+    options: provider.options,
+    handler: provider.handler,
+    async getSessionUser(headers) {
+      const result = await provider.api.getSession({ headers });
+      return result?.user
+        ? { id: result.user.id, name: result.user.name, email: result.user.email }
+        : null;
+    },
+    async verifySignedQuery(query) {
+      if (!query || query.length > 8192) return false;
+      return verifyOAuthQueryParams(query, settings.secret);
+    },
+    async getClient(clientId, headers) {
+      try {
+        const client = await provider.api.getOAuthClientPublic({
+          query: { client_id: clientId },
+          headers,
+        });
+        if (!client) return null;
+        return {
+          name: client.client_name || client.client_id,
+          redirectUri: client.redirect_uris?.[0],
+        };
+      } catch {
+        return null;
+      }
+    },
+  };
 }
