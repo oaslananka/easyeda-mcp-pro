@@ -31,6 +31,8 @@ export function mountHostedAuth(app: Express, auth: HostedAuth): void {
     void handler(req, res).catch(next);
   };
   app.all('/api/auth/*authPath', route);
+  // RFC 8414 inserts well-known metadata before the issuer's /api/auth path.
+  app.get('/.well-known/oauth-authorization-server/api/auth', route);
   app.all('/.well-known/oauth-protected-resource', route);
   app.all('/.well-known/oauth-protected-resource/mcp', route);
 }

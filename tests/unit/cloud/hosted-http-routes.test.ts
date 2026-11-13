@@ -55,6 +55,18 @@ describe('explicitly hosted HTTP auth', () => {
         token_endpoint: 'http://127.0.0.1:3996/api/auth/oauth2/token',
       });
 
+      // MCP clients first try the RFC 8414 issuer-inserted discovery path.
+      const canonicalMetadata = await fetch(
+        'http://127.0.0.1:3996/.well-known/oauth-authorization-server/api/auth',
+      );
+      expect(canonicalMetadata.status).toBe(200);
+      expect(canonicalMetadata.headers.get('content-type')).toMatch(/application\/json/);
+      await expect(canonicalMetadata.json()).resolves.toMatchObject({
+        issuer: 'http://127.0.0.1:3996/api/auth',
+        token_endpoint: 'http://127.0.0.1:3996/api/auth/oauth2/token',
+        client_id_metadata_document_supported: true,
+      });
+
       const resource = await fetch('http://127.0.0.1:3996/.well-known/oauth-protected-resource');
       expect(resource.status).toBe(200);
       await expect(resource.json()).resolves.toMatchObject({
@@ -115,6 +127,13 @@ describe('explicitly hosted HTTP auth', () => {
         (
           await fetch(
             `http://127.0.0.1:${address.port}/api/auth/.well-known/oauth-authorization-server`,
+          )
+        ).status,
+      ).toBe(404);
+      expect(
+        (
+          await fetch(
+            `http://127.0.0.1:${address.port}/.well-known/oauth-authorization-server/api/auth`,
           )
         ).status,
       ).toBe(404);

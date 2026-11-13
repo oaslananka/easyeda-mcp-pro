@@ -12,11 +12,16 @@ GitHub Doppler token, second secrets store, or paid service is needed.
 
 - Public website: `https://easyeda-mcp-pro.oaslananka.dev/`
 - Authenticated Streamable HTTP MCP: `https://easyeda-mcp-pro.oaslananka.dev/mcp`
+- OAuth authorization metadata: `https://easyeda-mcp-pro.oaslananka.dev/.well-known/oauth-authorization-server/api/auth` (RFC 8414 issuer-path discovery).
 - EasyEDA extension outbound secure relay: `wss://easyeda-mcp-pro.oaslananka.dev/remote/relay`
 - Plain `http://` should redirect to HTTPS; it is **not** a valid public OAuth issuer.
 
 Coolify owns the HTTPS domain, container, health check, immutable Git commit,
 1-CPU/1-GiB resource limits, and persistent `/app/data` volume.
+The container health probe must use **host `127.0.0.1`**, port `3000`,
+path `/healthz`, and expect HTTP 200. Alpine BusyBox `wget` can resolve
+`localhost` to IPv6 `::1` while this HTTP server listens on IPv4;
+that combination fails the Coolify probe even when the app is running.
 All application runtime settings below resolve from **one Doppler project/config**
 through the existing Coolify secret-manager integration. Each Coolify production
 variable is <code>&#123;&#123;vault.VARIABLE_NAME&#125;&#125;</code>, not a copied value.
