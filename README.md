@@ -90,16 +90,16 @@ The server connects to EasyEDA Pro via a WebSocket bridge extension, enabling re
 
 ## Prerequisites
 
-- **Node.js**: Node.js 24.x is required; repository automation is pinned to **24.22.1**.
-- **pnpm**: local development and automation require exactly **11.28.8**.
+- **Node.js**: Node.js 24.x is required; repository automation is pinned to **24.22.3**.
+- **pnpm**: local development and automation require exactly **11.28.11**.
 
 Prepare the supported runtime before installing dependencies:
 
 ```bash
-nvm install 24.22.1
-nvm use 24.22.1
+nvm install 24.22.3
+nvm use 24.22.3
 corepack enable
-corepack prepare pnpm@11.28.8 --activate
+corepack prepare pnpm@11.28.11 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 
@@ -773,16 +773,16 @@ qualified human review before purchase, fabrication, or assembly.
 
 ### Prerequisites
 
-- **Node.js**: Node.js 24.x is required; repository automation is pinned to **24.22.1**.
-- **pnpm**: local development and automation require exactly **11.28.8**.
+- **Node.js**: Node.js 24.x is required; repository automation is pinned to **24.22.3**.
+- **pnpm**: local development and automation require exactly **11.28.11**.
 
 Prepare the supported runtime before installing dependencies:
 
 ```bash
-nvm install 24.22.1
-nvm use 24.22.1
+nvm install 24.22.3
+nvm use 24.22.3
 corepack enable
-corepack prepare pnpm@11.28.8 --activate
+corepack prepare pnpm@11.28.11 --activate
 node scripts/check-runtime.mjs --require-pnpm
 ```
 

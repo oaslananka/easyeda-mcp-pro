@@ -1,9 +1,9 @@
 # ── Multi-stage Build Stage ───────────────────────────────────
-# node:24.22.1-alpine
-FROM node@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS builder
+# node:24.22.3-alpine
+FROM node@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS builder
 
 # Enable corepack for pnpm
-RUN corepack enable && corepack prepare pnpm@11.28.8 --activate
+RUN corepack enable && corepack prepare pnpm@11.28.11 --activate
 
 WORKDIR /app
 
@@ -37,8 +37,8 @@ RUN pnpm build:extension
 RUN pnpm --filter easyeda-mcp-pro deploy --legacy --prod --frozen-lockfile /prod
 
 # ── Production Runner Stage ────────────────────────────────────
-# node:24.22.1-alpine
-FROM node@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS runner
+# node:24.22.3-alpine
+FROM node@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS runner
 
 WORKDIR /app
 
@@ -54,7 +54,7 @@ ENV ALLOWED_ORIGINS=
 COPY --from=builder --chown=node:node /prod ./
 
 # Keep the immutable Node base image while retaining explicit reviewed Alpine
-# OpenSSL package versions. The 24.22.1 base already contains 3.5.9-r0; keeping
+# OpenSSL package versions. The 24.22.3 base already contains 3.5.9-r0; keeping
 # the package pins makes later rebuilds fail rather than silently drift.
 # The production process invokes Node directly and never needs npm, npx, or
 # corepack. Remove package-manager payloads from the runtime stage to reduce

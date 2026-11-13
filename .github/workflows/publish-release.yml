@@ -159,14 +159,14 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
-          version: '11.28.8'
+          version: '11.28.11'
           install: false
           node-version-file: false
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24.22.1'
+          node-version: '24.22.3'
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
 

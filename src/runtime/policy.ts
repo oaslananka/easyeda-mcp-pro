@@ -1,6 +1,6 @@
 export const SUPPORTED_NODE_MAJOR = 24;
-export const PINNED_NODE_VERSION = '24.22.1';
-export const PINNED_PNPM_VERSION = '11.28.8';
+export const PINNED_NODE_VERSION = '24.22.3';
+export const PINNED_PNPM_VERSION = '11.28.11';
 
 export interface RuntimeVersionEvaluation {
   version: string | null;
