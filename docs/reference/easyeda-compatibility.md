@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.2               | 1.15.2                | 1.15.2            | Live validated  | 2026-11-13 | 2027-02-11 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.0               | 1.15.0                | 1.15.0            | Live validated  | 2026-11-13 | 2027-02-11 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.0               | 1.15.0                | 1.15.0            | Live validated  | 2026-11-12 | 2027-02-10 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.14.0               | 1.14.0                | 1.14.0            | Live validated  | 2026-11-12 | 2027-02-09 |
@@ -70,6 +71,54 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-13-e8d0c9d-v1152-release-candidate
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-13-e8d0c9d-v1152-release-candidate`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-42-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.22.1`                                                          |
+| Validation package version               | `1.15.2`                                                           |
+| Fix version represented by evidence      | `1.15.2`                                                           |
+| Compatibility-sensitive base commit      | `e8d0c9d7804f4261ede1a1dcb379370b48e9f1d6`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.15.2`                                                           |
+| Live-validated extension package SHA-256 | `398f69eeac7b2e6ccb804cabb027b14949e597ad33057618c52629bef930ffca` |
+| Live-validated extension package size    | `230597 bytes`                                                     |
+| Loader-reported version                  | `1.15.2`                                                           |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `f71f5e22b7fec5db`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.15.2` during this validation.
+
+### Capability evidence
+
+| Capability                                                           | Level  | Status   | Result                                                                                                                                                                             | Evidence                                                                                                                                                                                       |
+| -------------------------------------------------------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Real EasyEDA Pro 3.2.209 and exact v1.15.2 candidate package         | `live` | `passed` | Installed candidate .eext 230597 bytes SHA256 398f69ee; server/extension/loader 1.15.2, registry f71f5e22 matched with zero mismatch. Release commit e8d0c9d source is exact.      | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.2-e8d0c9d-native-datasheet-release-candidate.json) |
+| Unverified datasheet findings never appear as green approval         | `live` | `passed` | Legacy semantic ERC true on 16 nets and 34 components; requested unverified exact-pin constraint UNKNOWN, passed=false, electrical_approval=false.                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.2-e8d0c9d-native-datasheet-release-candidate.json) |
+| Real native wrong-net warning and foreign project refusal            | `live` | `passed` | Synthetic expected-net mismatch on native uniquely observed pin returned WARNING, passed=false and no approval. Foreign project returned not_available=true with no inferred nets. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.2-e8d0c9d-native-datasheet-release-candidate.json) |
+| Zero native design writes with byte-identical disposable PCB archive | `live` | `passed` | Disposable .eprj2 SHA256 unchanged, and tool bridge only accepted read methods; no saves, exports or design mutation.                                                              | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.2-e8d0c9d-native-datasheet-release-candidate.json) |
+
+### Known limitations
+
+- Tested one isolated licensed EasyEDA Pro 3.2.209 Ubuntu 24.04.5 runtime; Windows/macOS editor runtime is not claimed.
+- User-declared manufacturer, package, pin supply limit and wrong-net expectation were synthetic control data. They do not establish actual datasheet limits, measured voltage or electrical compliance.
+- Installed exact release candidate 1.15.2; publication/registry verification remains a separate post-merge workflow and is not part of this pre-release evidence.
+- The proprietary editor installed extension bytes are not independently exported; the official import package was SHA256-verified before install and runtime reports matching versions/registry.
+- Native copper apply, fabrication/electrical approval, supplier contact and paid ordering remain outside test scope.
+- Editor Electron/Chromium subversions were independently inspected earlier from the same installed EasyEDA 3.2.209 binary; current runtime 3.2.209 was reconfirmed.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-13-6dfb890-v1150-production-review
 

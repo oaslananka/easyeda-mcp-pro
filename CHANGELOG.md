@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.1...easyeda-mcp-pro-v1.15.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **erc:** complete datasheet review acceptance without false green ([#844](https://github.com/oaslananka/easyeda-mcp-pro/issues/844)) ([#1049](https://github.com/oaslananka/easyeda-mcp-pro/issues/1049)) ([b14793b](https://github.com/oaslananka/easyeda-mcp-pro/commit/b14793b15a2cd848189b96fcd8b00d64579a951e))
+
 ## [1.15.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.0...easyeda-mcp-pro-v1.15.1) (2026-11-13)
 
 
