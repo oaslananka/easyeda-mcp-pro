@@ -75,8 +75,9 @@ const account = (): string =>
 <section class="panel wide" aria-labelledby="pair-title"><h2 id="pair-title">Link a new extension</h2>
 <p class="muted">1. Open EasyEDA's MCP Bridge menu. 2. Choose Connect Cloud... (Experimental). 3. Enter this one-time code.</p>
 <div class="actions"><button class="btn" id="generate-pairing" type="button">Generate pairing code</button></div>
-<p id="pairing-code" class="code" aria-live="polite" aria-label="One-time pairing code">—</p>
-<p class="muted" id="pairing-hint">The code will be valid for 10 minutes. Leave Local selected if you do not want Cloud.</p></section></div>
+<div class="pairing-actions"><p id="pairing-code" class="code" aria-live="polite" aria-label="One-time pairing code">—</p>
+<button class="btn secondary" id="copy-pairing" type="button" aria-describedby="pairing-hint" disabled hidden>Copy code</button></div>
+<p class="muted" id="pairing-hint">Generate a code, then paste it into EasyEDA. After connecting, choose Refresh connections above. Local mode remains available.</p></section></div>
 <div class="panel wide account-client-panel"><h2>Authorized MCP clients</h2>
 <p class="muted">Clients you approved using the MCP OAuth flow are separate from your GitHub/Google sign-in. You can revoke each grant.</p>
 <div id="clients" aria-live="polite"><div class="empty">Checking authorizations…</div></div></div>

@@ -10,7 +10,7 @@ main{padding:clamp(42px,8vw,95px) 0 70px}.eyebrow{font-size:12px;text-transform:
 .notice{border:1px solid #425477;border-radius:13px;padding:13px 16px;background:#1c2940;color:#cee0ff;font-size:14px}.notice.error{border-color:#86465c;background:#3c2030;color:#ffdee9}
 .segment{border-top:1px solid #36415a;margin-top:22px;padding-top:22px}.scopes{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;list-style:none;padding:0;margin:18px 0}.scopes li{border:1px solid #384662;border-radius:10px;padding:12px 14px;background:#192236;font-size:14px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}.columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.stack{display:grid;gap:12px}.empty{border:1px dashed #57617a;border-radius:12px;padding:20px;color:#b8c4dc;font-size:14px}.session{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:16px;border:1px solid #36435d;border-radius:13px;margin:11px 0}.session p{margin:4px 0 0;font-size:13px;color:#a7b4cc}.session strong{word-break:break-word}.status{font-size:12px;border-radius:99px;padding:4px 9px;background:#263c3a;color:#b7f1cd}.status.off{background:#392d39;color:#ffd0e4}
-.code{display:inline-block;letter-spacing:.16em;font-size:24px;font-weight:800;background:#0b101c;border:1px solid #53607f;padding:14px 17px;border-radius:10px;user-select:all}
+[hidden]{display:none!important}.pairing-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}.pairing-actions .code{margin:0}.code{display:inline-block;letter-spacing:.16em;font-size:24px;font-weight:800;background:#0b101c;border:1px solid #53607f;padding:14px 17px;border-radius:10px;user-select:all}
 footer{color:#8390aa;font-size:13px;padding:36px 0}.loading{opacity:.65}
 @media (max-width:680px){.nav{padding:22px 0}.tag{display:none}.columns,.cols{grid-template-columns:1fr}.session{align-items:flex-start;flex-direction:column}.session button{width:100%}.wrap{width:min(100% - 28px,990px)}main{padding:32px 0 55px}}
 @media (prefers-reduced-motion:no-preference){button,a{transition:background-color .16s ease}}
@@ -167,13 +167,52 @@ export const CLOUD_JS = String.raw`
         setText('account-name',me.user.name || me.user.email || 'Your account');
         await Promise.all([refreshExtensions(),loadClients()]);
         const pair = get('generate-pairing');
+        const copy = get('copy-pairing');
+        let currentCode = '';
+        let codeExpiresAt = 0;
+        let expiryTimer = null;
+        const expireCode = () => {
+          if (expiryTimer !== null) { clearInterval(expiryTimer); expiryTimer = null; }
+          currentCode = '';
+          codeExpiresAt = 0;
+          setText('pairing-code', 'Expired');
+          setText('pairing-hint', 'This code has expired. Generate a new code to pair your extension.');
+          copy.disabled = true;
+          copy.hidden = true;
+        };
+        const updateExpiry = () => {
+          const remaining = Math.max(0, Math.ceil((codeExpiresAt - Date.now()) / 1000));
+          if (remaining === 0) { expireCode(); return; }
+          const countdown = Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0');
+          setText('pairing-hint', 'Expires in ' + countdown + '. Paste the code into EasyEDA, then select Refresh connections.');
+        };
+        copy.addEventListener('click', async () => {
+          if (!currentCode || Date.now() >= codeExpiresAt) { expireCode(); return; }
+          try {
+            if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+            await navigator.clipboard.writeText(currentCode);
+            setText('notice', 'Code copied. Paste it into EasyEDA MCP Bridge > Connect Cloud.');
+          } catch {
+            setText('notice', 'Clipboard unavailable. Select the displayed code to copy it manually.');
+          }
+        });
         pair.addEventListener('click',async () => {
           pair.disabled=true;
           try {
             const data=await post('/cloud/api/pairing-code',{});
-            setText('pairing-code',data.code);
-            setText('pairing-hint','Use this one-time code in the EasyEDA extension within 10 minutes. Cloud access is opt-in.');
-            setText('notice','Pairing code created. It expires after 10 minutes.');
+            if (typeof data?.code !== 'string' || !/^EDA-[A-F0-9]{8}$/.test(data.code) ||
+                !Number.isFinite(data.expiresInSeconds) || data.expiresInSeconds <= 0) {
+              throw new Error('Cloud did not provide a valid pairing code.');
+            }
+            if (expiryTimer !== null) clearInterval(expiryTimer);
+            currentCode = data.code;
+            codeExpiresAt = Date.now() + data.expiresInSeconds * 1000;
+            setText('pairing-code', currentCode);
+            copy.disabled = false;
+            copy.hidden = false;
+            updateExpiry();
+            expiryTimer = setInterval(updateExpiry, 1000);
+            setText('notice','Pairing code created. Use it before it expires.');
           } catch(error) { fail(error); }
           finally { pair.disabled=false; }
         });

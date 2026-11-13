@@ -139,6 +139,15 @@ describe('Hosted Cloud browser portal', () => {
       );
       expect(foreignOrigin.status).toBe(403);
 
+      const dashboard = await fetch(base + '/cloud', {
+        headers: { cookie: 'session=owner-a' },
+      });
+      const dashboardHtml = await dashboard.text();
+      expect(dashboard.status).toBe(200);
+      expect(dashboardHtml).toContain('id="copy-pairing"');
+      expect(dashboardHtml).toMatch(/id="copy-pairing"[^>]*disabled hidden/);
+      expect(dashboardHtml).toContain('id="pairing-hint"');
+
       const codeRes = await send('/cloud/api/pairing-code', 'POST', 'session=owner-a');
       expect(codeRes.status).toBe(200);
       const code = (await codeRes.json()) as { code: string; expiresInSeconds: number };
