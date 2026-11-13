@@ -43,5 +43,33 @@ describe('Production QA tool', () => {
     expect(result?.passed).toBe(false);
     expect(result?.summary.missingTestpointCount).toBe(1);
     expect(result?.artifacts).toHaveLength(5);
+    expect(result?.manual_review_required).toBe(true);
+    expect(result?.fabrication_approval).toBe(false);
+    const manifest = result?.artifacts.find((artifact) => artifact.role === 'qa-manifest');
+    expect(manifest).toBeDefined();
+    expect(JSON.parse(manifest!.content)).toMatchObject({
+      manualReviewRequired: true,
+      fabricationApproval: false,
+    });
+    expect(tool?.outputSchema.parse(result)).toEqual(result);
+  });
+
+  it('never calls an error-free QA handoff factory-approved without independent review', async () => {
+    const tool = registry.get('easyeda_production_qa_artifacts');
+    const result = await tool?.handler(context, {
+      projectId: 'unverified-handoff',
+      projectName: 'Clean synthetic board',
+      criticalNets: [{ name: 'GND', hasTestPoint: true, testPointRef: 'TP1' }],
+      components: [],
+      requiresProgramming: false,
+      requiresFunctionalTest: false,
+    });
+    expect(bridgeCall).not.toHaveBeenCalled();
+    expect(result?.passed).toBe(true);
+    expect(result?.summary.errorCount).toBe(0);
+    expect(result?.manual_review_required).toBe(true);
+    expect(result?.fabrication_approval).toBe(false);
+    expect(result?.summary.humanSummary).toMatch(/independent manufacturing review/i);
+    expect(tool?.outputSchema.parse(result)).toEqual(result);
   });
 });

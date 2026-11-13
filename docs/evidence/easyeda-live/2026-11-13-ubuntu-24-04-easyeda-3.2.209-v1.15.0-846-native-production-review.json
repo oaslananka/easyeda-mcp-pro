@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "observationDate": "2026-11-13",
+  "kind": "exact-release-source-bound-read-only-production-review",
+  "sourceCommit": "6f01b29305734412ffff19268b848fdd6e375e6d",
+  "scope": "#846 final-candidate focused-PCB read-only acceptance, NOT factory approval",
+  "runtime": {
+    "editor": "EasyEDA Pro 3.2.209",
+    "extensionVersion": "1.15.0",
+    "loaderVersion": "1.15.0",
+    "serverVersion": "1.15.0",
+    "installedDispatcherBuildId": "da149xf0e4x83a8",
+    "releaseExtensionPackageSha256": "88c16934a49ab702220e9b078627b86dd213e0b12036be83ebd7da7209e43f67",
+    "extensionVersionMismatch": false,
+    "registryMismatch": false,
+    "methodRegistryHashReturnedByExtension": false,
+    "publicNativeCopperApplyEnabled": false,
+    "usesProductionDocumentFocusApi": true,
+    "usesBetaGenericCurrentDocumentApi": false,
+    "sourceBinding": "Live native acceptance tested on this exact server source; source-only commit made without changing tested files."
+  },
+  "fixture": {
+    "project": "Z928_NATIVE_L_ACCEPTANCE_DISPOSABLE_20261112",
+    "source": "owner-controlled backed-up disposable V3 PCB, isolated licensed test profile",
+    "currentFocusedDocumentType": 3,
+    "focusedDocumentBelongsToRequestedProject": true,
+    "projectAndDocumentUuidWithheld": true,
+    "sourceFileSha256Before": "6f53114f0faeca6fa04e709fef9c6868472a4222c745bc5c5e1931d6ffa708d2",
+    "sourceFileSha256After": "6f53114f0faeca6fa04e709fef9c6868472a4222c745bc5c5e1931d6ffa708d2",
+    "independentPreTestBackupSha256": "6f53114f0faeca6fa04e709fef9c6868472a4222c745bc5c5e1931d6ffa708d2"
+  },
+  "profile": {
+    "manufacturer": "TEST ONLY (hypothetical process)",
+    "process": "Read-only focused PCB engineering comparison",
+    "revision": "synthetic-2026-11-13",
+    "source": "Synthetic acceptance threshold, not factory datasheet",
+    "limits": {
+      "maximumBoardWidthMm": 10,
+      "minimumFinishedDrillMm": 0.25,
+      "minimumToolingHoleCount": 2
+    },
+    "authenticatedFactoryCapability": false
+  },
+  "correctProject": {
+    "nativeFocusStatus": "verified",
+    "methodCalls": [
+      "DMT_Project.getCurrentProjectInfo",
+      "DMT_Pcb.getCurrentPcbInfo",
+      "board.getDimensions",
+      "board.listLayers",
+      "board.getStackup",
+      "board.getDesignRules",
+      "DMT_Project.getCurrentProjectInfo",
+      "DMT_Pcb.getCurrentPcbInfo"
+    ],
+    "nativeBoardReadCount": 4,
+    "observedBoardWidthMm": 112.014,
+    "maximumDeclaredWidthMm": 10,
+    "widthFinding": {
+      "status": "WARNING",
+      "comparison": "ABOVE_DECLARED_LIMIT",
+      "units": "mm",
+      "measurementEvidence": "native_partial_unverified"
+    },
+    "minimumFinishedDrill": {
+      "status": "UNKNOWN",
+      "units": "mm",
+      "measurementEvidence": "unavailable"
+    },
+    "minimumToolingHoles": {
+      "status": "UNKNOWN",
+      "units": "count",
+      "measurementEvidence": "unavailable"
+    },
+    "unknownConstraintChecks": 18,
+    "passed": false,
+    "blocked": true,
+    "manufacturingApproval": false
+  },
+  "foreignProject": {
+    "nativeFocusStatus": "wrong_project",
+    "nativeBoardReadCount": 0,
+    "measuredValuesExposed": 0,
+    "passed": false,
+    "blocked": true,
+    "manufacturingApproval": false
+  },
+  "qaHandoff": {
+    "evidence": "separate deterministic MCP tool tests, not a live manufacturer evaluation",
+    "manualReviewRequired": true,
+    "fabricationApproval": false,
+    "warningFreeReportStillNotApproved": true
+  },
+  "safety": {
+    "nativeDesignWriteCalls": 0,
+    "nativeSaveCalls": 0,
+    "nativeExportCalls": 0,
+    "supplierContactsOrOrders": 0,
+    "editorProjectSourceUnchanged": true,
+    "physicalManufacturingApproval": false,
+    "electricalOrAssemblySignOff": false
+  },
+  "limitations": [
+    "The PCB-specific source getter is officially documented; unsupported/absent responses must fail closed.",
+    "A stable focused project/PCB before and after a call batch does not prove immutable saved-revision identity or complete geometry.",
+    "The max-width threshold is an artificial test requirement, never a validated factory process window.",
+    "Native drill/tooling, trace/copper-mask, assembly BOM/footprint, testpoint access and actual factory/process capabilities remain UNKNOWN unless independently source-verifiable.",
+    "No new real design write, export, manufacturing order, or vendor contact was attempted."
+  ],
+  "schematicTab": {
+    "focusedEditorDocument": "schematic page on the same disposable V3 project",
+    "stablePcbGetterResult": "undefined",
+    "nativeFocusStatus": "unavailable",
+    "nativeBoardReadCount": 0,
+    "measuredValuesExposed": 0,
+    "passed": false,
+    "blocked": true,
+    "manufacturingApproval": false,
+    "nativeDesignWriteCalls": 0
+  }
+}

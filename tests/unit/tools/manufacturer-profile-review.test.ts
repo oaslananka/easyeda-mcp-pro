@@ -33,6 +33,22 @@ function setup() {
   return { tool, bridge, ctx };
 }
 
+function setNativeFocus(ctx: ToolContext, projectId: string, pcbUuid = 'test-pcb') {
+  const read = ctx.bridge.call;
+  ctx.bridge.call = (async (method: string, params?: unknown) => {
+    if (method === 'api.call') {
+      const path = (params as { path?: string } | undefined)?.path;
+      if (path === 'DMT_Project.getCurrentProjectInfo') return { result: { uuid: projectId } };
+      if (path === 'DMT_Pcb.getCurrentPcbInfo')
+        return {
+          result: { uuid: pcbUuid, parentProjectUuid: projectId },
+        };
+      throw new Error('unexpected native identity lookup');
+    }
+    return read(method, params);
+  }) as typeof ctx.bridge.call;
+}
+
 describe('optional source-aware manufacturing profile on existing production review', () => {
   it('is read-only, compares declared constraints, and never returns fabrication approval', async () => {
     const { tool, ctx, bridge } = setup();
@@ -179,6 +195,7 @@ describe('optional source-aware manufacturing profile on existing production rev
       if (method === 'board.listLayers') return [];
       return {};
     });
+    setNativeFocus(ctx, 'native-traces-not-proven');
     const result = await tool.handler(ctx, {
       projectId: 'native-traces-not-proven',
       manufacturerProfile: {
@@ -226,6 +243,7 @@ describe('optional source-aware manufacturing profile on existing production rev
       if (method === 'board.getDesignRules') return {};
       throw new Error('unexpected method ' + method);
     });
+    setNativeFocus(ctx, 'focused-native');
     const result = await tool.handler(ctx, {
       projectId: 'focused-native',
       manufacturerProfile,
@@ -258,6 +276,252 @@ describe('optional source-aware manufacturing profile on existing production rev
     expect(result.passed).toBe(false);
     expect(result.blocked).toBe(false);
     expect(tool.outputSchema.parse(result)).toEqual(result);
+  });
+
+  it('refuses a different focused project before reading any manufacturing measurements', async () => {
+    const { tool, ctx, bridge } = setup();
+    ctx.bridge.connected = true;
+    setNativeFocus(ctx, 'some-other-project');
+    const response = await tool.handler(ctx, {
+      projectId: 'user-requested-project',
+      gateMode: 'block',
+      manufacturerProfile: {
+        ...manufacturerProfile,
+        limits: { maximumBoardWidthMm: 100, minimumFinishedDrillMm: 0.3 },
+      },
+    });
+    expect(response.native_focus_status).toBe('wrong_project');
+    expect(bridge).not.toHaveBeenCalled();
+    expect(response).toMatchObject({
+      passed: false,
+      blocked: true,
+      manufacturing_approval: false,
+      manufacturing_profile_review: { status: 'UNKNOWN', fabrication_approval: false },
+    });
+    expect(response.manufacturing_profile_review.findings).toEqual([
+      expect.objectContaining({ id: 'minimumFinishedDrillMm', status: 'UNKNOWN' }),
+      expect.objectContaining({ id: 'maximumBoardWidthMm', status: 'UNKNOWN' }),
+    ]);
+    expect(tool.outputSchema.parse(response)).toEqual(response);
+  });
+
+  it('fails closed when native project or document identity is unavailable', async () => {
+    const { tool, ctx, bridge } = setup();
+    ctx.bridge.connected = true;
+    bridge.mockResolvedValue(undefined);
+    const response = await tool.handler(ctx, {
+      projectId: 'unknown-focus',
+      gateMode: 'block',
+      manufacturerProfile,
+    });
+    expect(response.native_focus_status).toBe('unavailable');
+    expect(bridge).toHaveBeenCalledTimes(1);
+    expect(response.passed).toBe(false);
+    expect(response.blocked).toBe(true);
+    expect(
+      response.manufacturing_profile_review.findings.every(
+        (finding: { actual?: number }) => finding.actual === undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it('refuses a schematic tab or a PCB belonging to a different project', async () => {
+    for (const document of [undefined, { uuid: 'foreign-pcb', parentProjectUuid: 'foreign' }]) {
+      const { tool, ctx, bridge } = setup();
+      ctx.bridge.connected = true;
+      ctx.bridge.call = (async (method: string, params?: unknown) => {
+        if (method !== 'api.call') return bridge(method, params);
+        const path = (params as { path: string }).path;
+        if (path === 'DMT_Project.getCurrentProjectInfo') return { result: { uuid: 'requested' } };
+        if (path === 'DMT_Pcb.getCurrentPcbInfo') return { result: document };
+        throw new Error('unexpected native method');
+      }) as typeof ctx.bridge.call;
+      const result = await tool.handler(ctx, {
+        projectId: 'requested',
+        manufacturerProfile,
+        gateMode: 'block',
+      });
+      expect(result.native_focus_status).toBe('unavailable');
+      expect(result.passed).toBe(false);
+      expect(result.blocked).toBe(true);
+      expect(result.manufacturing_approval).toBe(false);
+      expect(bridge).not.toHaveBeenCalled();
+      expect(
+        result.manufacturing_profile_review.findings.every(
+          (finding: { actual?: number }) => finding.actual === undefined,
+        ),
+      ).toBe(true);
+      expect(tool.outputSchema.parse(result)).toEqual(result);
+    }
+  });
+
+  it('fails closed when a required beta native focus API rejects the request', async () => {
+    const { tool, ctx, bridge } = setup();
+    ctx.bridge.connected = true;
+    ctx.bridge.call = (async (method: string, params?: unknown) => {
+      if (method === 'api.call') throw new Error('unsupported native focus getter');
+      return bridge(method, params);
+    }) as typeof ctx.bridge.call;
+    const result = await tool.handler(ctx, {
+      projectId: 'native-method-unavailable',
+      gateMode: 'block',
+      manufacturerProfile,
+    });
+    expect(result.native_focus_status).toBe('unavailable');
+    expect(result.passed).toBe(false);
+    expect(result.blocked).toBe(true);
+    expect(result.manufacturing_approval).toBe(false);
+    expect(bridge).not.toHaveBeenCalled();
+    expect(
+      result.manufacturing_profile_review.findings.every(
+        (finding: { measurement_evidence: string }) =>
+          finding.measurement_evidence === 'unavailable',
+      ),
+    ).toBe(true);
+  });
+
+  it('discards native metrics if the focused project changes between measurements', async () => {
+    const { tool, ctx, bridge } = setup();
+    ctx.bridge.connected = true;
+    let currentProject = 'initial-project';
+    ctx.bridge.call = (async (method: string, params?: unknown) => {
+      if (method === 'api.call') {
+        const nativePath = (params as { path: string }).path;
+        if (nativePath === 'DMT_Project.getCurrentProjectInfo')
+          return { result: { uuid: currentProject } };
+        if (nativePath === 'DMT_Pcb.getCurrentPcbInfo')
+          return {
+            result: {
+              uuid: 'unchanged-pcb-name',
+              parentProjectUuid: currentProject,
+            },
+          };
+      }
+      return bridge(method, params);
+    }) as typeof ctx.bridge.call;
+    bridge.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') {
+        currentProject = 'other-project';
+        return { hasOutline: true, widthMm: 150, heightMm: 45 };
+      }
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return {};
+      if (method === 'board.getDesignRules') return {};
+      throw new Error('unexpected board read');
+    });
+    const result = await tool.handler(ctx, {
+      projectId: 'initial-project',
+      gateMode: 'block',
+      manufacturerProfile: {
+        ...manufacturerProfile,
+        limits: { maximumBoardWidthMm: 100 },
+      },
+    });
+    expect(result.native_focus_status).toBe('changed');
+    expect(result.passed).toBe(false);
+    expect(result.blocked).toBe(true);
+    expect(result.manufacturing_profile_review.findings[0]).toMatchObject({
+      status: 'UNKNOWN',
+      comparison: 'UNKNOWN',
+      measurement_evidence: 'unavailable',
+    });
+    expect(result.manufacturing_profile_review.findings[0].actual).toBeUndefined();
+    expect(bridge).toHaveBeenCalledTimes(4);
+    expect(tool.outputSchema.parse(result)).toEqual(result);
+  });
+
+  it('throws away measured dimensions if the focused PCB changes while reads are pending', async () => {
+    const { tool, ctx, bridge } = setup();
+    ctx.bridge.connected = true;
+    let focusedPcbUuid = 'pcb-original';
+    const requestProject = 'requested-native-project';
+    ctx.bridge.call = (async (method: string, params?: unknown) => {
+      if (method === 'api.call') {
+        const path = (params as { path?: string }).path;
+        if (path === 'DMT_Project.getCurrentProjectInfo')
+          return { result: { uuid: requestProject } };
+        if (path === 'DMT_Pcb.getCurrentPcbInfo')
+          return {
+            result: {
+              uuid: focusedPcbUuid,
+              parentProjectUuid: requestProject,
+            },
+          };
+      }
+      return bridge(method, params);
+    }) as typeof ctx.bridge.call;
+    bridge.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions') {
+        // The old PCB reports an apparent width violation; focus shifts after this read.
+        focusedPcbUuid = 'pcb-replaced';
+        return { hasOutline: true, widthMm: 150, heightMm: 40 };
+      }
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return { available: false, totalLayers: 2 };
+      if (method === 'board.getDesignRules') return {};
+      throw new Error('unexpected native method');
+    });
+    const response = await tool.handler(ctx, {
+      projectId: requestProject,
+      gateMode: 'block',
+      manufacturerProfile: {
+        ...manufacturerProfile,
+        limits: { maximumBoardWidthMm: 100 },
+      },
+    });
+    expect(response.native_focus_status).toBe('changed');
+    expect(bridge).toHaveBeenCalledTimes(4);
+    expect(response).toMatchObject({
+      passed: false,
+      blocked: true,
+      manufacturing_approval: false,
+      manufacturing_profile_review: { status: 'UNKNOWN' },
+    });
+    expect(response.manufacturing_profile_review.findings[0]).toMatchObject({
+      id: 'maximumBoardWidthMm',
+      status: 'UNKNOWN',
+      comparison: 'UNKNOWN',
+      measurement_evidence: 'unavailable',
+    });
+    expect(response.manufacturing_profile_review.findings[0].actual).toBeUndefined();
+    expect(response.warnings).toEqual([]);
+    expect(tool.outputSchema.parse(response)).toEqual(response);
+  });
+
+  it('reports stable focused source measurements and continues requiring factory review', async () => {
+    const { tool, ctx, bridge } = setup();
+    ctx.bridge.connected = true;
+    setNativeFocus(ctx, 'correct-project', 'pcb-unchanged');
+    bridge.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions')
+        return { hasOutline: true, widthMm: 112.014, heightMm: 67.31 };
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getStackup') return { totalLayers: 2, available: false };
+      if (method === 'board.getDesignRules') return {};
+      throw new Error('unexpected native method');
+    });
+    const response = await tool.handler(ctx, {
+      projectId: 'correct-project',
+      gateMode: 'block',
+      manufacturerProfile: {
+        ...manufacturerProfile,
+        limits: { maximumBoardWidthMm: 100, minimumFinishedDrillMm: 0.3 },
+      },
+    });
+    expect(response.native_focus_status).toBe('verified');
+    expect(bridge).toHaveBeenCalledTimes(4);
+    expect(response.manufacturing_profile_review.findings).toEqual([
+      expect.objectContaining({ id: 'minimumFinishedDrillMm', status: 'UNKNOWN' }),
+      expect.objectContaining({
+        id: 'maximumBoardWidthMm',
+        status: 'WARNING',
+        comparison: 'ABOVE_DECLARED_LIMIT',
+        actual: 112.014,
+      }),
+    ]);
+    expect(response.passed).toBe(false);
+    expect(response.manufacturing_approval).toBe(false);
+    expect(tool.outputSchema.parse(response)).toEqual(response);
   });
 
   it('validates source identity, finite limits, normalized bounds, and refuses empty profiles', () => {

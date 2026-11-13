@@ -97,8 +97,47 @@ orientation or physical assembly access.
 ## Provenance and result interpretation
 
 When `boardData` is provided, the evidence class is
-`caller_supplied_unverified`. Otherwise the tool reuses the existing
-four native board-summary read calls, resulting in
+`caller_supplied_unverified` and the native bridge is not read.
+Otherwise the tool checks **both the focused native project UUID and
+the focused PCB document UUID before and after the four read-only
+board-summary calls**. The requested `projectId` must match the focused
+project and the focused PCB must belong to it. The calls themselves use
+the focused editor tab, so passing `projectId` as a method argument is
+**not** sufficient proof of their source. Measurements are discarded if
+the project/PCB identity cannot be read or changes while the calls are
+running.
+
+The source-identity lookup uses the documented
+[`DMT_Pcb.getCurrentPcbInfo()`](https://prodocs.easyeda.com/en/api/reference/pro-api.dmt_pcb.getcurrentpcbinfo.html)
+with `DMT_Project.getCurrentProjectInfo()`. This PCB-specific getter
+returns `undefined` when the active document is not a PCB, so the review
+does not depend on the beta-only generic current-document API. Missing,
+rejected or ambiguous methods fail closed; documented signatures alone
+are not live capability evidence. Two matching identity snapshots do
+not establish an atomic PCB revision, complete geometry, or factory
+acceptance.
+
+The top-level `native_focus_status` tells the user what to do:
+
+- `verified`: the same requested project and PCB were focused before
+  and after the four reads. Individual manufacturing metrics can still
+  be `UNKNOWN` and this is **not** an assembly/fabrication approval.
+- `wrong_project`: another project's PCB is focused; open the
+  requested project and retry. **No board-summary methods are called**.
+- `changed`: focus changed or became unverifiable during native
+  reads; previously collected measurements are discarded. Refocus the
+  requested PCB and retry.
+- `unavailable`: disconnected bridge, no PCB tab, absent native
+  identity fields or failed identity API. Open a PCB and reconnect.
+- `caller_supplied_unverified`: the caller provided `boardData`.
+  No native focus or completeness check is implied.
+
+For any native focus status other than `verified`, all
+native-derived board fields remain missing, which yields explicit
+`UNKNOWN` checks, no fabricated manufacturing findings, and
+`passed=false`. With `gateMode: "block"`, the result is blocked.
+
+When focus is verified, results still have evidence class
 `native_partial_unverified`. Native dimensional data and a minimum
 observed drill can be available; native mounting-hole classification,
 complete tooling/fiducial/testpoint inventories, trace-width/space minima
@@ -129,6 +168,55 @@ blocked pending review. Existing production review behavior and
 fields are preserved when no profile is supplied. This additional
 result distinguishes requested process constraints from generic
 repository engineering advisories or EasyEDA editor DRC results.
+
+## Real focused-target safety acceptance (v1.15.0 runtime)
+
+On 13 November 2026, an isolated EasyEDA Pro 3.2.209 session with
+the released v1.15.0 extension exercised this project-aware production
+review change against two separately backed-up disposable PCBs.
+With the L-shaped Z928 test PCB focused, asking the public tool to review
+the _other_ test project's ID returned `wrong_project`, no
+board-summary reads, no board dimensions, `passed=false` and
+`fabrication_approval=false`. Correctly targeting Z928 returned
+`verified` and the native 112.014 mm width; it warned against an
+**illustrative only** 100 mm width limit while reporting unmeasured
+drill and tooling-hole capability as `UNKNOWN` and 18 other unknown
+rule checks. Both disposable project files retained their verified
+pre/post SHA-256 hashes. No board writes, exports, actual factory
+approval or supplier communication occurred.
+
+The negative and positive test cases are regression-tested alongside
+a mocked project/PCB focus-change race. This safety test does not prove
+manufacturer capabilities, real assembly access, physical clearance
+or certified DFM readiness.
+
+The source-bound [13 November 2026 live acceptance record](./evidence/easyeda-live/2026-11-13-ubuntu-24-04-easyeda-3.2.209-v1.15.0-846-native-production-review.json)
+was repeated with the actual matching v1.15.0 extension/loader and an
+isolated disposable V3 PCB. The selected PCB was measured and the
+foreign project refused without board-summary reads. When the same
+disposable project's schematic page was focused, the production
+review returned `unavailable` with **zero** PCB reads and no fabricated
+measurements. The source file matched its independent backup SHA-256
+before and after. Manufacturer, assembly and testability sign-off
+still require independent engineering and factory evidence.
+
+This source-target safety check is part of #846's **software**
+acceptance, not factory sign-off. Actual manufacturer capabilities,
+complete assembly and test-point access, and full-board native
+geometries must still be independently validated for each design;
+the tool expressly reports these unsupported claims as `UNKNOWN`.
+
+## Production QA handoff is not fabrication approval
+
+The existing `easyeda_production_qa_artifacts` report and its JSON
+handoff manifest distinguish **QA package checks** (`passed`) from
+**real manufacturing readiness**. Both now explicitly return
+`manual_review_required=true` and `fabrication_approval=false`,
+including an error-free synthetic checklist. Required human-review
+items remain visible in the generated checklist; no empty or clean
+artifact package silently authorizes fabrication. This is compatible
+with existing `passed` callers and does not request an export, design
+write, supplier approval or factory order.
 
 ## Representative source-bound, read-only PCB acceptance
 

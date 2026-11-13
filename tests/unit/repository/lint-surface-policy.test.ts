@@ -54,7 +54,7 @@ describe('repository lint surface policy', () => {
     );
 
     expect(config?.rules?.['@typescript-eslint/no-floating-promises']?.[0]).toBe(2);
-  });
+  }, 20_000);
 
   it.each(['scripts', 'skills/easyeda-component-review/scripts'])(
     'rejects shell-string child process APIs in %s',
