@@ -45,7 +45,7 @@
     "src/pcb-layout/planner.ts": [20],
     "src/power-tree/analysis.ts": [33, 22, 20],
     "src/professional-layout-templates/index.ts": [24],
-    "src/remote/gateway.ts": [28, 17],
+    "src/remote/gateway.ts": [22, 17],
     "src/schematic-model/geometry-net-names.ts": [19],
     "src/schematic-model/imported-symbols.ts": [34, 20],
     "src/schematic-model/live-snapshot.ts": [22],

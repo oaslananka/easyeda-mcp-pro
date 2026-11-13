@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import type { HostedAuth } from '../../../src/cloud/hosted-auth.js';
 import { RemoteGateway } from '../../../src/remote/gateway.js';
+import { REMOTE_RELAY_PROTOCOL_VERSION } from '../../../src/remote/protocol.js';
 import { createHttpTransport } from '../../../src/server/transports/http.js';
 
 function fakeProvider(origin: string): HostedAuth {
@@ -192,6 +193,62 @@ describe('Hosted Cloud browser portal', () => {
       expect(
         gateway.getSelectedProject({ userId: 'owner-a', scopes: ['easyeda.read'] }),
       ).toBeUndefined();
+    });
+  });
+
+  it('blocks MCP dispatch even with a single paired extension until the owner selects a project', async () => {
+    await withPortal(async (base, gateway) => {
+      const sent: string[] = [];
+      const extension = gateway.registerExtension({
+        connectionId: 'single-paired-extension',
+        mode: 'hosted',
+        extensionVersion: '1.15.4',
+        activeProject: { projectId: 'pcb-one', projectName: 'Disposable PCB', documentType: 'pcb' },
+        dispatch: async (request) => {
+          sent.push(request.toolName);
+          return {
+            protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+            type: 'tool_response',
+            messageId: 'mock_response',
+            sessionId: request.sessionId,
+            requestMessageId: request.messageId,
+            timestamp: new Date().toISOString(),
+            ok: true,
+            result: { checked: true },
+            durationMs: 1,
+          };
+        },
+      });
+      const identity = { userId: 'owner-a', scopes: ['easyeda.read'] as const };
+      const code = gateway.createPairingCode({ identity });
+      expect(gateway.completePairing({ identity, sessionId: extension.sessionId, code })).toBe(
+        true,
+      );
+      await expect(
+        gateway.routeToolRequest({
+          identity,
+          sessionId: extension.sessionId,
+          riskLevel: 'read',
+          toolName: 'schematic.listComponents',
+        }),
+      ).resolves.toMatchObject({ ok: false, status: 409, code: 'PROJECT_INACTIVE' });
+      expect(sent).toHaveLength(0);
+
+      const response = await fetch(`${base}/cloud/api/selection`, {
+        method: 'PUT',
+        headers: { cookie: 'session=owner-a', origin: base, 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: extension.sessionId }),
+      });
+      expect(response.status).toBe(200);
+      await expect(
+        gateway.routeToolRequest({
+          identity,
+          sessionId: extension.sessionId,
+          riskLevel: 'read',
+          toolName: 'schematic.listComponents',
+        }),
+      ).resolves.toMatchObject({ ok: true, sessionId: extension.sessionId });
+      expect(sent).toEqual(['schematic.listComponents']);
     });
   });
 

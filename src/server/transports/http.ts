@@ -511,6 +511,7 @@ export function createHttpTransport(
   }
   const logger = getLogger();
   const gateway = options.gateway ?? new RemoteGateway();
+  if (options.hostedAuth) gateway.requireExplicitProjectSelection();
   const sessions = new Map<string, McpHttpSession>();
   const serverFactory = options.serverFactory;
   const modernHandler =

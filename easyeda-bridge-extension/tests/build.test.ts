@@ -437,6 +437,8 @@ describe('build.mjs hot-swap define', () => {
       setInterval: () => 0,
       clearInterval: () => undefined,
       WebSocket: FakeRelaySocket,
+      document: { title: 'Fixture' },
+      location: { href: 'https://pro.easyeda.com/editor/schematic' },
       localStorage: {
         getItem: () => 'false',
         setItem: () => undefined,

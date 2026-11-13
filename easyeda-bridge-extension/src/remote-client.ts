@@ -93,6 +93,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Refuse remote actions if the current EasyEDA editor differs from the gateway's project. */
+function matchesActiveProject(
+  hint: Record<string, unknown>,
+  current: RemoteActiveProject | undefined,
+): boolean {
+  if (!current) return false;
+  const fields = ['projectId', 'projectName', 'documentType', 'url'] as const;
+  const identityFields = ['projectId', 'projectName', 'url'];
+  if (!identityFields.some((field) => typeof hint[field] === 'string')) return false;
+  return fields.every((field) => {
+    const expected = hint[field];
+    return typeof expected !== 'string' || current[field] === expected;
+  });
+}
+
 function errorToRelayError(error: unknown): { code: string; message: string; suggestion?: string } {
   const record = isRecord(error) ? error : {};
   return {
@@ -159,6 +174,7 @@ export class RemoteRelayClient {
       ...this.status,
       state: 'disconnected',
       sessionId: undefined,
+      pairingCode: undefined,
       nextReconnectDelayMs: undefined,
     };
   }
@@ -234,17 +250,31 @@ export class RemoteRelayClient {
       return;
     }
     if (message.type === 'session_registered') {
+      if (message.paired === false && this.desiredConnection?.pairingCode) {
+        // Pairing codes are single-use: a reconnect cannot reuse one from
+        // the previous session, nor stay silently connected without an owner.
+        const hint =
+          this.status.mode === 'hosted'
+            ? 'Cloud pairing failed or expired. Generate a new pairing code in Cloud, then choose Connect Cloud again.'
+            : 'Remote pairing failed or expired. Generate a new pairing code, then reconnect explicitly.';
+        this.disconnect('user_disabled');
+        this.status = { ...this.status, lastError: hint };
+        this.options.showToast(hint);
+        return;
+      }
       this.status = {
         ...this.status,
         state: message.paired ? 'paired' : 'connected',
+        pairingCode: undefined,
         sessionId:
           typeof message.sessionId === 'string' ? message.sessionId : this.status.sessionId,
       };
       return;
     }
     if (message.type === 'heartbeat') {
+      // The gateway acknowledges extension-originated heartbeats: do not echo
+      // its reply, which would create an infinite WebSocket message loop.
       this.status = { ...this.status, lastHeartbeatAt: nowIso() };
-      this.send({ type: 'heartbeat' });
       return;
     }
     if (message.type === 'approval_request') {
@@ -256,6 +286,20 @@ export class RemoteRelayClient {
     }
   }
 
+  private rejectChangedApprovalProject(
+    socket: WebSocket,
+    message: RemoteEnvelope,
+    approvalId: string,
+  ): boolean {
+    if (!isRecord(message.activeProject)) return false;
+    if (matchesActiveProject(message.activeProject, this.options.readActiveProject())) {
+      return false;
+    }
+    this.sendForSocket(socket, { type: 'approval_result', approvalId, result: 'rejected' });
+    this.options.showToast('EasyEDA project changed; select it again in Cloud before approving.');
+    return true;
+  }
+
   private async handleApprovalRequest(socket: WebSocket, message: RemoteEnvelope): Promise<void> {
     const approvalId = typeof message.approvalId === 'string' ? message.approvalId : '';
     const toolName = typeof message.toolName === 'string' ? message.toolName : '';
@@ -265,6 +309,7 @@ export class RemoteRelayClient {
         : toolName || 'Remote action';
     const expiresAt = typeof message.expiresAt === 'string' ? message.expiresAt : nowIso();
     if (!approvalId || !toolName || this.pendingApprovalIds.has(approvalId)) return;
+    if (this.rejectChangedApprovalProject(socket, message, approvalId)) return;
 
     this.pendingApprovalIds.add(approvalId);
     let result: RemoteApprovalDecision = 'rejected';
@@ -299,6 +344,28 @@ export class RemoteRelayClient {
     });
   }
 
+  private rejectChangedProject(
+    socket: WebSocket,
+    message: RemoteEnvelope,
+    startedAt: number,
+  ): boolean {
+    if (!isRecord(message.activeProjectHint)) return false;
+    if (matchesActiveProject(message.activeProjectHint, this.options.readActiveProject())) {
+      return false;
+    }
+    this.sendForSocket(socket, {
+      type: 'tool_response',
+      requestMessageId: message.messageId,
+      ok: false,
+      error: {
+        code: 'PROJECT_INACTIVE',
+        message: 'The active EasyEDA project changed. Select this project again in Cloud.',
+      },
+      durationMs: Date.now() - startedAt,
+    });
+    return true;
+  }
+
   private async handleToolRequest(socket: WebSocket, message: RemoteEnvelope): Promise<void> {
     const startedAt = Date.now();
     const toolName = typeof message.toolName === 'string' ? message.toolName : '';
@@ -316,6 +383,7 @@ export class RemoteRelayClient {
       });
       return;
     }
+    if (this.rejectChangedProject(socket, message, startedAt)) return;
     if (!this.options.executeToolRequest) {
       this.sendForSocket(socket, {
         type: 'tool_response',
@@ -395,10 +463,15 @@ export class RemoteRelayClient {
 
   private startHeartbeatTimer(): void {
     this.clearHeartbeatTimer();
-    this.heartbeatTimer = this.options.timers.setInterval(
-      () => this.checkHeartbeatLiveness(),
-      HEARTBEAT_SWEEP_MS,
-    );
+    this.heartbeatTimer = this.options.timers.setInterval(() => {
+      this.checkHeartbeatLiveness();
+      if (this.socket?.readyState !== 1) return;
+      this.send({
+        type: 'heartbeat',
+        source: 'extension',
+        activeProject: this.options.readActiveProject() ?? null,
+      });
+    }, HEARTBEAT_SWEEP_MS);
   }
 
   private checkHeartbeatLiveness(): void {

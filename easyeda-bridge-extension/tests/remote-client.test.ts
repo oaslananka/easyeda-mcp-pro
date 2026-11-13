@@ -111,6 +111,39 @@ describe('RemoteRelayClient resilience', () => {
     expect(FakeWebSocket.instances[1].url).toBe('wss://relay.example/session');
   });
 
+  it('stops using an already consumed Cloud pairing code after reconnect and explains recovery', async () => {
+    const { client, showToast } = makeClient();
+    client.connect({
+      mode: 'hosted',
+      relayUrl: 'wss://easyeda-mcp-pro.oaslananka.dev/remote/relay',
+      pairingCode: 'EDA-ABCDEF12',
+    });
+    const first = FakeWebSocket.instances[0];
+    first.open();
+    first.receive(relayMessage('session_registered', { paired: true, sessionId: 'sess_first' }));
+    expect(client.getStatus().state).toBe('paired');
+    first.close();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    const reconnect = FakeWebSocket.instances[1];
+    reconnect.open();
+    reconnect.receive(relayMessage('session_registered', { paired: false, sessionId: 'sess_new' }));
+    expect(client.getStatus()).toMatchObject({
+      state: 'disconnected',
+      sessionId: undefined,
+    });
+    expect(client.getStatus().lastError).toMatch(/new pairing code/i);
+    expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/new pairing code/i));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    client.connect({
+      mode: 'hosted',
+      relayUrl: 'wss://easyeda-mcp-pro.oaslananka.dev/remote/relay',
+      pairingCode: 'EDA-99887766',
+    });
+    expect(FakeWebSocket.instances).toHaveLength(3);
+  });
+
   it('does not reconnect after explicit user disconnect', async () => {
     const { client } = makeClient();
 
@@ -146,7 +179,7 @@ describe('RemoteRelayClient resilience', () => {
     expect(mathRandom).not.toHaveBeenCalled();
   });
 
-  it('keeps message ids unique without Web Crypto and never falls back to Math.random', () => {
+  it('keeps message ids unique without Web Crypto and never falls back to Math.random', async () => {
     vi.stubGlobal('crypto', undefined);
     const mathRandom = vi.spyOn(Math, 'random').mockImplementation(() => {
       throw new Error('Math.random must not be used for relay message ids');
@@ -157,7 +190,8 @@ describe('RemoteRelayClient resilience', () => {
     client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
     const socket = FakeWebSocket.instances[0];
     socket.open();
-    socket.receive(relayMessage('heartbeat'));
+    socket.receive(relayMessage('heartbeat', { source: 'server' }));
+    await vi.advanceTimersByTimeAsync(15_000);
 
     const [registration, heartbeat] = socket.sent.map(
       (payload) => JSON.parse(payload) as { messageId: string; type: string },
@@ -170,7 +204,7 @@ describe('RemoteRelayClient resilience', () => {
     expect(mathRandom).not.toHaveBeenCalled();
   });
 
-  it('updates heartbeat liveness and echoes heartbeat messages', () => {
+  it('updates heartbeat liveness without echoing server acknowledgements', () => {
     const { client } = makeClient();
 
     client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
@@ -180,8 +214,57 @@ describe('RemoteRelayClient resilience', () => {
 
     expect(client.getStatus().lastHeartbeatAt).toBeDefined();
     const sentTypes = socket.sent.map((data) => JSON.parse(data).type);
-    expect(sentTypes).toContain('register_session');
-    expect(sentTypes).toContain('heartbeat');
+    expect(sentTypes).toEqual(['register_session']);
+  });
+
+  it('sends project-bearing heartbeats periodically without echoing server acknowledgements', async () => {
+    const { client } = makeClient();
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    const countBeforeAck = socket.sent.length;
+    socket.receive(relayMessage('heartbeat', { source: 'server' }));
+    expect(socket.sent).toHaveLength(countBeforeAck);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    const heartbeats = socket.sent
+      .map((message) => JSON.parse(message) as Record<string, unknown>)
+      .filter((message) => message.type === 'heartbeat');
+    expect(heartbeats).toEqual([
+      expect.objectContaining({
+        source: 'extension',
+        activeProject: { projectName: 'Fixture', documentType: 'schematic' },
+      }),
+    ]);
+    socket.receive(relayMessage('heartbeat', { source: 'server' }));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(socket.readyState).toBe(OPEN);
+  });
+
+  it('rejects a tool request for a different active project before any EasyEDA API call', async () => {
+    const execute = vi.fn(async () => ({ unexpectedlyExecuted: true }));
+    const { client } = makeClient(undefined, execute);
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive(relayMessage('session_registered', { paired: true, sessionId: 'sess_one' }));
+    socket.receive(
+      relayMessage('tool_request', {
+        sessionId: 'sess_one',
+        toolName: 'schematic.listComponents',
+        activeProjectHint: { projectName: 'Different PCB', documentType: 'pcb' },
+        input: { component: 'none' },
+      }),
+    );
+    await Promise.resolve();
+    expect(execute).not.toHaveBeenCalled();
+    expect(socket.sent.map((m) => JSON.parse(m))).toContainEqual(
+      expect.objectContaining({
+        type: 'tool_response',
+        ok: false,
+        error: expect.objectContaining({ code: 'PROJECT_INACTIVE' }),
+      }),
+    );
   });
 
   it('closes stale heartbeat sockets so the normal close path reconnects', async () => {
@@ -239,7 +322,7 @@ describe('RemoteRelayClient resilience', () => {
     expect(client.getStatus()).toMatchObject({
       state: 'paired',
       sessionId: 'sess_1',
-      pairingCode: '123456',
+      pairingCode: undefined,
     });
   });
 
@@ -280,6 +363,35 @@ describe('RemoteRelayClient resilience', () => {
       approvalId: 'appr_1',
       result: 'approved',
     });
+  });
+
+  it('rejects an approval for a stale EasyEDA project without opening a confirmation dialog', async () => {
+    const { client, requestApproval } = makeClient();
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive(
+      relayMessage('session_registered', { paired: true, sessionId: 'sess_approved' }),
+    );
+    socket.receive(
+      relayMessage('approval_request', {
+        approvalId: 'appr_wrong_project',
+        sessionId: 'sess_approved',
+        toolName: 'schematic.addText',
+        riskLevel: 'write',
+        activeProject: { projectName: 'Another PCB', documentType: 'pcb' },
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    );
+    await Promise.resolve();
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(socket.sent.map((value) => JSON.parse(value))).toContainEqual(
+      expect.objectContaining({
+        type: 'approval_result',
+        approvalId: 'appr_wrong_project',
+        result: 'rejected',
+      }),
+    );
   });
 
   it('does not open duplicate approval prompts for the same approval id', async () => {

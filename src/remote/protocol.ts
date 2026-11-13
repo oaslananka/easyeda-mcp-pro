@@ -47,6 +47,10 @@ export const SessionRegisteredMessageSchema = BaseRelayMessageSchema.extend({
 
 export const HeartbeatMessageSchema = BaseRelayMessageSchema.extend({
   type: z.literal('heartbeat'),
+  source: z.enum(['extension', 'server']).optional(),
+  // Explicit null means no project is currently visible; omitted means an older
+  // extension which does not report project changes.
+  activeProject: ActiveProjectSchema.nullable().optional(),
 });
 
 export const ToolRequestMessageSchema = BaseRelayMessageSchema.extend({

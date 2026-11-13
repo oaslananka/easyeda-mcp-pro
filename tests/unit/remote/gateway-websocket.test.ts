@@ -348,6 +348,138 @@ describe('RemoteGateway WebSocket relay', () => {
     ).resolves.toMatchObject({ type: 'error', code: 'SESSION_NOT_REGISTERED' });
   });
 
+  it('invalidates an explicit project selection when a live heartbeat reports another project', async () => {
+    const harness = await createHarness();
+    harness.gateway.requireExplicitProjectSelection();
+    const sessionId = await registerSession(harness);
+    expect(harness.gateway.selectPairedProject(readIdentity, sessionId)).toBe(true);
+    harness.client.send(
+      envelope('heartbeat', {
+        source: 'extension',
+        sessionId,
+        activeProject: { projectName: 'Other PCB', documentType: 'pcb' },
+      }),
+    );
+    await expect(
+      harness.client.waitFor((msg) => msg.type === 'heartbeat' && msg.source === 'server'),
+    ).resolves.toMatchObject({ sessionId });
+    await expect(
+      harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        riskLevel: 'read',
+        toolName: 'schematic.listComponents',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'PROJECT_INACTIVE' });
+  });
+
+  it('re-pairs with a fresh owner code after a real socket drop, never replaying an old code', async () => {
+    const harness = await createHarness();
+    harness.gateway.requireExplicitProjectSelection();
+    const registerWith = (client: RelayClient, code: string) => {
+      client.send(
+        envelope('register_session', {
+          extensionVersion: '1.15.4',
+          mode: 'hosted',
+          capabilities: [],
+          activeProject: {
+            projectId: 'disposable-pcb',
+            projectName: 'Disposable PCB',
+            documentType: 'pcb',
+          },
+          pairingCode: code,
+        }),
+      );
+      return client.waitFor((message) => message.type === 'session_registered');
+    };
+    const initialCode = harness.gateway.createPairingCode({ identity: readIdentity });
+    const first = await registerWith(harness.client, initialCode);
+    expect(first.paired).toBe(true);
+    expect(harness.gateway.selectPairedProject(readIdentity, String(first.sessionId))).toBe(true);
+    await harness.client.close();
+    await waitForCondition(
+      () => harness.gateway.router.getSession(String(first.sessionId))?.connected === false,
+    );
+
+    await expect(
+      harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        riskLevel: 'read',
+        toolName: 'schematic.listComponents',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'SESSION_DISCONNECTED' });
+
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing port');
+    const connect = async (): Promise<RelayClient> => {
+      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`);
+      await new Promise<void>((resolve, reject) => {
+        socket.once('open', resolve);
+        socket.once('error', reject);
+      });
+      return new RelayClient(socket);
+    };
+    const second = await connect();
+    try {
+      const oldCodeResult = await registerWith(second, initialCode);
+      expect(oldCodeResult.paired).toBe(false);
+      await expect(
+        harness.gateway.routeToolRequest({
+          identity: readIdentity,
+          riskLevel: 'read',
+          sessionId: String(oldCodeResult.sessionId),
+          toolName: 'schematic.listComponents',
+        }),
+      ).resolves.toMatchObject({ ok: false });
+    } finally {
+      await second.close();
+    }
+
+    const newCode = harness.gateway.createPairingCode({ identity: readIdentity });
+    const third = await connect();
+    try {
+      const freshPairing = await registerWith(third, newCode);
+      expect(freshPairing.paired).toBe(true);
+      const newSessionId = String(freshPairing.sessionId);
+      expect(newSessionId).not.toBe(first.sessionId);
+      await expect(
+        harness.gateway.routeToolRequest({
+          identity: readIdentity,
+          sessionId: newSessionId,
+          riskLevel: 'read',
+          toolName: 'schematic.listComponents',
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
+      expect(harness.gateway.selectPairedProject(readIdentity, newSessionId)).toBe(true);
+      const routed = harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        riskLevel: 'read',
+        toolName: 'schematic.listComponents',
+        deadlineMs: 1200,
+      });
+      const outbound = await third.waitFor((m) => m.type === 'tool_request');
+      third.send(
+        toolResponse({
+          sessionId: newSessionId,
+          requestMessageId: String(outbound.messageId),
+          result: { components: [] },
+        }),
+      );
+      await expect(routed).resolves.toMatchObject({ ok: true, result: { components: [] } });
+
+      expect(harness.gateway.revokePairedExtension(readIdentity, newSessionId)).toBe(true);
+      expect(harness.gateway.getSelectedProject(readIdentity)).toBeUndefined();
+      await expect(
+        harness.gateway.routeToolRequest({
+          identity: readIdentity,
+          riskLevel: 'read',
+          toolName: 'schematic.listComponents',
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'SESSION_DISCONNECTED' });
+    } finally {
+      await third.close();
+    }
+  });
+
   it('re-registering one socket replaces and disconnects its previous session', async () => {
     const harness = await createHarness();
     const firstSessionId = await registerSession(harness);

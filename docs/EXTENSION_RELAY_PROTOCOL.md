@@ -97,6 +97,28 @@ A `tool_request` should include:
 - `activeProjectHint`
 - `deadlineMs`
 
+## Live project identity and heartbeat compatibility
+
+The current extension sends a heartbeat every 15 seconds with `source: "extension"`
+and its currently visible `activeProject`. It sends `activeProject: null` when
+no editor project is visible. The gateway updates the registered session's
+project context and acknowledges once with `source: "server"`. The extension
+must **not echo this acknowledgement**. The gateway ignores source-less
+heartbeat echoes to avoid an uncontrolled feedback loop. Older clients that
+omit project context do not implicitly clear it.
+
+Before executing a tool, the extension separately checks the gateway's
+`activeProjectHint` against its _current_ editor project, rather than trusting
+a potentially stale registration or heartbeat. Write/export approvals also
+fail without a matching current project. A mismatch returns
+`PROJECT_INACTIVE`; the user must select the correct project again in Cloud.
+
+Pairing codes are single-use. A dropped connection cannot reuse the same
+code to regain owner access; the extension reports a clear re-pair action
+rather than continually retrying an unpaired session. Cloud is still
+Experimental: these are protocol and simulated-extension guarantees, not
+live EasyEDA runtime acceptance.
+
 ## Failure handling
 
 The extension and gateway must reject:

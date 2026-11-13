@@ -185,6 +185,28 @@ function isUnsupportedRemoteMethod(code: string | undefined): boolean {
   return code === 'METHOD_NOT_ALLOWED' || code === 'METHOD_NOT_FOUND';
 }
 
+function relayExtensionFailure(error?: { code: string; message: string }): RemoteGatewayFailure {
+  if (error?.code === 'PROJECT_INACTIVE') {
+    return gatewayError(
+      409,
+      'PROJECT_INACTIVE',
+      error.message || 'EasyEDA switched projects. Select the project again.',
+    );
+  }
+  if (isUnsupportedRemoteMethod(error?.code)) {
+    return gatewayError(
+      422,
+      'REMOTE_TOOL_UNSUPPORTED',
+      `${error?.code}: ${error?.message ?? 'Remote extension does not support this method.'}`,
+    );
+  }
+  return gatewayError(
+    502,
+    'REMOTE_EXTENSION_ERROR',
+    error?.message ?? 'Remote extension returned an error.',
+  );
+}
+
 function scopeStringToList(value: unknown): string[] {
   if (typeof value === 'string') return value.split(/[\s,]+/).filter(Boolean);
   if (Array.isArray(value)) return value.flatMap((item) => scopeStringToList(item));
@@ -310,8 +332,10 @@ interface SelectedProject {
 
 function projectIdentity(project?: ExtensionSession['activeProject']): string | undefined {
   if (project?.projectId) return `id:${project.projectId}`;
-  if (project?.projectName) return `name:${project.documentType}:${project.projectName}`;
-  return undefined;
+  if (project?.projectName) {
+    return `name:${project.documentType}:${project.projectName}:${project.url ?? ''}`;
+  }
+  return project?.url ? `url:${project.url}` : undefined;
 }
 
 export class RemoteGateway {
@@ -327,6 +351,12 @@ export class RemoteGateway {
   private readonly invocationGrants: RemoteInvocationGrantStore;
   private readonly dispatchQueue = new SessionDispatchQueue();
   private wsAttached = false;
+  private explicitSelectionRequired = false;
+
+  /** Called only for the first-party Hosted Cloud transport; preserves Custom Remote compatibility. */
+  requireExplicitProjectSelection(): void {
+    this.explicitSelectionRequired = true;
+  }
 
   constructor(options: RemoteGatewayOptions = {}) {
     this.now = options.now ?? (() => new Date());
@@ -342,36 +372,66 @@ export class RemoteGateway {
     );
   }
 
-  private resolveConnection(input: {
-    identity: RemoteIdentity;
-    sessionId?: string;
-    riskLevel: RemoteRiskLevel;
-  }): ResolvedRemoteConnection {
-    const selected = this.selectedProjects.get(input.identity.userId);
-    if (selected && input.sessionId && input.sessionId !== selected.sessionId) {
+  private resolveOwnerSelection(
+    identity: RemoteIdentity,
+    requestedSessionId?: string,
+  ): { ok: true; sessionId?: string } | RemoteGatewayFailure {
+    const selected = this.selectedProjects.get(identity.userId);
+    if (this.explicitSelectionRequired && !selected) {
+      const sessions = this.router.listPairedSessions(identity.userId);
+      if (sessions.length === 0) {
+        return gatewayError(
+          404,
+          'SESSION_UNPAIRED',
+          'Pair your EasyEDA extension from your Cloud account before using MCP.',
+        );
+      }
+      if (!sessions.some((session) => session.connected)) {
+        return gatewayError(
+          424,
+          'SESSION_DISCONNECTED',
+          'Your linked EasyEDA extension is offline. Reconnect it using a fresh pairing code.',
+        );
+      }
+      return gatewayError(
+        409,
+        'PROJECT_INACTIVE',
+        'Select an EasyEDA extension and its active project in your Cloud account before using MCP.',
+      );
+    }
+    if (!selected) return { ok: true, sessionId: requestedSessionId };
+    if (requestedSessionId && requestedSessionId !== selected.sessionId) {
       return gatewayError(
         403,
         'SESSION_UNPAIRED',
         'This session differs from the owner-selected EasyEDA project.',
       );
     }
-    if (selected) {
-      const current = this.router.getSession(selected.sessionId);
-      if (!current || current.userId !== input.identity.userId) {
-        return gatewayError(404, 'SESSION_UNPAIRED', 'Selected EasyEDA session is unavailable.');
-      }
-      if (projectIdentity(current.activeProject) !== selected.projectKey) {
-        return gatewayError(
-          409,
-          'PROJECT_INACTIVE',
-          'The EasyEDA active project changed. Select the project again in Cloud.',
-        );
-      }
+    const current = this.router.getSession(selected.sessionId);
+    if (!current || current.userId !== identity.userId) {
+      return gatewayError(404, 'SESSION_UNPAIRED', 'Selected EasyEDA session is unavailable.');
     }
+    if (projectIdentity(current.activeProject) !== selected.projectKey) {
+      return gatewayError(
+        409,
+        'PROJECT_INACTIVE',
+        'The EasyEDA active project changed. Select the project again in Cloud.',
+      );
+    }
+    return { ok: true, sessionId: selected.sessionId };
+  }
+
+  private resolveConnection(input: {
+    identity: RemoteIdentity;
+    sessionId?: string;
+    riskLevel: RemoteRiskLevel;
+  }): ResolvedRemoteConnection {
+    const selection = this.resolveOwnerSelection(input.identity, input.sessionId);
+    if (!selection.ok) return selection;
     const route = this.router.resolve({
       userId: input.identity.userId,
       riskLevel: input.riskLevel,
-      sessionId: selected?.sessionId ?? input.sessionId,
+      sessionId: selection.sessionId,
     });
     if (!route.ok) {
       const status =
@@ -914,19 +974,7 @@ export class RemoteGateway {
           errorCode: response.error?.code ?? 'REMOTE_EXTENSION_ERROR',
           durationMs: Date.now() - startedAt,
         });
-        const extensionCode = response.error?.code;
-        if (isUnsupportedRemoteMethod(extensionCode)) {
-          return gatewayError(
-            422,
-            'REMOTE_TOOL_UNSUPPORTED',
-            `${extensionCode}: ${response.error?.message ?? 'Remote extension does not support this method.'}`,
-          );
-        }
-        return gatewayError(
-          502,
-          'REMOTE_EXTENSION_ERROR',
-          response.error?.message ?? 'Remote extension returned an error.',
-        );
+        return relayExtensionFailure(response.error);
       }
       this.audit.record({
         event: 'remote.tool.completed',
@@ -1165,6 +1213,21 @@ export class RemoteGateway {
       return false;
     };
 
+    const handleHeartbeat = (heartbeat: {
+      sessionId?: string;
+      source?: string;
+      activeProject?: ExtensionSession['activeProject'] | null;
+    }) => {
+      if (!sessionId || !messageMatchesCurrentSession(heartbeat.sessionId)) return;
+      if (Object.hasOwn(heartbeat, 'activeProject')) {
+        this.router.updateActiveProject(sessionId, heartbeat.activeProject ?? undefined);
+      } else {
+        this.router.heartbeat(sessionId);
+      }
+      // Only acknowledge extension-sourced heartbeats, never acknowledgements.
+      if (heartbeat.source === 'extension') send({ type: 'heartbeat', source: 'server' });
+    };
+
     const dispatch: RemoteToolDispatcher = async (request) => {
       if (ws.readyState !== ws.OPEN) {
         throw new RemoteSessionUnavailableError(request.sessionId);
@@ -1232,8 +1295,7 @@ export class RemoteGateway {
       }
 
       if (message.data.type === 'heartbeat') {
-        this.router.heartbeat(sessionId);
-        send({ type: 'heartbeat' });
+        handleHeartbeat(message.data);
         return;
       }
 

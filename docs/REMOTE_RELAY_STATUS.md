@@ -21,7 +21,14 @@ A loopback process test confirms OAuth discovery, JWKS, a rendered GitHub/Google
 screen, a fake-credential GitHub OAuth redirect and SQLite startup with **fake provider
 credentials**, not a real signed-in user. A separate cookie-authenticated browser portal
 shows linked extensions, creates owner-bound pairing codes, revokes sessions and supports
-explicit owner-selected extension/project binding. The extension has a separate opt-in Connect Cloud menu that requests only a pairing code and uses the official Cloud WSS relay URL; Custom Remote remains independent. A changed project identity requires
+explicit owner-selected extension/project binding. The extension's optional Connect Cloud menu asks only for a pairing code and
+uses the official WSS relay URL; Custom Remote remains independent.
+Cloud requires explicit project selection even when only one extension is
+paired. Simulated WebSocket tests cover disconnect, one-time-code replay
+rejection, fresh pairing, project reselection, read dispatch, and revocation.
+Periodic extension-originated heartbeats report the current project without
+acknowledgement loops, and an extension-side dispatch guard rejects a switched
+project before the EasyEDA tool is called. A changed project identity requires
 reselection before remote tool routing; tampered/expired consent requests fail closed. Live GitHub/Google sign-in, full browser consent completion, real extension
 pairing/project UX, hosted deployment and real EasyEDA relay acceptance are **not yet
 verified or shipped**. Keep Cloud disabled until all acceptance gates are satisfied.
