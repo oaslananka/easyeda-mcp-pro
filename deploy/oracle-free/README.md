@@ -1,0 +1,64 @@
+# Oracle Always Free Cloud candidate
+
+This is an alternative **single-VM** deployment for the first-party EasyEDA
+Cloud. It does not provision new infrastructure, change DNS, or enable public
+access. [Hosted user acceptance #849](https://github.com/oaslananka/easyeda-mcp-pro/issues/849)
+and [Cloud rollout #850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)
+remain the production gates.
+
+## Why Compose
+
+The existing Oracle Always Free machine has Docker Compose. Use a
+published, verified immutable GHCR image containing the accepted Hosted Cloud; **do not build on a 1 GB VM**.
+The current stable v1.15.5 image predates the Hosted Cloud code and is not
+suitable for an actual deployment. Do not replace the pinned image placeholder
+until that feature has passed its release gates.
+
+The Compose manifest limits memory, CPU, processes, logs and port exposure,
+while keeping the SQLite database in a persistent Docker named volume.
+Leave the existing reverse proxy and unrelated applications untouched.
+
+## Prepare and start
+
+1. Copy the Compose manifest and non-secret .env.example into a private
+   deployment directory. Copy .env.example to .env, then chmod 600 .env.
+2. Inject the existing GitHub/Google OAuth credentials and signing key from
+   Doppler project easyeda-mcp-pro, config main, with a scoped read-only
+   credential. Do not put secret values in Git, issues, logs, Actions, or the
+   non-secret .env file. An authorized Doppler CLI session can inject
+   variables into the Compose process using doppler run.
+3. With secrets injected into the process environment, run:
+
+       docker compose --env-file .env config --quiet
+       docker compose --env-file .env pull
+       docker compose --env-file .env up -d --wait
+       docker compose --env-file .env ps
+       curl -fsS http://127.0.0.1:13000/healthz
+
+4. Check unauthenticated MCP rejects missing bearer tokens. Confirm real
+   OAuth callback, paired EasyEDA WSS, read-only MCP calls and revocation
+   with genuine users before changing the public DNS/ingress. Both social
+   providers must retain their exact registered callback origin.
+
+## Persistence and rollback
+
+The named Docker volume cloud-data contains hosted-cloud.sqlite and other
+runtime state. Preserve it across updates and reboots. **Never run
+docker compose down -v or delete this volume.**
+
+- Stop without data loss: docker compose --env-file .env stop.
+- Roll back: change EASYEDA_IMAGE to a previously verified immutable digest;
+  run docker compose up -d --wait while preserving the same volume.
+- For a real data migration quiesce the previous SQLite writer, make a
+  consistent SQLite online backup (including WAL activity), verify its
+  restored contents, and switch public routing only after live acceptance.
+  Do not permit two independent writers to the same logical state.
+- Docker's restart policy restores the existing container after reboot,
+  without an active Doppler CLI session. Updates require a new authorized
+  secrets injection. Never perform broad Docker prunes.
+- Resource limits are conservative; 1 GB RAM is **not** a production capacity
+  guarantee. Measure CPU/RAM, WebSocket longevity and restart recovery.
+
+The existing Coolify deployment remains stopped and the source of the public
+domain until a separate accepted cutover. This path is a candidate, not a
+completed production rollout.
