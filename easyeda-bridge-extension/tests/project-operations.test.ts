@@ -54,6 +54,7 @@ describe('project lifecycle safety', () => {
     activationFails?: boolean;
     focusedProject?: string;
     focusedDocument?: string;
+    focusedDocumentType?: 1 | 3;
     saveThrows?: boolean;
     nativeCloseReturnsFalse?: boolean;
     projectData?: unknown[];
@@ -107,10 +108,13 @@ describe('project lifecycle safety', () => {
             return {
               uuid: overrides?.focusedDocument ?? 'pcb1',
               parentProjectUuid: overrides?.focusedProject ?? 'p1',
-              documentType: 3,
+              documentType: overrides?.focusedDocumentType ?? 3,
             };
           case 'pcb_Document.save':
             if (overrides?.saveThrows) throw new Error('native PCB save exception');
+            return overrides?.save !== false;
+          case 'sch_Document.save':
+            if (overrides?.saveThrows) throw new Error('native schematic save exception');
             return overrides?.save !== false;
           case 'dmt_EditorControl.closeDocument':
             if (overrides?.nativeCloseReturnsFalse) return false;
@@ -381,6 +385,78 @@ describe('project lifecycle safety', () => {
     expect(
       callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
     ).toBe(false);
+  });
+
+  // Captured from a real EasyEDA Pro 3.2.209 P1.Schematic tab. The native
+  // schema has data-model-sheet-uuid but no creator field for schematic pages.
+  const nativeSchematicTab = {
+    tabId: 'sch1-extended-native-tab',
+    title: 'P1.Schematic',
+    data: {
+      pid: 'p1',
+      doctype: 1,
+      creator: 'native-actor-not-the-page',
+      'data-model-sheet-uuid': 'sch1',
+    },
+  };
+
+  it('identifies a real 3.2.209 schematic tab before verified native save/close', async () => {
+    const { operations, callFirst } = fixture({
+      focusedDocument: 'sch1',
+      focusedDocumentType: 1,
+      tabs: [{ tabId: 'start', title: 'Start Page', data: { doctype: -1 } }, nativeSchematicTab],
+    });
+    const result = await operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true });
+    expect(result).toMatchObject({
+      success: true,
+      status: 'closed',
+      closedTabs: ['sch1-extended-native-tab'],
+    });
+    const calls = callFirst.mock.calls.map(([paths]) => (paths as readonly string[])[0]);
+    expect(calls.indexOf('sch_Document.save')).toBeGreaterThanOrEqual(0);
+    expect(calls.indexOf('sch_Document.save')).toBeLessThan(
+      calls.indexOf('dmt_EditorControl.closeDocument'),
+    );
+  });
+
+  it.each([
+    ['wrong project', { pid: 'another' }, 'sch1-extended-native-tab'],
+    ['wrong page UUID', { 'data-model-sheet-uuid': 'another' }, 'sch1-extended-native-tab'],
+    ['missing page UUID', { 'data-model-sheet-uuid': undefined }, 'sch1-extended-native-tab'],
+    ['PCB tab type', { doctype: 3 }, 'sch1-extended-native-tab'],
+    ['string document type', { doctype: '1' }, 'sch1-extended-native-tab'],
+    ['forged tab prefix', {}, 'unrelated-native-tab'],
+  ])('refuses an untrusted schematic tab: %s', async (_, changes, tabId) => {
+    const { operations, callFirst } = fixture({
+      focusedDocument: 'sch1',
+      focusedDocumentType: 1,
+      tabs: [
+        { tabId: 'start', title: 'Start Page', data: { doctype: -1 } },
+        { ...nativeSchematicTab, tabId, data: { ...nativeSchematicTab.data, ...changes } },
+      ],
+    });
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'unknown_document_tabs' });
+    expect(callFirst.mock.calls.some(([paths]) => paths[0] === 'sch_Document.save')).toBe(false);
+    expect(
+      callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
+    ).toBe(false);
+  });
+
+  it('refuses duplicate schematic tabs even when each has matching native identity', async () => {
+    const { operations, callFirst } = fixture({
+      focusedDocument: 'sch1',
+      focusedDocumentType: 1,
+      tabs: [
+        nativeSchematicTab,
+        { ...nativeSchematicTab, title: 'Other', tabId: 'sch1-another-native-tab' },
+      ],
+    });
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'unknown_document_tabs' });
+    expect(callFirst.mock.calls.some(([paths]) => paths[0] === 'sch_Document.save')).toBe(false);
   });
 
   it('refuses unknown tabs before saving or closing any document', async () => {

@@ -78,11 +78,14 @@ function withTabIds(documents: Document[], tabs: Tab[], projectId: string): Docu
     const matches = tabs.filter((tab) => {
       const tabId = id(tab.tabId);
       const data = object(tab.data);
+      // EasyEDA Pro 3.2.209 schematic tabs identify the page through the
+      // exact model-sheet UUID, not creator (an unrelated native metadata ID).
+      const pageMatches =
+        doc.type === 'schematic'
+          ? data?.doctype === 1 && id(data?.['data-model-sheet-uuid']) === doc.documentId
+          : id(data?.creator) === doc.documentId;
       return (
-        !!tabId &&
-        tabId.startsWith(doc.documentId) &&
-        id(data?.creator) === doc.documentId &&
-        id(data?.pid) === projectId
+        !!tabId && tabId.startsWith(doc.documentId) && id(data?.pid) === projectId && pageMatches
       );
     });
     return { ...doc, tabId: matches.length === 1 ? (id(matches[0]?.tabId) ?? null) : null };
