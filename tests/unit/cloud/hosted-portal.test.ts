@@ -65,6 +65,20 @@ async function withPortal(
 describe('Hosted Cloud browser portal', () => {
   it('renders discoverable GitHub and Google sign-in with strict executable asset CSP', async () => {
     await withPortal(async (base) => {
+      const landing = await fetch(base + '/');
+      const landingHtml = await landing.text();
+      expect(landing.status).toBe(200);
+      expect(landing.headers.get('content-type')).toContain('text/html');
+      expect(landing.headers.get('cache-control')).toContain('no-store');
+      expect(landingHtml).toContain('Connect EasyEDA Pro to your MCP client.');
+      expect(landingHtml).toContain('Continue with GitHub');
+      expect(landingHtml).toContain('Continue with Google');
+      const signedLanding = await fetch(base + '/', {
+        headers: { cookie: 'session=owner-a' },
+      });
+      expect(signedLanding.status).toBe(200);
+      expect(await signedLanding.text()).toContain('Your devices');
+
       const login = await fetch(`${base}/sign-in`);
       const html = await login.text();
       expect(login.status).toBe(200);
@@ -80,6 +94,9 @@ describe('Hosted Cloud browser portal', () => {
       expect((await fetch(`${base}/cloud`, { redirect: 'manual' })).status).toBe(303);
       const noAuth = await fetch(`${base}/cloud/api/me`);
       expect(noAuth.status).toBe(401);
+      const mcpWithoutBearer = await fetch(base + '/mcp');
+      expect(mcpWithoutBearer.status).toBe(401);
+      await expect(mcpWithoutBearer.json()).resolves.toMatchObject({ code: 'missing_auth' });
     });
   });
 

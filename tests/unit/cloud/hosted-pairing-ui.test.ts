@@ -101,6 +101,8 @@ describe('Hosted Cloud pairing-code user experience', () => {
     });
 
     await vi.waitFor(() => expect(get('generate-pairing').listeners.has('click')).toBe(true));
+    expect(get('workspace-grid').dataset.empty).toBe('true');
+    expect(get('device-count').textContent).toBe('0');
     await get('generate-pairing').click();
     expect(get('notice').classList.contains('error')).toBe(true);
 
@@ -210,6 +212,8 @@ describe('Hosted Cloud pairing-code user experience', () => {
     };
 
     await vi.waitFor(() => expect(get('refresh-extensions').listeners.has('click')).toBe(true));
+    expect(get('workspace-grid').dataset.empty).toBe('false');
+    expect(get('device-count').textContent).toBe('1');
     expect(button().textContent).toBe('Selected PCB');
     expect(button().disabled).toBe(true);
 

@@ -105,6 +105,10 @@ describe('Hosted Cloud executable startup (no external social providers)', () =>
         expect(jwks.status).toBe(200);
         await expect(jwks.json()).resolves.toHaveProperty('keys');
         expect((await stat(join(dataDir, 'hosted-cloud.sqlite'))).size).toBeGreaterThan(0);
+        const landing = await fetch(origin + '/');
+        expect(landing.status).toBe(200);
+        expect(await landing.text()).toContain('Connect EasyEDA Pro to your MCP client.');
+
         const signIn = await fetch(`${origin}/sign-in`);
         expect(signIn.status).toBe(200);
         expect(await signIn.text()).toContain('Continue with GitHub');

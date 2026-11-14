@@ -43,45 +43,73 @@ function page(title: string, body: string, state: 'sign-in' | 'consent' | 'accou
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
 <title>${escaped(title)} · EasyEDA MCP Pro Cloud</title><link rel="stylesheet" href="/cloud/app.css?v=${cssVersion}"></head>
 <body><div class="wrap">
-<header class="nav"><a class="brand" href="/cloud"><span class="mark" aria-hidden="true">E</span><span>EasyEDA MCP Pro</span></a><span class="tag">CLOUD · EARLY ACCESS</span></header>
+<header class="nav"><a class="brand" href="/"><span class="mark" aria-hidden="true">E</span><span class="brand-name">EasyEDA <span>MCP Pro</span></span></a><div class="nav-right"><span class="tag"><span class="tag-dot" aria-hidden="true"></span>Cloud preview</span><a class="nav-link" href="https://github.com/oaslananka/easyeda-mcp-pro">GitHub ↗</a></div></header>
 <main id="cloud-root" data-page="${state}">${body}<p class="muted" id="notice" role="status" aria-live="polite"></p></main>
-<footer>Cloud is optional. Your EasyEDA projects remain on your device. <a href="https://github.com/oaslananka/easyeda-mcp-pro">Open-source Local MCP</a> works without sign-in.</footer></div>
+<footer><span>EasyEDA MCP Pro Cloud · Preview</span><span>Your designs stay on your device. <a href="https://github.com/oaslananka/easyeda-mcp-pro">Use Local MCP without an account ↗</a></span></footer></div>
 <script defer src="/cloud/app.js?v=${jsVersion}"></script></body></html>`;
 }
 
 const signIn = (): string =>
   page(
-    'Sign in',
-    `<p class="eyebrow">Your workspace · Your choice</p>
-<h1 class="hero">Connect your design workflow, on your terms.</h1>
-<p class="subtitle">Sign in to link an EasyEDA extension and authorize an AI client. Nothing changes in Local mode until you explicitly enable Cloud in EasyEDA.</p>
-<section class="panel" aria-labelledby="signin-title"><h2 id="signin-title">Sign in to Cloud</h2>
-<p class="muted">Use an existing account. No new password to manage.</p>
-<div class="actions"><button class="btn" type="button" data-provider="github">Continue with GitHub</button>
-<button class="btn secondary" type="button" data-provider="google">Continue with Google</button></div>
-<div class="segment"><p class="muted">After sign-in, you can choose which extension to pair and revoke access at any time. Your AI client will ask separately for MCP permissions.</p></div></section>`,
+    'Connect EasyEDA',
+    `<div class="landing-grid">
+<section class="landing-intro" aria-labelledby="landing-title">
+<p class="eyebrow">EASYEDA MCP PRO / CLOUD</p>
+<h1 id="landing-title" class="hero">Connect EasyEDA Pro to your MCP client.</h1>
+<p class="subtitle">Pair your EasyEDA Pro extension, pick the design you're working on, and choose which MCP clients can access it.</p>
+<div class="journey" aria-label="How it works">
+<div class="journey-step"><span class="step-num">01</span><span><strong>Sign in</strong><small>Use your GitHub or Google account</small></span></div>
+<div class="journey-step"><span class="step-num">02</span><span><strong>Pair EasyEDA</strong><small>Enter a one-time code in MCP Bridge</small></span></div>
+<div class="journey-step"><span class="step-num">03</span><span><strong>Choose access</strong><small>Select a design and approve your MCP client</small></span></div>
+</div></section>
+<section class="auth-card" aria-labelledby="signin-title">
+<div class="auth-card-top"><div class="auth-icon" aria-hidden="true">↗</div><span class="step-indicator">STEP 01 / 03</span></div>
+<h2 id="signin-title">Get started</h2>
+<p class="auth-description">Sign in to open your Cloud workspace.</p>
+<div class="auth-buttons">
+<button class="btn provider-button" type="button" data-provider="github"><span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.11.8-.25.8-.56v-2.08c-3.24.7-3.92-1.38-3.92-1.38-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.41-1.26.75-1.55-2.59-.29-5.32-1.3-5.32-5.8 0-1.29.46-2.35 1.2-3.18-.12-.3-.52-1.51.12-3.14 0 0 .98-.31 3.18 1.21a11.1 11.1 0 0 1 5.8 0C16.1 4.1 17.08 4.4 17.08 4.4c.64 1.63.24 2.84.12 3.14.75.83 1.19 1.89 1.19 3.18 0 4.51-2.73 5.51-5.33 5.8.42.36.8 1.06.8 2.13v3.7c0 .31.22.68.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg></span><span>Continue with GitHub</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+<button class="btn provider-button secondary" type="button" data-provider="google"><span class="provider-mark google-mark" aria-hidden="true">G</span><span>Continue with Google</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+</div>
+<div class="auth-card-foot"><span class="privacy-icon" aria-hidden="true">✓</span><span>No new password. Your files stay on your computer. You approve each MCP client's permissions separately.</span></div>
+</section></div>
+<div class="trust-strip" aria-label="Cloud safeguards">
+<div><span class="trust-mark" aria-hidden="true">◎</span><span><strong>Local first</strong><small>Design files remain on your device</small></span></div>
+<div><span class="trust-mark" aria-hidden="true">⌁</span><span><strong>Explicit pairing</strong><small>Only devices you connect</small></span></div>
+<div><span class="trust-mark" aria-hidden="true">✓</span><span><strong>In your control</strong><small>Revoke access whenever you need</small></span></div>
+</div>`,
     'sign-in',
   );
 
 const account = (): string =>
   page(
-    'Your connections',
-    `<p class="eyebrow">Cloud control center</p><h1 class="hero">Your devices. Your permissions.</h1>
-<p class="subtitle">Signed in as <strong id="account-name">your account</strong>. Link an extension only when you choose Cloud in EasyEDA.</p>
-<div class="columns"><section class="panel wide" aria-labelledby="extensions-title">
-<h2 id="extensions-title">Linked EasyEDA extensions</h2><p class="muted">Your active projects are shown by each connected extension. Removing access disconnects that session.</p>
-<div id="extensions" aria-live="polite"><div class="empty">Loading your extensions…</div></div>
-<div class="actions"><button class="btn secondary" id="refresh-extensions" type="button">Refresh connections</button></div></section>
-<section class="panel wide" aria-labelledby="pair-title"><h2 id="pair-title">Link a new extension</h2>
-<p class="muted">1. Open EasyEDA's MCP Bridge menu. 2. Choose Connect Cloud... (Experimental). 3. Enter this one-time code.</p>
-<div class="actions"><button class="btn" id="generate-pairing" type="button">Generate pairing code</button></div>
+    'Your devices',
+    `<div class="workspace-head"><div>
+<p class="eyebrow">CLOUD WORKSPACE</p>
+<h1 class="workspace-title">Your devices</h1>
+<p class="workspace-desc">Connect an EasyEDA extension, then choose a schematic or PCB for your MCP client.</p>
+</div><div class="account-identity"><span class="identity-avatar" aria-hidden="true">●</span><span><small>Signed in as</small><strong id="account-name">Your account</strong></span></div></div>
+<div class="workspace-grid" id="workspace-grid">
+<section class="panel device-panel" aria-labelledby="extensions-title">
+<div class="section-heading"><div><p class="section-kicker">CONNECTED WORKSPACE</p><h2 id="extensions-title">EasyEDA devices <span class="count" id="device-count" aria-live="polite">—</span></h2></div>
+<button class="btn subtle small" id="refresh-extensions" type="button">↻ Refresh</button></div>
+<p class="section-description">Only devices that you pair appear here. Choose the open design you want to use.</p>
+<div id="extensions" class="device-list" aria-live="polite"><div class="empty">Checking your devices…</div></div>
+</section>
+<section class="panel pairing-panel" aria-labelledby="pair-title">
+<div class="section-heading"><div><p class="section-kicker">ADD A DEVICE</p><h2 id="pair-title">Connect EasyEDA</h2></div><span class="step-indicator">SETUP</span></div>
+<div class="setup-steps"><p><span>1</span>Open <strong>MCP Bridge</strong> in EasyEDA Pro.</p>
+<p><span>2</span>Choose <strong>Connect Cloud… (Experimental)</strong>.</p>
+<p><span>3</span>Enter the one-time pairing code below.</p></div>
+<button class="btn pair-button" id="generate-pairing" type="button">Generate pairing code <span aria-hidden="true">↗</span></button>
 <div class="pairing-actions"><p id="pairing-code" class="code" aria-live="polite" aria-label="One-time pairing code">—</p>
-<button class="btn secondary" id="copy-pairing" type="button" aria-describedby="pairing-hint" disabled hidden>Copy code</button></div>
-<p class="muted" id="pairing-hint">Generate a code, then paste it into EasyEDA. After connecting, choose Refresh connections above. Local mode remains available.</p></section></div>
-<div class="panel wide account-client-panel"><h2>Authorized MCP clients</h2>
-<p class="muted">Clients you approved using the MCP OAuth flow are separate from your GitHub/Google sign-in. You can revoke each grant.</p>
-<div id="clients" aria-live="polite"><div class="empty">Checking authorizations…</div></div></div>
-<div class="actions"><button id="sign-out" class="btn secondary" type="button">Sign out of Cloud</button></div>`,
+<button class="btn subtle small" id="copy-pairing" type="button" aria-describedby="pairing-hint" disabled hidden>Copy code</button></div>
+<p class="muted" id="pairing-hint">The code expires after 10 minutes. Pairing does not grant an MCP client access.</p>
+</section></div>
+<section class="panel clients-panel" aria-labelledby="clients-title">
+<div class="section-heading"><div><p class="section-kicker">PERMISSIONS</p><h2 id="clients-title">Authorized MCP clients</h2></div></div>
+<p class="section-description">Review the applications you've approved. Signing in doesn't authorize any MCP client automatically.</p>
+<div id="clients" aria-live="polite"><div class="empty">Checking authorizations…</div></div></section>
+<div class="account-actions"><button id="sign-out" class="btn subtle small" type="button">Sign out</button></div>`,
     'account',
   );
 
@@ -166,6 +194,14 @@ export function mountHostedPortal(app: Express, auth: HostedAuth, gateway: Remot
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.type('application/javascript').send(CLOUD_JS);
   });
+  // Browser root is a human entry point; MCP endpoints still require bearer authorization.
+  app.get(
+    '/',
+    asyncRoute(async (req, res) => {
+      const user = await auth.getSessionUser(sessionHeaders(req));
+      sendHtml(res, user ? account() : signIn());
+    }),
+  );
   app.get(
     '/sign-in',
     asyncRoute(async (req, res) => {
