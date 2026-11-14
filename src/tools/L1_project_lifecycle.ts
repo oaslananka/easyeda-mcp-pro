@@ -130,7 +130,7 @@ export function registerProjectLifecycleTools(registry: Pick<ToolRegistry, 'regi
     name: 'easyeda_project_close',
     title: 'Safely close EasyEDA project documents',
     description:
-      'Default refuses when dirty status is unknown. Explicit confirmed save first verifies native save then closes; explicit discard is destructive. Never silently discards unsaved documents.',
+      'Default refuses when dirty status is unknown. Explicit confirmed save-and-close requires a trusted native save; schematic pages with unverified durable persistence fail closed instead of risking data loss. Explicit discard is destructive.',
     profile: 'core',
     evidence: ['official-docs', 'runtime-probe'],
     risk: 'high',

@@ -400,23 +400,26 @@ describe('project lifecycle safety', () => {
     },
   };
 
-  it('identifies a real 3.2.209 schematic tab before verified native save/close', async () => {
+  it('recognizes the real schematic page but refuses unsafe save-and-close until persisted', async () => {
     const { operations, callFirst } = fixture({
       focusedDocument: 'sch1',
       focusedDocumentType: 1,
       tabs: [{ tabId: 'start', title: 'Start Page', data: { doctype: -1 } }, nativeSchematicTab],
     });
-    const result = await operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true });
-    expect(result).toMatchObject({
+    const opened = await operations.open({ projectId: 'p1' });
+    expect(opened).toMatchObject({
       success: true,
-      status: 'closed',
-      closedTabs: ['sch1-extended-native-tab'],
+      status: 'already_active',
+      documents: expect.arrayContaining([
+        { documentId: 'sch1', type: 'schematic', tabId: 'sch1-extended-native-tab' },
+      ]),
     });
-    const calls = callFirst.mock.calls.map(([paths]) => (paths as readonly string[])[0]);
-    expect(calls.indexOf('sch_Document.save')).toBeGreaterThanOrEqual(0);
-    expect(calls.indexOf('sch_Document.save')).toBeLessThan(
-      calls.indexOf('dmt_EditorControl.closeDocument'),
-    );
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'schematic_persistence_unverified' });
+    const names = callFirst.mock.calls.map(([paths]) => (paths as readonly string[])[0]);
+    expect(names).not.toContain('sch_Document.save');
+    expect(names).not.toContain('dmt_EditorControl.closeDocument');
   });
 
   it.each([

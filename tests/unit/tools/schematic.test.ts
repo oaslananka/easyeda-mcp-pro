@@ -1737,7 +1737,7 @@ describe('Schematic Tools', () => {
     expect(tool?.confirmWrite).toBe(true);
 
     const fakeDate = '2026-06-12T01:00:00.000Z';
-    bridgeCall.mockResolvedValue({ savedAt: fakeDate });
+    bridgeCall.mockResolvedValue({ success: true, savedAt: fakeDate });
 
     const result = await tool?.handler(context, {
       projectId: 'proj-123',
@@ -1750,8 +1750,40 @@ describe('Schematic Tools', () => {
     expect(result).toMatchObject({
       success: true,
       project_id: 'proj-123',
+      persistence_verified: false,
       saved_at: fakeDate,
     });
+  });
+
+  it.each([false, undefined, null, { success: false }, { savedAt: '2026-11-15T01:00:00Z' }])(
+    'easyeda_project_save rejects unconfirmed native result %s',
+    async (nativeResult) => {
+      const tool = registry.get('easyeda_project_save');
+      bridgeCall.mockResolvedValue(nativeResult);
+      const result = await tool?.handler(context, {
+        projectId: 'proj-123',
+        confirmWrite: true,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        project_id: 'proj-123',
+        persistence_verified: false,
+      });
+      expect(result?.saved_at).toBeUndefined();
+      expect(result?.error).toMatch(/not confirm success/i);
+    },
+  );
+
+  it('easyeda_project_save returns only native acknowledgment, never a fabricated save time', async () => {
+    const tool = registry.get('easyeda_project_save');
+    bridgeCall.mockResolvedValue(true);
+    const result = await tool?.handler(context, { projectId: 'proj-123', confirmWrite: true });
+    expect(result).toMatchObject({
+      success: true,
+      project_id: 'proj-123',
+      persistence_verified: false,
+    });
+    expect(result?.saved_at).toBeUndefined();
   });
 
   it('easyeda_project_save should handle bridge error', async () => {

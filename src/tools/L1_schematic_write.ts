@@ -1615,9 +1615,9 @@ function registerSchematicWriteTools(
     name: 'easyeda_project_save',
     title: 'Save project',
     description:
-      'Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, ' +
-      'net flags, pin connections, and other mutations are persisted to the project file. ' +
-      'Save is never implicit — the caller must explicitly request it. Requires confirmWrite.',
+      'Request a native EasyEDA Pro project save. A successful native acknowledgment ' +
+      'does not independently prove durable file persistence; reopen the project to ' +
+      'verify changed design state. Save is explicit and requires confirmWrite.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
@@ -1637,6 +1637,7 @@ function registerSchematicWriteTools(
     outputSchema: z.object({
       success: z.boolean(),
       project_id: z.string(),
+      persistence_verified: z.boolean(),
       saved_at: z.string().optional(),
       error: z.string().optional(),
     }),
@@ -1644,16 +1645,29 @@ function registerSchematicWriteTools(
       const { projectId } = params as { projectId: string };
       try {
         const result = await ctx.bridge.call('project.save', { projectId });
-        const data = result as { savedAt?: string };
+        const data =
+          result && typeof result === 'object'
+            ? (result as { success?: unknown; savedAt?: unknown })
+            : null;
+        if (result !== true && data?.success !== true) {
+          return {
+            success: false,
+            project_id: projectId,
+            persistence_verified: false,
+            error: 'Native save did not confirm success; project persistence is unverified.',
+          };
+        }
         return {
           success: true,
           project_id: projectId,
-          saved_at: data.savedAt ?? new Date().toISOString(),
+          persistence_verified: false,
+          ...(typeof data?.savedAt === 'string' ? { saved_at: data.savedAt } : {}),
         };
       } catch (err) {
         return {
           success: false,
           project_id: projectId,
+          persistence_verified: false,
           error: err instanceof Error ? err.message : String(err),
         };
       }

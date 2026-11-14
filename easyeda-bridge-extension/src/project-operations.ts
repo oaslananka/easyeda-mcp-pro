@@ -92,6 +92,24 @@ function withTabIds(documents: Document[], tabs: Tab[], projectId: string): Docu
   });
 }
 
+// A native schematic save can acknowledge successfully even though an .eprj2
+// deletion is absent after cold reopen. Do not close this newly recognized tab
+// until durable save has independent acceptance evidence.
+function hasUnverifiedSchematicPersistence(
+  opened: Array<Document & { tabId: string }>,
+  tabs: Tab[],
+): boolean {
+  return opened.some(
+    (doc) =>
+      doc.type === 'schematic' &&
+      tabs.some(
+        (tab) =>
+          id(tab.tabId) === doc.tabId &&
+          id(object(tab.data)?.['data-model-sheet-uuid']) === doc.documentId,
+      ),
+  );
+}
+
 export function createProjectOperations({
   callFirst,
 }: ProjectOperationDependencies): ProjectOperations {
@@ -304,6 +322,8 @@ export function createProjectOperations({
     if (params.confirmWrite !== true)
       return { success: false, status: 'confirm_write_required', projectId };
     if (mode === 'save') {
+      if (hasUnverifiedSchematicPersistence(opened, tabs))
+        return { success: false, status: 'schematic_persistence_unverified', projectId };
       const error = await explicitlySaveOpenDocuments(opened, projectId);
       if (error) return { success: false, status: error, projectId };
     }

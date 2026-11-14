@@ -78,13 +78,13 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_power_tree_analyze`                       | `core`         | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                   |
 | `easyeda_production_qa_artifacts`                  | `pro`          | `low`    | Generate testpoint, assembly and bring-up QA handoff artifacts; explicit human review is required and generated files never certify fabrication approval.                                                                                                                                                                     |
 | `easyeda_project_begin_transaction`                | `core`         | `low`    | Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools passed transactionId participate; standalone schematic writes are not auto-captured. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.                                    |
-| `easyeda_project_close`                            | `core`         | `high`   | Default refuses when dirty status is unknown. Explicit confirmed save first verifies native save then closes; explicit discard is destructive. Never silently discards unsaved documents.                                                                                                                                     |
+| `easyeda_project_close`                            | `core`         | `high`   | Default refuses when dirty status is unknown. Explicit confirmed save-and-close requires a trusted native save; schematic pages with unverified durable persistence fail closed instead of risking data loss. Explicit discard is destructive.                                                                                |
 | `easyeda_project_commit_transaction`               | `core`         | `medium` | Finalize a transaction after its writes and validation gates succeed. Commit removes rollback eligibility and releases the document transaction lock.                                                                                                                                                                         |
 | `easyeda_project_get_transaction_status`           | `core`         | `low`    | Read transaction state, validation results, operation hashes, and rollback status without exposing captured primitive snapshots.                                                                                                                                                                                              |
 | `easyeda_project_list`                             | `core`         | `low`    | Read team-scoped EasyEDA projects and active identity. Only the active project can be verified open; unknown projects report open=null. No native project or document changes.                                                                                                                                                |
 | `easyeda_project_open`                             | `core`         | `medium` | Open an EasyEDA project by UUID only when no other document is open. Requires explicit write confirmation and read-back of active project. Never silently switches away from an open document.                                                                                                                                |
 | `easyeda_project_rollback_transaction`             | `core`         | `medium` | Controlled write: restore applied schematic primitive snapshots in reverse order, verify each restored hash, and report partial rollback explicitly instead of hiding inconsistencies.                                                                                                                                        |
-| `easyeda_project_save`                             | `core`         | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                                  |
+| `easyeda_project_save`                             | `core`         | `medium` | Request a native EasyEDA Pro project save. A successful native acknowledgment does not independently prove durable file persistence; reopen the project to verify changed design state. Save is explicit and requires confirmWrite.                                                                                           |
 | `easyeda_project_validate_transaction`             | `core`         | `low`    | Run transaction consistency gates before commit: bridge availability, pending/failed operation checks, optional expected operation count, and optional requirement for at least one applied write.                                                                                                                            |
 | `easyeda_rule_check_summary`                       | `core`         | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                                |
 | `easyeda_run_self_test`                            | `core`         | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                                           |
@@ -2650,7 +2650,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `high`
 
-> Default refuses when dirty status is unknown. Explicit confirmed save first verifies native save then closes; explicit discard is destructive. Never silently discards unsaved documents.
+> Default refuses when dirty status is unknown. Explicit confirmed save-and-close requires a trusted native save; schematic pages with unverified durable persistence fail closed instead of risking data loss. Explicit discard is destructive.
 
 ### Input Parameters
 
@@ -2825,7 +2825,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.
+> Request a native EasyEDA Pro project save. A successful native acknowledgment does not independently prove durable file persistence; reopen the project to verify changed design state. Save is explicit and requires confirmWrite.
 
 ### Input Parameters
 
@@ -2842,6 +2842,7 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   project_id: string;
+  persistence_verified: boolean;
   saved_at: string(optional);
   error: string(optional);
 }
