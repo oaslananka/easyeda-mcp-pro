@@ -305,6 +305,104 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(dispatched).toHaveLength(2);
       expect(dispatched[0]).toMatchObject({ sessionId, riskLevel: 'read' });
 
+      // Two distinct users with real provider-issued OAuth tokens must never
+      // share sessions, consent or native dispatch. These identities come from
+      // an isolated fixture database, not independently logged-in real people.
+      const outsider = await test.saveUser(
+        test.createUser({ email: 'second-owner@test.invalid', name: 'Second Fixture Owner' }),
+      );
+      expect(outsider.id).not.toBe(saved.id);
+      const outsiderHeaders = await test.getAuthHeaders({ userId: outsider.id });
+      const outsiderExtensions = await fetch(`${origin}/cloud/api/extensions`, {
+        headers: outsiderHeaders,
+      });
+      expect(outsiderExtensions.status).toBe(200);
+      await expect(outsiderExtensions.json()).resolves.toMatchObject({ sessions: [] });
+
+      const outsiderClients = await fetch(`${origin}/cloud/api/clients`, {
+        headers: outsiderHeaders,
+      });
+      expect(outsiderClients.status).toBe(200);
+      await expect(outsiderClients.json()).resolves.toMatchObject({ clients: [] });
+
+      const outsiderVerifier = randomBytes(32).toString('base64url');
+      const outsiderQuery = new URLSearchParams(authorizeQuery);
+      outsiderQuery.set('state', 'second-owner-state');
+      outsiderQuery.set(
+        'code_challenge',
+        createHash('sha256').update(outsiderVerifier).digest('base64url'),
+      );
+      const outsiderAuthorization = await fetch(
+        `${origin}/api/auth/oauth2/authorize?${outsiderQuery}`,
+        { headers: outsiderHeaders },
+      );
+      expect(outsiderAuthorization.status).toBe(200);
+      const outsiderConsentUrl = new URL(
+        ((await outsiderAuthorization.json()) as { url: string }).url,
+        origin,
+      );
+      const outsiderConsent = await fetch(`${origin}/api/auth/oauth2/consent`, {
+        method: 'POST',
+        headers: {
+          cookie: outsiderHeaders.get('cookie') ?? '',
+          origin,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          accept: true,
+          oauth_query: outsiderConsentUrl.search.slice(1),
+        }),
+      });
+      expect(outsiderConsent.status).toBe(200);
+      const outsiderCallback = new URL(
+        ((await outsiderConsent.json()) as { url: string }).url,
+        origin,
+      );
+      expect(outsiderCallback.searchParams.get('state')).toBe('second-owner-state');
+      const outsiderExchange = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: oauthClient.client_id,
+          code: outsiderCallback.searchParams.get('code') ?? '',
+          code_verifier: outsiderVerifier,
+          redirect_uri: redirectUri,
+          resource: `${origin}/mcp`,
+        }),
+      });
+      const outsiderIssued = (await outsiderExchange.json()) as {
+        access_token?: string;
+        error?: string;
+      };
+      expect(outsiderExchange.status, outsiderIssued.error).toBe(200);
+      expect(decodeJwt(outsiderIssued.access_token!)).toMatchObject({ sub: outsider.id });
+
+      const outsiderSessions = await fetch(`${origin}/remote/sessions`, {
+        headers: { Authorization: `Bearer ${outsiderIssued.access_token}` },
+      });
+      expect(outsiderSessions.status).toBe(200);
+      await expect(outsiderSessions.json()).resolves.toMatchObject({ sessions: [] });
+
+      const secondClient = new Client({ name: 'second-oauth-owner-fixture', version: '1.0.0' });
+      try {
+        await secondClient.connect(
+          new StreamableHTTPClientTransport(new URL(`${origin}/mcp`), {
+            requestInit: {
+              headers: { Authorization: `Bearer ${outsiderIssued.access_token}` },
+            },
+          }),
+        );
+        const forbiddenRead = await secondClient.callTool({
+          name: 'easyeda_schematic_components',
+          arguments: { projectId: 'disposable-project' },
+        });
+        expect(forbiddenRead.isError).toBe(true);
+        expect(dispatched).toHaveLength(2);
+      } finally {
+        await secondClient.close();
+      }
+
       // The currently open extension can switch projects. The previously
       // approved selection must not authorize the new project until the owner
       // explicitly chooses it again in the Cloud dashboard.
