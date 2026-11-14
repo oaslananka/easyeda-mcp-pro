@@ -1170,9 +1170,13 @@ describe('Schematic Tools', () => {
     });
   });
 
-  it('easyeda_schematic_delete_primitive should call bridge and return success', async () => {
+  it('easyeda_schematic_delete_primitive reports only verified native deletion, never durable save', async () => {
     const tool = registry.get('easyeda_schematic_delete_primitive');
-    bridgeCall.mockResolvedValue(true);
+    bridgeCall.mockResolvedValue({
+      success: true,
+      deleted: ['prim-1', 'prim-2'],
+      notFound: [],
+    });
 
     const result = await tool?.handler(context, {
       primitiveIds: ['prim-1', 'prim-2'],
@@ -1184,8 +1188,34 @@ describe('Schematic Tools', () => {
     });
     expect(result).toEqual({
       success: true,
+      persistence_verified: false,
     });
   });
+
+  it.each([
+    true,
+    undefined,
+    { success: false, deleted: ['prim-1'], notFound: [] },
+    { success: true, deleted: ['prim-1'], notFound: [] },
+    { success: true, deleted: ['prim-1', 'prim-2'], notFound: ['prim-3'] },
+    { success: true, deleted: ['prim-1', 'prim-1'], notFound: [] },
+    { success: true, deleted: ['prim-1', 'prim-2'] },
+    { success: true, deleted: ['prim-1', 'prim-2'], notFound: null },
+  ])(
+    'schematic delete refuses ambiguous or incomplete native acknowledgment %s',
+    async (native) => {
+      const tool = registry.get('easyeda_schematic_delete_primitive');
+      bridgeCall.mockResolvedValue(native);
+      const result = await tool?.handler(context, {
+        primitiveIds: ['prim-1', 'prim-2'],
+        confirmWrite: true,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error_code: 'NATIVE_DELETE_UNVERIFIED',
+      });
+    },
+  );
 
   it('easyeda_schematic_modify_primitive should call bridge and return success', async () => {
     const tool = registry.get('easyeda_schematic_modify_primitive');

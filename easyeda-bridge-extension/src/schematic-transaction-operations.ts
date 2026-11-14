@@ -772,6 +772,25 @@ export function createSchematicTransactionOperations(
     return { primitiveKind, primitiveIds: Array.from(new Set(primitiveIds)) };
   }
 
+  // Native SCH_PrimitiveText.delete is BETA: in live Pro 3.2.209 it
+  // removed the object in memory but sch_Document.save() never persisted
+  // that removal. Probe the ENTIRE request before mutating any other ID.
+  async function refuseUnpersistedTextDeletion(primitiveIds: string[]): Promise<void> {
+    for (const path of TEXT_CLASS_PATHS) {
+      const owner = readFirstPath<any>([path]);
+      if (!owner || typeof owner.delete !== 'function') continue;
+      for (const primitiveId of primitiveIds) {
+        if (await primitiveExistsInClass(owner, primitiveId)) {
+          throw newBridgeError(
+            'UNSUPPORTED_RUNTIME',
+            'Native schematic text deletion is not durably verified on this EasyEDA runtime',
+            'Select the exact text in the EasyEDA editor, press Delete and save; reopen the document to confirm the change.',
+          );
+        }
+      }
+    }
+  }
+
   async function deleteSchematicPrimitives(
     primitiveIdsInput: unknown,
   ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }> {
@@ -791,12 +810,21 @@ export function createSchematicTransactionOperations(
     const deleted: string[] = [];
     const notFound: string[] = [];
 
+    await refuseUnpersistedTextDeletion(primitiveIds);
+
     for (const primitiveId of primitiveIds) {
       let owner: any;
       for (const kind of kinds) {
         const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
         if (!primitiveClass || typeof primitiveClass.delete !== 'function') continue;
         if (await primitiveExistsInClass(primitiveClass, primitiveId)) {
+          if (kind === 'text') {
+            throw newBridgeError(
+              'UNSUPPORTED_RUNTIME',
+              'Native schematic text deletion is not durably verified on this EasyEDA runtime',
+              'Delete the text in the EasyEDA editor and save, then cold reopen.',
+            );
+          }
           owner = primitiveClass;
           break;
         }

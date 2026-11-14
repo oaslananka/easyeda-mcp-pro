@@ -216,6 +216,19 @@ function transactionFailure(err: unknown) {
   };
 }
 
+function isConfirmedNativeSchematicDeletion(response: unknown, requestedIds: string[]): boolean {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) return false;
+  const native = response as { success?: unknown; deleted?: unknown; notFound?: unknown };
+  if (native.success !== true || !Array.isArray(native.deleted) || !Array.isArray(native.notFound))
+    return false;
+  const deleted = native.deleted;
+  if (native.notFound.length > 0 || deleted.length !== requestedIds.length) return false;
+  return (
+    new Set(deleted).size === requestedIds.length &&
+    requestedIds.every((id) => deleted.includes(id))
+  );
+}
+
 function bridgeFailure(err: unknown) {
   const record = err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
   const data =
@@ -1037,9 +1050,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_delete_primitive',
     title: 'Delete schematic primitives',
     description:
-      'Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + ' +
-      'transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported ' +
-      'transactional delete kinds fail before mutation. Without transactionId the write is standalone.',
+      'Delete supported schematic primitives by UUID. BETA text delete is blocked: ' +
+      'native success can be lost after restart. Native success does not prove persistence. ' +
+      'Use projectId + transactionId for supported rollback-backed deletion. ' +
+      'Without transactionId, deletion is standalone.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -1053,6 +1067,7 @@ function registerSchematicWriteTools(
     inputSchema: deletePrimitiveInputSchema,
     outputSchema: z.object({
       success: z.boolean(),
+      persistence_verified: z.boolean().optional(),
       transaction: z
         .object({
           id: z.string(),
@@ -1075,8 +1090,16 @@ function registerSchematicWriteTools(
       const { primitiveIds, projectId, transactionId } = deletePrimitiveInputSchema.parse(params);
       try {
         if (!transactionId || !projectId) {
-          await ctx.bridge.call('schematic.deletePrimitive', { primitiveIds });
-          return { success: true };
+          const response = await ctx.bridge.call('schematic.deletePrimitive', { primitiveIds });
+          if (!isConfirmedNativeSchematicDeletion(response, primitiveIds)) {
+            return {
+              success: false,
+              error_code: 'NATIVE_DELETE_UNVERIFIED',
+              error:
+                'Native delete did not verify every requested primitive. Inspect the sheet before retrying.',
+            };
+          }
+          return { success: true, persistence_verified: false };
         }
 
         const operations = await deletePrimitivesInTransaction(
@@ -1087,6 +1110,7 @@ function registerSchematicWriteTools(
         );
         return {
           success: true,
+          persistence_verified: false,
           transaction: {
             id: transactionId,
             operations: operations.map((operation) => ({

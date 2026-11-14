@@ -105,7 +105,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_connectivity_fingerprint`       | `pro`          | `low`    | Compute a deterministic connectivity fingerprint (pin/net membership, wire endpoints, labels/ports, no-connects) from the live schematic. Pass the hash as beforeFingerprint/afterFingerprint to easyeda_schematic_layout_qa to prove a cosmetic move left connectivity unchanged.                                            |
 | `easyeda_schematic_create_net_flag`                | `core`         | `medium` | Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/ProtectGround) it places a power-flag symbol binding to a coincident pin (use for VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire stubs sharing one netName.                                            |
 | `easyeda_schematic_create_net_port`                | `core`         | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                                               |
-| `easyeda_schematic_delete_primitive`               | `core`         | `medium` | Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported transactional delete kinds fail before mutation. Without transactionId the write is standalone.                                       |
+| `easyeda_schematic_delete_primitive`               | `core`         | `medium` | Delete supported schematic primitives by UUID. BETA text delete is blocked: native success can be lost after restart. Native success does not prove persistence. Use projectId + transactionId for supported rollback-backed deletion. Without transactionId, deletion is standalone.                                         |
 | `easyeda_schematic_device_subparts`                | `core`         | `low`    | Read the exact sub-part names and declared footprint from a device library record. Use the UUIDs returned by search_device. This is read-only metadata: it does not place units, prove shared designators, pin connectivity, or a single BOM component.                                                                       |
 | `easyeda_schematic_layout_autofix`                 | `pro`          | `low`    | Detect title-block overlap, page-boundary overflow, and component-overlap violations from real rendered bounds, and propose cosmetic-only moves that resolve them. Read-only preview only (requiresConfirmWrite=true, no writes) -- confirmWrite apply with connectivity-fingerprint rollback is tracked separately (#273).   |
 | `easyeda_schematic_layout_autofix_apply`           | `pro`          | `high`   | Apply the layout-autofix cosmetic moves in a snapshot-backed transaction, re-verifying a connectivity fingerprint after every write batch. Any unintended electrical change or write failure rolls the transaction back and is reported, never thrown. dryRun:true previews only.                                             |
@@ -3558,7 +3558,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported transactional delete kinds fail before mutation. Without transactionId the write is standalone.
+> Delete supported schematic primitives by UUID. BETA text delete is blocked: native success can be lost after restart. Native success does not prove persistence. Use projectId + transactionId for supported rollback-backed deletion. Without transactionId, deletion is standalone.
 
 ### Input Parameters
 
@@ -3578,6 +3578,7 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
+  persistence_verified: boolean(optional);
   transaction: object(optional);
   error_code: string(optional);
   error: string(optional);

@@ -4,6 +4,32 @@ This document explains the security posture, permission checks, data privacy con
 
 ---
 
+## Native schematic text deletion persistence (EasyEDA Pro 3.2.209)
+
+A controlled live test on a **disposable offline .eprj2 schematic** proved
+that the documented BETA SCH_PrimitiveText.delete call can return true,
+remove text from the in-memory inventory, and be followed by an affirmative
+SCH_Document.save, **without persisting the deletion**. The text returned
+after closing and reopening the editor. The same test text, selected and
+deleted with the editor's own **Delete → Ctrl+S** workflow, stayed absent after
+a full restart; a separately tested programmatic text addition also persisted.
+Therefore this is not evidence that every .eprj2 save fails.
+
+Until independent native persistence acceptance exists, both the extension's
+schematic.deletePrimitive path and the advanced api.call entry point
+**refuse** the beta schematic text-delete operation. The multi-ID delete
+preflights this refusal _before_ removing any other primitive. No synthetic
+keypresses, direct SQLite edits, undocumented dirty-state hacks or automatic
+fallbacks are permitted. Users can delete the verified text in the EasyEDA
+editor and reopen the project to confirm it was saved.
+
+Other accepted native delete responses are not automatically disk-persistence
+proof: the MCP result reports persistence_verified=false. The extension also
+refuses project.close(mode=save) on newly recognized schematic tabs with
+schematic_persistence_unverified rather than trusting a transient native
+save acknowledgment. Do not claim complete schematic mutation acceptance based
+only on API success or an in-memory readback.
+
 ## Native copper-zone live preview (read-only)
 
 The easyeda_pcb_add_zone tool with mode=preview and inspectLive=true checks
