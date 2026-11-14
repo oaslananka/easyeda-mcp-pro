@@ -15,6 +15,7 @@ import { loadEnvConfig } from './config/env.js';
 import { createServer } from './server/factory.js';
 import { createHttpTransport } from './server/transports/http.js';
 import { RemoteGateway } from './remote/gateway.js';
+import { createHostedCloudRuntime } from './cloud/runtime.js';
 import { assertSupportedNodeRuntime } from './runtime/policy.js';
 
 async function main() {
@@ -62,6 +63,7 @@ async function main() {
   }
 
   const config = loadEnvConfig();
+  const hostedCloud = await createHostedCloudRuntime(config);
   const remoteGateway =
     config.MCP_BRIDGE_BACKEND === 'remote_relay' ? new RemoteGateway() : undefined;
   const instance = await createServer(config, { remoteGateway });
@@ -70,6 +72,7 @@ async function main() {
     const httpTransport = createHttpTransport(config, {
       gateway: remoteGateway,
       serverFactory: instance.createSessionServer,
+      hostedAuth: hostedCloud?.auth,
     });
     instance.httpTransport = httpTransport;
     await httpTransport.start();
@@ -80,8 +83,12 @@ async function main() {
   process.stderr.write(`easyeda-mcp-pro ready on ${config.TRANSPORT} transport\n`);
 
   const shutdown = async () => {
-    await instance.httpTransport?.close();
-    await instance.shutdown();
+    try {
+      await instance.httpTransport?.close();
+      await instance.shutdown();
+    } finally {
+      hostedCloud?.close();
+    }
   };
 
   process.once('SIGINT', () => {

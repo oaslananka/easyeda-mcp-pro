@@ -14,6 +14,17 @@ export interface ExtensionSession {
   expiresAt: Date;
 }
 
+export type ManagedExtensionSession = Pick<
+  ExtensionSession,
+  | 'sessionId'
+  | 'mode'
+  | 'extensionVersion'
+  | 'activeProject'
+  | 'connected'
+  | 'lastSeenAt'
+  | 'expiresAt'
+>;
+
 interface PairingCode {
   code: string;
   userId: string;
@@ -187,6 +198,34 @@ export class RemoteSessionRouter {
       };
     }
     return { ok: true, session };
+  }
+
+  listPairedSessions(userId: string): ManagedExtensionSession[] {
+    return [...this.sessions.values()]
+      .filter((session) => session.userId === userId)
+      .map(
+        ({
+          sessionId,
+          mode,
+          extensionVersion,
+          activeProject,
+          connected,
+          lastSeenAt,
+          expiresAt,
+        }) => ({
+          sessionId,
+          mode,
+          extensionVersion,
+          activeProject,
+          connected,
+          lastSeenAt,
+          expiresAt,
+        }),
+      );
+  }
+
+  forgetSession(sessionId: string): boolean {
+    return this.sessions.delete(sessionId);
   }
 
   getSession(sessionId: string): ExtensionSession | undefined {

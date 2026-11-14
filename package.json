@@ -135,11 +135,16 @@
     "build:apps": "node scripts/build-mcp-apps.mjs"
   },
   "dependencies": {
+    "@better-auth/cimd": "1.7.22",
+    "@better-auth/mcp": "1.7.22",
+    "@better-auth/oauth-provider": "1.7.22",
     "@modelcontextprotocol/ext-apps": "2.0.4",
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
+    "better-auth": "1.7.22",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "8.7.4",
     "jose": "^6.2.17",
     "pino": "^10.3.1",
     "undici": "8.12.4",

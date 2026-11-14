@@ -401,6 +401,32 @@ export function remoteRiskForTool(tool: ToolDefinition): RemoteRiskLevel {
 interface PreparedToolContext {
   context: ToolContext;
   release?: () => void;
+  /** Critical relay failures must survive domain tools' best-effort read fallbacks. */
+  getTerminalRelayFailure?: () => RemoteRelayRouteError | undefined;
+}
+
+const TERMINAL_RELAY_CODES = new Set([
+  'IDENTITY_MISSING',
+  'IDENTITY_EXPIRED',
+  'SCOPE_MISSING',
+  'SESSION_UNPAIRED',
+  'SESSION_DISCONNECTED',
+  'SESSION_EXPIRED',
+  'SESSION_AMBIGUOUS',
+  'PROJECT_INACTIVE',
+  'REMOTE_EXTENSION_TIMEOUT',
+]);
+
+function remoteResultOrThrow<TResult>(
+  result: RemoteGatewayToolResult,
+  recordTerminalFailure: (failure: RemoteRelayRouteError) => void,
+): TResult {
+  if (!result.ok) {
+    const error = new RemoteRelayRouteError(result);
+    if (TERMINAL_RELAY_CODES.has(result.code)) recordTerminalFailure(error);
+    throw error;
+  }
+  return result.result as TResult;
 }
 
 async function contextForRemoteRelay(
@@ -430,6 +456,7 @@ async function contextForRemoteRelay(
   const identity = remoteIdentityFromExtra(extra);
   const riskLevel = remoteRiskForTool(tool);
   let grantId: string | undefined;
+  let terminalRelayFailure: RemoteRelayRouteError | undefined;
 
   if (riskLevel !== 'read') {
     const authorization = await gateway.authorizeToolInvocation({
@@ -467,12 +494,14 @@ async function contextForRemoteRelay(
             grantId,
             deadlineMs: opts?.timeoutMs,
           });
-          if (!result.ok) throw new RemoteRelayRouteError(result);
-          return result.result as TResult;
+          return remoteResultOrThrow<TResult>(result, (error) => {
+            terminalRelayFailure ??= error;
+          });
         },
       },
     },
     release: grantId ? () => void gateway.revokeInvocationGrant(grantId) : undefined,
+    getTerminalRelayFailure: () => terminalRelayFailure,
   };
 }
 
@@ -530,6 +559,11 @@ function confirmWriteResponse(tool: ToolDefinition, raw: Record<string, unknown>
     message: `Tool "${tool.name}" can mutate design state and requires confirmWrite=true.`,
     details: { toolName: tool.name, toolGroup: tool.group, risk: tool.risk },
   });
+}
+
+function assertNoTerminalRelayFailure(prepared: PreparedToolContext): void {
+  const failure = prepared.getTerminalRelayFailure?.();
+  if (failure) throw failure;
 }
 
 async function executeToolWithMetrics(
@@ -602,6 +636,7 @@ async function executeToolWithMetrics(
           }
         : prepared.context;
     const result = await tool.handler(wrappedContext, parsed);
+    assertNoTerminalRelayFailure(prepared);
     const resultWithTarget =
       targetDocument && result && typeof result === 'object' && !Array.isArray(result)
         ? { ...result, targetDocument }

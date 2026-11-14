@@ -97,6 +97,51 @@ A `tool_request` should include:
 - `activeProjectHint`
 - `deadlineMs`
 
+## Live project identity and heartbeat compatibility
+
+The current extension sends a heartbeat every 15 seconds with `source: "extension"`
+and its currently visible `activeProject`. It sends `activeProject: null` when
+no editor project is visible. The gateway updates the registered session's
+project context and acknowledges once with `source: "server"`. The extension
+must **not echo this acknowledgement**. The gateway ignores source-less
+heartbeat echoes to avoid an uncontrolled feedback loop. Older clients that
+omit project context do not implicitly clear it.
+
+For official Hosted Cloud, `activeProject` and `activeProjectHint` carry
+the native `projectId` **and** `documentId` returned by the read-only
+EasyEDA Pro focus APIs (`dmt_Project.getCurrentProjectInfo` and
+`dmt_SelectControl.getCurrentDocumentInfo`). These APIs are version-sensitive
+and the latter is documented as beta. A missing API, mismatched parent-project
+UUID, unrecognized document type, or unresolved focus gives no hosted
+selection authority. The gateway refuses project selection unless both
+UUIDs exist. Changing to another document inside the same project requires
+re-selection: the document UUID is part of the selected-project identity.
+Custom Remote retains its legacy title/URL fallback when native APIs are
+unavailable; Local mode needs no Cloud identity.
+
+Before executing a tool, the extension separately checks the gateway's
+`activeProjectHint` against its _current_ editor project, rather than trusting
+a potentially stale registration or heartbeat. Write/export approvals also
+fail without a matching current project. A mismatch returns
+`PROJECT_INACTIVE`; the user must select the correct project again in Cloud.
+
+The EasyEDA main extension sandbox uses the platform's own
+`sys_Dialog.showInputDialog` (beta, capability-checked) and
+`sys_WebSocket.register/send/close` to create authenticated outbound WSS
+sessions; it does not require browser `prompt()` or constructible
+`WebSocket`. Native register may invoke its open callback before return,
+so registration is delivered only after the client installs handlers.
+Distinct native socket IDs are allocated per retry; a 12-second open
+deadline and the normal heartbeat watchdog close stalled sockets.
+A missing/denied native transport is an actionable setup error that does
+not repeatedly reconnect or silently downgrade to cleartext.
+
+Pairing codes are single-use. A dropped connection cannot reuse the same
+code to regain owner access; the extension reports a clear re-pair action
+rather than continually retrying an unpaired session. Cloud is still
+Experimental: these are protocol and simulated-extension guarantees, not
+live **Hosted Cloud** EasyEDA acceptance.
+
 ## Failure handling
 
 The extension and gateway must reject:

@@ -57,6 +57,41 @@ describe('build.mjs hot-swap define', () => {
     expect(manifest.activationEvents?.onStartupFinished).toBe(true);
   });
 
+  it('keeps Cloud and Local connection controls visible in home, schematic, PCB and 3D PCB', () => {
+    const manifest = JSON.parse(readFileSync(join(root, 'extension.json'), 'utf8')) as {
+      headerMenus?: Record<
+        string,
+        Array<{
+          id: string;
+          title: string;
+          menuItems: Array<{ id: string; title: string; registerFn: string }>;
+        }>
+      >;
+    };
+    const allIds: string[] = [];
+    const required = [
+      'connect',
+      'disconnect',
+      'connectHostedCloud',
+      'connectCustomRemote',
+      'disconnectRemoteRelay',
+      'showRemoteRelayStatus',
+      'showStatus',
+    ];
+    for (const page of ['home', 'sch', 'pcb', 'pcbView']) {
+      const menus = manifest.headerMenus?.[page] ?? [];
+      expect(menus, `MCP Bridge should be available directly in the ${page} menu`).toHaveLength(1);
+      const [menu] = menus;
+      expect(menu.title).toBe('MCP Bridge');
+      const actions = menu.menuItems.map((item) => item.registerFn);
+      expect(actions).toEqual(expect.arrayContaining(required));
+      allIds.push(menu.id, ...menu.menuItems.map((item) => item.id));
+    }
+    // EasyEDA treats menu IDs as global, not page-local. Reused IDs cause
+    // only the first editor tab to show a plugin's menu.
+    expect(new Set(allIds).size).toBe(allIds.length);
+  });
+
   it('reuses one persistent runtime and connects without the URL constructor', async () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ext-build-persistent-runtime-'));
     outDirs.push(outDir);
@@ -437,11 +472,23 @@ describe('build.mjs hot-swap define', () => {
       setInterval: () => 0,
       clearInterval: () => undefined,
       WebSocket: FakeRelaySocket,
+      document: { title: 'Fixture' },
+      location: { href: 'https://pro.easyeda.com/editor/schematic' },
       localStorage: {
         getItem: () => 'false',
         setItem: () => undefined,
       },
       eda: {
+        dmt_Project: {
+          getCurrentProjectInfo: async () => ({ uuid: 'fixture-project', friendlyName: 'Fixture' }),
+        },
+        dmt_SelectControl: {
+          getCurrentDocumentInfo: async () => ({
+            uuid: 'fixture-schematic-page',
+            parentProjectUuid: 'fixture-project',
+            documentType: 1,
+          }),
+        },
         sys_Message: { showToastMessage: () => undefined },
         sys_Dialog: {
           showConfirmationMessage: (
@@ -475,12 +522,19 @@ describe('build.mjs hot-swap define', () => {
       riskLevel: 'write',
       actionSummary: 'write MCP tool easyeda_schematic_add_text on Fixture',
       inputHash: '1234567890abcdef',
-      activeProject: { projectName: 'Fixture', documentType: 'schematic' },
+      activeProject: {
+        projectId: 'fixture-project',
+        documentId: 'fixture-schematic-page',
+        projectName: 'Fixture',
+        documentType: 'schematic',
+      },
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     });
     await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
 
-    expect(confirmations).toHaveLength(1);
+    await vi.waitFor(() => expect(confirmations).toHaveLength(1));
     expect(confirmations[0]).toMatchObject({
       title: 'Remote MCP Approval',
       approveTitle: 'Approve',

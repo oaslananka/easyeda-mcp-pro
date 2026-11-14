@@ -16,6 +16,7 @@ export type RemoteScope = z.infer<typeof RemoteScopeSchema>;
 
 export const ActiveProjectSchema = z.object({
   projectId: z.string().min(1).optional(),
+  documentId: z.string().min(1).optional(),
   projectName: z.string().min(1).optional(),
   documentType: z.enum(['schematic', 'pcb', 'unknown']).default('unknown'),
   url: z.string().url().optional(),
@@ -47,6 +48,10 @@ export const SessionRegisteredMessageSchema = BaseRelayMessageSchema.extend({
 
 export const HeartbeatMessageSchema = BaseRelayMessageSchema.extend({
   type: z.literal('heartbeat'),
+  source: z.enum(['extension', 'server']).optional(),
+  // Explicit null means no project is currently visible; omitted means an older
+  // extension which does not report project changes.
+  activeProject: ActiveProjectSchema.nullable().optional(),
 });
 
 export const ToolRequestMessageSchema = BaseRelayMessageSchema.extend({

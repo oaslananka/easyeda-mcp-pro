@@ -86,7 +86,11 @@ async function waitForCondition(check: () => boolean, timeoutMs = 1_000): Promis
   }
 }
 
-async function createHarness(rateLimit?: number, allowedOrigins = ''): Promise<GatewayHarness> {
+async function createHarness(
+  rateLimit?: number,
+  allowedOrigins = '',
+  hostedOrigin?: string,
+): Promise<GatewayHarness> {
   let counter = 0;
   const gateway = new RemoteGateway({ makeId: () => `id-${++counter}` });
   const server = createServer();
@@ -101,6 +105,7 @@ async function createHarness(rateLimit?: number, allowedOrigins = ''): Promise<G
           HTTP_HOST: '127.0.0.1',
           BRIDGE_MAX_PAYLOAD_SIZE: 1024,
         }),
+    hostedOrigin,
   );
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -139,7 +144,12 @@ async function registerSession(
       extensionVersion: '0.35.1',
       mode: 'hosted',
       capabilities: [],
-      activeProject: { projectName: 'Relay Fixture', documentType: 'schematic' },
+      activeProject: {
+        projectId: 'relay-project',
+        documentId: 'relay-schematic',
+        projectName: 'Relay Fixture',
+        documentType: 'schematic',
+      },
       pairingCode,
     }),
   );
@@ -216,6 +226,50 @@ describe('RemoteGateway WebSocket upgrade admission', () => {
     ).rejects.toThrow('403');
   });
 
+  it('admits the exact EasyEDA desktop Origin only on the remote relay without pairing it', async () => {
+    const harness = await createHarness(5);
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const base = 'ws://127.0.0.1:' + address.port;
+    const nativeSocket = new WebSocket(base + '/remote/relay', {
+      headers: { Origin: 'https://client' },
+    });
+    await new Promise<void>((resolve, reject) => {
+      nativeSocket.once('open', resolve);
+      nativeSocket.once('error', reject);
+    });
+    const nativeClient = new RelayClient(nativeSocket);
+    try {
+      nativeClient.send(
+        envelope('register_session', {
+          extensionVersion: '1.15.4',
+          mode: 'self_hosted',
+          capabilities: [],
+          pairingCode: 'EDA-00000000',
+        }),
+      );
+      await expect(
+        nativeClient.waitFor((message) => message.type === 'session_registered'),
+      ).resolves.toMatchObject({ paired: false });
+      expect(harness.gateway.listPairedExtensions(readIdentity)).toEqual([]);
+    } finally {
+      await nativeClient.close();
+    }
+
+    for (const [path, origin] of [
+      ['/session', 'https://client'],
+      ['/remote/relay', 'https://client.evil.example'],
+    ]) {
+      const rejected = new WebSocket(base + path, { headers: { Origin: origin } });
+      await expect(
+        new Promise<void>((resolve, reject) => {
+          rejected.once('open', resolve);
+          rejected.once('error', reject);
+        }),
+      ).rejects.toThrow('403');
+    }
+  });
+
   it('rejects a mismatched Host header before allocating a relay socket', async () => {
     const harness = await createHarness(5);
     const address = harness.server.address();
@@ -227,6 +281,32 @@ describe('RemoteGateway WebSocket upgrade admission', () => {
       new Promise<void>((resolve, reject) => {
         rejected.once('open', resolve);
         rejected.once('error', reject);
+      }),
+    ).rejects.toThrow('400');
+  });
+
+  it('accepts the canonical hosted Host through a reverse proxy but rejects foreign hosts', async () => {
+    const harness = await createHarness(5, '', 'https://easyeda-mcp-pro.oaslananka.dev');
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const publicSocket = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`, {
+      headers: { Host: 'easyeda-mcp-pro.oaslananka.dev' },
+    });
+    await new Promise<void>((resolve, reject) => {
+      publicSocket.once('open', resolve);
+      publicSocket.once('error', reject);
+    });
+    await new Promise<void>((resolve) => {
+      publicSocket.once('close', resolve);
+      publicSocket.close();
+    });
+    const evil = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`, {
+      headers: { Host: 'attacker.example' },
+    });
+    await expect(
+      new Promise<void>((resolve, reject) => {
+        evil.once('open', resolve);
+        evil.once('error', reject);
       }),
     ).rejects.toThrow('400');
   });
@@ -315,6 +395,200 @@ describe('RemoteGateway WebSocket relay', () => {
     await expect(
       harness.client.waitFor((message) => message.code === 'SESSION_NOT_REGISTERED'),
     ).resolves.toMatchObject({ type: 'error', code: 'SESSION_NOT_REGISTERED' });
+  });
+
+  it('requires native project AND document UUIDs before owner selects a hosted extension', async () => {
+    const harness = await createHarness();
+    harness.gateway.requireExplicitProjectSelection();
+    const code = harness.gateway.createPairingCode({ identity: readIdentity });
+    harness.client.send(
+      envelope('register_session', {
+        extensionVersion: '1.15.4',
+        mode: 'hosted',
+        capabilities: [],
+        pairingCode: code,
+        activeProject: { projectName: 'Window title only', documentType: 'pcb' },
+      }),
+    );
+    const registered = await harness.client.waitFor((m) => m.type === 'session_registered');
+    expect(registered.paired).toBe(true);
+    const sessionId = String(registered.sessionId);
+    expect(harness.gateway.selectPairedProject(readIdentity, sessionId)).toBe(false);
+
+    harness.client.send(
+      envelope('heartbeat', {
+        source: 'extension',
+        sessionId,
+        activeProject: {
+          projectId: 'native-project',
+          documentId: 'native-pcb',
+          projectName: 'Native PCB',
+          documentType: 'pcb',
+        },
+      }),
+    );
+    await expect(
+      harness.client.waitFor((m) => m.type === 'heartbeat' && m.source === 'server'),
+    ).resolves.toMatchObject({ sessionId });
+    expect(harness.gateway.selectPairedProject(readIdentity, sessionId)).toBe(true);
+
+    harness.client.send(
+      envelope('heartbeat', {
+        source: 'extension',
+        sessionId,
+        activeProject: {
+          projectId: 'native-project',
+          documentId: 'other-pcb-in-same-project',
+          projectName: 'Native PCB',
+          documentType: 'pcb',
+        },
+      }),
+    );
+    await waitForCondition(
+      () =>
+        harness.gateway.router.getSession(sessionId)?.activeProject?.documentId ===
+        'other-pcb-in-same-project',
+    );
+    await expect(
+      harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        riskLevel: 'read',
+        toolName: 'pcb.listComponents',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'PROJECT_INACTIVE' });
+  });
+
+  it('invalidates an explicit project selection when a live heartbeat reports another project', async () => {
+    const harness = await createHarness();
+    harness.gateway.requireExplicitProjectSelection();
+    const sessionId = await registerSession(harness);
+    expect(harness.gateway.selectPairedProject(readIdentity, sessionId)).toBe(true);
+    harness.client.send(
+      envelope('heartbeat', {
+        source: 'extension',
+        sessionId,
+        activeProject: { projectName: 'Other PCB', documentType: 'pcb' },
+      }),
+    );
+    await expect(
+      harness.client.waitFor((msg) => msg.type === 'heartbeat' && msg.source === 'server'),
+    ).resolves.toMatchObject({ sessionId });
+    await expect(
+      harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        riskLevel: 'read',
+        toolName: 'schematic.listComponents',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'PROJECT_INACTIVE' });
+  });
+
+  it('re-pairs with a fresh owner code after a real socket drop, never replaying an old code', async () => {
+    const harness = await createHarness();
+    harness.gateway.requireExplicitProjectSelection();
+    const registerWith = (client: RelayClient, code: string) => {
+      client.send(
+        envelope('register_session', {
+          extensionVersion: '1.15.4',
+          mode: 'hosted',
+          capabilities: [],
+          activeProject: {
+            projectId: 'disposable-pcb',
+            documentId: 'disposable-pcb-document',
+            projectName: 'Disposable PCB',
+            documentType: 'pcb',
+          },
+          pairingCode: code,
+        }),
+      );
+      return client.waitFor((message) => message.type === 'session_registered');
+    };
+    const initialCode = harness.gateway.createPairingCode({ identity: readIdentity });
+    const first = await registerWith(harness.client, initialCode);
+    expect(first.paired).toBe(true);
+    expect(harness.gateway.selectPairedProject(readIdentity, String(first.sessionId))).toBe(true);
+    await harness.client.close();
+    await waitForCondition(
+      () => harness.gateway.router.getSession(String(first.sessionId))?.connected === false,
+    );
+
+    await expect(
+      harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        riskLevel: 'read',
+        toolName: 'schematic.listComponents',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'SESSION_DISCONNECTED' });
+
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing port');
+    const connect = async (): Promise<RelayClient> => {
+      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`);
+      await new Promise<void>((resolve, reject) => {
+        socket.once('open', resolve);
+        socket.once('error', reject);
+      });
+      return new RelayClient(socket);
+    };
+    const second = await connect();
+    try {
+      const oldCodeResult = await registerWith(second, initialCode);
+      expect(oldCodeResult.paired).toBe(false);
+      await expect(
+        harness.gateway.routeToolRequest({
+          identity: readIdentity,
+          riskLevel: 'read',
+          sessionId: String(oldCodeResult.sessionId),
+          toolName: 'schematic.listComponents',
+        }),
+      ).resolves.toMatchObject({ ok: false });
+    } finally {
+      await second.close();
+    }
+
+    const newCode = harness.gateway.createPairingCode({ identity: readIdentity });
+    const third = await connect();
+    try {
+      const freshPairing = await registerWith(third, newCode);
+      expect(freshPairing.paired).toBe(true);
+      const newSessionId = String(freshPairing.sessionId);
+      expect(newSessionId).not.toBe(first.sessionId);
+      await expect(
+        harness.gateway.routeToolRequest({
+          identity: readIdentity,
+          sessionId: newSessionId,
+          riskLevel: 'read',
+          toolName: 'schematic.listComponents',
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
+      expect(harness.gateway.selectPairedProject(readIdentity, newSessionId)).toBe(true);
+      const routed = harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        riskLevel: 'read',
+        toolName: 'schematic.listComponents',
+        deadlineMs: 1200,
+      });
+      const outbound = await third.waitFor((m) => m.type === 'tool_request');
+      third.send(
+        toolResponse({
+          sessionId: newSessionId,
+          requestMessageId: String(outbound.messageId),
+          result: { components: [] },
+        }),
+      );
+      await expect(routed).resolves.toMatchObject({ ok: true, result: { components: [] } });
+
+      expect(harness.gateway.revokePairedExtension(readIdentity, newSessionId)).toBe(true);
+      expect(harness.gateway.getSelectedProject(readIdentity)).toBeUndefined();
+      await expect(
+        harness.gateway.routeToolRequest({
+          identity: readIdentity,
+          riskLevel: 'read',
+          toolName: 'schematic.listComponents',
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'SESSION_DISCONNECTED' });
+    } finally {
+      await third.close();
+    }
   });
 
   it('re-registering one socket replaces and disconnects its previous session', async () => {

@@ -41,8 +41,12 @@ export function getMcpResourceUrl(req: Request, config: EnvConfig): string {
   return `${inferRequestOrigin(req, config)}/mcp`;
 }
 
-export function getProtectedResourceMetadataUrl(req: Request, config: EnvConfig): string {
-  return `${inferRequestOrigin(req, config)}/.well-known/oauth-protected-resource/mcp`;
+export function getProtectedResourceMetadataUrl(
+  req: Request,
+  config: EnvConfig,
+  canonicalOrigin?: string,
+): string {
+  return `${canonicalOrigin ?? inferRequestOrigin(req, config)}/.well-known/oauth-protected-resource/mcp`;
 }
 
 export function createProtectedResourceMetadata(req: Request, config: EnvConfig) {
@@ -60,9 +64,10 @@ export function setProtectedResourceChallenge(
   res: Response,
   config: EnvConfig,
   code: string,
+  canonicalOrigin?: string,
 ): void {
   const scheme = ['Bear', 'er'].join('');
   const headerName = ['WWW', 'Authenticate'].join('-');
-  const metadataUrl = getProtectedResourceMetadataUrl(req, config);
+  const metadataUrl = getProtectedResourceMetadataUrl(req, config, canonicalOrigin);
   res.setHeader(headerName, `${scheme} resource_metadata="${metadataUrl}", error="${code}"`);
 }

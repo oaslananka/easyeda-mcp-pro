@@ -6,6 +6,7 @@ export type RemoteRelayState = 'disconnected' | 'connecting' | 'connected' | 'pa
 
 export interface RemoteActiveProject {
   projectId?: string;
+  documentId?: string;
   projectName?: string;
   documentType: 'schematic' | 'pcb' | 'unknown';
   url?: string;
@@ -41,7 +42,9 @@ interface RemoteRelayClientOptions {
   extensionVersion: string;
   log: (message: string, data?: unknown) => void;
   showToast: (message: string) => void;
-  readActiveProject: () => RemoteActiveProject | undefined;
+  readActiveProject: (
+    mode: RemoteRelayMode,
+  ) => RemoteActiveProject | undefined | Promise<RemoteActiveProject | undefined>;
   executeToolRequest?: (toolName: string, input: unknown) => Promise<unknown>;
   requestApproval?: (request: RemoteApprovalPrompt) => Promise<RemoteApprovalDecision>;
   timers: RuntimeTimers;
@@ -64,7 +67,8 @@ interface RemoteEnvelope {
 }
 
 const PROTOCOL_VERSION = '2026-07-remote-relay-v1';
-const DEFAULT_HOSTED_RELAY_URL = 'wss://relay.easyeda-mcp-pro.local/session';
+export const OFFICIAL_HOSTED_RELAY_URL = 'wss://easyeda-mcp-pro.oaslananka.dev/remote/relay';
+const DEFAULT_HOSTED_RELAY_URL = OFFICIAL_HOSTED_RELAY_URL;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 const HEARTBEAT_LIVENESS_MS = 45_000;
@@ -92,6 +96,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Refuse remote actions if the current EasyEDA editor differs from the gateway's project. */
+function matchesActiveProject(
+  hint: Record<string, unknown>,
+  current: RemoteActiveProject | undefined,
+): boolean {
+  if (!current) return false;
+  const fields = ['projectId', 'documentId', 'projectName', 'documentType', 'url'] as const;
+  const identityFields = ['projectId', 'projectName', 'url'];
+  if (!identityFields.some((field) => typeof hint[field] === 'string')) return false;
+  return fields.every((field) => {
+    const expected = hint[field];
+    return typeof expected !== 'string' || current[field] === expected;
+  });
+}
+
 function errorToRelayError(error: unknown): { code: string; message: string; suggestion?: string } {
   const record = isRecord(error) ? error : {};
   return {
@@ -109,8 +128,24 @@ function errorToRelayError(error: unknown): { code: string; message: string; sug
   };
 }
 
+function isPromiseLike<T>(value: T | Promise<T>): value is Promise<T> {
+  return value !== null && typeof value === 'object' && 'then' in value;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function approvalMetadata(message: RemoteEnvelope): {
+  toolName: string;
+  actionSummary: string;
+  expiresAt: string;
+} {
+  const toolName = typeof message.toolName === 'string' ? message.toolName : '';
+  const actionSummary =
+    typeof message.actionSummary === 'string' ? message.actionSummary : toolName || 'Remote action';
+  const expiresAt = typeof message.expiresAt === 'string' ? message.expiresAt : nowIso();
+  return { toolName, actionSummary, expiresAt };
 }
 
 export class RemoteRelayClient {
@@ -132,7 +167,7 @@ export class RemoteRelayClient {
       state: 'connecting',
       relayUrl,
       pairingCode: input.pairingCode,
-      activeProject: this.options.readActiveProject(),
+      activeProject: undefined,
       reconnectAttempts: 0,
     };
     this.options.showToast(`Remote Relay connecting: ${input.mode}`);
@@ -158,15 +193,24 @@ export class RemoteRelayClient {
       ...this.status,
       state: 'disconnected',
       sessionId: undefined,
+      pairingCode: undefined,
       nextReconnectDelayMs: undefined,
     };
   }
 
   getStatus(): RemoteRelayStatus {
-    return {
-      ...this.status,
-      activeProject: this.options.readActiveProject() ?? this.status.activeProject,
-    };
+    // A native focus read is async; report only the last confirmed snapshot.
+    return { ...this.status };
+  }
+
+  private readCurrentProject():
+    RemoteActiveProject | undefined | Promise<RemoteActiveProject | undefined> {
+    try {
+      const focus = this.options.readActiveProject(this.status.mode);
+      return isPromiseLike(focus) ? Promise.resolve(focus).catch(() => undefined) : focus;
+    } catch {
+      return undefined; // Beta native focus API failures are not authorization.
+    }
   }
 
   private openSocket(input: RemoteRelayConnectInput): void {
@@ -176,18 +220,49 @@ export class RemoteRelayClient {
     try {
       const socket = this.options.createWebSocket(input.relayUrl);
       this.socket = socket;
-      socket.onopen = () => this.handleOpen(socket, input.pairingCode);
+      socket.onopen = () => {
+        void this.handleOpen(socket, input.pairingCode);
+      };
       socket.onmessage = (event) => this.handleMessage(socket, event.data);
       socket.onerror = () => this.handleSocketError(socket, 'Remote Relay socket error');
       socket.onclose = () => this.handleClose(socket);
     } catch (error) {
       this.socket = null;
+      const details = isRecord(error) ? error : {};
+      if (details.code === 'REMOTE_SOCKET_UNAVAILABLE') {
+        const message =
+          error instanceof Error ? error.message : 'EasyEDA native WebSocket unavailable.';
+        this.desiredConnection = null;
+        this.status = {
+          ...this.status,
+          state: 'disconnected',
+          pairingCode: undefined,
+          lastError: message,
+          nextReconnectDelayMs: undefined,
+        };
+        this.options.showToast(message);
+        return;
+      }
       this.scheduleReconnect(`Remote Relay failed to start: ${String(error)}`);
     }
   }
 
   private handleOpen(socket: WebSocket, pairingCode?: string): void {
     if (socket !== this.socket) return;
+    const focus = this.readCurrentProject();
+    if (isPromiseLike(focus)) {
+      void focus.then((project) => this.registerOpenSocket(socket, pairingCode, project));
+    } else {
+      this.registerOpenSocket(socket, pairingCode, focus);
+    }
+  }
+
+  private registerOpenSocket(
+    socket: WebSocket,
+    pairingCode: string | undefined,
+    activeProject: RemoteActiveProject | undefined,
+  ): void {
+    if (socket !== this.socket || socket.readyState !== 1) return;
     const timestamp = nowIso();
     this.status = {
       ...this.status,
@@ -195,6 +270,7 @@ export class RemoteRelayClient {
       state: 'connected',
       lastConnectedAt: timestamp,
       lastHeartbeatAt: timestamp,
+      activeProject,
       nextReconnectDelayMs: undefined,
       lastError: undefined,
     };
@@ -204,7 +280,7 @@ export class RemoteRelayClient {
       extensionVersion: this.options.extensionVersion,
       mode: this.status.mode,
       pairingCode,
-      activeProject: this.options.readActiveProject(),
+      activeProject,
       capabilities: ['local_bridge_proxy'],
     });
     this.options.showToast(
@@ -233,17 +309,31 @@ export class RemoteRelayClient {
       return;
     }
     if (message.type === 'session_registered') {
+      if (message.paired === false && this.desiredConnection?.pairingCode) {
+        // Pairing codes are single-use: a reconnect cannot reuse one from
+        // the previous session, nor stay silently connected without an owner.
+        const hint =
+          this.status.mode === 'hosted'
+            ? 'Cloud pairing failed or expired. Generate a new pairing code in Cloud, then choose Connect Cloud again.'
+            : 'Remote pairing failed or expired. Generate a new pairing code, then reconnect explicitly.';
+        this.disconnect('user_disabled');
+        this.status = { ...this.status, lastError: hint };
+        this.options.showToast(hint);
+        return;
+      }
       this.status = {
         ...this.status,
         state: message.paired ? 'paired' : 'connected',
+        pairingCode: undefined,
         sessionId:
           typeof message.sessionId === 'string' ? message.sessionId : this.status.sessionId,
       };
       return;
     }
     if (message.type === 'heartbeat') {
+      // The gateway acknowledges extension-originated heartbeats: do not echo
+      // its reply, which would create an infinite WebSocket message loop.
       this.status = { ...this.status, lastHeartbeatAt: nowIso() };
-      this.send({ type: 'heartbeat' });
       return;
     }
     if (message.type === 'approval_request') {
@@ -255,15 +345,33 @@ export class RemoteRelayClient {
     }
   }
 
+  private rejectChangedApprovalProject(
+    socket: WebSocket,
+    message: RemoteEnvelope,
+    approvalId: string,
+  ): boolean | Promise<boolean> {
+    if (!isRecord(message.activeProject) && this.status.mode !== 'hosted') return false;
+    const check = (current: RemoteActiveProject | undefined): boolean => {
+      if (socket !== this.socket) return true;
+      this.status = { ...this.status, activeProject: current };
+      if (isRecord(message.activeProject) && matchesActiveProject(message.activeProject, current)) {
+        return false;
+      }
+      this.sendForSocket(socket, { type: 'approval_result', approvalId, result: 'rejected' });
+      this.options.showToast('EasyEDA project changed; select it again in Cloud before approving.');
+      return true;
+    };
+    const focus = this.readCurrentProject();
+    return isPromiseLike(focus) ? focus.then(check) : check(focus);
+  }
+
   private async handleApprovalRequest(socket: WebSocket, message: RemoteEnvelope): Promise<void> {
     const approvalId = typeof message.approvalId === 'string' ? message.approvalId : '';
-    const toolName = typeof message.toolName === 'string' ? message.toolName : '';
-    const actionSummary =
-      typeof message.actionSummary === 'string'
-        ? message.actionSummary
-        : toolName || 'Remote action';
-    const expiresAt = typeof message.expiresAt === 'string' ? message.expiresAt : nowIso();
+    const { toolName, actionSummary, expiresAt } = approvalMetadata(message);
     if (!approvalId || !toolName || this.pendingApprovalIds.has(approvalId)) return;
+    const rejected = this.rejectChangedApprovalProject(socket, message, approvalId);
+    if (isPromiseLike(rejected) ? await rejected : rejected) return;
+    if (socket !== this.socket) return;
 
     this.pendingApprovalIds.add(approvalId);
     let result: RemoteApprovalDecision = 'rejected';
@@ -298,6 +406,37 @@ export class RemoteRelayClient {
     });
   }
 
+  private rejectChangedProject(
+    socket: WebSocket,
+    message: RemoteEnvelope,
+    startedAt: number,
+  ): boolean | Promise<boolean> {
+    if (!isRecord(message.activeProjectHint) && this.status.mode !== 'hosted') return false;
+    const check = (current: RemoteActiveProject | undefined): boolean => {
+      if (socket !== this.socket) return true;
+      this.status = { ...this.status, activeProject: current };
+      if (
+        isRecord(message.activeProjectHint) &&
+        matchesActiveProject(message.activeProjectHint, current)
+      ) {
+        return false;
+      }
+      this.sendForSocket(socket, {
+        type: 'tool_response',
+        requestMessageId: message.messageId,
+        ok: false,
+        error: {
+          code: 'PROJECT_INACTIVE',
+          message: 'The active EasyEDA project changed. Select this project again in Cloud.',
+        },
+        durationMs: Date.now() - startedAt,
+      });
+      return true;
+    };
+    const focus = this.readCurrentProject();
+    return isPromiseLike(focus) ? focus.then(check) : check(focus);
+  }
+
   private async handleToolRequest(socket: WebSocket, message: RemoteEnvelope): Promise<void> {
     const startedAt = Date.now();
     const toolName = typeof message.toolName === 'string' ? message.toolName : '';
@@ -315,6 +454,9 @@ export class RemoteRelayClient {
       });
       return;
     }
+    const rejected = this.rejectChangedProject(socket, message, startedAt);
+    if (isPromiseLike(rejected) ? await rejected : rejected) return;
+    if (socket !== this.socket) return;
     if (!this.options.executeToolRequest) {
       this.sendForSocket(socket, {
         type: 'tool_response',
@@ -394,10 +536,27 @@ export class RemoteRelayClient {
 
   private startHeartbeatTimer(): void {
     this.clearHeartbeatTimer();
-    this.heartbeatTimer = this.options.timers.setInterval(
-      () => this.checkHeartbeatLiveness(),
-      HEARTBEAT_SWEEP_MS,
-    );
+    this.heartbeatTimer = this.options.timers.setInterval(() => {
+      this.checkHeartbeatLiveness();
+      this.sendCurrentProjectHeartbeat();
+    }, HEARTBEAT_SWEEP_MS);
+  }
+
+  private sendCurrentProjectHeartbeat(): void {
+    const socket = this.socket;
+    if (!socket || socket.readyState !== 1) return;
+    const send = (activeProject: RemoteActiveProject | undefined): void => {
+      if (socket !== this.socket || socket.readyState !== 1) return;
+      this.status = { ...this.status, activeProject };
+      this.sendForSocket(socket, {
+        type: 'heartbeat',
+        source: 'extension',
+        activeProject: activeProject ?? null,
+      });
+    };
+    const focus = this.readCurrentProject();
+    if (isPromiseLike(focus)) void focus.then(send);
+    else send(focus);
   }
 
   private checkHeartbeatLiveness(): void {
