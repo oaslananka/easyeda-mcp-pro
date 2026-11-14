@@ -213,6 +213,60 @@ describe('Hosted Cloud browser portal', () => {
       expect(
         gateway.getSelectedProject({ userId: 'owner-a', scopes: ['easyeda.read'] }),
       ).toBeUndefined();
+
+      // Removing access must invalidate the consumed code, but a fresh code must recover pairing.
+      const replacement = gateway.registerExtension({
+        connectionId: 'extension-2',
+        mode: 'hosted',
+        extensionVersion: '1.15.4',
+        activeProject: {
+          projectId: 'board-b',
+          documentId: 'pcb-b',
+          projectName: 'Replacement board',
+          documentType: 'pcb',
+        },
+        dispatch: async (message) => ({
+          version: message.version,
+          type: 'tool_response',
+          requestId: message.requestId,
+          ok: true,
+          result: null,
+        }),
+      });
+      expect(
+        gateway.completePairing({
+          identity: { userId: 'owner-a', scopes: ['easyeda.read'] },
+          code: code.code,
+          sessionId: replacement.sessionId,
+        }),
+      ).toBe(false);
+
+      const newCodeResponse = await send('/cloud/api/pairing-code', 'POST', 'session=owner-a');
+      expect(newCodeResponse.status).toBe(200);
+      const newCode = (await newCodeResponse.json()) as { code: string };
+      expect(newCode.code).not.toBe(code.code);
+      expect(
+        gateway.completePairing({
+          identity: { userId: 'owner-b', scopes: ['easyeda.read'] },
+          code: newCode.code,
+          sessionId: replacement.sessionId,
+        }),
+      ).toBe(false);
+      expect(
+        gateway.completePairing({
+          identity: { userId: 'owner-a', scopes: ['easyeda.read'] },
+          code: newCode.code,
+          sessionId: replacement.sessionId,
+        }),
+      ).toBe(true);
+      const reconnected = await fetch(`${base}/cloud/api/extensions`, {
+        headers: { cookie: 'session=owner-a' },
+      });
+      expect(reconnected.status).toBe(200);
+      const recovered = (await reconnected.json()) as {
+        sessions: Array<{ sessionId: string }>;
+      };
+      expect(recovered.sessions.map((item) => item.sessionId)).toEqual([replacement.sessionId]);
     });
   });
 
