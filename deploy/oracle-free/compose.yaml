@@ -1,0 +1,58 @@
+# Existing Oracle Always Free VM; no machine, network, DNS, or paid resources created.
+# Hosted secrets are injected from the existing Doppler config at deployment time.
+name: easyeda-cloud
+
+services:
+  cloud:
+    image: ${EASYEDA_IMAGE:?Set an immutable verified GHCR digest}
+    init: true
+    restart: unless-stopped
+    ports:
+      # Public traffic must be handled by an existing HTTPS ingress.
+      - '127.0.0.1:${EASYEDA_HOST_PORT:-13000}:3000'
+    environment:
+      NODE_ENV: production
+      TRANSPORT: http
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: '3000'
+      MCP_BRIDGE_BACKEND: remote_relay
+      DATA_DIR: /app/data
+      OAUTH_ENABLED: 'true'
+      OAUTH_REQUIRED_SCOPES: easyeda.read
+      HTTP_AUTH_DISABLED: 'false'
+      ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain}
+      CLOUD_HOSTED_ENABLED: 'true'
+      CLOUD_HOSTED_ORIGIN: ${EASYEDA_PUBLIC_ORIGIN}
+      OAUTH_ISSUER: ${EASYEDA_PUBLIC_ORIGIN}/api/auth
+      OAUTH_AUDIENCE: ${EASYEDA_PUBLIC_ORIGIN}/mcp
+      OAUTH_JWKS_URI: ${EASYEDA_PUBLIC_ORIGIN}/api/auth/jwks
+      CLOUD_AUTH_SECRET: ${CLOUD_AUTH_SECRET:?Supply from Doppler}
+      CLOUD_GITHUB_CLIENT_ID: ${CLOUD_GITHUB_CLIENT_ID:?Supply from Doppler}
+      CLOUD_GITHUB_CLIENT_SECRET: ${CLOUD_GITHUB_CLIENT_SECRET:?Supply from Doppler}
+      CLOUD_GOOGLE_CLIENT_ID: ${CLOUD_GOOGLE_CLIENT_ID:?Supply from Doppler}
+      CLOUD_GOOGLE_CLIENT_SECRET: ${CLOUD_GOOGLE_CLIENT_SECRET:?Supply from Doppler}
+    volumes:
+      # Preserve SQLite and user permissions across image and VM restarts.
+      - cloud-data:/app/data
+    mem_limit: 560m
+    mem_reservation: 128m
+    pids_limit: 128
+    cpus: 1.0
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3000/healthz']
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: local
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  cloud-data:
