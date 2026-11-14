@@ -12,6 +12,18 @@ class TestElement {
   hidden = false;
   children: TestElement[] = [];
   listeners = new Map<string, ClickHandler>();
+  classList = {
+    classes: new Set<string>(),
+    add(name: string) {
+      this.classes.add(name);
+    },
+    remove(name: string) {
+      this.classes.delete(name);
+    },
+    contains(name: string) {
+      return this.classes.has(name);
+    },
+  };
 
   addEventListener(name: string, handler: ClickHandler): void {
     this.listeners.set(name, handler);
@@ -49,7 +61,15 @@ describe('Hosted Cloud pairing-code user experience', () => {
     let tick: (() => void) | undefined;
     const clipboard = vi.fn(async (_code: string) => {});
     const clipboardPayload = 'EDA-A1B2C3D4';
+    let codeAttempts = 0;
     const fetch = vi.fn(async (url: string) => {
+      if (url === '/cloud/api/pairing-code' && codeAttempts++ === 0) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ message: 'Service temporarily unavailable' }),
+        };
+      }
       const result =
         url === '/cloud/api/me'
           ? { user: { name: 'Acceptance Owner' } }
@@ -82,6 +102,10 @@ describe('Hosted Cloud pairing-code user experience', () => {
 
     await vi.waitFor(() => expect(get('generate-pairing').listeners.has('click')).toBe(true));
     await get('generate-pairing').click();
+    expect(get('notice').classList.contains('error')).toBe(true);
+
+    await get('generate-pairing').click();
+    expect(get('notice').classList.contains('error')).toBe(false);
     expect(get('pairing-code').textContent).toBe(clipboardPayload);
     expect(get('copy-pairing').disabled).toBe(false);
     expect(get('copy-pairing').hidden).toBe(false);

@@ -24,7 +24,7 @@ export const CLOUD_JS = String.raw`
   const page = root.dataset.page;
   const query = window.location.search.slice(1);
   const get = (id) => document.getElementById(id);
-  const setText = (id, value) => { const el = get(id); if (el) el.textContent = String(value); };
+  const setText = (id, value) => { const el = get(id); if (el) { el.textContent = String(value); if (id === 'notice') el.classList.remove('error'); } };
   const fail = (error) => { setText('notice', error instanceof Error ? error.message : 'The request failed. Please retry.'); const n = get('notice'); if (n) n.classList.add('error'); };
   const request = async (url, options) => {
     const response = await fetch(url, { credentials: 'same-origin', ...options });
