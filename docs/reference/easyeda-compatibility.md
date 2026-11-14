@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-11-13
+- **Last reviewed:** 2026-11-14
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.5               | 1.15.5                | 1.15.5            | Live validated  | 2026-11-14 | 2027-02-12 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.3               | 1.15.3                | 1.15.3            | Live validated  | 2026-11-13 | 2027-02-11 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.2               | 1.15.2                | 1.15.2            | Live validated  | 2026-11-13 | 2027-02-11 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.0               | 1.15.0                | 1.15.0            | Live validated  | 2026-11-13 | 2027-02-11 |
@@ -72,6 +73,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-fca847d-v1155-native-readonly
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-fca847d-v1155-native-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                                                                                    |
+| Electron                                 | `36.3.1`                                                                                                                              |
+| Chromium                                 | `136.0.7103.113` (Prior recorded metadata on same installed vendor 3.2.209 build; not independently measured during this acceptance.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                                                    |
+| Kernel                                   | `7.0.0-43-generic`                                                                                                                    |
+| Architecture                             | `x86_64`                                                                                                                              |
+| Node.js used by validation server        | `24.22.3`                                                                                                                             |
+| Validation package version               | `1.15.5`                                                                                                                              |
+| Fix version represented by evidence      | `1.15.5`                                                                                                                              |
+| Compatibility-sensitive base commit      | `fca847d1ccdd02d372de05636da33dcd99d0bd9c`                                                                                            |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                              |
+| Installed extension package metadata     | `1.15.5`                                                                                                                              |
+| Live-validated extension package SHA-256 | `4b41c65395bfe3d0eb704605b0c5f956db5cb9b074a5d88f70312fc3c40780a8`                                                                    |
+| Live-validated extension package size    | `230597 bytes`                                                                                                                        |
+| Loader-reported version                  | `1.15.5`                                                                                                                              |
+| Bridge contract                          | `1.0.0`                                                                                                                               |
+| Dispatcher                               | `baked`                                                                                                                               |
+| Method registry hash                     | `f71f5e22b7fec5db`                                                                                                                    |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                                                     |
+
+The installed extension package and loader both reported version `1.15.5` during this validation.
+
+### Capability evidence
+
+| Capability                                                                     | Level  | Status   | Result                                                                                                                                                                                                                                    | Evidence                                                                                                                                                                    |
+| ------------------------------------------------------------------------------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact v1.15.5 candidate package imports, enables and connects to native server | `live` | `passed` | Official EasyEDA Pro 3.2.209 Extensions Manager confirmed 1.15.5 candidate installed and enabled, external interaction allowed solely in isolated profile; native loopback MCP connection established with exact candidate server source. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-14-ubuntu-24-04-easyeda-3.2.209-v1.15.5-fca847d-native-readonly.json) |
+| Real native PCB read and project/document identity                             | `live` | `passed` | The real local MCP easyeda_pcb_components returned 33 of 33 components, 33 identifiers and 33 positions, correct native PCB document type 3 and parent project UUID; no mutation.                                                         | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-14-ubuntu-24-04-easyeda-3.2.209-v1.15.5-fca847d-native-readonly.json) |
+| Real native schematic read and changed document identity                       | `live` | `passed` | The real local MCP easyeda_schematic_components returned 34 of 34 components, parent project UUID matched and native document type 1; no mutation.                                                                                        | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-14-ubuntu-24-04-easyeda-3.2.209-v1.15.5-fca847d-native-readonly.json) |
+| Read-only disposable PCB/schematic fixture integrity and rollback              | `live` | `passed` | Original source fixture and isolated copy SHA256 unchanged after both native reads; previous 1.15.4 extension was reinstalled and visually confirmed in the isolated manager, editor closed, no save/export/write.                        | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-14-ubuntu-24-04-easyeda-3.2.209-v1.15.5-fca847d-native-readonly.json) |
+
+### Known limitations
+
+- Tested isolated Ubuntu 24.04.5 EasyEDA Pro 3.2.209 only; no actual Windows/macOS editor runtime assertions.
+- This is exact 1.15.5 candidate Local native read-only validation. It does not establish production Hosted multi-user isolation, real OAuth provider sign-in on this release branch or any native write/export.
+- No real design mutation, copper pour, electrical/ERC correctness or fabrication approval. Fixture reads are not a manufacturing sign-off.
+- The candidate .eext package was built locally from exact fca847d with pinned Node/pnpm; npm/GitHub Release/GHCR or registry publication was not performed.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-13-70aadfb-v1153-candidate-native-pair
 

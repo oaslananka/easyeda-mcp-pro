@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-candidate-native-pcb-and-schematic-readonly-release-acceptance",
+  "recordedAtUtc": "2026-11-14T14:32:47Z",
+  "releasePr": 1056,
+  "releaseCandidate": {
+    "commit": "fca847d1ccdd02d372de05636da33dcd99d0bd9c",
+    "baseProtectedMainCommit": "f9a728625c89a18e138867fba63add400e385076",
+    "packageVersion": "1.15.5",
+    "packageSha256": "4b41c65395bfe3d0eb704605b0c5f956db5cb9b074a5d88f70312fc3c40780a8",
+    "packageBytes": 230597,
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "37715cbb309d0cc2a4d174f1b28990d474e9ac53",
+      "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "da40678b4713ffd34c448a837d82ef91e8d2dcb7",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "nativeRuntime": {
+    "editor": "EasyEDA Pro 3.2.209.8a704eab",
+    "platform": "Ubuntu 24.04.5 LTS x86_64",
+    "installedBridgeExtensionVersion": "1.15.5",
+    "serverVersion": "1.15.5",
+    "installVia": "official Extensions Manager .eext import/upgrade",
+    "bridge": "loopback 127.0.0.1:49620, exact-source compiled dist/index.js",
+    "fixture": "separate disposable copy of public Quick Start; no private project IDs, no paths exposed",
+    "projectAndDocumentIdentity": {
+      "projectUuidPresent": true,
+      "documentUuidPresent": true,
+      "parentProjectMatches": true,
+      "pcbDocumentType": 3,
+      "schematicDocumentType": 1
+    },
+    "versionMetadataSource": "/opt/apps/easyeda-pro/resources/app/package.json (version field), read-only inspection",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "f71f5e22b7fec5db",
+    "methodRegistryHashProvenance": "Unchanged server bridge method registry source (src/bridge Git tree matches historical validated 1.15.3); native connection succeeded; hash not separately captured in this turn.",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113",
+    "electronChromiumProvenance": "Previously recorded metadata of same installed vendor build; not independently measured in this session."
+  },
+  "nativeReadOnlyScenarios": [
+    {
+      "name": "Exact candidate .eext upgraded, enabled, external interaction in isolated profile",
+      "result": "PASS",
+      "packageSizeBytes": 230597,
+      "packageSha256": "4b41c65395bfe3d0eb704605b0c5f956db5cb9b074a5d88f70312fc3c40780a8"
+    },
+    {
+      "name": "PCB document native Local MCP component read",
+      "result": "PASS",
+      "nativeTotal": 33,
+      "itemsReturned": 33,
+      "componentsWithIdentifiers": 33,
+      "componentsWithCoordinates": 33,
+      "error": false
+    },
+    {
+      "name": "Schematic document native Local MCP component read",
+      "result": "PASS",
+      "nativeTotal": 34,
+      "itemsReturned": 34,
+      "error": false
+    },
+    {
+      "name": "Preserve original/copy fixture identity without writes",
+      "result": "PASS",
+      "sourceProjectSha256Before": "7fe767781ac0f2d947a9713250d2b3e465ee605f564181b8320b37070cc149bd",
+      "sourceProjectSha256After": "7fe767781ac0f2d947a9713250d2b3e465ee605f564181b8320b37070cc149bd",
+      "testCopySha256Before": "7fe767781ac0f2d947a9713250d2b3e465ee605f564181b8320b37070cc149bd",
+      "testCopySha256After": "7fe767781ac0f2d947a9713250d2b3e465ee605f564181b8320b37070cc149bd",
+      "designWrites": 0,
+      "saves": 0,
+      "exports": 0
+    },
+    {
+      "name": "Restore isolated profile previous extension and close editor",
+      "result": "PASS",
+      "restoredExtensionVersion": "1.15.4",
+      "releaseEditorClosed": true
+    }
+  ],
+  "limitations": [
+    "Tested isolated Ubuntu 24.04.5 EasyEDA Pro 3.2.209 only; no actual Windows/macOS editor runtime assertions.",
+    "This is exact 1.15.5 candidate Local native read-only validation. It does not establish production Hosted multi-user isolation, real OAuth provider sign-in on this release branch or any native write/export.",
+    "No real design mutation, copper pour, electrical/ERC correctness or fabrication approval. Fixture reads are not a manufacturing sign-off.",
+    "The candidate .eext package was built locally from exact fca847d with pinned Node/pnpm; npm/GitHub Release/GHCR or registry publication was not performed."
+  ],
+  "result": "NATIVE_READ_ONLY_CANDIDATE_PCB_AND_SCHEMATIC_PASSED"
+}
