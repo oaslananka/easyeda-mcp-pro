@@ -41,12 +41,12 @@ function asyncRoute(handler: (req: Request, res: Response) => Promise<void>): Re
 function page(title: string, body: string, state: 'sign-in' | 'consent' | 'account'): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
-<title>${escaped(title)} · EasyEDA MCP Pro Cloud</title><link rel="stylesheet" href="/cloud/app.css?v=${cssVersion}"></head>
+<title>${escaped(title)} · EasyEDA MCP Pro Cloud</title><link rel="stylesheet" href="/assets/easyeda-cloud.css?v=${cssVersion}"></head>
 <body><div class="wrap">
 <header class="nav"><a class="brand" href="/"><span class="mark" aria-hidden="true">E</span><span class="brand-name">EasyEDA <span>MCP Pro</span></span></a><div class="nav-right"><span class="tag"><span class="tag-dot" aria-hidden="true"></span>Cloud preview</span><a class="nav-link" href="https://github.com/oaslananka/easyeda-mcp-pro">GitHub ↗</a></div></header>
 <main id="cloud-root" data-page="${state}">${body}<p class="muted" id="notice" role="status" aria-live="polite"></p></main>
 <footer><span>EasyEDA MCP Pro Cloud · Preview</span><span>Your designs stay on your device. <a href="https://github.com/oaslananka/easyeda-mcp-pro">Use Local MCP without an account ↗</a></span></footer></div>
-<script defer src="/cloud/app.js?v=${jsVersion}"></script></body></html>`;
+<script defer src="/assets/easyeda-cloud.js?v=${jsVersion}"></script></body></html>`;
 }
 
 const signIn = (): string =>
@@ -186,11 +186,13 @@ function originRequired(req: Request, res: Response, expected: string): boolean 
 /** Cookie-authenticated browser portal; never reuses session cookies as MCP bearer credentials. */
 export function mountHostedPortal(app: Express, auth: HostedAuth, gateway: RemoteGateway): void {
   const requireSession = sessionRequired(auth);
-  app.get('/cloud/app.css', (_req, res) => {
+  // Static browser assets stay accessible before the optional owner-only /cloud* preview gate.
+  // Keep the legacy routes for compatibility with already-open Cloud pages.
+  app.get(['/assets/easyeda-cloud.css', '/cloud/app.css'], (_req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.type('css').send(CLOUD_CSS);
   });
-  app.get('/cloud/app.js', (_req, res) => {
+  app.get(['/assets/easyeda-cloud.js', '/cloud/app.js'], (_req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.type('application/javascript').send(CLOUD_JS);
   });

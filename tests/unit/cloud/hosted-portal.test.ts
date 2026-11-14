@@ -86,10 +86,19 @@ describe('Hosted Cloud browser portal', () => {
       expect(html).toContain('Continue with Google');
       const cssHash = createHash('sha256').update(CLOUD_CSS).digest('hex').slice(0, 12);
       const jsHash = createHash('sha256').update(CLOUD_JS).digest('hex').slice(0, 12);
-      expect(html).toContain(`href="/cloud/app.css?v=${cssHash}"`);
-      expect(html).toContain(`src="/cloud/app.js?v=${jsHash}"`);
+      expect(html).toContain(`href="/assets/easyeda-cloud.css?v=${cssHash}"`);
+      expect(html).toContain(`src="/assets/easyeda-cloud.js?v=${jsHash}"`);
       expect(login.headers.get('content-security-policy')).toContain("script-src 'self'");
       expect(login.headers.get('cache-control')).toContain('no-store');
+      // Public entry-point resources cannot require the owner-only /cloud* preview gate.
+      const publicCss = await fetch(base + '/assets/easyeda-cloud.css');
+      expect(publicCss.status).toBe(200);
+      expect(publicCss.headers.get('content-type')).toContain('text/css');
+      expect(await publicCss.text()).toBe(CLOUD_CSS);
+      const publicJs = await fetch(base + '/assets/easyeda-cloud.js');
+      expect(publicJs.status).toBe(200);
+      expect(publicJs.headers.get('content-type')).toContain('javascript');
+      expect(await publicJs.text()).toContain('oauth_query');
       expect(await (await fetch(`${base}/cloud/app.js`)).text()).toContain('oauth_query');
       expect((await fetch(`${base}/cloud`, { redirect: 'manual' })).status).toBe(303);
       const noAuth = await fetch(`${base}/cloud/api/me`);
