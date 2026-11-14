@@ -93,8 +93,11 @@ export const CLOUD_JS = String.raw`
       card.appendChild(info);
       if (s.connected && (s.activeProject?.projectId || s.activeProject?.projectName)) {
         const isSelected = selected?.sessionId === s.sessionId &&
-          (selected.projectId || selected.projectName) === (s.activeProject.projectId || s.activeProject.projectName);
-        const choose = el('button','btn secondary', isSelected ? 'Selected project' : 'Use this project');
+          selected.projectId === s.activeProject.projectId &&
+          selected.documentId === s.activeProject.documentId;
+        const focus = s.activeProject.documentType === 'pcb' ? 'PCB' :
+          s.activeProject.documentType === 'schematic' ? 'schematic' : 'document';
+        const choose = el('button','btn secondary', isSelected ? 'Selected ' + focus : 'Use this ' + focus);
         choose.type = 'button';
         choose.disabled = isSelected;
         choose.addEventListener('click', async () => {
@@ -106,7 +109,7 @@ export const CLOUD_JS = String.raw`
               body: JSON.stringify({sessionId:s.sessionId}),
             });
             await refreshExtensions();
-            setText('notice', 'Project selected. MCP calls will target this extension and its current project.');
+            setText('notice', 'Document selected. MCP calls will target this extension and its currently focused document.');
           } catch(error) { fail(error); choose.disabled = false; }
         });
         card.appendChild(choose);
