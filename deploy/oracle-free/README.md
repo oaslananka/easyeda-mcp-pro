@@ -22,11 +22,27 @@ Leave the existing reverse proxy and unrelated applications untouched.
 
 1. Copy the Compose manifest and non-secret .env.example into a private
    deployment directory. Copy .env.example to .env, then chmod 600 .env.
-2. Inject the existing GitHub/Google OAuth credentials and signing key from
-   Doppler project easyeda-mcp-pro, config main, with a scoped read-only
-   credential. Do not put secret values in Git, issues, logs, Actions, or the
+2. Verify the **existing** Doppler project/config using a previously
+   authorized operator machine (MSI or VPS). This command lists **names only**,
+   never secret values:
+
+       doppler secrets --only-names --project easyeda-mcp-pro --config main
+
+   Confirm CLOUD_AUTH_SECRET, CLOUD_GITHUB_CLIENT_ID,
+   CLOUD_GITHUB_CLIENT_SECRET, CLOUD_GOOGLE_CLIENT_ID and
+   CLOUD_GOOGLE_CLIENT_SECRET are present. This was verified on both
+   authenticated operator machines on 2026-11-14. The separate Ops Doppler
+   reader may return 404 because it has different account permissions;
+   that alone does not mean the secrets are missing.
+
+   For an actual deployment, inject the existing values with a scoped
+   read-only Doppler **service** credential. Do not copy an operator's
+   personal CLI authentication to the Oracle VM, invent replacement OAuth
+   credentials, or put secret values in Git, issues, logs, Actions, or the
    non-secret .env file. An authorized Doppler CLI session can inject
-   variables into the Compose process using doppler run.
+   runtime variables via doppler run. Oracle has no Doppler CLI configured
+   yet; this step is intentionally **not** completed by the private smoke.
+
 3. With secrets injected into the process environment, run:
 
        docker compose --env-file .env config --quiet
