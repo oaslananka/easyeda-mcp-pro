@@ -78,8 +78,8 @@ This is verified by negative-path tests against the real protocol and
 simulated native identity getters. Real EasyEDA Pro 3.2.209 read-only
 acceptance confirmed both identity getters on disposable PCBs, and the
 2026-11-14 owner-operated pilot independently verified a real Hosted WSS
-pairing. A successful populated-board Hosted read and cross-owner isolation
-remain outstanding.
+pairing. A subsequent populated-board Hosted read also succeeded on
+2026-11-14; genuine cross-owner isolation remains outstanding.
 
 The experimental extension now uses the EasyEDA-native `sys_Dialog.showInputDialog`
 and `sys_WebSocket.register/send/close` APIs in its main process, avoiding
@@ -157,7 +157,7 @@ evidence only. The separate 2026-11-14 owner pilot below superseded its
 limitations for real Google sign-in, real native WSS pairing and one
 read-only remote MCP call, but not live writes, exports or public rollout.
 
-### 2026-11-14 — real owner-assisted Hosted pilot and populated Local PCB acceptance
+### 2026-11-14 — real owner-assisted Hosted pilots, populated Local and Hosted PCB acceptance
 
 On existing draft [PR #1057](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057)
 at source commit `5726f77eb0bf9e2f787ffc81f57635e7946adf26`, the maintainer
@@ -193,11 +193,38 @@ design writes, saves or exports**. This proves a **populated LOCAL**
 PCB read, **not** a populated Hosted relay result. See
 [populated native Local read evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6876884760).
 
-**Remaining Hosted acceptance:** prove a nonempty remote component
-payload from this disposable PCB; wrong-owner/project/client rejection
-under real multi-client conditions; project/document reselection and
-disconnect/reconnect; final GitHub identity-provider callback; and
-any required write/export approval and operational gates. Keep
+A second, independent owner-controlled pilot used the **same real
+populated disposable Quick Start PCB** and the updated reviewed source
+commit `587e62976ca34c17b2e18c5ceac56db13f258c41`. The operator
+used the existing authenticated Cloud portal to generate a fresh
+single-use pairing code and enter it into the native EasyEDA Pro
+3.2.209 extension 1.15.4 on the authorized test workstation.
+The dashboard again showed **Connected / Selected PCB**.
+A separate public-native MCP test client obtained an actual
+owner-approved `easyeda.read` OAuth code using **PKCE S256**.
+The bearer-authorized `/remote/sessions` returned the focused PCB
+project **and document** UUIDs; MCP `initialize` using protocol
+`2025-11-25` succeeded over the official Hosted HTTP transport.
+The real `tools/call` to `easyeda_pcb_components` was dispatched to
+the native paired extension over WSS and returned
+`isError=false`, `not_available=false`, `total=33`, and **33
+components with 33/33 identifiers and 33/33 coordinate values**.
+A mismatched project UUID was denied with no component payload,
+and a call without OAuth authorization was rejected with HTTP
+**401**. Revoking the client consent made the previously valid token
+fail with HTTP **403**. The owner dashboard's **Remove access**
+disconnected the device and left no approved clients. This is real
+**populated HOSTED** acceptance, not simulated or merely Local.
+The short test was then fully stopped and rolled back to the original
+production source pin; the existing stored data was preserved, the
+temporary Cloudflare Access rule was removed and the test client was
+cleaned up. No live PCB write or export occurred. See
+[real populated Hosted Cloud acceptance](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6877504456).
+
+**Remaining Hosted acceptance:** verify wrong-owner/client isolation under
+real multi-client conditions, project/document reselection and
+connect/disconnect/reconnect, final GitHub identity-provider callback,
+and any required write/export approval and operational gates. Keep
 `#850` **production HOLD**, `#1057` **DRAFT**, and the maturity
 level **Experimental** until those are satisfied. The first
 real design mutation still requires separate owner approval.

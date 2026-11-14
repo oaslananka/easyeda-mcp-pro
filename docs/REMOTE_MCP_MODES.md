@@ -116,9 +116,13 @@ The **MCP Bridge** menu is available in the Start Page, schematic and PCB editor
 - **Connect Cloud... (Experimental)** requests a one-time pairing code from the signed-in Cloud portal at https://easyeda-mcp-pro.oaslananka.dev/cloud. Choose **Generate pairing code**, then **Copy code** (or manually select it if clipboard access is unavailable); paste it into the EasyEDA MCP Bridge input. The dashboard shows a countdown and hides expired codes; generate a new one if it expires. After connecting, choose **Refresh connections** in Cloud, then **Use this PCB** or **Use this schematic** for the currently focused document. Switching documents within the same project requires selecting the new document again. The official relay endpoint is wss://easyeda-mcp-pro.oaslananka.dev/remote/relay. This is an explicit one-editor-session opt-in; Local remains the default and Cloud does not auto-resume on restart. A real owner-only 2026-11-14 pilot passed native code pairing, Google login,
   PKCE `easyeda.read`, owner-selected PCB and a remotely routed MCP read of an
   **empty** disposable PCB (0 components); consent revocation also passed.
-  A separate populated PCB passed 33/33 reads in **Local mode only**.
-  Populated Hosted reads, cross-owner isolation and GitHub login remain
-  unverified; the public rollout is on HOLD.
+  A separate populated PCB passed 33/33 reads in **Local mode**, and
+  a subsequent real Hosted WSS / OAuth `easyeda.read` pilot using the
+  same disposable design returned **33/33 actual components with IDs
+  and coordinates**. Wrong-project and missing-authentication calls
+  were rejected; grant revocation also invalidated the old bearer token.
+  Cross-owner/multi-client isolation, document switching/reconnect and
+  GitHub login remain unverified; the public rollout is on HOLD.
 - **Connect Custom Remote... (Experimental)** requests a self-hosted WSS Relay URL and a short-lived EDA-XXXXXXXX pairing code previously obtained from an authenticated Relay gateway. This uses the existing remote session/approval protocol; it does **not** accept a public MCP /mcp URL as a WebSocket Relay endpoint.
 - **Disconnect Remote Relay**, **Remote Relay Status...** and **Connect Local** let the user inspect or return from the experimental mode. Switching modes closes the previous transport. The pairing code is never persisted in extension settings or placed in the Relay URL. After a disconnect the one-time code cannot be reused: generate a fresh code in the Cloud account and choose Connect Cloud again; the extension clearly reports this recovery step. Remote mode does not automatically resume after editor restart.
 
@@ -126,10 +130,11 @@ Only endpoints with the secure WSS scheme, a hostname, optional valid port and p
 
 EasyEDA Pro 3.2.209's native WebSocket uses the fixed desktop Origin https://client. The gateway accepts only this exact native Origin on the /remote/relay endpoint, not on the generic /session path. Other external origins still require an explicit allowlist and a valid Host. This is transport compatibility, not authentication: an unpaired session cannot read or mutate a project, and owner identity, single-use pairing, scopes, selected native document and approvals remain mandatory.
 
-The short owner-operated gateway/HTTPS, native WSS pairing, Google OAuth
-and an empty-board remote MCP read have been observed, then rolled back;
-there is **no currently deployed public Hosted service**. A successful
-nonempty Hosted PCB read, cross-user/project/client isolation and
-disconnect/reconnect still need live acceptance. Local populated PCB
-read-only tests and native-API simulations **do not** prove those
-remaining Hosted Remote Relay capabilities.
+Two short owner-operated pilots verified gateway HTTPS, native WSS
+pairing, Google OAuth and real MCP reads of both an **empty PCB
+(0 components)** and a **populated PCB (33 components)**, then rolled
+back. There is **no currently deployed public Hosted service**.
+Cross-owner/client isolation, project/document switching,
+disconnect/reconnect and other release gates still require real
+acceptance; successful read-only calls and native-API simulations
+do **not** prove those remaining Hosted capabilities.
