@@ -2,6 +2,9 @@
 
 > **Maturity:** Gated. Follow [Remote Relay status](./REMOTE_RELAY_STATUS.md);
 > issue #849 live acceptance and issue #850 rollout gates remain authoritative.
+> An Oracle Always Free Compose candidate is under validation in the repository
+> root at deploy/oracle-free/. It does not change the current Coolify deployment
+> contract or production rollout HOLD.
 > This is one official hosted service, not a self-hosted customer mode.
 
 ## One deployment path
