@@ -574,6 +574,8 @@ describe('extension loader lifecycle source', () => {
     await flushMicrotasks();
 
     expect(input).toHaveBeenCalledTimes(1);
+    expect(input.mock.calls[0]?.[0]).toContain('https://easyeda-mcp-pro.oaslananka.dev/cloud');
+    expect(input.mock.calls[0]?.[0]).toContain('Generate pairing code');
     expect(native.register).toHaveBeenCalledWith(
       expect.stringContaining('easyeda-mcp-pro-remote-'),
       'wss://easyeda-mcp-pro.oaslananka.dev/remote/relay',

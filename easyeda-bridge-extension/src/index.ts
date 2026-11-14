@@ -778,7 +778,7 @@ async function promptConnectionValue(message: string, initialValue = ''): Promis
 async function connectHostedCloudInternal(): Promise<void> {
   const generation = ++connectionPromptGeneration;
   const pairingCode = await promptConnectionValue(
-    'Enter the one-time Cloud pairing code from your EasyEDA MCP Pro account (EDA-XXXXXXXX)',
+    'Open https://easyeda-mcp-pro.oaslananka.dev/cloud, choose Generate pairing code, then paste it here (EDA-XXXXXXXX).',
   );
   if (generation !== connectionPromptGeneration || pairingCode === null) return;
   const code = pairingCode.trim().toUpperCase();
