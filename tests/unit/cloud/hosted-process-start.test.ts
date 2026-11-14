@@ -81,7 +81,10 @@ describe('Hosted Cloud executable startup (no external social providers)', () =>
 
       try {
         let response: Response | undefined;
-        for (let attempt = 0; attempt < 70; attempt++) {
+        // Windows CI cold starts can exceed 7 seconds under parallel test load.
+        // Keep a finite readiness budget while still exercising the real server.
+        const maxAttempts = process.platform === 'win32' ? 200 : 70;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
           if (child.exitCode !== null) throw new Error(`Cloud exited early: ${stderr}`);
           try {
             response = await fetch(`${origin}/api/auth/.well-known/oauth-authorization-server`);
