@@ -6,7 +6,7 @@
 
 `MCP_BRIDGE_BACKEND=remote_relay` is an implemented, explicitly selected runtime path. It is not the default and is not yet advertised as Beta or production-ready. Local bridge mode remains the supported default.
 
-### First-party Cloud identity foundation (not a public service)
+### First-party Cloud identity foundation (owner-only live pilot, not public release)
 
 The issue #849 branch adds an opt-in hosted OAuth identity provider and MCP resource discovery. The
 provider starts **only** when `CLOUD_HOSTED_ENABLED=true`, `TRANSPORT=http`,
@@ -37,9 +37,11 @@ rejection, fresh pairing, project reselection, read dispatch, and revocation.
 Periodic extension-originated heartbeats report the current project without
 acknowledgement loops, and an extension-side dispatch guard rejects a switched
 project before the EasyEDA tool is called. A changed project identity requires
-reselection before remote tool routing; tampered/expired consent requests fail closed. Live GitHub/Google sign-in, full browser consent completion, real extension
-pairing/project UX, hosted deployment and real EasyEDA relay acceptance are **not yet
-verified or shipped**.
+reselection before remote tool routing; tampered/expired consent requests fail closed. These tests alone do not prove real provider sign-in, owner consent or native
+desktop pairing. The separate 2026-11-14 owner-only live pilot below verified
+Google sign-in, actual native pairing, owner-approved PKCE OAuth and a real
+read-only MCP call; GitHub provider callback and production rollout are still
+unverified.
 
 A separate end-to-end loopback test uses the **actual first-party Better Auth provider**,
 not an independently signed access token. A test-only Better Auth utility creates the
@@ -73,9 +75,11 @@ both UUIDs in Hosted mode. Custom Remote retains its historical fallback
 for older editors; Local MCP does not need an account.
 
 This is verified by negative-path tests against the real protocol and
-simulated native identity getters. Prior native EasyEDA 3.2.209
-read-only acceptance confirmed both getters function on a disposable
-PCB, but a live **Hosted WSS** pairing is still not verified.
+simulated native identity getters. Real EasyEDA Pro 3.2.209 read-only
+acceptance confirmed both identity getters on disposable PCBs, and the
+2026-11-14 owner-operated pilot independently verified a real Hosted WSS
+pairing. A successful populated-board Hosted read and cross-owner isolation
+remain outstanding.
 
 The experimental extension now uses the EasyEDA-native `sys_Dialog.showInputDialog`
 and `sys_WebSocket.register/send/close` APIs in its main process, avoiding
@@ -85,9 +89,9 @@ External Interactions permission fails without silently connecting. The
 native socket adapter uses independent IDs per attempt, a bounded open
 timeout and the existing server-heartbeat liveness watchdog. Native
 callback, timeout, cancellation and denied-permission cases are tested
-with **simulated EasyEDA SDK implementations**. Actual native outbound
-Hosted WSS remains NOT VERIFIED until the official domain and gateway
-are operational.
+with **simulated EasyEDA SDK implementations**. Actual native outbound Hosted WSS pairing with the official domain
+was observed in the 2026-11-14 owner pilot; the automated
+permission/cancellation tests remain a separate, simulated evidence level.
 
 The browser's **Revoke** control
 now cuts off previously issued MCP bearer tokens on the very next protected
@@ -96,9 +100,10 @@ and retains a SQLite revocation epoch so an old JWT cannot revive after
 reauthorization. A newly consented token remains usable. These checks and the
 SQLite deletion trigger apply only to explicitly enabled Hosted Cloud; Local
 mode and custom relay configurations are unaffected. Code replay, tampered consent scopes,
-explicit denial, and an incorrect S256 PKCE verifier are rejected. This is strong local
-OAuth/MCP integration evidence, **not** GitHub/Google login, production identity
-provisioning, browser-click acceptance, or live EasyEDA design acceptance.
+explicit denial, and an incorrect S256 PKCE verifier are rejected. These automated
+checks alone are not provider login or native-user acceptance; the separate
+2026-11-14 live owner pilot verified real Google login, browser-click consent,
+MCP reads on an empty disposable PCB and revocation.
 
 Keep Cloud disabled until all mandatory live acceptance gates are satisfied.
 
@@ -128,8 +133,8 @@ was closed and the diagnostic scripts removed. The previous published
 extension 1.15.3 artifact was retained for local rollback.
 
 These observations establish **real native extension Local connectivity
-and menu navigation**, not a verified remote WSS connection, real GitHub
-or Google sign-in, production OAuth, or hosted Cloud release.
+and menu navigation**. The later separate owner-operated Hosted pilot validated
+real WSS pairing and Google OAuth, but did not authorize a production rollout.
 
 ### Local browser acceptance (test account only)
 
@@ -147,10 +152,55 @@ HTML now references content-fingerprinted JS/CSS URLs so refreshed pages use the
 current interface. All user-visible controls above were clicked in Chrome,
 not merely asserted in DOM mocks.
 
-This acceptance is **local, fake-identity/fake-extension evidence only**.
-GitHub/Google callback login, the official DNS/domain, remote WSS connection
-to a real EasyEDA Pro instance, and live design read/write/export/read-back
-remain unverified.
+This **2026-11-13** acceptance was local, fake-identity/fake-extension
+evidence only. The separate 2026-11-14 owner pilot below superseded its
+limitations for real Google sign-in, real native WSS pairing and one
+read-only remote MCP call, but not live writes, exports or public rollout.
+
+### 2026-11-14 — real owner-assisted Hosted pilot and populated Local PCB acceptance
+
+On existing draft [PR #1057](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057)
+at source commit `5726f77eb0bf9e2f787ffc81f57635e7946adf26`, the maintainer
+entered a fresh single-use code **personally** into the actual isolated
+EasyEDA Pro **3.2.209** extension **1.15.4**. The official HTTPS Cloud
+application temporarily ran with owner-only access to the account panel
+and an explicit disposable **Z480/PCB1** selected. The native WSS
+session appeared **Connected / Selected PCB** in the authenticated
+dashboard. The separate browser completed **real Google sign-in**,
+registered a native public MCP client, and approved `easyeda.read`
+through the real consent screen. An OAuth **PKCE S256** authorization
+code exchanged successfully; the provider-issued bearer token was
+accepted by `/mcp`, the MCP SDK listed **82** tools and its
+`easyeda_pcb_components` call was successful, with **0 components**
+because this selected PCB was empty. The browser's **Revoke** control
+caused reuse of the same token to fail with `consent_revoked`;
+**Remove access** removed the native session.
+
+The short pilot was then **stopped and rolled back**. The original
+Cloud source pin, local design data and persistent hosted storage were
+preserved; temporary owner-only access was deleted. The working pilot
+does **not** imply that a public Hosted service is currently online.
+See [live owner acceptance evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6875143319).
+
+Separately, another disposable copy of the shipped **Quick Start**
+PCB was opened in the real editor against the same PR source. A Local
+MCP server first started its loopback listener and the native
+**MCP Bridge > Connect** menu established the connection; native
+project and document UUIDs matched. The actual
+`easyeda_pcb_components` call returned **33/33 components**, all
+with identifiers and observable coordinates, with **no native
+design writes, saves or exports**. This proves a **populated LOCAL**
+PCB read, **not** a populated Hosted relay result. See
+[populated native Local read evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6876884760).
+
+**Remaining Hosted acceptance:** prove a nonempty remote component
+payload from this disposable PCB; wrong-owner/project/client rejection
+under real multi-client conditions; project/document reselection and
+disconnect/reconnect; final GitHub identity-provider callback; and
+any required write/export approval and operational gates. Keep
+`#850` **production HOLD**, `#1057` **DRAFT**, and the maturity
+level **Experimental** until those are satisfied. The first
+real design mutation still requires separate owner approval.
 
 ## Implemented and continuously tested
 
