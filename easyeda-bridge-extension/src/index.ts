@@ -697,7 +697,7 @@ function getRemoteRelayClient(): RemoteRelayClient {
       const BrowserWebSocket = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
       if (typeof BrowserWebSocket === 'function') return new BrowserWebSocket(url);
       const error = new Error(
-        'Remote Relay needs EasyEDA WebSocket access. Enable External Interactions for MCP Pro Bridge.',
+        'Enable External Interactions for Remote Relay WebSocket.',
       ) as Error & { code: string };
       error.code = 'REMOTE_SOCKET_UNAVAILABLE';
       throw error;
@@ -745,7 +745,7 @@ async function promptConnectionValue(message: string, initialValue = ''): Promis
         dialog.showInputDialog?.call(
           dialog,
           message,
-          'Cloud access is optional. Pairing codes are single-use and never saved.',
+          'Cloud optional. One-time codes are not saved.',
           'EasyEDA MCP Pro — Remote Connection',
           'text',
           initialValue,
@@ -778,12 +778,12 @@ async function promptConnectionValue(message: string, initialValue = ''): Promis
 async function connectHostedCloudInternal(): Promise<void> {
   const generation = ++connectionPromptGeneration;
   const pairingCode = await promptConnectionValue(
-    'Open https://easyeda-mcp-pro.oaslananka.dev/cloud, choose Generate pairing code, then paste it here (EDA-XXXXXXXX).',
+    'Open easyeda-mcp-pro.oaslananka.dev/cloud; paste EDA-XXXXXXXX.',
   );
   if (generation !== connectionPromptGeneration || pairingCode === null) return;
   const code = pairingCode.trim().toUpperCase();
   if (!/^EDA-[A-F0-9]{8}$/.test(code)) {
-    showToast('Cloud connection requires a valid EDA-XXXXXXXX pairing code.');
+    showToast('Enter a valid EDA-XXXXXXXX Cloud code.');
     return;
   }
   connectRemoteRelayInternal('hosted', OFFICIAL_HOSTED_RELAY_URL, code);
