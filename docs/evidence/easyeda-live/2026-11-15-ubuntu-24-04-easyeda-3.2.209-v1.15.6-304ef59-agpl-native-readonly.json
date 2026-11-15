@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-candidate-native-pcb-and-schematic-readonly-release-acceptance",
+  "recordedAtUtc": "2026-11-15T16:48:56Z",
+  "releasePr": 1064,
+  "releaseCandidate": {
+    "commit": "304ef59138a0ce64897dd49ab8deea4aa76041df",
+    "baseProtectedMainCommit": "472402646d52d6dd710f803ff0c1d8dd551f004b",
+    "packageVersion": "1.15.6",
+    "packageLicense": "AGPL-3.0-only",
+    "packageSha256": "231dcff358e41375e24c320db75f5f4dd5ebabb78ee3fcf0c6d1838c643692b0",
+    "packageBytes": 232013,
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "503ab22beae6d8055bb59c67824004b66b529a06",
+      "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+      "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+      "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+      "src/tools": "3cdba3a23cf8def733c44f2d8915645a72ca0f94",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    }
+  },
+  "nativeRuntime": {
+    "editor": "EasyEDA Pro 3.2.209.8a704eab",
+    "platform": "Ubuntu 24.04.5 LTS x86_64",
+    "nodeVersion": "24.22.3",
+    "installedBridgeExtensionVersion": "1.15.6",
+    "serverVersion": "1.15.6",
+    "installVia": "Official Extensions Manager .eext import and enable in isolated profile",
+    "confirmedLicenseInNativeManager": "AGPL-3.0-only",
+    "bridge": "loopback 127.0.0.1:49620, exact candidate compiled server in stdio mode",
+    "fixture": "isolated copied public Quick Start project; private paths and UUIDs withheld",
+    "projectAndDocumentIdentity": {
+      "projectUuidPresent": true,
+      "documentUuidPresent": true,
+      "parentProjectMatches": true,
+      "pcbDocumentType": 3,
+      "schematicDocumentType": 1
+    }
+  },
+  "nativeReadOnlyScenarios": [
+    {
+      "name": "Exact AGPL 1.15.6 extension package imported and enabled",
+      "result": "PASS",
+      "packageSizeBytes": 232013,
+      "packageSha256": "231dcff358e41375e24c320db75f5f4dd5ebabb78ee3fcf0c6d1838c643692b0",
+      "nativeManagerVersion": "1.15.6",
+      "nativeManagerLicense": "AGPL-3.0-only"
+    },
+    {
+      "name": "Native Local MCP bridge connected and PCB inventory read",
+      "result": "PASS",
+      "nativeTotal": 33,
+      "itemsReturned": 33,
+      "componentsWithIdentifiers": 33,
+      "componentsWithCoordinates": 33,
+      "nativeDocumentType": 3,
+      "projectAndParentDocumentMatched": true,
+      "mcpIsError": false
+    },
+    {
+      "name": "Native Local MCP schematic P1 focus and component inventory read",
+      "result": "PASS",
+      "nativeTotal": 34,
+      "itemsReturned": 34,
+      "nativeDocumentType": 1,
+      "projectAndParentDocumentMatched": true,
+      "mcpIsError": false
+    },
+    {
+      "name": "Preserve source and copied disposable fixture data without writes",
+      "result": "PASS",
+      "sourceFixtureSha256BeforeAndAfter": "ef9f4c7fa03263b97b2ba2bc5090024ef38ffc023e5ddeee4ce4ffd1f7f5a15b",
+      "testCopySha256BeforeAndAfter": "7fe767781ac0f2d947a9713250d2b3e465ee605f564181b8320b37070cc149bd",
+      "designWrites": 0,
+      "saves": 0,
+      "exports": 0
+    },
+    {
+      "name": "Close isolated native editor after read-only verification",
+      "result": "PASS",
+      "nativeEditorClosed": true
+    }
+  ],
+  "limitations": [
+    "Real native Local MCP read-only acceptance only. No live persisted write/save/export path was verified; tracked independently in #1059 and #1060.",
+    "No real hosted ChatGPT/Claude OAuth connector, second independent OAuth owner or Cloud relay write approval was exercised; production Cloud #850 remains on hold.",
+    "Editor tested only on isolated Ubuntu 24.04.5 EasyEDA Pro 3.2.209; Windows and macOS EasyEDA desktop runtime were not exercised here.",
+    "Native PCB/schematic inventory does not establish manufacturing, electrical, schematic ERC or physical PCB fabrication correctness."
+  ],
+  "result": "NATIVE_READ_ONLY_CANDIDATE_PCB_AND_SCHEMATIC_PASSED"
+}
