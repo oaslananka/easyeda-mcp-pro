@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-11-14
+- **Last reviewed:** 2026-11-15
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.6               | 1.15.6                | 1.15.6            | Live validated  | 2026-11-15 | 2027-02-13 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.5               | 1.15.5                | 1.15.5            | Live validated  | 2026-11-14 | 2027-02-12 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.3               | 1.15.3                | 1.15.3            | Live validated  | 2026-11-13 | 2027-02-11 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.2               | 1.15.2                | 1.15.2            | Live validated  | 2026-11-13 | 2027-02-11 |
@@ -73,6 +74,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-15-304ef59-v1156-agpl-native-readonly
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-15-304ef59-v1156-agpl-native-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                                                                                                 |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                                                                                                                          |
+| Electron                                 | `36.3.1`                                                                                                                                                                    |
+| Chromium                                 | `136.0.7103.113` (Previously recorded vendor metadata for the installed EasyEDA Pro 3.2.209 build; Chromium version was not independently measured during this acceptance.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                                                                                          |
+| Kernel                                   | `7.0.0-43-generic`                                                                                                                                                          |
+| Architecture                             | `x86_64`                                                                                                                                                                    |
+| Node.js used by validation server        | `24.22.3`                                                                                                                                                                   |
+| Validation package version               | `1.15.6`                                                                                                                                                                    |
+| Fix version represented by evidence      | `1.15.6`                                                                                                                                                                    |
+| Compatibility-sensitive base commit      | `304ef59138a0ce64897dd49ab8deea4aa76041df`                                                                                                                                  |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                                                                    |
+| Installed extension package metadata     | `1.15.6`                                                                                                                                                                    |
+| Live-validated extension package SHA-256 | `231dcff358e41375e24c320db75f5f4dd5ebabb78ee3fcf0c6d1838c643692b0`                                                                                                          |
+| Live-validated extension package size    | `232013 bytes`                                                                                                                                                              |
+| Loader-reported version                  | `1.15.6`                                                                                                                                                                    |
+| Bridge contract                          | `1.0.0`                                                                                                                                                                     |
+| Dispatcher                               | `baked`                                                                                                                                                                     |
+| Method registry hash                     | `f71f5e22b7fec5db`                                                                                                                                                          |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                                                                                           |
+
+The installed extension package and loader both reported version `1.15.6` during this validation.
+
+### Capability evidence
+
+| Capability                                                       | Level  | Status   | Result                                                                                                                                                                                          | Evidence                                                                                                                                                                         |
+| ---------------------------------------------------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Install and enable exact AGPL-3.0-only v1.15.6 package           | `live` | `passed` | Native Extensions Manager displayed version 1.15.6, enabled, license AGPL-3.0-only; compiled package 232013 bytes matched SHA256, and the local MCP bridge connected.                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-15-ubuntu-24-04-easyeda-3.2.209-v1.15.6-304ef59-agpl-native-readonly.json) |
+| Real native PCB document identity and 33 component read          | `live` | `passed` | Exact candidate returned 33/33 PCB components with IDs and positions, document type 3, matching project-parent UUID, and no MCP error.                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-15-ubuntu-24-04-easyeda-3.2.209-v1.15.6-304ef59-agpl-native-readonly.json) |
+| Real native schematic P1 document identity and 34 component read | `live` | `passed` | Exact candidate returned 34/34 schematic components, document type 1, matching project-parent UUID, and no MCP error.                                                                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-15-ubuntu-24-04-easyeda-3.2.209-v1.15.6-304ef59-agpl-native-readonly.json) |
+| Read-only disposable source and copy preserved                   | `live` | `passed` | Source and isolated copied Quick Start fixtures retained independently verified identical SHA256 before and after both MCP reads; no save, export, design write or production-project mutation. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-15-ubuntu-24-04-easyeda-3.2.209-v1.15.6-304ef59-agpl-native-readonly.json) |
+
+### Known limitations
+
+- Only real Local native read-only PCB/schematic acceptance is verified; native persisted delete/save (#1059/#1060) and Cloud WRITE/export remain unverified and blocked.
+- No external ChatGPT/Claude OAuth application, second real owner, or production Cloud server was accepted in this validation; PR #1057 remains Draft and #850 HOLD.
+- Tested Ubuntu 24.04.5 EasyEDA Pro 3.2.209 only; no Windows/macOS editor-runtime acceptance.
+- Results do not constitute electrical/ERC, DRC, supplier or fabrication approval.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-fca847d-v1155-native-readonly
 
