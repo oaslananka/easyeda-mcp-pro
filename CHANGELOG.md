@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.6](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.5...easyeda-mcp-pro-v1.15.6) (2026-11-15)
+
+
+### Bug Fixes
+
+* **bom:** verify multi-unit identity and physical quantities ([#1062](https://github.com/oaslananka/easyeda-mcp-pro/issues/1062)) ([047c74a](https://github.com/oaslananka/easyeda-mcp-pro/commit/047c74a69c74f15b779094c27c10ab57ce51a46b))
+* **bridge:** fail closed on unverified schematic saves ([#1061](https://github.com/oaslananka/easyeda-mcp-pro/issues/1061)) ([43fe487](https://github.com/oaslananka/easyeda-mcp-pro/commit/43fe4872daad0f515697d6558b7ad403422cf123))
+
 ## [1.15.5](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.4...easyeda-mcp-pro-v1.15.5) (2026-11-13)
 
 
