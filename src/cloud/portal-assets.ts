@@ -245,6 +245,8 @@ export const CLOUD_JS = String.raw`
         let currentCode = '';
         let codeExpiresAt = 0;
         let expiryTimer = null;
+        let lastPairingRefreshAt = 0;
+        let pairingRefreshPending = false;
         const expireCode = () => {
           if (expiryTimer !== null) { clearInterval(expiryTimer); expiryTimer = null; }
           currentCode = '';
@@ -255,10 +257,19 @@ export const CLOUD_JS = String.raw`
           copy.hidden = true;
         };
         const updateExpiry = () => {
-          const remaining = Math.max(0, Math.ceil((codeExpiresAt - Date.now()) / 1000));
+          const now = Date.now();
+          const remaining = Math.max(0, Math.ceil((codeExpiresAt - now) / 1000));
           if (remaining === 0) { expireCode(); return; }
           const countdown = Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0');
-          setText('pairing-hint', 'Expires in ' + countdown + '. Paste the code into EasyEDA, then select Refresh connections.');
+          setText('pairing-hint', 'Expires in ' + countdown + '. Paste the code into EasyEDA. Your device appears automatically; then choose its schematic or PCB.');
+          // Poll only while an owner-generated pairing code is live; no permanent background polling.
+          if (now - lastPairingRefreshAt >= 5000 && !pairingRefreshPending) {
+            lastPairingRefreshAt = now;
+            pairingRefreshPending = true;
+            void refreshExtensions().catch(() => {}).finally(() => {
+              pairingRefreshPending = false;
+            });
+          }
         };
         copy.addEventListener('click', async () => {
           if (!currentCode || Date.now() >= codeExpiresAt) { expireCode(); return; }
@@ -281,6 +292,7 @@ export const CLOUD_JS = String.raw`
             if (expiryTimer !== null) clearInterval(expiryTimer);
             currentCode = data.code;
             codeExpiresAt = Date.now() + data.expiresInSeconds * 1000;
+            lastPairingRefreshAt = Date.now();
             setText('pairing-code', currentCode);
             copy.disabled = false;
             copy.hidden = false;
