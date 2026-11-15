@@ -29,6 +29,34 @@ All application runtime settings below resolve from **one Doppler project/config
 through the existing Coolify secret-manager integration. Each Coolify production
 variable is <code>&#123;&#123;vault.VARIABLE_NAME&#125;&#125;</code>, not a copied value.
 
+## Coolify build-secret boundary (required)
+
+**Doppler integration alone does not keep secrets out of a Docker image build.**
+Coolify can mark runtime variables as build-time and forward their values
+as Docker build arguments; this was observed in the 2026-11-15 owner-only pilot.
+Never treat a healthy image or redacted application logs as evidence that
+its build history is safe.
+
+Before any Hosted Cloud build or public acceptance:
+
+1. Keep `CLOUD_AUTH_SECRET`, `CLOUD_GITHUB_CLIENT_SECRET`, and
+   `CLOUD_GOOGLE_CLIENT_SECRET` **runtime-only, not build-time**. They are
+   not required by the Dockerfile or build scripts. Preserve the existing
+   `{{vault.KEY}}` Doppler references instead of copying credential values.
+2. Enable Coolify's **Use Build Secrets (BuildKit)** and
+   **redact all environment values in deployment logs** options. Confirm
+   sensitive values are not injected via Docker `--build-arg`.
+3. Inspect the exact new image **before** accepting traffic: compare the
+   three running-container secret values against Docker's full image
+   history and image environment **without printing either values or
+   history**. Require each value at runtime and zero matches in the image.
+   This checks image metadata, not every intermediate build cache layer.
+
+**If this check fails:** stop the candidate, remove only demonstrably
+unreferenced affected application images, assess local build cache and
+registry exposure, and rotate the exposed credentials before public release.
+Do not prune other projects' images, caches, containers, or volumes.
+
 ## What to add to Doppler (one time)
 
 Use exactly the existing Doppler project **`easyeda-mcp-pro`** and its
@@ -91,6 +119,7 @@ billable provider, auto-deploy or public release is required.
    and running status as rollback inputs. Verify the existing read-only Doppler
    integration lists all required production keys and that /app/data is mounted.
    Never copy secret values out of Doppler or log them.
+   Confirm the [build-secret boundary](#coolify-build-secret-boundary-required) above.
 2. Keep **automatic and preview deployments disabled**. For this time-boxed
    acceptance only, manually select the reviewed PR branch and its **exact
    verified commit** in the existing application. The protected main branch

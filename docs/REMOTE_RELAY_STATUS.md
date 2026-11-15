@@ -229,6 +229,29 @@ and any required write/export approval and operational gates. Keep
 level **Experimental** until those are satisfied. The first
 real design mutation still requires separate owner approval.
 
+### 2026-11-15 — real owner MCPJam web OAuth; production still HOLD
+
+The owner-only reviewed candidate at #1057 source `36fc628e46dd54ba4e8a48f898dd2c706d92929f`
+passed a **real MCPJam web Inspector** OAuth/CIMD/PKCE login on the official
+HTTPS `/mcp` URL. The initial request for read/write/export/project-admin
+scopes was **denied**; an `easyeda.read`-only request was approved and
+connected. MCPJam discovered **83 tools**, loaded the MCP Apps resource and
+successfully invoked `easyeda_health_check` (`status: ok`, version 1.15.5).
+The live owner portal was accessible, but **no native EasyEDA design was
+paired** during this MCPJam test. A later database inspection found the
+MCPJam consent had been revoked; reuse of its old token **after** revocation
+was not tested during the short live pilot.
+
+Coolify's initial Docker build exposed OAuth credential values in image
+history. The candidate was stopped, build secrets were enabled and a clean
+image was confirmed free of those values in its final Docker metadata.
+Preview and unused legacy images were removed, Coolify restored its original
+main source pin, and temporary Cloudflare Access removed. The public health
+route returned HTTP 503 again. See [issue #849 live results](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6886979844).
+
+**Independent real second-owner isolation, new native paired read,
+post-revoke live replay, and write persistence remain NOT VERIFIED.**
+
 ## Implemented and continuously tested
 
 | Capability                                                                                            | Evidence level                                                  | Current state |

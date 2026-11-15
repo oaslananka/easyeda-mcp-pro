@@ -64,6 +64,21 @@ npx --yes @mcpjam/cli@latest --no-telemetry server doctor --url http://127.0.0.1
 npx --yes @mcpjam/cli@latest --no-telemetry compat --url http://127.0.0.1:PORT/mcp
 ```
 
+**MCPJam web Inspector:** Add an HTTPS server using the official `/mcp`
+URL, select **OAuth**, then open **Advanced Settings** and set
+**Scope Override** to `easyeda.read` **before authorizing**. Its default
+authorization request may include `easyeda.write`, `easyeda.export` and
+`easyeda.project_admin` as well as read access. **Deny** any unexpectedly
+broad consent request, correct the scope override, and verify the real
+consent page lists **only** `easyeda.read` before selecting Allow.
+
+An owner-only live pilot on 2026-11-15 completed real MCPJam CIMD/PKCE OAuth,
+83-tool discovery, MCP Apps resource discovery and a successful
+`easyeda_health_check` call against the reviewed Hosted candidate. No real
+native EasyEDA extension was paired during this particular MCPJam pilot;
+second-owner isolation and old-token rejection after a newly revoked
+consent still require separate live acceptance. See [issue #849](https://github.com/oaslananka/easyeda-mcp-pro/issues/849).
+
 For Hosted Cloud, inspect OAuth protected-resource and authorization-server
 discovery, then test 2025 and 2026-era connections with DCR and CIMD
 where supported. Sign in with a specifically authorized test account.
