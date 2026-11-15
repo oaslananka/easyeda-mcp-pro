@@ -59,6 +59,7 @@ describe('system API operations', () => {
       const operations = createSystemApiOperations(dependencies);
       await expect(operations.apiCall({ path, args: [['text-id']] })).rejects.toMatchObject({
         code: 'UNSUPPORTED_RUNTIME',
+        suggestion: expect.stringMatching(/GUI.*Delete.*Ctrl\+S.*reopen/i),
       });
       expect(dependencies.callAllowedApi).not.toHaveBeenCalled();
     },

@@ -1788,6 +1788,7 @@ describe('Schematic Tools', () => {
     });
     expect(result?.saved_at).toBeUndefined();
     expect(result?.error).toMatch(/do not retry blindly/i);
+    expect(result?.error).toMatch(/Ctrl\+S.*reopen/i);
     expect(tool?.outputSchema.safeParse(result).success).toBe(true);
   });
 
@@ -1813,6 +1814,7 @@ describe('Schematic Tools', () => {
     });
     expect(result?.saved_at).toBeUndefined();
     expect(result?.error).toMatch(/not confirm success/i);
+    expect(result?.error).toMatch(/Ctrl\+S.*reopen/i);
   });
 
   it('easyeda_project_save rejects unscoped legacy boolean acknowledgments', async () => {

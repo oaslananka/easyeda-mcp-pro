@@ -1639,10 +1639,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_project_save',
     title: 'Save project',
     description:
-      'Request a save for the exact focused EasyEDA project and document. A native ' +
-      'acknowledgment is NOT proof of persisted design state; this tool reports ' +
-      'success=false until a cold-reopen verification is independently available. ' +
-      'Do not retry an acknowledged write blindly.',
+      'Save only the exact focused EasyEDA project/document. Native acknowledgment is ' +
+      'NOT durable persistence: success=false until verified after cold reopen. ' +
+      'On Pro 3.2.209, use GUI Ctrl+S then reopen the document to verify. ' +
+      'Never blindly retry unverified writes.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
@@ -1688,7 +1688,10 @@ function registerSchematicWriteTools(
             persistence_verified: false,
             native_acknowledged: false,
             status: typeof data?.status === 'string' ? data.status : 'native_save_unconfirmed',
-            error: 'Native save did not confirm success; project persistence is unverified.',
+            error:
+              'Native save did not confirm success; project persistence is unverified. ' +
+              'Use EasyEDA GUI Ctrl+S, then close and reopen the exact document to verify. ' +
+              'Do not retry the MCP write blindly.',
           };
         }
         return {
@@ -1699,7 +1702,8 @@ function registerSchematicWriteTools(
           status: 'persistence_unverified',
           error:
             'EasyEDA acknowledged the save, but disk persistence is not verified. ' +
-            'Do not retry blindly; close and reopen the exact project to verify the change.',
+            'Do not retry blindly; use the EasyEDA GUI Ctrl+S, then close and reopen ' +
+            'the exact project to verify the change.',
         };
       } catch {
         return {

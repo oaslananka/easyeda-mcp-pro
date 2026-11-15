@@ -232,7 +232,7 @@ export function createSystemApiOperations(
         throw dependencies.createBridgeError(
           'UNSUPPORTED_RUNTIME',
           'Native schematic text deletion is not durably verified',
-          'Delete the specific text in the EasyEDA editor and save, then reopen to verify.',
+          'In EasyEDA GUI, select text, Delete, Ctrl+S, then close and reopen to verify.',
         );
       }
       return dependencies.callAllowedApi(

@@ -49,13 +49,20 @@ deliberate: users must not mistake a pending disk verification for a
 durably saved schematic. Read the exact project back after closing and
 reopening it; never blindly repeat a non-idempotent write.
 
-The prior disposable `.eprj2` text-delete regression is still open.
-An additional bounded GUI attempt located the same unique marker in
-the **correct** disposable schematic, but the selected-delete commands
-did not alter native text inventory or file hash during that attempt.
-This does not invalidate the independently observed successful
-GUI Delete → Ctrl+S workflow above; it is **not** a broad claim that
-native GUI deletion always fails. No direct SQLite modifications were made.
+The disposable .eprj2 text-delete regression is still open for automated
+MCP writes. On EasyEDA Pro 3.2.209, a controlled API-created marker persisted
+after **GUI Ctrl+S** and a full editor restart, although the native MCP save
+returned `native_save_unconfirmed`. The BETA `SCH_PrimitiveText.delete`
+returned true and removed the exact marker from the in-memory inventory,
+but GUI Ctrl+S did not update the file: reopening the editor restored it.
+Selecting the same marker in the GUI showed **Selected Objects 1**.
+Pressing Delete marked the schematic tab dirty (`*`); GUI Ctrl+S updated
+the file. A second full restart found **zero** matching text primitives.
+
+This establishes a difference between GUI deletion and the BETA API path,
+not an automated persistence workaround. A prior unsuccessful GUI-selection
+attempt did not prove a native disk delete failed. No direct SQLite
+modification or production design edit was performed.
 
 ## Native copper-zone live preview (read-only)
 
