@@ -142,7 +142,7 @@ export function buildLiveSmokeChecks(config: LiveSmokeConfig): LiveSmokeCheck[] 
       title: 'Save test project after explicit live write opt-in',
       kind: 'bridge',
       method: 'project.save',
-      params: projectParams,
+      params: { ...projectParams, confirmWrite: true },
       mutates: true,
       requiredForReadOnly: false,
     });

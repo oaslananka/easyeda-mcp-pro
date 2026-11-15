@@ -70,6 +70,36 @@ function documentTree(project: Data): Document[] {
   return documents;
 }
 
+function focusedSaveKind(
+  focused: Data | undefined,
+  project: Data,
+  projectId: string,
+): 'schematic' | 'pcb' | undefined {
+  if (id(focused?.parentProjectUuid) !== projectId) return undefined;
+  const focusedId = id(focused?.uuid);
+  const kind =
+    focused?.documentType === 1 ? 'schematic' : focused?.documentType === 3 ? 'pcb' : undefined;
+  if (!focusedId || !kind) return undefined;
+  return documentTree(project).some((doc) => doc.documentId === focusedId && doc.type === kind)
+    ? kind
+    : undefined;
+}
+
+function sameSaveTarget(
+  focused: Data | undefined,
+  active: Data | undefined,
+  projectId: string,
+  documentId: string,
+  documentType: unknown,
+): boolean {
+  return (
+    id(active?.uuid) === projectId &&
+    id(focused?.uuid) === documentId &&
+    id(focused?.parentProjectUuid) === projectId &&
+    focused?.documentType === documentType
+  );
+}
+
 function withTabIds(documents: Document[], tabs: Tab[], projectId: string): Document[] {
   // EasyEDA 3.2.209 builds tab IDs by prefixing the native document UUID;
   // tab.data.creator identifies that exact document and tab.data.pid its project.
@@ -332,14 +362,34 @@ export function createProjectOperations({
     return closeVerifiedTabs(opened, projectId);
   }
 
-  async function save(_params: Record<string, unknown>): Promise<unknown> {
-    return callFirst([
-      'dmt_Workspace.saveAll',
-      'dmt_Workspace.saveActiveDocument',
-      'sch_Document.save',
-      'pcb_Document.save',
-      'pnl_Document.save',
-    ]);
+  async function save(params: Record<string, unknown>): Promise<unknown> {
+    const projectId = id(params.projectId);
+    if (!projectId) return { success: false, status: 'invalid_project_id' };
+    if (params.confirmWrite !== true)
+      return { success: false, status: 'confirm_write_required', projectId };
+
+    const active = await current();
+    if (!active || id(active.uuid) !== projectId)
+      return { success: false, status: 'active_project_mismatch', projectId };
+    const focused = object(await native('dmt_SelectControl.getCurrentDocumentInfo'));
+    const kind = focusedSaveKind(focused, active, projectId);
+    const focusedId = id(focused?.uuid);
+    if (!kind || !focusedId)
+      return { success: false, status: 'focused_document_mismatch', projectId };
+
+    // Never call saveAll or a fallback for a different document type: the
+    // caller-approved project ID must remain the exact native save target.
+    const saved = await native(kind === 'schematic' ? 'sch_Document.save' : 'pcb_Document.save');
+    if (saved !== true) return { success: false, status: 'native_save_unconfirmed', projectId };
+
+    const observed = object(await native('dmt_SelectControl.getCurrentDocumentInfo'));
+    const latest = await current();
+    if (!sameSaveTarget(observed, latest, projectId, focusedId, focused?.documentType))
+      return { success: false, status: 'target_changed_during_save', projectId };
+
+    // EasyEDA Pro may acknowledge a schematic save without persisting a
+    // beta text deletion in a SQLite .eprj2 file after a cold reopen.
+    return { success: true, status: 'native_save_acknowledged_persistence_unverified', projectId };
   }
 
   async function exportProject(params: Record<string, unknown>): Promise<unknown> {

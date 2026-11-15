@@ -150,15 +150,18 @@ describe('createDispatcher', () => {
     await expect(
       dispatcher.dispatch('project.open', { projectId: 'project-1', confirmWrite: true }),
     ).rejects.toThrow('No EasyEDA API implementation found for dmt_Project.getCurrentProjectInfo');
-    await expect(dispatcher.dispatch('project.save', { projectId: 'project-1' })).resolves.toBe(
-      'saved',
-    );
+    await expect(
+      dispatcher.dispatch('project.save', { projectId: 'project-1' }),
+    ).resolves.toMatchObject({
+      success: false,
+      status: 'confirm_write_required',
+    });
     await expect(dispatcher.dispatch('project.export', exportParams)).resolves.toEqual({
       exported: exportParams,
     });
 
     expect(openProject).not.toHaveBeenCalled();
-    expect(saveAll).toHaveBeenCalledWith();
+    expect(saveAll).not.toHaveBeenCalled();
     expect(getManufactureData).toHaveBeenCalledWith(exportParams);
   });
 

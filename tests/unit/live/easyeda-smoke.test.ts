@@ -64,6 +64,10 @@ describe('easyeda live smoke plan', () => {
     const checks = buildLiveSmokeChecks(baseConfig({ writeEnabled: true }));
 
     expect(checks.some((check) => check.method === 'project.save' && check.mutates)).toBe(true);
+    expect(checks.find((check) => check.method === 'project.save')?.params).toMatchObject({
+      projectId: 'demo-project',
+      confirmWrite: true,
+    });
   });
 
   it('should skip execution when EASYEDA_LIVE_TESTS is disabled', async () => {

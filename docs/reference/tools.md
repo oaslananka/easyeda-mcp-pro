@@ -84,7 +84,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_project_list`                             | `core`         | `low`    | Read team-scoped EasyEDA projects and active identity. Only the active project can be verified open; unknown projects report open=null. No native project or document changes.                                                                                                                                                |
 | `easyeda_project_open`                             | `core`         | `medium` | Open an EasyEDA project by UUID only when no other document is open. Requires explicit write confirmation and read-back of active project. Never silently switches away from an open document.                                                                                                                                |
 | `easyeda_project_rollback_transaction`             | `core`         | `medium` | Controlled write: restore applied schematic primitive snapshots in reverse order, verify each restored hash, and report partial rollback explicitly instead of hiding inconsistencies.                                                                                                                                        |
-| `easyeda_project_save`                             | `core`         | `medium` | Request a native EasyEDA Pro project save. A successful native acknowledgment does not independently prove durable file persistence; reopen the project to verify changed design state. Save is explicit and requires confirmWrite.                                                                                           |
+| `easyeda_project_save`                             | `core`         | `medium` | Request a save for the exact focused EasyEDA project and document. A native acknowledgment is NOT proof of persisted design state; this tool reports success=false until a cold-reopen verification is independently available. Do not retry an acknowledged write blindly.                                                   |
 | `easyeda_project_validate_transaction`             | `core`         | `low`    | Run transaction consistency gates before commit: bridge availability, pending/failed operation checks, optional expected operation count, and optional requirement for at least one applied write.                                                                                                                            |
 | `easyeda_rule_check_summary`                       | `core`         | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                                |
 | `easyeda_run_self_test`                            | `core`         | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                                           |
@@ -2825,7 +2825,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Request a native EasyEDA Pro project save. A successful native acknowledgment does not independently prove durable file persistence; reopen the project to verify changed design state. Save is explicit and requires confirmWrite.
+> Request a save for the exact focused EasyEDA project and document. A native acknowledgment is NOT proof of persisted design state; this tool reports success=false until a cold-reopen verification is independently available. Do not retry an acknowledged write blindly.
 
 ### Input Parameters
 
@@ -2843,7 +2843,8 @@ Returns a JSON object matching the schema:
   success: boolean;
   project_id: string;
   persistence_verified: boolean;
-  saved_at: string(optional);
+  native_acknowledged: boolean;
+  status: string;
   error: string(optional);
 }
 ```

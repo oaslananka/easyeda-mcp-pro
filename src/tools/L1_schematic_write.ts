@@ -1639,9 +1639,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_project_save',
     title: 'Save project',
     description:
-      'Request a native EasyEDA Pro project save. A successful native acknowledgment ' +
-      'does not independently prove durable file persistence; reopen the project to ' +
-      'verify changed design state. Save is explicit and requires confirmWrite.',
+      'Request a save for the exact focused EasyEDA project and document. A native ' +
+      'acknowledgment is NOT proof of persisted design state; this tool reports ' +
+      'success=false until a cold-reopen verification is independently available. ' +
+      'Do not retry an acknowledged write blindly.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
@@ -1662,37 +1663,52 @@ function registerSchematicWriteTools(
       success: z.boolean(),
       project_id: z.string(),
       persistence_verified: z.boolean(),
-      saved_at: z.string().optional(),
+      native_acknowledged: z.boolean(),
+      status: z.string(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = params as { projectId: string };
       try {
-        const result = await ctx.bridge.call('project.save', { projectId });
+        const result = await ctx.bridge.call('project.save', {
+          projectId,
+          confirmWrite: true,
+        });
         const data =
           result && typeof result === 'object'
-            ? (result as { success?: unknown; savedAt?: unknown })
+            ? (result as { success?: unknown; status?: unknown })
             : null;
-        if (result !== true && data?.success !== true) {
+        const acknowledged =
+          data?.success === true &&
+          data?.status === 'native_save_acknowledged_persistence_unverified';
+        if (!acknowledged) {
           return {
             success: false,
             project_id: projectId,
             persistence_verified: false,
+            native_acknowledged: false,
+            status: typeof data?.status === 'string' ? data.status : 'native_save_unconfirmed',
             error: 'Native save did not confirm success; project persistence is unverified.',
           };
         }
         return {
-          success: true,
+          success: false,
           project_id: projectId,
           persistence_verified: false,
-          ...(typeof data?.savedAt === 'string' ? { saved_at: data.savedAt } : {}),
+          native_acknowledged: true,
+          status: 'persistence_unverified',
+          error:
+            'EasyEDA acknowledged the save, but disk persistence is not verified. ' +
+            'Do not retry blindly; close and reopen the exact project to verify the change.',
         };
-      } catch (err) {
+      } catch {
         return {
           success: false,
           project_id: projectId,
           persistence_verified: false,
-          error: err instanceof Error ? err.message : String(err),
+          native_acknowledged: false,
+          status: 'native_outcome_unknown',
+          error: 'Native save outcome is unknown; inspect the exact project before retrying.',
         };
       }
     },

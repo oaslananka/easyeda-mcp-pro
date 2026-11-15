@@ -30,6 +30,33 @@ schematic_persistence_unverified rather than trusting a transient native
 save acknowledgment. Do not claim complete schematic mutation acceptance based
 only on API success or an in-memory readback.
 
+### Project save: exact native target versus persisted outcome
+
+A successful native `sch_Document.save()` or `pcb_Document.save()`
+acknowledgment does **not** prove a design change survives cold reopen.
+The `easyeda_project_save` tool therefore requires `confirmWrite=true`
+and delegates only to the **exact active project and focused document**,
+whose native UUIDs and document type must agree. It never uses workspace
+`saveAll`, switches documents, or retries a save through an unrelated
+document type.
+
+For a native acknowledgment without independent persisted-state evidence,
+the public result is explicitly `success=false`,
+`native_acknowledged=true`, `persistence_verified=false`, and
+`status=persistence_unverified`. An unconfirmed or ambiguous native
+result also fails, without exposing native filesystem details. This is
+deliberate: users must not mistake a pending disk verification for a
+durably saved schematic. Read the exact project back after closing and
+reopening it; never blindly repeat a non-idempotent write.
+
+The prior disposable `.eprj2` text-delete regression is still open.
+An additional bounded GUI attempt located the same unique marker in
+the **correct** disposable schematic, but the selected-delete commands
+did not alter native text inventory or file hash during that attempt.
+This does not invalidate the independently observed successful
+GUI Delete → Ctrl+S workflow above; it is **not** a broad claim that
+native GUI deletion always fails. No direct SQLite modifications were made.
+
 ## Native copper-zone live preview (read-only)
 
 The easyeda_pcb_add_zone tool with mode=preview and inspectLive=true checks

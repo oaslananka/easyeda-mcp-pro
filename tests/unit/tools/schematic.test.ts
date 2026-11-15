@@ -1761,13 +1761,14 @@ describe('Schematic Tools', () => {
     expect(result?.error).toBeDefined();
   });
 
-  it('easyeda_project_save should call bridge and return success', async () => {
+  it('easyeda_project_save reports native acknowledgment without claiming durable success', async () => {
     const tool = registry.get('easyeda_project_save');
     expect(tool).toBeDefined();
     expect(tool?.confirmWrite).toBe(true);
-
-    const fakeDate = '2026-06-12T01:00:00.000Z';
-    bridgeCall.mockResolvedValue({ success: true, savedAt: fakeDate });
+    bridgeCall.mockResolvedValue({
+      success: true,
+      status: 'native_save_acknowledged_persistence_unverified',
+    });
 
     const result = await tool?.handler(context, {
       projectId: 'proj-123',
@@ -1776,42 +1777,54 @@ describe('Schematic Tools', () => {
 
     expect(bridgeCall).toHaveBeenCalledWith('project.save', {
       projectId: 'proj-123',
+      confirmWrite: true,
     });
     expect(result).toMatchObject({
-      success: true,
+      success: false,
       project_id: 'proj-123',
+      native_acknowledged: true,
+      status: 'persistence_unverified',
       persistence_verified: false,
-      saved_at: fakeDate,
     });
+    expect(result?.saved_at).toBeUndefined();
+    expect(result?.error).toMatch(/do not retry blindly/i);
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
   });
 
-  it.each([false, undefined, null, { success: false }, { savedAt: '2026-11-15T01:00:00Z' }])(
-    'easyeda_project_save rejects unconfirmed native result %s',
-    async (nativeResult) => {
-      const tool = registry.get('easyeda_project_save');
-      bridgeCall.mockResolvedValue(nativeResult);
-      const result = await tool?.handler(context, {
-        projectId: 'proj-123',
-        confirmWrite: true,
-      });
-      expect(result).toMatchObject({
-        success: false,
-        project_id: 'proj-123',
-        persistence_verified: false,
-      });
-      expect(result?.saved_at).toBeUndefined();
-      expect(result?.error).toMatch(/not confirm success/i);
-    },
-  );
+  it.each([
+    false,
+    undefined,
+    null,
+    { success: false },
+    { success: true },
+    { savedAt: '2026-11-15T01:00:00Z' },
+  ])('easyeda_project_save rejects unconfirmed native result %s', async (nativeResult) => {
+    const tool = registry.get('easyeda_project_save');
+    bridgeCall.mockResolvedValue(nativeResult);
+    const result = await tool?.handler(context, {
+      projectId: 'proj-123',
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      project_id: 'proj-123',
+      persistence_verified: false,
+      native_acknowledged: false,
+    });
+    expect(result?.saved_at).toBeUndefined();
+    expect(result?.error).toMatch(/not confirm success/i);
+  });
 
-  it('easyeda_project_save returns only native acknowledgment, never a fabricated save time', async () => {
+  it('easyeda_project_save rejects unscoped legacy boolean acknowledgments', async () => {
     const tool = registry.get('easyeda_project_save');
     bridgeCall.mockResolvedValue(true);
     const result = await tool?.handler(context, { projectId: 'proj-123', confirmWrite: true });
     expect(result).toMatchObject({
-      success: true,
+      success: false,
       project_id: 'proj-123',
       persistence_verified: false,
+      native_acknowledged: false,
+      status: 'native_save_unconfirmed',
     });
     expect(result?.saved_at).toBeUndefined();
   });
@@ -1831,7 +1844,12 @@ describe('Schematic Tools', () => {
       success: false,
       project_id: 'proj-123',
     });
-    expect(result?.error).toContain('permission denied');
+    expect(result?.error).toContain('outcome is unknown');
+    expect(result?.error).not.toContain('permission denied');
+    expect(result).toMatchObject({
+      native_acknowledged: false,
+      status: 'native_outcome_unknown',
+    });
   });
 
   describe('schematic cosmetic and title-block write tools', () => {

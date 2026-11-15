@@ -2,18 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { createProjectOperations } from '../src/project-operations.js';
 
 describe('project operations', () => {
-  it('saves through the exact zero-argument fallback chain', async () => {
-    const callFirst = vi.fn(async () => 'saved');
+  it('refuses save without explicit confirmation before any native call', async () => {
+    const callFirst = vi.fn(async () => true);
     const operations = createProjectOperations({ callFirst });
 
-    await expect(operations.save({ projectId: 'ignored' })).resolves.toBe('saved');
-    expect(callFirst).toHaveBeenCalledWith([
-      'dmt_Workspace.saveAll',
-      'dmt_Workspace.saveActiveDocument',
-      'sch_Document.save',
-      'pcb_Document.save',
-      'pnl_Document.save',
-    ]);
+    await expect(operations.save({ projectId: 'p1' })).resolves.toMatchObject({
+      success: false,
+      status: 'confirm_write_required',
+    });
+    expect(callFirst).not.toHaveBeenCalled();
   });
 
   it('exports with the original path order and exact params object', async () => {
@@ -54,13 +51,15 @@ describe('project lifecycle safety', () => {
     activationFails?: boolean;
     focusedProject?: string;
     focusedDocument?: string;
-    focusedDocumentType?: 1 | 3;
+    focusedDocumentType?: number;
     saveThrows?: boolean;
+    focusedChangesAfterSave?: boolean;
     nativeCloseReturnsFalse?: boolean;
     projectData?: unknown[];
   }) {
     let active = overrides?.active ?? 'p1';
     let currentReadCount = 0;
+    let focusedChanged = false;
     let pendingClose: string | undefined;
     let pendingReadbacks = 0;
     let tabs = overrides?.tabs ?? [
@@ -106,12 +105,13 @@ describe('project lifecycle safety', () => {
             return overrides?.activationFails !== true;
           case 'dmt_SelectControl.getCurrentDocumentInfo':
             return {
-              uuid: overrides?.focusedDocument ?? 'pcb1',
+              uuid: focusedChanged ? 'sch1' : (overrides?.focusedDocument ?? 'pcb1'),
               parentProjectUuid: overrides?.focusedProject ?? 'p1',
-              documentType: overrides?.focusedDocumentType ?? 3,
+              documentType: focusedChanged ? 1 : (overrides?.focusedDocumentType ?? 3),
             };
           case 'pcb_Document.save':
             if (overrides?.saveThrows) throw new Error('native PCB save exception');
+            if (overrides?.focusedChangesAfterSave) focusedChanged = true;
             return overrides?.save !== false;
           case 'sch_Document.save':
             if (overrides?.saveThrows) throw new Error('native schematic save exception');
@@ -132,6 +132,85 @@ describe('project lifecycle safety', () => {
     );
     return { callFirst, operations: createProjectOperations({ callFirst }) };
   }
+
+  it.each([
+    ['missing project ID', { projectId: '', confirmWrite: true }, 'invalid_project_id'],
+    ['wrong active project', { projectId: 'p2', confirmWrite: true }, 'active_project_mismatch'],
+  ])('does not save an invalid or different project: %s', async (_name, input, status) => {
+    const { operations, callFirst } = fixture();
+    await expect(operations.save(input)).resolves.toMatchObject({ success: false, status });
+    expect(
+      callFirst.mock.calls.some(([paths]) => (paths as readonly string[])[0].includes('.save')),
+    ).toBe(false);
+  });
+
+  it.each([
+    ['another project', { focusedProject: 'p2' }],
+    ['unknown document', { focusedDocument: 'not-a-project-document' }],
+    ['unsupported type', { focusedDocumentType: 99 }],
+  ])('refuses a mismatched native save target: %s', async (_name, flags) => {
+    const { operations, callFirst } = fixture(flags);
+    await expect(operations.save({ projectId: 'p1', confirmWrite: true })).resolves.toMatchObject({
+      success: false,
+      status: 'focused_document_mismatch',
+    });
+    expect(
+      callFirst.mock.calls.some(([paths]) =>
+        /\.save$|saveAll/.test((paths as readonly string[])[0] ?? ''),
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    ['PCB', {}, 'pcb_Document.save'],
+    ['schematic', { focusedDocument: 'sch1', focusedDocumentType: 1 }, 'sch_Document.save'],
+  ])(
+    'saves the exact focused %s only once; never invokes workspace saveAll',
+    async (_name, flags, nativePath) => {
+      const { operations, callFirst } = fixture(flags);
+      await expect(operations.save({ projectId: 'p1', confirmWrite: true })).resolves.toMatchObject(
+        {
+          success: true,
+          status: 'native_save_acknowledged_persistence_unverified',
+          projectId: 'p1',
+        },
+      );
+      expect(
+        callFirst.mock.calls.filter(([paths]) => (paths as readonly string[])[0].endsWith('.save')),
+      ).toEqual([[[nativePath]]]);
+      expect(
+        callFirst.mock.calls.some(([paths]) =>
+          (paths as readonly string[])[0].startsWith('dmt_Workspace.'),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it('does not claim a stable save target when focus switches after native acknowledgment', async () => {
+    const { operations, callFirst } = fixture({ focusedChangesAfterSave: true });
+    await expect(operations.save({ projectId: 'p1', confirmWrite: true })).resolves.toMatchObject({
+      success: false,
+      status: 'target_changed_during_save',
+    });
+    expect(
+      callFirst.mock.calls.filter(
+        ([paths]) => (paths as readonly string[])[0] === 'pcb_Document.save',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('does not claim a save when the exact native document refuses it', async () => {
+    const { operations, callFirst } = fixture({ save: false });
+    await expect(operations.save({ projectId: 'p1', confirmWrite: true })).resolves.toMatchObject({
+      success: false,
+      status: 'native_save_unconfirmed',
+    });
+    expect(
+      callFirst.mock.calls.filter(
+        ([paths]) => (paths as readonly string[])[0] === 'pcb_Document.save',
+      ),
+    ).toHaveLength(1);
+  });
 
   it('lists the scoped workspace projects with truthful active/open markers', async () => {
     const { operations, callFirst } = fixture();
