@@ -29,3 +29,10 @@ to those historical artifacts.
 Dependencies, vendored material, fixtures, and embedded third-party assets retain
 their own applicable notices and licenses. Refer to repository-specific third-party
 notices, attribution files, and dependency metadata.
+
+## Historical MIT notice
+
+Before the AGPL transition, project-authored source was distributed under MIT.
+Its complete prior notice is retained at [LICENSES/MIT.txt](LICENSES/MIT.txt).
+Previously granted MIT rights remain valid; the AGPL transition does not
+replace copyrights held by external contributors.
