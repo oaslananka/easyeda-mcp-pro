@@ -144,6 +144,8 @@ export const CLOUD_JS = String.raw`
   if (page === 'account') {
     const list = get('extensions');
     let selected = null;
+    let visibleSessionIds = new Set();
+    let hasLoadedSessionList = false;
     const addSession = (s) => {
       const card = el('div','session');
       const info = el('div');
@@ -191,6 +193,8 @@ export const CLOUD_JS = String.raw`
     const refreshExtensions = async () => {
       const data = await request('/cloud/api/extensions');
       selected = data.selection;
+      visibleSessionIds = new Set((Array.isArray(data.sessions) ? data.sessions : []).map((session) => session.sessionId));
+      hasLoadedSessionList = true;
       const workspaceGrid = get('workspace-grid');
       if (workspaceGrid) workspaceGrid.dataset.empty = data.sessions?.length ? 'false' : 'true';
       setText('device-count', Array.isArray(data.sessions) ? data.sessions.length : 0);
@@ -200,6 +204,7 @@ export const CLOUD_JS = String.raw`
         return;
       }
       data.sessions.forEach((session) => list.appendChild(addSession(session)));
+      return data.sessions;
     };
     const loadClients = async () => {
       const dest = get('clients');
@@ -247,6 +252,7 @@ export const CLOUD_JS = String.raw`
         let expiryTimer = null;
         let lastPairingRefreshAt = 0;
         let pairingRefreshPending = false;
+        let sessionsBeforePairing = null;
         const expireCode = () => {
           if (expiryTimer !== null) { clearInterval(expiryTimer); expiryTimer = null; }
           currentCode = '';
@@ -255,6 +261,16 @@ export const CLOUD_JS = String.raw`
           setText('pairing-hint', 'This code has expired. Generate a new code to pair your extension.');
           copy.disabled = true;
           copy.hidden = true;
+        };
+        const markPairingComplete = () => {
+          if (expiryTimer !== null) { clearInterval(expiryTimer); expiryTimer = null; }
+          currentCode = '';
+          codeExpiresAt = 0;
+          setText('pairing-code', 'Connected');
+          setText('pairing-hint', 'Your EasyEDA device is connected. Choose its schematic or PCB to allow MCP access.');
+          copy.disabled = true;
+          copy.hidden = true;
+          setText('notice', 'EasyEDA connected. Select the schematic or PCB you want to use.');
         };
         const updateExpiry = () => {
           const now = Date.now();
@@ -266,7 +282,13 @@ export const CLOUD_JS = String.raw`
           if (now - lastPairingRefreshAt >= 5000 && !pairingRefreshPending) {
             lastPairingRefreshAt = now;
             pairingRefreshPending = true;
-            void refreshExtensions().catch(() => {}).finally(() => {
+            void refreshExtensions().then((sessions) => {
+              if (!currentCode || Date.now() >= codeExpiresAt) return;
+              if (sessionsBeforePairing && sessions?.some((session) => session.connected &&
+                  !sessionsBeforePairing.has(session.sessionId))) markPairingComplete();
+            }).catch(() => {
+              // Manual Refresh remains available if an intermittent network request fails.
+            }).finally(() => {
               pairingRefreshPending = false;
             });
           }
@@ -290,6 +312,7 @@ export const CLOUD_JS = String.raw`
               throw new Error('Cloud did not provide a valid pairing code.');
             }
             if (expiryTimer !== null) clearInterval(expiryTimer);
+            sessionsBeforePairing = hasLoadedSessionList ? new Set(visibleSessionIds) : null;
             currentCode = data.code;
             codeExpiresAt = Date.now() + data.expiresInSeconds * 1000;
             lastPairingRefreshAt = Date.now();

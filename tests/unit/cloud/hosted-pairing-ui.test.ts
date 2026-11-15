@@ -154,22 +154,131 @@ describe('Hosted Cloud pairing-code user experience', () => {
         return {
           ok: true,
           json: async () => ({
-            sessions: paired
-              ? [
-                  {
-                    sessionId: 'sess_new_disposable',
-                    connected: true,
-                    mode: 'hosted',
-                    extensionVersion: '1.15.5',
-                    activeProject: {
-                      projectId: 'fixture-project',
-                      documentId: 'schematic-p1',
-                      projectName: 'Disposable',
-                      documentType: 'schematic',
+            sessions: [
+              {
+                sessionId: 'sess_existing',
+                connected: true,
+                mode: 'hosted',
+                extensionVersion: '1.15.5',
+                activeProject: {
+                  projectId: 'existing-project',
+                  documentId: 'pcb-p1',
+                  projectName: 'Previously paired',
+                  documentType: 'pcb',
+                },
+              },
+              ...(paired
+                ? [
+                    {
+                      sessionId: 'sess_new_disposable',
+                      connected: true,
+                      mode: 'hosted',
+                      extensionVersion: '1.15.5',
+                      activeProject: {
+                        projectId: 'fixture-project',
+                        documentId: 'schematic-p1',
+                        projectName: 'Disposable',
+                        documentType: 'schematic',
+                      },
                     },
-                  },
-                ]
-              : [],
+                  ]
+                : []),
+            ],
+            selection: null,
+          }),
+        };
+      }
+      const result =
+        url === '/cloud/api/me'
+          ? { user: { name: 'Acceptance Owner' } }
+          : url === '/cloud/api/clients'
+            ? { clients: [] }
+            : url === '/cloud/api/pairing-code'
+              ? { code: 'EDA-A1B2C3D4', expiresInSeconds: 600 }
+              : null;
+      if (!result) throw Error('Unexpected request: ' + url);
+      return { ok: true, json: async () => result };
+    });
+    runInNewContext(CLOUD_JS, {
+      document: {
+        getElementById: (id: string) => get(id),
+        createElement: () => new TestElement(),
+      },
+      window: { location: { search: '', assign: vi.fn() } },
+      navigator: {},
+      fetch,
+      Date: { now: () => clock },
+      setInterval: (callback: () => void) => {
+        tick = callback;
+        return 1;
+      },
+      clearInterval: vi.fn(() => {
+        tick = undefined;
+      }),
+    });
+    await vi.waitFor(() => expect(get('generate-pairing').listeners.has('click')).toBe(true));
+    expect(extensionFetches).toBe(1);
+    await get('generate-pairing').click();
+    expect(get('pairing-code').textContent).toBe('EDA-A1B2C3D4');
+    paired = true;
+    clock += 4000;
+    tick?.();
+    expect(extensionFetches).toBe(1);
+    clock += 1000;
+    tick?.();
+    await vi.waitFor(() => expect(get('device-count').textContent).toBe('2'));
+    expect(extensionFetches).toBe(2);
+    expect(get('workspace-grid').dataset.empty).toBe('false');
+    expect(
+      get('extensions').children[1].children.some(
+        (node) => node.textContent === 'Use this schematic',
+      ),
+    ).toBe(true);
+    expect(get('pairing-code').textContent).toBe('Connected');
+    expect(get('copy-pairing').hidden).toBe(true);
+    expect(get('copy-pairing').disabled).toBe(true);
+    expect(get('pairing-hint').textContent).toContain('Choose');
+    expect(fetch).not.toHaveBeenCalledWith('/cloud/api/selection', expect.anything());
+    clock += 595_001;
+    tick?.();
+    expect(get('pairing-code').textContent).toBe('Connected');
+    expect(extensionFetches).toBe(2);
+  });
+
+  it('never claims a code was used when an earlier session list failed to load', async () => {
+    const elements = new Map<string, TestElement>();
+    const get = (id: string): TestElement => {
+      let element = elements.get(id);
+      if (!element) {
+        element = new TestElement();
+        elements.set(id, element);
+      }
+      return element;
+    };
+    get('cloud-root').dataset.page = 'account';
+    let clock = 10_000;
+    let tick: (() => void) | undefined;
+    let extensionFetches = 0;
+    const fetch = vi.fn(async (url: string) => {
+      if (url === '/cloud/api/extensions') {
+        extensionFetches++;
+        if (extensionFetches === 1) throw new Error('Initial device list unavailable');
+        return {
+          ok: true,
+          json: async () => ({
+            sessions: [
+              {
+                sessionId: 'sess_preexisting',
+                connected: true,
+                extensionVersion: '1.15.5',
+                activeProject: {
+                  projectId: 'existing-project',
+                  documentId: 'pcb-1',
+                  projectName: 'Existing',
+                  documentType: 'pcb',
+                },
+              },
+            ],
             selection: null,
           }),
         };
@@ -203,27 +312,14 @@ describe('Hosted Cloud pairing-code user experience', () => {
     await vi.waitFor(() => expect(get('generate-pairing').listeners.has('click')).toBe(true));
     expect(extensionFetches).toBe(1);
     await get('generate-pairing').click();
-    expect(get('pairing-code').textContent).toBe('EDA-A1B2C3D4');
-    paired = true;
-    clock += 4000;
-    tick?.();
-    expect(extensionFetches).toBe(1);
-    clock += 1000;
+    clock += 5000;
     tick?.();
     await vi.waitFor(() => expect(get('device-count').textContent).toBe('1'));
     expect(extensionFetches).toBe(2);
-    expect(get('workspace-grid').dataset.empty).toBe('false');
-    expect(
-      get('extensions').children[0].children.some(
-        (node) => node.textContent === 'Use this schematic',
-      ),
-    ).toBe(true);
+    // A formerly hidden existing session must never masquerade as the code's result.
     expect(get('pairing-code').textContent).toBe('EDA-A1B2C3D4');
-    expect(fetch).not.toHaveBeenCalledWith('/cloud/api/selection', expect.anything());
-    clock += 595_001;
-    tick?.();
-    expect(get('pairing-code').textContent).toBe('Expired');
-    expect(extensionFetches).toBe(2);
+    expect(get('copy-pairing').disabled).toBe(false);
+    expect(get('pairing-hint').textContent).toContain('Expires in');
   });
 
   it('allows the owner to reselect a newly focused PCB within the same project', async () => {
