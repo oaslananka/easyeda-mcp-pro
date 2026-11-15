@@ -57,6 +57,45 @@ unreferenced affected application images, assess local build cache and
 registry exposure, and rotate the exposed credentials before public release.
 Do not prune other projects' images, caches, containers, or volumes.
 
+### Owner-only preview ingress must preserve Cloud API calls
+
+The 2026-11-15 owner pilot exposed an operational trap: a temporary
+Cloudflare Access policy aimed at `/cloud` also intercepted
+`/cloud/api/*`. When the browser held a valid **application** login but
+no separate **Cloudflare Access** login, the API responded with a
+cross-origin redirect to Cloudflare's login page; the dashboard's CSP
+blocked that fetch, displaying a misleading **Failed to fetch** error.
+
+Before a bounded preview, either establish and verify the owner's
+separate Cloudflare Access session, or use an ingress policy that
+protects the full preview's authenticated journey without redirecting
+its API calls unexpectedly. Test the actual browser UI refresh and
+`/cloud/api/extensions` with the intended owner login, not just
+`/cloud` and `/healthz`. A successful application OAuth login is **not**
+proof that a separate Access gate is satisfied. Remove all temporary
+access rules and preview credentials during cleanup.
+
+### Live build-secret proof and outstanding release risk (2026-11-15)
+
+The bounded owner pilot on exact reviewed PR #1057 head `f1c9b70`
+**passed** the checks above: all six OAuth secret environment entries
+(regular and preview) are now `is_buildtime=false, is_runtime=true`;
+Dockerfile build-argument injection is disabled, BuildKit secrets and
+deployment-log redaction are enabled, and an inspected live candidate image
+contained **none of the three current OAuth secret values** in its history
+or image environment. Runtime credentials were present in the container.
+No credential values were printed in the evidence. The app was subsequently
+stopped, returned to its former `main` commit pin and remained
+auto-deploy-disabled. See [issue #849 evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6888075039).
+
+**Release gate remains open:** the very first, earlier Coolify build had
+embedded OAuth secret values in Docker image history. Removing known
+unused images and producing a clean _new_ image does **not** establish
+that no earlier build cache, registry or copies remain. Perform an
+application-scoped exposure assessment and rotate affected credentials as
+appropriate before a public launch; do not silently prune shared builder
+cache or claim those earlier values were never exposed.
+
 ## What to add to Doppler (one time)
 
 Use exactly the existing Doppler project **`easyeda-mcp-pro`** and its

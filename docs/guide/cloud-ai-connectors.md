@@ -75,12 +75,18 @@ authorization request may include `easyeda.write`, `easyeda.export` and
 broad consent request, correct the scope override, and verify the real
 consent page lists **only** `easyeda.read` before selecting Allow.
 
-An owner-only live pilot on 2026-11-15 completed real MCPJam CIMD/PKCE OAuth,
-83-tool discovery, MCP Apps resource discovery and a successful
-`easyeda_health_check` call against the reviewed Hosted candidate. No real
-native EasyEDA extension was paired during this particular MCPJam pilot;
-second-owner isolation and old-token rejection after a newly revoked
-consent still require separate live acceptance. See [issue #849](https://github.com/oaslananka/easyeda-mcp-pro/issues/849).
+The first owner-only MCPJam web pilot on 2026-11-15 completed CIMD/PKCE OAuth,
+83-tool discovery, MCP Apps resource discovery and a health call. That
+**earlier** pilot had no native editor paired. In a subsequent pilot on exact
+PR #1057 commit `f1c9b70`, real MCPJam and the owner-paired **EasyEDA Pro
+3.2.209** extension returned **33 populated PCB components** and **34
+schematic component records** from a user-selected disposable design.
+The same connected MCPJam client got `SESSION_UNPAIRED` after the owner
+clicked **Remove access**; a revoked OAuth bearer was separately rejected
+with **HTTP 403**. The preview was then stopped and its temporary settings
+removed. These results **do not** prove a second independent user, any
+actual ChatGPT/Claude/Gemini host account, or durable native Cloud WRITE.
+See [the verified live run](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6888075039).
 
 For Hosted Cloud, inspect OAuth protected-resource and authorization-server
 discovery, then test 2025 and 2026-era connections with DCR and CIMD

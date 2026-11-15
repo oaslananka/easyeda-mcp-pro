@@ -243,7 +243,7 @@ showed the bridge as connected: the remote diagnostic adapter assumed
 connectivity before checking the owner's selected editor. The subsequent
 candidate now reports `degraded` until an owned, paired, selected editor
 is reachable; fixture JWT/WSS and both MCP protocol eras pass regression
-tests. **The corrected diagnostic has not yet passed a live Cloud retest.**
+tests. **At the time of that earlier pilot, the corrected diagnostic had not yet passed a live Cloud retest.**
 A later database inspection found the
 MCPJam consent had been revoked; reuse of its old token **after** revocation
 was not tested during the short live pilot.
@@ -255,8 +255,68 @@ Preview and unused legacy images were removed, Coolify restored its original
 main source pin, and temporary Cloudflare Access removed. The public health
 route returned HTTP 503 again. See [issue #849 live results](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6886979844).
 
-**Independent real second-owner isolation, new native paired read,
-post-revoke live replay, and write persistence remain NOT VERIFIED.**
+**At the time of that earlier pilot**, independent second-owner isolation,
+new native paired read, post-revoke live replay, and write persistence were
+NOT VERIFIED. The later live acceptance below supersedes the read and revoke
+gaps but not the independent-owner or durable write gates.
+
+### 2026-11-15 — MCPJam current-head live owner acceptance: 33 PCB + 34 schematic records
+
+**Current reviewed candidate:** Draft PR [#1057](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057)
+at exact commit `f1c9b700baa3b362f1ef19c80f72a6f48673339f`
+(30/30 terminal CI checks: 28 successful, one neutral, one skipped).
+The earlier unpaired-health diagnostic was corrected on this commit.
+During the bounded owner-authorized HTTPS pilot, the **real MCPJam web
+Inspector** completed OAuth (CIMD/PKCE) with precisely `easyeda.read`,
+discovered **83 MCP tools**, and received the correct `degraded` /
+`bridge_connected: false` health result while no editor was paired.
+The owner's previously authorized MCPJam consent was revoked, and reuse
+of the old bearer failed with **HTTP 403**.
+
+The operator then used a separately isolated **real EasyEDA Pro 3.2.209**
+instance with the reviewed **MCP Bridge 1.15.5** package, paired it using
+a one-time Cloud code, opened disposable
+`QS_33_COMPONENT_CLOUD_PILOT_DISPOSABLE_20261114` and clicked
+**Use this PCB** on the owner dashboard. A real OAuth-authorized MCPJam
+`tools/call easyeda_pcb_components` returned **33 actual PCB components**
+(`total: 33`, **33 unique designators**), with identifiers, footprints,
+coordinates, rotations and layers. In the **same session**, the operator
+focused the native schematic, selected **Use this schematic**, and the real
+MCPJam `easyeda_schematic_components` returned **34 schematic records**
+(`total: 34`, 33 unique references including one multi-unit duplicate),
+component values, footprints and native positions. Its consistency report
+was `stable: true` with two attempts. These are **live, populated Hosted
+Cloud results**, not local-only results or mocked fixtures.
+
+After selecting **Remove access** for that disposable native session,
+the owner portal displayed **zero paired devices**. The already-connected
+MCPJam client immediately received `isError: true` and
+`SESSION_UNPAIRED` on a repeat schematic read. The remaining test
+`easyeda.read` consent was then revoked, leaving **zero owner consents**
+at the end of that pilot. The isolated editor was closed normally.
+No native writes, exports or production design edits were performed.
+
+The deployed image was independently checked to contain **no actual OAuth
+credential values in image history or image environment**, while all
+three credentials were available at runtime. The three OAuth secrets in
+both production and preview Coolify settings (six entries) were changed
+to **runtime-only**, and the BuildKit/ARG-injection safeguards remain.
+The temporary candidate was stopped and reverted to the existing `main`
+source pin; **zero Cloud containers were running** and public health
+returned HTTP **503** afterward. The temporary MCP feature flags and
+Access gate were removed. The earlier initial Docker build-history
+exposure still needs scoped cache/registry assessment and credential
+rotation disposition before public release.
+
+**Remaining NOT VERIFIED:** two truly independent owner identities with
+real cross-account isolation; **actual** ChatGPT, Claude and eligible
+Gemini host connectors; a separately owner-approved and cold-reopen
+verified Cloud WRITE/export path; the beta native text-deletion durability
+issue [#1060](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060);
+and earlier credential-exposure disposition. Keep **PR #1057 Draft**,
+**issue #850 production HOLD**, and Hosted maturity **Experimental**.
+
+[Full live acceptance evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6888075039).
 
 ## Implemented and continuously tested
 
