@@ -105,7 +105,10 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
         true,
       );
       expect(gateway.selectPairedProject(owner, session.sessionId)).toBe(true);
-      const instance = await createServer(config, { remoteGateway: gateway });
+      const instance = await createServer(config, {
+        remoteGateway: gateway,
+        hostedOAuthResource: `${origin}/mcp`,
+      });
       const transport = createHttpTransport(config, {
         hostedAuth: provider,
         gateway,
@@ -138,6 +141,17 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
           },
         });
         await client.connect(ownerTransport);
+        const tools = (await client.listTools()).tools;
+        expect(
+          tools.find((tool) => tool.name === 'easyeda_schematic_components')?._meta,
+        ).toMatchObject({
+          securitySchemes: [{ type: 'oauth2', scopes: ['easyeda.read'] }],
+        });
+        expect(
+          tools.find((tool) => tool.name === 'easyeda_schematic_add_text')?._meta,
+        ).toMatchObject({
+          securitySchemes: [{ type: 'oauth2', scopes: ['easyeda.read', 'easyeda.write'] }],
+        });
         const result = await client.callTool({
           name: 'easyeda_schematic_components',
           arguments: { projectId: 'selected-schematic' },
@@ -162,6 +176,9 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
           errorCode: 'ERR_REMOTE_RELAY',
           details: { remoteCode: 'SCOPE_MISSING' },
         });
+        expect(deniedWrite._meta?.['mcp/www_authenticate']).toEqual([
+          `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp", scope="easyeda.read easyeda.write", error="insufficient_scope", error_description="Grant easyeda.write to use this tool"`,
+        ]);
         expect(dispatched).toHaveLength(2);
 
         const signedFor = (

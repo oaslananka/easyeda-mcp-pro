@@ -12,7 +12,7 @@ import { type ToolProfile, getEnabledProfiles } from '../config/profiles.js';
 import { z, ZodError } from 'zod';
 import { SERVER_VERSION } from '../config/version.js';
 import { getGlobalMetricsCollector, type ObservabilityCategory } from '../observability/index.js';
-import { type RemoteIdentity } from '../remote/scope.js';
+import { requiredScopeForRisk, type RemoteIdentity } from '../remote/scope.js';
 import { type RemoteRiskLevel } from '../remote/protocol.js';
 import { type RemoteGatewayToolResult } from '../remote/gateway.js';
 
@@ -698,6 +698,23 @@ function formatToolSuccess(tool: ToolDefinition, result: unknown) {
   };
 }
 
+function hostedOAuthScopes(tool: ToolDefinition): string[] {
+  const scope = requiredScopeForRisk(remoteRiskForTool(tool));
+  // Global Hosted Cloud auth also requires read permission for privileged tools.
+  return scope === 'easyeda.read' ? [scope] : ['easyeda.read', scope];
+}
+
+function hostedOAuthMetadataUrl(context: ToolContext): string | undefined {
+  const resource = context.config.hostedOAuthResource;
+  if (typeof resource !== 'string') return undefined;
+  try {
+    const url = new URL(resource);
+    return `${url.origin}/.well-known/oauth-protected-resource/mcp`;
+  } catch {
+    return undefined;
+  }
+}
+
 function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: unknown) {
   if (err instanceof ZodError) {
     return structuredErrorResponse({
@@ -708,7 +725,7 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
   }
 
   if (err instanceof RemoteRelayRouteError) {
-    return structuredErrorResponse({
+    const response = structuredErrorResponse({
       errorCode: ErrorCodes.REMOTE_RELAY,
       message: err.message,
       details: {
@@ -719,6 +736,18 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
         approvalExpiresAt: err.failure.approvalExpiresAt,
       },
     });
+    if (err.failure.code !== 'SCOPE_MISSING') return response;
+    const metadataUrl = hostedOAuthMetadataUrl(context);
+    if (!metadataUrl) return response;
+    const requestedScopes = hostedOAuthScopes(tool);
+    return {
+      ...response,
+      _meta: {
+        'mcp/www_authenticate': [
+          `Bearer resource_metadata="${metadataUrl}", scope="${requestedScopes.join(' ')}", error="insufficient_scope", error_description="Grant ${requestedScopes.at(-1)} to use this tool"`,
+        ],
+      },
+    };
   }
 
   const msg = err instanceof Error ? err.message : String(err);
@@ -833,6 +862,7 @@ export class ToolRegistry {
    *    - bridge‑disconnected friendly error interception
    */
   registerAllOnServer(server: McpServer, context: ToolContext): void {
+    const hostedMetadata = hostedOAuthMetadataUrl(context);
     for (const tool of this.getEnabledTools()) {
       server.registerTool(
         tool.name,
@@ -842,6 +872,9 @@ export class ToolRegistry {
           inputSchema: registeredInputSchema(tool, context),
           outputSchema: registeredOutputSchema(tool),
           annotations: tool.annotations,
+          ...(hostedMetadata
+            ? { _meta: { securitySchemes: [{ type: 'oauth2', scopes: hostedOAuthScopes(tool) }] } }
+            : {}),
         },
         async (input: unknown, ctx: unknown) => handleRegisteredToolCall(tool, context, input, ctx),
       );

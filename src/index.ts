@@ -66,7 +66,10 @@ async function main() {
   const hostedCloud = await createHostedCloudRuntime(config);
   const remoteGateway =
     config.MCP_BRIDGE_BACKEND === 'remote_relay' ? new RemoteGateway() : undefined;
-  const instance = await createServer(config, { remoteGateway });
+  const instance = await createServer(config, {
+    remoteGateway,
+    hostedOAuthResource: hostedCloud ? config.OAUTH_AUDIENCE : undefined,
+  });
 
   if (config.TRANSPORT === 'http') {
     const httpTransport = createHttpTransport(config, {
