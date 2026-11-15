@@ -69,11 +69,15 @@ blocked that fetch, displaying a misleading **Failed to fetch** error.
 Before a bounded preview, either establish and verify the owner's
 separate Cloudflare Access session, or use an ingress policy that
 protects the full preview's authenticated journey without redirecting
-its API calls unexpectedly. Test the actual browser UI refresh and
-`/cloud/api/extensions` with the intended owner login, not just
-`/cloud` and `/healthz`. A successful application OAuth login is **not**
-proof that a separate Access gate is satisfied. Remove all temporary
-access rules and preview credentials during cleanup.
+its API calls unexpectedly. The dashboard now distinguishes a genuine
+application HTTP 401 from unreachable APIs and additional Access login
+requirements. It preserves a usable **Refresh** action after an initial
+device-list failure instead of discarding the current signed-in page.
+Test the actual browser refresh/recovery and `/cloud/api/extensions` with
+the intended owner login, not just `/cloud` and `/healthz`. A successful
+application OAuth login is **not** proof that a separate Access gate is
+satisfied. Remove all temporary access rules and preview credentials
+during cleanup.
 
 ### Live build-secret proof and outstanding release risk (2026-11-15)
 

@@ -79,9 +79,18 @@ export const CLOUD_JS = String.raw`
   const setText = (id, value) => { const el = get(id); if (el) { el.textContent = String(value); if (id === 'notice') el.classList.remove('error'); } };
   const fail = (error) => { setText('notice', error instanceof Error ? error.message : 'The request failed. Please retry.'); const n = get('notice'); if (n) n.classList.add('error'); };
   const request = async (url, options) => {
-    const response = await fetch(url, { credentials: 'same-origin', ...options });
+    let response;
+    try {
+      response = await fetch(url, { credentials: 'same-origin', ...options });
+    } catch {
+      throw new Error('Cannot reach EasyEDA Cloud. Check your connection and any separate access sign-in, then refresh.');
+    }
     const result = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(typeof result?.message === 'string' ? result.message : 'Request failed (' + response.status + ').');
+    if (!response.ok) {
+      const error = new Error(typeof result?.message === 'string' ? result.message : 'Request failed (' + response.status + ').');
+      error.status = response.status;
+      throw error;
+    }
     return result;
   };
   const post = (url, body) => request(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
@@ -220,10 +229,13 @@ export const CLOUD_JS = String.raw`
       } catch { dest.replaceChildren(el('div','empty','Client authorizations could not be loaded. Retry the page.')); }
     };
     (async () => {
+      let ownerSignedIn = false;
       try {
         const me = await request('/cloud/api/me');
+        ownerSignedIn = true;
         setText('account-name',me.user.name || me.user.email || 'Your account');
-        await Promise.all([refreshExtensions(),loadClients()]);
+        const initialLoad = await Promise.allSettled([refreshExtensions(), loadClients()]);
+        if (initialLoad[0].status === 'rejected') fail(initialLoad[0].reason);
         const pair = get('generate-pairing');
         const copy = get('copy-pairing');
         let currentCode = '';
@@ -275,14 +287,16 @@ export const CLOUD_JS = String.raw`
           finally { pair.disabled=false; }
         });
         get('refresh-extensions').addEventListener('click', async () => {
-          try {await refreshExtensions();} catch(error) { fail(error); }
+          try { await refreshExtensions(); setText('notice', 'Device connections updated.'); }
+          catch(error) { fail(error); }
         });
         get('sign-out').addEventListener('click',async () => {
           try {await post('/api/auth/sign-out',{});window.location.assign('/sign-in');}
           catch(error){fail(error);}
         });
-      } catch {
-        window.location.assign('/sign-in');
+      } catch (error) {
+        if (!ownerSignedIn && error?.status === 401) window.location.assign('/sign-in');
+        else fail(error);
       }
     })();
   }

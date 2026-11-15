@@ -1,6 +1,7 @@
 import * as http from 'node:http';
 import { createHash } from 'node:crypto';
 import { createServer as createNetServer } from 'node:net';
+import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import type { HostedAuth } from '../../../src/cloud/hosted-auth.js';
@@ -61,6 +62,122 @@ async function withPortal(
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }
+
+describe('Hosted Cloud browser recovery', () => {
+  async function runWorkspace(
+    fetcher: (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>,
+  ) {
+    const redirects: string[] = [];
+    const elements = new Map<string, any>();
+    function fakeElement() {
+      return {
+        textContent: '',
+        className: '',
+        dataset: {} as Record<string, string>,
+        classList: { add() {}, remove() {} },
+        replaceChildren() {},
+        appendChild() {},
+        listeners: new Map<string, () => Promise<void> | void>(),
+        addEventListener(
+          this: { listeners: Map<string, () => Promise<void> | void> },
+          event: string,
+          callback: () => Promise<void> | void,
+        ) {
+          this.listeners.set(event, callback);
+        },
+        async dispatch(
+          this: { listeners: Map<string, () => Promise<void> | void> },
+          event: string,
+        ) {
+          await this.listeners.get(event)?.();
+        },
+      };
+    }
+    const root = fakeElement();
+    root.dataset.page = 'account';
+    elements.set('cloud-root', root);
+    elements.set('notice', fakeElement());
+    elements.set('clients', fakeElement());
+    elements.set('extensions', fakeElement());
+    elements.set('account-name', fakeElement());
+    runInNewContext(CLOUD_JS, {
+      document: {
+        getElementById: (id: string) => {
+          if (!elements.has(id)) elements.set(id, fakeElement());
+          return elements.get(id);
+        },
+        createElement: () => fakeElement(),
+      },
+      window: {
+        location: {
+          search: '',
+          assign: (url: string) => redirects.push(url),
+        },
+      },
+      fetch: fetcher,
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    return { redirects, notice: elements.get('notice') as { textContent: string }, elements };
+  }
+
+  it('shows a recovery path for a blocked Cloud/Access fetch instead of redirecting to sign-in', async () => {
+    const result = await runWorkspace(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    expect(result.redirects).toEqual([]);
+    expect(result.notice.textContent).toContain('Cannot reach EasyEDA Cloud');
+    expect(result.notice.textContent).toContain('separate access sign-in');
+  });
+
+  it('still redirects an actually unauthenticated owner to sign-in', async () => {
+    const result = await runWorkspace(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'Authentication required' }),
+    }));
+    expect(result.redirects).toEqual(['/sign-in']);
+  });
+
+  it('keeps Refresh functional after a failed initial device request and clears the error on recovery', async () => {
+    let deviceRequests = 0;
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      if (url === '/cloud/api/extensions') {
+        deviceRequests += 1;
+        if (deviceRequests === 1) throw new TypeError('Failed to fetch');
+        return { ok: true, status: 200, json: async () => ({ sessions: [], selection: null }) };
+      }
+      throw new Error('Unexpected test request');
+    });
+    expect(deviceRequests).toBe(1);
+    expect(result.notice.textContent).toContain('Cannot reach EasyEDA Cloud');
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(deviceRequests).toBe(2);
+    expect(result.notice.textContent).toBe('Device connections updated.');
+    expect(result.redirects).toEqual([]);
+  });
+
+  it('does not erase a valid owner session when only the device-list fetch fails', async () => {
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ user: { name: 'Fixture Owner' } }),
+        };
+      }
+      if (url === '/cloud/api/clients') {
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      }
+      throw new TypeError('Failed to fetch');
+    });
+    expect(result.redirects).toEqual([]);
+    expect(result.notice.textContent).toContain('Cannot reach EasyEDA Cloud');
+  });
+});
 
 describe('Hosted Cloud browser portal', () => {
   it('renders discoverable GitHub and Google sign-in with strict executable asset CSP', async () => {
