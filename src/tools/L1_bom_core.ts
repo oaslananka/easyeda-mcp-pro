@@ -14,6 +14,16 @@ function bomEntryCount(result: unknown): number {
     : 0;
 }
 
+// BOM rows may group multiple identical physical parts. Never confuse the
+// grouped-row count with actual quantity, or accept a malformed quantity.
+function physicalBomQuantity(entry: { quantity?: unknown }): number {
+  const value = entry.quantity ?? 1;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new Error('BOM_QUANTITY_INVALID');
+  }
+  return value;
+}
+
 function isNonEmptyFile(filePath: string): boolean {
   try {
     const stat = fs.statSync(filePath);
@@ -164,11 +174,18 @@ function registerBomCoreTools(
           format: 'json',
           groupBy: 'lcsc',
         });
-        const entries = bomResult as Array<{ lcsc?: string; reference: string; value: string }>;
+        const entries = bomResult as Array<{
+          lcsc?: string;
+          reference: string;
+          value: string;
+          quantity?: number;
+        }>;
 
         if (!Array.isArray(entries)) {
           throw new Error('BOM inventory payload is not an array');
         }
+        const totalParts = entries.reduce((count, entry) => count + physicalBomQuantity(entry), 0);
+        if (!Number.isSafeInteger(totalParts)) throw new Error('BOM_QUANTITY_INVALID');
 
         const missing: string[] = [];
         const invalid: string[] = [];
@@ -176,7 +193,6 @@ function registerBomCoreTools(
         const unverified: string[] = [];
         const lcscClient = ctx.vendors.lcsc;
         let validCount = 0;
-        let confirmedCount = 0;
 
         for (const entry of entries) {
           if (!entry.lcsc?.trim()) {
@@ -195,13 +211,10 @@ function registerBomCoreTools(
             const detail = await lcscClient.getPartDetail(entry.lcsc);
             if (!matchesLcscPart(detail, entry.lcsc)) {
               unverified.push(entry.reference);
+            } else if (detail.discontinued) {
+              obsolete.push(entry.reference);
             } else {
-              confirmedCount += 1;
-              if (detail.discontinued) {
-                obsolete.push(entry.reference);
-              } else {
-                validCount += 1;
-              }
+              validCount += physicalBomQuantity(entry);
             }
           } catch {
             unverified.push(entry.reference);
@@ -210,13 +223,13 @@ function registerBomCoreTools(
 
         return {
           project_id: projectId,
-          total_parts: entries?.length ?? 0,
+          total_parts: totalParts,
           missing_lcsc: missing,
           invalid_lcsc: invalid,
           unverified_lcsc: unverified,
           obsolete: obsolete,
           valid_count: validCount,
-          validated: confirmedCount > 0 && unverified.length === 0,
+          validated: totalParts > 0 && validCount === totalParts,
         };
       } catch (err) {
         return {

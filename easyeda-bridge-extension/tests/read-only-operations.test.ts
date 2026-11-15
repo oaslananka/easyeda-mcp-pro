@@ -508,6 +508,65 @@ describe('read-only dispatcher operations', () => {
     await expect(operations.generateBom({})).rejects.toThrow(/BOM.*IDENTITY|BOM.*AMBIGUOUS/);
   });
 
+  it('groups native units without library UUIDs only when both share a verified symbol UUID', async () => {
+    const first = {
+      reference: 'U7',
+      uniqueId: 'physical-7',
+      deviceUuid: 'device-7',
+      deviceLibraryUuid: '',
+      symbolUuid: 'symbol-7',
+      subPartName: 'AMP.1',
+      value: 'AMP',
+      footprint: 'SOIC-8',
+      lcsc: 'C100',
+    };
+    const operations = createReadOnlyOperations(
+      createDependencies({
+        schematicComponentInspection: {
+          listComponents: vi.fn(async () => ({
+            items: [first, { ...first, subPartName: 'AMP.2' }],
+          })),
+        },
+      }) as any,
+    );
+    await expect(operations.generateBom({})).resolves.toMatchObject([
+      { reference: 'U7', quantity: 1, value: 'AMP' },
+    ]);
+    await expect(operations.validateBom()).resolves.toMatchObject({ totalParts: 1 });
+  });
+
+  it.each([
+    ['missing symbol UUID', { symbolUuid: '' }],
+    ['different symbol UUID', { symbolUuid: 'other-symbol' }],
+    ['one library UUID supplied', { deviceLibraryUuid: 'library-7' }],
+    ['different device UUID', { deviceUuid: 'other-device' }],
+    ['different physical ID', { uniqueId: 'physical-8' }],
+    ['conflicting footprint', { footprint: 'QFN-16' }],
+    ['repeated subpart', { subPartName: 'AMP.1' }],
+  ])('does not merge native multi-unit identity with %s', async (_, changed) => {
+    const first = {
+      reference: 'U7',
+      uniqueId: 'physical-7',
+      deviceUuid: 'device-7',
+      deviceLibraryUuid: '',
+      symbolUuid: 'symbol-7',
+      subPartName: 'AMP.1',
+      value: 'AMP',
+      footprint: 'SOIC-8',
+      lcsc: 'C100',
+    };
+    const operations = createReadOnlyOperations(
+      createDependencies({
+        schematicComponentInspection: {
+          listComponents: vi.fn(async () => ({
+            items: [first, { ...first, subPartName: 'AMP.2', ...changed }],
+          })),
+        },
+      }) as any,
+    );
+    await expect(operations.generateBom({})).rejects.toThrow('BOM_IDENTITY_AMBIGUOUS');
+  });
+
   it('preserves distinct physical units even when their part numbers match', async () => {
     const base = {
       value: 'AMP',
