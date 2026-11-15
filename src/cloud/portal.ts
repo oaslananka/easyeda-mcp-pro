@@ -109,7 +109,7 @@ const account = (): string =>
 <section class="panel usage-panel" aria-labelledby="usage-title">
 <div class="section-heading"><div><p class="section-kicker">YOUR ACTIVITY</p><h2 id="usage-title">MCP tool calls</h2></div>
 <button class="btn subtle small" id="refresh-usage" type="button">↻ Refresh</button></div>
-<p class="section-description">Calls completed through your paired EasyEDA device, including errors. Requests rejected before dispatch are not counted.</p>
+<p class="section-description">Calls completed through your paired EasyEDA device, including errors. Refreshes every 30 seconds while this page is active. Requests rejected before dispatch are not counted.</p>
 <div class="usage-grid">
 <div class="usage-stat"><strong id="usage-total" aria-live="polite">—</strong><span>Total calls</span></div>
 <div class="usage-stat"><strong id="usage-success" aria-live="polite">—</strong><span>Successful</span></div>

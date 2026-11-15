@@ -207,7 +207,11 @@ export const CLOUD_JS = String.raw`
       data.sessions.forEach((session) => list.appendChild(addSession(session)));
       return data.sessions;
     };
+    let usagePending = false;
     const loadUsage = async () => {
+      // A manual refresh and scheduled refresh must not race or duplicate API calls.
+      if (usagePending) return;
+      usagePending = true;
       try {
         const data = await request('/cloud/api/usage');
         if (!['total', 'succeeded', 'failed'].every((key) =>
@@ -224,6 +228,8 @@ export const CLOUD_JS = String.raw`
           : 'No tool calls have completed yet.');
       } catch {
         setText('usage-hint', 'Usage is unavailable. Select Refresh to retry.');
+      } finally {
+        usagePending = false;
       }
     };
     const loadClients = async () => {
@@ -278,6 +284,12 @@ export const CLOUD_JS = String.raw`
         const initialLoad = await Promise.allSettled([refreshExtensions(), loadClients(), loadUsage()]);
         if (initialLoad[0].status === 'rejected') fail(initialLoad[0].reason);
         if (initialLoad[1].status === 'rejected') fail(initialLoad[1].reason);
+        // Low-cost near-live counts: only signed-in, foreground workspaces poll.
+        // No background requests and no timers left after page navigation.
+        const usageTimer = setInterval(() => {
+          if (!document.hidden) void loadUsage();
+        }, 30000);
+        window.addEventListener('pagehide', () => clearInterval(usageTimer), { once: true });
         const pair = get('generate-pairing');
         const copy = get('copy-pairing');
         let currentCode = '';

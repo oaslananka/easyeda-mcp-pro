@@ -152,6 +152,10 @@ describe('Hosted Cloud browser recovery', () => {
   ) {
     const redirects: string[] = [];
     const elements = new Map<string, any>();
+    const intervals = new Map<number, { delay: number; callback: () => void }>();
+    const windowListeners = new Map<string, () => void>();
+    let nextTimerId = 0;
+    const documentState = { hidden: false };
     function fakeElement() {
       return {
         textContent: '',
@@ -190,6 +194,9 @@ describe('Hosted Cloud browser recovery', () => {
     elements.set('account-name', fakeElement());
     runInNewContext(CLOUD_JS, {
       document: {
+        get hidden() {
+          return documentState.hidden;
+        },
         getElementById: (id: string) => {
           if (!elements.has(id)) elements.set(id, fakeElement());
           return elements.get(id);
@@ -201,11 +208,40 @@ describe('Hosted Cloud browser recovery', () => {
           search: '',
           assign: (url: string) => redirects.push(url),
         },
+        addEventListener: (name: string, callback: () => void) => {
+          windowListeners.set(name, callback);
+        },
+      },
+      setInterval: (callback: () => void, delay: number) => {
+        const timer = ++nextTimerId;
+        intervals.set(timer, { callback, delay });
+        return timer;
+      },
+      clearInterval: (timer: number) => {
+        intervals.delete(timer);
       },
       fetch: fetcher,
     });
     await new Promise<void>((resolve) => setImmediate(resolve));
-    return { redirects, notice: elements.get('notice') as { textContent: string }, elements };
+    return {
+      redirects,
+      notice: elements.get('notice') as { textContent: string },
+      elements,
+      async tickUsage() {
+        const tasks = [...intervals.values()].filter((timer) => timer.delay === 30000);
+        for (const timer of tasks) timer.callback();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      },
+      setHidden(hidden: boolean) {
+        documentState.hidden = hidden;
+      },
+      leave() {
+        windowListeners.get('pagehide')?.();
+      },
+      activeUsageTimers() {
+        return [...intervals.values()].filter((t) => t.delay === 30000).length;
+      },
+    };
   }
 
   it('renders persistent owner call totals and refreshes them without reloading', async () => {
@@ -238,6 +274,73 @@ describe('Hosted Cloud browser recovery', () => {
     expect(result.elements.get('usage-total').textContent).toBe('5');
     expect(result.elements.get('usage-hint').textContent).toContain('Last completed call');
     expect(result.redirects).toEqual([]);
+  });
+
+  it('updates the owner counter in the foreground without polling hidden or departed pages', async () => {
+    let count = 0;
+    let total = 2;
+    let slowNextUsage: Promise<void> | undefined;
+    let resumeUsage: (() => void) | undefined;
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me') {
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      }
+      if (url === '/cloud/api/extensions') {
+        return { ok: true, status: 200, json: async () => ({ sessions: [], selection: null }) };
+      }
+      if (url === '/cloud/api/clients') {
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      }
+      if (url === '/cloud/api/usage') {
+        count += 1;
+        if (slowNextUsage) {
+          const pause = slowNextUsage;
+          slowNextUsage = undefined;
+          await pause;
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total, succeeded: total, failed: 0, lastCallAt: null }),
+        };
+      }
+      throw new Error('Unexpected test request');
+    });
+    expect(result.activeUsageTimers()).toBe(1);
+    expect(count).toBe(1);
+    total = 3;
+    await result.tickUsage();
+    expect(count).toBe(2);
+    expect(result.elements.get('usage-total').textContent).toBe('3');
+
+    result.setHidden(true);
+    await result.tickUsage();
+    expect(count).toBe(2);
+    result.setHidden(false);
+    total = 4;
+    await result.tickUsage();
+    expect(count).toBe(3);
+    expect(result.elements.get('usage-total').textContent).toBe('4');
+
+    slowNextUsage = new Promise<void>((resolve) => {
+      resumeUsage = resolve;
+    });
+    total = 5;
+    await result.tickUsage();
+    expect(count).toBe(4);
+    // A scheduled request in progress must not be duplicated by manual refresh.
+    await result.elements.get('refresh-usage').dispatch('click');
+    await result.tickUsage();
+    expect(count).toBe(4);
+    resumeUsage?.();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(result.elements.get('usage-total').textContent).toBe('5');
+
+    result.leave();
+    expect(result.activeUsageTimers()).toBe(0);
+    total = 6;
+    await result.tickUsage();
+    expect(count).toBe(4);
   });
 
   it('shows a recovery path for a blocked Cloud/Access fetch instead of redirecting to sign-in', async () => {

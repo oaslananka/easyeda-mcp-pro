@@ -347,8 +347,10 @@ and earlier credential-exposure disposition. Keep **PR #1057 Draft**,
 
 The Cloud preview also maintains a persistent **per-owner MCP usage counter** in the existing
 `hosted-cloud.sqlite` database. The account workspace shows total, successful and failed
-**completed native-relay tool calls** and allows manual refresh; one sanitized terminal
-line reports each outcome and elapsed time. The counter does not count denied OAuth,
+**completed native-relay tool calls** and refreshes every 30 seconds while the
+signed-in page is visible, with manual refresh still available. Concurrent
+refreshes are deduplicated and the timer stops when the page is closed. One
+sanitized terminal line reports each outcome and elapsed time. The counter does not count denied OAuth,
 unpaired, insufficient-scope or approval-pending calls, and it does not store design
 content, raw tool arguments, account tokens, project names or individual call history.
 Native-tool errors/timeouts are counted as failed; a timeout does **not** prove
