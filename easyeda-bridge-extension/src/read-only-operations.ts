@@ -159,11 +159,22 @@ function bomIdentityError(reason: string): Error {
 }
 
 function verifiedMultiUnitPair(first: any, next: any, existingSubParts: Set<string>): void {
+  // EasyEDA Pro 3.2.209 may omit library UUIDs even for genuine linked units.
+  // Accept that case only with a second exact native symbol UUID, in addition
+  // to the same device, physical ID, reference, and distinct unit names.
+  const sameLibrary =
+    typeof first.deviceLibraryUuid === 'string' &&
+    !!first.deviceLibraryUuid.trim() &&
+    first.deviceLibraryUuid === next.deviceLibraryUuid;
+  const bothLibrariesOmitted = !first.deviceLibraryUuid && !next.deviceLibraryUuid;
+  const sameNativeSymbol =
+    typeof first.symbolUuid === 'string' &&
+    !!first.symbolUuid.trim() &&
+    first.symbolUuid === next.symbolUuid;
   if (
     !first.deviceUuid ||
-    !first.deviceLibraryUuid ||
     first.deviceUuid !== next.deviceUuid ||
-    first.deviceLibraryUuid !== next.deviceLibraryUuid
+    !(sameLibrary || (bothLibrariesOmitted && sameNativeSymbol))
   ) {
     throw bomIdentityError('same physical identity has missing or inconsistent device/library');
   }

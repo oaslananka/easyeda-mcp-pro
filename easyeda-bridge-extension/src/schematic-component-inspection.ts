@@ -128,6 +128,7 @@ export function createSchematicComponentInspectionOperations({
       deviceLibraryUuid: nativeScalarString(device?.libraryUuid),
       deviceName,
       symbolName: nativeScalarString(symbol?.name),
+      symbolUuid: nativeScalarString(symbol?.uuid),
       x: readState(component, 'X'),
       y: readState(component, 'Y'),
       rotation: readState(component, 'Rotation'),
