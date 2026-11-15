@@ -26,6 +26,7 @@ function fakeProvider(origin: string): HostedAuth {
       [
         'client_id=valid&scope=easyeda.read&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid',
         'client_id=valid&scope=easyeda.read%20easyeda.write%20easyeda.export%20easyeda.project_admin%20unknown%3Csvg%3E&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid',
+        'client_id=valid&scope=__proto__&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid',
       ].includes(query),
     getClient: async (_clientId: string, headers: Headers) =>
       headers.get('cookie') === 'session=owner-a'
@@ -301,6 +302,21 @@ describe('Hosted Cloud browser portal', () => {
       expect(html).toContain('<code>unknown&lt;svg&gt;</code>');
       expect(html).not.toContain('<code>unknown<svg></code>');
       expect(html).toContain('data-consent="deny"');
+    });
+  });
+
+  it('treats JavaScript prototype property names as unknown OAuth scopes', async () => {
+    await withPortal(async (base) => {
+      const query =
+        'client_id=valid&scope=__proto__&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid';
+      const response = await fetch(base + '/consent?' + query, {
+        headers: { cookie: 'session=owner-a' },
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('Other requested permission');
+      expect(html).toContain('<code>__proto__</code>');
+      expect(html).not.toContain('Request design changes');
     });
   });
 

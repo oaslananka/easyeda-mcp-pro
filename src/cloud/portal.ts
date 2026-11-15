@@ -114,27 +114,33 @@ const account = (): string =>
     'account',
   );
 
-const PERMISSION_DETAILS: Record<string, readonly [title: string, detail: string]> = {
-  'easyeda.read': ['Read your selected design', 'No editing is permitted by this scope.'],
-  'easyeda.write': [
-    'Request design changes',
-    'Each write requires a separate approval in EasyEDA.',
+const PERMISSION_DETAILS = new Map<string, readonly [title: string, detail: string]>([
+  ['easyeda.read', ['Read your selected design', 'No editing is permitted by this scope.']],
+  [
+    'easyeda.write',
+    ['Request design changes', 'Each write requires a separate approval in EasyEDA.'],
   ],
-  'easyeda.export': ['Export design files', 'Each export requires a separate approval in EasyEDA.'],
-  'easyeda.project_admin': [
-    'Request high-risk project actions',
-    'Destructive operations require stronger approval; unsupported actions remain blocked.',
+  [
+    'easyeda.export',
+    ['Export design files', 'Each export requires a separate approval in EasyEDA.'],
   ],
-  openid: ['Verify your identity', 'Let this client identify your signed-in account.'],
-  profile: ['Basic profile information', 'Share basic information about your account.'],
-  email: ['Email address', 'Share your account email address with this client.'],
-  offline_access: ['Stay connected', 'Allow the client to renew access until you revoke it.'],
-};
+  [
+    'easyeda.project_admin',
+    [
+      'Request high-risk project actions',
+      'Destructive operations require stronger approval; unsupported actions remain blocked.',
+    ],
+  ],
+  ['openid', ['Verify your identity', 'Let this client identify your signed-in account.']],
+  ['profile', ['Basic profile information', 'Share basic information about your account.']],
+  ['email', ['Email address', 'Share your account email address with this client.']],
+  ['offline_access', ['Stay connected', 'Allow the client to renew access until you revoke it.']],
+]);
 
 function consent(clientName: string, redirectHost: string, scopeList: string[]): string {
   const permissions = scopeList
     .map((scope) => {
-      const [title, detail] = PERMISSION_DETAILS[scope] ?? [
+      const [title, detail] = PERMISSION_DETAILS.get(scope) ?? [
         'Other requested permission',
         'Review this permission code before approving.',
       ];
