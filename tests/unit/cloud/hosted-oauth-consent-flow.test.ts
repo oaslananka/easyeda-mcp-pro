@@ -331,6 +331,9 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
         errorCode: 'ERR_REMOTE_RELAY',
         details: { remoteCode: 'SCOPE_MISSING' },
       });
+      expect(JSON.stringify(deniedByScope)).toContain(
+        'Reconnect your MCP client requesting easyeda.write',
+      );
       const deniedExportByScope = await client.callTool({
         name: 'easyeda_export_gerbers',
         arguments: { projectId: 'disposable-project' },
@@ -340,6 +343,9 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
         errorCode: 'ERR_REMOTE_RELAY',
         details: { remoteCode: 'SCOPE_MISSING' },
       });
+      expect(JSON.stringify(deniedExportByScope)).toContain(
+        'Reconnect your MCP client requesting easyeda.export',
+      );
       expect(approvalRequests).toHaveLength(0);
       expect(dispatched).toHaveLength(2);
 
