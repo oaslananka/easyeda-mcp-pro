@@ -83,6 +83,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
     });
     const gateway = new RemoteGateway();
     const dispatched: ToolRequestMessage[] = [];
+    const approvalRequests: Array<Record<string, unknown>> = [];
     const ownerIdentity = { userId: saved.id, scopes: ['easyeda.read'] as const };
     let socket: WebSocket | undefined;
     let sessionId = '';
@@ -123,10 +124,15 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
                 requestMessageId: request.messageId,
                 timestamp: new Date().toISOString(),
                 ok: true,
-                result: { total: 0, items: [] },
+                result:
+                  request.toolName === 'schematic.addText'
+                    ? { primitiveId: 'fixture-disposable-text' }
+                    : { total: 0, items: [] },
                 durationMs: 1,
               }),
             );
+          } else if (message.type === 'approval_request') {
+            approvalRequests.push(message);
           } else if (message.type === 'error') {
             clearTimeout(timeout);
             reject(new Error('Relay rejected frame: ' + String(message.code)));
@@ -314,6 +320,271 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(dispatched).toHaveLength(2);
       expect(dispatched[0]).toMatchObject({ sessionId, riskLevel: 'read' });
 
+      // The previously approved read-only bearer may enumerate tools, but
+      // must NOT request a mutation or an approval from the owner's extension.
+      const deniedByScope = await client.callTool({
+        name: 'easyeda_schematic_add_text',
+        arguments: { x: 10, y: 20, content: 'Denied by read-only OAuth', confirmWrite: true },
+      });
+      expect(deniedByScope.isError).toBe(true);
+      expect(deniedByScope.structuredContent).toMatchObject({
+        errorCode: 'ERR_REMOTE_RELAY',
+        details: { remoteCode: 'SCOPE_MISSING' },
+      });
+      const deniedExportByScope = await client.callTool({
+        name: 'easyeda_export_gerbers',
+        arguments: { projectId: 'disposable-project' },
+      });
+      expect(deniedExportByScope.isError).toBe(true);
+      expect(deniedExportByScope.structuredContent).toMatchObject({
+        errorCode: 'ERR_REMOTE_RELAY',
+        details: { remoteCode: 'SCOPE_MISSING' },
+      });
+      expect(approvalRequests).toHaveLength(0);
+      expect(dispatched).toHaveLength(2);
+
+      // Register a SECOND OAuth client for the same owner and request explicit
+      // read/write/export scopes through the actual first-party authorization
+      // server and signed consent page, not a forged self-signed bearer token.
+      const fullScopes = 'easyeda.read easyeda.write easyeda.export';
+      const registerFullClient = await fetch(`${origin}/api/auth/oauth2/create-client`, {
+        method: 'POST',
+        headers: {
+          cookie: headers.get('cookie') ?? '',
+          origin,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_name: 'Fixture Full-Scope Client',
+          redirect_uris: [redirectUri],
+          token_endpoint_auth_method: 'none',
+          application_type: 'native',
+          scope: fullScopes,
+        }),
+      });
+      const fullRegistration = (await registerFullClient.json()) as {
+        client_id?: string;
+        error?: string;
+      };
+      expect(registerFullClient.status, fullRegistration.error).toBe(201);
+      expect(fullRegistration.client_id).toBeTruthy();
+      const fullVerifier = randomBytes(32).toString('base64url');
+      const fullQuery = new URLSearchParams({
+        response_type: 'code',
+        client_id: fullRegistration.client_id!,
+        redirect_uri: redirectUri,
+        scope: fullScopes,
+        code_challenge: createHash('sha256').update(fullVerifier).digest('base64url'),
+        code_challenge_method: 'S256',
+        state: 'full-scope-fixture',
+        resource: `${origin}/mcp`,
+      });
+      const fullAuthorize = await fetch(`${origin}/api/auth/oauth2/authorize?${fullQuery}`, {
+        headers,
+      });
+      expect(fullAuthorize.status).toBe(200);
+      const fullConsentUrl = new URL(((await fullAuthorize.json()) as { url: string }).url, origin);
+      const fullConsentPage = await fetch(fullConsentUrl, { headers });
+      expect(fullConsentPage.status).toBe(200);
+      const consentHtml = await fullConsentPage.text();
+      expect(consentHtml).toContain('Request design changes');
+      expect(consentHtml).toContain('Export design files');
+
+      const grantFullScopes = await fetch(`${origin}/api/auth/oauth2/consent`, {
+        method: 'POST',
+        headers: {
+          cookie: headers.get('cookie') ?? '',
+          origin,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          accept: true,
+          oauth_query: fullConsentUrl.search.slice(1),
+        }),
+      });
+      expect(grantFullScopes.status).toBe(200);
+      const grantedCallback = new URL(
+        ((await grantFullScopes.json()) as { url: string }).url,
+        origin,
+      );
+      const fullCode = grantedCallback.searchParams.get('code');
+      expect(fullCode).toBeTruthy();
+      const fullExchange = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: fullRegistration.client_id!,
+          code: fullCode!,
+          code_verifier: fullVerifier,
+          redirect_uri: redirectUri,
+          resource: `${origin}/mcp`,
+        }),
+      });
+      const fullIssued = (await fullExchange.json()) as {
+        access_token?: string;
+        scope?: string;
+        error?: string;
+        error_description?: string;
+      };
+      expect(fullExchange.status, fullIssued.error_description).toBe(200);
+      expect(decodeJwt(fullIssued.access_token!)).toMatchObject({
+        sub: saved.id,
+        azp: fullRegistration.client_id,
+      });
+      expect(fullIssued.scope?.split(' ')).toEqual(expect.arrayContaining(fullScopes.split(' ')));
+
+      const fullClient = new Client({ name: 'full-scope-fixture', version: '1.0.0' });
+      try {
+        await fullClient.connect(
+          new StreamableHTTPClientTransport(new URL(`${origin}/mcp`), {
+            requestInit: {
+              headers: { Authorization: `Bearer ${fullIssued.access_token}` },
+            },
+          }),
+        );
+        const writeArguments = {
+          x: 15,
+          y: 25,
+          content: 'Fixture only',
+          confirmWrite: true,
+        };
+        const pendingApproval = await fullClient.callTool({
+          name: 'easyeda_schematic_add_text',
+          arguments: writeArguments,
+        });
+        expect(pendingApproval.isError).toBe(true);
+        expect(pendingApproval.structuredContent).toMatchObject({
+          errorCode: 'ERR_REMOTE_RELAY',
+          details: { remoteCode: 'APPROVAL_REQUIRED', approvalId: expect.any(String) },
+        });
+        const approvalId = (
+          pendingApproval.structuredContent as { details: { approvalId: string } }
+        ).details.approvalId;
+        expect(approvalRequests).toHaveLength(1);
+        expect(approvalRequests[0]).toMatchObject({
+          type: 'approval_request',
+          approvalId,
+          sessionId,
+          riskLevel: 'write',
+          toolName: 'easyeda_schematic_add_text',
+        });
+        expect(dispatched).toHaveLength(2);
+
+        // A rejected extension-side approval can never perform the mutation.
+        relay.send(
+          JSON.stringify({
+            protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+            type: 'approval_result',
+            messageId: 'fixture-reject-write',
+            sessionId,
+            approvalId,
+            result: 'rejected',
+            timestamp: new Date().toISOString(),
+          }),
+        );
+        const rejected = await fullClient.callTool({
+          name: 'easyeda_schematic_add_text',
+          arguments: { ...writeArguments, remoteApprovalId: approvalId },
+        });
+        expect(rejected.isError).toBe(true);
+        expect(rejected.structuredContent).toMatchObject({
+          errorCode: 'ERR_REMOTE_RELAY',
+          details: { remoteCode: 'APPROVAL_NOT_APPROVED' },
+        });
+        expect(dispatched).toHaveLength(2);
+
+        // A distinct approved request may be dispatched ONCE to the fake
+        // WebSocket peer. This is NOT a live EasyEDA design modification.
+        const approvedInput = { ...writeArguments, content: 'Approved fixture only' };
+        const newApproval = await fullClient.callTool({
+          name: 'easyeda_schematic_add_text',
+          arguments: approvedInput,
+        });
+        const approvedId = (newApproval.structuredContent as { details: { approvalId: string } })
+          .details.approvalId;
+        expect(approvalRequests).toHaveLength(2);
+        relay.send(
+          JSON.stringify({
+            protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+            type: 'approval_result',
+            messageId: 'fixture-approve-write',
+            sessionId,
+            approvalId: approvedId,
+            result: 'approved',
+            timestamp: new Date().toISOString(),
+          }),
+        );
+        const approvedWrite = await fullClient.callTool({
+          name: 'easyeda_schematic_add_text',
+          arguments: { ...approvedInput, remoteApprovalId: approvedId },
+        });
+        expect(approvedWrite.isError).not.toBe(true);
+        expect(approvedWrite.structuredContent).toMatchObject({
+          success: true,
+          text: { primitiveId: 'fixture-disposable-text' },
+        });
+        expect(dispatched).toHaveLength(3);
+        expect(dispatched[2]).toMatchObject({
+          sessionId,
+          toolName: 'schematic.addText',
+          riskLevel: 'write',
+        });
+        const replay = await fullClient.callTool({
+          name: 'easyeda_schematic_add_text',
+          arguments: { ...approvedInput, remoteApprovalId: approvedId },
+        });
+        expect(replay.isError).toBe(true);
+        expect(dispatched).toHaveLength(3);
+
+        // Export has its OWN scope and extension-side approval. Rejecting
+        // the simulated export must not write a Gerber artifact.
+        const exportInput = { projectId: 'disposable-project' };
+        const pendingExport = await fullClient.callTool({
+          name: 'easyeda_export_gerbers',
+          arguments: exportInput,
+        });
+        expect(pendingExport.isError).toBe(true);
+        expect(pendingExport.structuredContent).toMatchObject({
+          errorCode: 'ERR_REMOTE_RELAY',
+          details: { remoteCode: 'APPROVAL_REQUIRED', approvalId: expect.any(String) },
+        });
+        const exportApprovalId = (
+          pendingExport.structuredContent as { details: { approvalId: string } }
+        ).details.approvalId;
+        expect(approvalRequests).toHaveLength(3);
+        expect(approvalRequests[2]).toMatchObject({
+          type: 'approval_request',
+          approvalId: exportApprovalId,
+          sessionId,
+          riskLevel: 'export',
+          toolName: 'easyeda_export_gerbers',
+        });
+        relay.send(
+          JSON.stringify({
+            protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+            type: 'approval_result',
+            messageId: 'fixture-reject-export',
+            sessionId,
+            approvalId: exportApprovalId,
+            result: 'rejected',
+            timestamp: new Date().toISOString(),
+          }),
+        );
+        const deniedExport = await fullClient.callTool({
+          name: 'easyeda_export_gerbers',
+          arguments: { ...exportInput, remoteApprovalId: exportApprovalId },
+        });
+        expect(deniedExport.isError).toBe(true);
+        expect(deniedExport.structuredContent).toMatchObject({
+          errorCode: 'ERR_REMOTE_RELAY',
+          details: { remoteCode: 'APPROVAL_NOT_APPROVED' },
+        });
+        expect(dispatched).toHaveLength(3);
+      } finally {
+        await fullClient.close();
+      }
+
       // Two distinct users with real provider-issued OAuth tokens must never
       // share sessions, consent or native dispatch. These identities come from
       // an isolated fixture database, not independently logged-in real people.
@@ -407,7 +678,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
           arguments: { projectId: 'disposable-project' },
         });
         expect(forbiddenRead.isError).toBe(true);
-        expect(dispatched).toHaveLength(2);
+        expect(dispatched).toHaveLength(3);
       } finally {
         await secondClient.close();
       }
@@ -447,7 +718,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
         name: 'easyeda_schematic_components',
         arguments: { projectId: 'disposable-project' },
       });
-      expect(dispatched).toHaveLength(2);
+      expect(dispatched).toHaveLength(3);
       expect(oldProjectRead.isError).toBe(true);
       expect(oldProjectRead.structuredContent).toMatchObject({
         errorCode: 'ERR_REMOTE_RELAY',
@@ -459,7 +730,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
         arguments: { projectId: 'disposable-project' },
       });
       expect(newProjectRead.isError).not.toBe(true);
-      expect(dispatched).toHaveLength(4);
+      expect(dispatched).toHaveLength(5);
 
       // If the paired extension drops off the network, the same authenticated
       // MCP client must receive an explicit failure rather than a fabricated
@@ -487,7 +758,7 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
         errorCode: 'ERR_REMOTE_RELAY',
         details: { remoteCode: 'SESSION_DISCONNECTED' },
       });
-      expect(dispatched).toHaveLength(4);
+      expect(dispatched).toHaveLength(5);
 
       // A browser cannot turn a signed read-only consent into a write grant.
       const tamperedConsent = new URL(consentUrl);

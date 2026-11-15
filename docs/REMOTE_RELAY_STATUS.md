@@ -59,8 +59,20 @@ the new project restores reads. Closing the socket returns an explicit
 SESSION_DISCONNECTED MCP error instead of a misleading successful empty
 schematic. The common MCP registry preserves critical remote authorization,
 session, project and timeout errors even when an individual read tool normally
-returns a best-effort not_available result. **The WebSocket peer is a simulated
-EasyEDA extension, not the live EasyEDA desktop process or public WSS service.**
+returns a best-effort not_available result. The same first-party provider
+test now also authorizes a **separate read/write/export OAuth client** via
+actual PKCE and signed owner consent. Its `at+jwt` includes all requested
+scopes; the original read-only token is denied both write and export before
+approval. Over the loopback WebSocket, write approval requests are owner/session/
+tool bound: rejection blocks dispatch, approval permits one simulated tool
+result, and replay is denied. Export produces a separate approval request,
+and rejecting it prevents any simulated export dispatch. The account page
+also distinguishes read-only from write/export-authorized clients and
+explains that the **MCP client must request missing scopes again**; an
+existing read-only bearer cannot be upgraded silently. **The WebSocket
+peer is a simulated EasyEDA extension, not the live EasyEDA desktop process
+or public WSS service, and no native design mutation or file export was
+performed in this test.**
 Cloud's project identity now uses the native EasyEDA Pro
 `dmt_Project.getCurrentProjectInfo` project UUID and
 `dmt_SelectControl.getCurrentDocumentInfo` focused document UUID rather

@@ -157,9 +157,14 @@ describe('Hosted Cloud browser recovery', () => {
         textContent: '',
         className: '',
         dataset: {} as Record<string, string>,
+        children: [] as any[],
         classList: { add() {}, remove() {} },
-        replaceChildren() {},
-        appendChild() {},
+        replaceChildren(this: { children: any[] }, ...nodes: any[]) {
+          this.children = nodes;
+        },
+        appendChild(this: { children: any[] }, node: any) {
+          this.children.push(node);
+        },
         listeners: new Map<string, () => Promise<void> | void>(),
         addEventListener(
           this: { listeners: Map<string, () => Promise<void> | void> },
@@ -273,6 +278,44 @@ describe('Hosted Cloud browser recovery', () => {
     expect(deviceRequests).toBe(2);
     expect(result.notice.textContent).toBe('Device connections updated.');
     expect(result.redirects).toEqual([]);
+  });
+
+  it('shows which connected OAuth clients are read-only and how to request full scopes', async () => {
+    const clients = [
+      { id: 'read-client', name: 'Read-only agent', scopes: ['openid', 'easyeda.read'] },
+      {
+        id: 'full-client',
+        name: 'Full-scope agent',
+        scopes: ['easyeda.read', 'easyeda.write', 'easyeda.export'],
+      },
+    ];
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return { ok: true, status: 200, json: async () => ({ sessions: [], selection: null }) };
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      throw new Error('Unexpected test request');
+    });
+    const cards = result.elements.get('clients').children;
+    expect(cards).toHaveLength(2);
+    const readInfo = cards[0].children[0].children;
+    expect(readInfo[0].textContent).toBe('Read-only agent');
+    expect(readInfo[1].textContent).toBe('Read');
+    expect(readInfo[1].className).toContain('limited');
+    expect(readInfo[2].textContent).toContain('easyeda.write and easyeda.export');
+    expect(readInfo[2].textContent).toContain('reconnect from your MCP client');
+    const fullInfo = cards[1].children[0].children;
+    expect(fullInfo[1].textContent).toBe('Read · Write · Export');
+    expect(fullInfo[1].className).not.toContain('limited');
+    expect(fullInfo[2].textContent).toContain('requires your approval in EasyEDA');
   });
 
   it('lets a signed-in owner retry MCP client permissions without reloading the pairing page', async () => {
