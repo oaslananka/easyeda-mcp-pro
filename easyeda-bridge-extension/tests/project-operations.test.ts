@@ -2,18 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { createProjectOperations } from '../src/project-operations.js';
 
 describe('project operations', () => {
-  it('saves through the exact zero-argument fallback chain', async () => {
-    const callFirst = vi.fn(async () => 'saved');
+  it('refuses save without explicit confirmation before any native call', async () => {
+    const callFirst = vi.fn(async () => true);
     const operations = createProjectOperations({ callFirst });
 
-    await expect(operations.save({ projectId: 'ignored' })).resolves.toBe('saved');
-    expect(callFirst).toHaveBeenCalledWith([
-      'dmt_Workspace.saveAll',
-      'dmt_Workspace.saveActiveDocument',
-      'sch_Document.save',
-      'pcb_Document.save',
-      'pnl_Document.save',
-    ]);
+    await expect(operations.save({ projectId: 'p1' })).resolves.toMatchObject({
+      success: false,
+      status: 'confirm_write_required',
+    });
+    expect(callFirst).not.toHaveBeenCalled();
   });
 
   it('exports with the original path order and exact params object', async () => {
@@ -54,12 +51,15 @@ describe('project lifecycle safety', () => {
     activationFails?: boolean;
     focusedProject?: string;
     focusedDocument?: string;
+    focusedDocumentType?: number;
     saveThrows?: boolean;
+    focusedChangesAfterSave?: boolean;
     nativeCloseReturnsFalse?: boolean;
     projectData?: unknown[];
   }) {
     let active = overrides?.active ?? 'p1';
     let currentReadCount = 0;
+    let focusedChanged = false;
     let pendingClose: string | undefined;
     let pendingReadbacks = 0;
     let tabs = overrides?.tabs ?? [
@@ -105,12 +105,16 @@ describe('project lifecycle safety', () => {
             return overrides?.activationFails !== true;
           case 'dmt_SelectControl.getCurrentDocumentInfo':
             return {
-              uuid: overrides?.focusedDocument ?? 'pcb1',
+              uuid: focusedChanged ? 'sch1' : (overrides?.focusedDocument ?? 'pcb1'),
               parentProjectUuid: overrides?.focusedProject ?? 'p1',
-              documentType: 3,
+              documentType: focusedChanged ? 1 : (overrides?.focusedDocumentType ?? 3),
             };
           case 'pcb_Document.save':
             if (overrides?.saveThrows) throw new Error('native PCB save exception');
+            if (overrides?.focusedChangesAfterSave) focusedChanged = true;
+            return overrides?.save !== false;
+          case 'sch_Document.save':
+            if (overrides?.saveThrows) throw new Error('native schematic save exception');
             return overrides?.save !== false;
           case 'dmt_EditorControl.closeDocument':
             if (overrides?.nativeCloseReturnsFalse) return false;
@@ -128,6 +132,85 @@ describe('project lifecycle safety', () => {
     );
     return { callFirst, operations: createProjectOperations({ callFirst }) };
   }
+
+  it.each([
+    ['missing project ID', { projectId: '', confirmWrite: true }, 'invalid_project_id'],
+    ['wrong active project', { projectId: 'p2', confirmWrite: true }, 'active_project_mismatch'],
+  ])('does not save an invalid or different project: %s', async (_name, input, status) => {
+    const { operations, callFirst } = fixture();
+    await expect(operations.save(input)).resolves.toMatchObject({ success: false, status });
+    expect(
+      callFirst.mock.calls.some(([paths]) => (paths as readonly string[])[0].includes('.save')),
+    ).toBe(false);
+  });
+
+  it.each([
+    ['another project', { focusedProject: 'p2' }],
+    ['unknown document', { focusedDocument: 'not-a-project-document' }],
+    ['unsupported type', { focusedDocumentType: 99 }],
+  ])('refuses a mismatched native save target: %s', async (_name, flags) => {
+    const { operations, callFirst } = fixture(flags);
+    await expect(operations.save({ projectId: 'p1', confirmWrite: true })).resolves.toMatchObject({
+      success: false,
+      status: 'focused_document_mismatch',
+    });
+    expect(
+      callFirst.mock.calls.some(([paths]) =>
+        /\.save$|saveAll/.test((paths as readonly string[])[0] ?? ''),
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    ['PCB', {}, 'pcb_Document.save'],
+    ['schematic', { focusedDocument: 'sch1', focusedDocumentType: 1 }, 'sch_Document.save'],
+  ])(
+    'saves the exact focused %s only once; never invokes workspace saveAll',
+    async (_name, flags, nativePath) => {
+      const { operations, callFirst } = fixture(flags);
+      await expect(operations.save({ projectId: 'p1', confirmWrite: true })).resolves.toMatchObject(
+        {
+          success: true,
+          status: 'native_save_acknowledged_persistence_unverified',
+          projectId: 'p1',
+        },
+      );
+      expect(
+        callFirst.mock.calls.filter(([paths]) => (paths as readonly string[])[0].endsWith('.save')),
+      ).toEqual([[[nativePath]]]);
+      expect(
+        callFirst.mock.calls.some(([paths]) =>
+          (paths as readonly string[])[0].startsWith('dmt_Workspace.'),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it('does not claim a stable save target when focus switches after native acknowledgment', async () => {
+    const { operations, callFirst } = fixture({ focusedChangesAfterSave: true });
+    await expect(operations.save({ projectId: 'p1', confirmWrite: true })).resolves.toMatchObject({
+      success: false,
+      status: 'target_changed_during_save',
+    });
+    expect(
+      callFirst.mock.calls.filter(
+        ([paths]) => (paths as readonly string[])[0] === 'pcb_Document.save',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('does not claim a save when the exact native document refuses it', async () => {
+    const { operations, callFirst } = fixture({ save: false });
+    await expect(operations.save({ projectId: 'p1', confirmWrite: true })).resolves.toMatchObject({
+      success: false,
+      status: 'native_save_unconfirmed',
+    });
+    expect(
+      callFirst.mock.calls.filter(
+        ([paths]) => (paths as readonly string[])[0] === 'pcb_Document.save',
+      ),
+    ).toHaveLength(1);
+  });
 
   it('lists the scoped workspace projects with truthful active/open markers', async () => {
     const { operations, callFirst } = fixture();
@@ -381,6 +464,81 @@ describe('project lifecycle safety', () => {
     expect(
       callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
     ).toBe(false);
+  });
+
+  // Captured from a real EasyEDA Pro 3.2.209 P1.Schematic tab. The native
+  // schema has data-model-sheet-uuid but no creator field for schematic pages.
+  const nativeSchematicTab = {
+    tabId: 'sch1-extended-native-tab',
+    title: 'P1.Schematic',
+    data: {
+      pid: 'p1',
+      doctype: 1,
+      creator: 'native-actor-not-the-page',
+      'data-model-sheet-uuid': 'sch1',
+    },
+  };
+
+  it('recognizes the real schematic page but refuses unsafe save-and-close until persisted', async () => {
+    const { operations, callFirst } = fixture({
+      focusedDocument: 'sch1',
+      focusedDocumentType: 1,
+      tabs: [{ tabId: 'start', title: 'Start Page', data: { doctype: -1 } }, nativeSchematicTab],
+    });
+    const opened = await operations.open({ projectId: 'p1' });
+    expect(opened).toMatchObject({
+      success: true,
+      status: 'already_active',
+      documents: expect.arrayContaining([
+        { documentId: 'sch1', type: 'schematic', tabId: 'sch1-extended-native-tab' },
+      ]),
+    });
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'schematic_persistence_unverified' });
+    const names = callFirst.mock.calls.map(([paths]) => (paths as readonly string[])[0]);
+    expect(names).not.toContain('sch_Document.save');
+    expect(names).not.toContain('dmt_EditorControl.closeDocument');
+  });
+
+  it.each([
+    ['wrong project', { pid: 'another' }, 'sch1-extended-native-tab'],
+    ['wrong page UUID', { 'data-model-sheet-uuid': 'another' }, 'sch1-extended-native-tab'],
+    ['missing page UUID', { 'data-model-sheet-uuid': undefined }, 'sch1-extended-native-tab'],
+    ['PCB tab type', { doctype: 3 }, 'sch1-extended-native-tab'],
+    ['string document type', { doctype: '1' }, 'sch1-extended-native-tab'],
+    ['forged tab prefix', {}, 'unrelated-native-tab'],
+  ])('refuses an untrusted schematic tab: %s', async (_, changes, tabId) => {
+    const { operations, callFirst } = fixture({
+      focusedDocument: 'sch1',
+      focusedDocumentType: 1,
+      tabs: [
+        { tabId: 'start', title: 'Start Page', data: { doctype: -1 } },
+        { ...nativeSchematicTab, tabId, data: { ...nativeSchematicTab.data, ...changes } },
+      ],
+    });
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'unknown_document_tabs' });
+    expect(callFirst.mock.calls.some(([paths]) => paths[0] === 'sch_Document.save')).toBe(false);
+    expect(
+      callFirst.mock.calls.some(([paths]) => paths[0] === 'dmt_EditorControl.closeDocument'),
+    ).toBe(false);
+  });
+
+  it('refuses duplicate schematic tabs even when each has matching native identity', async () => {
+    const { operations, callFirst } = fixture({
+      focusedDocument: 'sch1',
+      focusedDocumentType: 1,
+      tabs: [
+        nativeSchematicTab,
+        { ...nativeSchematicTab, title: 'Other', tabId: 'sch1-another-native-tab' },
+      ],
+    });
+    await expect(
+      operations.close({ projectId: 'p1', mode: 'save', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'unknown_document_tabs' });
+    expect(callFirst.mock.calls.some(([paths]) => paths[0] === 'sch_Document.save')).toBe(false);
   });
 
   it('refuses unknown tabs before saving or closing any document', async () => {

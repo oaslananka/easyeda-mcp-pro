@@ -246,6 +246,48 @@ describe('BOM Tools Sourcing & Validate', () => {
     expect(tool?.outputSchema.safeParse(result).success).toBe(true);
   });
 
+  it('counts grouped BOM quantities as physical parts, not group rows', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue([
+      { reference: 'R1, R2, R3', value: '10k', lcsc: 'C123', quantity: 3 },
+      { reference: 'U1', value: 'AMP', lcsc: 'C987', quantity: 1 },
+    ]);
+    getPartDetailMock.mockImplementation(async (lcsc: string) => ({
+      lcsc,
+      discontinued: false,
+    }));
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({ total_parts: 4, valid_count: 4, validated: true });
+    expect(getPartDetailMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('never claims a grouped BOM with a missing supplier code is fully validated', async () => {
+    const tool = registry.get('easyeda_bom_validate');
+    bridgeCall.mockResolvedValue([
+      { reference: 'R1, R2', value: '10k', quantity: 2 },
+      { reference: 'U1', value: 'AMP', lcsc: 'C987', quantity: 1 },
+    ]);
+    getPartDetailMock.mockResolvedValue({ lcsc: 'C987', discontinued: false });
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(result).toMatchObject({
+      total_parts: 3,
+      valid_count: 1,
+      validated: false,
+      missing_lcsc: ['R1, R2'],
+    });
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])(
+    'refuses malformed grouped physical quantity %s',
+    async (quantity) => {
+      const tool = registry.get('easyeda_bom_validate');
+      bridgeCall.mockResolvedValue([{ reference: 'R1', value: '10k', lcsc: 'C123', quantity }]);
+      const result = await tool?.handler(context, { projectId: 'proj-123' });
+      expect(result).toMatchObject({ not_available: true, validated: false, total_parts: 0 });
+      expect(getPartDetailMock).not.toHaveBeenCalled();
+    },
+  );
+
   it('does not claim supplier verification when every part lacks a supplier code', async () => {
     const tool = registry.get('easyeda_bom_validate');
     bridgeCall.mockResolvedValue([{ reference: 'R1', value: '10k' }]);

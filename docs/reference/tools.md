@@ -78,13 +78,13 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_power_tree_analyze`                       | `core`         | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                   |
 | `easyeda_production_qa_artifacts`                  | `pro`          | `low`    | Generate testpoint, assembly and bring-up QA handoff artifacts; explicit human review is required and generated files never certify fabrication approval.                                                                                                                                                                     |
 | `easyeda_project_begin_transaction`                | `core`         | `low`    | Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools passed transactionId participate; standalone schematic writes are not auto-captured. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.                                    |
-| `easyeda_project_close`                            | `core`         | `high`   | Default refuses when dirty status is unknown. Explicit confirmed save first verifies native save then closes; explicit discard is destructive. Never silently discards unsaved documents.                                                                                                                                     |
+| `easyeda_project_close`                            | `core`         | `high`   | Default refuses when dirty status is unknown. Explicit confirmed save-and-close requires a trusted native save; schematic pages with unverified durable persistence fail closed instead of risking data loss. Explicit discard is destructive.                                                                                |
 | `easyeda_project_commit_transaction`               | `core`         | `medium` | Finalize a transaction after its writes and validation gates succeed. Commit removes rollback eligibility and releases the document transaction lock.                                                                                                                                                                         |
 | `easyeda_project_get_transaction_status`           | `core`         | `low`    | Read transaction state, validation results, operation hashes, and rollback status without exposing captured primitive snapshots.                                                                                                                                                                                              |
 | `easyeda_project_list`                             | `core`         | `low`    | Read team-scoped EasyEDA projects and active identity. Only the active project can be verified open; unknown projects report open=null. No native project or document changes.                                                                                                                                                |
 | `easyeda_project_open`                             | `core`         | `medium` | Open an EasyEDA project by UUID only when no other document is open. Requires explicit write confirmation and read-back of active project. Never silently switches away from an open document.                                                                                                                                |
 | `easyeda_project_rollback_transaction`             | `core`         | `medium` | Controlled write: restore applied schematic primitive snapshots in reverse order, verify each restored hash, and report partial rollback explicitly instead of hiding inconsistencies.                                                                                                                                        |
-| `easyeda_project_save`                             | `core`         | `medium` | Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.                                                                  |
+| `easyeda_project_save`                             | `core`         | `medium` | Save only the exact focused EasyEDA project/document. Native acknowledgment is NOT durable persistence: success=false until verified after cold reopen. On Pro 3.2.209, use GUI Ctrl+S then reopen the document to verify. Never blindly retry unverified writes.                                                             |
 | `easyeda_project_validate_transaction`             | `core`         | `low`    | Run transaction consistency gates before commit: bridge availability, pending/failed operation checks, optional expected operation count, and optional requirement for at least one applied write.                                                                                                                            |
 | `easyeda_rule_check_summary`                       | `core`         | `low`    | Get a summary of all design and electrical rule check results for the project.                                                                                                                                                                                                                                                |
 | `easyeda_run_self_test`                            | `core`         | `low`    | Run internal self-test to verify server integrity, config, and bridge connectivity.                                                                                                                                                                                                                                           |
@@ -105,7 +105,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_schematic_connectivity_fingerprint`       | `pro`          | `low`    | Compute a deterministic connectivity fingerprint (pin/net membership, wire endpoints, labels/ports, no-connects) from the live schematic. Pass the hash as beforeFingerprint/afterFingerprint to easyeda_schematic_layout_qa to prove a cosmetic move left connectivity unchanged.                                            |
 | `easyeda_schematic_create_net_flag`                | `core`         | `medium` | Create a named net flag/label. With `identification` (Power/Ground/AnalogGround/ProtectGround) it places a power-flag symbol binding to a coincident pin (use for VCC/GND). Without it, a generic net label — cosmetic only; connect pins with add_wire stubs sharing one netName.                                            |
 | `easyeda_schematic_create_net_port`                | `core`         | `medium` | Place a hierarchical net port (off-sheet connector) on the schematic. Net ports create named connections that span multiple schematic sheets, appearing as real SCH_Net entries in the netlist.                                                                                                                               |
-| `easyeda_schematic_delete_primitive`               | `core`         | `medium` | Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported transactional delete kinds fail before mutation. Without transactionId the write is standalone.                                       |
+| `easyeda_schematic_delete_primitive`               | `core`         | `medium` | Delete supported schematic primitives by UUID. BETA text delete is blocked: native success can be lost after restart. Native success does not prove persistence. Use projectId + transactionId for supported rollback-backed deletion. Without transactionId, deletion is standalone.                                         |
 | `easyeda_schematic_device_subparts`                | `core`         | `low`    | Read the exact sub-part names and declared footprint from a device library record. Use the UUIDs returned by search_device. This is read-only metadata: it does not place units, prove shared designators, pin connectivity, or a single BOM component.                                                                       |
 | `easyeda_schematic_layout_autofix`                 | `pro`          | `low`    | Detect title-block overlap, page-boundary overflow, and component-overlap violations from real rendered bounds, and propose cosmetic-only moves that resolve them. Read-only preview only (requiresConfirmWrite=true, no writes) -- confirmWrite apply with connectivity-fingerprint rollback is tracked separately (#273).   |
 | `easyeda_schematic_layout_autofix_apply`           | `pro`          | `high`   | Apply the layout-autofix cosmetic moves in a snapshot-backed transaction, re-verifying a connectivity fingerprint after every write batch. Any unintended electrical change or write failure rolls the transaction back and is reported, never thrown. dryRun:true previews only.                                             |
@@ -2650,7 +2650,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `high`
 
-> Default refuses when dirty status is unknown. Explicit confirmed save first verifies native save then closes; explicit discard is destructive. Never silently discards unsaved documents.
+> Default refuses when dirty status is unknown. Explicit confirmed save-and-close requires a trusted native save; schematic pages with unverified durable persistence fail closed instead of risking data loss. Explicit discard is destructive.
 
 ### Input Parameters
 
@@ -2825,7 +2825,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, net flags, pin connections, and other mutations are persisted to the project file. Save is never implicit — the caller must explicitly request it. Requires confirmWrite.
+> Save only the exact focused EasyEDA project/document. Native acknowledgment is NOT durable persistence: success=false until verified after cold reopen. On Pro 3.2.209, use GUI Ctrl+S then reopen the document to verify. Never blindly retry unverified writes.
 
 ### Input Parameters
 
@@ -2842,7 +2842,9 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   project_id: string;
-  saved_at: string(optional);
+  persistence_verified: boolean;
+  native_acknowledged: boolean;
+  status: string;
   error: string(optional);
 }
 ```
@@ -3557,7 +3559,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `medium`
 
-> Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported transactional delete kinds fail before mutation. Without transactionId the write is standalone.
+> Delete supported schematic primitives by UUID. BETA text delete is blocked: native success can be lost after restart. Native success does not prove persistence. Use projectId + transactionId for supported rollback-backed deletion. Without transactionId, deletion is standalone.
 
 ### Input Parameters
 
@@ -3577,6 +3579,7 @@ Returns a JSON object matching the schema:
 ```ts
 {
   success: boolean;
+  persistence_verified: boolean(optional);
   transaction: object(optional);
   error_code: string(optional);
   error: string(optional);

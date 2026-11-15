@@ -216,6 +216,19 @@ function transactionFailure(err: unknown) {
   };
 }
 
+function isConfirmedNativeSchematicDeletion(response: unknown, requestedIds: string[]): boolean {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) return false;
+  const native = response as { success?: unknown; deleted?: unknown; notFound?: unknown };
+  if (native.success !== true || !Array.isArray(native.deleted) || !Array.isArray(native.notFound))
+    return false;
+  const deleted = native.deleted;
+  if (native.notFound.length > 0 || deleted.length !== requestedIds.length) return false;
+  return (
+    new Set(deleted).size === requestedIds.length &&
+    requestedIds.every((id) => deleted.includes(id))
+  );
+}
+
 function bridgeFailure(err: unknown) {
   const record = err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
   const data =
@@ -1037,9 +1050,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_delete_primitive',
     title: 'Delete schematic primitives',
     description:
-      'Delete components, wires, or other drawing objects by primitive UUID. Pass projectId + ' +
-      'transactionId for rollback-backed deletion of safely recreatable drawing primitives; unsupported ' +
-      'transactional delete kinds fail before mutation. Without transactionId the write is standalone.',
+      'Delete supported schematic primitives by UUID. BETA text delete is blocked: ' +
+      'native success can be lost after restart. Native success does not prove persistence. ' +
+      'Use projectId + transactionId for supported rollback-backed deletion. ' +
+      'Without transactionId, deletion is standalone.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'medium',
@@ -1053,6 +1067,7 @@ function registerSchematicWriteTools(
     inputSchema: deletePrimitiveInputSchema,
     outputSchema: z.object({
       success: z.boolean(),
+      persistence_verified: z.boolean().optional(),
       transaction: z
         .object({
           id: z.string(),
@@ -1075,8 +1090,16 @@ function registerSchematicWriteTools(
       const { primitiveIds, projectId, transactionId } = deletePrimitiveInputSchema.parse(params);
       try {
         if (!transactionId || !projectId) {
-          await ctx.bridge.call('schematic.deletePrimitive', { primitiveIds });
-          return { success: true };
+          const response = await ctx.bridge.call('schematic.deletePrimitive', { primitiveIds });
+          if (!isConfirmedNativeSchematicDeletion(response, primitiveIds)) {
+            return {
+              success: false,
+              error_code: 'NATIVE_DELETE_UNVERIFIED',
+              error:
+                'Native delete did not verify every requested primitive. Inspect the sheet before retrying.',
+            };
+          }
+          return { success: true, persistence_verified: false };
         }
 
         const operations = await deletePrimitivesInTransaction(
@@ -1087,6 +1110,7 @@ function registerSchematicWriteTools(
         );
         return {
           success: true,
+          persistence_verified: false,
           transaction: {
             id: transactionId,
             operations: operations.map((operation) => ({
@@ -1615,9 +1639,10 @@ function registerSchematicWriteTools(
     name: 'easyeda_project_save',
     title: 'Save project',
     description:
-      'Explicitly save the current EasyEDA Pro project. This ensures all netlist changes, ' +
-      'net flags, pin connections, and other mutations are persisted to the project file. ' +
-      'Save is never implicit — the caller must explicitly request it. Requires confirmWrite.',
+      'Save only the exact focused EasyEDA project/document. Native acknowledgment is ' +
+      'NOT durable persistence: success=false until verified after cold reopen. ' +
+      'On Pro 3.2.209, use GUI Ctrl+S then reopen the document to verify. ' +
+      'Never blindly retry unverified writes.',
     profile: 'core',
     evidence: ['inferred'],
     risk: 'medium',
@@ -1637,24 +1662,57 @@ function registerSchematicWriteTools(
     outputSchema: z.object({
       success: z.boolean(),
       project_id: z.string(),
-      saved_at: z.string().optional(),
+      persistence_verified: z.boolean(),
+      native_acknowledged: z.boolean(),
+      status: z.string(),
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const { projectId } = params as { projectId: string };
       try {
-        const result = await ctx.bridge.call('project.save', { projectId });
-        const data = result as { savedAt?: string };
-        return {
-          success: true,
-          project_id: projectId,
-          saved_at: data.savedAt ?? new Date().toISOString(),
-        };
-      } catch (err) {
+        const result = await ctx.bridge.call('project.save', {
+          projectId,
+          confirmWrite: true,
+        });
+        const data =
+          result && typeof result === 'object'
+            ? (result as { success?: unknown; status?: unknown })
+            : null;
+        const acknowledged =
+          data?.success === true &&
+          data?.status === 'native_save_acknowledged_persistence_unverified';
+        if (!acknowledged) {
+          return {
+            success: false,
+            project_id: projectId,
+            persistence_verified: false,
+            native_acknowledged: false,
+            status: typeof data?.status === 'string' ? data.status : 'native_save_unconfirmed',
+            error:
+              'Native save did not confirm success; project persistence is unverified. ' +
+              'Use EasyEDA GUI Ctrl+S, then close and reopen the exact document to verify. ' +
+              'Do not retry the MCP write blindly.',
+          };
+        }
         return {
           success: false,
           project_id: projectId,
-          error: err instanceof Error ? err.message : String(err),
+          persistence_verified: false,
+          native_acknowledged: true,
+          status: 'persistence_unverified',
+          error:
+            'EasyEDA acknowledged the save, but disk persistence is not verified. ' +
+            'Do not retry blindly; use the EasyEDA GUI Ctrl+S, then close and reopen ' +
+            'the exact project to verify the change.',
+        };
+      } catch {
+        return {
+          success: false,
+          project_id: projectId,
+          persistence_verified: false,
+          native_acknowledged: false,
+          status: 'native_outcome_unknown',
+          error: 'Native save outcome is unknown; inspect the exact project before retrying.',
         };
       }
     },

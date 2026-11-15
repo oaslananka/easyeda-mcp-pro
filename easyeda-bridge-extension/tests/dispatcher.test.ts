@@ -150,15 +150,18 @@ describe('createDispatcher', () => {
     await expect(
       dispatcher.dispatch('project.open', { projectId: 'project-1', confirmWrite: true }),
     ).rejects.toThrow('No EasyEDA API implementation found for dmt_Project.getCurrentProjectInfo');
-    await expect(dispatcher.dispatch('project.save', { projectId: 'project-1' })).resolves.toBe(
-      'saved',
-    );
+    await expect(
+      dispatcher.dispatch('project.save', { projectId: 'project-1' }),
+    ).resolves.toMatchObject({
+      success: false,
+      status: 'confirm_write_required',
+    });
     await expect(dispatcher.dispatch('project.export', exportParams)).resolves.toEqual({
       exported: exportParams,
     });
 
     expect(openProject).not.toHaveBeenCalled();
-    expect(saveAll).toHaveBeenCalledWith();
+    expect(saveAll).not.toHaveBeenCalled();
     expect(getManufactureData).toHaveBeenCalledWith(exportParams);
   });
 
@@ -3083,7 +3086,7 @@ describe('createDispatcher', () => {
       ).resolves.toEqual({ primitiveKind: 'text', primitiveIds: ['text1', 'text2'] });
     });
 
-    it('routes deletion to the primitive class that owns the ID', async () => {
+    it('rejects a mixed deletion batch containing beta text without deleting any primitive', async () => {
       const componentDelete = vi.fn();
       const textDelete = vi.fn(async () => true);
       const dispatcher = createDispatcher(
@@ -3097,17 +3100,14 @@ describe('createDispatcher', () => {
         }),
       );
 
-      const result = await dispatcher.dispatch('schematic.deletePrimitive', {
-        primitiveIds: ['text1', 'missing'],
-      });
+      await expect(
+        dispatcher.dispatch('schematic.deletePrimitive', {
+          primitiveIds: ['text1', 'missing'],
+        }),
+      ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
 
       expect(componentDelete).not.toHaveBeenCalled();
-      expect(textDelete).toHaveBeenCalledWith(['text1']);
-      expect(result).toEqual({
-        success: false,
-        deleted: ['text1'],
-        notFound: ['missing'],
-      });
+      expect(textDelete).not.toHaveBeenCalled();
     });
 
     it('recreates a wire snapshot and returns the new addressable snapshot', async () => {
